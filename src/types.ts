@@ -11,6 +11,7 @@ export interface Product {
 export interface Warranty {
   id: string;
   productId: string;
+  serialNumber?: string;
   customerName: string;
   customerPhone: string;
   activationDate: string;

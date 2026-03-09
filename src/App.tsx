@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   ShieldCheck, 
@@ -38,8 +38,8 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
-import { Product } from './types';
-import { MOCK_PRODUCTS, MOCK_WARRANTIES, MOCK_TRANSACTIONS, MOCK_REWARDS } from './mockData';
+import { Product, Transaction, Warranty, RewardPoint } from './types';
+import { api } from './api';
 
 type Tab = 'dashboard' | 'warranty' | 'rewards' | 'inventory' | 'accounts' | 'masters';
 
@@ -153,21 +153,47 @@ export default function App() {
 }
 
 function DashboardView() {
-  const stats = [
-    { label: 'Total Revenue', value: '₹4.2M', change: '+12.5%', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Active Warranties', value: '1,284', change: '+8.2%', icon: ShieldCheck, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Pending Claims', value: '24', change: '-2.4%', icon: AlertCircle, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { label: 'Reward Points Issued', value: '85.4K', change: '+15.1%', icon: Gift, color: 'text-purple-600', bg: 'bg-purple-50' },
-  ];
+  const [stats, setStats] = useState<{ label: string; value: string; change: string; icon: typeof TrendingUp; color: string; bg: string }[]>([]);
+  const [chartData, setChartData] = useState<{ name: string; sales: number; claims: number }[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const chartData = [
-    { name: 'Jan', sales: 4000, claims: 240 },
-    { name: 'Feb', sales: 3000, claims: 139 },
-    { name: 'Mar', sales: 2000, claims: 980 },
-    { name: 'Apr', sales: 2780, claims: 390 },
-    { name: 'May', sales: 1890, claims: 480 },
-    { name: 'Jun', sales: 2390, claims: 380 },
-  ];
+  useEffect(() => {
+    Promise.all([
+      api.dashboard.stats(),
+      api.dashboard.chart(),
+      api.transactions.list(),
+    ])
+      .then(([s, c, t]) => {
+        setStats([
+          { label: 'Total Revenue', value: `₹${(s.totalRevenue / 1e6).toFixed(1)}M`, change: '+12.5%', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Active Warranties', value: s.activeWarranties.toLocaleString(), change: '+8.2%', icon: ShieldCheck, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Pending Claims', value: s.pendingClaims.toString(), change: '-2.4%', icon: AlertCircle, color: 'text-orange-600', bg: 'bg-orange-50' },
+          { label: 'Reward Points Issued', value: s.rewardPointsIssued >= 1000 ? `${(s.rewardPointsIssued / 1000).toFixed(1)}K` : s.rewardPointsIssued.toString(), change: '+15.1%', icon: Gift, color: 'text-purple-600', bg: 'bg-purple-50' },
+        ]);
+        setChartData(c.length ? c : [
+          { name: 'Jan', sales: 4000, claims: 240 },
+          { name: 'Feb', sales: 3000, claims: 139 },
+          { name: 'Mar', sales: 2000, claims: 980 },
+          { name: 'Apr', sales: 2780, claims: 390 },
+          { name: 'May', sales: 1890, claims: 480 },
+          { name: 'Jun', sales: 2390, claims: 380 },
+        ]);
+        setTransactions(t.slice(0, 5));
+      })
+      .catch(() => {
+        setStats([
+          { label: 'Total Revenue', value: '₹0', change: '0%', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Active Warranties', value: '0', change: '0%', icon: ShieldCheck, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Pending Claims', value: '0', change: '0%', icon: AlertCircle, color: 'text-orange-600', bg: 'bg-orange-50' },
+          { label: 'Reward Points Issued', value: '0', change: '0%', icon: Gift, color: 'text-purple-600', bg: 'bg-purple-50' },
+        ]);
+        setChartData([{ name: 'Jan', sales: 0, claims: 0 }]);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="flex items-center justify-center py-20 text-gray-500">Loading...</div>;
 
   return (
     <motion.div 
@@ -227,7 +253,7 @@ function DashboardView() {
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
           <h3 className="text-lg font-bold mb-6">Recent Transactions</h3>
           <div className="space-y-6">
-            {MOCK_TRANSACTIONS.map((t) => (
+            {transactions.map((t) => (
               <div key={t.id} className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={cn(
@@ -258,6 +284,37 @@ function DashboardView() {
 
 function WarrantyView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [warranties, setWarranties] = useState<Warranty[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All Status');
+  const [formData, setFormData] = useState({ serialNumber: '', customerName: '', customerPhone: '' });
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    api.warranties.list({ search: search || undefined, status: statusFilter !== 'All Status' ? statusFilter : undefined })
+      .then(setWarranties)
+      .catch(() => setWarranties([]))
+      .finally(() => setLoading(false));
+  }, [search, statusFilter]);
+
+  const refreshWarranties = () => {
+    api.warranties.list({ search: search || undefined, status: statusFilter !== 'All Status' ? statusFilter : undefined })
+      .then(setWarranties);
+  };
+
+  const handleActivateWarranty = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    api.warranties.create(formData)
+      .then(() => {
+        setIsModalOpen(false);
+        setFormData({ serialNumber: '', customerName: '', customerPhone: '' });
+        refreshWarranties();
+      })
+      .catch((err) => alert(err.message))
+      .finally(() => setSubmitting(false));
+  };
 
   return (
     <motion.div 
@@ -293,10 +350,16 @@ function WarrantyView() {
             <input 
               type="text" 
               placeholder="Search by Serial Number or Customer Name..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26] transition-all"
             />
           </div>
-          <select className="text-sm bg-white border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#F27D26]">
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="text-sm bg-white border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#F27D26]"
+          >
             <option>All Status</option>
             <option>Active</option>
             <option>Expired</option>
@@ -316,14 +379,17 @@ function WarrantyView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {MOCK_WARRANTIES.map((w) => (
+              {loading ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Loading...</td></tr>
+              ) : (
+              warranties.map((w) => (
                 <tr key={w.id} className="hover:bg-gray-50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center">
                         <Package size={16} className="text-gray-400" />
                       </div>
-                      <span className="text-sm font-bold">SP-5HP-00{w.id}</span>
+                      <span className="text-sm font-bold">{w.serialNumber || `SP-5HP-00${w.id}`}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -347,7 +413,8 @@ function WarrantyView() {
                     <button className="text-xs font-bold text-[#F27D26] hover:underline">View Details</button>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
@@ -378,7 +445,7 @@ function WarrantyView() {
                   </button>
                 </div>
                 
-                <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); setIsModalOpen(false); }}>
+                <form className="space-y-6" onSubmit={handleActivateWarranty}>
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-wider text-gray-400">Serial Number</label>
                     <div className="relative">
@@ -386,6 +453,9 @@ function WarrantyView() {
                       <input 
                         type="text" 
                         placeholder="e.g. SP-5HP-001" 
+                        value={formData.serialNumber}
+                        onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
+                        required
                         className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-[#F27D26] outline-none transition-all"
                       />
                     </div>
@@ -397,6 +467,9 @@ function WarrantyView() {
                       <input 
                         type="text" 
                         placeholder="John Doe" 
+                        value={formData.customerName}
+                        onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                        required
                         className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-[#F27D26] outline-none transition-all"
                       />
                     </div>
@@ -405,6 +478,9 @@ function WarrantyView() {
                       <input 
                         type="tel" 
                         placeholder="+91 98765 43210" 
+                        value={formData.customerPhone}
+                        onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                        required
                         className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-[#F27D26] outline-none transition-all"
                       />
                     </div>
@@ -419,8 +495,12 @@ function WarrantyView() {
                     </div>
                   </div>
 
-                  <button className="w-full bg-[#F27D26] text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-[#F27D26]/20 hover:bg-[#D96A1C] transition-all transform active:scale-[0.98]">
-                    Activate Warranty
+                  <button 
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full bg-[#F27D26] text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-[#F27D26]/20 hover:bg-[#D96A1C] transition-all transform active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {submitting ? 'Activating...' : 'Activate Warranty'}
                   </button>
                 </form>
               </div>
@@ -433,6 +513,24 @@ function WarrantyView() {
 }
 
 function RewardsView() {
+  const [rewards, setRewards] = useState<RewardPoint[]>([]);
+  const [balance, setBalance] = useState(0);
+  const [filter, setFilter] = useState('All');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.rewards.list(filter !== 'All' ? filter : undefined),
+      api.rewards.balance(),
+    ])
+      .then(([r, b]) => {
+        setRewards(r);
+        setBalance(b.balance);
+      })
+      .catch(() => setRewards([]))
+      .finally(() => setLoading(false));
+  }, [filter]);
+
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }} 
@@ -445,7 +543,7 @@ function RewardsView() {
             <div className="absolute top-0 right-0 w-32 h-32 bg-[#F27D26] blur-[80px] opacity-20" />
             <div className="relative z-10">
               <p className="text-gray-400 text-sm font-medium mb-2">Total Points Balance</p>
-              <h2 className="text-4xl font-bold mb-8">42,500 <span className="text-lg font-normal text-gray-500">pts</span></h2>
+              <h2 className="text-4xl font-bold mb-8">{balance.toLocaleString()} <span className="text-lg font-normal text-gray-500">pts</span></h2>
               <div className="flex gap-4">
                 <button className="flex-1 bg-[#F27D26] text-white py-3 rounded-xl font-bold text-sm hover:bg-[#D96A1C] transition-colors">
                   Redeem Now
@@ -480,13 +578,25 @@ function RewardsView() {
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-lg font-bold">Points History</h3>
             <div className="flex gap-2">
-              <button className="px-3 py-1 text-xs font-bold bg-[#F27D26] text-white rounded-full">All</button>
-              <button className="px-3 py-1 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-full">Earned</button>
-              <button className="px-3 py-1 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-full">Redeemed</button>
+              {(['All', 'Earned', 'Redeemed'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={cn(
+                    "px-3 py-1 text-xs font-bold rounded-full",
+                    filter === f ? "bg-[#F27D26] text-white" : "text-gray-500 hover:bg-gray-100"
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
             </div>
           </div>
           <div className="space-y-4">
-            {MOCK_REWARDS.map((r) => (
+            {loading ? (
+              <div className="py-12 text-center text-gray-500">Loading...</div>
+            ) : (
+            rewards.map((r) => (
               <div key={r.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-transparent hover:border-gray-200 transition-all">
                 <div className="flex items-center gap-4">
                   <div className={cn(
@@ -507,7 +617,8 @@ function RewardsView() {
                   <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{r.type}</p>
                 </div>
               </div>
-            ))}
+            ))
+            )}
           </div>
         </div>
       </div>
@@ -518,8 +629,16 @@ function RewardsView() {
 function InventoryView() {
   const [sortBy, setSortBy] = useState<keyof Product>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.products.list()
+      .then(setProducts)
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   const sortedProducts = [...products].sort((a, b) => {
     const valA = a[sortBy];
@@ -545,8 +664,12 @@ function InventoryView() {
 
   const handleDelete = () => {
     if (productToDelete) {
-      setProducts(products.filter(p => p.id !== productToDelete.id));
-      setProductToDelete(null);
+      api.products.delete(productToDelete.id)
+        .then(() => {
+          setProducts(products.filter(p => p.id !== productToDelete.id));
+          setProductToDelete(null);
+        })
+        .catch((err) => alert(err.message));
     }
   };
 
@@ -593,7 +716,10 @@ function InventoryView() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {sortedProducts.map((p) => (
+        {loading ? (
+          <div className="col-span-full py-20 text-center text-gray-500">Loading...</div>
+        ) : (
+        sortedProducts.map((p) => (
           <div key={p.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative group">
             <button 
               onClick={() => setProductToDelete(p)}
@@ -641,7 +767,8 @@ function InventoryView() {
               </div>
             </div>
           </div>
-        ))}
+        ))
+        )}
       </div>
 
       {/* Delete Confirmation Modal */}
@@ -693,6 +820,16 @@ function InventoryView() {
 }
 
 function AccountsView() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.transactions.list()
+      .then(setTransactions)
+      .catch(() => setTransactions([]))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <motion.div 
       initial={{ opacity: 0 }} 
@@ -708,7 +845,10 @@ function AccountsView() {
           </div>
         </div>
         <div className="space-y-1">
-          {MOCK_TRANSACTIONS.map((t, i) => (
+          {loading ? (
+            <div className="py-12 text-center text-gray-500">Loading...</div>
+          ) : (
+          transactions.map((t, i) => (
             <div key={t.id} className={cn(
               "flex items-center justify-between p-4 rounded-xl transition-all",
               i % 2 === 0 ? 'bg-gray-50/50' : 'bg-transparent'
@@ -731,7 +871,8 @@ function AccountsView() {
                 {t.type === 'Sales' ? '+' : '-'}₹{t.amount.toLocaleString()}
               </span>
             </div>
-          ))}
+          ))
+          )}
         </div>
       </div>
     </motion.div>
