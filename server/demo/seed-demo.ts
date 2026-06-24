@@ -94,24 +94,33 @@ console.log(`✓ ${customers.length} customers created\n`);
 // ============ DISTRIBUTE PRODUCTS TO VENDORS ============
 console.log('Distributing products to vendors...');
 const distributions = [
-  { vendorId: 'VD01', productId: 'PD01', prefix: 'SUB1H', count: 8, discount: 10 },
-  { vendorId: 'VD01', productId: 'PD04', prefix: 'MNO1H', count: 10, discount: 10 },
-  { vendorId: 'VD02', productId: 'PD02', prefix: 'SUB3H', count: 6, discount: 8 },
-  { vendorId: 'VD02', productId: 'PD05', prefix: 'MNO2H', count: 8, discount: 8 },
-  { vendorId: 'VD03', productId: 'PD03', prefix: 'SUB5H', count: 5, discount: 12 },
-  { vendorId: 'VD03', productId: 'PD06', prefix: 'OPN3H', count: 7, discount: 12 },
-  { vendorId: 'VD04', productId: 'PD01', prefix: 'SUB1H', count: 6, discount: 7 },
-  { vendorId: 'VD05', productId: 'PD04', prefix: 'MNO1H', count: 10, discount: 10 },
-  { vendorId: 'VD06', productId: 'PD07', prefix: 'BWC5H', count: 4, discount: 5 },
-  { vendorId: 'VD07', productId: 'PD08', prefix: 'CPNLD', count: 15, discount: 15 },
-  { vendorId: 'VD08', productId: 'PD02', prefix: 'SUB3H', count: 5, discount: 8 },
-  { vendorId: 'VD09', productId: 'PD05', prefix: 'MNO2H', count: 6, discount: 10 },
-  { vendorId: 'VD10', productId: 'PD09', prefix: 'PBR1H', count: 5, discount: 6 },
-  { vendorId: 'VD11', productId: 'PD06', prefix: 'OPN3H', count: 5, discount: 10 },
-  { vendorId: 'VD12', productId: 'PD01', prefix: 'SUB1H', count: 5, discount: 5 },
-  { vendorId: 'VD13', productId: 'PD10', prefix: 'SOLAR', count: 3, discount: 8 },
-  { vendorId: 'VD14', productId: 'PD08', prefix: 'CPNLD', count: 10, discount: 12 },
-  { vendorId: 'VD15', productId: 'PD03', prefix: 'SUB5H', count: 4, discount: 10 },
+  // First batch — 25 days ago
+  { vendorId: 'VD01', productId: 'PD01', count: 5, discount: 10, daysAgoVal: 25 },
+  { vendorId: 'VD01', productId: 'PD04', count: 6, discount: 10, daysAgoVal: 25 },
+  { vendorId: 'VD02', productId: 'PD02', count: 4, discount: 8, daysAgoVal: 25 },
+  { vendorId: 'VD02', productId: 'PD05', count: 5, discount: 8, daysAgoVal: 25 },
+  { vendorId: 'VD03', productId: 'PD03', count: 3, discount: 12, daysAgoVal: 25 },
+  { vendorId: 'VD03', productId: 'PD06', count: 4, discount: 12, daysAgoVal: 25 },
+  { vendorId: 'VD04', productId: 'PD01', count: 4, discount: 7, daysAgoVal: 20 },
+  { vendorId: 'VD05', productId: 'PD04', count: 6, discount: 10, daysAgoVal: 20 },
+  { vendorId: 'VD06', productId: 'PD07', count: 3, discount: 5, daysAgoVal: 20 },
+  { vendorId: 'VD07', productId: 'PD08', count: 10, discount: 15, daysAgoVal: 18 },
+  { vendorId: 'VD08', productId: 'PD02', count: 3, discount: 8, daysAgoVal: 18 },
+  { vendorId: 'VD09', productId: 'PD05', count: 4, discount: 10, daysAgoVal: 15 },
+  { vendorId: 'VD10', productId: 'PD09', count: 3, discount: 6, daysAgoVal: 15 },
+  { vendorId: 'VD11', productId: 'PD06', count: 3, discount: 10, daysAgoVal: 15 },
+  { vendorId: 'VD12', productId: 'PD01', count: 3, discount: 5, daysAgoVal: 12 },
+  { vendorId: 'VD13', productId: 'PD10', count: 2, discount: 8, daysAgoVal: 12 },
+  { vendorId: 'VD14', productId: 'PD08', count: 6, discount: 12, daysAgoVal: 10 },
+  { vendorId: 'VD15', productId: 'PD03', count: 3, discount: 10, daysAgoVal: 10 },
+  // Repeat orders — same vendors ordering same products again on different dates
+  { vendorId: 'VD01', productId: 'PD01', count: 3, discount: 10, daysAgoVal: 8 },
+  { vendorId: 'VD01', productId: 'PD04', count: 4, discount: 12, daysAgoVal: 8 },
+  { vendorId: 'VD02', productId: 'PD02', count: 2, discount: 10, daysAgoVal: 5 },
+  { vendorId: 'VD03', productId: 'PD03', count: 2, discount: 12, daysAgoVal: 5 },
+  { vendorId: 'VD05', productId: 'PD04', count: 4, discount: 10, daysAgoVal: 3 },
+  { vendorId: 'VD07', productId: 'PD08', count: 5, discount: 15, daysAgoVal: 3 },
+  { vendorId: 'VD10', productId: 'PD09', count: 2, discount: 8, daysAgoVal: 2 },
 ];
 
 const today = new Date().toISOString().slice(0, 10);
@@ -121,18 +130,19 @@ const insertDist = db.prepare('INSERT OR IGNORE INTO product_distribution (id, p
 const updateInvStatus = db.prepare("UPDATE product_inventory SET status = 'Distributed' WHERE barcode = ?");
 
 let distCount = 0;
-for (const d of distributions) {
+for (let di = 0; di < distributions.length; di++) {
+  const d = distributions[di];
   const product = products.find(p => p.id === d.productId)!;
   const netPrice = Math.round(product.price * (100 - d.discount) / 100);
   const invRows = db.prepare("SELECT barcode FROM product_inventory WHERE product_id = ? AND status = 'InStock' LIMIT ?").all(d.productId, d.count) as { barcode: string }[];
-  const date = daysAgo(Math.floor(Math.random() * 30) + 5);
+  const date = daysAgo(d.daysAgoVal);
   for (let i = 0; i < invRows.length; i++) {
     const bc = invRows[i].barcode;
-    insertDist.run(`DD-${d.vendorId}-${d.productId}-${i + 1}`, d.productId, bc, d.vendorId, date, 'Distributed', d.discount, netPrice);
+    insertDist.run(`DD-${di}-${d.vendorId}-${d.productId}-${i + 1}`, d.productId, bc, d.vendorId, date, 'Distributed', d.discount, netPrice);
     updateInvStatus.run(bc);
     distCount++;
   }
-  console.log(`  ${d.count} x ${product.name} → ${vendors.find(v => v.id === d.vendorId)!.name} (${d.discount}% off)`);
+  console.log(`  ${invRows.length} x ${product.name} → ${vendors.find(v => v.id === d.vendorId)!.name} (${d.discount}% off, ${date})`);
 }
 console.log(`✓ ${distCount} units distributed\n`);
 

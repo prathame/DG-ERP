@@ -92,39 +92,48 @@ console.log('Distributing jewellery to vendors...');
 const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
 
 const distributions = [
-  { vendorId: 'JV01', productId: 'JP01', count: 10, discount: 12 },
-  { vendorId: 'JV01', productId: 'JP05', count: 15, discount: 12 },
-  { vendorId: 'JV02', productId: 'JP07', count: 5, discount: 8 },
-  { vendorId: 'JV02', productId: 'JP09', count: 10, discount: 10 },
-  { vendorId: 'JV03', productId: 'JP03', count: 8, discount: 10 },
-  { vendorId: 'JV04', productId: 'JP06', count: 8, discount: 15 },
-  { vendorId: 'JV05', productId: 'JP02', count: 15, discount: 10 },
-  { vendorId: 'JV05', productId: 'JP10', count: 20, discount: 12 },
-  { vendorId: 'JV06', productId: 'JP04', count: 10, discount: 8 },
-  { vendorId: 'JV06', productId: 'JP08', count: 12, discount: 10 },
-  { vendorId: 'JV07', productId: 'JP11', count: 8, discount: 10 },
-  { vendorId: 'JV08', productId: 'JP01', count: 8, discount: 10 },
-  { vendorId: 'JV09', productId: 'JP12', count: 5, discount: 5 },
-  { vendorId: 'JV10', productId: 'JP05', count: 12, discount: 12 },
-  { vendorId: 'JV11', productId: 'JP09', count: 8, discount: 10 },
-  { vendorId: 'JV12', productId: 'JP02', count: 10, discount: 8 },
+  // First batch
+  { vendorId: 'JV01', productId: 'JP01', count: 6, discount: 12, daysAgoVal: 22 },
+  { vendorId: 'JV01', productId: 'JP05', count: 10, discount: 12, daysAgoVal: 22 },
+  { vendorId: 'JV02', productId: 'JP07', count: 3, discount: 8, daysAgoVal: 20 },
+  { vendorId: 'JV02', productId: 'JP09', count: 6, discount: 10, daysAgoVal: 20 },
+  { vendorId: 'JV03', productId: 'JP03', count: 5, discount: 10, daysAgoVal: 18 },
+  { vendorId: 'JV04', productId: 'JP06', count: 5, discount: 15, daysAgoVal: 18 },
+  { vendorId: 'JV05', productId: 'JP02', count: 10, discount: 10, daysAgoVal: 15 },
+  { vendorId: 'JV05', productId: 'JP10', count: 12, discount: 12, daysAgoVal: 15 },
+  { vendorId: 'JV06', productId: 'JP04', count: 6, discount: 8, daysAgoVal: 12 },
+  { vendorId: 'JV06', productId: 'JP08', count: 8, discount: 10, daysAgoVal: 12 },
+  { vendorId: 'JV07', productId: 'JP11', count: 5, discount: 10, daysAgoVal: 10 },
+  { vendorId: 'JV08', productId: 'JP01', count: 5, discount: 10, daysAgoVal: 10 },
+  { vendorId: 'JV09', productId: 'JP12', count: 3, discount: 5, daysAgoVal: 8 },
+  { vendorId: 'JV10', productId: 'JP05', count: 8, discount: 12, daysAgoVal: 8 },
+  { vendorId: 'JV11', productId: 'JP09', count: 5, discount: 10, daysAgoVal: 6 },
+  { vendorId: 'JV12', productId: 'JP02', count: 6, discount: 8, daysAgoVal: 6 },
+  // Repeat orders — same vendors ordering same products again
+  { vendorId: 'JV01', productId: 'JP01', count: 4, discount: 12, daysAgoVal: 4 },
+  { vendorId: 'JV01', productId: 'JP05', count: 5, discount: 15, daysAgoVal: 4 },
+  { vendorId: 'JV02', productId: 'JP07', count: 2, discount: 10, daysAgoVal: 3 },
+  { vendorId: 'JV04', productId: 'JP06', count: 3, discount: 15, daysAgoVal: 3 },
+  { vendorId: 'JV05', productId: 'JP10', count: 8, discount: 12, daysAgoVal: 2 },
+  { vendorId: 'JV10', productId: 'JP05', count: 4, discount: 12, daysAgoVal: 1 },
 ];
 
 const insertDist = db.prepare('INSERT OR IGNORE INTO product_distribution (id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
 const updateInvStatus = db.prepare("UPDATE product_inventory SET status = 'Distributed' WHERE barcode = ?");
 
 let distCount = 0;
-for (const d of distributions) {
+for (let di = 0; di < distributions.length; di++) {
+  const d = distributions[di];
   const product = products.find(p => p.id === d.productId)!;
   const netPrice = Math.round(product.price * (100 - d.discount) / 100);
   const invRows = db.prepare("SELECT barcode FROM product_inventory WHERE product_id = ? AND status = 'InStock' LIMIT ?").all(d.productId, d.count) as { barcode: string }[];
-  const date = daysAgo(Math.floor(Math.random() * 30) + 5);
+  const date = daysAgo(d.daysAgoVal);
   for (let i = 0; i < invRows.length; i++) {
-    insertDist.run(`JD-${d.vendorId}-${d.productId}-${i + 1}`, d.productId, invRows[i].barcode, d.vendorId, date, 'Distributed', d.discount, netPrice);
+    insertDist.run(`JD-${di}-${d.vendorId}-${d.productId}-${i + 1}`, d.productId, invRows[i].barcode, d.vendorId, date, 'Distributed', d.discount, netPrice);
     updateInvStatus.run(invRows[i].barcode);
     distCount++;
   }
-  console.log(`  ${d.count} x ${product.name} → ${vendors.find(v => v.id === d.vendorId)!.name} (${d.discount}% off)`);
+  console.log(`  ${invRows.length} x ${product.name} → ${vendors.find(v => v.id === d.vendorId)!.name} (${d.discount}% off, ${date})`);
 }
 console.log(`✓ ${distCount} units distributed\n`);
 
