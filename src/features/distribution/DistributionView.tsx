@@ -16,7 +16,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [summary, setSummary] = useState<{ totalBeforeDistribution: number; availableInInventory: number; totalDistributed: number; vendorStats: { vendorId: string; vendorName: string; distributed: number; sold: number; replaced: number; damaged: number; availableWithVendor: number }[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ productId: '', vendorId: '', quantity: 1, distributionDate: new Date().toISOString().slice(0, 10) });
+  const [form, setForm] = useState({ productId: '', vendorId: '', quantity: 1, distributionDate: new Date().toISOString().slice(0, 10), amountPaid: '' });
   const [submitting, setSubmitting] = useState(false);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(vendorId ?? null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -52,8 +52,9 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
       vendorId: form.vendorId,
       quantity: form.quantity,
       distributionDate: form.distributionDate,
+      amountPaid: form.amountPaid ? parseFloat(form.amountPaid) : undefined,
     })
-      .then(() => { setModalOpen(false); setForm({ productId: '', vendorId: '', quantity: 1, distributionDate: new Date().toISOString().slice(0, 10) }); load(); toast('Products distributed successfully', 'success'); })
+      .then(() => { setModalOpen(false); setForm({ productId: '', vendorId: '', quantity: 1, distributionDate: new Date().toISOString().slice(0, 10), amountPaid: '' }); load(); toast('Products distributed successfully', 'success'); })
       .catch((err) => toast(err.message, 'error'))
       .finally(() => setSubmitting(false));
   };
@@ -283,6 +284,19 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Quantity</label><input type="number" min={1} value={form.quantity || ''} onChange={(e) => setForm({ ...form, quantity: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" />{(() => { const p = products.find(x => x.id === form.productId); return p && <span className="text-xs text-gray-500 mt-1 block">Available in inventory: {p.stock ?? 0}</span>; })()}</div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Vendor</label><select required value={form.vendorId} onChange={(e) => setForm({ ...form, vendorId: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]"><option value="">Select vendor</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Distribution Date</label><input type="date" value={form.distributionDate} onChange={(e) => setForm({ ...form, distributionDate: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                {(() => {
+                  const p = products.find(x => x.id === form.productId);
+                  const totalValue = (p?.price ?? 0) * (form.quantity || 0);
+                  const paid = parseFloat(form.amountPaid) || 0;
+                  const remaining = totalValue - paid;
+                  return totalValue > 0 ? (
+                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 space-y-2">
+                      <div className="flex justify-between text-sm"><span className="text-gray-500">Total Value</span><span className="font-bold">₹{totalValue.toLocaleString()}</span></div>
+                      <div><label className="text-xs font-bold text-gray-400 uppercase">Amount Paid by Vendor</label><input type="number" min={0} max={totalValue} step={0.01} value={form.amountPaid} onChange={(e) => setForm({ ...form, amountPaid: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="0.00 (leave empty if credit)" /></div>
+                      <div className="flex justify-between text-sm"><span className="text-gray-500">Remaining Balance</span><span className={cn("font-bold", remaining > 0 ? "text-rose-600" : "text-emerald-600")}>₹{remaining.toLocaleString()}</span></div>
+                    </div>
+                  ) : null;
+                })()}
                 <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Distribute'}</button></div>
               </form>
             </motion.div>

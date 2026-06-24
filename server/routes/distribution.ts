@@ -73,7 +73,7 @@ router.get('/api/distribution', (req, res) => {
 
 router.post('/api/distribution', (req, res) => {
   try {
-    const { productId, vendorId, distributionDate, quantity } = req.body;
+    const { productId, vendorId, distributionDate, quantity, amountPaid } = req.body;
     if (!productId || !vendorId) return res.status(400).json({ error: 'Product and vendor are required' });
     const qty = Math.max(1, parseInt(String(quantity), 10) || 1);
     const product = db.prepare('SELECT id FROM products WHERE id = ?').get(productId) as { id: string } | undefined;
@@ -96,6 +96,15 @@ router.post('/api/distribution', (req, res) => {
     });
     runDist();
     logAudit('Distribution Created', 'distribution', baseId, `${qty} units to vendor ${vendorId}`);
+    const paidAmount = typeof amountPaid === 'number' && amountPaid > 0 ? amountPaid : null;
+    if (paidAmount) {
+      const payId = `VP${Date.now()}`;
+      db.prepare('INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${baseId}`);
+      logAudit('Payment Recorded', 'payment', payId, `Vendor: ${vendorId}, Amount: ₹${paidAmount} (with distribution)`);
+    }
+    const productPrice = (db.prepare('SELECT price FROM products WHERE id = ?').get(productId) as { price: number })?.price ?? 0;
+    const totalValue = productPrice * qty;
     const firstRow = db.prepare(`
       SELECT pd.*, p.name as product_name, v.name as vendor_name, v.id as vendor_id
       FROM product_distribution pd
@@ -114,6 +123,9 @@ router.post('/api/distribution', (req, res) => {
       vendorName: firstRow?.vendor_name,
       distributionDate: date,
       status: 'Distributed',
+      totalValue,
+      amountPaid: paidAmount ?? 0,
+      balanceRemaining: totalValue - (paidAmount ?? 0),
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -178,6 +190,12 @@ router.get('/api/distribution/bill', (req, res) => {
       })),
       totalQuantity: rows.length,
       totalValue,
+      payment: (() => {
+        const vid = vendorId as string;
+        const totalDistValue = (db.prepare('SELECT COALESCE(SUM(p.price), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?').get(vid) as { t: number }).t;
+        const totalPaid = (db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE vendor_id = ?').get(vid) as { t: number }).t;
+        return { totalDistributedValue: totalDistValue, totalPaid, balance: totalDistValue - totalPaid };
+      })(),
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });

@@ -78,6 +78,7 @@ export interface DistributionBillData {
   items: { sno: number; barcode: string; productName: string; batchNumber?: string | null; price: number; status: string }[];
   totalQuantity: number;
   totalValue: number;
+  payment?: { totalDistributedValue: number; totalPaid: number; balance: number };
 }
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
@@ -212,7 +213,7 @@ export const api = {
         totalDistributed: number;
         vendorStats: { vendorId: string; vendorName: string; distributed: number; sold: number; replaced: number; damaged: number; availableWithVendor: number }[];
       }>('/distribution/summary'),
-    create: (data: { productId: string; vendorId: string; distributionDate?: string; quantity?: number }) =>
+    create: (data: { productId: string; vendorId: string; distributionDate?: string; quantity?: number; amountPaid?: number }) =>
       fetchApi<DistributionRecord>('/distribution', { method: 'POST', body: JSON.stringify(data) }),
     getBill: (params: { vendorId: string; productId?: string; distributionDate?: string }) => {
       const q = new URLSearchParams({ vendorId: params.vendorId });

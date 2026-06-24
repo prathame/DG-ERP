@@ -193,6 +193,15 @@ export function generateDistributionChallanHtml(bill: DistributionBillData): str
     <span>Total Quantity: <strong>${bill.totalQuantity} units</strong></span>
     <span>Total Value: <strong>₹${bill.totalValue.toLocaleString()}</strong></span>
   </div>
+  ${bill.payment ? `
+  <div style="margin-top:16px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;">
+    <strong style="font-size:13px;">Payment Summary</strong>
+    <table style="width:100%;margin-top:8px;font-size:13px;">
+      <tr><td style="color:#6b7280;padding:3px 0;">Total Distributed Value (All Time)</td><td style="text-align:right;font-weight:600;">₹${bill.payment.totalDistributedValue.toLocaleString()}</td></tr>
+      <tr><td style="color:#16a34a;padding:3px 0;">Amount Paid</td><td style="text-align:right;font-weight:600;color:#16a34a;">₹${bill.payment.totalPaid.toLocaleString()}</td></tr>
+      <tr style="border-top:2px solid #F27D26;"><td style="padding:6px 0;font-weight:700;${bill.payment.balance > 0 ? 'color:#dc2626;' : 'color:#16a34a;'}">Balance Remaining</td><td style="text-align:right;font-weight:700;font-size:15px;${bill.payment.balance > 0 ? 'color:#dc2626;' : 'color:#16a34a;'}">₹${bill.payment.balance.toLocaleString()}</td></tr>
+    </table>
+  </div>` : ''}
   <div class="signatures">
     <div class="sig-box"><p>Authorized Signatory</p></div>
     <div class="sig-box"><p>Received By</p></div>

@@ -110,6 +110,7 @@ export function formatDistributionChallanText(bill: {
   company: { name: string; phone?: string | null; address?: string | null };
   items: { sno: number; barcode: string; productName: string }[];
   totalQuantity: number; totalValue: number;
+  payment?: { totalDistributedValue: number; totalPaid: number; balance: number };
 }): string {
   const itemLines = bill.items.map((item) => `${item.sno}. ${item.barcode} — ${item.productName}`);
   const lines = [
@@ -130,6 +131,7 @@ export function formatDistributionChallanText(bill: {
     ...itemLines,
     ``,
     `Total Value: ₹${bill.totalValue.toLocaleString()}`,
+    bill.payment ? `\n💰 *PAYMENT STATUS*\nTotal Owed: ₹${bill.payment.totalDistributedValue.toLocaleString()}\nPaid: ₹${bill.payment.totalPaid.toLocaleString()}\nBalance: ₹${bill.payment.balance.toLocaleString()}` : '',
     ``,
     `— ${bill.company.name} ERP`,
   ];
