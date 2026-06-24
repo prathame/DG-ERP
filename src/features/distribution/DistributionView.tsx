@@ -19,6 +19,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [form, setForm] = useState({ productId: '', vendorId: '', quantity: 1, distributionDate: new Date().toISOString().slice(0, 10), discountPercent: '', amountPaid: '' });
   const [submitting, setSubmitting] = useState(false);
   const [includeGst, setIncludeGst] = useState(true);
+  const [splitBillModal, setSplitBillModal] = useState<{ bill: import('../../api').DistributionBillData } | null>(null);
+  const [splitGstQty, setSplitGstQty] = useState(0);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(vendorId ?? null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
@@ -165,10 +167,18 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     <ArrowLeft size={20} className="text-gray-600" />
                   </button>
                   <h3 className="font-bold text-lg">{selectedProduct ? selectedProduct.productName : vendorName}</h3>
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-500 bg-white border border-gray-200 px-3 py-1.5 rounded-full select-none ml-2">
-                    <input type="checkbox" checked={includeGst} onChange={(e) => setIncludeGst(e.target.checked)} className="rounded text-[#F27D26]" />
-                    GST
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      api.distribution.getBill({ vendorId: selectedVendorId!, productId: selectedProductId ?? undefined })
+                        .then((bill) => { setSplitBillModal({ bill }); setSplitGstQty(Math.ceil(bill.totalQuantity / 2)); })
+                        .catch((err) => toast(err.message, 'error'));
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors ml-2"
+                    title="Split into GST + Non-GST bills"
+                  >
+                    Split Bill
+                  </button>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
@@ -324,6 +334,94 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* Split Bill Modal */}
+      <AnimatePresence>
+        {splitBillModal && (() => {
+          const { bill } = splitBillModal;
+          const totalQty = bill.totalQuantity;
+          const gstQty = Math.min(Math.max(0, splitGstQty), totalQty);
+          const nonGstQty = totalQty - gstQty;
+          const pricePerUnit = totalQty > 0 ? bill.totalValue / totalQty : 0;
+          const gstAmount = Math.round(pricePerUnit * gstQty);
+          const nonGstAmount = bill.totalValue - gstAmount;
+          const gstRate = bill.groupedItems[0]?.discountPercent !== undefined ? 18 : 18;
+          const basePrice = Math.round(gstAmount * 100 / (100 + gstRate));
+          const gstTax = gstAmount - basePrice;
+          const halfGst = Math.round(gstTax / 2);
+
+          const makeSplitBill = (qty: number, amount: number, isGst: boolean): typeof bill => {
+            const ratio = totalQty > 0 ? qty / totalQty : 0;
+            return {
+              ...bill,
+              groupedItems: bill.groupedItems.map((g, i) => {
+                const itemQty = i === 0 ? qty : 0;
+                return { ...g, quantity: itemQty, lineTotal: Math.round(g.netPrice * itemQty), barcodeRange: itemQty > 0 ? g.barcodeRange : '-' };
+              }).filter(g => g.quantity > 0),
+              items: bill.items.slice(0, qty),
+              totalQuantity: qty,
+              grossValue: Math.round(bill.grossValue * ratio),
+              totalDiscount: Math.round(bill.totalDiscount * ratio),
+              totalValue: amount,
+            };
+          };
+
+          return (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/40" onClick={() => setSplitBillModal(null)} />
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-lg rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+                <h3 className="text-lg font-bold mb-1">Split Bill — GST + Non-GST</h3>
+                <p className="text-sm text-gray-500 mb-4">Choose how many units go on the GST bill. The rest will be on a separate non-GST bill.</p>
+
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
+                  <div className="flex justify-between text-sm mb-3"><span className="text-gray-500">Total Units</span><span className="font-bold">{totalQty}</span></div>
+                  <div className="flex justify-between text-sm mb-3"><span className="text-gray-500">Total Amount</span><span className="font-bold">₹{bill.totalValue.toLocaleString()}</span></div>
+                  <div className="border-t border-gray-200 pt-3">
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">GST Bill — Units</label>
+                    <input type="range" min={0} max={totalQty} value={gstQty} onChange={(e) => setSplitGstQty(parseInt(e.target.value, 10))} className="w-full accent-[#F27D26]" />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1"><span>0</span><span>{totalQty}</span></div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className={cn("p-4 rounded-xl border-2", gstQty > 0 ? "border-emerald-300 bg-emerald-50" : "border-gray-200 bg-gray-50")}>
+                    <p className="text-xs font-bold text-emerald-700 uppercase mb-2">GST Bill</p>
+                    <p className="text-2xl font-bold text-emerald-700">₹{gstAmount.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600 mt-1">{gstQty} units</p>
+                    {gstQty > 0 && (
+                      <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+                        <p>Base: ₹{basePrice.toLocaleString()}</p>
+                        <p>CGST: ₹{halfGst.toLocaleString()}</p>
+                        <p>SGST: ₹{(gstTax - halfGst).toLocaleString()}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className={cn("p-4 rounded-xl border-2", nonGstQty > 0 ? "border-amber-300 bg-amber-50" : "border-gray-200 bg-gray-50")}>
+                    <p className="text-xs font-bold text-amber-700 uppercase mb-2">Non-GST Bill</p>
+                    <p className="text-2xl font-bold text-amber-700">₹{nonGstAmount.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600 mt-1">{nonGstQty} units</p>
+                    <p className="text-xs text-gray-400 mt-2">No tax breakdown</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {gstQty > 0 && (
+                    <button type="button" onClick={() => { const w = openPrintWindow(); if (!w) return; printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(gstQty, gstAmount, true), { showGst: true })); }} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700">
+                      Print GST Bill
+                    </button>
+                  )}
+                  {nonGstQty > 0 && (
+                    <button type="button" onClick={() => { const w = openPrintWindow(); if (!w) return; printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(nonGstQty, nonGstAmount, false), { showGst: false })); }} className="flex-1 py-2.5 bg-amber-600 text-white rounded-xl font-bold text-sm hover:bg-amber-700">
+                      Print Non-GST Bill
+                    </button>
+                  )}
+                </div>
+                <button type="button" onClick={() => setSplitBillModal(null)} className="w-full mt-2 py-2 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
     </motion.div>
   );
