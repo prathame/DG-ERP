@@ -191,11 +191,15 @@ export function InventoryView() {
                   </p>
                   <p className="text-[10px] text-gray-500 mt-0.5">Not yet sold</p>
                 </div>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-gray-50">
-                <div className="flex gap-3 text-sm font-medium">
-                  <span className="text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-lg font-bold">{p.soldCount ?? 0} sold</span>
+                <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-100 flex-1">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Sold</p>
+                  <p className="font-bold text-lg text-emerald-700 leading-none">
+                    {p.soldCount ?? 0} <span className="text-xs font-normal opacity-60">units</span>
+                  </p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">To customers</p>
                 </div>
+              </div>
+              <div className="flex justify-end items-center pt-2 border-t border-gray-50">
                 <div className="text-right">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Price</p>
                   <p className="font-bold text-lg text-emerald-600 leading-none">₹{p.price.toLocaleString()}</p>
