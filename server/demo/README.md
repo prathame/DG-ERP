@@ -1,54 +1,68 @@
 # Demo Data Scripts
 
-Scripts to populate or reset the database for demos and testing.
+Scripts to populate the database with industry-specific demo data for presentations.
 
-## Load Demo Data
+## Available Demos
 
-Populates the database with realistic Indian business data:
+### Pump Manufacturing (Splendor Pump LLP)
 
 ```bash
-npx tsx server/demo/seed-demo.ts
+npm run demo:reset
 ```
 
-**What gets created:**
-- **15 vendors** — Rajesh Electricals, Sharma Pump House, Patel Motor Works, etc.
-- **15 vendor login accounts** — each vendor gets auto-generated credentials
-- **10 products** — Submersible pumps, monoblock pumps, borewells, solar controllers, etc.
-- **400+ barcode units** — each product with a unique barcode range
-- **20 customers** — mapped to vendors across India
-- **18 distribution batches** — products distributed to vendors with discounts (5–15%)
-- **10 vendor payments** — partial payments via Cash, UPI, Bank Transfer, Cheque
-- **10 customer sales** — with warranties auto-created
-- **10 transactions** — sales, purchases, expenses
-- **3 bank accounts** — HDFC, SBI, ICICI
-- **3 reward rules** — milestone-based bonus points
+- 15 vendors, 10 products (400+ units), 20 customers
+- Submersible pumps, monoblock pumps, borewells, solar controllers
+- Distributions with discounts, payments, sales, warranties
 
-**Admin login:** `admin@splendor.com` / `admin123`
-**Vendor login example:** `rajesh@electricals.com` / `rajeshelectricals@123`
+### Silver Jewellery (Shree Silver Jewellers)
+
+```bash
+npm run demo:jewellery
+```
+
+- 12 vendors, 12 products (705 units), 15 customers
+- Anklets, chains, rings, bangles, necklaces, earrings, pooja thalis
+- GST at 3% (jewellery rate), HSN 7113/7114
+- Distributions with discounts, payments, sales, warranties
+
+## Commands
+
+| Command | Description |
+|---|---|
+| `npm run demo:seed` | Load pump manufacturing data |
+| `npm run demo:jewellery` | Clear + load jewellery data |
+| `npm run demo:clear` | Clear everything |
+| `npm run demo:reset` | Clear + load pump data |
 
 ## Clear All Data
 
-Removes everything and resets to a clean state:
-
 ```bash
-npx tsx server/demo/clear-all.ts
+npm run demo:clear
 ```
 
-Keeps only:
-- Owner vendor (required for system)
+Removes everything, keeps only:
+- Owner vendor (system requirement)
 - Admin user (`admin@splendor.com` / `admin123`)
 
-## Fresh Demo Setup
+## Switching Between Demos
 
-To start a clean demo from scratch:
+To switch from pump demo to jewellery demo (or vice versa):
 
 ```bash
-# Step 1: Clear everything
-npx tsx server/demo/clear-all.ts
+# Switch to jewellery
+npm run demo:jewellery
 
-# Step 2: Load demo data
-npx tsx server/demo/seed-demo.ts
-
-# Step 3: Restart server
-kill $(lsof -ti :3001) && npm run server
+# Switch back to pumps
+npm run demo:reset
 ```
+
+Each command clears all data first, then loads fresh demo data. Restart the server after switching.
+
+## Login Credentials
+
+**Admin:** `admin@splendor.com` / `admin123`
+
+**Vendor logins** are auto-created. Format: `{email from vendor data}` / `{companyname}@123`
+
+Example (pumps): `rajesh@electricals.com` / `rajeshelectricals@123`
+Example (jewellery): `ramesh@laxmijewellers.com` / `laxmijewellers@123`

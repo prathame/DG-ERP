@@ -11,6 +11,7 @@
     "demo:seed": "tsx server/demo/seed-demo.ts",
     "demo:clear": "tsx server/demo/clear-all.ts",
     "demo:reset": "tsx server/demo/clear-all.ts && tsx server/demo/seed-demo.ts",
+    "demo:jewellery": "tsx server/demo/clear-all.ts && tsx server/demo/seed-jewellery.ts",
     "start": "npm run build && node dist/server/index.js",
     "dev:all": "npm run server & npm run dev",
     "build": "vite build",
