@@ -34,9 +34,12 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
         .finally(() => setLoading(false));
       return;
     }
-    Promise.all([api.vendorFinance.summary(), api.vendorFinance.remindersDue()])
-      .then(([s, r]) => { setSummaryData(s); setRemindersDue(r); })
-      .catch(() => {})
+    api.vendorFinance.summary()
+      .then((s) => setSummaryData(s))
+      .catch(() => setSummaryData([]));
+    api.vendorFinance.remindersDue()
+      .then((r) => setRemindersDue(r))
+      .catch(() => setRemindersDue([]))
       .finally(() => setLoading(false));
   };
   useEffect(() => { loadSummary(); }, []);

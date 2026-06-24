@@ -34,6 +34,36 @@ router.get('/api/vendor-finance/summary', (_req, res) => {
   }
 });
 
+router.get('/api/vendor-finance/reminders-due', (_req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = db.prepare(`
+      SELECT vrs.vendor_id, vrs.reminder_days, vrs.last_reminder_date, v.name, v.phone,
+        COALESCE((SELECT SUM(COALESCE(pd.net_price, p.price)) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id), 0) as total_value,
+        COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id), 0) as total_paid
+      FROM vendor_reminder_settings vrs
+      JOIN vendors v ON vrs.vendor_id = v.id
+      WHERE vrs.enabled = 1
+    `).all() as { vendor_id: string; reminder_days: number; last_reminder_date: string | null; name: string; phone: string | null; total_value: number; total_paid: number }[];
+    const due = rows.filter((r) => {
+      const balance = r.total_value - r.total_paid;
+      if (balance <= 0) return false;
+      if (!r.last_reminder_date) return true;
+      const lastSent = new Date(r.last_reminder_date);
+      const nextDue = new Date(lastSent);
+      nextDue.setDate(nextDue.getDate() + r.reminder_days);
+      return nextDue.toISOString().slice(0, 10) <= today;
+    });
+    res.json(due.map((r) => ({
+      vendorId: r.vendor_id, vendorName: r.name, vendorPhone: r.phone ?? '',
+      balance: r.total_value - r.total_paid, totalValue: r.total_value, totalPaid: r.total_paid,
+      reminderDays: r.reminder_days, lastSent: r.last_reminder_date,
+    })));
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 router.get('/api/vendor-finance/:vendorId', (req, res) => {
   try {
     const { vendorId } = req.params;
@@ -85,36 +115,6 @@ router.post('/api/vendor-finance/:vendorId/payments', (req, res) => {
     res.status(201).json({
       id: row.id, amount: row.amount, paymentDate: row.payment_date, paymentMethod: row.payment_method, referenceNumber: row.reference_number, notes: row.notes,
     });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-router.get('/api/vendor-finance/reminders-due', (_req, res) => {
-  try {
-    const today = new Date().toISOString().slice(0, 10);
-    const rows = db.prepare(`
-      SELECT vrs.vendor_id, vrs.reminder_days, vrs.last_reminder_date, v.name, v.phone,
-        COALESCE((SELECT SUM(p.price) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id), 0) as total_value,
-        COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id), 0) as total_paid
-      FROM vendor_reminder_settings vrs
-      JOIN vendors v ON vrs.vendor_id = v.id
-      WHERE vrs.enabled = 1
-    `).all() as { vendor_id: string; reminder_days: number; last_reminder_date: string | null; name: string; phone: string | null; total_value: number; total_paid: number }[];
-    const due = rows.filter((r) => {
-      const balance = r.total_value - r.total_paid;
-      if (balance <= 0) return false;
-      if (!r.last_reminder_date) return true;
-      const lastSent = new Date(r.last_reminder_date);
-      const nextDue = new Date(lastSent);
-      nextDue.setDate(nextDue.getDate() + r.reminder_days);
-      return nextDue.toISOString().slice(0, 10) <= today;
-    });
-    res.json(due.map((r) => ({
-      vendorId: r.vendor_id, vendorName: r.name, vendorPhone: r.phone ?? '',
-      balance: r.total_value - r.total_paid, totalValue: r.total_value, totalPaid: r.total_paid,
-      reminderDays: r.reminder_days, lastSent: r.last_reminder_date,
-    })));
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
