@@ -12,9 +12,18 @@
   --bg: #F8F9FA;
 }
 
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
 body {
   background-color: var(--bg);
   color: var(--ink);
+}
+
+button {
+  cursor: pointer;
 }
 
 /* Custom Scrollbar */
@@ -33,4 +42,38 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #D1D5DB;
+}
+
+/* Mobile table scroll hint */
+@media (max-width: 640px) {
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+  .overflow-x-auto table {
+    min-width: 600px;
+  }
+  .overflow-x-auto::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    background: linear-gradient(to right, transparent, rgba(0,0,0,0.03));
+    pointer-events: none;
+  }
+}
+
+/* Touch-friendly tap targets */
+@media (max-width: 768px) {
+  button, a, select, input {
+    min-height: 40px;
+  }
+}
+
+/* Hide app chrome when printing */
+@media print {
+  body {
+    background: white !important;
+  }
 }

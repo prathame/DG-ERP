@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "splendor-erp",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,6 +7,7 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "server": "tsx server/index.ts",
     "server:seed": "tsx server/seed.ts",
+    "server:clear": "tsx server/clear-data.ts",
     "start": "npm run build && node dist/server/index.js",
     "dev:all": "npm run server & npm run dev",
     "build": "vite build",
@@ -15,8 +16,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^1.29.0",
-    "@tailwindcss/vite": "^4.1.14",
+"@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "better-sqlite3": "^12.4.1",
     "clsx": "^2.1.1",
