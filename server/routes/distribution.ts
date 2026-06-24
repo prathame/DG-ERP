@@ -73,7 +73,7 @@ router.get('/api/distribution', (req, res) => {
 
 router.post('/api/distribution', (req, res) => {
   try {
-    const { productId, vendorId, distributionDate, quantity, discountPercent, amountPaid } = req.body;
+    const { productId, vendorId, distributionDate, quantity, discountPercent, amountPaid, withGst, gstRate: reqGstRate } = req.body;
     if (!productId || !vendorId) return res.status(400).json({ error: 'Product and vendor are required' });
     const qty = Math.max(1, parseInt(String(quantity), 10) || 1);
     const product = db.prepare('SELECT id, price FROM products WHERE id = ?').get(productId) as { id: string; price: number } | undefined;
@@ -83,8 +83,12 @@ router.post('/api/distribution', (req, res) => {
     const discountAmount = Math.round(grossValue * disc / 100);
     const netAmount = grossValue - discountAmount;
     const netPricePerUnit = Math.round((product.price * (100 - disc) / 100) * 100) / 100;
+    const gstApplied = withGst !== false;
+    const gstRate = Number(reqGstRate) || 18;
+    const billedPricePerUnit = gstApplied ? Math.round(netPricePerUnit * (100 + gstRate) / 100) : netPricePerUnit;
+    const totalBilled = billedPricePerUnit * qty;
     const paidAmount = typeof amountPaid === 'number' && amountPaid > 0 ? amountPaid : null;
-    if (paidAmount && paidAmount > netAmount) return res.status(400).json({ error: `Amount paid (₹${paidAmount}) cannot exceed bill amount (₹${netAmount}) after ${disc}% discount` });
+    if (paidAmount && paidAmount > totalBilled) return res.status(400).json({ error: `Amount paid (₹${paidAmount}) cannot exceed billed amount (₹${totalBilled})` });
     const invRows = db.prepare(`
       SELECT id, barcode FROM product_inventory WHERE product_id = ? AND status = 'InStock' ORDER BY id LIMIT ?
     `).all(product.id, qty) as { id: string; barcode: string }[];
@@ -96,8 +100,8 @@ router.post('/api/distribution', (req, res) => {
       for (let i = 0; i < invRows.length; i++) {
         const inv = invRows[i];
         const distId = invRows.length === 1 ? baseId : `${baseId}-${i + 1}`;
-        db.prepare('INSERT INTO product_distribution (id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(distId, product.id, inv.barcode, vendorId, date, 'Distributed', disc, netPricePerUnit);
+        db.prepare('INSERT INTO product_distribution (id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price, gst_applied, billed_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(distId, product.id, inv.barcode, vendorId, date, 'Distributed', disc, netPricePerUnit, gstApplied ? 1 : 0, billedPricePerUnit);
         db.prepare('UPDATE product_inventory SET status = ? WHERE id = ?').run('Distributed', inv.id);
       }
     });

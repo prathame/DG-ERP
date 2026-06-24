@@ -18,7 +18,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [modalOpen, setModalOpen] = useState(false);
   const [distVendorId, setDistVendorId] = useState('');
   const [distDate, setDistDate] = useState(new Date().toISOString().slice(0, 10));
-  const [distRows, setDistRows] = useState<{ productId: string; quantity: number; discount: number }[]>([{ productId: '', quantity: 1, discount: 0 }]);
+  const [distRows, setDistRows] = useState<{ productId: string; quantity: number; discount: number; withGst: boolean }[]>([{ productId: '', quantity: 1, discount: 0, withGst: true }]);
   const [distAmountPaid, setDistAmountPaid] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [includeGst, setIncludeGst] = useState(true);
@@ -54,27 +54,32 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   };
   useEffect(() => { setLoading(true); load(); }, [vendorId]);
 
-  const addDistRow = () => setDistRows([...distRows, { productId: '', quantity: 1, discount: 0 }]);
+  const addDistRow = () => setDistRows([...distRows, { productId: '', quantity: 1, discount: 0, withGst: true }]);
   const removeDistRow = (idx: number) => setDistRows(distRows.filter((_, i) => i !== idx));
   const updateDistRow = (idx: number, field: string, value: string | number) => setDistRows(distRows.map((r, i) => i === idx ? { ...r, [field]: value } : r));
 
+  const defaultGstRate = (user as Record<string, unknown>)?.defaultGstRate as number ?? 18;
   const distTotals = distRows.reduce((acc, r) => {
     const p = products.find(x => x.id === r.productId);
     const gross = (p?.price ?? 0) * (r.quantity || 0);
     const disc = Math.round(gross * (r.discount || 0) / 100);
+    const netBase = gross - disc;
+    const gst = r.withGst ? Math.round(netBase * defaultGstRate / 100) : 0;
     acc.gross += gross;
     acc.discount += disc;
-    acc.net += gross - disc;
+    acc.net += netBase;
+    acc.gst += gst;
+    acc.billed += netBase + gst;
     acc.items += r.quantity || 0;
     return acc;
-  }, { gross: 0, discount: 0, net: 0, items: 0 });
+  }, { gross: 0, discount: 0, net: 0, gst: 0, billed: 0, items: 0 });
 
   const handleDistributeAll = async () => {
     if (!distVendorId) { toast('Select a vendor', 'error'); return; }
     const validRows = distRows.filter(r => r.productId && r.quantity > 0);
     if (validRows.length === 0) { toast('Add at least one product', 'error'); return; }
     const paid = parseFloat(distAmountPaid) || 0;
-    if (paid > distTotals.net) { toast(`Amount paid (₹${paid}) exceeds net amount (₹${distTotals.net})`, 'error'); return; }
+    if (paid > distTotals.billed) { toast(`Amount paid (₹${paid}) exceeds billed amount (₹${distTotals.billed})`, 'error'); return; }
     setSubmitting(true);
     try {
       for (const row of validRows) {
@@ -84,6 +89,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
           quantity: row.quantity,
           distributionDate: distDate,
           discountPercent: row.discount > 0 ? row.discount : undefined,
+          withGst: row.withGst,
+          gstRate: defaultGstRate,
         });
       }
       if (paid > 0) {
@@ -95,7 +102,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
         });
       }
       setModalOpen(false);
-      setDistRows([{ productId: '', quantity: 1, discount: 0 }]);
+      setDistRows([{ productId: '', quantity: 1, discount: 0, withGst: true }]);
       setDistVendorId('');
       setDistAmountPaid('');
       load();
@@ -363,8 +370,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     <th className="px-3 py-3">Product</th>
                     <th className="px-3 py-3 w-20">Qty</th>
                     <th className="px-3 py-3 w-16">Disc%</th>
-                    <th className="px-3 py-3 w-24 text-right">Net Price</th>
-                    <th className="px-3 py-3 w-28 text-right">Line Total</th>
+                    <th className="px-3 py-3 w-12 text-center">GST</th>
+                    <th className="px-3 py-3 w-28 text-right">Billed</th>
                     <th className="px-3 py-3 w-10"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100">
@@ -373,7 +380,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                       const gross = (p?.price ?? 0) * (row.quantity || 0);
                       const disc = Math.round(gross * (row.discount || 0) / 100);
                       const net = gross - disc;
-                      const netUnit = p ? Math.round(p.price * (100 - (row.discount || 0)) / 100) : 0;
+                      const gstOnRow = row.withGst ? Math.round(net * defaultGstRate / 100) : 0;
+                      const billed = net + gstOnRow;
                       return (
                         <tr key={idx} className="hover:bg-gray-50">
                           <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
@@ -385,8 +393,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                           </td>
                           <td className="px-3 py-2"><input type="number" min={1} max={p?.stock ?? 9999} value={row.quantity || ''} onChange={(e) => updateDistRow(idx, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" /></td>
                           <td className="px-3 py-2"><input type="number" min={0} max={100} step={0.5} value={row.discount || ''} onChange={(e) => updateDistRow(idx, 'discount', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" /></td>
-                          <td className="px-3 py-2 text-right text-sm font-medium">{p ? `₹${netUnit.toLocaleString()}` : '-'}</td>
-                          <td className="px-3 py-2 text-right text-sm font-bold">{net > 0 ? `₹${net.toLocaleString()}` : '-'}</td>
+                          <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-[#F27D26]" /></td>
+                          <td className="px-3 py-2 text-right text-sm font-bold">{billed > 0 ? <span>{row.withGst && <span className="text-[10px] text-gray-400 block">₹{net.toLocaleString()} +GST</span>}₹{billed.toLocaleString()}</span> : '-'}</td>
                           <td className="px-3 py-2">{distRows.length > 1 && <button type="button" onClick={() => removeDistRow(idx)} className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded">×</button>}</td>
                         </tr>
                       );
@@ -399,13 +407,15 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2 mb-4">
                 <div className="flex justify-between text-sm"><span className="text-gray-500">Total Items</span><span className="font-bold">{distTotals.items}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-500">Gross Value</span><span className="font-bold">₹{distTotals.gross.toLocaleString()}</span></div>
-                {distTotals.discount > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Total Discount</span><span className="font-bold text-emerald-600">-₹{distTotals.discount.toLocaleString()}</span></div>}
-                <div className="flex justify-between text-sm border-t border-gray-200 pt-2"><span className="text-gray-700 font-medium">Net Amount</span><span className="font-bold text-lg text-[#F27D26]">₹{distTotals.net.toLocaleString()}</span></div>
+                {distTotals.discount > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Discount</span><span className="font-bold text-emerald-600">-₹{distTotals.discount.toLocaleString()}</span></div>}
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Subtotal (base)</span><span className="font-bold">₹{distTotals.net.toLocaleString()}</span></div>
+                {distTotals.gst > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">GST ({defaultGstRate}%)</span><span className="font-bold">₹{distTotals.gst.toLocaleString()}</span></div>}
+                <div className="flex justify-between text-sm border-t border-gray-200 pt-2"><span className="text-gray-700 font-medium">Total Billed Amount</span><span className="font-bold text-lg text-[#F27D26]">₹{distTotals.billed.toLocaleString()}</span></div>
                 <div className="pt-2">
                   <label className="text-xs font-bold text-gray-400 uppercase">Amount Paid</label>
-                  <input type="number" min={0} max={distTotals.net} step={0.01} value={distAmountPaid} onChange={(e) => setDistAmountPaid(e.target.value)} className={cn("w-full mt-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F27D26]", (parseFloat(distAmountPaid) || 0) > distTotals.net ? "border-rose-400 bg-rose-50" : "border-gray-200")} placeholder="0.00" />
+                  <input type="number" min={0} max={distTotals.billed} step={0.01} value={distAmountPaid} onChange={(e) => setDistAmountPaid(e.target.value)} className={cn("w-full mt-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F27D26]", (parseFloat(distAmountPaid) || 0) > distTotals.billed ? "border-rose-400 bg-rose-50" : "border-gray-200")} placeholder="0.00" />
                 </div>
-                {distTotals.net > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Balance</span><span className={cn("font-bold", (distTotals.net - (parseFloat(distAmountPaid) || 0)) > 0 ? "text-rose-600" : "text-emerald-600")}>₹{Math.max(0, distTotals.net - (parseFloat(distAmountPaid) || 0)).toLocaleString()}</span></div>}
+                {distTotals.billed > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Balance</span><span className={cn("font-bold", (distTotals.billed - (parseFloat(distAmountPaid) || 0)) > 0 ? "text-rose-600" : "text-emerald-600")}>₹{Math.max(0, distTotals.billed - (parseFloat(distAmountPaid) || 0)).toLocaleString()}</span></div>}
               </div>
 
               <div className="flex gap-2">

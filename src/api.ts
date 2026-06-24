@@ -217,7 +217,7 @@ export const api = {
         totalDistributed: number;
         vendorStats: { vendorId: string; vendorName: string; distributed: number; sold: number; replaced: number; damaged: number; availableWithVendor: number }[];
       }>('/distribution/summary'),
-    create: (data: { productId: string; vendorId: string; distributionDate?: string; quantity?: number; discountPercent?: number; amountPaid?: number }) =>
+    create: (data: { productId: string; vendorId: string; distributionDate?: string; quantity?: number; discountPercent?: number; amountPaid?: number; withGst?: boolean; gstRate?: number }) =>
       fetchApi<DistributionRecord>('/distribution', { method: 'POST', body: JSON.stringify(data) }),
     applyBilling: (data: { vendorId: string; gstUnits: number; nonGstUnits: number; gstRate: number }) =>
       fetchApi<{ ok: boolean }>('/distribution/apply-billing', { method: 'PUT', body: JSON.stringify(data) }),
