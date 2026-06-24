@@ -110,7 +110,8 @@ router.post('/api/vendor-finance/:vendorId/payments', (req, res) => {
     const id = `VP${Date.now()}`;
     db.prepare('INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(id, vendorId, amount, paymentDate || new Date().toISOString().slice(0, 10), paymentMethod || 'Cash', referenceNumber || null, notes || null);
-    logAudit('Payment Recorded', 'payment', id, `Vendor: ${vendorId}, Amount: ₹${amount}, Method: ${paymentMethod || 'Cash'}`);
+    const vendorName = (db.prepare('SELECT name FROM vendors WHERE id = ?').get(vendorId) as { name: string } | undefined)?.name ?? vendorId;
+    logAudit('Payment Recorded', 'payment', id, `${vendorName} paid ₹${amount}, Method: ${paymentMethod || 'Cash'}`);
     const row = db.prepare('SELECT * FROM vendor_payments WHERE id = ?').get(id) as Record<string, unknown>;
     res.status(201).json({
       id: row.id, amount: row.amount, paymentDate: row.payment_date, paymentMethod: row.payment_method, referenceNumber: row.reference_number, notes: row.notes,

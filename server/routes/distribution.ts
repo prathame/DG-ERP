@@ -102,12 +102,13 @@ router.post('/api/distribution', (req, res) => {
       }
     });
     runDist();
-    logAudit('Distribution Created', 'distribution', baseId, `${qty} units to vendor ${vendorId}, Discount: ${disc}%`);
+    const vendorName = (db.prepare('SELECT name FROM vendors WHERE id = ?').get(vendorId) as { name: string } | undefined)?.name ?? vendorId;
+    logAudit('Distribution Created', 'distribution', baseId, `${qty} units to ${vendorName}, Discount: ${disc}%`);
     if (paidAmount) {
       const payId = `VP${Date.now()}`;
       db.prepare('INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .run(payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${baseId}`);
-      logAudit('Payment Recorded', 'payment', payId, `Vendor: ${vendorId}, Amount: ₹${paidAmount} (with distribution)`);
+      logAudit('Payment Recorded', 'payment', payId, `${vendorName} paid ₹${paidAmount} (with distribution)`);
     }
     const firstRow = db.prepare(`
       SELECT pd.*, p.name as product_name, v.name as vendor_name, v.id as vendor_id
