@@ -19,6 +19,7 @@ export interface Product {
   totalInventory?: number;
   remainingInventory?: number;
   soldCount?: number;
+  withVendors?: number;
   barcodeRange?: { first: string; last: string } | null;
 }
 

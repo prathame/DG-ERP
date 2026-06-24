@@ -65,6 +65,7 @@ router.get('/api/products', (req, res) => {
       (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id) as total_inv,
       (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock') as inv_stock,
       (SELECT COUNT(*) FROM product_sales ps WHERE ps.product_id = p.id) as sold_count,
+      (SELECT COUNT(*) FROM product_distribution pd WHERE pd.product_id = p.id AND pd.status = 'Distributed') as with_vendors,
       (SELECT MIN(barcode) FROM product_inventory pi WHERE pi.product_id = p.id) as barcode_first,
       (SELECT MAX(barcode) FROM product_inventory pi WHERE pi.product_id = p.id) as barcode_last
       FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE 1=1`;
@@ -82,6 +83,7 @@ router.get('/api/products', (req, res) => {
       totalInventory: (r.total_inv as number) ?? 0,
       remainingInventory: (r.inv_stock as number) ?? 0,
       soldCount: (r.sold_count as number) ?? 0,
+      withVendors: (r.with_vendors as number) ?? 0,
       barcodeRange: (r.barcode_first && r.barcode_last) ? { first: r.barcode_first as string, last: r.barcode_last as string } : null,
     })));
   } catch (err) {
