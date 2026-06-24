@@ -26,6 +26,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [splitGstQty, setSplitGstQty] = useState(0);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(vendorId ?? null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [financeMap, setFinanceMap] = useState<Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }>>({});
 
   const load = () => {
     Promise.all([
@@ -40,6 +41,13 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
         setProducts(p);
         setVendors(v);
         if (vendorId) setSelectedVendorId(vendorId);
+      })
+      .then(() => {
+        if (!vendorId) api.vendorFinance.summary().then((fs) => {
+          const map: Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }> = {};
+          for (const f of fs) map[f.vendorId] = { totalDistributedValue: f.totalDistributedValue, totalPaid: f.totalPaid, balance: f.balance };
+          setFinanceMap(map);
+        }).catch(() => {});
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -138,6 +146,16 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
               {(v.damaged ?? 0) > 0 && <span className="text-rose-600"><strong>{v.damaged}</strong> damaged</span>}
               <span className="text-blue-600"><strong>{v.availableWithVendor}</strong> with vendor</span>
             </div>
+            {financeMap[v.vendorId] && (() => {
+              const f = financeMap[v.vendorId];
+              return (
+                <div className="mt-2 pt-2 border-t border-gray-100 flex gap-3 text-xs flex-wrap">
+                  <span className="text-gray-500">Bill: <strong className="text-gray-700">₹{f.totalDistributedValue.toLocaleString()}</strong></span>
+                  <span className="text-gray-500">Paid: <strong className="text-emerald-600">₹{f.totalPaid.toLocaleString()}</strong></span>
+                  <span className="text-gray-500">Due: <strong className={f.balance > 0 ? "text-rose-600" : "text-emerald-600"}>₹{f.balance.toLocaleString()}</strong></span>
+                </div>
+              );
+            })()}
             <p className="text-xs text-gray-500 mt-1">Click to view products</p>
           </button>
         ))}
