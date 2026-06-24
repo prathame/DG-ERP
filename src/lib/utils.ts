@@ -109,10 +109,13 @@ export function formatDistributionChallanText(bill: {
   vendor: { name: string; contactPerson?: string | null; phone?: string | null };
   company: { name: string; phone?: string | null; address?: string | null };
   items: { sno: number; barcode: string; productName: string }[];
+  groupedItems?: { sno: number; productName: string; barcodeRange: string; quantity: number; netPrice: number; lineTotal: number }[];
   totalQuantity: number; totalValue: number;
   payment?: { totalDistributedValue: number; totalPaid: number; balance: number };
 }): string {
-  const itemLines = bill.items.map((item) => `${item.sno}. ${item.barcode} — ${item.productName}`);
+  const itemLines = bill.groupedItems
+    ? bill.groupedItems.map((g) => `${g.sno}. ${g.productName}\n   ${g.barcodeRange} × ${g.quantity} = ₹${g.lineTotal.toLocaleString()}`)
+    : bill.items.map((item) => `${item.sno}. ${item.barcode} — ${item.productName}`);
   const lines = [
     `📦 *DISTRIBUTION CHALLAN*`,
     `━━━━━━━━━━━━━━━━━━━━━━━━`,

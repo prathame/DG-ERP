@@ -186,11 +186,21 @@ export function generateDistributionChallanHtml(bill: DistributionBillData): str
     </div>
   </div>
   <table class="items">
-    <thead><tr><th style="text-align:center;">S.No</th><th>Barcode</th><th>Product</th><th style="text-align:right;">Unit Price</th></tr></thead>
-    <tbody>${itemRows}</tbody>
+    <thead><tr><th style="text-align:center;">S.No</th><th>Product</th><th>Barcode Range</th><th style="text-align:center;">Qty</th>${bill.groupedItems.some(g => g.discountPercent > 0) ? '<th style="text-align:right;">MRP</th><th style="text-align:right;">Disc%</th>' : ''}<th style="text-align:right;">Unit Price</th><th style="text-align:right;">Total</th></tr></thead>
+    <tbody>${bill.groupedItems.map((g) => `
+      <tr>
+        <td style="text-align:center;">${g.sno}</td>
+        <td><strong>${g.productName}</strong></td>
+        <td style="font-family:monospace;font-size:12px;">${g.barcodeRange}</td>
+        <td style="text-align:center;">${g.quantity}</td>
+        ${bill.groupedItems.some(gi => gi.discountPercent > 0) ? `<td style="text-align:right;">₹${g.originalPrice.toLocaleString()}</td><td style="text-align:right;color:#16a34a;">${g.discountPercent > 0 ? g.discountPercent + '%' : '-'}</td>` : ''}
+        <td style="text-align:right;">₹${g.netPrice.toLocaleString()}</td>
+        <td style="text-align:right;font-weight:bold;">₹${g.lineTotal.toLocaleString()}</td>
+      </tr>`).join('')}
+    </tbody>
   </table>
   <div class="summary" style="flex-wrap:wrap;">
-    <span>Quantity: <strong>${bill.totalQuantity} units</strong></span>
+    <span>Total Quantity: <strong>${bill.totalQuantity} units</strong></span>
     ${bill.totalDiscount > 0 ? `<span>Gross: <strong>₹${bill.grossValue.toLocaleString()}</strong></span><span>Discount: <strong style="color:#16a34a;">-₹${bill.totalDiscount.toLocaleString()}</strong></span>` : ''}
     <span>Net Amount: <strong style="color:#F27D26;font-size:16px;">₹${bill.totalValue.toLocaleString()}</strong></span>
   </div>

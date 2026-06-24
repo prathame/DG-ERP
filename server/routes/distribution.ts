@@ -200,6 +200,27 @@ router.get('/api/distribution/bill', (req, res) => {
         price: Number(r.net_price) || Number(r.price) || 0,
         status: r.status,
       })),
+      groupedItems: (() => {
+        const groups: Record<string, { productName: string; barcodes: string[]; originalPrice: number; discountPercent: number; netPrice: number }> = {};
+        for (const r of rows) {
+          const key = `${r.product_name}-${r.discount_percent ?? 0}`;
+          if (!groups[key]) groups[key] = { productName: r.product_name as string, barcodes: [], originalPrice: Number(r.price) || 0, discountPercent: Number(r.discount_percent) || 0, netPrice: Number(r.net_price) || Number(r.price) || 0 };
+          groups[key].barcodes.push(r.barcode as string);
+        }
+        return Object.values(groups).map((g, i) => {
+          const sorted = g.barcodes.sort();
+          return {
+            sno: i + 1,
+            productName: g.productName,
+            barcodeRange: sorted.length === 1 ? sorted[0] : `${sorted[0]} – ${sorted[sorted.length - 1]}`,
+            quantity: sorted.length,
+            originalPrice: g.originalPrice,
+            discountPercent: g.discountPercent,
+            netPrice: g.netPrice,
+            lineTotal: g.netPrice * sorted.length,
+          };
+        });
+      })(),
       totalQuantity: rows.length,
       grossValue,
       totalDiscount,

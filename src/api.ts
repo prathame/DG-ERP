@@ -76,6 +76,7 @@ export interface DistributionBillData {
   vendor: { name: string; contactPerson?: string | null; phone?: string | null; email?: string | null; address?: string | null };
   company: { name: string; contactName?: string | null; phone?: string | null; address?: string | null };
   items: { sno: number; barcode: string; productName: string; batchNumber?: string | null; originalPrice: number; discountPercent: number; price: number; status: string }[];
+  groupedItems: { sno: number; productName: string; barcodeRange: string; quantity: number; originalPrice: number; discountPercent: number; netPrice: number; lineTotal: number }[];
   totalQuantity: number;
   grossValue: number;
   totalDiscount: number;
