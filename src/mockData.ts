@@ -1,15 +1,15 @@
 import { Product, Warranty, Transaction, RewardPoint } from './types';
 
 export const MOCK_PRODUCTS: Product[] = [
-  { id: '1', name: 'Splendor Submersible Pump 5HP', serialNumber: 'SP-5HP-001', category: 'Submersible', warrantyMonths: 24, price: 12500, stock: 45 },
-  { id: '2', name: 'Splendor Monoblock Pump 2HP', serialNumber: 'SP-2HP-042', category: 'Monoblock', warrantyMonths: 12, price: 8500, stock: 120 },
-  { id: '3', name: 'Splendor Openwell Pump 3HP', serialNumber: 'SP-3HP-089', category: 'Openwell', warrantyMonths: 18, price: 10200, stock: 30 },
+  { id: '1', name: 'Splendor Submersible Pump 5HP', barcode: 'SP-5HP-001', warrantyMonths: 24, price: 12500, stock: 45 },
+  { id: '2', name: 'Splendor Monoblock Pump 2HP', barcode: 'SP-2HP-042', warrantyMonths: 12, price: 8500, stock: 120 },
+  { id: '3', name: 'Splendor Openwell Pump 3HP', barcode: 'SP-3HP-089', warrantyMonths: 18, price: 10200, stock: 30 },
 ];
 
 export const MOCK_WARRANTIES: Warranty[] = [
-  { id: 'W1', productId: '1', customerName: 'Rajesh Kumar', customerPhone: '9876543210', activationDate: '2023-10-15', expiryDate: '2025-10-15', status: 'Active' },
-  { id: 'W2', productId: '2', customerName: 'Amit Shah', customerPhone: '9123456789', activationDate: '2024-01-20', expiryDate: '2025-01-20', status: 'Active' },
-  { id: 'W3', productId: '3', customerName: 'Suresh Raina', customerPhone: '9988776655', activationDate: '2022-05-10', expiryDate: '2023-11-10', status: 'Expired' },
+  { id: 'W1', productId: '1', barcode: 'SP-5HP-001', customerName: 'Rajesh Kumar', customerPhone: '9876543210', activationDate: '2023-10-15', expiryDate: '2025-10-15', status: 'Active' },
+  { id: 'W2', productId: '2', barcode: 'SP-2HP-042', customerName: 'Amit Shah', customerPhone: '9123456789', activationDate: '2024-01-20', expiryDate: '2025-01-20', status: 'Active' },
+  { id: 'W3', productId: '3', barcode: 'SP-3HP-089', customerName: 'Suresh Raina', customerPhone: '9988776655', activationDate: '2022-05-10', expiryDate: '2023-11-10', status: 'Expired' },
 ];
 
 export const MOCK_TRANSACTIONS: Transaction[] = [
