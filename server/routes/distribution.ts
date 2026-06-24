@@ -140,6 +140,39 @@ router.post('/api/distribution', (req, res) => {
   }
 });
 
+// Mark distribution units as GST or non-GST billed (updates finance amounts)
+router.put('/api/distribution/apply-billing', (req, res) => {
+  try {
+    const { vendorId, gstUnits, nonGstUnits, gstRate } = req.body;
+    if (!vendorId) return res.status(400).json({ error: 'vendorId required' });
+    const rate = Number(gstRate) || 18;
+    // Get all unbilled distributed units for this vendor, ordered by id
+    const units = db.prepare(`
+      SELECT pd.id, COALESCE(pd.net_price, p.price) as unit_price
+      FROM product_distribution pd JOIN products p ON pd.product_id = p.id
+      WHERE pd.vendor_id = ? AND pd.billed_price IS NULL
+      ORDER BY pd.id
+    `).all(vendorId) as { id: string; unit_price: number }[];
+    const totalUnits = units.length;
+    const gstCount = Math.min(gstUnits ?? 0, totalUnits);
+    const nonGstCount = Math.min(nonGstUnits ?? 0, totalUnits - gstCount);
+    let idx = 0;
+    for (let i = 0; i < gstCount && idx < units.length; i++, idx++) {
+      const u = units[idx];
+      const billedPrice = Math.round(u.unit_price * (100 + rate) / 100);
+      db.prepare('UPDATE product_distribution SET gst_applied = 1, billed_price = ? WHERE id = ?').run(billedPrice, u.id);
+    }
+    for (let i = 0; i < nonGstCount && idx < units.length; i++, idx++) {
+      const u = units[idx];
+      db.prepare('UPDATE product_distribution SET gst_applied = 0, billed_price = ? WHERE id = ?').run(u.unit_price, u.id);
+    }
+    logAudit('Billing Applied', 'distribution', vendorId, `GST: ${gstCount} units, Non-GST: ${nonGstCount} units`);
+    res.json({ ok: true, gstUnits: gstCount, nonGstUnits: nonGstCount });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // ============ DISTRIBUTION BILL (CHALLAN) ============
 router.get('/api/distribution/bill', (req, res) => {
   try {
@@ -229,7 +262,7 @@ router.get('/api/distribution/bill', (req, res) => {
       totalValue,
       payment: (() => {
         const vid = vendorId as string;
-        const totalDistValue = (db.prepare('SELECT COALESCE(SUM(COALESCE(pd.net_price, p.price)), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?').get(vid) as { t: number }).t;
+        const totalDistValue = (db.prepare('SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?').get(vid) as { t: number }).t;
         const totalPaid = (db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE vendor_id = ?').get(vid) as { t: number }).t;
         return { totalDistributedValue: totalDistValue, totalPaid, balance: totalDistValue - totalPaid };
       })(),

@@ -219,6 +219,8 @@ export const api = {
       }>('/distribution/summary'),
     create: (data: { productId: string; vendorId: string; distributionDate?: string; quantity?: number; discountPercent?: number; amountPaid?: number }) =>
       fetchApi<DistributionRecord>('/distribution', { method: 'POST', body: JSON.stringify(data) }),
+    applyBilling: (data: { vendorId: string; gstUnits: number; nonGstUnits: number; gstRate: number }) =>
+      fetchApi<{ ok: boolean }>('/distribution/apply-billing', { method: 'PUT', body: JSON.stringify(data) }),
     getBill: (params: { vendorId: string; productId?: string; distributionDate?: string }) => {
       const q = new URLSearchParams({ vendorId: params.vendorId });
       if (params.productId) q.set('productId', params.productId);

@@ -39,7 +39,7 @@ router.get('/api/vendor-finance/reminders-due', (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     const rows = db.prepare(`
       SELECT vrs.vendor_id, vrs.reminder_days, vrs.last_reminder_date, v.name, v.phone,
-        COALESCE((SELECT SUM(COALESCE(pd.net_price, p.price)) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id), 0) as total_value,
+        COALESCE((SELECT SUM(COALESCE(pd.billed_price, pd.net_price, p.price)) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id), 0) as total_value,
         COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id), 0) as total_paid
       FROM vendor_reminder_settings vrs
       JOIN vendors v ON vrs.vendor_id = v.id
@@ -69,7 +69,7 @@ router.get('/api/vendor-finance/:vendorId', (req, res) => {
     const { vendorId } = req.params;
     const vendor = db.prepare('SELECT id, name, phone, email, address, contact_person FROM vendors WHERE id = ?').get(vendorId) as Record<string, unknown> | undefined;
     if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
-    const totalValue = db.prepare('SELECT COALESCE(SUM(COALESCE(pd.net_price, p.price)), 0) as total FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?').get(vendorId) as { total: number };
+    const totalValue = db.prepare('SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) as total FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?').get(vendorId) as { total: number };
     const totalPaid = db.prepare('SELECT COALESCE(SUM(amount), 0) as total FROM vendor_payments WHERE vendor_id = ?').get(vendorId) as { total: number };
     const payments = db.prepare('SELECT * FROM vendor_payments WHERE vendor_id = ? ORDER BY payment_date DESC').all(vendorId) as Record<string, unknown>[];
     const distributions = db.prepare(`

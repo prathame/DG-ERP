@@ -212,6 +212,8 @@ addColumnIfMissing('users', 'gst_number', 'TEXT');
 addColumnIfMissing('users', 'default_gst_rate', 'REAL NOT NULL DEFAULT 18');
 addColumnIfMissing('product_distribution', 'discount_percent', 'REAL NOT NULL DEFAULT 0');
 addColumnIfMissing('product_distribution', 'net_price', 'REAL');
+addColumnIfMissing('product_distribution', 'gst_applied', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('product_distribution', 'billed_price', 'REAL');
 addColumnIfMissing('products', 'hsn_code', 'TEXT');
 addColumnIfMissing('products', 'gst_rate', 'REAL NOT NULL DEFAULT 18');
 addColumnIfMissing('rewards', 'vendor_id', 'TEXT REFERENCES vendors(id)');

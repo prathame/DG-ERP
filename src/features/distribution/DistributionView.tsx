@@ -468,17 +468,19 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                   </div>
                 </div>
 
+                <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg mb-3">Saving this split updates the vendor's finance — GST bill amount includes tax, non-GST shows base price only.</p>
                 <div className="flex gap-2">
-                  {gstQty > 0 && (
-                    <button type="button" onClick={() => { const w = openPrintWindow(); if (!w) return; printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(gstQty, gstAmount, true), { showGst: true })); }} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700">
-                      Print GST Bill
-                    </button>
-                  )}
-                  {nonGstQty > 0 && (
-                    <button type="button" onClick={() => { const w = openPrintWindow(); if (!w) return; printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(nonGstQty, nonGstAmount, false), { showGst: false })); }} className="flex-1 py-2.5 bg-amber-600 text-white rounded-xl font-bold text-sm hover:bg-amber-700">
-                      Print Non-GST Bill
-                    </button>
-                  )}
+                  <button type="button" onClick={() => {
+                    api.distribution.applyBilling({ vendorId: selectedVendorId!, gstUnits: gstQty, nonGstUnits: nonGstQty, gstRate: gstRate }).then(() => {
+                      toast('Billing saved to vendor finance', 'success');
+                      if (gstQty > 0) { const w = openPrintWindow(); if (w) printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(gstQty, gstAmount, true), { showGst: true })); }
+                      if (nonGstQty > 0) { setTimeout(() => { const w = openPrintWindow(); if (w) printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(nonGstQty, nonGstAmount, false), { showGst: false })); }, 500); }
+                      setSplitBillModal(null);
+                      load();
+                    }).catch((err) => toast((err as Error).message, 'error'));
+                  }} className="flex-1 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold text-sm hover:bg-[#D96A1C]">
+                    Save & Print Both Bills
+                  </button>
                 </div>
                 <button type="button" onClick={() => setSplitBillModal(null)} className="w-full mt-2 py-2 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
               </motion.div>
