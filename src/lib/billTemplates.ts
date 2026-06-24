@@ -189,9 +189,10 @@ export function generateDistributionChallanHtml(bill: DistributionBillData): str
     <thead><tr><th style="text-align:center;">S.No</th><th>Barcode</th><th>Product</th><th style="text-align:right;">Unit Price</th></tr></thead>
     <tbody>${itemRows}</tbody>
   </table>
-  <div class="summary">
-    <span>Total Quantity: <strong>${bill.totalQuantity} units</strong></span>
-    <span>Total Value: <strong>₹${bill.totalValue.toLocaleString()}</strong></span>
+  <div class="summary" style="flex-wrap:wrap;">
+    <span>Quantity: <strong>${bill.totalQuantity} units</strong></span>
+    ${bill.totalDiscount > 0 ? `<span>Gross: <strong>₹${bill.grossValue.toLocaleString()}</strong></span><span>Discount: <strong style="color:#16a34a;">-₹${bill.totalDiscount.toLocaleString()}</strong></span>` : ''}
+    <span>Net Amount: <strong style="color:#F27D26;font-size:16px;">₹${bill.totalValue.toLocaleString()}</strong></span>
   </div>
   ${bill.payment ? `
   <div style="margin-top:16px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;">

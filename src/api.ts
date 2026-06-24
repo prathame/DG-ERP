@@ -75,8 +75,10 @@ export interface DistributionBillData {
   distributionDate: string;
   vendor: { name: string; contactPerson?: string | null; phone?: string | null; email?: string | null; address?: string | null };
   company: { name: string; contactName?: string | null; phone?: string | null; address?: string | null };
-  items: { sno: number; barcode: string; productName: string; batchNumber?: string | null; price: number; status: string }[];
+  items: { sno: number; barcode: string; productName: string; batchNumber?: string | null; originalPrice: number; discountPercent: number; price: number; status: string }[];
   totalQuantity: number;
+  grossValue: number;
+  totalDiscount: number;
   totalValue: number;
   payment?: { totalDistributedValue: number; totalPaid: number; balance: number };
 }
@@ -213,7 +215,7 @@ export const api = {
         totalDistributed: number;
         vendorStats: { vendorId: string; vendorName: string; distributed: number; sold: number; replaced: number; damaged: number; availableWithVendor: number }[];
       }>('/distribution/summary'),
-    create: (data: { productId: string; vendorId: string; distributionDate?: string; quantity?: number; amountPaid?: number }) =>
+    create: (data: { productId: string; vendorId: string; distributionDate?: string; quantity?: number; discountPercent?: number; amountPaid?: number }) =>
       fetchApi<DistributionRecord>('/distribution', { method: 'POST', body: JSON.stringify(data) }),
     getBill: (params: { vendorId: string; productId?: string; distributionDate?: string }) => {
       const q = new URLSearchParams({ vendorId: params.vendorId });

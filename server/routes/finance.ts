@@ -9,7 +9,7 @@ router.get('/api/vendor-finance/summary', (_req, res) => {
   try {
     const vendors = db.prepare(`
       SELECT v.id, v.name, v.phone,
-        COALESCE((SELECT SUM(p.price) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id), 0) as total_distributed_value,
+        COALESCE((SELECT SUM(COALESCE(pd.net_price, p.price)) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id), 0) as total_distributed_value,
         COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id), 0) as total_paid,
         (SELECT COUNT(*) FROM product_distribution WHERE vendor_id = v.id) as units_distributed
       FROM vendors v WHERE v.id != 'OWNER' ORDER BY v.name
@@ -39,16 +39,18 @@ router.get('/api/vendor-finance/:vendorId', (req, res) => {
     const { vendorId } = req.params;
     const vendor = db.prepare('SELECT id, name, phone, email, address, contact_person FROM vendors WHERE id = ?').get(vendorId) as Record<string, unknown> | undefined;
     if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
-    const totalValue = db.prepare('SELECT COALESCE(SUM(p.price), 0) as total FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?').get(vendorId) as { total: number };
+    const totalValue = db.prepare('SELECT COALESCE(SUM(COALESCE(pd.net_price, p.price)), 0) as total FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?').get(vendorId) as { total: number };
     const totalPaid = db.prepare('SELECT COALESCE(SUM(amount), 0) as total FROM vendor_payments WHERE vendor_id = ?').get(vendorId) as { total: number };
     const payments = db.prepare('SELECT * FROM vendor_payments WHERE vendor_id = ? ORDER BY payment_date DESC').all(vendorId) as Record<string, unknown>[];
     const distributions = db.prepare(`
-      SELECT pd.distribution_date, p.name as product_name, p.price, COUNT(*) as qty, SUM(p.price) as line_total
+      SELECT pd.distribution_date, p.name as product_name, p.price as original_price, pd.discount_percent,
+             COALESCE(pd.net_price, p.price) as unit_price, COUNT(*) as qty,
+             SUM(COALESCE(pd.net_price, p.price)) as line_total
       FROM product_distribution pd JOIN products p ON pd.product_id = p.id
       WHERE pd.vendor_id = ?
-      GROUP BY pd.distribution_date, pd.product_id
+      GROUP BY pd.distribution_date, pd.product_id, pd.discount_percent
       ORDER BY pd.distribution_date DESC
-    `).all(vendorId) as { distribution_date: string; product_name: string; price: number; qty: number; line_total: number }[];
+    `).all(vendorId) as { distribution_date: string; product_name: string; original_price: number; discount_percent: number; unit_price: number; qty: number; line_total: number }[];
     const reminder = db.prepare('SELECT enabled, reminder_days, last_reminder_date FROM vendor_reminder_settings WHERE vendor_id = ?').get(vendorId) as { enabled: number; reminder_days: number; last_reminder_date: string | null } | undefined;
     res.json({
       vendor: { id: vendor.id, name: vendor.name, phone: vendor.phone, email: vendor.email, address: vendor.address, contactPerson: vendor.contact_person },
@@ -59,7 +61,7 @@ router.get('/api/vendor-finance/:vendorId', (req, res) => {
         id: p.id, amount: p.amount, paymentDate: p.payment_date, paymentMethod: p.payment_method, referenceNumber: p.reference_number, notes: p.notes, createdAt: p.created_at,
       })),
       distributions: distributions.map((d) => ({
-        date: d.distribution_date, productName: d.product_name, unitPrice: d.price, quantity: d.qty, total: d.line_total,
+        date: d.distribution_date, productName: d.product_name, originalPrice: d.original_price, discountPercent: d.discount_percent ?? 0, unitPrice: d.unit_price, quantity: d.qty, total: d.line_total,
       })),
       reminder: reminder ? { enabled: !!reminder.enabled, days: reminder.reminder_days, lastSent: reminder.last_reminder_date } : { enabled: false, days: 7, lastSent: null },
     });

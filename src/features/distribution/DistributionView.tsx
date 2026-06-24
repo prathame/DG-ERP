@@ -16,7 +16,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [summary, setSummary] = useState<{ totalBeforeDistribution: number; availableInInventory: number; totalDistributed: number; vendorStats: { vendorId: string; vendorName: string; distributed: number; sold: number; replaced: number; damaged: number; availableWithVendor: number }[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ productId: '', vendorId: '', quantity: 1, distributionDate: new Date().toISOString().slice(0, 10), amountPaid: '' });
+  const [form, setForm] = useState({ productId: '', vendorId: '', quantity: 1, distributionDate: new Date().toISOString().slice(0, 10), discountPercent: '', amountPaid: '' });
   const [submitting, setSubmitting] = useState(false);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(vendorId ?? null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -46,15 +46,24 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
       toast('Select product and vendor', 'error');
       return;
     }
+    const p = products.find(x => x.id === form.productId);
+    const grossValue = (p?.price ?? 0) * (form.quantity || 0);
+    const disc = parseFloat(form.discountPercent) || 0;
+    const discountAmount = Math.round(grossValue * disc / 100);
+    const netAmount = grossValue - discountAmount;
+    const paid = parseFloat(form.amountPaid) || 0;
+    if (paid > netAmount) { toast(`Amount paid (₹${paid}) cannot exceed bill amount (₹${netAmount}) after discount`, 'error'); return; }
+    if (disc < 0 || disc > 100) { toast('Discount must be between 0% and 100%', 'error'); return; }
     setSubmitting(true);
     api.distribution.create({
       productId: form.productId,
       vendorId: form.vendorId,
       quantity: form.quantity,
       distributionDate: form.distributionDate,
-      amountPaid: form.amountPaid ? parseFloat(form.amountPaid) : undefined,
+      discountPercent: disc > 0 ? disc : undefined,
+      amountPaid: paid > 0 ? paid : undefined,
     })
-      .then(() => { setModalOpen(false); setForm({ productId: '', vendorId: '', quantity: 1, distributionDate: new Date().toISOString().slice(0, 10), amountPaid: '' }); load(); toast('Products distributed successfully', 'success'); })
+      .then(() => { setModalOpen(false); setForm({ productId: '', vendorId: '', quantity: 1, distributionDate: new Date().toISOString().slice(0, 10), discountPercent: '', amountPaid: '' }); load(); toast('Products distributed successfully', 'success'); })
       .catch((err) => toast(err.message, 'error'))
       .finally(() => setSubmitting(false));
   };
@@ -286,14 +295,22 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Distribution Date</label><input type="date" value={form.distributionDate} onChange={(e) => setForm({ ...form, distributionDate: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                 {(() => {
                   const p = products.find(x => x.id === form.productId);
-                  const totalValue = (p?.price ?? 0) * (form.quantity || 0);
+                  const grossValue = (p?.price ?? 0) * (form.quantity || 0);
+                  const discPct = parseFloat(form.discountPercent) || 0;
+                  const discountAmount = Math.round(grossValue * discPct / 100);
+                  const netAmount = grossValue - discountAmount;
                   const paid = parseFloat(form.amountPaid) || 0;
-                  const remaining = totalValue - paid;
-                  return totalValue > 0 ? (
-                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 space-y-2">
-                      <div className="flex justify-between text-sm"><span className="text-gray-500">Total Value</span><span className="font-bold">₹{totalValue.toLocaleString()}</span></div>
-                      <div><label className="text-xs font-bold text-gray-400 uppercase">Amount Paid by Vendor</label><input type="number" min={0} max={totalValue} step={0.01} value={form.amountPaid} onChange={(e) => setForm({ ...form, amountPaid: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="0.00 (leave empty if credit)" /></div>
-                      <div className="flex justify-between text-sm"><span className="text-gray-500">Remaining Balance</span><span className={cn("font-bold", remaining > 0 ? "text-rose-600" : "text-emerald-600")}>₹{remaining.toLocaleString()}</span></div>
+                  const remaining = netAmount - paid;
+                  const overpaid = paid > netAmount;
+                  return grossValue > 0 ? (
+                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 space-y-3">
+                      <div className="flex justify-between text-sm"><span className="text-gray-500">Gross Value ({form.quantity} x ₹{(p?.price ?? 0).toLocaleString()})</span><span className="font-bold">₹{grossValue.toLocaleString()}</span></div>
+                      <div><label className="text-xs font-bold text-gray-400 uppercase">Discount (%)</label><input type="number" min={0} max={100} step={0.5} value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="0" /></div>
+                      {discPct > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Discount ({discPct}%)</span><span className="font-bold text-emerald-600">-₹{discountAmount.toLocaleString()}</span></div>}
+                      <div className="flex justify-between text-sm border-t border-gray-200 pt-2"><span className="text-gray-700 font-medium">Net Amount</span><span className="font-bold text-lg">₹{netAmount.toLocaleString()}</span></div>
+                      <div><label className="text-xs font-bold text-gray-400 uppercase">Amount Paid by Vendor</label><input type="number" min={0} max={netAmount} step={0.01} value={form.amountPaid} onChange={(e) => setForm({ ...form, amountPaid: e.target.value })} className={cn("w-full mt-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F27D26]", overpaid ? "border-rose-400 bg-rose-50" : "border-gray-200")} placeholder="0.00 (leave empty if full credit)" /></div>
+                      {overpaid && <p className="text-xs text-rose-600 font-bold">Amount paid cannot exceed ₹{netAmount.toLocaleString()}</p>}
+                      <div className="flex justify-between text-sm border-t border-gray-200 pt-2"><span className="text-gray-500">Remaining Balance</span><span className={cn("font-bold", remaining > 0 ? "text-rose-600" : "text-emerald-600")}>₹{Math.max(0, remaining).toLocaleString()}</span></div>
                     </div>
                   ) : null;
                 })()}
