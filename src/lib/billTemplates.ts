@@ -115,6 +115,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
         <tr style="border-top:2px solid #F27D26;"><td style="padding:6px 0;font-weight:700;${bill.vendorFinance.balance > 0 ? 'color:#dc2626;' : 'color:#16a34a;'}">Balance Remaining</td><td style="text-align:right;font-weight:700;font-size:15px;${bill.vendorFinance.balance > 0 ? 'color:#dc2626;' : 'color:#16a34a;'}">₹${bill.vendorFinance.balance.toLocaleString()}</td></tr>
       </table>
     </div>` : ''}
+  ${bill.vendorFinance && bill.vendorFinance.balance <= 0 ? `<div style="text-align:center;margin-top:16px;"><span style="display:inline-block;padding:8px 32px;border:3px solid #16a34a;color:#16a34a;font-size:24px;font-weight:900;letter-spacing:6px;text-transform:uppercase;border-radius:8px;transform:rotate(-3deg);opacity:0.7;">PAID</span></div>` : ''}
   <div class="footer">
     <p>Thank you for your purchase!</p>
     <p style="margin-top:4px;">This is a computer-generated invoice. No signature required.</p>
@@ -220,6 +221,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
       <tr style="border-top:2px solid #F27D26;"><td style="padding:6px 0;font-weight:700;${bill.payment.balance > 0 ? 'color:#dc2626;' : 'color:#16a34a;'}">Balance Remaining</td><td style="text-align:right;font-weight:700;font-size:15px;${bill.payment.balance > 0 ? 'color:#dc2626;' : 'color:#16a34a;'}">₹${bill.payment.balance.toLocaleString()}</td></tr>
     </table>
   </div>` : ''}
+  ${bill.payment && bill.payment.balance <= 0 ? `<div style="text-align:center;margin-top:16px;"><span style="display:inline-block;padding:8px 32px;border:3px solid #16a34a;color:#16a34a;font-size:24px;font-weight:900;letter-spacing:6px;text-transform:uppercase;border-radius:8px;transform:rotate(-3deg);opacity:0.7;">PAID</span></div>` : ''}
   <div class="signatures">
     <div class="sig-box"><p>Authorized Signatory</p></div>
     <div class="sig-box"><p>Received By</p></div>
