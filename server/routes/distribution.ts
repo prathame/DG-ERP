@@ -203,7 +203,7 @@ router.get('/api/distribution/bill', (req, res) => {
       groupedItems: (() => {
         const groups: Record<string, { productName: string; barcodes: string[]; originalPrice: number; discountPercent: number; netPrice: number }> = {};
         for (const r of rows) {
-          const key = `${r.product_name}-${r.discount_percent ?? 0}`;
+          const key = `${r.product_name}-${r.discount_percent ?? 0}-${r.distribution_date}`;
           if (!groups[key]) groups[key] = { productName: r.product_name as string, barcodes: [], originalPrice: Number(r.price) || 0, discountPercent: Number(r.discount_percent) || 0, netPrice: Number(r.net_price) || Number(r.price) || 0 };
           groups[key].barcodes.push(r.barcode as string);
         }
