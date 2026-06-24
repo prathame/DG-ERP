@@ -76,7 +76,14 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
           quantity: row.quantity,
           distributionDate: distDate,
           discountPercent: row.discount > 0 ? row.discount : undefined,
-          amountPaid: validRows.indexOf(row) === 0 && paid > 0 ? paid : undefined,
+        });
+      }
+      if (paid > 0) {
+        await api.vendorFinance.recordPayment(distVendorId, {
+          amount: paid,
+          paymentDate: distDate,
+          paymentMethod: 'Cash',
+          notes: `Payment with distribution (${validRows.length} products)`,
         });
       }
       setModalOpen(false);
