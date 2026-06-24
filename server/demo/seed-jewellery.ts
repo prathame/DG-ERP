@@ -4,8 +4,8 @@ import { hashPassword } from '../utils/helpers';
 console.log('Seeding Silver Jewellery demo data...\n');
 
 // Update admin company name
-db.prepare("UPDATE users SET company_name = ?, name = ? WHERE id = 'U1'").run('Shree Silver Jewellers', 'Shree Admin');
-console.log('✓ Company set to: Shree Silver Jewellers\n');
+db.prepare("UPDATE users SET company_name = ?, name = ? WHERE id = 'U1'").run('Radhe Krishan', 'Admin');
+console.log('✓ Company set to: Radhe Krishan\n');
 
 // ============ VENDORS (12 jewellery shops) ============
 const vendors = [
@@ -220,7 +220,7 @@ console.log('✓ 3 reward rules\n');
 
 console.log('═══════════════════════════════════════════════');
 console.log('  Silver Jewellery demo data seeded!');
-console.log('  Company: Shree Silver Jewellers');
+console.log('  Company: Radhe Krishan');
 console.log('  Admin: admin@splendor.com / admin123');
 console.log('  12 vendors, 12 products (705 units)');
 console.log('  15 customers, 12 sales, 8 payments');
