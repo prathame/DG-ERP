@@ -409,10 +409,10 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
           const pricePerUnit = totalQty > 0 ? bill.totalValue / totalQty : 0;
           const gstAmount = Math.round(pricePerUnit * gstQty);
           const nonGstAmount = bill.totalValue - gstAmount;
-          const gstRate = bill.groupedItems[0]?.discountPercent !== undefined ? 18 : 18;
-          const basePrice = Math.round(gstAmount * 100 / (100 + gstRate));
-          const gstTax = gstAmount - basePrice;
+          const gstRate = bill.gstRate || 18;
+          const gstTax = Math.round(gstAmount * gstRate / 100);
           const halfGst = Math.round(gstTax / 2);
+          const gstGrandTotal = gstAmount + gstTax;
 
           const makeSplitBill = (qty: number, amount: number, isGst: boolean): typeof bill => {
             const ratio = totalQty > 0 ? qty / totalQty : 0;
@@ -450,13 +450,13 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className={cn("p-4 rounded-xl border-2", gstQty > 0 ? "border-emerald-300 bg-emerald-50" : "border-gray-200 bg-gray-50")}>
                     <p className="text-xs font-bold text-emerald-700 uppercase mb-2">GST Bill</p>
-                    <p className="text-2xl font-bold text-emerald-700">₹{gstAmount.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-emerald-700">₹{gstGrandTotal.toLocaleString()}</p>
                     <p className="text-sm text-gray-600 mt-1">{gstQty} units</p>
                     {gstQty > 0 && (
                       <div className="mt-2 text-xs text-gray-500 space-y-0.5">
-                        <p>Base: ₹{basePrice.toLocaleString()}</p>
-                        <p>CGST: ₹{halfGst.toLocaleString()}</p>
-                        <p>SGST: ₹{(gstTax - halfGst).toLocaleString()}</p>
+                        <p>Subtotal: ₹{gstAmount.toLocaleString()}</p>
+                        <p>CGST @{gstRate / 2}%: ₹{halfGst.toLocaleString()}</p>
+                        <p>SGST @{gstRate / 2}%: ₹{(gstTax - halfGst).toLocaleString()}</p>
                       </div>
                     )}
                   </div>
