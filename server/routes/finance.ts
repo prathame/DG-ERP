@@ -4,6 +4,7 @@ import { logAudit } from '../utils/helpers';
 
 const router = Router();
 
+// Static routes MUST come before :vendorId param routes
 router.get('/api/vendor-finance/summary', (_req, res) => {
   try {
     const vendors = db.prepare(`
@@ -87,18 +88,6 @@ router.post('/api/vendor-finance/:vendorId/payments', (req, res) => {
   }
 });
 
-router.put('/api/vendor-finance/:vendorId/reminder', (req, res) => {
-  try {
-    const { vendorId } = req.params;
-    const { enabled, reminderDays } = req.body;
-    db.prepare('INSERT OR REPLACE INTO vendor_reminder_settings (vendor_id, enabled, reminder_days) VALUES (?, ?, ?)').run(vendorId, enabled ? 1 : 0, reminderDays ?? 7);
-    const row = db.prepare('SELECT * FROM vendor_reminder_settings WHERE vendor_id = ?').get(vendorId) as Record<string, unknown>;
-    res.json({ enabled: !!(row.enabled), days: row.reminder_days, lastSent: row.last_reminder_date });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
 router.get('/api/vendor-finance/reminders-due', (_req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
@@ -124,6 +113,18 @@ router.get('/api/vendor-finance/reminders-due', (_req, res) => {
       balance: r.total_value - r.total_paid, totalValue: r.total_value, totalPaid: r.total_paid,
       reminderDays: r.reminder_days, lastSent: r.last_reminder_date,
     })));
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+router.put('/api/vendor-finance/:vendorId/reminder', (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { enabled, reminderDays } = req.body;
+    db.prepare('INSERT OR REPLACE INTO vendor_reminder_settings (vendor_id, enabled, reminder_days) VALUES (?, ?, ?)').run(vendorId, enabled ? 1 : 0, reminderDays ?? 7);
+    const row = db.prepare('SELECT * FROM vendor_reminder_settings WHERE vendor_id = ?').get(vendorId) as Record<string, unknown>;
+    res.json({ enabled: !!(row.enabled), days: row.reminder_days, lastSent: row.last_reminder_date });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
