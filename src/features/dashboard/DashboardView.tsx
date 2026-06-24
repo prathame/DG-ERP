@@ -40,34 +40,30 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
       .then(([s, c, tResult]) => {
         const t = tResult.data;
         const monthChange = (s as { lastMonthSales?: number }).lastMonthSales ? `${Math.round((((s as { thisMonthSales?: number }).thisMonthSales ?? 0) / ((s as { lastMonthSales?: number }).lastMonthSales ?? 1) - 1) * 100)}%` : '';
+        const sx = s as Record<string, unknown>;
         setStats([
-          { label: "Today's Sales", value: String((s as { todaySales?: number }).todaySales ?? 0), change: '', icon: TrendingUp, color: 'text-[#F27D26]', bg: 'bg-orange-50' },
-          { label: 'This Month', value: String((s as { thisMonthSales?: number }).thisMonthSales ?? 0), change: monthChange ? (monthChange.startsWith('-') ? monthChange : `+${monthChange}`) : '', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'In Inventory', value: (s.availableInInventory ?? 0).toLocaleString(), change: '', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Distributed', value: (s.productsDistributed ?? 0).toLocaleString(), change: '', icon: Package, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+          { label: "Today's Sales", value: String(sx.todaySales ?? 0), change: '', icon: TrendingUp, color: 'text-[#F27D26]', bg: 'bg-orange-50' },
+          { label: 'This Month', value: String(sx.thisMonthSales ?? 0), change: monthChange ? (monthChange.startsWith('-') ? monthChange : `+${monthChange}`) : '', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Total Inventory', value: (s.totalBeforeDistribution ?? 0).toLocaleString(), change: '', icon: Package, color: 'text-gray-600', bg: 'bg-gray-50' },
+          { label: 'With Admin', value: (Number(sx.withAdmin) ?? 0).toLocaleString(), change: '', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'With Vendors', value: (Number(sx.withVendors) ?? 0).toLocaleString(), change: '', icon: Package, color: 'text-purple-600', bg: 'bg-purple-50' },
           { label: 'Total Sold', value: (s.productsSold ?? 0).toLocaleString(), change: '', icon: ShoppingCart, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ]);
         setLowStockProducts((s as { lowStockProducts?: { id: string; name: string; stock: number }[] }).lowStockProducts ?? []);
         setTopProducts((s as { topProducts?: { name: string; sold: number }[] }).topProducts ?? []);
-        setChartData(c.length ? c : [
-          { name: 'Jan', sales: 4000, claims: 240 },
-          { name: 'Feb', sales: 3000, claims: 139 },
-          { name: 'Mar', sales: 2000, claims: 980 },
-          { name: 'Apr', sales: 2780, claims: 390 },
-          { name: 'May', sales: 1890, claims: 480 },
-          { name: 'Jun', sales: 2390, claims: 380 },
-        ]);
+        setChartData(c.length ? c : [{ name: 'No data', sales: 0, claims: 0 }]);
         setTransactions(t.slice(0, 5));
       })
       .catch(() => {
         setStats([
-          { label: 'Total (Before)', value: '0', change: '', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Available (After)', value: '0', change: '', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Products Distributed', value: '0', change: '', icon: Package, color: 'text-cyan-600', bg: 'bg-cyan-50' },
-          { label: 'Products Sold', value: '0', change: '', icon: ShoppingCart, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Vendor Reward Points', value: '0 pts', change: '', icon: Gift, color: 'text-purple-600', bg: 'bg-purple-50' },
+          { label: "Today's Sales", value: '0', change: '', icon: TrendingUp, color: 'text-[#F27D26]', bg: 'bg-orange-50' },
+          { label: 'This Month', value: '0', change: '', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Total Inventory', value: '0', change: '', icon: Package, color: 'text-gray-600', bg: 'bg-gray-50' },
+          { label: 'With Admin', value: '0', change: '', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'With Vendors', value: '0', change: '', icon: Package, color: 'text-purple-600', bg: 'bg-purple-50' },
+          { label: 'Total Sold', value: '0', change: '', icon: ShoppingCart, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ]);
-        setChartData([{ name: 'Jan', sales: 0, claims: 0 }]);
+        setChartData([{ name: 'No data', sales: 0, claims: 0 }]);
       })
       .finally(() => setLoading(false));
   }, [isVendor, user?.vendorId]);
@@ -81,7 +77,7 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
       exit={{ opacity: 0, y: -20 }}
       className="space-y-8"
     >
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-6">
         {stats.map((stat, i) => (
           <div key={i} className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-4">

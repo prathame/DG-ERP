@@ -13,8 +13,11 @@ router.get('/api/dashboard/stats', (req, res) => {
     const distributed = db.prepare("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Distributed'").get() as { count: number };
     const sold = db.prepare("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Sold'").get() as { count: number };
     const vendorRewards = db.prepare('SELECT COALESCE(SUM(total_reward_points), 0) as total FROM vendors').get() as { total: number };
+    const withAdmin = db.prepare("SELECT COUNT(*) as count FROM product_inventory WHERE status = 'InStock'").get() as { count: number };
+    const withVendors = db.prepare("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Distributed'").get() as { count: number };
+    const totalInventory = db.prepare("SELECT COUNT(*) as count FROM product_inventory").get() as { count: number };
     const availableInInventory = db.prepare('SELECT COALESCE(SUM(stock), 0) as total FROM products').get() as { total: number };
-    const totalBeforeDistribution = availableInInventory.total + distributed.count;
+    const totalBeforeDistribution = totalInventory.count;
     const today = new Date().toISOString().slice(0, 10);
     const thisMonth = today.slice(0, 7);
     const lastMonthDate = new Date(); lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
@@ -46,6 +49,8 @@ router.get('/api/dashboard/stats', (req, res) => {
       productsSold: sold.count,
       vendorRewardPoints: vendorRewards.total,
       availableInInventory: availableInInventory.total,
+      withAdmin: withAdmin.count,
+      withVendors: withVendors.count,
       totalBeforeDistribution: totalBeforeDistribution,
       todaySales: todaySales.c,
       thisMonthSales: thisMonthSales.c,
