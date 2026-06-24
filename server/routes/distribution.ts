@@ -169,7 +169,7 @@ router.get('/api/distribution/bill', (req, res) => {
     const rows = db.prepare(sql).all(...params) as Record<string, unknown>[];
     if (rows.length === 0) return res.status(404).json({ error: 'No distribution records found' });
     const first = rows[0];
-    const company = db.prepare("SELECT name, company_name, phone, address FROM users WHERE role IN ('Super Admin', 'Admin') ORDER BY id LIMIT 1").get() as { name: string; company_name: string | null; phone: string | null; address: string | null } | undefined;
+    const company = db.prepare("SELECT name, company_name, phone, address, gst_number, default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') ORDER BY id LIMIT 1").get() as { name: string; company_name: string | null; phone: string | null; address: string | null; gst_number: string | null; default_gst_rate: number | null } | undefined;
     const grossValue = rows.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
     const totalValue = rows.reduce((sum, r) => sum + (Number(r.net_price) || Number(r.price) || 0), 0);
     const totalDiscount = grossValue - totalValue;
@@ -188,7 +188,9 @@ router.get('/api/distribution/bill', (req, res) => {
         contactName: company?.name ?? null,
         phone: company?.phone ?? null,
         address: company?.address ?? null,
+        gstNumber: company?.gst_number ?? null,
       },
+      gstRate: Number(company?.default_gst_rate) || 18,
       items: rows.map((r, i) => ({
         sno: i + 1,
         barcode: r.barcode,

@@ -87,21 +87,21 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
     </tbody>
   </table>
   ${(() => {
-    const price = Number(bill.salePrice);
+    const basePrice = Number(bill.salePrice);
     if (!showGst) {
       return `<div class="totals">
-        <div class="row total-row"><span>Total</span><span>₹${price.toLocaleString()}</span></div>
+        <div class="row total-row"><span>Total</span><span>₹${basePrice.toLocaleString()}</span></div>
       </div>`;
     }
     const gstRate = bill.gstRate || 18;
-    const basePrice = Math.round(price * 100 / (100 + gstRate));
-    const gstAmount = price - basePrice;
+    const gstAmount = Math.round(basePrice * gstRate / 100);
     const halfGst = Math.round(gstAmount / 2);
+    const grandTotal = basePrice + gstAmount;
     return `<div class="totals">
-      <div class="row"><span>Base Price</span><span>₹${basePrice.toLocaleString()}</span></div>
+      <div class="row"><span>Subtotal</span><span>₹${basePrice.toLocaleString()}</span></div>
       <div class="row"><span>CGST @ ${gstRate / 2}%</span><span>₹${halfGst.toLocaleString()}</span></div>
       <div class="row"><span>SGST @ ${gstRate / 2}%</span><span>₹${(gstAmount - halfGst).toLocaleString()}</span></div>
-      <div class="row total-row"><span>Grand Total (incl. GST)</span><span>₹${price.toLocaleString()}</span></div>
+      <div class="row total-row"><span>Grand Total (incl. GST)</span><span>₹${grandTotal.toLocaleString()}</span></div>
     </div>`;
   })()}
   ${warrantySection}
@@ -168,10 +168,11 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
     <div class="company-details">
       ${bill.company.address ? `<div>${bill.company.address}</div>` : ''}
       ${bill.company.phone ? `<div>Phone: ${bill.company.phone}</div>` : ''}
+      ${showGst && bill.company.gstNumber ? `<div style="font-weight:600;">GSTIN: ${bill.company.gstNumber}</div>` : ''}
     </div>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-    <div class="challan-title">Distribution Challan</div>
+    <div class="challan-title">${showGst ? 'Tax Challan' : 'Distribution Challan'}</div>
     <div style="text-align:right;font-size:13px;">
       <div><strong>Challan No:</strong> ${bill.challanId}</div>
       <div><strong>Date:</strong> ${bill.distributionDate}</div>
@@ -207,11 +208,25 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
       </tr>`).join('')}
     </tbody>
   </table>
-  <div class="summary" style="flex-wrap:wrap;">
-    <span>Total Quantity: <strong>${bill.totalQuantity} units</strong></span>
-    ${bill.totalDiscount > 0 ? `<span>Gross: <strong>₹${bill.grossValue.toLocaleString()}</strong></span><span>Discount: <strong style="color:#16a34a;">-₹${bill.totalDiscount.toLocaleString()}</strong></span>` : ''}
-    <span>Net Amount: <strong style="color:#F27D26;font-size:16px;">₹${bill.totalValue.toLocaleString()}</strong></span>
-  </div>
+  ${(() => {
+    const netVal = bill.totalValue;
+    const gstRate = bill.gstRate || 18;
+    const gstAmount = showGst ? Math.round(netVal * gstRate / 100) : 0;
+    const halfGst = Math.round(gstAmount / 2);
+    const grandTotal = netVal + gstAmount;
+    return `<div class="summary" style="flex-wrap:wrap;">
+      <span>Qty: <strong>${bill.totalQuantity} units</strong></span>
+      ${bill.totalDiscount > 0 ? `<span>Gross: <strong>₹${bill.grossValue.toLocaleString()}</strong></span><span>Discount: <strong style="color:#16a34a;">-₹${bill.totalDiscount.toLocaleString()}</strong></span>` : ''}
+      <span>Subtotal: <strong>₹${netVal.toLocaleString()}</strong></span>
+    </div>
+    ${showGst ? `<div style="margin-top:8px;padding:10px 16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+      <table style="width:100%;font-size:13px;">
+        <tr><td style="color:#6b7280;">CGST @ ${gstRate / 2}%</td><td style="text-align:right;font-weight:600;">₹${halfGst.toLocaleString()}</td></tr>
+        <tr><td style="color:#6b7280;">SGST @ ${gstRate / 2}%</td><td style="text-align:right;font-weight:600;">₹${(gstAmount - halfGst).toLocaleString()}</td></tr>
+        <tr style="border-top:2px solid #F27D26;"><td style="padding-top:6px;font-weight:700;font-size:15px;">Grand Total (incl. GST)</td><td style="text-align:right;font-weight:700;font-size:16px;color:#F27D26;padding-top:6px;">₹${grandTotal.toLocaleString()}</td></tr>
+      </table>
+    </div>` : `<div style="margin-top:8px;text-align:right;font-size:16px;font-weight:700;color:#F27D26;">Total: ₹${netVal.toLocaleString()}</div>`}`;
+  })()}
   ${bill.payment ? `
   <div style="margin-top:16px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;">
     <strong style="font-size:13px;">Payment Summary</strong>
