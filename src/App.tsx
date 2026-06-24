@@ -19,6 +19,7 @@ import { cn } from './lib/utils';
 import { Tab, USER_STORAGE_KEY } from './types';
 import { ToastProvider } from './components/ui';
 import { LoginScreen, GlobalSearchBar, NotificationBell } from './components/layout';
+import { ChatWidget } from './components/layout/ChatWidget';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { SalesEntryView } from './features/sales/SalesEntryView';
 import { DistributionView } from './features/distribution/DistributionView';
@@ -203,6 +204,7 @@ export default function App() {
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
         </div>
       </main>
+      <ChatWidget />
     </div>
     </ToastProvider>
   );

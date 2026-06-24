@@ -22,6 +22,7 @@ import notificationsRouter from './routes/notifications';
 import mastersRouter from './routes/masters';
 import mappingRouter from './routes/mapping';
 import auditRouter from './routes/audit';
+import chatbotRouter from './routes/chatbot';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -66,6 +67,7 @@ app.use(notificationsRouter);
 app.use(mastersRouter);
 app.use(mappingRouter);
 app.use(auditRouter);
+app.use(chatbotRouter);
 
 // SPA fallback (only if built)
 app.get('*', (req, res, next) => {
