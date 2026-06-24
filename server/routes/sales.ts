@@ -197,7 +197,7 @@ router.get('/api/sales/:id/bill', (req, res) => {
     `).get(id) as Record<string, unknown> | undefined;
     if (!sale) return res.status(404).json({ error: 'Sale not found' });
     const warranty = db.prepare('SELECT activation_date, expiry_date, status FROM warranties WHERE barcode = ? ORDER BY activation_date DESC LIMIT 1').get(sale.barcode) as { activation_date: string; expiry_date: string; status: string } | undefined;
-    const company = db.prepare("SELECT name, company_name, phone, address, gst_number FROM users WHERE role IN ('Super Admin', 'Admin') ORDER BY id LIMIT 1").get() as { name: string; company_name: string | null; phone: string | null; address: string | null; gst_number: string | null } | undefined;
+    const company = db.prepare("SELECT name, company_name, phone, address, gst_number, default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') ORDER BY id LIMIT 1").get() as { name: string; company_name: string | null; phone: string | null; address: string | null; gst_number: string | null; default_gst_rate: number | null } | undefined;
     res.json({
       id: sale.id,
       barcode: sale.barcode,
@@ -226,7 +226,7 @@ router.get('/api/sales/:id/bill', (req, res) => {
         status: warranty.status,
       } : null,
       hsnCode: sale.hsn_code ?? null,
-      gstRate: Number(sale.gst_rate) || 18,
+      gstRate: Number(sale.gst_rate) || Number(company?.default_gst_rate) || 18,
       company: {
         name: company?.company_name ?? 'Splendor',
         contactName: company?.name ?? null,

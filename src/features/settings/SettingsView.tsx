@@ -29,7 +29,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
   const [authForm, setAuthForm] = useState({ email: '', password: '', name: '', confirmPassword: '' });
   const [authError, setAuthError] = useState('');
   const [authSubmitting, setAuthSubmitting] = useState(false);
-  const [profileForm, setProfileForm] = useState({ name: '', phone: '', address: '', role: 'Admin', companyName: '', gstNumber: '' });
+  const [profileForm, setProfileForm] = useState({ name: '', phone: '', address: '', role: 'Admin', companyName: '', gstNumber: '', defaultGstRate: 18 });
   const [profileSubmitting, setProfileSubmitting] = useState(false);
   const [users, setUsers] = useState<{ id: string; email: string; name: string; phone?: string; role?: string; permissions?: string[] | null }[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -42,7 +42,8 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
 
   useEffect(() => {
     if (user) {
-      setProfileForm({ name: user.name, phone: user.phone ?? '', address: user.address ?? '', role: user.role ?? 'Admin', companyName: user.companyName ?? '', gstNumber: (user as Record<string, unknown>).gstNumber as string ?? '' });
+      const ux = user as Record<string, unknown>;
+      setProfileForm({ name: user.name, phone: user.phone ?? '', address: user.address ?? '', role: user.role ?? 'Admin', companyName: user.companyName ?? '', gstNumber: (ux.gstNumber as string) ?? '', defaultGstRate: Number(ux.defaultGstRate) || 18 });
     }
   }, [user]);
 
@@ -240,7 +241,18 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             </div>
             <form onSubmit={handleProfileSave} className="p-6 space-y-4">
               <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Company / Business Name</label><input value={profileForm.companyName} onChange={(e) => setProfileForm({ ...profileForm, companyName: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="Splendor Pump LLP" /></div>
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">GST Number (GSTIN)</label><input value={profileForm.gstNumber ?? ''} onChange={(e) => setProfileForm({ ...profileForm, gstNumber: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26] font-mono" placeholder="e.g. 27AABCU9603R1ZM" maxLength={15} /></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">GST Number (GSTIN)</label><input value={profileForm.gstNumber ?? ''} onChange={(e) => setProfileForm({ ...profileForm, gstNumber: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26] font-mono" placeholder="e.g. 27AABCU9603R1ZM" maxLength={15} /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Default GST Rate (%)</label>
+                  <div className="flex gap-2 mt-1">
+                    {[3, 5, 12, 18, 28].map((rate) => (
+                      <button key={rate} type="button" onClick={() => setProfileForm({ ...profileForm, defaultGstRate: rate })} className={cn("px-3 py-2 rounded-lg text-sm font-bold border transition-colors", profileForm.defaultGstRate === rate ? "bg-[#F27D26] text-white border-[#F27D26]" : "bg-white border-gray-200 text-gray-600 hover:border-[#F27D26]")}>{rate}%</button>
+                    ))}
+                    <input type="number" min={0} max={100} value={profileForm.defaultGstRate || ''} onChange={(e) => setProfileForm({ ...profileForm, defaultGstRate: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">CGST + SGST will split equally (e.g. 18% = 9% + 9%)</p>
+                </div>
+              </div>
               <button type="submit" disabled={profileSubmitting} className="px-6 py-2 bg-[#F27D26] text-white rounded-xl font-bold">{profileSubmitting ? 'Saving...' : 'Save'}</button>
             </form>
           </div>

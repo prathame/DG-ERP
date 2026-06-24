@@ -209,6 +209,7 @@ addColumnIfMissing('users', 'permissions', 'TEXT');
 addColumnIfMissing('users', 'vendor_id', 'TEXT REFERENCES vendors(id)');
 addColumnIfMissing('users', 'auto_whatsapp', "INTEGER NOT NULL DEFAULT 0");
 addColumnIfMissing('users', 'gst_number', 'TEXT');
+addColumnIfMissing('users', 'default_gst_rate', 'REAL NOT NULL DEFAULT 18');
 addColumnIfMissing('product_distribution', 'discount_percent', 'REAL NOT NULL DEFAULT 0');
 addColumnIfMissing('product_distribution', 'net_price', 'REAL');
 addColumnIfMissing('products', 'hsn_code', 'TEXT');
