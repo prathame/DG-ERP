@@ -129,7 +129,7 @@ export function ChatWidget() {
 
             {/* Quick actions */}
             <div className="px-3 py-2 border-t border-gray-100 flex gap-1.5 overflow-x-auto bg-white">
-              {['sales today', 'low stock', 'pending payments', 'all vendors'].map((cmd) => (
+              {['daily report', 'sales today', 'low stock', 'pending payments', 'top products', 'all vendors', 'profit'].map((cmd) => (
                 <button
                   key={cmd}
                   type="button"
