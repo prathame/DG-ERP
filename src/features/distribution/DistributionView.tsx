@@ -18,6 +18,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ productId: '', vendorId: '', quantity: 1, distributionDate: new Date().toISOString().slice(0, 10), discountPercent: '', amountPaid: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [includeGst, setIncludeGst] = useState(true);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(vendorId ?? null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
@@ -164,6 +165,10 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     <ArrowLeft size={20} className="text-gray-600" />
                   </button>
                   <h3 className="font-bold text-lg">{selectedProduct ? selectedProduct.productName : vendorName}</h3>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-500 bg-white border border-gray-200 px-3 py-1.5 rounded-full select-none ml-2">
+                    <input type="checkbox" checked={includeGst} onChange={(e) => setIncludeGst(e.target.checked)} className="rounded text-[#F27D26]" />
+                    GST
+                  </label>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
@@ -172,7 +177,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                         api.distribution.getBill({
                           vendorId: selectedVendorId!,
                           productId: selectedProductId ?? undefined,
-                        }).then((bill) => printBillInWindow(w, generateDistributionChallanHtml(bill))).catch((err) => { w.close(); toast(err.message, 'error'); });
+                        }).then((bill) => printBillInWindow(w, generateDistributionChallanHtml(bill, { showGst: includeGst }))).catch((err) => { w.close(); toast(err.message, 'error'); });
                       }}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors"
                       title="Print Distribution Challan"
@@ -185,7 +190,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                         api.distribution.getBill({
                           vendorId: selectedVendorId!,
                           productId: selectedProductId ?? undefined,
-                        }).then((bill) => saveBillAsPdf(generateDistributionChallanHtml(bill))).catch((err) => toast(err.message, 'error'));
+                        }).then((bill) => saveBillAsPdf(generateDistributionChallanHtml(bill, { showGst: includeGst }))).catch((err) => toast(err.message, 'error'));
                       }}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors"
                       title="Save as PDF"

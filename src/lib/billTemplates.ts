@@ -1,6 +1,7 @@
 import type { SaleBillData, DistributionBillData } from '../api';
 
-export function generateSalesInvoiceHtml(bill: SaleBillData): string {
+export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst?: boolean }): string {
+  const showGst = options?.showGst ?? true;
   const warrantySection = bill.warranty ? `
     <div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
       <strong style="color:#166534;">Warranty Information</strong>
@@ -47,11 +48,11 @@ export function generateSalesInvoiceHtml(bill: SaleBillData): string {
     <div class="company-details">
       ${bill.company.address ? `<div>${bill.company.address}</div>` : ''}
       ${bill.company.phone ? `<div>Phone: ${bill.company.phone}</div>` : ''}
-      ${bill.company.gstNumber ? `<div style="font-weight:600;">GSTIN: ${bill.company.gstNumber}</div>` : ''}
+      ${showGst && bill.company.gstNumber ? `<div style="font-weight:600;">GSTIN: ${bill.company.gstNumber}</div>` : ''}
     </div>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-    <div class="invoice-title">Tax Invoice</div>
+    <div class="invoice-title">${showGst ? 'Tax Invoice' : 'Invoice'}</div>
     <div style="text-align:right;font-size:13px;">
       <div><strong>Invoice No:</strong> ${bill.id}</div>
       <div><strong>Date:</strong> ${bill.purchaseDate}</div>
@@ -73,12 +74,12 @@ export function generateSalesInvoiceHtml(bill: SaleBillData): string {
     </div>
   </div>
   <table class="items">
-    <thead><tr><th>Barcode</th><th>Product</th>${bill.hsnCode ? '<th>HSN</th>' : ''}<th>Qty</th><th style="text-align:right;">Price</th><th style="text-align:right;">Total</th></tr></thead>
+    <thead><tr><th>Barcode</th><th>Product</th>${showGst && bill.hsnCode ? '<th>HSN</th>' : ''}<th>Qty</th><th style="text-align:right;">Price</th><th style="text-align:right;">Total</th></tr></thead>
     <tbody>
       <tr>
         <td style="font-family:monospace;">${bill.barcode}</td>
         <td><strong>${bill.productName}</strong>${bill.productDescription ? `<br/><span style="color:#6b7280;font-size:11px;">${bill.productDescription}</span>` : ''}</td>
-        ${bill.hsnCode ? `<td>${bill.hsnCode}</td>` : ''}
+        ${showGst && bill.hsnCode ? `<td>${bill.hsnCode}</td>` : ''}
         <td>1</td>
         <td style="text-align:right;">₹${Number(bill.salePrice).toLocaleString()}</td>
         <td style="text-align:right;font-weight:bold;">₹${Number(bill.salePrice).toLocaleString()}</td>
@@ -87,6 +88,11 @@ export function generateSalesInvoiceHtml(bill: SaleBillData): string {
   </table>
   ${(() => {
     const price = Number(bill.salePrice);
+    if (!showGst) {
+      return `<div class="totals">
+        <div class="row total-row"><span>Total</span><span>₹${price.toLocaleString()}</span></div>
+      </div>`;
+    }
     const gstRate = bill.gstRate || 18;
     const basePrice = Math.round(price * 100 / (100 + gstRate));
     const gstAmount = price - basePrice;
@@ -116,7 +122,8 @@ export function generateSalesInvoiceHtml(bill: SaleBillData): string {
 </body></html>`;
 }
 
-export function generateDistributionChallanHtml(bill: DistributionBillData): string {
+export function generateDistributionChallanHtml(bill: DistributionBillData, options?: { showGst?: boolean }): string {
+  const showGst = options?.showGst ?? true;
   const itemRows = bill.items.map((item) => `
     <tr>
       <td style="text-align:center;">${item.sno}</td>

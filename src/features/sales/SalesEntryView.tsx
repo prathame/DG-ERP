@@ -14,6 +14,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
   const [validation, setValidation] = useState<{ valid: boolean; productName?: string; vendorName?: string; rewardPointsValue?: number; price?: number; error?: string } | null>(null);
   const [form, setForm] = useState({ customerName: '', customerPhone: '', customerEmail: '', purchaseDate: new Date().toISOString().slice(0, 10), salePrice: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [includeGst, setIncludeGst] = useState(true);
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [salesPage, setSalesPage] = useState(1);
   const [salesTotalPages, setSalesTotalPages] = useState(1);
@@ -142,7 +143,13 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
               <Download size={16} /> Export CSV
             </button>
           </div>
-          <div className="mb-3"><DateRangeFilter value={salesDateFilter} onChange={(v) => { setSalesDateFilter(v); setSalesPage(1); }} /></div>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <DateRangeFilter value={salesDateFilter} onChange={(v) => { setSalesDateFilter(v); setSalesPage(1); }} />
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-500 bg-white border border-gray-200 px-3 py-1.5 rounded-full select-none">
+              <input type="checkbox" checked={includeGst} onChange={(e) => setIncludeGst(e.target.checked)} className="rounded text-[#F27D26]" />
+              GST on Bill
+            </label>
+          </div>
           <div className="space-y-3 max-h-[400px] overflow-y-auto">
             {sales.length === 0 ? <p className="text-gray-500 text-sm py-4 text-center">No sales found for this period</p> : sales.map((s) => (
               <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl group">
@@ -154,7 +161,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                     <button
                       type="button"
-                      onClick={() => { const w = openPrintWindow(); if (!w) return; api.sales.getBill(s.id).then((bill) => printBillInWindow(w, generateSalesInvoiceHtml(bill))).catch((err) => { w.close(); toast(err.message, 'error'); }); }}
+                      onClick={() => { const w = openPrintWindow(); if (!w) return; api.sales.getBill(s.id).then((bill) => printBillInWindow(w, generateSalesInvoiceHtml(bill, { showGst: includeGst }))).catch((err) => { w.close(); toast(err.message, 'error'); }); }}
                       className="p-1.5 text-gray-400 hover:text-[#F27D26] hover:bg-orange-50 rounded-lg"
                       title="Print Invoice"
                     >
@@ -162,7 +169,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                     </button>
                     <button
                       type="button"
-                      onClick={() => api.sales.getBill(s.id).then((bill) => saveBillAsPdf(generateSalesInvoiceHtml(bill))).catch((err) => toast(err.message, 'error'))}
+                      onClick={() => api.sales.getBill(s.id).then((bill) => saveBillAsPdf(generateSalesInvoiceHtml(bill, { showGst: includeGst }))).catch((err) => toast(err.message, 'error'))}
                       className="p-1.5 text-gray-400 hover:text-[#F27D26] hover:bg-orange-50 rounded-lg"
                       title="Save as PDF"
                     >
