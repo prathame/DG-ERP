@@ -32,8 +32,13 @@ npm run dev
    - Company Name: `Splendor Pump LLP`
    - Admin Email: `admin@splendor.com`
    - Admin Name: `Rajesh Kumar`
+   - Phone: `9876543210`
    - Plan: Professional
-3. Note the auto-generated **slug** (`splendor-pump-llp`) and **admin password**
+3. After creation, show the **credentials screen**:
+   - Login URL: `http://localhost:3000/splendor-pump-llp` (with copy button)
+   - Email + Password (with copy buttons)
+   - Click **WhatsApp** → opens WhatsApp with credentials message
+   - Click **Email** → opens email client with credentials
 4. Show how tenant appears in the tenant list with status "Active"
 
 ## 3. Branded Tenant Login

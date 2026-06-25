@@ -192,6 +192,7 @@ npm run dev
 - **Self-Service Registration**: Companies sign up with 14-day trial
 - **Separate Route**: Super admin UI at `/admin`, completely hidden from tenant login
 - **Tenant Onboarding**: Only super admin can create tenants (no self-registration)
+- **Credential Sharing**: After onboarding, share login URL + credentials via WhatsApp or Email directly
 
 ### Subscription Plans
 

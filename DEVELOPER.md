@@ -614,9 +614,13 @@ Tenants can only be created by the super admin. Two methods:
 
 **Via Super Admin UI** (recommended):
 1. Go to `/admin` → Login as super admin
-2. Tenants → Create Tenant → Fill company name, admin email, plan
+2. Tenants → Create Tenant → Fill company name, admin email, phone, plan
 3. Tenant gets a slug URL automatically (e.g., "New Company" → `/new-company`)
-4. Share the URL `https://yourdomain.com/new-company` with the tenant admin
+4. After creation, a credentials screen shows:
+   - Login URL, Email, Password — each with a copy button
+   - **WhatsApp button** — sends login URL + credentials to the tenant admin's phone
+   - **Email button** — opens mailto: with pre-filled subject and credentials
+5. Tenant admin logs in at `/{slug}` and changes password
 
 **Via API**:
 ```bash
@@ -626,7 +630,7 @@ curl -X POST http://localhost:3001/api/tenant/register \
   -d '{"companyName":"New Co","adminEmail":"admin@new.com","adminName":"Admin","adminPassword":"secure123","planId":"PRO"}'
 ```
 
-The slug is auto-generated from the company name. The tenant admin can then login at `/{slug}` with their credentials.
+Response includes `slug`, `adminEmail`, `password` for sharing.
 
 ### Add a New Chatbot Command
 
