@@ -329,31 +329,39 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                       Split Bill
                     </button>
                     <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
+                      {(() => {
+                        const hasGst = batchItems.some((d) => d.gstApplied);
+                        const hasNonGst = batchItems.some((d) => !d.gstApplied);
+                        const f = financeMap[selectedBatch.vendorId];
+                        const fullyPaid = f ? isBillFullyPaid(f.totalDistributedValue, f.balance) : false;
+                        const printBill = (showGst: boolean, label: string) => {
+                          const items = batchItems.filter((d) => showGst ? d.gstApplied : !d.gstApplied);
+                          if (items.length === 0) { toast(`No ${showGst ? 'GST' : 'non-GST'} items in this batch`, 'error'); return; }
                           const w = openPrintWindow(); if (!w) return;
                           api.distribution.getBill(billParams(selectedBatch.batchId))
-                            .then((bill) => printBillInWindow(w, generateDistributionChallanHtml(bill, challanOptions(selectedBatch.vendorId))))
+                            .then((bill) => {
+                              const filtered = { ...bill, items: bill.items.filter((_: unknown, i: number) => showGst ? batchItems[i]?.gstApplied : !batchItems[i]?.gstApplied) };
+                              printBillInWindow(w, generateDistributionChallanHtml(filtered, { showGst, fullyPaid }), `Challan-${showGst ? 'GST' : 'NonGST'}-${selectedBatch.vendorName}-${selectedBatch.batchId}`);
+                            })
                             .catch((err) => { w.close(); toast(err.message, 'error'); });
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors"
-                        title="Print Distribution Challan"
-                      >
-                        <Printer size={16} /> Print
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
+                        };
+                        const downloadBill = (showGst: boolean) => {
+                          const items = batchItems.filter((d) => showGst ? d.gstApplied : !d.gstApplied);
+                          if (items.length === 0) { toast(`No ${showGst ? 'GST' : 'non-GST'} items in this batch`, 'error'); return; }
                           api.distribution.getBill(billParams(selectedBatch.batchId))
-                            .then((bill) => saveBillAsPdf(generateDistributionChallanHtml(bill, challanOptions(selectedBatch.vendorId)), `Challan-${selectedBatch.vendorName}-${selectedBatch.batchId}`))
+                            .then((bill) => {
+                              const filtered = { ...bill, items: bill.items.filter((_: unknown, i: number) => showGst ? batchItems[i]?.gstApplied : !batchItems[i]?.gstApplied) };
+                              saveBillAsPdf(generateDistributionChallanHtml(filtered, { showGst, fullyPaid }), `Challan-${showGst ? 'GST' : 'NonGST'}-${selectedBatch.vendorName}-${selectedBatch.batchId}`);
+                            })
                             .catch((err) => toast(err.message, 'error'));
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors"
-                        title="Save as PDF"
-                      >
-                        <Download size={16} /> PDF
-                      </button>
+                        };
+                        return <>
+                          {hasGst && <button type="button" onClick={() => printBill(true, 'GST')} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-600 hover:bg-emerald-50 rounded-lg"><Printer size={14} /> GST Bill</button>}
+                          {hasNonGst && <button type="button" onClick={() => printBill(false, 'Non-GST')} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg"><Printer size={14} /> Non-GST</button>}
+                          {hasGst && <button type="button" onClick={() => downloadBill(true)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-600 hover:bg-emerald-50 rounded-lg" title="Download GST PDF"><Download size={14} /></button>}
+                          {hasNonGst && <button type="button" onClick={() => downloadBill(false)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-lg" title="Download Non-GST PDF"><Download size={14} /></button>}
+                        </>;
+                      })()}
                       <button
                         type="button"
                         onClick={() => {
