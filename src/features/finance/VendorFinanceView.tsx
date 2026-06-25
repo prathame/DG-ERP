@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Plus, ArrowLeft, Clock, MessageCircle, Send } from 'lucide-react';
 import { cn, shareViaWhatsApp } from '../../lib/utils';
 import { api } from '../../api';
-import { useToast, LoadingSpinner } from '../../components/ui';
+import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 
 export function VendorFinanceView({ user }: { user: { id: string; role?: string; vendorId?: string | null } | null }) {
   const { toast } = useToast();
@@ -93,9 +93,17 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
         <div className="flex items-center gap-4">
           {isAdmin && <button type="button" onClick={() => { setSelectedVendorId(null); setDetail(null); }} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>}
-          <div className="flex-1">
-            <h2 className="text-xl font-bold">{isVendor ? 'My Finance' : `${detail.vendor.name} — Finance`}</h2>
-            <p className="text-sm text-gray-500">{detail.vendor.phone || detail.vendor.email || ''}</p>
+          <div className="flex-1 flex items-center gap-3 flex-wrap">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2 flex-wrap">
+                {isVendor ? 'My Finance' : `${detail.vendor.name} — Finance`}
+                {isBillFullyPaid(detail.totalDistributedValue, detail.balance) && <PaidBadge />}
+              </h2>
+              <p className="text-sm text-gray-500">{detail.vendor.phone || detail.vendor.email || ''}</p>
+            </div>
+            {isBillFullyPaid(detail.totalDistributedValue, detail.balance) && (
+              <PaidStamp className="hidden sm:flex text-xs opacity-80" />
+            )}
           </div>
           {isAdmin && <button type="button" onClick={() => setPaymentModal(true)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"><Plus size={18} /> Record Payment</button>}
         </div>
@@ -109,9 +117,17 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
             <p className="text-xs font-bold text-gray-400 uppercase">Total Paid</p>
             <p className="text-2xl font-bold text-emerald-600 mt-1">₹{detail.totalPaid.toLocaleString()}</p>
           </div>
-          <div className={cn("p-5 rounded-2xl border shadow-sm", detail.balance > 0 ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200")}>
+          <div className={cn("p-5 rounded-2xl border shadow-sm relative overflow-hidden", detail.balance > 0 ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200")}>
             <p className="text-xs font-bold text-gray-400 uppercase">Balance Remaining</p>
-            <p className={cn("text-2xl font-bold mt-1", detail.balance > 0 ? "text-rose-600" : "text-emerald-600")}>₹{detail.balance.toLocaleString()}</p>
+            <p className={cn("text-2xl font-bold mt-1", detail.balance > 0 ? "text-rose-600" : "text-emerald-600")}>
+              {isBillFullyPaid(detail.totalDistributedValue, detail.balance) ? (
+                <span className="inline-flex items-center gap-2">
+                  <PaidBadge size="md" className="text-sm px-3 py-1.5" />
+                </span>
+              ) : (
+                <>₹{detail.balance.toLocaleString()}</>
+              )}
+            </p>
           </div>
         </div>
 
@@ -233,10 +249,22 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                 <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No vendor finance data yet</td></tr>
               ) : summaryData.map((v) => (
                 <tr key={v.vendorId} className="hover:bg-gray-50">
-                  <td className="px-6 py-4"><p className="font-medium">{v.vendorName}</p><p className="text-xs text-gray-500">{v.unitsDistributed} units</p></td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium">{v.vendorName}</p>
+                      {isBillFullyPaid(v.totalDistributedValue, v.balance) && <PaidBadge size="sm" />}
+                    </div>
+                    <p className="text-xs text-gray-500">{v.unitsDistributed} units</p>
+                  </td>
                   <td className="px-6 py-4 font-medium">₹{v.totalDistributedValue.toLocaleString()}</td>
                   <td className="px-6 py-4 font-bold text-emerald-600">₹{v.totalPaid.toLocaleString()}</td>
-                  <td className="px-6 py-4"><span className={cn("font-bold", v.balance > 0 ? "text-rose-600" : "text-emerald-600")}>₹{v.balance.toLocaleString()}</span></td>
+                  <td className="px-6 py-4">
+                    {isBillFullyPaid(v.totalDistributedValue, v.balance) ? (
+                      <PaidBadge size="sm" />
+                    ) : (
+                      <span className="font-bold text-rose-600">₹{v.balance.toLocaleString()}</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4">
                     <button type="button" onClick={() => setReminderModal({ vendorId: v.vendorId, vendorName: v.vendorName, enabled: v.reminder.enabled, days: v.reminder.days })} className={cn("text-xs font-bold px-2.5 py-1 rounded-full", v.reminder.enabled ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500")}>
                       {v.reminder.enabled ? `Every ${v.reminder.days}d` : 'Off'}

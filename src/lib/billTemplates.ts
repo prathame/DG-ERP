@@ -1,5 +1,50 @@
 import type { SaleBillData, DistributionBillData } from '../api';
 
+export function buildDistributionBillSlice(
+  bill: DistributionBillData,
+  items: DistributionBillData['items'],
+  totalValue: number,
+): DistributionBillData {
+  const groups: Record<string, { productName: string; barcodes: string[]; originalPrice: number; discountPercent: number; netPrice: number }> = {};
+  for (const item of items) {
+    const key = item.productName;
+    if (!groups[key]) {
+      groups[key] = {
+        productName: item.productName,
+        barcodes: [],
+        originalPrice: item.originalPrice,
+        discountPercent: item.discountPercent,
+        netPrice: item.price,
+      };
+    }
+    groups[key].barcodes.push(item.barcode);
+  }
+  const groupedItems = Object.values(groups).map((g, i) => {
+    const sorted = [...g.barcodes].sort();
+    return {
+      sno: i + 1,
+      productName: g.productName,
+      barcodeRange: sorted.length === 1 ? sorted[0] : `${sorted[0]} – ${sorted[sorted.length - 1]}`,
+      quantity: sorted.length,
+      originalPrice: g.originalPrice,
+      discountPercent: g.discountPercent,
+      netPrice: g.netPrice,
+      lineTotal: g.netPrice * sorted.length,
+    };
+  });
+  const grossValue = items.reduce((s, i) => s + (i.originalPrice || 0), 0);
+  return {
+    ...bill,
+    items: items.map((item, i) => ({ ...item, sno: i + 1 })),
+    groupedItems,
+    totalQuantity: items.length,
+    grossValue,
+    totalDiscount: grossValue - totalValue,
+    totalValue,
+    payment: undefined,
+  };
+}
+
 export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst?: boolean }): string {
   const showGst = options?.showGst ?? true;
   const warrantySection = bill.warranty ? `
@@ -113,8 +158,9 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
 </body></html>`;
 }
 
-export function generateDistributionChallanHtml(bill: DistributionBillData, options?: { showGst?: boolean }): string {
+export function generateDistributionChallanHtml(bill: DistributionBillData, options?: { showGst?: boolean; fullyPaid?: boolean }): string {
   const showGst = options?.showGst ?? true;
+  const fullyPaid = options?.fullyPaid ?? false;
   const itemRows = bill.items.map((item) => `
     <tr>
       <td style="text-align:center;">${item.sno}</td>
@@ -145,8 +191,11 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   .sig-box{text-align:center;padding-top:40px;border-top:1px solid #1a1a1a;}
   .sig-box p{font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:1px;}
   .footer{margin-top:40px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center;}
+  .paid-stamp{position:absolute;top:8px;right:0;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:3px solid #059669;color:#059669;background:#ecfdf5;border-radius:8px;font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;transform:rotate(-12deg);box-shadow:0 2px 8px rgba(5,150,105,0.15);}
+  .header-wrap{position:relative;}
   @media print{body{padding:20px;} .no-print{display:none;}}
 </style></head><body>
+  <div class="header-wrap">
   <div class="header">
     <div class="logo">
       <div class="logo-icon">S</div>
@@ -160,6 +209,8 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
       ${bill.company.phone ? `<div>Phone: ${bill.company.phone}</div>` : ''}
       ${showGst && bill.company.gstNumber ? `<div style="font-weight:600;">GSTIN: ${bill.company.gstNumber}</div>` : ''}
     </div>
+  </div>
+  ${fullyPaid ? '<div class="paid-stamp">✓ Paid</div>' : ''}
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
     <div class="challan-title">${showGst ? 'Tax Challan' : 'Distribution Challan'}</div>
@@ -217,16 +268,6 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
       </table>
     </div>` : `<div style="margin-top:8px;text-align:right;font-size:16px;font-weight:700;color:#F27D26;">Total: ₹${netVal.toLocaleString()}</div>`}`;
   })()}
-  ${bill.payment ? `
-  <div style="margin-top:16px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;">
-    <strong style="font-size:13px;">Payment Summary</strong>
-    <table style="width:100%;margin-top:8px;font-size:13px;">
-      <tr><td style="color:#6b7280;padding:3px 0;">Total Distributed Value (All Time)</td><td style="text-align:right;font-weight:600;">₹${bill.payment.totalDistributedValue.toLocaleString()}</td></tr>
-      <tr><td style="color:#16a34a;padding:3px 0;">Amount Paid</td><td style="text-align:right;font-weight:600;color:#16a34a;">₹${bill.payment.totalPaid.toLocaleString()}</td></tr>
-      <tr style="border-top:2px solid #F27D26;"><td style="padding:6px 0;font-weight:700;${bill.payment.balance > 0 ? 'color:#dc2626;' : 'color:#16a34a;'}">Balance Remaining</td><td style="text-align:right;font-weight:700;font-size:15px;${bill.payment.balance > 0 ? 'color:#dc2626;' : 'color:#16a34a;'}">₹${bill.payment.balance.toLocaleString()}</td></tr>
-    </table>
-  </div>` : ''}
-  ${bill.payment && bill.payment.balance <= 0 ? `<div style="text-align:center;margin-top:16px;"><span style="display:inline-block;padding:8px 32px;border:3px solid #16a34a;color:#16a34a;font-size:24px;font-weight:900;letter-spacing:6px;text-transform:uppercase;border-radius:8px;transform:rotate(-3deg);opacity:0.7;">PAID</span></div>` : ''}
   <div class="signatures">
     <div class="sig-box"><p>Authorized Signatory</p></div>
     <div class="sig-box"><p>Received By</p></div>

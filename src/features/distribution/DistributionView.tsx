@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft } from 'lucide-react';
+import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText } from '../../lib/utils';
-import { api, DistributionRecord } from '../../api';
+import { api, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product, Vendor } from '../../types';
-import { useToast, LoadingSpinner } from '../../components/ui';
-import { generateDistributionChallanHtml } from '../../lib/billTemplates';
+import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
+import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
 
 export function DistributionView({ user }: { user: { id: string; role?: string; vendorId?: string } | null }) {
   const { toast } = useToast();
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
   const [distributions, setDistributions] = useState<DistributionRecord[]>([]);
+  const [batches, setBatches] = useState<DistributionBatch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [summary, setSummary] = useState<{ totalBeforeDistribution: number; availableInInventory: number; totalDistributed: number; vendorStats: { vendorId: string; vendorName: string; distributed: number; sold: number; replaced: number; damaged: number; availableWithVendor: number }[] } | null>(null);
@@ -24,30 +25,53 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [includeGst, setIncludeGst] = useState(true);
   const [splitBillModal, setSplitBillModal] = useState<{ bill: import('../../api').DistributionBillData } | null>(null);
   const [splitGstQty, setSplitGstQty] = useState(0);
+  const [splitSaving, setSplitSaving] = useState(false);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(vendorId ?? null);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [selectedBatchProductId, setSelectedBatchProductId] = useState<string | null>(null);
+  const [editBatchModal, setEditBatchModal] = useState<DistributionBatchDetail | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editRows, setEditRows] = useState<{ productId: string; productName: string; quantity: number; minQuantity: number; discount: number; withGst: boolean; availableStock: number }[]>([]);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [financeMap, setFinanceMap] = useState<Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }>>({});
+
+  const challanOptions = (forVendorId: string) => {
+    const f = financeMap[forVendorId];
+    return {
+      showGst: includeGst,
+      fullyPaid: f ? isBillFullyPaid(f.totalDistributedValue, f.balance) : false,
+    };
+  };
 
   const load = () => {
     Promise.all([
       api.distribution.list(vendorId),
+      api.distribution.batches(vendorId),
       api.distribution.summary(),
       vendorId ? Promise.resolve([]) : api.products.list(),
       vendorId ? Promise.resolve([]) : api.vendors.list(),
     ])
-      .then(([d, s, p, v]) => {
+      .then(([d, b, s, p, v]) => {
         setDistributions(d);
+        setBatches(b);
         setSummary(s);
         setProducts(p);
         setVendors(v);
         if (vendorId) setSelectedVendorId(vendorId);
       })
       .then(() => {
-        if (!vendorId) api.vendorFinance.summary().then((fs) => {
-          const map: Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }> = {};
-          for (const f of fs) map[f.vendorId] = { totalDistributedValue: f.totalDistributedValue, totalPaid: f.totalPaid, balance: f.balance };
-          setFinanceMap(map);
-        }).catch(() => {});
+        if (!vendorId) {
+          api.vendorFinance.summary().then((fs) => {
+            const map: Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }> = {};
+            for (const f of fs) map[f.vendorId] = { totalDistributedValue: f.totalDistributedValue, totalPaid: f.totalPaid, balance: f.balance };
+            setFinanceMap(map);
+          }).catch(() => {});
+        } else {
+          api.vendorFinance.detail(vendorId).then((d) => {
+            setFinanceMap({ [vendorId]: { totalDistributedValue: d.totalDistributedValue, totalPaid: d.totalPaid, balance: d.balance } });
+          }).catch(() => {});
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -82,36 +106,68 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
     if (paid > distTotals.billed) { toast(`Amount paid (₹${paid}) exceeds billed amount (₹${distTotals.billed})`, 'error'); return; }
     setSubmitting(true);
     try {
-      for (const row of validRows) {
-        await api.distribution.create({
+      await api.distribution.createBatch({
+        vendorId: distVendorId,
+        distributionDate: distDate,
+        amountPaid: paid > 0 ? paid : undefined,
+        gstRate: defaultGstRate,
+        items: validRows.map((row) => ({
           productId: row.productId,
-          vendorId: distVendorId,
           quantity: row.quantity,
-          distributionDate: distDate,
           discountPercent: row.discount > 0 ? row.discount : undefined,
           withGst: row.withGst,
-          gstRate: defaultGstRate,
-        });
-      }
-      if (paid > 0) {
-        await api.vendorFinance.recordPayment(distVendorId, {
-          amount: paid,
-          paymentDate: distDate,
-          paymentMethod: 'Cash',
-          notes: `Payment with distribution (${validRows.length} products)`,
-        });
-      }
+        })),
+      });
       setModalOpen(false);
       setDistRows([{ productId: '', quantity: 1, discount: 0, withGst: true }]);
       setDistVendorId('');
       setDistAmountPaid('');
       load();
-      toast(`${validRows.length} product(s) distributed successfully`, 'success');
+      toast(`Distribution saved — ${validRows.length} product line(s), ${distTotals.items} items`, 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDeleteBatch = async (batchId: string) => {
+    if (!window.confirm('Delete this distribution? All unsold units will return to inventory.')) return;
+    setDeleteSubmitting(true);
+    try {
+      await api.distribution.deleteBatch(batchId);
+      setEditBatchModal(null);
+      setSelectedBatchId(null);
+      setSelectedBatchProductId(null);
+      load();
+      toast('Distribution deleted', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
+  const openEdit = (batch: DistributionBatch) => {
+    api.distribution.getBatch(batch.batchId)
+      .then((detail) => {
+        setEditBatchModal(detail);
+        setEditDate(detail.distributionDate);
+        setEditRows(detail.items.map((i) => ({
+          productId: i.productId,
+          productName: i.productName,
+          quantity: i.quantity,
+          minQuantity: i.minQuantity,
+          discount: i.discountPercent,
+          withGst: i.withGst,
+          availableStock: i.availableStock,
+        })));
+      })
+      .catch((err) => toast(err.message, 'error'));
+  };
+
+  const updateEditRow = (idx: number, field: string, value: string | number | boolean) => {
+    setEditRows((rows) => rows.map((r, i) => i === idx ? { ...r, [field]: value } : r));
   };
 
   return (
@@ -139,13 +195,18 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
           <button
             key={v.vendorId}
             type="button"
-            onClick={() => setSelectedVendorId(selectedVendorId === v.vendorId ? null : v.vendorId)}
+            onClick={() => { setSelectedVendorId(selectedVendorId === v.vendorId ? null : v.vendorId); setSelectedBatchId(null); setSelectedBatchProductId(null); }}
             className={cn(
-              "bg-white p-4 rounded-xl border shadow-sm text-left transition-all cursor-pointer hover:shadow-md",
+              "relative bg-white p-4 rounded-xl border shadow-sm text-left transition-all cursor-pointer hover:shadow-md overflow-hidden",
               selectedVendorId === v.vendorId ? "border-[#F27D26] ring-2 ring-[#F27D26]/30" : "border-gray-100"
             )}
           >
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{v.vendorName}</p>
+            {financeMap[v.vendorId] && isBillFullyPaid(financeMap[v.vendorId].totalDistributedValue, financeMap[v.vendorId].balance) && (
+              <div className="absolute top-2 right-2 z-10">
+                <PaidStamp className="text-[11px] px-2 py-1 scale-90" />
+              </div>
+            )}
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pr-16">{v.vendorName}</p>
             <div className="mt-2 flex gap-4 text-sm flex-wrap">
               <span><strong>{v.distributed}</strong> distributed</span>
               <span className="text-emerald-600"><strong>{v.sold}</strong> sold</span>
@@ -156,14 +217,18 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
             {financeMap[v.vendorId] && (() => {
               const f = financeMap[v.vendorId];
               return (
-                <div className="mt-2 pt-2 border-t border-gray-100 flex gap-3 text-xs flex-wrap">
+                <div className="mt-2 pt-2 border-t border-gray-100 flex gap-3 text-xs flex-wrap items-center">
                   <span className="text-gray-500">Bill: <strong className="text-gray-700">₹{f.totalDistributedValue.toLocaleString()}</strong></span>
                   <span className="text-gray-500">Paid: <strong className="text-emerald-600">₹{f.totalPaid.toLocaleString()}</strong></span>
-                  <span className="text-gray-500">Due: <strong className={f.balance > 0 ? "text-rose-600" : "text-emerald-600"}>₹{f.balance.toLocaleString()}</strong></span>
+                  {isBillFullyPaid(f.totalDistributedValue, f.balance) ? (
+                    <PaidBadge size="sm" />
+                  ) : (
+                    <span className="text-gray-500">Due: <strong className="text-rose-600">₹{f.balance.toLocaleString()}</strong></span>
+                  )}
                 </div>
               );
             })()}
-            <p className="text-xs text-gray-500 mt-1">Click to view products</p>
+            <p className="text-xs text-gray-500 mt-1">Click to view distributions</p>
           </button>
         ))}
       </div>
@@ -175,128 +240,220 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
         )}
         {!loading && !selectedVendorId && (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-            <p className="text-gray-500 mb-2">Click on a vendor tile above to see their distributed products</p>
-            <p className="text-sm text-gray-400">Select Prathamesh Busa, Ravi, or any vendor with distributed products</p>
+            <p className="text-gray-500 mb-2">Click on a vendor tile above to see their distributions</p>
+            <p className="text-sm text-gray-400">Each distribution event is listed separately with its own bill and actions</p>
           </div>
         )}
         {!loading && selectedVendorId && (() => {
-          const byVendor = distributions.reduce((acc, d) => {
-            const key = d.vendorId;
-            if (!acc[key]) acc[key] = { vendorName: d.vendorName, items: [] };
-            acc[key].items.push(d);
-            return acc;
-          }, {} as Record<string, { vendorName: string; items: typeof distributions }>);
-          const vendorData = byVendor[selectedVendorId];
-          if (!vendorData) return null;
-          const { vendorName, items } = vendorData;
+          const vendorBatches = batches.filter((b) => b.vendorId === selectedVendorId);
+          const vendorName = vendorBatches[0]?.vendorName ?? distributions.find((d) => d.vendorId === selectedVendorId)?.vendorName ?? 'Vendor';
           const stats = summary?.vendorStats?.find((v) => v.vendorId === selectedVendorId);
+          const selectedBatch = selectedBatchId ? vendorBatches.find((b) => b.batchId === selectedBatchId) : null;
+          const batchItems = selectedBatchId
+            ? distributions.filter((d) => (d.batchId ?? d.id) === selectedBatchId)
+            : [];
 
-          // Group items by product
-          const byProduct = items.reduce((acc, d) => {
-            const key = d.productId;
-            if (!acc[key]) acc[key] = { productName: d.productName, units: [] };
-            acc[key].units.push(d);
-            return acc;
-          }, {} as Record<string, { productName: string; units: typeof distributions }>);
-          type ByProductEntry = { productName: string; units: typeof distributions };
-          const productList = Object.entries(byProduct).map(([pid, val]) => { const { productName, units } = val as ByProductEntry; return ({
-            productId: pid,
-            productName,
-            distributed: units.filter((u) => u.status === 'Distributed').length,
-            sold: units.filter((u) => u.status === 'Sold').length,
-            replaced: units.filter((u) => u.status === 'Replaced').length,
-            damaged: units.filter((u) => u.status === 'Damaged').length,
-            availableWithVendor: units.filter((u) => u.status === 'Distributed').length,
-            total: units.length,
-          }); });
+          const billParams = (batchId: string) => ({ batchId, vendorId: selectedVendorId! });
+          const batchCanDelete = selectedBatch ? selectedBatch.sold + selectedBatch.replaced + selectedBatch.damaged === 0 : false;
 
-          const selectedProduct = selectedProductId ? byProduct[selectedProductId] : null;
+          if (selectedBatch) {
+            const byProduct = batchItems.reduce((acc, d) => {
+              const key = d.productId;
+              if (!acc[key]) acc[key] = { productId: key, productName: d.productName, units: [] as typeof batchItems };
+              acc[key].units.push(d);
+              return acc;
+            }, {} as Record<string, { productId: string; productName: string; units: typeof batchItems }>);
+            const productList = Object.values(byProduct).map((p) => ({
+              ...p,
+              total: p.units.length,
+              sold: p.units.filter((u) => u.status === 'Sold').length,
+              replaced: p.units.filter((u) => u.status === 'Replaced').length,
+              damaged: p.units.filter((u) => u.status === 'Damaged').length,
+              withVendor: p.units.filter((u) => u.status === 'Distributed').length,
+            }));
+            const selectedProduct = selectedBatchProductId ? byProduct[selectedBatchProductId] : null;
+
+            return (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedBatchProductId) setSelectedBatchProductId(null);
+                        else setSelectedBatchId(null);
+                      }}
+                      className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                    >
+                      <ArrowLeft size={20} className="text-gray-600" />
+                    </button>
+                    <h3 className="font-bold text-lg">
+                      {selectedProduct ? selectedProduct.productName : selectedBatch.vendorName}
+                    </h3>
+                    {!selectedBatchProductId && financeMap[selectedBatch.vendorId] && isBillFullyPaid(financeMap[selectedBatch.vendorId].totalDistributedValue, financeMap[selectedBatch.vendorId].balance) && (
+                      <PaidBadge />
+                    )}
+                    {!selectedBatchProductId && (
+                      <span className="text-xs text-gray-500">Distribution — {selectedBatch.distributionDate}</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => openEdit(selectedBatch)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors"
+                      title="Edit distribution"
+                    >
+                      <Pencil size={16} /> Edit
+                    </button>
+                    {batchCanDelete && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteBatch(selectedBatch.batchId)}
+                        disabled={deleteSubmitting}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-60"
+                        title="Delete distribution"
+                      >
+                        <Trash2 size={16} /> Delete
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        api.distribution.getBill(billParams(selectedBatch.batchId))
+                          .then((bill) => { setSplitBillModal({ bill }); setSplitGstQty(Math.ceil(bill.totalQuantity / 2)); })
+                          .catch((err) => toast(err.message, 'error'));
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+                      title="Split into GST + Non-GST bills"
+                    >
+                      Split Bill
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const w = openPrintWindow(); if (!w) return;
+                          api.distribution.getBill(billParams(selectedBatch.batchId))
+                            .then((bill) => printBillInWindow(w, generateDistributionChallanHtml(bill, challanOptions(selectedBatch.vendorId))))
+                            .catch((err) => { w.close(); toast(err.message, 'error'); });
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors"
+                        title="Print Distribution Challan"
+                      >
+                        <Printer size={16} /> Print
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          api.distribution.getBill(billParams(selectedBatch.batchId))
+                            .then((bill) => saveBillAsPdf(generateDistributionChallanHtml(bill, challanOptions(selectedBatch.vendorId))))
+                            .catch((err) => toast(err.message, 'error'));
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors"
+                        title="Save as PDF"
+                      >
+                        <Download size={16} /> PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          api.distribution.getBill(billParams(selectedBatch.batchId)).then((bill) => {
+                            const phone = bill.vendor.phone;
+                            if (!phone) { toast('No vendor phone number on record', 'error'); return; }
+                            shareViaWhatsApp(phone, formatDistributionChallanText(bill));
+                          }).catch((err) => toast(err.message, 'error'));
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                        title="Send Challan via WhatsApp"
+                      >
+                        <MessageCircle size={16} /> WhatsApp
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          api.distribution.getBill(billParams(selectedBatch.batchId)).then((bill) => {
+                            const email = bill.vendor.email || '';
+                            if (!email) { toast('No vendor email on record — enter email manually', 'info'); }
+                            shareViaEmail(email, `Distribution Challan ${bill.challanId} — ${bill.company.name}`, formatDistributionChallanText(bill));
+                          }).catch((err) => toast(err.message, 'error'));
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Send Challan via Email"
+                      >
+                        <Mail size={16} /> Email
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    {selectedProduct ? (
+                      <span className="text-sm text-gray-600">
+                        <span className="font-medium">{selectedProduct.units.length}</span> units • <span className="text-emerald-600 font-medium">{selectedProduct.units.filter((u) => u.status === 'Sold').length}</span> sold
+                        {selectedProduct.units.filter((u) => u.status === 'Replaced').length > 0 && <> • <span className="text-amber-600 font-medium">{selectedProduct.units.filter((u) => u.status === 'Replaced').length}</span> replaced</>}
+                        {selectedProduct.units.filter((u) => u.status === 'Damaged').length > 0 && <> • <span className="text-rose-600 font-medium">{selectedProduct.units.filter((u) => u.status === 'Damaged').length}</span> damaged</>}
+                        {' • '}<span className="text-blue-600 font-medium">{selectedProduct.units.filter((u) => u.status === 'Distributed').length}</span> with vendor
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-sm text-gray-600 block">
+                          <span className="font-medium">{selectedBatch.total}</span> distributed • <span className="text-emerald-600 font-medium">{selectedBatch.sold}</span> sold
+                          {selectedBatch.replaced > 0 && <> • <span className="text-amber-600 font-medium">{selectedBatch.replaced}</span> replaced</>}
+                          {selectedBatch.damaged > 0 && <> • <span className="text-rose-600 font-medium">{selectedBatch.damaged}</span> damaged</>}
+                          {' • '}<span className="text-blue-600 font-medium">{selectedBatch.availableWithVendor}</span> with vendor
+                        </span>
+                        <span className="text-sm font-bold text-[#F27D26]">Bill: ₹{selectedBatch.billValue.toLocaleString()}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {!selectedBatchProductId ? (
+                  <div className="divide-y divide-gray-50">
+                    <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Products</div>
+                    {productList.map((p) => (
+                      <button
+                        key={p.productId}
+                        type="button"
+                        onClick={() => setSelectedBatchProductId(p.productId)}
+                        className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between transition-colors"
+                      >
+                        <span className="font-medium">{p.productName}</span>
+                        <span className="text-sm text-gray-600">
+                          <span className="font-medium">{p.total}</span> units • <span className="text-emerald-600">{p.sold} sold</span>
+                          {p.replaced > 0 && <span className="text-amber-600"> • {p.replaced} replaced</span>}
+                          {p.damaged > 0 && <span className="text-rose-600"> • {p.damaged} damaged</span>}
+                          <span className="text-blue-600"> • {p.withVendor} with vendor</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : selectedProduct ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-6 py-4">#</th><th className="px-6 py-4">Barcode</th><th className="px-6 py-4">Status</th></tr></thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {selectedProduct.units.map((d, idx) => (
+                          <tr key={d.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 text-sm text-gray-500">{idx + 1}</td>
+                            <td className="px-6 py-4 font-mono text-sm">{d.barcode}</td>
+                            <td className="px-6 py-4"><span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", d.status === 'Sold' ? 'bg-emerald-100 text-emerald-700' : d.status === 'Distributed' ? 'bg-blue-100 text-blue-700' : d.status === 'Replaced' ? 'bg-amber-100 text-amber-700' : d.status === 'Damaged' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-700')}>{d.status}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </div>
+            );
+          }
 
           return (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3">
-                  <button type="button" onClick={() => { if (selectedProductId) setSelectedProductId(null); else { setSelectedVendorId(null); setSelectedProductId(null); } }} className="p-2 hover:bg-gray-200 rounded-lg transition-colors">
+                  <button type="button" onClick={() => { setSelectedVendorId(null); setSelectedBatchId(null); setSelectedBatchProductId(null); }} className="p-2 hover:bg-gray-200 rounded-lg transition-colors">
                     <ArrowLeft size={20} className="text-gray-600" />
                   </button>
-                  <h3 className="font-bold text-lg">{selectedProduct ? selectedProduct.productName : vendorName}</h3>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      api.distribution.getBill({ vendorId: selectedVendorId!, productId: selectedProductId ?? undefined })
-                        .then((bill) => { setSplitBillModal({ bill }); setSplitGstQty(Math.ceil(bill.totalQuantity / 2)); })
-                        .catch((err) => toast(err.message, 'error'));
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors ml-2"
-                    title="Split into GST + Non-GST bills"
-                  >
-                    Split Bill
-                  </button>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const w = openPrintWindow(); if (!w) return;
-                        api.distribution.getBill({
-                          vendorId: selectedVendorId!,
-                          productId: selectedProductId ?? undefined,
-                        }).then((bill) => printBillInWindow(w, generateDistributionChallanHtml(bill, { showGst: includeGst }))).catch((err) => { w.close(); toast(err.message, 'error'); });
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors"
-                      title="Print Distribution Challan"
-                    >
-                      <Printer size={16} /> Print
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        api.distribution.getBill({
-                          vendorId: selectedVendorId!,
-                          productId: selectedProductId ?? undefined,
-                        }).then((bill) => saveBillAsPdf(generateDistributionChallanHtml(bill, { showGst: includeGst }))).catch((err) => toast(err.message, 'error'));
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors"
-                      title="Save as PDF"
-                    >
-                      <Download size={16} /> PDF
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        api.distribution.getBill({
-                          vendorId: selectedVendorId!,
-                          productId: selectedProductId ?? undefined,
-                        }).then((bill) => {
-                          const phone = bill.vendor.phone;
-                          if (!phone) { toast('No vendor phone number on record', 'error'); return; }
-                          shareViaWhatsApp(phone, formatDistributionChallanText(bill));
-                        }).catch((err) => toast(err.message, 'error'));
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                      title="Send Challan via WhatsApp"
-                    >
-                      <MessageCircle size={16} /> WhatsApp
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        api.distribution.getBill({
-                          vendorId: selectedVendorId!,
-                          productId: selectedProductId ?? undefined,
-                        }).then((bill) => {
-                          const email = bill.vendor.email || '';
-                          if (!email) { toast('No vendor email on record — enter email manually', 'info'); }
-                          shareViaEmail(email, `Distribution Challan ${bill.challanId} — ${bill.company.name}`, formatDistributionChallanText(bill));
-                        }).catch((err) => toast(err.message, 'error'));
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Send Challan via Email"
-                    >
-                      <Mail size={16} /> Email
-                    </button>
-                  </div>
+                  <h3 className="font-bold text-lg">{vendorName}</h3>
                 </div>
-                {stats && !selectedProductId && (
+                {stats && (
                   <span className="text-sm text-gray-600">
                     <span className="font-medium">{stats.distributed}</span> distributed • <span className="text-emerald-600 font-medium">{stats.sold}</span> sold
                     {(stats.replaced ?? 0) > 0 && <> • <span className="text-amber-600 font-medium">{stats.replaced}</span> replacement{(stats.replaced ?? 0) !== 1 ? 's' : ''}</>}
@@ -304,47 +461,31 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     {' • '}<span className="text-blue-600 font-medium">{stats.availableWithVendor}</span> with vendor
                   </span>
                 )}
-                {selectedProductId && selectedProduct && (
-                  <span className="text-sm text-gray-600">
-                    <span className="font-medium">{selectedProduct.units.length}</span> units • <span className="text-emerald-600 font-medium">{selectedProduct.units.filter((u) => u.status === 'Sold').length}</span> sold
-                    {selectedProduct.units.filter((u) => u.status === 'Replaced').length > 0 && <> • <span className="text-amber-600 font-medium">{selectedProduct.units.filter((u) => u.status === 'Replaced').length}</span> replaced</>}
-                    {selectedProduct.units.filter((u) => u.status === 'Damaged').length > 0 && <> • <span className="text-rose-600 font-medium">{selectedProduct.units.filter((u) => u.status === 'Damaged').length}</span> damaged</>}
-                    {' • '}<span className="text-blue-600 font-medium">{selectedProduct.units.filter((u) => u.status === 'Distributed').length}</span> with vendor
-                  </span>
-                )}
               </div>
-              {!selectedProductId ? (
-                <div className="divide-y divide-gray-50">
-                  <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Products</div>
-                  {productList.map((p) => (
-                    <button key={p.productId} type="button" onClick={() => setSelectedProductId(p.productId)} className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between transition-colors">
-                      <span className="font-medium">{p.productName}</span>
-                      <span className="text-sm text-gray-600">
-                        <span className="font-medium">{p.total}</span> units • <span className="text-emerald-600">{p.sold} sold</span>
-                        {p.replaced > 0 && <span className="text-amber-600"> • {p.replaced} replaced</span>}
-                        {p.damaged > 0 && <span className="text-rose-600"> • {p.damaged} damaged</span>}
-                        <span className="text-blue-600"> • {p.distributed} with vendor</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : selectedProduct ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-6 py-4">#</th><th className="px-6 py-4">Barcode</th><th className="px-6 py-4">Distribution Date</th><th className="px-6 py-4">Status</th></tr></thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {selectedProduct.units.map((d, idx) => (
-                        <tr key={d.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 text-sm text-gray-500">{idx + 1}</td>
-                          <td className="px-6 py-4 font-mono text-sm">{d.barcode}</td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{d.distributionDate}</td>
-                          <td className="px-6 py-4"><span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", d.status === 'Sold' ? 'bg-emerald-100 text-emerald-700' : d.status === 'Distributed' ? 'bg-blue-100 text-blue-700' : d.status === 'Replaced' ? 'bg-amber-100 text-amber-700' : d.status === 'Damaged' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-700')}>{d.status}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
+              <div className="divide-y divide-gray-50">
+                <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Distributions ({vendorBatches.length})</div>
+                {vendorBatches.length === 0 ? (
+                  <div className="px-6 py-8 text-center text-gray-500">No distributions for this vendor</div>
+                ) : vendorBatches.map((batch) => (
+                  <button
+                    key={batch.batchId}
+                    type="button"
+                    onClick={() => { setSelectedBatchId(batch.batchId); setSelectedBatchProductId(null); }}
+                    className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors"
+                  >
+                    <div>
+                      <p className="font-medium">Distribution — {batch.distributionDate}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{batch.productNames.join(' • ')} • {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}</p>
+                    </div>
+                    <span className="text-sm text-gray-600 shrink-0">
+                      <span className="text-emerald-600">{batch.sold} sold</span>
+                      {batch.replaced > 0 && <span className="text-amber-600"> • {batch.replaced} replaced</span>}
+                      {batch.damaged > 0 && <span className="text-rose-600"> • {batch.damaged} damaged</span>}
+                      <span className="text-blue-600"> • {batch.availableWithVendor} with vendor</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           );
         })()}
@@ -434,29 +575,21 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
           const totalQty = bill.totalQuantity;
           const gstQty = Math.min(Math.max(0, splitGstQty), totalQty);
           const nonGstQty = totalQty - gstQty;
-          const pricePerUnit = totalQty > 0 ? bill.totalValue / totalQty : 0;
-          const gstAmount = Math.round(pricePerUnit * gstQty);
-          const nonGstAmount = bill.totalValue - gstAmount;
+          const gstItems = bill.items.slice(0, gstQty);
+          const nonGstItems = bill.items.slice(gstQty);
+          const gstSubtotal = gstItems.reduce((s, i) => s + i.price, 0);
+          const nonGstSubtotal = nonGstItems.reduce((s, i) => s + i.price, 0);
           const gstRate = bill.gstRate || 18;
-          const gstTax = Math.round(gstAmount * gstRate / 100);
+          const gstTax = gstQty > 0 ? Math.round(gstSubtotal * gstRate / 100) : 0;
           const halfGst = Math.round(gstTax / 2);
-          const gstGrandTotal = gstAmount + gstTax;
+          const gstGrandTotal = gstSubtotal + gstTax;
+          const nonGstAmount = nonGstSubtotal;
+          const combinedBillTotal = gstGrandTotal + nonGstAmount;
+          const savedTotal = bill.totalBilled ?? null;
+          const hasUnsavedChanges = savedTotal != null && Math.abs(savedTotal - combinedBillTotal) > 0.5;
 
-          const makeSplitBill = (qty: number, amount: number, isGst: boolean): typeof bill => {
-            const ratio = totalQty > 0 ? qty / totalQty : 0;
-            return {
-              ...bill,
-              groupedItems: bill.groupedItems.map((g, i) => {
-                const itemQty = i === 0 ? qty : 0;
-                return { ...g, quantity: itemQty, lineTotal: Math.round(g.netPrice * itemQty), barcodeRange: itemQty > 0 ? g.barcodeRange : '-' };
-              }).filter(g => g.quantity > 0),
-              items: bill.items.slice(0, qty),
-              totalQuantity: qty,
-              grossValue: Math.round(bill.grossValue * ratio),
-              totalDiscount: Math.round(bill.totalDiscount * ratio),
-              totalValue: amount,
-            };
-          };
+          const makeSplitBill = (items: typeof bill.items, amount: number) =>
+            buildDistributionBillSlice(bill, items, amount);
 
           return (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -466,12 +599,39 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                 <p className="text-sm text-gray-500 mb-4">Choose how many units go on the GST bill. The rest will be on a separate non-GST bill.</p>
 
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
-                  <div className="flex justify-between text-sm mb-3"><span className="text-gray-500">Total Units</span><span className="font-bold">{totalQty}</span></div>
-                  <div className="flex justify-between text-sm mb-3"><span className="text-gray-500">Total Amount</span><span className="font-bold">₹{bill.totalValue.toLocaleString()}</span></div>
-                  <div className="border-t border-gray-200 pt-3">
-                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">GST Bill — Units</label>
+                  <div className="flex justify-between text-sm mb-3">
+                    <span className="text-gray-500">Total Units</span>
+                    <span className="font-bold">{totalQty}</span>
+                  </div>
+                  <div className="border-t border-gray-200 pt-3 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Product value (subtotal)</span>
+                      <span className="font-medium">₹{bill.totalValue.toLocaleString()}</span>
+                    </div>
+                    {gstQty > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">+ GST on {gstQty} unit{gstQty !== 1 ? 's' : ''} ({gstRate}%)</span>
+                        <span className="font-medium text-emerald-700">₹{gstTax.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t border-gray-200 pt-2">
+                      <span className="font-bold text-gray-800">Total to collect</span>
+                      <span className="font-bold text-[#F27D26] text-base">₹{combinedBillTotal.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  {hasUnsavedChanges && (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+                      Currently saved: ₹{savedTotal!.toLocaleString()} — click <strong>Save Amount</strong> below to update to ₹{combinedBillTotal.toLocaleString()}
+                    </p>
+                  )}
+                  <div className="border-t border-gray-200 pt-3 mt-3">
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Units on GST bill</label>
                     <input type="range" min={0} max={totalQty} value={gstQty} onChange={(e) => setSplitGstQty(parseInt(e.target.value, 10))} className="w-full accent-[#F27D26]" />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1"><span>0</span><span>{totalQty}</span></div>
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>0 (all non-GST)</span>
+                      <span className="font-medium text-gray-700">{gstQty} GST · {nonGstQty} non-GST</span>
+                      <span>{totalQty} (all GST)</span>
+                    </div>
                   </div>
                 </div>
 
@@ -482,7 +642,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     <p className="text-sm text-gray-600 mt-1">{gstQty} units</p>
                     {gstQty > 0 && (
                       <div className="mt-2 text-xs text-gray-500 space-y-0.5">
-                        <p>Subtotal: ₹{gstAmount.toLocaleString()}</p>
+                        <p>Subtotal: ₹{gstSubtotal.toLocaleString()}</p>
                         <p>CGST @{gstRate / 2}%: ₹{halfGst.toLocaleString()}</p>
                         <p>SGST @{gstRate / 2}%: ₹{(gstTax - halfGst).toLocaleString()}</p>
                       </div>
@@ -492,44 +652,173 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     <p className="text-xs font-bold text-amber-700 uppercase mb-2">Non-GST Bill</p>
                     <p className="text-2xl font-bold text-amber-700">₹{nonGstAmount.toLocaleString()}</p>
                     <p className="text-sm text-gray-600 mt-1">{nonGstQty} units</p>
-                    <p className="text-xs text-gray-400 mt-2">No tax breakdown</p>
+                    <p className="text-xs text-gray-400 mt-2">No tax added</p>
                   </div>
                 </div>
 
-                <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg mb-3">Saving this split updates the vendor's finance — GST bill amount includes tax, non-GST shows base price only.</p>
-                <div className="flex gap-2">
+                <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg mb-3">
+                  <strong>Total to collect</strong> = non-GST units at product price + GST units with {gstRate}% tax included.
+                </p>
+                <button
+                  type="button"
+                  disabled={splitSaving || totalQty === 0}
+                  onClick={async () => {
+                    setSplitSaving(true);
+                    try {
+                      await api.distribution.applyBilling({
+                        batchId: splitBillModal.bill.batchId ?? selectedBatchId!,
+                        gstUnits: gstQty,
+                        nonGstUnits: nonGstQty,
+                        gstRate,
+                      });
+                      const batchIdForSplit = splitBillModal.bill.batchId ?? selectedBatchId!;
+                      const updated = await api.distribution.getBill({ batchId: batchIdForSplit, vendorId: selectedVendorId! });
+                      setSplitBillModal({ bill: updated });
+                      load();
+                      toast(`Amount saved — collect ₹${combinedBillTotal.toLocaleString()} from vendor`, 'success');
+                    } catch (err) {
+                      toast((err as Error).message, 'error');
+                    } finally {
+                      setSplitSaving(false);
+                    }
+                  }}
+                  className="w-full py-3 mb-3 bg-[#F27D26] text-white rounded-xl font-bold text-sm hover:bg-[#e06f1f] disabled:opacity-60"
+                >
+                  {splitSaving ? 'Saving...' : `Save Amount — ₹${combinedBillTotal.toLocaleString()}`}
+                </button>
+                <div className="flex gap-2 mb-2">
                   {gstQty > 0 && (
-                    <button type="button" onClick={() => {
-                      const w = openPrintWindow();
-                      if (!w) return;
-                      api.distribution.applyBilling({ vendorId: selectedVendorId!, gstUnits: gstQty, nonGstUnits: nonGstQty, gstRate }).then(() => {
-                        printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(gstQty, gstAmount, true), { showGst: true }));
-                        toast('GST bill saved & printed', 'success');
-                        load();
-                      }).catch((err) => { w.close(); toast((err as Error).message, 'error'); });
-                    }} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700">
-                      Save & Print GST Bill
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const w = openPrintWindow();
+                        if (!w) return;
+                        const paidOpts = selectedVendorId ? challanOptions(selectedVendorId) : { showGst: true, fullyPaid: false };
+                        printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(gstItems, gstSubtotal), { showGst: true, fullyPaid: paidOpts.fullyPaid }));
+                      }}
+                      className="flex-1 py-2.5 border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-xl font-bold text-sm hover:bg-emerald-100"
+                    >
+                      Print GST Bill
                     </button>
                   )}
                   {nonGstQty > 0 && (
-                    <button type="button" onClick={() => {
-                      const w = openPrintWindow();
-                      if (!w) return;
-                      api.distribution.applyBilling({ vendorId: selectedVendorId!, gstUnits: gstQty, nonGstUnits: nonGstQty, gstRate }).then(() => {
-                        printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(nonGstQty, nonGstAmount, false), { showGst: false }));
-                        toast('Non-GST bill saved & printed', 'success');
-                        load();
-                      }).catch((err) => { w.close(); toast((err as Error).message, 'error'); });
-                    }} className="flex-1 py-2.5 bg-amber-600 text-white rounded-xl font-bold text-sm hover:bg-amber-700">
-                      Save & Print Non-GST Bill
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const w = openPrintWindow();
+                        if (!w) return;
+                        const paidOpts = selectedVendorId ? challanOptions(selectedVendorId) : { showGst: true, fullyPaid: false };
+                        printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(nonGstItems, nonGstSubtotal), { showGst: false, fullyPaid: paidOpts.fullyPaid }));
+                      }}
+                      className="flex-1 py-2.5 border border-amber-300 text-amber-700 bg-amber-50 rounded-xl font-bold text-sm hover:bg-amber-100"
+                    >
+                      Print Non-GST Bill
                     </button>
                   )}
                 </div>
-                <button type="button" onClick={() => setSplitBillModal(null)} className="w-full mt-2 py-2 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
+                <button type="button" onClick={() => setSplitBillModal(null)} className="w-full py-2 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
               </motion.div>
             </div>
           );
         })()}
+      </AnimatePresence>
+
+      {/* Edit Distribution Batch Modal */}
+      <AnimatePresence>
+        {editBatchModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setEditBatchModal(null)} />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg font-bold mb-1">Edit Distribution</h3>
+              <p className="text-sm text-gray-500 mb-4">{editBatchModal.vendorName} — {editBatchModal.distributionDate}</p>
+              <div className="mb-4">
+                <label className="text-xs font-bold text-gray-400 uppercase">Distribution Date</label>
+                <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" />
+              </div>
+              <div className="border border-gray-200 rounded-xl overflow-hidden mb-4">
+                <table className="w-full text-left">
+                  <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
+                    <th className="px-3 py-3">Product</th>
+                    <th className="px-3 py-3 w-20">Qty</th>
+                    <th className="px-3 py-3 w-16">Disc%</th>
+                    <th className="px-3 py-3 w-12 text-center">GST</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {editRows.map((row, idx) => (
+                      <tr key={row.productId}>
+                        <td className="px-3 py-2 text-sm font-medium">{row.productName}</td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            min={row.minQuantity}
+                            max={row.minQuantity + row.availableStock}
+                            value={row.quantity || ''}
+                            onChange={(e) => updateEditRow(idx, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]"
+                          />
+                          {row.minQuantity > 0 && <p className="text-[10px] text-gray-400 mt-0.5">min {row.minQuantity}</p>}
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="number" min={0} max={100} step={0.5} value={row.discount || ''} onChange={(e) => updateEditRow(idx, 'discount', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <input type="checkbox" checked={row.withGst} onChange={(e) => updateEditRow(idx, 'withGst', e.target.checked)} className="rounded text-[#F27D26]" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-gray-500 mb-4">Reduce quantity to return units to inventory. Cannot go below sold/replaced/damaged count.</p>
+              <div className="flex gap-2 flex-wrap">
+                {editBatchModal.canDelete && (
+                  <button
+                    type="button"
+                    disabled={deleteSubmitting || editSubmitting}
+                    onClick={() => handleDeleteBatch(editBatchModal.batchId)}
+                    className="px-4 py-2.5 border border-rose-200 text-rose-600 rounded-xl font-medium hover:bg-rose-50 disabled:opacity-60"
+                  >
+                    {deleteSubmitting ? 'Deleting...' : 'Delete'}
+                  </button>
+                )}
+                <button type="button" onClick={() => setEditBatchModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium">Cancel</button>
+                <button
+                  type="button"
+                  disabled={editSubmitting}
+                  onClick={async () => {
+                    setEditSubmitting(true);
+                    try {
+                      const result = await api.distribution.updateBatch(editBatchModal.batchId, {
+                        distributionDate: editDate,
+                        gstRate: defaultGstRate,
+                        items: editRows.map((r) => ({
+                          productId: r.productId,
+                          quantity: r.quantity,
+                          discountPercent: r.discount,
+                          withGst: r.withGst,
+                        })),
+                      });
+                      setEditBatchModal(null);
+                      if ((result as { deleted?: boolean }).deleted) {
+                        setSelectedBatchId(null);
+                        setSelectedBatchProductId(null);
+                      }
+                      load();
+                      toast('Distribution updated', 'success');
+                    } catch (err) {
+                      toast((err as Error).message, 'error');
+                    } finally {
+                      setEditSubmitting(false);
+                    }
+                  }}
+                  className="flex-1 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold disabled:opacity-60"
+                >
+                  {editSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </motion.div>
   );
