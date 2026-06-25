@@ -1,36 +1,49 @@
 import { Router } from 'express';
-import { db } from '../db';
+import { pool } from '../pg-db';
 import { logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
 const router = Router();
 
-router.get('/api/distribution/summary', (_req, res) => {
+router.get('/api/distribution/summary', async (req, res) => {
   try {
-    const availableInInventory = db.prepare('SELECT COALESCE(SUM(stock), 0) as total FROM products').get() as { total: number };
-    const totalDistributed = db.prepare('SELECT COUNT(*) as count FROM product_distribution').get() as { count: number };
-    const vendorStats = db.prepare(`
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const availableInInventory = (await pool.query(
+      'SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE tenant_id = $1',
+      [tenantId]
+    )).rows[0] as { total: number };
+
+    const totalDistributed = (await pool.query(
+      'SELECT COUNT(*) as count FROM product_distribution WHERE tenant_id = $1',
+      [tenantId]
+    )).rows[0] as { count: number };
+
+    const vendorStats = (await pool.query(`
       SELECT v.id, v.name,
         COUNT(pd.id) as distributed,
         SUM(CASE WHEN pd.status = 'Sold' THEN 1 ELSE 0 END) as sold,
         SUM(CASE WHEN pd.status = 'Replaced' THEN 1 ELSE 0 END) as replaced,
         SUM(CASE WHEN pd.status = 'Damaged' THEN 1 ELSE 0 END) as damaged
       FROM vendors v
-      LEFT JOIN product_distribution pd ON pd.vendor_id = v.id
+      LEFT JOIN product_distribution pd ON pd.vendor_id = v.id AND pd.tenant_id = $1
+      WHERE v.tenant_id = $1
       GROUP BY v.id, v.name
-    `).all() as { id: string; name: string; distributed: number; sold: number; replaced: number; damaged: number }[];
-    const totalBeforeDistribution = availableInInventory.total + totalDistributed.count;
+    `, [tenantId])).rows as { id: string; name: string; distributed: number; sold: number; replaced: number; damaged: number }[];
+
+    const totalBeforeDistribution = Number(availableInInventory.total) + Number(totalDistributed.count);
     res.json({
       totalBeforeDistribution: totalBeforeDistribution,
-      availableInInventory: availableInInventory.total,
-      totalDistributed: totalDistributed.count,
+      availableInInventory: Number(availableInInventory.total),
+      totalDistributed: Number(totalDistributed.count),
       vendorStats: vendorStats.map((v) => ({
         vendorId: v.id,
         vendorName: v.name,
-        distributed: v.distributed,
-        sold: v.sold,
-        replaced: v.replaced ?? 0,
-        damaged: v.damaged ?? 0,
-        availableWithVendor: v.distributed - v.sold - (v.replaced ?? 0) - (v.damaged ?? 0),
+        distributed: Number(v.distributed),
+        sold: Number(v.sold),
+        replaced: Number(v.replaced) ?? 0,
+        damaged: Number(v.damaged) ?? 0,
+        availableWithVendor: Number(v.distributed) - Number(v.sold) - (Number(v.replaced) ?? 0) - (Number(v.damaged) ?? 0),
       })),
     });
   } catch (err) {
@@ -38,29 +51,35 @@ router.get('/api/distribution/summary', (_req, res) => {
   }
 });
 
-router.get('/api/distribution', (req, res) => {
+router.get('/api/distribution', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { vendorId, batchId } = req.query;
     let sql = `
       SELECT pd.id, pd.batch_id, pd.product_id, pd.barcode, pd.vendor_id, pd.distribution_date, pd.status,
         pd.discount_percent, pd.net_price, pd.gst_applied, pd.billed_price,
         p.name as product_name, v.name as vendor_name
       FROM product_distribution pd
-      JOIN products p ON pd.product_id = p.id
-      JOIN vendors v ON pd.vendor_id = v.id
-      WHERE 1=1
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+      WHERE pd.tenant_id = $1
     `;
-    const params: string[] = [];
+    const params: (string | number)[] = [tenantId];
+    let paramIdx = 1;
     if (typeof vendorId === 'string' && vendorId) {
-      sql += ' AND pd.vendor_id = ?';
+      paramIdx++;
+      sql += ` AND pd.vendor_id = $${paramIdx}`;
       params.push(vendorId);
     }
     if (typeof batchId === 'string' && batchId) {
-      sql += ' AND pd.batch_id = ?';
+      paramIdx++;
+      sql += ` AND pd.batch_id = $${paramIdx}`;
       params.push(batchId);
     }
     sql += ' ORDER BY pd.distribution_date DESC, pd.id';
-    const rows = db.prepare(sql).all(...params) as Record<string, unknown>[];
+    const rows = (await pool.query(sql, params)).rows as Record<string, unknown>[];
     res.json(rows.map((r) => ({
       id: r.id,
       batchId: r.batch_id ?? r.id,
@@ -81,8 +100,11 @@ router.get('/api/distribution', (req, res) => {
   }
 });
 
-router.get('/api/distribution/batches', (req, res) => {
+router.get('/api/distribution/batches', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { vendorId } = req.query;
     let sql = `
       SELECT
@@ -96,38 +118,40 @@ router.get('/api/distribution/batches', (req, res) => {
         SUM(CASE WHEN pd.status = 'Damaged' THEN 1 ELSE 0 END) as damaged,
         SUM(CASE WHEN pd.status = 'Distributed' THEN 1 ELSE 0 END) as available_with_vendor,
         SUM(COALESCE(pd.billed_price, pd.net_price, p.price)) as bill_value,
-        GROUP_CONCAT(DISTINCT p.name) as product_names,
+        STRING_AGG(DISTINCT p.name, ',') as product_names,
         MAX(pd.discount_percent) as discount_percent,
-        MAX(pd.gst_applied) as gst_applied
+        MAX(pd.gst_applied::int) as gst_applied
       FROM product_distribution pd
-      JOIN products p ON pd.product_id = p.id
-      JOIN vendors v ON pd.vendor_id = v.id
-      WHERE 1=1
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+      WHERE pd.tenant_id = $1
     `;
-    const params: string[] = [];
+    const params: (string | number)[] = [tenantId];
+    let paramIdx = 1;
     if (typeof vendorId === 'string' && vendorId) {
-      sql += ' AND pd.vendor_id = ?';
+      paramIdx++;
+      sql += ` AND pd.vendor_id = $${paramIdx}`;
       params.push(vendorId);
     }
     sql += `
       GROUP BY COALESCE(pd.batch_id, pd.id), pd.vendor_id, v.name
       ORDER BY MIN(pd.distribution_date) DESC, batch_id DESC
     `;
-    const rows = db.prepare(sql).all(...params) as Record<string, unknown>[];
+    const rows = (await pool.query(sql, params)).rows as Record<string, unknown>[];
     res.json(rows.map((r) => ({
       batchId: r.batch_id as string,
       vendorId: r.vendor_id as string,
       vendorName: r.vendor_name as string,
       distributionDate: r.distribution_date as string,
       productNames: (r.product_names as string || '').split(',').filter(Boolean),
-      total: r.total as number,
-      sold: r.sold as number,
-      replaced: r.replaced as number ?? 0,
-      damaged: r.damaged as number ?? 0,
-      availableWithVendor: r.available_with_vendor as number,
-      billValue: r.bill_value as number,
-      discountPercent: r.discount_percent as number ?? 0,
-      gstApplied: !!(r.gst_applied as number),
+      total: Number(r.total),
+      sold: Number(r.sold),
+      replaced: Number(r.replaced) ?? 0,
+      damaged: Number(r.damaged) ?? 0,
+      availableWithVendor: Number(r.available_with_vendor),
+      billValue: Number(r.bill_value),
+      discountPercent: Number(r.discount_percent) ?? 0,
+      gstApplied: !!(Number(r.gst_applied)),
     })));
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -135,8 +159,11 @@ router.get('/api/distribution/batches', (req, res) => {
 });
 
 // Create one distribution batch from the "Distribute Products to Vendor" modal (all rows = one event)
-router.post('/api/distribution/batch', (req, res) => {
+router.post('/api/distribution/batch', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { vendorId, distributionDate, amountPaid, items, gstRate: reqGstRate } = req.body as {
       vendorId?: string;
       distributionDate?: string;
@@ -159,15 +186,19 @@ router.post('/api/distribution/batch', (req, res) => {
 
     for (const item of items) {
       const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
-      const product = db.prepare('SELECT id, name, price FROM products WHERE id = ?').get(item.productId) as { id: string; name: string; price: number } | undefined;
+      const product = (await pool.query(
+        'SELECT id, name, price FROM products WHERE id = $1 AND tenant_id = $2',
+        [item.productId, tenantId]
+      )).rows[0] as { id: string; name: string; price: number } | undefined;
       if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
       const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
       const netPricePerUnit = Math.round((product.price * (100 - disc) / 100) * 100) / 100;
       const gstApplied = item.withGst !== false ? 1 : 0;
       const billedPricePerUnit = gstApplied ? Math.round(netPricePerUnit * (100 + gstRate) / 100) : netPricePerUnit;
-      const invRows = db.prepare(`
-        SELECT id, barcode FROM product_inventory WHERE product_id = ? AND status = 'InStock' ORDER BY id LIMIT ?
-      `).all(product.id, qty) as { id: string; barcode: string }[];
+      const invRows = (await pool.query(
+        `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3`,
+        [product.id, tenantId, qty]
+      )).rows as { id: string; barcode: string }[];
       if (invRows.length < qty) {
         return res.status(400).json({ error: `Insufficient stock for ${product.name}. Available: ${invRows.length}, requested: ${qty}` });
       }
@@ -197,25 +228,43 @@ router.post('/api/distribution/batch', (req, res) => {
       u.distId = totalUnits === 1 ? batchId : `${batchId}-${i + 1}`;
     });
 
-    const vendorName = (db.prepare('SELECT name FROM vendors WHERE id = ?').get(vendorId) as { name: string } | undefined)?.name ?? vendorId;
+    const vendorName = ((await pool.query(
+      'SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2',
+      [vendorId, tenantId]
+    )).rows[0] as { name: string } | undefined)?.name ?? vendorId;
 
-    const runBatch = db.transaction(() => {
-      const insert = db.prepare('INSERT INTO product_distribution (id, batch_id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price, gst_applied, billed_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-      const updateInv = db.prepare('UPDATE product_inventory SET status = ? WHERE id = ?');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
       for (const u of unitRows) {
-        insert.run(u.distId, batchId, u.productId, u.barcode, vendorId, date, 'Distributed', u.disc, u.netPrice, u.gstApplied, u.billedPrice);
-        updateInv.run('Distributed', u.invId);
+        await client.query(
+          'INSERT INTO product_distribution (id, batch_id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price, gst_applied, billed_price, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)',
+          [u.distId, batchId, u.productId, u.barcode, vendorId, date, 'Distributed', u.disc, u.netPrice, u.gstApplied, u.billedPrice, tenantId]
+        );
+        await client.query(
+          'UPDATE product_inventory SET status = $1 WHERE id = $2 AND tenant_id = $3',
+          ['Distributed', u.invId, tenantId]
+        );
       }
       if (paidAmount) {
         const payId = `VP${Date.now()}`;
-        db.prepare('INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes) VALUES (?, ?, ?, ?, ?, ?, ?)')
-          .run(payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${batchId}`);
-        logAudit('Payment Recorded', 'payment', payId, `${vendorName} paid ₹${paidAmount} (with distribution)`);
+        await client.query(
+          'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+          [payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${batchId}`, tenantId]
+        );
+        await client.query('COMMIT');
+        await logAudit(pool, tenantId, 'Payment Recorded', 'payment', payId, `${vendorName} paid ₹${paidAmount} (with distribution)`);
+      } else {
+        await client.query('COMMIT');
       }
-    });
-    runBatch();
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
 
-    logAudit('Distribution Created', 'distribution', batchId, `${totalQty} units (${productNames.join(', ')}) to ${vendorName}`);
+    await logAudit(pool, tenantId, 'Distribution Created', 'distribution', batchId, `${totalQty} units (${productNames.join(', ')}) to ${vendorName}`);
 
     res.status(201).json({
       batchId,
@@ -239,12 +288,18 @@ router.post('/api/distribution/batch', (req, res) => {
   }
 });
 
-router.post('/api/distribution', (req, res) => {
+router.post('/api/distribution', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { productId, vendorId, distributionDate, quantity, discountPercent, amountPaid, withGst, gstRate: reqGstRate, batchId: reqBatchId } = req.body;
     if (!productId || !vendorId) return res.status(400).json({ error: 'Product and vendor are required' });
     const qty = Math.max(1, parseInt(String(quantity), 10) || 1);
-    const product = db.prepare('SELECT id, price FROM products WHERE id = ?').get(productId) as { id: string; price: number } | undefined;
+    const product = (await pool.query(
+      'SELECT id, price FROM products WHERE id = $1 AND tenant_id = $2',
+      [productId, tenantId]
+    )).rows[0] as { id: string; price: number } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
     const disc = Math.min(100, Math.max(0, Number(discountPercent) || 0));
     const grossValue = product.price * qty;
@@ -257,43 +312,67 @@ router.post('/api/distribution', (req, res) => {
     const totalBilled = billedPricePerUnit * qty;
     const paidAmount = typeof amountPaid === 'number' && amountPaid > 0 ? amountPaid : null;
     if (paidAmount && paidAmount > totalBilled) return res.status(400).json({ error: `Amount paid (₹${paidAmount}) cannot exceed billed amount (₹${totalBilled})` });
-    const invRows = db.prepare(`
-      SELECT id, barcode FROM product_inventory WHERE product_id = ? AND status = 'InStock' ORDER BY id LIMIT ?
-    `).all(product.id, qty) as { id: string; barcode: string }[];
+    const invRows = (await pool.query(
+      `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3`,
+      [product.id, tenantId, qty]
+    )).rows as { id: string; barcode: string }[];
     const availableStock = invRows.length;
     if (availableStock < qty) return res.status(400).json({ error: `Insufficient stock. Available: ${availableStock}, requested: ${qty}` });
     const baseId = typeof reqBatchId === 'string' && reqBatchId ? reqBatchId : `D${Date.now()}`;
     const date = distributionDate || new Date().toISOString().slice(0, 10);
     const existingInBatch = typeof reqBatchId === 'string' && reqBatchId
-      ? (db.prepare('SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = ?').get(reqBatchId) as { c: number }).c
+      ? Number((await pool.query('SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2', [reqBatchId, tenantId])).rows[0].c)
       : 0;
-    const runDist = db.transaction(() => {
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
       for (let i = 0; i < invRows.length; i++) {
         const inv = invRows[i];
         const seq = existingInBatch + i + 1;
         const distId = invRows.length === 1 && existingInBatch === 0 ? baseId : `${baseId}-${seq}`;
-        db.prepare('INSERT INTO product_distribution (id, batch_id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price, gst_applied, billed_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(distId, baseId, product.id, inv.barcode, vendorId, date, 'Distributed', disc, netPricePerUnit, gstApplied ? 1 : 0, billedPricePerUnit);
-        db.prepare('UPDATE product_inventory SET status = ? WHERE id = ?').run('Distributed', inv.id);
+        await client.query(
+          'INSERT INTO product_distribution (id, batch_id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price, gst_applied, billed_price, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)',
+          [distId, baseId, product.id, inv.barcode, vendorId, date, 'Distributed', disc, netPricePerUnit, gstApplied ? 1 : 0, billedPricePerUnit, tenantId]
+        );
+        await client.query(
+          'UPDATE product_inventory SET status = $1 WHERE id = $2 AND tenant_id = $3',
+          ['Distributed', inv.id, tenantId]
+        );
       }
-    });
-    runDist();
-    const vendorName = (db.prepare('SELECT name FROM vendors WHERE id = ?').get(vendorId) as { name: string } | undefined)?.name ?? vendorId;
-    logAudit('Distribution Created', 'distribution', baseId, `${qty} units to ${vendorName}, Discount: ${disc}%`);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    const vendorName = ((await pool.query(
+      'SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2',
+      [vendorId, tenantId]
+    )).rows[0] as { name: string } | undefined)?.name ?? vendorId;
+
+    await logAudit(pool, tenantId, 'Distribution Created', 'distribution', baseId, `${qty} units to ${vendorName}, Discount: ${disc}%`);
+
     if (paidAmount) {
       const payId = `VP${Date.now()}`;
-      db.prepare('INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${baseId}`);
-      logAudit('Payment Recorded', 'payment', payId, `${vendorName} paid ₹${paidAmount} (with distribution)`);
+      await pool.query(
+        'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+        [payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${baseId}`, tenantId]
+      );
+      await logAudit(pool, tenantId, 'Payment Recorded', 'payment', payId, `${vendorName} paid ₹${paidAmount} (with distribution)`);
     }
-    const firstRow = db.prepare(`
+
+    const firstRow = (await pool.query(`
       SELECT pd.*, p.name as product_name, v.name as vendor_name, v.id as vendor_id
       FROM product_distribution pd
-      JOIN products p ON pd.product_id = p.id
-      JOIN vendors v ON pd.vendor_id = v.id
-      WHERE pd.product_id = ? AND pd.vendor_id = ? AND pd.distribution_date = ?
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+      WHERE pd.product_id = $2 AND pd.vendor_id = $3 AND pd.distribution_date = $4 AND pd.tenant_id = $1
       ORDER BY pd.id DESC LIMIT 1
-    `).get(product.id, vendorId, date) as Record<string, unknown>;
+    `, [tenantId, product.id, vendorId, date])).rows[0] as Record<string, unknown>;
+
     res.status(201).json({
       id: baseId,
       batchId: baseId,
@@ -318,26 +397,32 @@ router.post('/api/distribution', (req, res) => {
 });
 
 // Mark distribution units as GST or non-GST billed (updates finance amounts)
-router.put('/api/distribution/apply-billing', (req, res) => {
+router.put('/api/distribution/apply-billing', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { vendorId, batchId, gstUnits, nonGstUnits, gstRate } = req.body;
     if (!vendorId && !batchId) return res.status(400).json({ error: 'vendorId or batchId required' });
     const rate = Number(gstRate) || 18;
     let sql = `
       SELECT pd.id, COALESCE(pd.net_price, p.price) as unit_price
-      FROM product_distribution pd JOIN products p ON pd.product_id = p.id
-      WHERE 1=1
+      FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      WHERE pd.tenant_id = $1
     `;
-    const params: string[] = [];
+    const params: (string | number)[] = [tenantId];
+    let paramIdx = 1;
     if (batchId) {
-      sql += ' AND pd.batch_id = ?';
+      paramIdx++;
+      sql += ` AND pd.batch_id = $${paramIdx}`;
       params.push(batchId as string);
     } else {
-      sql += ' AND pd.vendor_id = ? AND pd.billed_price IS NULL';
+      paramIdx++;
+      sql += ` AND pd.vendor_id = $${paramIdx} AND pd.billed_price IS NULL`;
       params.push(vendorId as string);
     }
     sql += ' ORDER BY pd.id';
-    const units = db.prepare(sql).all(...params) as { id: string; unit_price: number }[];
+    const units = (await pool.query(sql, params)).rows as { id: string; unit_price: number }[];
     const totalUnits = units.length;
     const gstCount = Math.min(gstUnits ?? 0, totalUnits);
     const nonGstCount = Math.min(nonGstUnits ?? 0, totalUnits - gstCount);
@@ -345,13 +430,19 @@ router.put('/api/distribution/apply-billing', (req, res) => {
     for (let i = 0; i < gstCount && idx < units.length; i++, idx++) {
       const u = units[idx];
       const billedPrice = Math.round(u.unit_price * (100 + rate) / 100);
-      db.prepare('UPDATE product_distribution SET gst_applied = 1, billed_price = ? WHERE id = ?').run(billedPrice, u.id);
+      await pool.query(
+        'UPDATE product_distribution SET gst_applied = 1, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
+        [billedPrice, u.id, tenantId]
+      );
     }
     for (let i = 0; i < nonGstCount && idx < units.length; i++, idx++) {
       const u = units[idx];
-      db.prepare('UPDATE product_distribution SET gst_applied = 0, billed_price = ? WHERE id = ?').run(u.unit_price, u.id);
+      await pool.query(
+        'UPDATE product_distribution SET gst_applied = 0, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
+        [u.unit_price, u.id, tenantId]
+      );
     }
-    logAudit('Billing Applied', 'distribution', batchId || vendorId, `GST: ${gstCount} units, Non-GST: ${nonGstCount} units`);
+    await logAudit(pool, tenantId, 'Billing Applied', 'distribution', batchId || vendorId, `GST: ${gstCount} units, Non-GST: ${nonGstCount} units`);
     res.json({ ok: true, gstUnits: gstCount, nonGstUnits: nonGstCount });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -359,8 +450,11 @@ router.put('/api/distribution/apply-billing', (req, res) => {
 });
 
 // ============ DISTRIBUTION BILL (CHALLAN) ============
-router.get('/api/distribution/bill', (req, res) => {
+router.get('/api/distribution/bill', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { vendorId, productId, distributionDate, batchId } = req.query;
     if (!vendorId && !batchId) return res.status(400).json({ error: 'vendorId or batchId is required' });
     let sql = `
@@ -369,32 +463,40 @@ router.get('/api/distribution/bill', (req, res) => {
              c.name as category_name,
              v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address
       FROM product_distribution pd
-      JOIN products p ON pd.product_id = p.id
-      LEFT JOIN categories c ON p.category_id = c.id
-      JOIN vendors v ON pd.vendor_id = v.id
-      WHERE 1=1
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = $1
+      JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+      WHERE pd.tenant_id = $1
     `;
-    const params: string[] = [];
+    const params: (string | number)[] = [tenantId];
+    let paramIdx = 1;
     if (typeof batchId === 'string' && batchId) {
-      sql += ' AND pd.batch_id = ?';
+      paramIdx++;
+      sql += ` AND pd.batch_id = $${paramIdx}`;
       params.push(batchId);
     } else {
-      sql += ' AND pd.vendor_id = ?';
+      paramIdx++;
+      sql += ` AND pd.vendor_id = $${paramIdx}`;
       params.push(vendorId as string);
     }
     if (typeof productId === 'string' && productId) {
-      sql += ' AND pd.product_id = ?';
+      paramIdx++;
+      sql += ` AND pd.product_id = $${paramIdx}`;
       params.push(productId);
     }
     if (typeof distributionDate === 'string' && distributionDate) {
-      sql += ' AND pd.distribution_date = ?';
+      paramIdx++;
+      sql += ` AND pd.distribution_date = $${paramIdx}`;
       params.push(distributionDate);
     }
     sql += ' ORDER BY pd.distribution_date DESC, pd.id';
-    const rows = db.prepare(sql).all(...params) as Record<string, unknown>[];
+    const rows = (await pool.query(sql, params)).rows as Record<string, unknown>[];
     if (rows.length === 0) return res.status(404).json({ error: 'No distribution records found' });
     const first = rows[0];
-    const company = db.prepare("SELECT name, company_name, phone, address, gst_number, default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') ORDER BY id LIMIT 1").get() as { name: string; company_name: string | null; phone: string | null; address: string | null; gst_number: string | null; default_gst_rate: number | null } | undefined;
+    const company = (await pool.query(
+      "SELECT name, company_name, phone, address, gst_number, default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') AND tenant_id = $1 ORDER BY id LIMIT 1",
+      [tenantId]
+    )).rows[0] as { name: string; company_name: string | null; phone: string | null; address: string | null; gst_number: string | null; default_gst_rate: number | null } | undefined;
     const grossValue = rows.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
     const netTotal = rows.reduce((sum, r) => sum + (Number(r.net_price) || Number(r.price) || 0), 0);
     const totalBilled = rows.reduce((sum, r) => sum + (Number(r.billed_price) || Number(r.net_price) || Number(r.price) || 0), 0);
@@ -457,13 +559,19 @@ router.get('/api/distribution/bill', (req, res) => {
       totalDiscount,
       totalValue: netTotal,
       totalBilled,
-      payment: (() => {
+      payment: await (async () => {
         if (typeof batchId === 'string' && batchId) {
           return { totalDistributedValue: totalBilled, totalPaid: 0, balance: totalBilled };
         }
         const vid = vendorId as string;
-        const totalDistValue = (db.prepare('SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?').get(vid) as { t: number }).t;
-        const totalPaid = (db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE vendor_id = ?').get(vid) as { t: number }).t;
+        const totalDistValue = Number((await pool.query(
+          'SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1 WHERE pd.vendor_id = $2 AND pd.tenant_id = $1',
+          [tenantId, vid]
+        )).rows[0].t);
+        const totalPaid = Number((await pool.query(
+          'SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE vendor_id = $1 AND tenant_id = $2',
+          [vid, tenantId]
+        )).rows[0].t);
         return { totalDistributedValue: totalDistValue, totalPaid, balance: totalDistValue - totalPaid };
       })(),
     });
@@ -473,8 +581,11 @@ router.get('/api/distribution/bill', (req, res) => {
 });
 
 // Update a distribution batch (date, per-product qty/discount/GST)
-router.put('/api/distribution/batch/:batchId', (req, res) => {
+router.put('/api/distribution/batch/:batchId', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { batchId } = req.params;
     const { distributionDate, items, gstRate: reqGstRate } = req.body as {
       distributionDate?: string;
@@ -484,20 +595,23 @@ router.put('/api/distribution/batch/:batchId', (req, res) => {
     const gstRate = Number(reqGstRate) || 18;
     const date = typeof distributionDate === 'string' && distributionDate ? distributionDate : null;
 
-    const allRows = db.prepare(`
+    const allRows = (await pool.query(`
       SELECT pd.id, pd.product_id, pd.barcode, pd.status, pd.gst_applied, pd.discount_percent,
              p.price, p.name as product_name
       FROM product_distribution pd
-      JOIN products p ON pd.product_id = p.id
-      WHERE pd.batch_id = ?
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      WHERE pd.batch_id = $2 AND pd.tenant_id = $1
       ORDER BY pd.id
-    `).all(batchId) as {
+    `, [tenantId, batchId])).rows as {
       id: string; product_id: string; barcode: string; status: string;
       gst_applied: number; discount_percent: number; price: number; product_name: string;
     }[];
     if (allRows.length === 0) return res.status(404).json({ error: 'Distribution batch not found' });
 
-    const vendorRow = db.prepare('SELECT vendor_id, distribution_date FROM product_distribution WHERE batch_id = ? LIMIT 1').get(batchId) as { vendor_id: string; distribution_date: string };
+    const vendorRow = (await pool.query(
+      'SELECT vendor_id, distribution_date FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2 LIMIT 1',
+      [batchId, tenantId]
+    )).rows[0] as { vendor_id: string; distribution_date: string };
     const vendorId = vendorRow.vendor_id;
     const effectiveDate = date ?? vendorRow.distribution_date;
 
@@ -511,13 +625,18 @@ router.put('/api/distribution/batch/:batchId', (req, res) => {
     const itemList = Array.isArray(items) ? items : [];
     const touchedProductIds = new Set<string>();
 
-    const runUpdate = db.transaction(() => {
-      const applyPricing = (rowId: string, price: number, disc: number, withGst: boolean) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const applyPricing = async (rowId: string, price: number, disc: number, withGst: boolean) => {
         const netPrice = Math.round((price * (100 - disc) / 100) * 100) / 100;
         const gstOn = withGst ? 1 : 0;
         const billed = withGst ? Math.round(netPrice * (100 + gstRate) / 100) : netPrice;
-        db.prepare('UPDATE product_distribution SET discount_percent = ?, net_price = ?, gst_applied = ?, billed_price = ? WHERE id = ?')
-          .run(disc, netPrice, gstOn, billed, rowId);
+        await client.query(
+          'UPDATE product_distribution SET discount_percent = $1, net_price = $2, gst_applied = $3, billed_price = $4 WHERE id = $5 AND tenant_id = $6',
+          [disc, netPrice, gstOn, billed, rowId, tenantId]
+        );
       };
 
       for (const item of itemList) {
@@ -535,13 +654,17 @@ router.put('/api/distribution/batch/:batchId', (req, res) => {
 
         const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
         const withGst = item.withGst !== false;
-        const price = productRows[0]?.price ?? (db.prepare('SELECT price FROM products WHERE id = ?').get(item.productId) as { price: number } | undefined)?.price ?? 0;
+        const price = productRows[0]?.price ?? Number(((await client.query(
+          'SELECT price FROM products WHERE id = $1 AND tenant_id = $2',
+          [item.productId, tenantId]
+        )).rows[0] as { price: number } | undefined)?.price ?? 0);
 
         if (newQty > productRows.length) {
           const toAdd = newQty - productRows.length;
-          const invRows = db.prepare(`
-            SELECT id, barcode FROM product_inventory WHERE product_id = ? AND status = 'InStock' ORDER BY id LIMIT ?
-          `).all(item.productId, toAdd) as { id: string; barcode: string }[];
+          const invRows = (await client.query(
+            `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3`,
+            [item.productId, tenantId, toAdd]
+          )).rows as { id: string; barcode: string }[];
           if (invRows.length < toAdd) {
             const name = productRows[0]?.product_name ?? item.productId;
             throw new Error(`Insufficient stock for ${name}. Available: ${invRows.length}, need ${toAdd} more`);
@@ -549,33 +672,49 @@ router.put('/api/distribution/batch/:batchId', (req, res) => {
           const netPrice = Math.round((price * (100 - disc) / 100) * 100) / 100;
           const gstOn = withGst ? 1 : 0;
           const billed = withGst ? Math.round(netPrice * (100 + gstRate) / 100) : netPrice;
-          const insert = db.prepare('INSERT INTO product_distribution (id, batch_id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price, gst_applied, billed_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-          const updateInv = db.prepare('UPDATE product_inventory SET status = ? WHERE id = ?');
-          let seq = (db.prepare('SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = ?').get(batchId) as { c: number }).c;
+          let seq = Number((await client.query(
+            'SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2',
+            [batchId, tenantId]
+          )).rows[0].c);
           for (const inv of invRows) {
             seq++;
             const distId = seq === 1 && invRows.length === 1 && productRows.length === 0 && newQty === 1 ? batchId : `${batchId}-${seq}`;
-            insert.run(distId, batchId, item.productId, inv.barcode, vendorId, effectiveDate, 'Distributed', disc, netPrice, gstOn, billed);
-            updateInv.run('Distributed', inv.id);
+            await client.query(
+              'INSERT INTO product_distribution (id, batch_id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price, gst_applied, billed_price, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)',
+              [distId, batchId, item.productId, inv.barcode, vendorId, effectiveDate, 'Distributed', disc, netPrice, gstOn, billed, tenantId]
+            );
+            await client.query(
+              'UPDATE product_inventory SET status = $1 WHERE id = $2 AND tenant_id = $3',
+              ['Distributed', inv.id, tenantId]
+            );
           }
         } else if (newQty < productRows.length) {
           const toRemove = productRows.length - newQty;
           const removable = [...distributed].reverse().slice(0, toRemove);
           for (const row of removable) {
-            db.prepare('UPDATE product_inventory SET status = ? WHERE barcode = ?').run('InStock', row.barcode);
-            db.prepare('DELETE FROM product_distribution WHERE id = ?').run(row.id);
+            await client.query(
+              'UPDATE product_inventory SET status = $1 WHERE barcode = $2 AND tenant_id = $3',
+              ['InStock', row.barcode, tenantId]
+            );
+            await client.query(
+              'DELETE FROM product_distribution WHERE id = $1 AND tenant_id = $2',
+              [row.id, tenantId]
+            );
           }
         }
 
-        const remaining = db.prepare(`
-          SELECT pd.id, p.price FROM product_distribution pd JOIN products p ON pd.product_id = p.id
-          WHERE pd.batch_id = ? AND pd.product_id = ?
-        `).all(batchId, item.productId) as { id: string; price: number }[];
+        const remaining = (await client.query(`
+          SELECT pd.id, p.price FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+          WHERE pd.batch_id = $2 AND pd.product_id = $3 AND pd.tenant_id = $1
+        `, [tenantId, batchId, item.productId])).rows as { id: string; price: number }[];
         for (const row of remaining) {
-          applyPricing(row.id, row.price, disc, withGst);
+          await applyPricing(row.id, row.price, disc, withGst);
         }
         if (date) {
-          db.prepare('UPDATE product_distribution SET distribution_date = ? WHERE batch_id = ? AND product_id = ?').run(effectiveDate, batchId, item.productId);
+          await client.query(
+            'UPDATE product_distribution SET distribution_date = $1 WHERE batch_id = $2 AND product_id = $3 AND tenant_id = $4',
+            [effectiveDate, batchId, item.productId, tenantId]
+          );
         }
       }
 
@@ -587,29 +726,46 @@ router.put('/api/distribution/batch/:batchId', (req, res) => {
           throw new Error(`Cannot remove ${productRows[0]?.product_name ?? productId}: ${locked.length} unit(s) already sold/replaced/damaged`);
         }
         for (const row of productRows) {
-          db.prepare('UPDATE product_inventory SET status = ? WHERE barcode = ?').run('InStock', row.barcode);
-          db.prepare('DELETE FROM product_distribution WHERE id = ?').run(row.id);
+          await client.query(
+            'UPDATE product_inventory SET status = $1 WHERE barcode = $2 AND tenant_id = $3',
+            ['InStock', row.barcode, tenantId]
+          );
+          await client.query(
+            'DELETE FROM product_distribution WHERE id = $1 AND tenant_id = $2',
+            [row.id, tenantId]
+          );
         }
       }
 
       if (date && itemList.length === 0) {
-        db.prepare('UPDATE product_distribution SET distribution_date = ? WHERE batch_id = ?').run(effectiveDate, batchId);
+        await client.query(
+          'UPDATE product_distribution SET distribution_date = $1 WHERE batch_id = $2 AND tenant_id = $3',
+          [effectiveDate, batchId, tenantId]
+        );
       }
-    });
 
-    try {
-      runUpdate();
+      await client.query('COMMIT');
     } catch (err) {
-      return res.status(400).json({ error: (err as Error).message });
+      await client.query('ROLLBACK');
+      if (err instanceof Error) {
+        return res.status(400).json({ error: err.message });
+      }
+      throw err;
+    } finally {
+      client.release();
     }
 
-    const remaining = (db.prepare('SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = ?').get(batchId) as { c: number }).c;
-    if (remaining === 0) {
+    const remainingCount = Number((await pool.query(
+      'SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2',
+      [batchId, tenantId]
+    )).rows[0].c);
+    if (remainingCount === 0) {
       return res.json({ deleted: true, batchId });
     }
 
-    logAudit('Distribution Updated', 'distribution', batchId, 'Batch edited');
-    const batch = db.prepare(`
+    await logAudit(pool, tenantId, 'Distribution Updated', 'distribution', batchId, 'Batch edited');
+
+    const batch = (await pool.query(`
       SELECT
         COALESCE(pd.batch_id, pd.id) as batch_id,
         pd.vendor_id,
@@ -621,15 +777,15 @@ router.put('/api/distribution/batch/:batchId', (req, res) => {
         SUM(CASE WHEN pd.status = 'Damaged' THEN 1 ELSE 0 END) as damaged,
         SUM(CASE WHEN pd.status = 'Distributed' THEN 1 ELSE 0 END) as available_with_vendor,
         SUM(COALESCE(pd.billed_price, pd.net_price, p.price)) as bill_value,
-        GROUP_CONCAT(DISTINCT p.name) as product_names,
+        STRING_AGG(DISTINCT p.name, ',') as product_names,
         MAX(pd.discount_percent) as discount_percent,
-        MAX(pd.gst_applied) as gst_applied
+        MAX(pd.gst_applied::int) as gst_applied
       FROM product_distribution pd
-      JOIN products p ON pd.product_id = p.id
-      JOIN vendors v ON pd.vendor_id = v.id
-      WHERE pd.batch_id = ?
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+      WHERE pd.batch_id = $2 AND pd.tenant_id = $1
       GROUP BY COALESCE(pd.batch_id, pd.id), pd.vendor_id, v.name
-    `).get(batchId) as Record<string, unknown> | undefined;
+    `, [tenantId, batchId])).rows[0] as Record<string, unknown> | undefined;
 
     res.json({
       batchId,
@@ -637,14 +793,14 @@ router.put('/api/distribution/batch/:batchId', (req, res) => {
       vendorName: batch?.vendor_name,
       distributionDate: batch?.distribution_date,
       productNames: String(batch?.product_names || '').split(',').filter(Boolean),
-      total: batch?.total,
-      sold: batch?.sold,
-      replaced: batch?.replaced ?? 0,
-      damaged: batch?.damaged ?? 0,
-      availableWithVendor: batch?.available_with_vendor,
-      billValue: batch?.bill_value,
-      discountPercent: batch?.discount_percent ?? 0,
-      gstApplied: !!(batch?.gst_applied as number),
+      total: Number(batch?.total),
+      sold: Number(batch?.sold),
+      replaced: Number(batch?.replaced) ?? 0,
+      damaged: Number(batch?.damaged) ?? 0,
+      availableWithVendor: Number(batch?.available_with_vendor),
+      billValue: Number(batch?.bill_value),
+      discountPercent: Number(batch?.discount_percent) ?? 0,
+      gstApplied: !!(Number(batch?.gst_applied)),
       canDelete: Number(batch?.sold ?? 0) + Number(batch?.replaced ?? 0) + Number(batch?.damaged ?? 0) === 0,
     });
   } catch (err) {
@@ -653,20 +809,23 @@ router.put('/api/distribution/batch/:batchId', (req, res) => {
 });
 
 // Get batch detail for edit
-router.get('/api/distribution/batch/:batchId', (req, res) => {
+router.get('/api/distribution/batch/:batchId', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { batchId } = req.params;
-    const rows = db.prepare(`
+    const rows = (await pool.query(`
       SELECT pd.product_id, pd.status, pd.discount_percent, pd.gst_applied,
              p.name as product_name, p.price,
-             (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock') as available_stock
+             (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as available_stock
       FROM product_distribution pd
-      JOIN products p ON pd.product_id = p.id
-      WHERE pd.batch_id = ?
-    `).all(batchId) as Record<string, unknown>[];
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      WHERE pd.batch_id = $2 AND pd.tenant_id = $1
+    `, [tenantId, batchId])).rows as Record<string, unknown>[];
     if (rows.length === 0) return res.status(404).json({ error: 'Distribution batch not found' });
 
-    const batch = db.prepare(`
+    const batch = (await pool.query(`
       SELECT
         COALESCE(pd.batch_id, pd.id) as batch_id,
         pd.vendor_id,
@@ -678,13 +837,13 @@ router.get('/api/distribution/batch/:batchId', (req, res) => {
         SUM(CASE WHEN pd.status = 'Damaged' THEN 1 ELSE 0 END) as damaged,
         SUM(CASE WHEN pd.status = 'Distributed' THEN 1 ELSE 0 END) as available_with_vendor,
         SUM(COALESCE(pd.billed_price, pd.net_price, p.price)) as bill_value,
-        GROUP_CONCAT(DISTINCT p.name) as product_names
+        STRING_AGG(DISTINCT p.name, ',') as product_names
       FROM product_distribution pd
-      JOIN products p ON pd.product_id = p.id
-      JOIN vendors v ON pd.vendor_id = v.id
-      WHERE pd.batch_id = ?
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+      WHERE pd.batch_id = $2 AND pd.tenant_id = $1
       GROUP BY COALESCE(pd.batch_id, pd.id), pd.vendor_id, v.name
-    `).get(batchId) as Record<string, unknown>;
+    `, [tenantId, batchId])).rows[0] as Record<string, unknown>;
 
     const groups: Record<string, {
       productId: string; productName: string; quantity: number; minQuantity: number;
@@ -725,12 +884,12 @@ router.get('/api/distribution/batch/:batchId', (req, res) => {
       vendorName: batch.vendor_name,
       distributionDate: batch.distribution_date,
       productNames: String(batch.product_names || '').split(',').filter(Boolean),
-      total: batch.total,
+      total: Number(batch.total),
       sold,
       replaced,
       damaged,
-      availableWithVendor: batch.available_with_vendor,
-      billValue: batch.bill_value,
+      availableWithVendor: Number(batch.available_with_vendor),
+      billValue: Number(batch.bill_value),
       canDelete: sold + replaced + damaged === 0,
       items: Object.values(groups),
     });
@@ -740,10 +899,16 @@ router.get('/api/distribution/batch/:batchId', (req, res) => {
 });
 
 // Delete entire distribution batch (only if nothing sold/replaced/damaged)
-router.delete('/api/distribution/batch/:batchId', (req, res) => {
+router.delete('/api/distribution/batch/:batchId', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { batchId } = req.params;
-    const rows = db.prepare('SELECT id, barcode, status FROM product_distribution WHERE batch_id = ?').all(batchId) as { id: string; barcode: string; status: string }[];
+    const rows = (await pool.query(
+      'SELECT id, barcode, status FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2',
+      [batchId, tenantId]
+    )).rows as { id: string; barcode: string; status: string }[];
     if (rows.length === 0) return res.status(404).json({ error: 'Distribution batch not found' });
 
     const blocked = rows.filter((r) => r.status !== 'Distributed');
@@ -753,14 +918,28 @@ router.delete('/api/distribution/batch/:batchId', (req, res) => {
       });
     }
 
-    db.transaction(() => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
       for (const row of rows) {
-        db.prepare("UPDATE product_inventory SET status = 'InStock' WHERE barcode = ?").run(row.barcode);
-        db.prepare('DELETE FROM product_distribution WHERE id = ?').run(row.id);
+        await client.query(
+          "UPDATE product_inventory SET status = 'InStock' WHERE barcode = $1 AND tenant_id = $2",
+          [row.barcode, tenantId]
+        );
+        await client.query(
+          'DELETE FROM product_distribution WHERE id = $1 AND tenant_id = $2',
+          [row.id, tenantId]
+        );
       }
-    })();
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
 
-    logAudit('Distribution Deleted', 'distribution', batchId, `${rows.length} units returned to inventory`);
+    await logAudit(pool, tenantId, 'Distribution Deleted', 'distribution', batchId, `${rows.length} units returned to inventory`);
     res.json({ ok: true, batchId, unitsReturned: rows.length });
   } catch (err) {
     res.status(500).json({ error: String(err) });

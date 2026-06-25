@@ -1,17 +1,22 @@
 import { Router } from 'express';
-import { db } from '../db';
+import { pool } from '../pg-db';
 
 const router = Router();
 
-router.get('/api/mapping/vendors-with-customers', (req, res) => {
+router.get('/api/mapping/vendors-with-customers', async (req, res) => {
   try {
-    const rows = db.prepare(`
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const rows = (await pool.query(`
       SELECT v.id, v.name as vendor_name, v.contact_person, v.phone,
              c.id as customer_id, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
       FROM vendors v
-      LEFT JOIN customers c ON c.vendor_id = v.id
+      LEFT JOIN customers c ON c.vendor_id = v.id AND c.tenant_id = $1
+      WHERE v.tenant_id = $1
       ORDER BY v.name, c.name
-    `).all() as { id: string; vendor_name: string; contact_person: string; phone: string; customer_id: string | null; customer_name: string | null; customer_phone: string | null; customer_email: string | null }[];
+    `, [tenantId])).rows as { id: string; vendor_name: string; contact_person: string; phone: string; customer_id: string | null; customer_name: string | null; customer_phone: string | null; customer_email: string | null }[];
+
     const byVendor: Record<string, { vendor: { id: string; name: string; contactPerson: string; phone: string }; customers: { id: string; name: string; phone: string; email: string }[] }> = {};
     for (const r of rows) {
       if (!byVendor[r.id]) {
@@ -21,7 +26,9 @@ router.get('/api/mapping/vendors-with-customers', (req, res) => {
         byVendor[r.id].customers.push({ id: r.customer_id, name: r.customer_name!, phone: r.customer_phone ?? '', email: r.customer_email ?? '' });
       }
     }
-    const directCustomers = db.prepare('SELECT id, name, phone, email FROM customers WHERE vendor_id IS NULL ORDER BY name').all() as { id: string; name: string; phone: string; email: string }[];
+
+    const directCustomers = (await pool.query('SELECT id, name, phone, email FROM customers WHERE vendor_id IS NULL AND tenant_id = $1 ORDER BY name', [tenantId])).rows as { id: string; name: string; phone: string; email: string }[];
+
     res.json({
       vendors: Object.values(byVendor),
       directCustomers,

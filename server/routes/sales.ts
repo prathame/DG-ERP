@@ -1,22 +1,25 @@
 import { Router } from 'express';
-import { db } from '../db';
+import { pool } from '../pg-db';
 import { parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 
 const router = Router();
 
 // ============ SALES ENTRY (validate barcode: distributed to vendor OR in inventory = Owner sale) ============
-router.get('/api/sales/validate/:barcode', (req, res) => {
+router.get('/api/sales/validate/:barcode', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { barcode } = req.params;
     const restrictToVendorId = typeof req.query.vendorId === 'string' ? req.query.vendorId : null;
     // 1. Check if distributed to vendor (available for sale)
-    const dist = db.prepare(`
+    const dist = (await pool.query(`
       SELECT pd.*, p.name as product_name, p.reward_points_value, p.price, v.name as vendor_name
       FROM product_distribution pd
-      JOIN products p ON pd.product_id = p.id
-      JOIN vendors v ON pd.vendor_id = v.id
-      WHERE pd.barcode = ? AND pd.status = 'Distributed'
-    `).get(barcode) as Record<string, unknown> | undefined;
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $2
+      JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $2
+      WHERE pd.barcode = $1 AND pd.status = 'Distributed' AND pd.tenant_id = $2
+    `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (dist) {
       if (restrictToVendorId && dist.vendor_id !== restrictToVendorId) return res.json({ valid: false, error: 'Barcode not assigned to your vendor' });
       return res.json({
@@ -31,16 +34,16 @@ router.get('/api/sales/validate/:barcode', (req, res) => {
       });
     }
     // 2. Already sold or returned (in distribution but not Distributed)
-    const assigned = db.prepare('SELECT vendor_id FROM product_distribution WHERE barcode = ?').get(barcode) as { vendor_id: string } | undefined;
+    const assigned = (await pool.query('SELECT vendor_id FROM product_distribution WHERE barcode = $1 AND tenant_id = $2', [barcode, tenantId])).rows[0] as { vendor_id: string } | undefined;
     if (assigned) return res.json({ valid: false, error: 'Product already sold or returned' });
     // 3. Check if in inventory (Owner sale - not distributed to any vendor). Vendor users cannot sell Owner inventory.
     if (restrictToVendorId) return res.json({ valid: false, error: 'Barcode not assigned to your vendor' });
-    const inv = db.prepare(`
+    const inv = (await pool.query(`
       SELECT pi.product_id, p.name as product_name, p.reward_points_value, p.price
       FROM product_inventory pi
-      JOIN products p ON pi.product_id = p.id
-      WHERE pi.barcode = ? AND pi.status = 'InStock'
-    `).get(barcode) as { product_id: string; product_name: string; reward_points_value: number; price: number } | undefined;
+      JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
+      WHERE pi.barcode = $1 AND pi.status = 'InStock' AND pi.tenant_id = $2
+    `, [barcode, tenantId])).rows[0] as { product_id: string; product_name: string; reward_points_value: number; price: number } | undefined;
     if (inv) {
       return res.json({
         valid: true,
@@ -54,7 +57,7 @@ router.get('/api/sales/validate/:barcode', (req, res) => {
       });
     }
     // 4. Barcode not found in inventory at all
-    const exists = db.prepare('SELECT 1 FROM product_inventory WHERE barcode = ?').get(barcode);
+    const exists = (await pool.query('SELECT 1 FROM product_inventory WHERE barcode = $1 AND tenant_id = $2', [barcode, tenantId])).rows[0];
     if (exists) return res.json({ valid: false, error: 'Product already sold or distributed' });
     return res.json({ valid: false, error: 'Barcode not found' });
   } catch (err) {
@@ -62,88 +65,94 @@ router.get('/api/sales/validate/:barcode', (req, res) => {
   }
 });
 
-router.post('/api/sales', (req, res) => {
+router.post('/api/sales', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { barcode, customerName, customerPhone, customerEmail, purchaseDate, salePrice } = req.body;
     const date = purchaseDate || new Date().toISOString().slice(0, 10);
     const id = `S${Date.now()}`;
 
     // Case 1: Distributed to vendor
-    const dist = db.prepare(`
-      SELECT pd.*, p.id as product_id, p.reward_points_value, p.warranty_months, p.warranty_applicable
+    const dist = (await pool.query(`
+      SELECT pd.*, p.id as product_id, p.reward_points_value, p.warranty_months
       FROM product_distribution pd
-      JOIN products p ON pd.product_id = p.id
-      WHERE pd.barcode = ? AND pd.status = 'Distributed'
-    `).get(barcode) as { id: string; product_id: string; vendor_id: string; reward_points_value: number; warranty_months: number; warranty_applicable: number } | undefined;
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $2
+      WHERE pd.barcode = $1 AND pd.status = 'Distributed' AND pd.tenant_id = $2
+    `, [barcode, tenantId])).rows[0] as { id: string; product_id: string; vendor_id: string; reward_points_value: number; warranty_months: number } | undefined;
 
     // Case 2: In inventory only (Owner sale)
-    const inv = !dist ? db.prepare(`
-      SELECT pi.product_id, p.reward_points_value, p.warranty_months, p.warranty_applicable
+    const inv = !dist ? (await pool.query(`
+      SELECT pi.product_id, p.reward_points_value, p.warranty_months
       FROM product_inventory pi
-      JOIN products p ON pi.product_id = p.id
-      WHERE pi.barcode = ? AND pi.status = 'InStock'
-    `).get(barcode) as { product_id: string; reward_points_value: number; warranty_months: number; warranty_applicable: number } | undefined : null;
+      JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
+      WHERE pi.barcode = $1 AND pi.status = 'InStock' AND pi.tenant_id = $2
+    `, [barcode, tenantId])).rows[0] as { product_id: string; reward_points_value: number; warranty_months: number } | undefined : null;
 
     const saleData = dist
-      ? { productId: dist.product_id, vendorId: dist.vendor_id, points: dist.reward_points_value ?? 0, warrantyMonths: dist.warranty_months ?? 12, warrantyApplicable: dist.warranty_applicable !== 0 }
+      ? { productId: dist.product_id, vendorId: dist.vendor_id, points: dist.reward_points_value ?? 0, warrantyMonths: dist.warranty_months ?? 12 }
       : inv
-        ? { productId: inv.product_id, vendorId: 'OWNER', points: inv.reward_points_value ?? 0, warrantyMonths: inv.warranty_months ?? 12, warrantyApplicable: inv.warranty_applicable !== 0 }
+        ? { productId: inv.product_id, vendorId: 'OWNER', points: inv.reward_points_value ?? 0, warrantyMonths: inv.warranty_months ?? 12 }
         : null;
 
     if (!saleData) return res.status(400).json({ error: 'Invalid sale: barcode not found or already sold' });
 
-    const { productId, vendorId, points, warrantyMonths, warrantyApplicable } = saleData;
-    const adminSettings = db.prepare("SELECT warranty_enabled, rewards_enabled FROM users WHERE role IN ('Super Admin','Admin') ORDER BY id LIMIT 1").get() as { warranty_enabled: number; rewards_enabled: number } | undefined;
-    const globalWarrantyEnabled = adminSettings?.warranty_enabled !== 0;
-    const globalRewardsEnabled = adminSettings?.rewards_enabled !== 0;
+    const { productId, vendorId, points, warrantyMonths } = saleData;
 
-    const runSale = db.transaction(() => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
       // Find or create customer - match by phone AND name to avoid merging different people
       const phoneNorm = String(customerPhone ?? '').trim();
       const existingCustomer = phoneNorm
-        ? db.prepare("SELECT id FROM customers WHERE TRIM(COALESCE(phone, '')) = ? AND TRIM(COALESCE(name, '')) = ?").get(phoneNorm, String(customerName ?? '').trim()) as { id: string } | undefined
+        ? (await client.query("SELECT id FROM customers WHERE TRIM(COALESCE(phone, '')) = $1 AND TRIM(COALESCE(name, '')) = $2 AND tenant_id = $3", [phoneNorm, String(customerName ?? '').trim(), tenantId])).rows[0] as { id: string } | undefined
         : undefined;
       let customerId: string;
       if (existingCustomer) {
         customerId = existingCustomer.id;
-        db.prepare('UPDATE customers SET vendor_id = COALESCE(vendor_id, ?) WHERE id = ?').run(vendorId, customerId);
+        await client.query('UPDATE customers SET vendor_id = COALESCE(vendor_id, $1) WHERE id = $2 AND tenant_id = $3', [vendorId, customerId, tenantId]);
       } else {
         customerId = `C${Date.now()}`;
-        db.prepare('INSERT INTO customers (id, name, phone, email, address, vendor_id) VALUES (?, ?, ?, ?, ?, ?)')
-          .run(customerId, customerName, customerPhone, customerEmail || null, null, vendorId);
+        await client.query('INSERT INTO customers (id, tenant_id, name, phone, email, address, vendor_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [customerId, tenantId, customerName, customerPhone, customerEmail || null, null, vendorId]);
       }
       const priceVal = salePrice !== undefined && salePrice !== '' ? parseFloat(String(salePrice)) : null;
-      db.prepare(`
-        INSERT INTO product_sales (id, barcode, product_id, vendor_id, customer_id, customer_name, customer_phone, customer_email, purchase_date, reward_points_earned, sale_price)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, barcode, productId, vendorId, customerId, customerName, customerPhone, customerEmail || null, date, points, priceVal);
-      if (dist) db.prepare("UPDATE product_distribution SET status = 'Sold' WHERE barcode = ?").run(barcode);
-      db.prepare("UPDATE product_inventory SET status = 'Sold' WHERE barcode = ?").run(barcode);
-      db.prepare('UPDATE vendors SET total_sales = total_sales + 1 WHERE id = ?').run(vendorId);
-      if (globalRewardsEnabled && points > 0) {
-        db.prepare('UPDATE vendors SET total_reward_points = total_reward_points + ? WHERE id = ?').run(points, vendorId);
-        const productName = db.prepare('SELECT name FROM products WHERE id = ?').get(productId) as { name: string } | undefined;
-        const rewardId = `R${Date.now()}`;
-        db.prepare(`
-          INSERT INTO rewards (id, user_id, points, type, description, date, vendor_id, sale_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(rewardId, 'D1', points, 'Earned', `${productName?.name ?? 'Product'} sold`, date, vendorId, id);
-      }
-      if (globalWarrantyEnabled && warrantyApplicable) {
-        const activationDate = date;
-        const expiryDateObj = new Date(activationDate);
-        expiryDateObj.setMonth(expiryDateObj.getMonth() + warrantyMonths);
-        const expiryDate = expiryDateObj.toISOString().slice(0, 10);
-        const warrantyId = `W${Date.now()}`;
-        db.prepare(`
-          INSERT INTO warranties (id, product_id, barcode, customer_name, customer_phone, activation_date, expiry_date, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')
-        `).run(warrantyId, productId, barcode, customerName, customerPhone, activationDate, expiryDate);
-      }
-    });
-    runSale();
-    logAudit('Sale Created', 'sale', id, `Barcode: ${barcode}, Customer: ${customerName}, Price: ${salePrice ?? 'N/A'}`);
-    const row = db.prepare('SELECT * FROM product_sales WHERE id = ?').get(id) as Record<string, unknown>;
+      await client.query(`
+        INSERT INTO product_sales (id, tenant_id, barcode, product_id, vendor_id, customer_id, customer_name, customer_phone, customer_email, purchase_date, reward_points_earned, sale_price)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `, [id, tenantId, barcode, productId, vendorId, customerId, customerName, customerPhone, customerEmail || null, date, points, priceVal]);
+      if (dist) await client.query("UPDATE product_distribution SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2", [barcode, tenantId]);
+      await client.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2", [barcode, tenantId]);
+      await client.query('UPDATE vendors SET total_sales = total_sales + 1, total_reward_points = total_reward_points + $1 WHERE id = $2 AND tenant_id = $3', [points, vendorId, tenantId]);
+      const productName = (await client.query('SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])).rows[0] as { name: string } | undefined;
+      const rewardId = `R${Date.now()}`;
+      await client.query(`
+        INSERT INTO rewards (id, tenant_id, user_id, points, type, description, date, vendor_id, sale_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [rewardId, tenantId, 'D1', points, 'Earned', `${productName?.name ?? 'Product'} sold`, date, vendorId, id]);
+      // Auto-create warranty based on product warranty_months
+      const activationDate = date;
+      const expiryDateObj = new Date(activationDate);
+      expiryDateObj.setMonth(expiryDateObj.getMonth() + warrantyMonths);
+      const expiryDate = expiryDateObj.toISOString().slice(0, 10);
+      const warrantyId = `W${Date.now()}`;
+      await client.query(`
+        INSERT INTO warranties (id, tenant_id, product_id, barcode, customer_name, customer_phone, activation_date, expiry_date, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active')
+      `, [warrantyId, tenantId, productId, barcode, customerName, customerPhone, activationDate, expiryDate]);
+
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    await logAudit(pool, tenantId, 'Sale Created', 'sale', id, `Barcode: ${barcode}, Customer: ${customerName}, Price: ${salePrice ?? 'N/A'}`);
+    const row = (await pool.query('SELECT * FROM product_sales WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     res.status(201).json({
       id: row.id,
       barcode: row.barcode,
@@ -161,26 +170,29 @@ router.post('/api/sales', (req, res) => {
   }
 });
 
-router.get('/api/sales', (req, res) => {
+router.get('/api/sales', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { vendorId } = req.query;
     const { limit, offset, page } = parsePagination(req.query as Record<string, unknown>);
-    let where = 'WHERE 1=1';
-    const params: unknown[] = [];
-    if (typeof vendorId === 'string' && vendorId) { where += ' AND ps.vendor_id = ?'; params.push(vendorId); }
+    let where = 'WHERE ps.tenant_id = $1';
+    const params: unknown[] = [tenantId];
+    if (typeof vendorId === 'string' && vendorId) { where += ` AND ps.vendor_id = $${params.length + 1}`; params.push(vendorId); }
     where += applyDateFilter(req.query as Record<string, unknown>, 'ps.purchase_date', params);
     const countParams = [...params];
-    const total = (db.prepare(`SELECT COUNT(*) as c FROM product_sales ps ${where}`).get(...countParams) as { c: number }).c;
-    let sql = `SELECT ps.*, p.name as product_name FROM product_sales ps JOIN products p ON ps.product_id = p.id ${where} ORDER BY ps.purchase_date DESC LIMIT ? OFFSET ?`;
+    const total = ((await pool.query(`SELECT COUNT(*) as c FROM product_sales ps ${where}`, countParams)).rows[0] as { c: string }).c;
+    const sql = `SELECT ps.*, p.name as product_name FROM product_sales ps JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1 ${where} ORDER BY ps.purchase_date DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
-    const rows = db.prepare(sql).all(...params) as Record<string, unknown>[];
+    const rows = (await pool.query(sql, params)).rows as Record<string, unknown>[];
     res.json({
       data: rows.map((r) => ({
         id: r.id, barcode: r.barcode, productId: r.product_id, productName: r.product_name, vendorId: r.vendor_id,
         customerName: r.customer_name, customerPhone: r.customer_phone, customerEmail: r.customer_email,
         purchaseDate: r.purchase_date, rewardPointsEarned: r.reward_points_earned, salePrice: r.sale_price ?? null,
       })),
-      total, page, totalPages: Math.ceil(total / limit),
+      total: Number(total), page, totalPages: Math.ceil(Number(total) / limit),
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -188,23 +200,36 @@ router.get('/api/sales', (req, res) => {
 });
 
 // ============ SALES BILL ============
-router.get('/api/sales/:id/bill', (req, res) => {
+router.get('/api/sales/:id/bill', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { id } = req.params;
-    const sale = db.prepare(`
+    const sale = (await pool.query(`
       SELECT ps.*, p.name as product_name, p.category_id, p.warranty_months, p.price as product_price,
              p.description as product_description, p.batch_number, p.hsn_code, p.gst_rate,
              c.name as category_name,
              v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address
       FROM product_sales ps
-      JOIN products p ON ps.product_id = p.id
-      LEFT JOIN categories c ON p.category_id = c.id
-      LEFT JOIN vendors v ON ps.vendor_id = v.id
-      WHERE ps.id = ?
-    `).get(id) as Record<string, unknown> | undefined;
+      JOIN products p ON ps.product_id = p.id AND p.tenant_id = $2
+      LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = $2
+      LEFT JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $2
+      WHERE ps.id = $1 AND ps.tenant_id = $2
+    `, [id, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!sale) return res.status(404).json({ error: 'Sale not found' });
-    const warranty = db.prepare('SELECT activation_date, expiry_date, status FROM warranties WHERE barcode = ? ORDER BY activation_date DESC LIMIT 1').get(sale.barcode) as { activation_date: string; expiry_date: string; status: string } | undefined;
-    const company = db.prepare("SELECT name, company_name, phone, address, gst_number, default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') ORDER BY id LIMIT 1").get() as { name: string; company_name: string | null; phone: string | null; address: string | null; gst_number: string | null; default_gst_rate: number | null } | undefined;
+    const warranty = (await pool.query('SELECT activation_date, expiry_date, status FROM warranties WHERE barcode = $1 AND tenant_id = $2 ORDER BY activation_date DESC LIMIT 1', [sale.barcode, tenantId])).rows[0] as { activation_date: string; expiry_date: string; status: string } | undefined;
+    const company = (await pool.query("SELECT name, company_name, phone, address, gst_number, default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') AND tenant_id = $1 ORDER BY id LIMIT 1", [tenantId])).rows[0] as { name: string; company_name: string | null; phone: string | null; address: string | null; gst_number: string | null; default_gst_rate: number | null } | undefined;
+
+    // Compute vendorFinance before building response
+    let vendorFinance: { totalDistributedValue: number; totalPaid: number; balance: number } | null = null;
+    const vid = sale.vendor_id as string;
+    if (vid && vid !== 'OWNER') {
+      const totalValue = (await pool.query('SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $2 WHERE pd.vendor_id = $1 AND pd.tenant_id = $2', [vid, tenantId])).rows[0] as { t: number };
+      const totalPaid = (await pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE vendor_id = $1 AND tenant_id = $2', [vid, tenantId])).rows[0] as { t: number };
+      vendorFinance = { totalDistributedValue: Number(totalValue.t), totalPaid: Number(totalPaid.t), balance: Number(totalValue.t) - Number(totalPaid.t) };
+    }
+
     res.json({
       id: sale.id,
       barcode: sale.barcode,
@@ -241,13 +266,7 @@ router.get('/api/sales/:id/bill', (req, res) => {
         address: company?.address ?? null,
         gstNumber: company?.gst_number ?? null,
       },
-      vendorFinance: (() => {
-        const vid = sale.vendor_id as string;
-        if (!vid || vid === 'OWNER') return null;
-        const totalValue = db.prepare('SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?').get(vid) as { t: number };
-        const totalPaid = db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE vendor_id = ?').get(vid) as { t: number };
-        return { totalDistributedValue: totalValue.t, totalPaid: totalPaid.t, balance: totalValue.t - totalPaid.t };
-      })(),
+      vendorFinance,
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });

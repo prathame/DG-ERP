@@ -1,25 +1,43 @@
 import { Router } from 'express';
-import { db } from '../db';
+import { pool } from '../pg-db';
 
 const router = Router();
 
 // ============ REDEMPTION SETTINGS ============
-router.get('/api/redemption-settings', (_req, res) => {
+router.get('/api/redemption-settings', async (req, res) => {
   try {
-    const row = db.prepare('SELECT min_balance, min_points FROM redemption_settings WHERE id = ?').get('default') as { min_balance: number; min_points: number } | undefined;
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const row = (await pool.query(
+      'SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2',
+      ['default', tenantId]
+    )).rows[0] as { min_balance: number; min_points: number } | undefined;
     res.json({ minBalance: row?.min_balance ?? 100, minPoints: row?.min_points ?? 50 });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
 });
 
-router.put('/api/redemption-settings', (req, res) => {
+router.put('/api/redemption-settings', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { minBalance, minPoints } = req.body;
     const mb = Math.max(0, parseInt(String(minBalance), 10) || 0);
     const mp = Math.max(1, parseInt(String(minPoints), 10) || 1);
-    db.prepare('INSERT OR REPLACE INTO redemption_settings (id, min_balance, min_points) VALUES (?, ?, ?)').run('default', mb, mp);
-    const row = db.prepare('SELECT min_balance, min_points FROM redemption_settings WHERE id = ?').get('default') as { min_balance: number; min_points: number };
+
+    await pool.query(
+      `INSERT INTO redemption_settings (id, tenant_id, min_balance, min_points) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id, tenant_id) DO UPDATE SET min_balance = $3, min_points = $4`,
+      ['default', tenantId, mb, mp]
+    );
+
+    const row = (await pool.query(
+      'SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2',
+      ['default', tenantId]
+    )).rows[0] as { min_balance: number; min_points: number };
     res.json({ minBalance: row.min_balance, minPoints: row.min_points });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -27,26 +45,32 @@ router.put('/api/redemption-settings', (req, res) => {
 });
 
 // ============ REWARDS ============
-router.get('/api/rewards', (req, res) => {
+router.get('/api/rewards', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { type, vendorId } = req.query;
-    let sql = 'SELECT * FROM rewards';
-    const params: (string | number)[] = [];
-    const conditions: string[] = [];
+    let sql = 'SELECT * FROM rewards WHERE tenant_id = $1';
+    const params: (string | number)[] = [tenantId];
+    let paramIdx = 2;
+
     if (typeof type === 'string' && type && type !== 'All') {
-      conditions.push('type = ?');
+      sql += ` AND type = $${paramIdx}`;
       params.push(type);
+      paramIdx++;
     }
     if (typeof vendorId === 'string' && vendorId) {
-      conditions.push('vendor_id = ?');
+      sql += ` AND vendor_id = $${paramIdx}`;
       params.push(vendorId);
+      paramIdx++;
     } else {
-      conditions.push('vendor_id IS NULL');
+      sql += ' AND vendor_id IS NULL';
     }
-    if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
+
     sql += ' ORDER BY date DESC';
-    const rows = (conditions.length ? db.prepare(sql).all(...params) : db.prepare(sql).all()) as Record<string, unknown>[];
-    const rewards = rows.map((r) => ({
+    const { rows } = await pool.query(sql, params);
+    const rewards = rows.map((r: Record<string, unknown>) => ({
       id: r.id,
       userId: r.user_id,
       points: r.points,
@@ -60,50 +84,85 @@ router.get('/api/rewards', (req, res) => {
   }
 });
 
-router.get('/api/rewards/balance', (req, res) => {
+router.get('/api/rewards/balance', async (req, res) => {
   try {
-    const earned = db.prepare("SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned'").get() as { total: number };
-    const redeemed = db.prepare("SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Redeemed'").get() as { total: number };
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const earned = (await pool.query(
+      "SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned' AND tenant_id = $1",
+      [tenantId]
+    )).rows[0] as { total: number };
+    const redeemed = (await pool.query(
+      "SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Redeemed' AND tenant_id = $1",
+      [tenantId]
+    )).rows[0] as { total: number };
     res.json({ balance: earned.total - redeemed.total });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
 });
 
-router.post('/api/rewards', (req, res) => {
+router.post('/api/rewards', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { userId, points, type, description, vendorId } = req.body;
     const ptsToInsert = Math.max(0, parseInt(String(points), 10) || 0);
     const isVendorRedemption = type === 'Redeemed' && typeof vendorId === 'string' && vendorId;
+
     if (type === 'Redeemed') {
-      const settings = db.prepare('SELECT min_balance, min_points FROM redemption_settings WHERE id = ?').get('default') as { min_balance: number; min_points: number } | undefined;
+      const settings = (await pool.query(
+        'SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2',
+        ['default', tenantId]
+      )).rows[0] as { min_balance: number; min_points: number } | undefined;
       const minBal = settings?.min_balance ?? 100;
       const minPts = settings?.min_points ?? 50;
+
       let balance: number;
       if (isVendorRedemption) {
-        const v = db.prepare('SELECT total_reward_points FROM vendors WHERE id = ?').get(vendorId) as { total_reward_points: number } | undefined;
+        const v = (await pool.query(
+          'SELECT total_reward_points FROM vendors WHERE id = $1 AND tenant_id = $2',
+          [vendorId, tenantId]
+        )).rows[0] as { total_reward_points: number } | undefined;
         if (!v) return res.status(400).json({ error: 'Vendor not found' });
         balance = v.total_reward_points ?? 0;
       } else {
-        const earned = db.prepare("SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned' AND (vendor_id IS NULL OR vendor_id = '')").get() as { total: number };
-        const redeemed = db.prepare("SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Redeemed' AND (vendor_id IS NULL OR vendor_id = '')").get() as { total: number };
+        const earned = (await pool.query(
+          "SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned' AND (vendor_id IS NULL OR vendor_id = '') AND tenant_id = $1",
+          [tenantId]
+        )).rows[0] as { total: number };
+        const redeemed = (await pool.query(
+          "SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Redeemed' AND (vendor_id IS NULL OR vendor_id = '') AND tenant_id = $1",
+          [tenantId]
+        )).rows[0] as { total: number };
         balance = earned.total - redeemed.total;
       }
       if (balance < minBal) return res.status(400).json({ error: `Minimum balance of ${minBal} pts required to redeem` });
       if (ptsToInsert < minPts) return res.status(400).json({ error: `Minimum ${minPts} pts per redemption` });
       if (ptsToInsert > balance) return res.status(400).json({ error: 'Insufficient balance' });
     }
+
     const id = `R${Date.now()}`;
     const date = new Date().toISOString().slice(0, 10);
+
     if (isVendorRedemption) {
-      db.prepare('UPDATE vendors SET total_reward_points = total_reward_points - ? WHERE id = ?').run(ptsToInsert, vendorId);
+      await pool.query(
+        'UPDATE vendors SET total_reward_points = total_reward_points - $1 WHERE id = $2 AND tenant_id = $3',
+        [ptsToInsert, vendorId, tenantId]
+      );
     }
-    const stmt = db.prepare(`
-      INSERT INTO rewards (id, user_id, points, type, description, date, vendor_id, sale_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(id, userId ?? 'D1', ptsToInsert, type ?? 'Earned', description ?? '', date, isVendorRedemption ? vendorId : null, null);
-    const row = db.prepare('SELECT * FROM rewards WHERE id = ?').get(id) as Record<string, unknown>;
+
+    await pool.query(
+      `INSERT INTO rewards (id, tenant_id, user_id, points, type, description, date, vendor_id, sale_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [id, tenantId, userId ?? 'D1', ptsToInsert, type ?? 'Earned', description ?? '', date, isVendorRedemption ? vendorId : null, null]
+    );
+
+    const row = (await pool.query(
+      'SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2', [id, tenantId]
+    )).rows[0] as Record<string, unknown>;
     res.status(201).json({
       id: row.id,
       userId: row.user_id,
@@ -117,21 +176,27 @@ router.post('/api/rewards', (req, res) => {
   }
 });
 
-router.put('/api/rewards/:id', (req, res) => {
+router.put('/api/rewards/:id', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { id } = req.params;
     const { points, type, description, date } = req.body;
-    const stmt = db.prepare(`
-      UPDATE rewards SET
-        points = COALESCE(?, points),
-        type = COALESCE(?, type),
-        description = COALESCE(?, description),
-        date = COALESCE(?, date)
-      WHERE id = ?
-    `);
-    const result = stmt.run(points, type, description, date, id);
-    if (result.changes === 0) return res.status(404).json({ error: 'Reward not found' });
-    const row = db.prepare('SELECT * FROM rewards WHERE id = ?').get(id) as Record<string, unknown>;
+    const result = await pool.query(
+      `UPDATE rewards SET
+        points = COALESCE($1, points),
+        type = COALESCE($2, type),
+        description = COALESCE($3, description),
+        date = COALESCE($4, date)
+      WHERE id = $5 AND tenant_id = $6`,
+      [points, type, description, date, id, tenantId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Reward not found' });
+
+    const row = (await pool.query(
+      'SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2', [id, tenantId]
+    )).rows[0] as Record<string, unknown>;
     res.json({
       id: row.id,
       userId: row.user_id,
@@ -145,12 +210,17 @@ router.put('/api/rewards/:id', (req, res) => {
   }
 });
 
-router.delete('/api/rewards/:id', (req, res) => {
+router.delete('/api/rewards/:id', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { id } = req.params;
-    const stmt = db.prepare('DELETE FROM rewards WHERE id = ?');
-    const result = stmt.run(id);
-    if (result.changes === 0) return res.status(404).json({ error: 'Reward not found' });
+    const result = await pool.query(
+      'DELETE FROM rewards WHERE id = $1 AND tenant_id = $2',
+      [id, tenantId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Reward not found' });
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -158,12 +228,19 @@ router.delete('/api/rewards/:id', (req, res) => {
 });
 
 // ============ REWARD RULES ============
-router.get('/api/reward-rules', (_req, res) => {
+router.get('/api/reward-rules', async (req, res) => {
   try {
-    const rows = db.prepare(`
-      SELECT rr.*, c.name as category_name FROM reward_rules rr LEFT JOIN categories c ON rr.category_id = c.id ORDER BY rr.products_sold_threshold
-    `).all() as Record<string, unknown>[];
-    res.json(rows.map((r) => ({
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const { rows } = await pool.query(
+      `SELECT rr.*, c.name as category_name FROM reward_rules rr
+       LEFT JOIN categories c ON rr.category_id = c.id AND c.tenant_id = $1
+       WHERE rr.tenant_id = $1
+       ORDER BY rr.products_sold_threshold`,
+      [tenantId]
+    );
+    res.json(rows.map((r: Record<string, unknown>) => ({
       id: r.id,
       categoryId: r.category_id,
       categoryName: r.category_name,
@@ -176,15 +253,26 @@ router.get('/api/reward-rules', (_req, res) => {
   }
 });
 
-router.post('/api/reward-rules', (req, res) => {
+router.post('/api/reward-rules', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { categoryId, productsSoldThreshold, rewardPoints, description } = req.body;
     const id = `RR${Date.now()}`;
-    db.prepare(`
-      INSERT INTO reward_rules (id, category_id, products_sold_threshold, reward_points, description)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(id, categoryId || null, productsSoldThreshold ?? 0, rewardPoints ?? 0, description || null);
-    const row = db.prepare('SELECT rr.*, c.name as category_name FROM reward_rules rr LEFT JOIN categories c ON rr.category_id = c.id WHERE rr.id = ?').get(id) as Record<string, unknown>;
+
+    await pool.query(
+      `INSERT INTO reward_rules (id, tenant_id, category_id, products_sold_threshold, reward_points, description)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, tenantId, categoryId || null, productsSoldThreshold ?? 0, rewardPoints ?? 0, description || null]
+    );
+
+    const row = (await pool.query(
+      `SELECT rr.*, c.name as category_name FROM reward_rules rr
+       LEFT JOIN categories c ON rr.category_id = c.id AND c.tenant_id = $1
+       WHERE rr.id = $2 AND rr.tenant_id = $1`,
+      [tenantId, id]
+    )).rows[0] as Record<string, unknown>;
     res.status(201).json({
       id: row.id,
       categoryId: row.category_id,
@@ -198,20 +286,30 @@ router.post('/api/reward-rules', (req, res) => {
   }
 });
 
-router.put('/api/reward-rules/:id', (req, res) => {
+router.put('/api/reward-rules/:id', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { id } = req.params;
     const { categoryId, productsSoldThreshold, rewardPoints, description } = req.body;
-    const result = db.prepare(`
-      UPDATE reward_rules SET
-        category_id = COALESCE(?, category_id),
-        products_sold_threshold = COALESCE(?, products_sold_threshold),
-        reward_points = COALESCE(?, reward_points),
-        description = COALESCE(?, description)
-      WHERE id = ?
-    `).run(categoryId, productsSoldThreshold, rewardPoints, description, id);
-    if (result.changes === 0) return res.status(404).json({ error: 'Reward rule not found' });
-    const row = db.prepare('SELECT rr.*, c.name as category_name FROM reward_rules rr LEFT JOIN categories c ON rr.category_id = c.id WHERE rr.id = ?').get(id) as Record<string, unknown>;
+    const result = await pool.query(
+      `UPDATE reward_rules SET
+        category_id = COALESCE($1, category_id),
+        products_sold_threshold = COALESCE($2, products_sold_threshold),
+        reward_points = COALESCE($3, reward_points),
+        description = COALESCE($4, description)
+      WHERE id = $5 AND tenant_id = $6`,
+      [categoryId, productsSoldThreshold, rewardPoints, description, id, tenantId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Reward rule not found' });
+
+    const row = (await pool.query(
+      `SELECT rr.*, c.name as category_name FROM reward_rules rr
+       LEFT JOIN categories c ON rr.category_id = c.id AND c.tenant_id = $1
+       WHERE rr.id = $2 AND rr.tenant_id = $1`,
+      [tenantId, id]
+    )).rows[0] as Record<string, unknown>;
     res.json({
       id: row.id,
       categoryId: row.category_id,
@@ -225,11 +323,17 @@ router.put('/api/reward-rules/:id', (req, res) => {
   }
 });
 
-router.delete('/api/reward-rules/:id', (req, res) => {
+router.delete('/api/reward-rules/:id', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { id } = req.params;
-    const result = db.prepare('DELETE FROM reward_rules WHERE id = ?').run(id);
-    if (result.changes === 0) return res.status(404).json({ error: 'Reward rule not found' });
+    const result = await pool.query(
+      'DELETE FROM reward_rules WHERE id = $1 AND tenant_id = $2',
+      [id, tenantId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Reward rule not found' });
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: String(err) });

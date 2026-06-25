@@ -1,22 +1,30 @@
 import { Router } from 'express';
-import { db } from '../db';
+import { pool } from '../pg-db';
 
 const router = Router();
 
 // Validate old barcode: returns vendor info (sold or distributed by which vendor)
-router.get('/api/replacements/validate-old/:barcode', (req, res) => {
+router.get('/api/replacements/validate-old/:barcode', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { barcode } = req.params;
     const restrictToVendorId = typeof req.query.vendorId === 'string' ? req.query.vendorId : null;
-    const sale = db.prepare(`
-      SELECT ps.vendor_id, ps.product_id, ps.customer_name, ps.customer_phone, ps.customer_email, v.name as vendor_name
-      FROM product_sales ps
-      JOIN vendors v ON ps.vendor_id = v.id
-      WHERE ps.barcode = ?
-    `).get(barcode) as { vendor_id: string; product_id: string; vendor_name: string; customer_name: string; customer_phone: string; customer_email: string | null } | undefined;
+
+    const sale = (await pool.query(
+      `SELECT ps.vendor_id, ps.product_id, ps.customer_name, ps.customer_phone, ps.customer_email, v.name as vendor_name
+       FROM product_sales ps
+       JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $1
+       WHERE ps.barcode = $2 AND ps.tenant_id = $1`,
+      [tenantId, barcode]
+    )).rows[0] as { vendor_id: string; product_id: string; vendor_name: string; customer_name: string; customer_phone: string; customer_email: string | null } | undefined;
+
     if (sale) {
       if (restrictToVendorId && sale.vendor_id !== restrictToVendorId) return res.json({ valid: false, error: 'Old barcode was sold by another vendor' });
-      const prod = db.prepare('SELECT name FROM products WHERE id = ?').get(sale.product_id) as { name: string } | undefined;
+      const prod = (await pool.query(
+        'SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [sale.product_id, tenantId]
+      )).rows[0] as { name: string } | undefined;
       return res.json({
         valid: true,
         vendorId: sale.vendor_id,
@@ -28,17 +36,23 @@ router.get('/api/replacements/validate-old/:barcode', (req, res) => {
         customerEmail: sale.customer_email ?? '',
       });
     }
-    const dist = db.prepare(`
-      SELECT pd.vendor_id, pd.product_id, v.name as vendor_name
-      FROM product_distribution pd
-      JOIN vendors v ON pd.vendor_id = v.id
-      WHERE pd.barcode = ?
-    `).get(barcode) as { vendor_id: string; product_id: string; vendor_name: string } | undefined;
+
+    const dist = (await pool.query(
+      `SELECT pd.vendor_id, pd.product_id, v.name as vendor_name
+       FROM product_distribution pd
+       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+       WHERE pd.barcode = $2 AND pd.tenant_id = $1`,
+      [tenantId, barcode]
+    )).rows[0] as { vendor_id: string; product_id: string; vendor_name: string } | undefined;
+
     if (dist) {
       if (restrictToVendorId && dist.vendor_id !== restrictToVendorId) return res.json({ valid: false, error: 'Old barcode is assigned to another vendor' });
-      const prod = db.prepare('SELECT name FROM products WHERE id = ?').get(dist.product_id) as { name: string } | undefined;
+      const prod = (await pool.query(
+        'SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [dist.product_id, tenantId]
+      )).rows[0] as { name: string } | undefined;
       return res.json({ valid: true, vendorId: dist.vendor_id, vendorName: dist.vendor_name, productId: dist.product_id, productName: prod?.name ?? null, customerName: '', customerPhone: '', customerEmail: '' });
     }
+
     return res.json({ valid: false, error: 'Old barcode not found (not sold or distributed)' });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -46,55 +60,79 @@ router.get('/api/replacements/validate-old/:barcode', (req, res) => {
 });
 
 // Validate new barcode: must be allocated to vendor (Distributed) for replacement
-router.get('/api/replacements/validate-new/:barcode', (req, res) => {
+router.get('/api/replacements/validate-new/:barcode', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { barcode } = req.params;
     const vendorId = typeof req.query.vendorId === 'string' ? req.query.vendorId : null;
     if (!vendorId) return res.json({ valid: false, error: 'Vendor context required. Verify old barcode first.' });
-    const dist = db.prepare(`
-      SELECT pd.vendor_id, pd.product_id, v.name as vendor_name, p.name as product_name
-      FROM product_distribution pd
-      JOIN vendors v ON pd.vendor_id = v.id
-      JOIN products p ON pd.product_id = p.id
-      WHERE pd.barcode = ? AND pd.status = 'Distributed'
-    `).get(barcode) as { vendor_id: string; product_id: string; vendor_name: string; product_name: string } | undefined;
+
+    const dist = (await pool.query(
+      `SELECT pd.vendor_id, pd.product_id, v.name as vendor_name, p.name as product_name
+       FROM product_distribution pd
+       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+       WHERE pd.barcode = $2 AND pd.status = 'Distributed' AND pd.tenant_id = $1`,
+      [tenantId, barcode]
+    )).rows[0] as { vendor_id: string; product_id: string; vendor_name: string; product_name: string } | undefined;
+
     if (dist) {
       if (dist.vendor_id !== vendorId) return res.json({ valid: false, error: `New barcode is allocated to ${dist.vendor_name}, not your vendor` });
       return res.json({ valid: true, vendorId: dist.vendor_id, vendorName: dist.vendor_name, productId: dist.product_id, productName: dist.product_name });
     }
-    const assigned = db.prepare('SELECT vendor_id FROM product_distribution WHERE barcode = ?').get(barcode) as { vendor_id: string } | undefined;
+
+    const assigned = (await pool.query(
+      'SELECT vendor_id FROM product_distribution WHERE barcode = $1 AND tenant_id = $2',
+      [barcode, tenantId]
+    )).rows[0] as { vendor_id: string } | undefined;
     if (assigned) return res.json({ valid: false, error: 'New barcode already sold or returned' });
+
     if (vendorId === 'OWNER') {
-      const inv = db.prepare('SELECT pi.product_id, p.name FROM product_inventory pi JOIN products p ON pi.product_id = p.id WHERE pi.barcode = ? AND pi.status = ?').get(barcode, 'InStock') as { product_id: string; name: string } | undefined;
+      const inv = (await pool.query(
+        `SELECT pi.product_id, p.name FROM product_inventory pi
+         JOIN products p ON pi.product_id = p.id AND p.tenant_id = $1
+         WHERE pi.barcode = $2 AND pi.status = $3 AND pi.tenant_id = $1`,
+        [tenantId, barcode, 'InStock']
+      )).rows[0] as { product_id: string; name: string } | undefined;
       if (inv) return res.json({ valid: true, vendorId: 'OWNER', vendorName: 'Owner', productId: inv.product_id, productName: inv.name });
     }
+
     return res.json({ valid: false, error: 'New barcode not allocated to your vendor. It must be distributed to you and available (status: Distributed).' });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
 });
 
-router.get('/api/replacements', (req, res) => {
+router.get('/api/replacements', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const vendorId = req.query.vendorId as string | undefined;
     let sql = `
       SELECT r.id, r.old_barcode, r.new_barcode, r.warranty_id, r.product_id, r.product_name,
              r.customer_name, r.customer_phone, r.replaced_date, r.reason, r.created_at, r.vendor_id,
              v.name as vendor_name
       FROM product_replacements r
-      LEFT JOIN vendors v ON r.vendor_id = v.id
+      LEFT JOIN vendors v ON r.vendor_id = v.id AND v.tenant_id = $1
+      WHERE r.tenant_id = $1
     `;
-    const params: unknown[] = [];
+    const params: unknown[] = [tenantId];
+    let paramIdx = 2;
+
     if (vendorId) {
-      sql += ` WHERE (r.vendor_id = ? OR (r.vendor_id IS NULL AND (
-        EXISTS (SELECT 1 FROM product_sales ps WHERE ps.barcode = r.old_barcode AND ps.vendor_id = ?)
-        OR EXISTS (SELECT 1 FROM product_distribution pd WHERE pd.barcode = r.old_barcode AND pd.vendor_id = ?)
+      sql += ` AND (r.vendor_id = $${paramIdx} OR (r.vendor_id IS NULL AND (
+        EXISTS (SELECT 1 FROM product_sales ps WHERE ps.barcode = r.old_barcode AND ps.vendor_id = $${paramIdx + 1} AND ps.tenant_id = $1)
+        OR EXISTS (SELECT 1 FROM product_distribution pd WHERE pd.barcode = r.old_barcode AND pd.vendor_id = $${paramIdx + 2} AND pd.tenant_id = $1)
       )))`;
       params.push(vendorId, vendorId, vendorId);
+      paramIdx += 3;
     }
+
     sql += ' ORDER BY r.replaced_date DESC, r.created_at DESC';
-    const stmt = db.prepare(sql);
-    const rows = stmt.all(...params);
+    const { rows } = await pool.query(sql, params);
     const replacements = rows.map((r: Record<string, unknown>) => ({
       id: r.id,
       oldBarcode: r.old_barcode,
@@ -116,36 +154,84 @@ router.get('/api/replacements', (req, res) => {
   }
 });
 
-router.post('/api/replacements', (req, res) => {
+router.post('/api/replacements', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { oldBarcode, newBarcode, warrantyId, customerName, customerPhone, replacedDate, reason } = req.body;
     const restrictToVendorId = typeof req.body.vendorId === 'string' ? req.body.vendorId : null;
     if (!oldBarcode || !newBarcode || !customerName || !customerPhone) {
       return res.status(400).json({ error: 'oldBarcode, newBarcode, customerName, customerPhone are required' });
     }
-    const sale = db.prepare('SELECT product_id, vendor_id FROM product_sales WHERE barcode = ?').get(oldBarcode) as { product_id: string; vendor_id: string } | undefined;
-    const distOld = db.prepare('SELECT product_id, vendor_id FROM product_distribution WHERE barcode = ?').get(oldBarcode) as { product_id: string; vendor_id: string } | undefined;
+
+    const sale = (await pool.query(
+      'SELECT product_id, vendor_id FROM product_sales WHERE barcode = $1 AND tenant_id = $2',
+      [oldBarcode, tenantId]
+    )).rows[0] as { product_id: string; vendor_id: string } | undefined;
+
+    const distOld = (await pool.query(
+      'SELECT product_id, vendor_id FROM product_distribution WHERE barcode = $1 AND tenant_id = $2',
+      [oldBarcode, tenantId]
+    )).rows[0] as { product_id: string; vendor_id: string } | undefined;
+
     const vendorId = sale?.vendor_id ?? distOld?.vendor_id ?? null;
     if (!vendorId) return res.status(400).json({ error: 'Old barcode not found (not sold or distributed)' });
     if (restrictToVendorId && vendorId !== restrictToVendorId) return res.status(400).json({ error: 'Old barcode belongs to another vendor' });
-    const distNew = db.prepare('SELECT vendor_id FROM product_distribution WHERE barcode = ? AND status = ?').get(newBarcode, 'Distributed') as { vendor_id: string } | undefined;
-    const invNew = vendorId === 'OWNER' ? db.prepare('SELECT 1 FROM product_inventory WHERE barcode = ? AND status = ?').get(newBarcode, 'InStock') : null;
+
+    const distNew = (await pool.query(
+      'SELECT vendor_id FROM product_distribution WHERE barcode = $1 AND status = $2 AND tenant_id = $3',
+      [newBarcode, 'Distributed', tenantId]
+    )).rows[0] as { vendor_id: string } | undefined;
+
+    const invNew = vendorId === 'OWNER'
+      ? (await pool.query(
+          'SELECT 1 FROM product_inventory WHERE barcode = $1 AND status = $2 AND tenant_id = $3',
+          [newBarcode, 'InStock', tenantId]
+        )).rows[0]
+      : null;
+
     const newValid = distNew?.vendor_id === vendorId || (vendorId === 'OWNER' && invNew);
     if (!newValid) return res.status(400).json({ error: 'New barcode is not allocated to the same vendor. Verify new barcode before saving.' });
+
     const id = `REP${Date.now()}`;
     const date = replacedDate || new Date().toISOString().slice(0, 10);
     const productId = sale?.product_id ?? distOld?.product_id ?? null;
-    const prod = productId ? db.prepare('SELECT name FROM products WHERE id = ?').get(productId) as { name: string } | undefined : null;
-    const insertCols = 'id, old_barcode, new_barcode, warranty_id, product_id, product_name, customer_name, customer_phone, replaced_date, reason, vendor_id';
-    db.prepare(`INSERT INTO product_replacements (${insertCols}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(id, oldBarcode, newBarcode, warrantyId || null, productId, prod?.name ?? null, customerName, customerPhone, date, reason || null, vendorId);
+    const prod = productId
+      ? (await pool.query('SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])).rows[0] as { name: string } | undefined
+      : null;
+
+    await pool.query(
+      `INSERT INTO product_replacements (id, tenant_id, old_barcode, new_barcode, warranty_id, product_id, product_name, customer_name, customer_phone, replaced_date, reason, vendor_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [id, tenantId, oldBarcode, newBarcode, warrantyId || null, productId, prod?.name ?? null, customerName, customerPhone, date, reason || null, vendorId]
+    );
+
     // Mark old barcode as Damaged, new barcode as Replaced (vendor stock reduced)
     try {
-      db.prepare("UPDATE product_distribution SET status = 'Damaged' WHERE barcode = ?").run(oldBarcode);
-      db.prepare("UPDATE product_distribution SET status = 'Replaced' WHERE barcode = ?").run(newBarcode);
-      if (vendorId === 'OWNER') db.prepare("UPDATE product_inventory SET status = 'Sold' WHERE barcode = ?").run(newBarcode);
+      await pool.query(
+        "UPDATE product_distribution SET status = 'Damaged' WHERE barcode = $1 AND tenant_id = $2",
+        [oldBarcode, tenantId]
+      );
+      await pool.query(
+        "UPDATE product_distribution SET status = 'Replaced' WHERE barcode = $1 AND tenant_id = $2",
+        [newBarcode, tenantId]
+      );
+      if (vendorId === 'OWNER') {
+        await pool.query(
+          "UPDATE product_inventory SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2",
+          [newBarcode, tenantId]
+        );
+      }
     } catch (_) {}
-    const row = db.prepare('SELECT r.*, v.name as vendor_name FROM product_replacements r LEFT JOIN vendors v ON r.vendor_id = v.id WHERE r.id = ?').get(id) as Record<string, unknown>;
+
+    const row = (await pool.query(
+      `SELECT r.*, v.name as vendor_name FROM product_replacements r
+       LEFT JOIN vendors v ON r.vendor_id = v.id AND v.tenant_id = $1
+       WHERE r.id = $2 AND r.tenant_id = $1`,
+      [tenantId, id]
+    )).rows[0] as Record<string, unknown>;
+
     res.status(201).json({
       id: row.id,
       oldBarcode: row.old_barcode,
