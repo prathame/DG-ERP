@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, Plus, Trash2, AlertCircle, AlertTriangle, ArrowUpDown, Barcode, Download } from 'lucide-react';
+import { Package, Plus, Trash2, AlertCircle, AlertTriangle, ArrowUpDown, Barcode, Download, Upload } from 'lucide-react';
 import { cn, exportToCsv } from '../../lib/utils';
 import { api } from '../../api';
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
+import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 
 export function InventoryView() {
@@ -14,6 +15,7 @@ export function InventoryView() {
   const [products, setProducts] = useState<Product[]>([]);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [barcodeSearch, setBarcodeSearch] = useState('');
   const debouncedBarcodeSearch = useDebounce(barcodeSearch, 250);
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -85,6 +87,9 @@ export function InventoryView() {
               autoComplete="off"
             />
           </div>
+          <button type="button" onClick={() => setCsvImportOpen(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50">
+            <Upload size={18} /> Import CSV
+          </button>
           <button type="button" onClick={() => setAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold shadow-lg shadow-[#F27D26]/20">
             <Plus size={18} /> Add Product
           </button>
@@ -371,6 +376,48 @@ export function InventoryView() {
           </div>
         )}
       </AnimatePresence>
+      {csvImportOpen && (
+        <CsvImport
+          templateName="products"
+          columns={[
+            { key: 'name', label: 'Product Name', required: true },
+            { key: 'price', label: 'Price', required: true },
+            { key: 'barcodePrefix', label: 'Barcode Prefix', required: true },
+            { key: 'quantity', label: 'Quantity', required: true },
+            { key: 'description', label: 'Description' },
+            { key: 'hsnCode', label: 'HSN Code' },
+            { key: 'gstRate', label: 'GST Rate (%)' },
+            { key: 'warrantyMonths', label: 'Warranty Months' },
+            { key: 'rewardPoints', label: 'Reward Points' },
+          ]}
+          onClose={() => { setCsvImportOpen(false); api.products.list().then(setProducts).catch(() => {}); }}
+          onImport={async (rows) => {
+            let success = 0;
+            const errors: string[] = [];
+            for (let i = 0; i < rows.length; i++) {
+              const r = rows[i];
+              try {
+                await api.products.create({
+                  name: r.name,
+                  price: Number(r.price) || 0,
+                  barcodePrefix: r.barcodePrefix,
+                  quantity: Number(r.quantity) || 1,
+                  barcodeMode: 'prefix' as const,
+                  description: r.description || undefined,
+                  hsnCode: r.hsnCode || undefined,
+                  gstRate: r.gstRate ? Number(r.gstRate) : undefined,
+                  warrantyMonths: r.warrantyMonths ? Number(r.warrantyMonths) : undefined,
+                  rewardPointsValue: r.rewardPoints ? Number(r.rewardPoints) : undefined,
+                });
+                success++;
+              } catch (err) {
+                errors.push(`Row ${i + 1} (${r.name}): ${err instanceof Error ? err.message : 'Failed'}`);
+              }
+            }
+            return { success, errors };
+          }}
+        />
+      )}
     </motion.div>
   );
 }

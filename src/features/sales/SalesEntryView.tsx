@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Barcode, CheckCircle2, AlertCircle, Download, Printer, MessageCircle, Mail } from 'lucide-react';
+import { Barcode, CheckCircle2, AlertCircle, Download, Printer, MessageCircle, Mail, Camera } from 'lucide-react';
 import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatSalesInvoiceText } from '../../lib/utils';
 import { api } from '../../api';
 import type { SaleRecord } from '../../api';
 import { useToast, DateRangeFilter, PaginationControls } from '../../components/ui';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
+import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
 
 export function SalesEntryView({ user }: { user: { id: string; role?: string; vendorId?: string; autoWhatsapp?: boolean } | null }) {
   const { toast } = useToast();
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
   const [barcode, setBarcode] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [validation, setValidation] = useState<{ valid: boolean; productName?: string; vendorName?: string; rewardPointsValue?: number; price?: number; error?: string } | null>(null);
   const [form, setForm] = useState({ customerName: '', customerPhone: '', customerEmail: '', purchaseDate: new Date().toISOString().slice(0, 10), salePrice: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -28,13 +30,15 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
   };
   useEffect(() => { loadSales(1); }, [vendorId, salesDateFilter]);
 
-  const handleValidate = () => {
-    if (!barcode.trim()) {
+  const handleValidate = (scannedCode?: string) => {
+    const code = (scannedCode || barcode).trim();
+    if (!code) {
       toast('Enter barcode', 'error');
       return;
     }
+    if (scannedCode) setBarcode(scannedCode);
     setValidation(null);
-    api.sales.validate(barcode.trim(), vendorId)
+    api.sales.validate(code, vendorId)
 .then((r) => {
         setValidation({ valid: r.valid, productName: r.productName, vendorName: r.vendorName, rewardPointsValue: r.rewardPointsValue, price: (r as { price?: number }).price, error: (r as { error?: string }).error });
         if (r.valid && (r as { price?: number }).price != null) setForm((f) => ({ ...f, salePrice: String((r as { price?: number }).price ?? '') }));
@@ -97,6 +101,10 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                 autoComplete="off"
               />
             </div>
+            <button type="button" onClick={() => setScannerOpen(true)} className="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 flex items-center gap-2" title="Scan with camera">
+              <Camera size={18} />
+              <span className="hidden sm:inline">Scan</span>
+            </button>
             <button type="button" onClick={handleValidate} className="px-6 py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C]">
               Verify
             </button>
@@ -207,6 +215,12 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
           <PaginationControls page={salesPage} totalPages={salesTotalPages} total={salesTotal} onPageChange={loadSales} />
         </div>
       </div>
+      {scannerOpen && (
+        <BarcodeScanner
+          onScan={(code) => { setScannerOpen(false); handleValidate(code); }}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
     </motion.div>
   );
 }
