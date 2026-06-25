@@ -14,6 +14,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
   const barcodeSystemEnabled = (() => { try { const u = JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}'); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
   const [barcode, setBarcode] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [validating, setValidating] = useState(false);
   const [validation, setValidation] = useState<{ valid: boolean; productName?: string; vendorName?: string; rewardPointsValue?: number; price?: number; error?: string } | null>(null);
   const [form, setForm] = useState({ customerName: '', customerPhone: '', customerEmail: '', purchaseDate: new Date().toISOString().slice(0, 10), salePrice: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -42,13 +43,15 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
       toast(`Scanned: ${scannedCode}`, 'success');
     }
     setValidation(null);
+    setValidating(true);
     api.sales.validate(code, vendorId)
       .then((r) => {
         setValidation({ valid: r.valid, productName: r.productName, vendorName: r.vendorName, rewardPointsValue: r.rewardPointsValue, price: (r as { price?: number }).price, error: (r as { error?: string }).error });
         if (r.valid && (r as { price?: number }).price != null) setForm((f) => ({ ...f, salePrice: String((r as { price?: number }).price ?? '') }));
         if (!r.valid) toast((r as { error?: string }).error || 'Invalid barcode', 'error');
       })
-      .catch(() => { setValidation({ valid: false, error: 'Validation failed' }); toast('Validation failed', 'error'); });
+      .catch((err) => { setValidation({ valid: false, error: 'Validation failed' }); toast(err instanceof Error ? err.message : 'Validation failed', 'error'); })
+      .finally(() => setValidating(false));
   };
 
   const handleSale = (e: React.FormEvent) => {
@@ -110,8 +113,8 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
               <Camera size={18} />
               <span className="hidden sm:inline">Scan</span>
             </button>}
-            <button type="button" onClick={handleValidate} className="px-6 py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C]">
-              Verify
+            <button type="button" onClick={() => handleValidate()} disabled={validating} className="px-6 py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C] disabled:opacity-60">
+              {validating ? 'Checking...' : 'Verify'}
             </button>
           </div>
 
