@@ -182,7 +182,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                     </button>
                     <button
                       type="button"
-                      onClick={() => api.sales.getBill(s.id).then((bill) => saveBillAsPdf(generateSalesInvoiceHtml(bill, { showGst: includeGst }))).catch((err) => toast(err.message, 'error'))}
+                      onClick={() => api.sales.getBill(s.id).then((bill) => saveBillAsPdf(generateSalesInvoiceHtml(bill, { showGst: includeGst }), `Invoice-${s.customerName}-${s.id}`)).catch((err) => toast(err.message, 'error'))}
                       className="p-1.5 text-gray-400 hover:text-[#F27D26] hover:bg-orange-50 rounded-lg"
                       title="Save as PDF"
                     >

@@ -16,9 +16,10 @@ export function openPrintWindow(): Window | null {
 }
 
 /** Write bill HTML to an already-opened print window and trigger print */
-export function printBillInWindow(win: Window, html: string) {
+export function printBillInWindow(win: Window, html: string, filename?: string) {
+  const titled = filename ? html.replace(/<title>[^<]*<\/title>/, `<title>${filename}</title>`) : html;
   win.document.open();
-  win.document.write(html);
+  win.document.write(titled);
   win.document.close();
   win.focus();
   setTimeout(() => { win.print(); }, 400);
@@ -32,10 +33,11 @@ export function printBill(html: string) {
 }
 
 /** Open bill HTML in a new tab for saving as PDF */
-export function saveBillAsPdf(html: string) {
+export function saveBillAsPdf(html: string, filename?: string) {
   const win = window.open('', '_blank');
   if (!win) return;
-  win.document.write(html);
+  const titled = filename ? html.replace(/<title>[^<]*<\/title>/, `<title>${filename}</title>`) : html;
+  win.document.write(titled);
   win.document.close();
 }
 

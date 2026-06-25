@@ -346,7 +346,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                         type="button"
                         onClick={() => {
                           api.distribution.getBill(billParams(selectedBatch.batchId))
-                            .then((bill) => saveBillAsPdf(generateDistributionChallanHtml(bill, challanOptions(selectedBatch.vendorId))))
+                            .then((bill) => saveBillAsPdf(generateDistributionChallanHtml(bill, challanOptions(selectedBatch.vendorId)), `Challan-${selectedBatch.vendorName}-${selectedBatch.batchId}`))
                             .catch((err) => toast(err.message, 'error'));
                         }}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors"
