@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import jwt from 'jsonwebtoken';
 
 import { initDatabase, pool } from './pg-db';
 
@@ -54,9 +55,8 @@ app.use(express.json({ limit: '2mb' }));
 // Enforce tenant isolation: if JWT is present, override X-Tenant-ID header with JWT's tenantId
 app.use('/api/', (req, _res, next) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
-  if (token) {
+  if (token && process.env.JWT_SECRET) {
     try {
-      const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }) as { tenantId?: string };
       if (decoded.tenantId) {
         req.headers['x-tenant-id'] = decoded.tenantId;
