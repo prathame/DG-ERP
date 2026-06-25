@@ -417,6 +417,8 @@ export function LandingPage() {
             <div className={`flex items-center gap-6 text-sm ${textFaint}`}>
               <a href="#features" className={`${navLink} transition-colors`}>Features</a>
               <a href="#contact" className={`${navLink} transition-colors`}>Contact</a>
+              <a href="/privacy" className={`${navLink} transition-colors`}>Privacy</a>
+              <a href="/terms" className={`${navLink} transition-colors`}>Terms</a>
               <a href="/admin" className={`${navLink} transition-colors`}>Admin</a>
             </div>
             <div className={`flex items-center gap-4 ${textFooter}`}>

@@ -22,6 +22,8 @@ import { ToastProvider } from './components/ui';
 import { LanguageProvider, useTranslation } from './i18n';
 import { LoginScreen, GlobalSearchBar, NotificationBell } from './components/layout';
 import { LandingPage } from './components/layout/LandingPage';
+import { PrivacyPolicy } from './components/layout/PrivacyPolicy';
+import { TermsOfService } from './components/layout/TermsOfService';
 import { ChatWidget } from './components/layout/ChatWidget';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { SalesEntryView } from './features/sales/SalesEntryView';
@@ -142,8 +144,12 @@ export default function App() {
   };
   const visibleNavItems = navItems.filter((item) => canAccess(item.id));
 
-  // Detect slug from URL: /splender, /radhe-krishan, etc. (not /admin, not /)
+  // Static pages
   const pathname = window.location.pathname;
+  if (pathname === '/privacy') return <PrivacyPolicy />;
+  if (pathname === '/terms') return <TermsOfService />;
+
+  // Detect slug from URL: /splender, /radhe-krishan, etc. (not /admin, not /)
   const isSuperAdminRoute = pathname.startsWith('/admin');
   const slugMatch = pathname.match(/^\/([a-z0-9][a-z0-9-]*[a-z0-9])$/i) || pathname.match(/^\/([a-z0-9]+)$/i);
   const urlSlug = (!isSuperAdminRoute && slugMatch) ? slugMatch[1].toLowerCase() : null;
