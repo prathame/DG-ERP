@@ -73,7 +73,9 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   const [tenant, setTenant] = useState<TenantDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [changingPlan, setChangingPlan] = useState(false);
-  const [plans, setPlans] = useState<{ id: string; name: string; priceMonthly: number }[]>([]);
+  const [renewalPlan, setRenewalPlan] = useState<string>('');
+  const [renewalCycle, setRenewalCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [plans, setPlans] = useState<{ id: string; name: string; priceMonthly: number; priceYearly: number }[]>([]);
 
   React.useEffect(() => {
     const token = sessionStorage.getItem('auth_token');
@@ -81,7 +83,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
       .then((r) => r.json())
       .then((data) => {
         const list = Array.isArray(data) ? data : data.plans ?? [];
-        setPlans(list.map((p: Record<string, unknown>) => ({ id: p.id as string, name: p.name as string, priceMonthly: Number(p.priceMonthly ?? 0) })));
+        setPlans(list.map((p: Record<string, unknown>) => ({ id: p.id as string, name: p.name as string, priceMonthly: Number(p.priceMonthly ?? 0), priceYearly: Number(p.priceYearly ?? 0) })));
       })
       .catch(() => {});
   }, []);
@@ -257,23 +259,14 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
             <span className="text-gray-600">Created: {tenant.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : 'N/A'}</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-400 text-xs font-bold uppercase">Plan:</span>
+            <span className="font-medium text-gray-700">{tenant.planName || tenant.plan || tenant.planId || 'No plan'}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
             <Calendar size={16} className="text-gray-400" />
-            <span className="text-gray-600">Expires:</span>
-            <input
-              type="date"
-              value={tenant.subscriptionEndsAt ? new Date(tenant.subscriptionEndsAt).toISOString().split('T')[0] : tenant.trialEndsAt ? new Date(tenant.trialEndsAt).toISOString().split('T')[0] : ''}
-              onChange={async (e) => {
-                const token = sessionStorage.getItem('auth_token');
-                await fetch(`/api/super-admin/tenants/${tenantId}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                  body: JSON.stringify({ subscriptionEndsAt: e.target.value || null }),
-                });
-                fetchTenant();
-                toast(e.target.value ? `Expiry set to ${e.target.value}` : 'Expiry removed', 'success');
-              }}
-              className="px-2 py-1 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-[#F27D26]"
-            />
+            <span className="text-gray-600">
+              {tenant.subscriptionEndsAt ? `Expires: ${new Date(tenant.subscriptionEndsAt).toLocaleDateString()}` : tenant.trialEndsAt ? `Trial ends: ${new Date(tenant.trialEndsAt).toLocaleDateString()}` : 'No expiry set'}
+            </span>
             {(() => {
               const end = tenant.subscriptionEndsAt || tenant.trialEndsAt;
               if (!end) return null;
@@ -281,31 +274,85 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
               return <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", days <= 0 ? "bg-rose-100 text-rose-700" : days <= 7 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700")}>{days <= 0 ? 'Expired' : `${days}d left`}</span>;
             })()}
           </div>
-          <div className="flex items-center gap-2 text-sm relative">
-            <span className="text-gray-400 text-xs font-bold uppercase">Plan:</span>
-            {changingPlan ? (
-              <select
-                defaultValue={tenant.planId || tenant.plan}
-                onChange={(e) => handleChangePlan(e.target.value)}
-                onBlur={() => setChangingPlan(false)}
-                autoFocus
-                className="px-2 py-1 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent bg-white"
-              >
+        </div>
+      </div>
+
+      {/* Subscription Renewal / Upgrade / Downgrade */}
+      {!subscriptionActive && (
+        <div className="bg-white rounded-2xl border-2 border-amber-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 bg-amber-50 border-b border-amber-100">
+            <h2 className="text-lg font-bold text-amber-800">Subscription {tenant.subscriptionEndsAt || tenant.trialEndsAt ? 'Expired' : 'Not Set'} — Renew or Change Plan</h2>
+            <p className="text-sm text-amber-600 mt-0.5">Select a plan and billing cycle to activate this tenant</p>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Select Plan</label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {plans.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}{p.priceMonthly > 0 ? ` — ₹${p.priceMonthly.toLocaleString()}/mo` : ' (Free)'}</option>
+                  <button key={p.id} type="button" onClick={() => setRenewalPlan(p.id)}
+                    className={cn("p-3 rounded-xl border-2 text-left transition-all", renewalPlan === p.id ? "border-[#F27D26] bg-[#F27D26]/5" : "border-gray-200 hover:border-gray-300")}>
+                    <p className="font-bold text-sm">{p.name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{p.priceMonthly > 0 ? `₹${p.priceMonthly.toLocaleString()}/mo` : 'Free'}</p>
+                  </button>
                 ))}
-              </select>
-            ) : (
-              <button
-                onClick={() => subscriptionActive ? toast('Cannot change plan while subscription is active', 'error') : setChangingPlan(true)}
-                className={cn("flex items-center gap-1 text-sm transition-colors capitalize", subscriptionActive ? "text-gray-400 cursor-not-allowed" : "text-gray-600 hover:text-[#F27D26]")}
-              >
-                {tenant.planName || tenant.plan || tenant.planId || 'No plan'} {!subscriptionActive && <ChevronDown size={14} />}
-              </button>
+              </div>
+            </div>
+            {renewalPlan && renewalPlan !== 'TRIAL' && (
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Billing Cycle</label>
+                <div className="flex gap-2">
+                  {(['monthly', 'yearly'] as const).map((c) => {
+                    const p = plans.find((pl) => pl.id === renewalPlan);
+                    const price = c === 'monthly' ? p?.priceMonthly : p?.priceYearly;
+                    return (
+                      <button key={c} type="button" onClick={() => setRenewalCycle(c)}
+                        className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors", renewalCycle === c ? "bg-[#F27D26] text-white border-[#F27D26]" : "border-gray-200 text-gray-600 hover:border-[#F27D26]")}>
+                        {c === 'monthly' ? 'Monthly' : 'Yearly'}{price ? ` — ₹${price.toLocaleString()}` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {renewalPlan && (
+              <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
+                <div>
+                  <p className="text-sm text-gray-500">New subscription period</p>
+                  <p className="font-bold">{new Date().toLocaleDateString()} → {(() => {
+                    const d = new Date();
+                    if (renewalPlan === 'TRIAL') { d.setDate(d.getDate() + 14); }
+                    else if (renewalCycle === 'yearly') { d.setFullYear(d.getFullYear() + 1); }
+                    else { d.setMonth(d.getMonth() + 1); }
+                    return d.toLocaleDateString();
+                  })()}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const token = sessionStorage.getItem('auth_token');
+                    const d = new Date();
+                    if (renewalPlan === 'TRIAL') { d.setDate(d.getDate() + 14); }
+                    else if (renewalCycle === 'yearly') { d.setFullYear(d.getFullYear() + 1); }
+                    else { d.setMonth(d.getMonth() + 1); }
+                    try {
+                      await fetch(`/api/super-admin/tenants/${tenantId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ planId: renewalPlan, subscriptionEndsAt: d.toISOString().split('T')[0], status: renewalPlan === 'TRIAL' ? 'trial' : 'active' }),
+                      });
+                      toast(`Subscription renewed — ${plans.find((p) => p.id === renewalPlan)?.name} until ${d.toLocaleDateString()}`, 'success');
+                      fetchTenant();
+                    } catch { toast('Failed to renew', 'error'); }
+                  }}
+                  className="px-6 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C]"
+                >
+                  {tenant.planId === renewalPlan ? 'Renew' : (plans.findIndex((p) => p.id === renewalPlan) > plans.findIndex((p) => p.id === tenant.planId)) ? 'Upgrade' : 'Downgrade'}
+                </button>
+              </div>
             )}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
