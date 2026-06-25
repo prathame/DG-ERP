@@ -431,14 +431,14 @@ router.put('/api/distribution/apply-billing', async (req, res) => {
       const u = units[idx];
       const billedPrice = Math.round(u.unit_price * (100 + rate) / 100);
       await pool.query(
-        'UPDATE product_distribution SET gst_applied = 1, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
+        'UPDATE product_distribution SET gst_applied = true, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
         [billedPrice, u.id, tenantId]
       );
     }
     for (let i = 0; i < nonGstCount && idx < units.length; i++, idx++) {
       const u = units[idx];
       await pool.query(
-        'UPDATE product_distribution SET gst_applied = 0, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
+        'UPDATE product_distribution SET gst_applied = false, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
         [u.unit_price, u.id, tenantId]
       );
     }
@@ -651,7 +651,7 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
 
       const applyPricing = async (rowId: string, price: number, disc: number, withGst: boolean) => {
         const netPrice = Math.round((price * (100 - disc) / 100) * 100) / 100;
-        const gstOn = withGst ? 1 : 0;
+        const gstOn = !!withGst;
         const billed = withGst ? Math.round(netPrice * (100 + gstRate) / 100) : netPrice;
         await client.query(
           'UPDATE product_distribution SET discount_percent = $1, net_price = $2, gst_applied = $3, billed_price = $4 WHERE id = $5 AND tenant_id = $6',
@@ -690,7 +690,7 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
             throw new Error(`Insufficient stock for ${name}. Available: ${invRows.length}, need ${toAdd} more`);
           }
           const netPrice = Math.round((price * (100 - disc) / 100) * 100) / 100;
-          const gstOn = withGst ? 1 : 0;
+          const gstOn = !!withGst;
           const billed = withGst ? Math.round(netPrice * (100 + gstRate) / 100) : netPrice;
           let seq = Number((await client.query(
             'SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2',
