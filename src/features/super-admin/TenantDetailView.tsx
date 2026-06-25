@@ -114,15 +114,20 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
     }
   };
 
+  const subscriptionActive = (() => {
+    const end = tenant?.subscriptionEndsAt || tenant?.trialEndsAt;
+    if (!end) return false;
+    return new Date(end).getTime() > Date.now();
+  })();
+
   const handleChangePlan = async (newPlan: string) => {
     const currentPlanId = tenant?.planId || tenant?.plan;
     if (newPlan === currentPlanId) { setChangingPlan(false); return; }
 
-    const subEnd = tenant?.subscriptionEndsAt;
-    const daysLeft = subEnd ? Math.ceil((new Date(subEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
-    if (daysLeft > 0) {
-      const confirmed = window.confirm(`This tenant has ${daysLeft} days left on their current plan. Changing the plan will take effect immediately but won't affect existing data.\n\nProceed?`);
-      if (!confirmed) { setChangingPlan(false); return; }
+    if (subscriptionActive) {
+      toast('Cannot change plan while subscription is active. Wait for expiry or update the end date first.', 'error');
+      setChangingPlan(false);
+      return;
     }
 
     const token = sessionStorage.getItem('auth_token');
@@ -292,10 +297,10 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
               </select>
             ) : (
               <button
-                onClick={() => setChangingPlan(true)}
-                className="flex items-center gap-1 text-sm text-gray-600 hover:text-[#F27D26] transition-colors capitalize"
+                onClick={() => subscriptionActive ? toast('Cannot change plan while subscription is active', 'error') : setChangingPlan(true)}
+                className={cn("flex items-center gap-1 text-sm transition-colors capitalize", subscriptionActive ? "text-gray-400 cursor-not-allowed" : "text-gray-600 hover:text-[#F27D26]")}
               >
-                {tenant.planName || tenant.plan || tenant.planId || 'No plan'} <ChevronDown size={14} />
+                {tenant.planName || tenant.plan || tenant.planId || 'No plan'} {!subscriptionActive && <ChevronDown size={14} />}
               </button>
             )}
           </div>

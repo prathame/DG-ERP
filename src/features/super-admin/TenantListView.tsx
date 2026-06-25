@@ -243,12 +243,28 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
     phone: '',
     plan: '',
     password: '',
+    billingCycle: 'monthly' as 'monthly' | 'yearly',
     subscriptionStart: new Date().toISOString().split('T')[0],
     subscriptionEnd: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [plans, setPlans] = useState<{ id: string; name: string; priceMonthly: number }[]>([]);
+  const [plans, setPlans] = useState<{ id: string; name: string; priceMonthly: number; priceYearly: number }[]>([]);
+
+  const calcEndDate = (start: string, plan: string, cycle: 'monthly' | 'yearly') => {
+    if (plan === 'TRIAL') {
+      const d = new Date(start); d.setDate(d.getDate() + 14); return d.toISOString().split('T')[0];
+    }
+    const d = new Date(start);
+    if (cycle === 'yearly') d.setFullYear(d.getFullYear() + 1);
+    else d.setMonth(d.getMonth() + 1);
+    return d.toISOString().split('T')[0];
+  };
+
+  const updatePlanAndDate = (plan: string, cycle?: 'monthly' | 'yearly') => {
+    const c = cycle || form.billingCycle;
+    setForm((f) => ({ ...f, plan, billingCycle: c, subscriptionEnd: calcEndDate(f.subscriptionStart, plan, c) }));
+  };
 
   React.useEffect(() => {
     const token = sessionStorage.getItem('auth_token');
@@ -256,8 +272,11 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
       .then((r) => r.json())
       .then((data) => {
         const list = Array.isArray(data) ? data : data.plans ?? [];
-        setPlans(list.map((p: Record<string, unknown>) => ({ id: p.id as string, name: p.name as string, priceMonthly: Number(p.priceMonthly ?? 0) })));
-        if (list.length > 0 && !form.plan) setForm((f) => ({ ...f, plan: list[0].id as string }));
+        setPlans(list.map((p: Record<string, unknown>) => ({ id: p.id as string, name: p.name as string, priceMonthly: Number(p.priceMonthly ?? 0), priceYearly: Number(p.priceYearly ?? 0) })));
+        if (list.length > 0 && !form.plan) {
+          const firstId = list[0].id as string;
+          setForm((f) => ({ ...f, plan: firstId, subscriptionEnd: calcEndDate(f.subscriptionStart, firstId, f.billingCycle) }));
+        }
       })
       .catch(() => {});
   }, []);
@@ -439,7 +458,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
               <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Plan</label>
               <select
                 value={form.plan}
-                onChange={(e) => setForm({ ...form, plan: e.target.value })}
+                onChange={(e) => updatePlanAndDate(e.target.value)}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent bg-white"
               >
                 {plans.map((p) => (
@@ -447,6 +466,23 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                 ))}
               </select>
             </div>
+            {form.plan !== 'TRIAL' && (
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Billing Cycle</label>
+                <div className="flex gap-2">
+                  {(['monthly', 'yearly'] as const).map((c) => {
+                    const selectedPlan = plans.find((p) => p.id === form.plan);
+                    const price = c === 'monthly' ? selectedPlan?.priceMonthly : selectedPlan?.priceYearly;
+                    return (
+                      <button key={c} type="button" onClick={() => updatePlanAndDate(form.plan, c)}
+                        className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-colors ${form.billingCycle === c ? 'bg-[#F27D26] text-white border-[#F27D26]' : 'border-gray-200 text-gray-600 hover:border-[#F27D26]'}`}>
+                        {c === 'monthly' ? 'Monthly' : 'Yearly'}{price ? ` — ₹${price.toLocaleString()}` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Password (Optional)</label>
               <input
@@ -460,13 +496,13 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Subscription Start</label>
-                <input type="date" value={form.subscriptionStart} onChange={(e) => setForm({ ...form, subscriptionStart: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent" />
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Start Date</label>
+                <input type="date" value={form.subscriptionStart} onChange={(e) => { setForm({ ...form, subscriptionStart: e.target.value, subscriptionEnd: calcEndDate(e.target.value, form.plan, form.billingCycle) }); }} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent" />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Subscription End</label>
-                <input type="date" value={form.subscriptionEnd} onChange={(e) => setForm({ ...form, subscriptionEnd: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent" />
-                <p className="text-[10px] text-gray-400 mt-1">Leave blank for trial (14 days auto-set)</p>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">End Date (auto)</label>
+                <input type="date" value={form.subscriptionEnd} readOnly className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-600" />
+                <p className="text-[10px] text-gray-400 mt-1">{form.plan === 'TRIAL' ? '14 days trial' : form.billingCycle === 'yearly' ? '1 year from start' : '1 month from start'}</p>
               </div>
             </div>
             {error && <p className="text-sm text-rose-500">{error}</p>}
