@@ -18,11 +18,10 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
-      - key: SUPER_ADMIN_EMAIL
-        value: admin@spre.ai
-      - key: SUPER_ADMIN_PASSWORD
-        value: superadmin123
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 3001
+      # Set these manually in Render Dashboard → Environment:
+      # SUPER_ADMIN_EMAIL=your-email@domain.com
+      # SUPER_ADMIN_PASSWORD=your-secure-password
