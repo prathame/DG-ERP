@@ -18,6 +18,7 @@ interface Plan {
   maxVendors: number;
   maxUsers: number;
   price: number;
+  priceYearly: number;
   features: {
     warranty: boolean;
     replacements: boolean;
@@ -125,7 +126,8 @@ export function PlanManagementView() {
                   </div>
                 </div>
                 <p className="text-xl font-bold text-[#F27D26]">
-                  ₹{(plan.priceMonthly ?? plan.price ?? 0).toLocaleString()}<span className="text-xs text-gray-400 font-normal">/mo</span>
+                  ₹{(plan.priceMonthly ?? 0).toLocaleString()}<span className="text-xs text-gray-400 font-normal">/mo</span>
+                  {plan.priceYearly > 0 && <span className="text-xs text-gray-400 font-normal ml-1">(₹{plan.priceYearly.toLocaleString()}/yr)</span>}
                 </p>
               </div>
 
@@ -213,7 +215,8 @@ function PlanModal({ plan, onClose, onSaved }: {
     maxProducts: plan?.maxProducts ?? 100,
     maxVendors: plan?.maxVendors ?? 10,
     maxUsers: plan?.maxUsers ?? 5,
-    price: plan?.priceMonthly ?? plan?.price ?? 0,
+    price: plan?.priceMonthly ?? 0,
+    priceYearly: plan?.priceYearly ?? 0,
     warranty: plan?.features?.warranty ?? true,
     replacements: plan?.features?.replacements ?? true,
     rewards: plan?.features?.rewards ?? true,
@@ -238,6 +241,7 @@ function PlanModal({ plan, onClose, onSaved }: {
       maxVendors: form.maxVendors,
       maxUsers: form.maxUsers,
       priceMonthly: form.price,
+      priceYearly: form.priceYearly,
       features: {
         warranty: form.warranty,
         replacements: form.replacements,
@@ -352,16 +356,28 @@ function PlanModal({ plan, onClose, onSaved }: {
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Monthly Price (INR)</label>
-            <input
-              type="number"
-              required
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
-              placeholder="999"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Monthly Price (₹)</label>
+              <input
+                type="number"
+                required
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                placeholder="999"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Yearly Price (₹)</label>
+              <input
+                type="number"
+                value={form.priceYearly}
+                onChange={(e) => setForm({ ...form, priceYearly: Number(e.target.value) })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                placeholder="9999"
+              />
+            </div>
           </div>
 
           <div>
