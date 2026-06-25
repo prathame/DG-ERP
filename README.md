@@ -319,6 +319,9 @@ Server middleware validates token + resolves tenant
 - bcrypt with 12 salt rounds
 - Minimum 8 character enforcement
 - Change password requires current password + JWT auth
+- Forgot password: generates secure reset token (1hr expiry)
+- Reset password via token (shared by admin)
+- Admin can reset any user's password from user management
 - Rate limited: 5 attempts per 15 minutes
 
 ### Security Features
@@ -361,6 +364,9 @@ POST   /api/auth/login
 POST   /api/auth/signup
 GET/PUT /api/settings/profile
 PUT    /api/settings/change-password
+POST   /api/auth/forgot-password        ← Generate reset token
+POST   /api/auth/reset-password         ← Reset with token
+PUT    /api/admin/reset-user-password   ← Admin resets user password
 GET/PUT /api/settings/bill              ← Bill customization
 GET    /api/products, /api/sales, /api/distribution, /api/warranties
        /api/customers, /api/vendors, /api/banks, /api/transactions

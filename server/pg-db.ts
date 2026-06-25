@@ -376,6 +376,18 @@ export async function initSchema() {
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bill_customization_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS multi_language_enabled BOOLEAN DEFAULT true');
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        tenant_id TEXT,
+        token TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
     console.log('✓ Schema created');
   } finally {
     client.release();

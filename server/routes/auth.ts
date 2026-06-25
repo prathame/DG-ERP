@@ -169,4 +169,84 @@ router.put('/api/settings/change-password', authMiddleware, async (req: AuthRequ
   }
 });
 
+// Forgot password — generate reset token (no email sent, returns token for admin to share)
+router.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    const user = (await pool.query('SELECT u.id, u.email, u.tenant_id FROM users u WHERE u.email = $1', [email])).rows[0] as { id: string; email: string; tenant_id: string } | undefined;
+    // Always return success to prevent email enumeration
+    if (!user) return res.json({ ok: true, message: 'If this email exists, a reset link has been generated' });
+
+    const crypto = await import('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+    await pool.query(
+      'INSERT INTO password_reset_tokens (id, email, tenant_id, token, expires_at) VALUES ($1, $2, $3, $4, $5)',
+      [`PRT${Date.now()}`, email, user.tenant_id, token, expiresAt]
+    );
+
+    await logAudit(pool, user.tenant_id, 'PASSWORD_RESET_REQUEST', 'user', user.id, `Password reset requested for ${email}`, user.id, email);
+
+    res.json({ ok: true, message: 'If this email exists, a reset link has been generated', token });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// Reset password using token
+router.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password required' });
+    if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+    const resetToken = (await pool.query(
+      'SELECT * FROM password_reset_tokens WHERE token = $1 AND used = false AND expires_at > NOW()',
+      [token]
+    )).rows[0] as { id: string; email: string; tenant_id: string } | undefined;
+
+    if (!resetToken) return res.status(400).json({ error: 'Invalid or expired reset token' });
+
+    const newHash = bcrypt.hashSync(newPassword, 12);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE email = $2 AND tenant_id = $3', [newHash, resetToken.email, resetToken.tenant_id]);
+    await pool.query('UPDATE password_reset_tokens SET used = true WHERE token = $1', [token]);
+
+    await logAudit(pool, resetToken.tenant_id, 'PASSWORD_RESET', 'user', null as unknown as string, `Password reset for ${resetToken.email}`, undefined, resetToken.email);
+
+    res.json({ ok: true, message: 'Password has been reset successfully' });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// Admin reset any user's password
+router.put('/api/admin/reset-user-password', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const adminRole = req.user?.role;
+    if (!adminRole || !['Admin', 'Super Admin'].includes(adminRole)) return res.status(403).json({ error: 'Admin access required' });
+
+    const { userId, newPassword } = req.body;
+    if (!userId || !newPassword) return res.status(400).json({ error: 'userId and newPassword required' });
+    if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+    const user = (await pool.query('SELECT id, email, name FROM users WHERE id = $1 AND tenant_id = $2', [userId, tenantId])).rows[0] as { id: string; email: string; name: string } | undefined;
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const newHash = bcrypt.hashSync(newPassword, 12);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3', [newHash, userId, tenantId]);
+
+    await logAudit(pool, tenantId, 'ADMIN_PASSWORD_RESET', 'user', userId, `Admin reset password for ${user.email}`, req.user?.userId, req.user?.name);
+
+    res.json({ ok: true, message: `Password reset for ${user.email}` });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 export default router;

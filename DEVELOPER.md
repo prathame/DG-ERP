@@ -315,6 +315,25 @@ Request → Helmet (security headers) → CORS check → Rate limiter → Auth m
 - **CORS**: Whitelist via `ALLOWED_ORIGINS` env var (permissive in dev, strict in production)
 - **Auth**: JWT verification with HS256 algorithm pinning
 
+### Password Reset Flow
+
+```
+1. User clicks "Forgot Password?" on login page
+2. Enters email → POST /api/auth/forgot-password
+3. Server generates a secure token (crypto.randomBytes, 1hr expiry)
+4. Token stored in password_reset_tokens table
+5. Admin shares the token with the user (via WhatsApp/email)
+6. User clicks "Have a reset token?" on login page
+7. Pastes token + enters new password → POST /api/auth/reset-password
+8. Server validates token, updates password, marks token as used
+```
+
+**Admin can also reset directly:**
+```
+PUT /api/admin/reset-user-password
+Body: { userId: "U...", newPassword: "newpass123" }
+```
+
 ### Frontend Token Handling
 
 ```typescript
@@ -784,6 +803,8 @@ if (/your\s*pattern/.test(q)) {
 | "Invalid or expired token" | JWT expired (7 days). Re-login |
 | "Too many login attempts" | Rate limited — wait 15 minutes or restart server |
 | "Access denied" on profile | userId in request doesn't match JWT — re-login |
+| "Invalid or expired reset token" | Token expired (1hr) or already used — generate a new one |
+| User forgot password, no email | Admin generates reset token → shares via WhatsApp → user pastes on login page |
 | Server won't start — "connection refused" | PostgreSQL not running. `pg_isready -h localhost -p 5432` to check |
 | Super admin login page not showing at `/admin` | Vite dev server must be running; check `window.location.pathname` routing in App.tsx |
 | Dark mode not applying | Check `html` element has class `dark`; check `sessionStorage` for `dg_erp_theme` |
