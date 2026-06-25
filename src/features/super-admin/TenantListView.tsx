@@ -263,7 +263,8 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
         throw new Error(data.error || 'Failed to create tenant');
       }
       const data = await res.json();
-      onCreated({ email: data.adminEmail ?? form.adminEmail, password: data.password ?? form.password ?? 'auto-generated', phone: form.phone || undefined, companyName: form.companyName, slug: data.slug || undefined });
+      const resolvedPassword = data.password || data.credentials?.password || form.password || `${form.companyName.replace(/\s+/g, '').toLowerCase().slice(0, 12)}@123`;
+      onCreated({ email: data.adminEmail ?? form.adminEmail, password: resolvedPassword, phone: form.phone || undefined, companyName: form.companyName, slug: data.slug || undefined });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Creation failed');
     } finally {
