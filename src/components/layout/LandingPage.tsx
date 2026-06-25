@@ -144,23 +144,24 @@ export function LandingPage() {
         <div className="max-w-4xl mx-auto text-center relative">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className={`inline-flex items-center gap-2 px-4 py-1.5 border rounded-full text-xs font-medium mb-8 ${badgeBg}`}>
-              <Star size={12} className="text-[#F27D26]" /> Multi-Tenant SaaS ERP Platform
+              <Star size={12} className="text-[#F27D26]" /> Cloud ERP Software for Indian Businesses
             </div>
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight">
-              DG ERP
+            <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
+              Manage Inventory, Sales
               <br />
-              <span className="bg-gradient-to-r from-[#F27D26] to-[#FFB347] bg-clip-text text-transparent">Management</span>
+              <span className="bg-gradient-to-r from-[#F27D26] to-[#FFB347] bg-clip-text text-transparent">& Distribution</span>
+              <br />
+              <span className="text-3xl md:text-5xl">All in One Platform</span>
             </h1>
             <p className={`mt-6 text-lg md:text-xl ${textMuted} max-w-2xl mx-auto leading-relaxed`}>
-              Industry-agnostic ERP for Inventory, Sales, Distribution, Warranty & Rewards.
-              Onboard unlimited companies — each with isolated data and fully branded experience.
+              Built for manufacturers & distributors across India. GST billing, barcode scanning, vendor management, and more — starting free.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <a href="/admin" className="group px-8 py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-all flex items-center gap-2 shadow-lg shadow-[#F27D26]/20">
-                Get Started <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              <a href="#contact" className="group px-8 py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-all flex items-center gap-2 shadow-lg shadow-[#F27D26]/20">
+                Start Free Trial <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </a>
               <a href="#features" className={`px-8 py-4 border rounded-xl font-bold text-lg transition-all ${btnSecondary}`}>
-                Explore Features
+                See Features
               </a>
             </div>
           </motion.div>
@@ -171,10 +172,10 @@ export function LandingPage() {
       <section className={`py-12 border-y ${navBorder}`}>
         <div className="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           {[
-            { val: '23+', label: 'Database Tables' },
-            { val: '22', label: 'API Route Files' },
+            { val: '10+', label: 'Feature Modules' },
+            { val: '3', label: 'Languages Supported' },
             { val: '30+', label: 'Chatbot Commands' },
-            { val: '100%', label: 'Data Isolation' },
+            { val: '100%', label: 'Data Security' },
           ].map((s) => (
             <div key={s.label}>
               <p className="text-3xl font-bold text-[#F27D26]">{s.val}</p>
