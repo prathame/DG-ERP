@@ -3,6 +3,8 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 dotenv.config();
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 import { initDatabase } from './pg-db';
 
@@ -32,14 +34,26 @@ import billSettingsRouter from './routes/bill-settings';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'];
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Tenant-ID');
+  res.header('Access-Control-Allow-Credentials', 'true');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
 app.use(express.json({ limit: '2mb' }));
+
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many login attempts, try again in 15 minutes' }, standardHeaders: true, legacyHeaders: false });
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/super-admin/login', loginLimiter);
+app.use('/api/settings/change-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: 'Too many password change attempts' } }));
 
 // Serve static files in production (only if dist exists)
 const distPath = path.join(process.cwd(), 'dist');

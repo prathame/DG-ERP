@@ -42,10 +42,12 @@ export async function logAudit(pool: Pool, tenantId: string, action: string, ent
       'INSERT INTO audit_log (tenant_id, user_id, user_name, action, entity_type, entity_id, details) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [tenantId, userId ?? null, userName ?? null, action, entityType, entityId ?? null, details ?? null]
     );
-  } catch (_) {}
+  } catch (err) {
+    console.error('Audit log failed:', { tenantId, action, entityType, error: String(err) });
+  }
 }
 
-export const hashPassword = (p: string) => bcrypt.hashSync(p, 10);
+export const hashPassword = (p: string) => bcrypt.hashSync(p, 12);
 
 export const mapProduct = (r: Record<string, unknown>) => ({
   id: r.id,

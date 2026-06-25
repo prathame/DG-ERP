@@ -22,5 +22,6 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": ["server/db.legacy.ts.bak", "server/db-legacy", "server/seed.ts", "server/clear-data.ts", "server/demo"]
 }
