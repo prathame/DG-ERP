@@ -338,6 +338,31 @@ export async function initSchema() {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (id, tenant_id)
       );
+
+      CREATE TABLE IF NOT EXISTS bill_settings (
+        tenant_id TEXT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+        logo_base64 TEXT,
+        primary_color TEXT DEFAULT '#F27D26',
+        tagline TEXT,
+        invoice_prefix TEXT,
+        challan_prefix TEXT,
+        bank_account_name TEXT,
+        bank_account_number TEXT,
+        bank_name TEXT,
+        bank_branch TEXT,
+        bank_ifsc TEXT,
+        bank_upi_id TEXT,
+        terms_and_conditions TEXT,
+        signatory_name TEXT,
+        signatory_designation TEXT,
+        signature_base64 TEXT,
+        show_rewards BOOLEAN DEFAULT true,
+        show_barcode BOOLEAN DEFAULT true,
+        show_warranty BOOLEAN DEFAULT true,
+        footer_text TEXT DEFAULT 'Powered by DG ERP Management',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
 
     console.log('✓ Schema created');

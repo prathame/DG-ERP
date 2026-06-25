@@ -154,7 +154,8 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
               </p>
               <div className="flex gap-2 mt-4">
                 <button type="button" onClick={() => {
-                  const msg = `Your login credentials for Splendor ERP:\n\nEmail: ${credsModal.email}\nPassword: ${credsModal.password}\n\nLogin at the app to manage your sales and products.`;
+                  const companyName = (() => { try { const u = JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}'); return u.companyName || 'our platform'; } catch { return 'our platform'; } })();
+                  const msg = `Your login credentials for ${companyName}:\n\nEmail: ${credsModal.email}\nPassword: ${credsModal.password}\n\nLogin at the app to manage your sales and products.`;
                   shareViaWhatsApp(form.phone || '', msg);
                 }} disabled={!form.phone} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed">
                   <MessageCircle size={16} /> Send via WhatsApp

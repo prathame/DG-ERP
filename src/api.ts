@@ -141,7 +141,7 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   if (res.status === 401) {
     sessionStorage.removeItem('auth_token');
     sessionStorage.removeItem('tenant_id');
-    sessionStorage.removeItem('splendor_user');
+    sessionStorage.removeItem('dg_erp_user');
     window.location.href = '/';
     throw new Error('Session expired. Please log in again.');
   }
@@ -469,6 +469,10 @@ export const api = {
       fetchApi<{ ok: boolean }>('/settings/change-password', { method: 'PUT', body: JSON.stringify({ userId, currentPassword, newPassword }) }),
     updateProfile: (userId: string, data: Record<string, unknown>) =>
       fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; autoWhatsapp?: boolean }>('/settings/profile', { method: 'PUT', body: JSON.stringify({ userId, ...data }) }),
+    getBillSettings: () =>
+      fetchApi<import('./types').BillSettings>('/settings/bill'),
+    updateBillSettings: (data: Partial<import('./types').BillSettings>) =>
+      fetchApi<import('./types').BillSettings>('/settings/bill', { method: 'PUT', body: JSON.stringify(data) }),
   },
   admin: {
     listUsers: (adminUserId: string) =>

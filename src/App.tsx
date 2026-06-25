@@ -32,6 +32,16 @@ import { VendorFinanceView } from './features/finance/VendorFinanceView';
 import { MastersView } from './features/masters/MastersView';
 import { SettingsView } from './features/settings/SettingsView';
 import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
+import { SuperAdminLogin } from './features/super-admin/SuperAdminLogin';
+
+function SuperAdminLoginWrapper({ onLogin }: { onLogin: (u: Record<string, unknown>) => void }) {
+  return (
+    <SuperAdminLogin onLogin={(u) => {
+      onLogin(u as unknown as Record<string, unknown>);
+      window.location.href = '/admin';
+    }} />
+  );
+}
 
 /** Decode a JWT payload without any library. Returns null on failure. */
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -58,6 +68,12 @@ function getAuthState(): { isSuperAdmin: boolean; hasTenant: boolean } {
   };
 }
 
+// Apply saved theme on load
+if (typeof window !== 'undefined') {
+  const savedTheme = sessionStorage.getItem('dg_erp_theme');
+  if (savedTheme === 'dark') document.documentElement.classList.add('dark');
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -65,7 +81,9 @@ export default function App() {
   const [user, setUser] = useState<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean } | null>(() => {
     try {
       const s = sessionStorage.getItem(USER_STORAGE_KEY);
-      return s ? JSON.parse(s) : null;
+      const u = s ? JSON.parse(s) : null;
+      if (u?.companyName) document.title = `${u.companyName} — DG ERP`;
+      return u;
     } catch { return null; }
   });
 
@@ -79,6 +97,7 @@ export default function App() {
 
   const handleLogin = (u: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean }) => {
     setUser(u);
+    if (u.companyName) document.title = `${u.companyName} — DG ERP`;
   };
 
   const ux = user as Record<string, unknown>;
@@ -114,23 +133,39 @@ export default function App() {
   };
   const visibleNavItems = navItems.filter((item) => canAccess(item.id));
 
-  // No user session -- show login
-  if (!user) {
+  // /admin route — super admin portal (completely separate from tenant login)
+  const isSuperAdminRoute = window.location.pathname.startsWith('/admin');
+  const authState = getAuthState();
+
+  if (isSuperAdminRoute) {
+    if (authState.isSuperAdmin) {
+      const tokenPayload = decodeJwtPayload(sessionStorage.getItem('auth_token') || '') || {};
+      const superAdminUser = { id: tokenPayload.userId as string || '', email: tokenPayload.email as string || '', name: tokenPayload.name as string || '', role: 'super_admin' as const };
+      return (
+        <ToastProvider>
+          <SuperAdminApp user={superAdminUser} onLogout={() => { handleLogout(); window.location.href = '/admin'; }} />
+        </ToastProvider>
+      );
+    }
+    // Show super admin login (import dynamically)
     return (
       <ToastProvider>
-        <LoginScreen onLogin={handleLogin} />
+        <SuperAdminLoginWrapper onLogin={handleLogin} />
       </ToastProvider>
     );
   }
 
-  // Check JWT for super admin routing
-  const authState = getAuthState();
-  if (authState.isSuperAdmin) {
-    const tokenPayload = decodeJwtPayload(sessionStorage.getItem('auth_token') || '') || {};
-    const superAdminUser = { id: tokenPayload.userId as string || '', email: tokenPayload.email as string || '', name: tokenPayload.name as string || '', role: 'super_admin' as const };
+  // Already logged in as super admin but on tenant route — redirect
+  if (authState.isSuperAdmin && !isSuperAdminRoute) {
+    window.location.href = '/admin';
+    return null;
+  }
+
+  // No user session — show tenant login (no super admin link visible)
+  if (!user) {
     return (
       <ToastProvider>
-        <SuperAdminApp user={superAdminUser} onLogout={handleLogout} />
+        <LoginScreen onLogin={handleLogin} />
       </ToastProvider>
     );
   }
@@ -161,8 +196,8 @@ export default function App() {
               animate={{ opacity: 1 }}
               className="flex items-center gap-2"
             >
-              <div className="w-8 h-8 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-lg">S</div>
-              <span className="font-bold text-xl tracking-tight">SPLENDOR</span>
+              <div className="w-8 h-8 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-xs">{(user?.companyName || 'DG').substring(0, 2).toUpperCase()}</div>
+              <span className="font-bold text-xl tracking-tight">{user?.companyName || 'DG ERP'}</span>
             </motion.div>
           )}
           <button
@@ -199,6 +234,11 @@ export default function App() {
               <Settings size={22} />
               {isSidebarOpen && <span className="font-medium">Settings</span>}
             </button>
+          </div>
+        )}
+        {isSidebarOpen && (
+          <div className="px-4 pb-3 text-center">
+            <p className="text-[10px] text-gray-600">Powered by <span className="text-gray-400 font-semibold">DG ERP</span></p>
           </div>
         )}
       </aside>

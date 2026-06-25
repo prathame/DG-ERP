@@ -497,6 +497,7 @@ router.get('/api/distribution/bill', async (req, res) => {
       "SELECT name, company_name, phone, address, gst_number, default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') AND tenant_id = $1 ORDER BY id LIMIT 1",
       [tenantId]
     )).rows[0] as { name: string; company_name: string | null; phone: string | null; address: string | null; gst_number: string | null; default_gst_rate: number | null } | undefined;
+    const billSettingsRow = (await pool.query('SELECT * FROM bill_settings WHERE tenant_id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;
     const grossValue = rows.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
     const netTotal = rows.reduce((sum, r) => sum + (Number(r.net_price) || Number(r.price) || 0), 0);
     const totalBilled = rows.reduce((sum, r) => sum + (Number(r.billed_price) || Number(r.net_price) || Number(r.price) || 0), 0);
@@ -515,7 +516,7 @@ router.get('/api/distribution/bill', async (req, res) => {
         address: first.vendor_address ?? null,
       },
       company: {
-        name: company?.company_name ?? 'Splendor',
+        name: company?.company_name ?? 'DG ERP',
         contactName: company?.name ?? null,
         phone: company?.phone ?? null,
         address: company?.address ?? null,
@@ -574,6 +575,27 @@ router.get('/api/distribution/bill', async (req, res) => {
         )).rows[0].t);
         return { totalDistributedValue: totalDistValue, totalPaid, balance: totalDistValue - totalPaid };
       })(),
+      billSettings: billSettingsRow ? {
+        logoBase64: billSettingsRow.logo_base64 ?? null,
+        primaryColor: (billSettingsRow.primary_color as string) || '#F27D26',
+        tagline: billSettingsRow.tagline ?? null,
+        invoicePrefix: billSettingsRow.invoice_prefix ?? null,
+        challanPrefix: billSettingsRow.challan_prefix ?? null,
+        bankAccountName: billSettingsRow.bank_account_name ?? null,
+        bankAccountNumber: billSettingsRow.bank_account_number ?? null,
+        bankName: billSettingsRow.bank_name ?? null,
+        bankBranch: billSettingsRow.bank_branch ?? null,
+        bankIfsc: billSettingsRow.bank_ifsc ?? null,
+        bankUpiId: billSettingsRow.bank_upi_id ?? null,
+        termsAndConditions: billSettingsRow.terms_and_conditions ?? null,
+        signatoryName: billSettingsRow.signatory_name ?? null,
+        signatoryDesignation: billSettingsRow.signatory_designation ?? null,
+        signatureBase64: billSettingsRow.signature_base64 ?? null,
+        showRewards: billSettingsRow.show_rewards !== false,
+        showBarcode: billSettingsRow.show_barcode !== false,
+        showWarranty: billSettingsRow.show_warranty !== false,
+        footerText: (billSettingsRow.footer_text as string) || 'Powered by DG ERP Management',
+      } : undefined,
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });

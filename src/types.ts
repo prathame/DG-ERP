@@ -1,6 +1,6 @@
 export type Tab = 'dashboard' | 'warranty' | 'rewards' | 'replacements' | 'inventory' | 'accounts' | 'masters' | 'sales' | 'distribution' | 'finance' | 'settings';
 
-export const USER_STORAGE_KEY = 'splendor_user';
+export const USER_STORAGE_KEY = 'dg_erp_user';
 
 export interface Product {
   id: string;
@@ -121,4 +121,26 @@ export interface Plan {
   priceYearly: number;
   isActive: boolean;
   tenantCount?: number;
+}
+
+export interface BillSettings {
+  logoBase64: string | null;
+  primaryColor: string;
+  tagline: string | null;
+  invoicePrefix: string | null;
+  challanPrefix: string | null;
+  bankAccountName: string | null;
+  bankAccountNumber: string | null;
+  bankName: string | null;
+  bankBranch: string | null;
+  bankIfsc: string | null;
+  bankUpiId: string | null;
+  termsAndConditions: string | null;
+  signatoryName: string | null;
+  signatoryDesignation: string | null;
+  signatureBase64: string | null;
+  showRewards: boolean;
+  showBarcode: boolean;
+  showWarranty: boolean;
+  footerText: string;
 }

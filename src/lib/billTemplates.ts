@@ -47,7 +47,19 @@ export function buildDistributionBillSlice(
 
 export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst?: boolean }): string {
   const showGst = options?.showGst ?? true;
-  const warrantySection = bill.warranty ? `
+  const s = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
+  const color = (s.primaryColor as string) || '#F27D26';
+  const logoHtml = s.logoBase64
+    ? `<img src="${s.logoBase64}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
+    : `<div class="logo-icon">${(bill.company.name || 'C').substring(0, 1).toUpperCase()}</div>`;
+  const tagline = (s.tagline as string) || '';
+  const invPrefix = (s.invoicePrefix as string) || '';
+  const showWarranty = s.showWarranty !== false;
+  const showRewards = s.showRewards !== false;
+  const showBarcode = s.showBarcode !== false;
+  const footerText = (s.footerText as string) || 'Powered by DG ERP Management';
+
+  const warrantySection = (showWarranty && bill.warranty) ? `
     <div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
       <strong style="color:#166534;">Warranty Information</strong>
       <table style="width:100%;margin-top:8px;font-size:13px;">
@@ -57,16 +69,43 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
             <td style="color:#6b7280;">Expiry</td><td>${bill.warranty.expiryDate}</td></tr>
       </table>
     </div>` : '';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sales Invoice - ${bill.id}</title>
+
+  const hasBankDetails = s.bankAccountName || s.bankAccountNumber || s.bankName;
+  const bankSection = hasBankDetails ? `
+    <div style="margin-top:20px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;">
+      <strong style="font-size:13px;">Bank Details</strong>
+      <table style="width:100%;margin-top:8px;font-size:12px;">
+        ${s.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${s.bankAccountName}</td></tr>` : ''}
+        ${s.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${s.bankAccountNumber}</td></tr>` : ''}
+        ${s.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${s.bankName}${s.bankBranch ? `, ${s.bankBranch}` : ''}</td></tr>` : ''}
+        ${s.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${s.bankIfsc}</td></tr>` : ''}
+        ${s.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${s.bankUpiId}</td></tr>` : ''}
+      </table>
+    </div>` : '';
+
+  const tcSection = s.termsAndConditions ? `
+    <div style="margin-top:16px;font-size:11px;">
+      <strong>Terms & Conditions:</strong>
+      <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${s.termsAndConditions}</p>
+    </div>` : '';
+
+  const sigSection = s.signatoryName ? `
+    <div style="margin-top:40px;text-align:right;">
+      ${s.signatureBase64 ? `<img src="${s.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}
+      <p style="font-weight:600;font-size:13px;">${s.signatoryName}</p>
+      ${s.signatoryDesignation ? `<p style="font-size:11px;color:#6b7280;">${s.signatoryDesignation}</p>` : ''}
+    </div>` : '';
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sales Invoice - ${invPrefix}${bill.id}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:40px;max-width:800px;margin:0 auto;}
-  .header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #F27D26;padding-bottom:20px;margin-bottom:24px;}
+  .header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid ${color};padding-bottom:20px;margin-bottom:24px;}
   .logo{display:flex;align-items:center;gap:12px;}
-  .logo-icon{width:48px;height:48px;background:#F27D26;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:24px;}
+  .logo-icon{width:48px;height:48px;background:${color};border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:24px;}
   .company-name{font-size:24px;font-weight:bold;letter-spacing:1px;}
   .company-details{font-size:12px;color:#6b7280;text-align:right;}
-  .invoice-title{font-size:20px;font-weight:bold;color:#F27D26;text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;}
+  .invoice-title{font-size:20px;font-weight:bold;color:${color};text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;}
   .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;}
   .info-box{padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;}
   .info-box h4{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:8px;}
@@ -77,17 +116,17 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   table.items tr:last-child td{border-bottom:none;}
   .totals{margin-top:16px;text-align:right;}
   .totals .row{display:flex;justify-content:flex-end;gap:40px;padding:6px 16px;font-size:14px;}
-  .totals .total-row{font-size:18px;font-weight:bold;color:#F27D26;border-top:2px solid #F27D26;padding-top:10px;margin-top:6px;}
+  .totals .total-row{font-size:18px;font-weight:bold;color:${color};border-top:2px solid ${color};padding-top:10px;margin-top:6px;}
   .footer{margin-top:40px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center;}
   .reward-badge{display:inline-block;margin-top:12px;padding:6px 16px;background:#fef3c7;border:1px solid #fcd34d;border-radius:20px;font-size:12px;font-weight:600;color:#92400e;}
   @media print{body{padding:20px;} .no-print{display:none;}}
 </style></head><body>
   <div class="header">
     <div class="logo">
-      <div class="logo-icon">S</div>
+      ${logoHtml}
       <div>
         <div class="company-name">${bill.company.name}</div>
-        <div style="font-size:11px;color:#6b7280;">Inventory & Rewards Management</div>
+        ${tagline ? `<div style="font-size:11px;color:#6b7280;">${tagline}</div>` : ''}
       </div>
     </div>
     <div class="company-details">
@@ -99,7 +138,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
     <div class="invoice-title">${showGst ? 'Tax Invoice' : 'Invoice'}</div>
     <div style="text-align:right;font-size:13px;">
-      <div><strong>Invoice No:</strong> ${bill.id}</div>
+      <div><strong>Invoice No:</strong> ${invPrefix}${bill.id}</div>
       <div><strong>Date:</strong> ${bill.purchaseDate}</div>
     </div>
   </div>
@@ -119,10 +158,10 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
     </div>
   </div>
   <table class="items">
-    <thead><tr><th>Barcode</th><th>Product</th>${showGst && bill.hsnCode ? '<th>HSN</th>' : ''}<th>Qty</th><th style="text-align:right;">Price</th><th style="text-align:right;">Total</th></tr></thead>
+    <thead><tr>${showBarcode ? '<th>Barcode</th>' : ''}<th>Product</th>${showGst && bill.hsnCode ? '<th>HSN</th>' : ''}<th>Qty</th><th style="text-align:right;">Price</th><th style="text-align:right;">Total</th></tr></thead>
     <tbody>
       <tr>
-        <td style="font-family:monospace;">${bill.barcode}</td>
+        ${showBarcode ? `<td style="font-family:monospace;">${bill.barcode}</td>` : ''}
         <td><strong>${bill.productName}</strong>${bill.productDescription ? `<br/><span style="color:#6b7280;font-size:11px;">${bill.productDescription}</span>` : ''}</td>
         ${showGst && bill.hsnCode ? `<td>${bill.hsnCode}</td>` : ''}
         <td>1</td>
@@ -150,10 +189,14 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
     </div>`;
   })()}
   ${warrantySection}
-  ${bill.rewardPointsEarned > 0 ? `<div style="text-align:center;"><span class="reward-badge">+${bill.rewardPointsEarned} Reward Points Earned</span></div>` : ''}
+  ${showRewards && bill.rewardPointsEarned > 0 ? `<div style="text-align:center;"><span class="reward-badge">+${bill.rewardPointsEarned} Reward Points Earned</span></div>` : ''}
+  ${bankSection}
+  ${tcSection}
+  ${sigSection}
   <div class="footer">
     <p>Thank you for your purchase!</p>
     <p style="margin-top:4px;">This is a computer-generated invoice. No signature required.</p>
+    <p style="margin-top:8px;font-size:9px;color:#c0c0c0;">${footerText}</p>
   </div>
 </body></html>`;
 }
@@ -161,23 +204,44 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
 export function generateDistributionChallanHtml(bill: DistributionBillData, options?: { showGst?: boolean; fullyPaid?: boolean }): string {
   const showGst = options?.showGst ?? true;
   const fullyPaid = options?.fullyPaid ?? false;
-  const itemRows = bill.items.map((item) => `
-    <tr>
-      <td style="text-align:center;">${item.sno}</td>
-      <td style="font-family:monospace;">${item.barcode}</td>
-      <td>${item.productName}</td>
-      <td style="text-align:right;">₹${Number(item.price).toLocaleString()}</td>
-    </tr>`).join('');
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Distribution Challan - ${bill.challanId}</title>
+  const s = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
+  const color = (s.primaryColor as string) || '#F27D26';
+  const logoHtml = s.logoBase64
+    ? `<img src="${s.logoBase64}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
+    : `<div class="logo-icon">${(bill.company.name || 'C').substring(0, 1).toUpperCase()}</div>`;
+  const tagline = (s.tagline as string) || '';
+  const chPrefix = (s.challanPrefix as string) || '';
+  const footerText = (s.footerText as string) || 'Powered by DG ERP Management';
+
+  const hasBankDetails = s.bankAccountName || s.bankAccountNumber || s.bankName;
+  const bankSection = hasBankDetails ? `
+    <div style="margin-top:20px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;">
+      <strong style="font-size:13px;">Bank Details</strong>
+      <table style="width:100%;margin-top:8px;font-size:12px;">
+        ${s.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${s.bankAccountName}</td></tr>` : ''}
+        ${s.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${s.bankAccountNumber}</td></tr>` : ''}
+        ${s.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${s.bankName}${s.bankBranch ? `, ${s.bankBranch}` : ''}</td></tr>` : ''}
+        ${s.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${s.bankIfsc}</td></tr>` : ''}
+        ${s.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${s.bankUpiId}</td></tr>` : ''}
+      </table>
+    </div>` : '';
+
+  const tcSection = s.termsAndConditions ? `
+    <div style="margin-top:16px;font-size:11px;">
+      <strong>Terms & Conditions:</strong>
+      <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${s.termsAndConditions}</p>
+    </div>` : '';
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Distribution Challan - ${chPrefix}${bill.challanId}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:40px;max-width:800px;margin:0 auto;}
-  .header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #F27D26;padding-bottom:20px;margin-bottom:24px;}
+  .header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid ${color};padding-bottom:20px;margin-bottom:24px;}
   .logo{display:flex;align-items:center;gap:12px;}
-  .logo-icon{width:48px;height:48px;background:#F27D26;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:24px;}
+  .logo-icon{width:48px;height:48px;background:${color};border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:24px;}
   .company-name{font-size:24px;font-weight:bold;letter-spacing:1px;}
   .company-details{font-size:12px;color:#6b7280;text-align:right;}
-  .challan-title{font-size:20px;font-weight:bold;color:#F27D26;text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;}
+  .challan-title{font-size:20px;font-weight:bold;color:${color};text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;}
   .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;}
   .info-box{padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;}
   .info-box h4{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:8px;}
@@ -186,7 +250,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   table.items th{background:#151619;color:white;padding:10px 16px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;}
   table.items td{padding:8px 16px;border-bottom:1px solid #e5e7eb;font-size:13px;}
   .summary{margin-top:20px;display:flex;justify-content:flex-end;gap:40px;padding:12px 20px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;font-size:15px;}
-  .summary strong{color:#F27D26;}
+  .summary strong{color:${color};}
   .signatures{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px;padding-top:16px;}
   .sig-box{text-align:center;padding-top:40px;border-top:1px solid #1a1a1a;}
   .sig-box p{font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:1px;}
@@ -198,10 +262,10 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   <div class="header-wrap">
   <div class="header">
     <div class="logo">
-      <div class="logo-icon">S</div>
+      ${logoHtml}
       <div>
         <div class="company-name">${bill.company.name}</div>
-        <div style="font-size:11px;color:#6b7280;">Inventory & Rewards Management</div>
+        ${tagline ? `<div style="font-size:11px;color:#6b7280;">${tagline}</div>` : ''}
       </div>
     </div>
     <div class="company-details">
@@ -215,7 +279,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
     <div class="challan-title">${showGst ? 'Tax Challan' : 'Distribution Challan'}</div>
     <div style="text-align:right;font-size:13px;">
-      <div><strong>Challan No:</strong> ${bill.challanId}</div>
+      <div><strong>Challan No:</strong> ${chPrefix}${bill.challanId}</div>
       <div><strong>Date:</strong> ${bill.distributionDate}</div>
     </div>
   </div>
@@ -264,16 +328,23 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
       <table style="width:100%;font-size:13px;">
         <tr><td style="color:#6b7280;">CGST @ ${gstRate / 2}%</td><td style="text-align:right;font-weight:600;">₹${halfGst.toLocaleString()}</td></tr>
         <tr><td style="color:#6b7280;">SGST @ ${gstRate / 2}%</td><td style="text-align:right;font-weight:600;">₹${(gstAmount - halfGst).toLocaleString()}</td></tr>
-        <tr style="border-top:2px solid #F27D26;"><td style="padding-top:6px;font-weight:700;font-size:15px;">Grand Total (incl. GST)</td><td style="text-align:right;font-weight:700;font-size:16px;color:#F27D26;padding-top:6px;">₹${grandTotal.toLocaleString()}</td></tr>
+        <tr style="border-top:2px solid ${color};"><td style="padding-top:6px;font-weight:700;font-size:15px;">Grand Total (incl. GST)</td><td style="text-align:right;font-weight:700;font-size:16px;color:${color};padding-top:6px;">₹${grandTotal.toLocaleString()}</td></tr>
       </table>
-    </div>` : `<div style="margin-top:8px;text-align:right;font-size:16px;font-weight:700;color:#F27D26;">Total: ₹${netVal.toLocaleString()}</div>`}`;
+    </div>` : `<div style="margin-top:8px;text-align:right;font-size:16px;font-weight:700;color:${color};">Total: ₹${netVal.toLocaleString()}</div>`}`;
   })()}
+  ${bankSection}
+  ${tcSection}
   <div class="signatures">
-    <div class="sig-box"><p>Authorized Signatory</p></div>
+    <div class="sig-box">
+      ${s.signatureBase64 ? `<img src="${s.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : ''}
+      <p>${s.signatoryName || 'Authorized Signatory'}</p>
+      ${s.signatoryDesignation ? `<p style="font-size:10px;font-weight:400;margin-top:2px;">${s.signatoryDesignation}</p>` : ''}
+    </div>
     <div class="sig-box"><p>Received By</p></div>
   </div>
   <div class="footer">
     <p>This is a computer-generated challan. Products listed above have been dispatched as described.</p>
+    <p style="margin-top:8px;font-size:9px;color:#c0c0c0;">${footerText}</p>
   </div>
 </body></html>`;
 }

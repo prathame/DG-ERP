@@ -1,6 +1,6 @@
-# Splendor ERP — Multi-Tenant SaaS Platform
+# DG ERP Management — Multi-Tenant SaaS Platform
 
-Industry-agnostic ERP for Inventory, Sales, Warranty & Rewards Management. Built as a multi-tenant SaaS — onboard unlimited companies, each with isolated data.
+Industry-agnostic ERP for Inventory, Sales, Distribution, Warranty & Rewards Management. Built as a multi-tenant SaaS — onboard unlimited companies, each with fully isolated data and customizable branding.
 
 ## Tech Stack
 
@@ -8,6 +8,7 @@ Industry-agnostic ERP for Inventory, Sales, Warranty & Rewards Management. Built
 - **Backend**: Express.js + TypeScript + PostgreSQL (pg)
 - **Auth**: JWT (jsonwebtoken) + bcrypt
 - **Build**: Vite 6
+- **Theme**: Dark / Light mode with session persistence
 
 ## Architecture
 
@@ -34,13 +35,13 @@ Industry-agnostic ERP for Inventory, Sales, Warranty & Rewards Management. Built
 ### User Hierarchy
 
 ```
-Platform Owner (Super Admin)
+DG ERP Platform Owner (Super Admin) — /admin route
 ├── Tenant 1: Splendor Pump LLP
 │   ├── Admin → Vendors → Staff
-│   └── Isolated data (products, sales, finance)
+│   └── Isolated data + custom bill branding
 ├── Tenant 2: Radhe Krishan Jewellers
 │   ├── Admin → Vendors → Staff
-│   └── Isolated data
+│   └── Isolated data + custom bill branding
 └── Tenant N: ...
 ```
 
@@ -91,22 +92,22 @@ npm run server
 npm run dev
 ```
 
-Open http://localhost:3000
+- Tenant login: http://localhost:3000
+- Super admin: http://localhost:3000/admin
 
 ### Default Logins
 
-| Role | Email | Password |
-|---|---|---|
-| Platform Owner | admin@spre.ai | superadmin123 |
-| Tenant Admin | Created per tenant | Auto-generated |
+| Role | URL | Email | Password |
+|---|---|---|---|
+| Platform Owner | `/admin` | admin@spre.ai | superadmin123 |
+| Tenant Admin | `/` | Created per tenant | Auto-generated |
 
 ## Project Structure
 
 ```
 ├── server/
 │   ├── index.ts                 # Express setup, route mounting, PostgreSQL init
-│   ├── pg-db.ts                 # PostgreSQL pool + schema + plan seeding
-│   ├── db.ts                    # Legacy SQLite (kept for reference)
+│   ├── pg-db.ts                 # PostgreSQL pool + schema (23 tables) + plan seeding
 │   ├── middleware/
 │   │   └── auth.ts              # JWT auth + super admin middleware
 │   ├── utils/
@@ -116,6 +117,7 @@ Open http://localhost:3000
 │   ├── routes/
 │   │   ├── super-admin.ts       # Platform owner: tenants, plans, analytics
 │   │   ├── auth.ts              # JWT login, signup, profile, password
+│   │   ├── bill-settings.ts     # Per-tenant bill customization (logo, colors, bank)
 │   │   ├── products.ts          # Product CRUD + stock management
 │   │   ├── sales.ts             # Sales + barcode validation + bill data
 │   │   ├── distribution.ts      # Distribution + challan + batch operations
@@ -138,25 +140,17 @@ Open http://localhost:3000
 │   └── demo/
 │       ├── seed-demo.ts         # Pump manufacturing demo data
 │       ├── seed-jewellery.ts    # Silver jewellery demo data
-│       ├── clear-all.ts         # Reset database
-│       └── README.md
+│       └── clear-all.ts         # Reset database
 │
 ├── src/
-│   ├── App.tsx                  # JWT routing: super admin vs tenant vs login
+│   ├── App.tsx                  # JWT routing: /admin → super admin, / → tenant
 │   ├── api.ts                   # API client with Bearer token + tenant headers
-│   ├── types.ts                 # Shared types (Tab, Product, Tenant, Plan, etc.)
+│   ├── types.ts                 # Shared types (Tab, Product, Tenant, Plan, BillSettings)
 │   ├── components/
 │   │   ├── ui/                  # Toast, Spinner, DateFilter, Pagination
 │   │   └── layout/              # LoginScreen, SearchBar, NotificationBell, ChatWidget
 │   ├── features/
-│   │   ├── super-admin/         # Platform owner UI
-│   │   │   ├── SuperAdminApp.tsx
-│   │   │   ├── SuperAdminDashboard.tsx
-│   │   │   ├── SuperAdminLogin.tsx
-│   │   │   ├── TenantListView.tsx
-│   │   │   ├── TenantDetailView.tsx
-│   │   │   ├── PlanManagementView.tsx
-│   │   │   └── RegisterPage.tsx
+│   │   ├── super-admin/         # Platform owner UI (7 components)
 │   │   ├── dashboard/           # Tenant KPIs, charts
 │   │   ├── sales/               # Sale entry, billing
 │   │   ├── distribution/        # Vendor distribution, split billing
@@ -167,11 +161,11 @@ Open http://localhost:3000
 │   │   ├── accounts/            # Financial ledger
 │   │   ├── finance/             # Vendor payments, reminders
 │   │   ├── masters/             # Customers, vendors, banks, rules
-│   │   └── settings/            # Profile, password, toggles, users
+│   │   └── settings/            # Profile, password, toggles, bill customization, users
 │   ├── hooks/useDebounce.ts
 │   └── lib/
 │       ├── utils.ts             # Utilities (print, WhatsApp, email, CSV)
-│       └── billTemplates.ts     # Invoice + challan HTML generators
+│       └── billTemplates.ts     # Invoice + challan HTML generators (fully customizable)
 ├── .env                         # Environment config (not committed)
 ├── package.json
 ├── tsconfig.json
@@ -181,7 +175,7 @@ Open http://localhost:3000
 
 ## Multi-Tenant Features
 
-### Platform Owner (Super Admin)
+### Platform Owner (Super Admin) — `/admin`
 
 - **Dashboard**: Total tenants, users, products, sales, revenue across all tenants
 - **Tenant Management**: Create, suspend, activate, delete tenants
@@ -189,6 +183,7 @@ Open http://localhost:3000
 - **Analytics**: Revenue per tenant, growth charts, most active tenants
 - **Impersonation**: Log in as any tenant admin for support
 - **Self-Service Registration**: Companies sign up with 14-day trial
+- **Separate Route**: Super admin UI at `/admin`, completely hidden from tenant login
 
 ### Subscription Plans
 
@@ -205,17 +200,31 @@ Every database table has a `tenant_id` column. Every query is scoped:
 ```sql
 SELECT * FROM products WHERE tenant_id = $1
 ```
-
 No tenant can see another tenant's data.
+
+### Tenant Branding
+
+Each tenant sees their own company name in the sidebar, browser tab, bills, and WhatsApp messages. A subtle "Powered by DG ERP" attribution appears at the bottom.
 
 ## Tenant Features
 
 ### Core
-- Inventory with auto-barcode ranges (prefix + quantity)
+- Inventory with auto-barcode ranges (prefix + quantity, overlap prevention)
 - Sales entry with barcode scan + invoice generation
 - Distribution to vendors (spreadsheet-style, per-row GST/discount)
 - GST Tax Invoices with CGST/SGST breakdown
 - Split billing (GST + non-GST from same distribution)
+
+### Bill Customization (per tenant)
+- **Company Logo**: Upload PNG/JPG (shown on all bills)
+- **Bill Color Theme**: Custom accent color for headers, borders, totals
+- **Tagline**: Subtitle under company name (e.g., "Manufacturers of Premium Pumps")
+- **Invoice/Challan Prefix**: Custom bill numbering (e.g., SPL-INV-001)
+- **Bank Details**: Account info printed on bills for payment
+- **Terms & Conditions**: Custom footer text on bills
+- **Authorized Signatory**: Name, designation, signature image
+- **Show/Hide Toggles**: Hide barcode, warranty, or rewards sections on bills
+- **Live Preview**: Preview bill with current settings before saving
 
 ### Financial
 - Vendor finance tracking (billed, paid, balance)
@@ -233,9 +242,10 @@ No tenant can see another tenant's data.
 - Auto-created vendor login on vendor creation
 - Warranty & Replacement tracking (optional toggle)
 - Reward points system (optional toggle)
-- Global search with autocomplete
+- Global search with autocomplete (debounced, instant)
 - Notification center (low stock, expiring warranties, pending payments)
 - Audit log + database backup
+- Dark / Light mode toggle (Settings → Appearance)
 
 ### Mobile Ready
 - Responsive UI with touch-friendly targets
@@ -249,7 +259,7 @@ No tenant can see another tenant's data.
 ```
 Login → Server validates → Returns JWT token
        ↓
-Frontend stores token in sessionStorage
+Frontend stores token in sessionStorage (per-tab isolation)
        ↓
 Every API call includes: Authorization: Bearer {token}
                          X-Tenant-ID: {tenantId}
@@ -257,9 +267,16 @@ Every API call includes: Authorization: Bearer {token}
 Server middleware validates token + resolves tenant
 ```
 
+### Routes
+
+```
+/           → Tenant login (Login / Sign Up / Register Company)
+/admin      → Super Admin login (completely separate)
+```
+
 ### Password Security
 
-- bcrypt with salt rounds (replaces SHA256)
+- bcrypt with salt rounds
 - Minimum 6 character enforcement
 - Change password with current password verification
 
@@ -289,6 +306,9 @@ POST   /api/tenant/register
 ```
 POST   /api/auth/login
 POST   /api/auth/signup
+GET/PUT /api/settings/profile
+PUT    /api/settings/change-password
+GET/PUT /api/settings/bill              ← Bill customization
 GET    /api/products, /api/sales, /api/distribution, /api/warranties
        /api/customers, /api/vendors, /api/banks, /api/transactions
        /api/rewards, /api/notifications, /api/search, /api/chatbot

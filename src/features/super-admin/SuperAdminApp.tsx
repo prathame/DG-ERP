@@ -91,12 +91,12 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
         >
           {/* Logo */}
           <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-            <div className="w-10 h-10 bg-[#F27D26] rounded-xl flex items-center justify-center font-bold text-lg text-white shrink-0">
-              S
+            <div className="w-10 h-10 bg-[#F27D26] rounded-xl flex items-center justify-center font-bold text-sm text-white shrink-0">
+              DG
             </div>
             {sidebarOpen && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-hidden">
-                <p className="text-white font-bold text-sm leading-tight">Platform Admin</p>
+                <p className="text-white font-bold text-sm leading-tight">DG ERP Admin</p>
                 <p className="text-gray-500 text-xs">Super Admin Panel</p>
               </motion.div>
             )}

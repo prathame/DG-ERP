@@ -220,6 +220,7 @@ router.get('/api/sales/:id/bill', async (req, res) => {
     if (!sale) return res.status(404).json({ error: 'Sale not found' });
     const warranty = (await pool.query('SELECT activation_date, expiry_date, status FROM warranties WHERE barcode = $1 AND tenant_id = $2 ORDER BY activation_date DESC LIMIT 1', [sale.barcode, tenantId])).rows[0] as { activation_date: string; expiry_date: string; status: string } | undefined;
     const company = (await pool.query("SELECT name, company_name, phone, address, gst_number, default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') AND tenant_id = $1 ORDER BY id LIMIT 1", [tenantId])).rows[0] as { name: string; company_name: string | null; phone: string | null; address: string | null; gst_number: string | null; default_gst_rate: number | null } | undefined;
+    const billSettingsRow = (await pool.query('SELECT * FROM bill_settings WHERE tenant_id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;
 
     // Compute vendorFinance before building response
     let vendorFinance: { totalDistributedValue: number; totalPaid: number; balance: number } | null = null;
@@ -260,13 +261,34 @@ router.get('/api/sales/:id/bill', async (req, res) => {
       hsnCode: sale.hsn_code ?? null,
       gstRate: Number(sale.gst_rate) || Number(company?.default_gst_rate) || 18,
       company: {
-        name: company?.company_name ?? 'Splendor',
+        name: company?.company_name ?? 'DG ERP',
         contactName: company?.name ?? null,
         phone: company?.phone ?? null,
         address: company?.address ?? null,
         gstNumber: company?.gst_number ?? null,
       },
       vendorFinance,
+      billSettings: billSettingsRow ? {
+        logoBase64: billSettingsRow.logo_base64 ?? null,
+        primaryColor: (billSettingsRow.primary_color as string) || '#F27D26',
+        tagline: billSettingsRow.tagline ?? null,
+        invoicePrefix: billSettingsRow.invoice_prefix ?? null,
+        challanPrefix: billSettingsRow.challan_prefix ?? null,
+        bankAccountName: billSettingsRow.bank_account_name ?? null,
+        bankAccountNumber: billSettingsRow.bank_account_number ?? null,
+        bankName: billSettingsRow.bank_name ?? null,
+        bankBranch: billSettingsRow.bank_branch ?? null,
+        bankIfsc: billSettingsRow.bank_ifsc ?? null,
+        bankUpiId: billSettingsRow.bank_upi_id ?? null,
+        termsAndConditions: billSettingsRow.terms_and_conditions ?? null,
+        signatoryName: billSettingsRow.signatory_name ?? null,
+        signatoryDesignation: billSettingsRow.signatory_designation ?? null,
+        signatureBase64: billSettingsRow.signature_base64 ?? null,
+        showRewards: billSettingsRow.show_rewards !== false,
+        showBarcode: billSettingsRow.show_barcode !== false,
+        showWarranty: billSettingsRow.show_warranty !== false,
+        footerText: (billSettingsRow.footer_text as string) || 'Powered by DG ERP Management',
+      } : undefined,
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });

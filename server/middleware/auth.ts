@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'splendor-erp-default-secret';
+const JWT_SECRET = process.env.JWT_SECRET || 'dg-erp-default-secret';
 
 export interface JwtPayload {
   userId: string;

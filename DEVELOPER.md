@@ -1,4 +1,4 @@
-# Developer Documentation — Splendor ERP
+# Developer Guide — DG ERP Management
 
 Complete technical reference for developers working on this codebase.
 
@@ -12,11 +12,13 @@ Complete technical reference for developers working on this codebase.
 4. [Authentication](#authentication)
 5. [Server — Route by Route](#server--route-by-route)
 6. [Frontend — Component by Component](#frontend--component-by-component)
-7. [Common Tasks (How-To)](#common-tasks-how-to)
-8. [Adding New Features](#adding-new-features)
-9. [Troubleshooting](#troubleshooting)
-10. [Environment Variables](#environment-variables)
-11. [Deployment](#deployment)
+7. [Bill Customization System](#bill-customization-system)
+8. [Dark / Light Mode](#dark--light-mode)
+9. [Common Tasks (How-To)](#common-tasks-how-to)
+10. [Adding New Features](#adding-new-features)
+11. [Troubleshooting](#troubleshooting)
+12. [Environment Variables](#environment-variables)
+13. [Deployment](#deployment)
 
 ---
 
@@ -32,19 +34,24 @@ Complete technical reference for developers working on this codebase.
 | Password hashing | `server/utils/helpers.ts` → `hashPassword()` |
 | Barcode generation | `server/utils/barcode.ts` |
 | API client (frontend) | `src/api.ts` |
-| App routing (JWT decode) | `src/App.tsx` |
-| Login screen | `src/components/layout/LoginScreen.tsx` |
+| App routing (JWT + URL-based) | `src/App.tsx` |
+| Tenant login screen | `src/components/layout/LoginScreen.tsx` |
+| Super admin login | `src/features/super-admin/SuperAdminLogin.tsx` |
 | Super admin UI | `src/features/super-admin/` |
 | Bill HTML templates | `src/lib/billTemplates.ts` |
+| Bill customization API | `server/routes/bill-settings.ts` |
+| Bill customization UI | `src/features/settings/SettingsView.tsx` → `BillCustomizationSection` |
 | Chatbot engine | `server/routes/chatbot.ts` |
+| Dark mode CSS | `src/index.css` (html.dark rules) |
+| Theme types | `src/types.ts` → `BillSettings` |
 | Demo data scripts | `server/demo/` |
 
 ### Default Credentials
 
-| Role | Email | Password | Where to Change |
-|---|---|---|---|
-| Super Admin | `admin@spre.ai` | `superadmin123` | `.env` → `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` |
-| Tenant Admin | Per tenant | Auto-generated | Created via super admin or registration |
+| Role | URL | Email | Password | Where to Change |
+|---|---|---|---|---|
+| Super Admin | `/admin` | `admin@spre.ai` | `superadmin123` | `.env` → `SUPER_ADMIN_EMAIL` / `PASSWORD` |
+| Tenant Admin | `/` | Per tenant | Auto-generated | Created via super admin or registration |
 
 ### Ports
 
@@ -69,13 +76,31 @@ In production:
 Browser → Express (:3001) → serves static files + API → PostgreSQL
 ```
 
+### URL-Based Routing
+
+```
+/          → Tenant LoginScreen (no super admin link visible)
+/admin     → SuperAdminLogin (completely separate UI)
+```
+
+Routing logic in `App.tsx`:
+```
+1. Check window.location.pathname
+2. If starts with /admin:
+   - If has super_admin JWT → render SuperAdminApp
+   - Else → render SuperAdminLogin
+3. If super_admin JWT but NOT on /admin → redirect to /admin
+4. If no user session → render tenant LoginScreen
+5. If user session → render tenant ERP (sidebar + views)
+```
+
 ### Multi-Tenant Data Flow
 
 ```
 1. User logs in → POST /api/auth/login
 2. Server finds user across all tenants (JOIN users + tenants)
 3. Returns JWT token containing { userId, tenantId, role, email }
-4. Frontend stores token in sessionStorage
+4. Frontend stores token in sessionStorage (per-tab isolation)
 5. Every API call includes:
    - Authorization: Bearer {token}
    - X-Tenant-ID: {tenantId}
@@ -83,20 +108,30 @@ Browser → Express (:3001) → serves static files + API → PostgreSQL
 7. Every SQL query includes: WHERE tenant_id = $1
 ```
 
-### File Organization Philosophy
+### Tenant Branding Flow
+
+```
+1. Sidebar shows user.companyName (not "DG ERP")
+2. Browser tab: "{CompanyName} — DG ERP"
+3. Bills use tenant's company name + custom logo/colors from bill_settings
+4. WhatsApp messages use tenant's company name
+5. Small "Powered by DG ERP" in sidebar footer + bill footers
+```
+
+### File Organization
 
 ```
 server/
   pg-db.ts              ← Database connection (ONE file, import everywhere)
   middleware/auth.ts     ← JWT validation (used by route mounting)
   utils/                ← Shared logic (barcode, pagination, audit)
-  routes/               ← One file per feature (products.ts, sales.ts, etc.)
-                          Each route: import pool, get tenantId, query with tenant_id
+  routes/               ← One file per feature (22 route files)
 
 src/
-  App.tsx               ← Just routing logic (JWT decode → super admin or tenant ERP)
+  App.tsx               ← URL + JWT routing (/admin vs tenant)
   api.ts                ← All API calls (ONE file, import everywhere)
   types.ts              ← All TypeScript interfaces
+  index.css             ← Theme CSS (light + dark mode overrides)
   components/ui/        ← Reusable UI (Toast, Spinner, DateFilter, Pagination)
   components/layout/    ← App shell (Login, Search, Notifications, Chat)
   features/{name}/      ← One folder per feature, each with its own View component
@@ -114,13 +149,15 @@ src/
 import { Pool } from 'pg';
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20,  // max connections in pool
+  max: 20,
 });
 ```
 
 All routes import: `import { pool } from '../pg-db';`
 
-### Schema
+Body limit set to 2MB in `server/index.ts` for base64 image uploads (logo, signature).
+
+### Schema (23 Tables)
 
 **Platform Tables** (no tenant_id):
 
@@ -153,19 +190,51 @@ All routes import: `import { pool } from '../pg-db';`
 | `vendor_reminder_settings` | Auto-remind config | tenant_id, vendor_id, enabled, days |
 | `audit_log` | Activity tracking | tenant_id, action, entity_type |
 | `categories` | Product categories (legacy) | tenant_id |
+| `bill_settings` | Per-tenant bill customization | tenant_id (PK), logo_base64, primary_color, bank details, signatory, toggles |
+
+### bill_settings Table Detail
+
+```sql
+CREATE TABLE IF NOT EXISTS bill_settings (
+  tenant_id TEXT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  logo_base64 TEXT,                          -- data:image/png;base64,...
+  primary_color TEXT DEFAULT '#F27D26',      -- hex color
+  tagline TEXT,                              -- subtitle on bills
+  invoice_prefix TEXT,                       -- e.g. 'SPL-INV-'
+  challan_prefix TEXT,                       -- e.g. 'SPL-CH-'
+  bank_account_name TEXT,
+  bank_account_number TEXT,
+  bank_name TEXT,
+  bank_branch TEXT,
+  bank_ifsc TEXT,
+  bank_upi_id TEXT,
+  terms_and_conditions TEXT,                 -- max 2000 chars
+  signatory_name TEXT,
+  signatory_designation TEXT,
+  signature_base64 TEXT,                     -- data:image/png;base64,...
+  show_rewards BOOLEAN DEFAULT true,
+  show_barcode BOOLEAN DEFAULT true,
+  show_warranty BOOLEAN DEFAULT true,
+  footer_text TEXT DEFAULT 'Powered by DG ERP Management',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+One row per tenant. Images stored as base64 data URLs (max ~500KB each).
 
 ### Query Pattern
 
 Every tenant query MUST include `tenant_id`:
 
 ```typescript
-// ✅ Correct
+// Correct
 const { rows } = await pool.query(
   'SELECT * FROM products WHERE tenant_id = $1 AND name LIKE $2',
   [tenantId, `%${search}%`]
 );
 
-// ❌ WRONG — exposes all tenants' data
+// WRONG — exposes all tenants' data
 const { rows } = await pool.query('SELECT * FROM products WHERE name LIKE $1', [`%${search}%`]);
 ```
 
@@ -174,20 +243,8 @@ const { rows } = await pool.query('SELECT * FROM products WHERE name LIKE $1', [
 Schema is auto-created on server startup via `initSchema()` in `pg-db.ts`. To add a new column:
 
 ```typescript
-// In pg-db.ts initSchema(), add to the CREATE TABLE or use ALTER:
-// Option 1: Add to CREATE TABLE IF NOT EXISTS (safe, won't duplicate)
-// Option 2: Run ALTER TABLE separately:
-try {
-  await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS new_field TEXT');
-} catch (_) {}
-```
-
-### Seeding
-
-```bash
-npm run demo:seed        # Pump manufacturing data
-npm run demo:jewellery   # Silver jewellery data
-npm run demo:clear       # Reset everything
+// In pg-db.ts initSchema(), add to CREATE TABLE or use ALTER:
+await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS new_field TEXT');
 ```
 
 ---
@@ -210,50 +267,18 @@ npm run demo:clear       # Reset everything
 
 Super admin tokens have NO `tenantId` and `role: "super_admin"`.
 
-### Token Generation
-
-```typescript
-// server/middleware/auth.ts
-import jwt from 'jsonwebtoken';
-
-// For tenant users
-export function generateToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
-}
-
-// For super admins
-export function generateSuperAdminToken(payload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
-}
-```
-
-### Password Hashing
-
-```typescript
-// server/utils/helpers.ts
-import bcrypt from 'bcrypt';
-export const hashPassword = (p: string) => bcrypt.hashSync(p, 10);
-
-// To verify:
-const valid = bcrypt.compareSync(inputPassword, storedHash);
-```
-
 ### Middleware Usage
 
 ```typescript
-// In server/index.ts or route files
 import { authMiddleware, superAdminMiddleware } from '../middleware/auth';
 
 // Protect tenant routes
 router.get('/api/products', authMiddleware, async (req, res) => {
   const tenantId = req.user.tenantId;
-  // ...
 });
 
 // Protect super admin routes
-router.get('/api/super-admin/tenants', superAdminMiddleware, async (req, res) => {
-  // ...
-});
+router.get('/api/super-admin/tenants', superAdminMiddleware, async (req, res) => {});
 ```
 
 ### Frontend Token Handling
@@ -265,10 +290,12 @@ const tenantId = sessionStorage.getItem('tenant_id');
 
 headers: {
   'Content-Type': 'application/json',
-  ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-  ...(tenantId ? { 'X-Tenant-ID': tenantId } : {}),
+  'Authorization': `Bearer ${token}`,
+  'X-Tenant-ID': tenantId,
 }
 ```
+
+Session per-tab: uses `sessionStorage` (not `localStorage`) so multiple tabs can be logged into different accounts.
 
 ---
 
@@ -276,23 +303,16 @@ headers: {
 
 ### Route File Template
 
-Every route file follows this pattern:
-
 ```typescript
 import { Router } from 'express';
 import { pool } from '../pg-db';
-
 const router = Router();
 
 router.get('/api/resource', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-
-    const { rows } = await pool.query(
-      'SELECT * FROM resource WHERE tenant_id = $1',
-      [tenantId]
-    );
+    const { rows } = await pool.query('SELECT * FROM resource WHERE tenant_id = $1', [tenantId]);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -302,25 +322,26 @@ router.get('/api/resource', async (req, res) => {
 export default router;
 ```
 
-### Route Reference
+### Route Reference (22 files)
 
 | File | Routes | Notes |
 |---|---|---|
 | `super-admin.ts` | `/api/super-admin/*` | No tenant_id — queries across all tenants |
 | `auth.ts` | `/api/auth/login`, `/api/auth/signup`, `/api/settings/*` | Login searches across tenants |
-| `products.ts` | CRUD + `/add-stock`, `/by-barcode/:barcode`, `/:id/barcode-details` | Barcode range generation |
-| `sales.ts` | `/validate/:barcode`, CRUD, `/:id/bill` | Auto-creates warranty + rewards on sale |
-| `distribution.ts` | CRUD + `/summary`, `/bill`, `/apply-billing`, batch operations | Spreadsheet-style distribution |
+| `bill-settings.ts` | `GET/PUT /api/settings/bill` | Per-tenant bill customization (logo, colors, bank, signatory) |
+| `products.ts` | CRUD + `/add-stock`, `/by-barcode/:barcode` | Barcode range generation |
+| `sales.ts` | `/validate/:barcode`, CRUD, `/:id/bill` | Auto-creates warranty + rewards; bill includes `billSettings` |
+| `distribution.ts` | CRUD + `/summary`, `/bill`, `/apply-billing` | Spreadsheet-style; bill includes `billSettings` |
 | `warranties.ts` | CRUD with status auto-expiry | Checks `warranty_applicable` flag |
-| `replacements.ts` | CRUD + `/validate-old/:barcode`, `/validate-new/:barcode` | Old→new barcode swap |
+| `replacements.ts` | CRUD + barcode validation | Old→new barcode swap |
 | `transactions.ts` | CRUD with date filters + pagination | Income/expense totals |
-| `rewards.ts` | CRUD + `/balance`, reward rules, redemption settings | Vendor-scoped points |
-| `customers.ts` | CRUD + `/:id/purchases`, `/:id/vendor` | Linked to vendors |
+| `rewards.ts` | CRUD + `/balance`, reward rules, redemption | Vendor-scoped points |
+| `customers.ts` | CRUD + purchases + vendor mapping | Linked to vendors |
 | `vendors.ts` | CRUD + auto-creates vendor login user | Password: `{name}@123` |
 | `banks.ts` | CRUD | Simple master data |
-| `finance.ts` | `/vendor-finance/summary`, `/:vendorId`, `/payments`, `/reminder` | Uses `billed_price` for totals |
+| `finance.ts` | `/vendor-finance/summary`, payments, reminders | **Critical**: static routes before `:vendorId` param |
 | `admin.ts` | User management | Admin-only, role/permission CRUD |
-| `dashboard.ts` | `/stats`, `/chart`, `/rewards-summary`, `/vendor/:vendorId` | KPIs + analytics |
+| `dashboard.ts` | `/stats`, `/chart`, `/rewards-summary` | KPIs + analytics |
 | `search.ts` | `/search?q=` | Searches products, customers, vendors, barcodes |
 | `notifications.ts` | `/notifications` | Low stock, expiring warranties, pending payments |
 | `chatbot.ts` | `/chatbot` | 30+ natural language queries |
@@ -334,11 +355,12 @@ export default router;
 |---|---|---|
 | Barcode range generation | `server/utils/barcode.ts` | `generateBarcodesFromPrefix()` |
 | Barcode overlap prevention | `server/utils/barcode.ts` | `barcodeExists()` + `getMaxBarcodeNumber()` |
-| Sale processing (warranty + rewards + customer) | `server/routes/sales.ts` | `POST /api/sales` transaction block |
+| Sale processing (warranty + rewards) | `server/routes/sales.ts` | `POST /api/sales` transaction block |
 | Distribution with discount + GST | `server/routes/distribution.ts` | `POST /api/distribution` |
+| Bill data with billSettings | `server/routes/sales.ts` line ~203, `distribution.ts` line ~453 | Queries `bill_settings` table |
 | Vendor payment tracking | `server/routes/finance.ts` | Uses `billed_price` for total owed |
 | Tenant provisioning | `server/utils/tenant.ts` | `provisionTenant()` |
-| Plan enforcement | Check `plans.features` and `plans.max_*` in route handlers |
+| Bill customization UPSERT | `server/routes/bill-settings.ts` | `PUT /api/settings/bill` |
 
 ---
 
@@ -347,11 +369,13 @@ export default router;
 ### App.tsx — Routing Logic
 
 ```
-1. Check sessionStorage for 'auth_token'
-2. Decode JWT payload (base64, no library)
-3. If role === 'super_admin' → render SuperAdminApp
-4. If tenantId exists → render tenant ERP (sidebar + views)
-5. If no token → render LoginScreen
+1. Apply saved theme (dark/light) from sessionStorage
+2. Check window.location.pathname
+3. If /admin → super admin flow (login or app)
+4. If not /admin and has super_admin token → redirect to /admin
+5. If no user → tenant LoginScreen
+6. If user → tenant ERP with sidebar showing user.companyName
+7. Browser tab title: "{CompanyName} — DG ERP"
 ```
 
 ### State Management
@@ -359,8 +383,8 @@ export default router;
 No Redux/Zustand — state is managed per-component:
 - **User state**: `useState` in App.tsx, passed as props
 - **Feature state**: each view has its own `useState` + `useEffect` for API calls
-- **Session**: `sessionStorage` for auth_token, tenant_id, user object
-- **Toast notifications**: React Context (`ToastProvider` in `components/ui/Toast.tsx`)
+- **Session**: `sessionStorage` for auth_token, tenant_id, user object, theme
+- **Toast notifications**: React Context (`ToastProvider`)
 
 ### API Client (`src/api.ts`)
 
@@ -371,43 +395,110 @@ export const api = {
   products: { list, create, update, delete, addStock, getByBarcode },
   sales: { validate, create, list, getBill },
   distribution: { list, create, summary, getBill, applyBilling },
-  warranties: { list, create, update, delete },
-  // ... etc
+  settings: { getProfile, updateProfile, changePassword, getBillSettings, updateBillSettings },
   superAdmin: { login, dashboard, tenants: { list, create, get, update, delete }, plans: { ... } },
+  // ... etc
 }
 ```
 
-### Shared UI Components (`src/components/ui/`)
-
-| Component | File | Usage |
-|---|---|---|
-| `ToastProvider` / `useToast` | `Toast.tsx` | Wrap app, call `toast('message', 'success')` |
-| `LoadingSpinner` | `LoadingSpinner.tsx` | `<LoadingSpinner />` in loading states |
-| `DateRangeFilter` | `DateRangeFilter.tsx` | Today/Week/Month/Custom date picker |
-| `PaginationControls` | `Pagination.tsx` | Prev/Next with page numbers |
-
 ### Bill Templates (`src/lib/billTemplates.ts`)
 
-Two functions that return complete HTML strings:
+Two functions that return complete HTML strings with full customization:
 
 ```typescript
-generateSalesInvoiceHtml(bill, { showGst: true })    // Customer invoice
-generateDistributionChallanHtml(bill, { showGst: true })  // Vendor challan
+generateSalesInvoiceHtml(bill, { showGst: true })
+generateDistributionChallanHtml(bill, { showGst: true, fullyPaid: false })
 ```
 
-Both accept `showGst` option — when false, hides GSTIN, HSN, CGST/SGST.
+Both read `bill.billSettings` (injected by the server from `bill_settings` table) and apply:
+- Custom logo (base64 `<img>` or letter-icon fallback)
+- Custom accent color (replaces `#F27D26` throughout CSS)
+- Tagline under company name
+- Invoice/challan number prefix
+- Bank details section (conditional)
+- Terms & conditions (conditional)
+- Authorized signatory with optional signature image
+- Show/hide toggles for barcode, warranty, rewards columns
+- Custom footer text
 
-### Feature Toggle System
+---
 
-Three toggles in Settings (stored on admin user in DB):
+## Bill Customization System
 
-| Toggle | DB Column | Effect when OFF |
-|---|---|---|
-| `warrantyEnabled` | `users.warranty_enabled` | Hides Warranty tab, skips warranty creation on sale |
-| `replacementEnabled` | `users.replacement_enabled` | Hides Replacements tab |
-| `rewardsEnabled` | `users.rewards_enabled` | Hides Rewards tab, skips point earning on sale |
+### Data Flow
 
-Checked in `App.tsx` for nav visibility and in `server/routes/sales.ts` for business logic.
+```
+1. Admin saves bill settings in Settings → Bill Customization
+2. Frontend sends PUT /api/settings/bill with JSON body (including base64 images)
+3. Server validates + UPSERTS into bill_settings table
+4. When any user prints a bill:
+   a. Frontend calls GET /api/sales/:id/bill (or /api/distribution/bill)
+   b. Server queries bill_settings for the tenant
+   c. Returns bill data with billSettings field
+   d. Frontend passes to generateSalesInvoiceHtml() / generateDistributionChallanHtml()
+   e. Template applies all customizations
+```
+
+### Image Upload (No Multer)
+
+Images are uploaded as base64 strings via regular JSON — no FormData needed.
+
+Frontend:
+```typescript
+const reader = new FileReader();
+reader.onload = () => setForm(prev => ({ ...prev, logoBase64: reader.result as string }));
+reader.readAsDataURL(file);
+```
+
+Server validates:
+```typescript
+if (b.logoBase64 && (!b.logoBase64.startsWith('data:image/') || b.logoBase64.length > 700_000)) {
+  return res.status(400).json({ error: 'Logo must be a valid image under 500KB' });
+}
+```
+
+Express body limit: `express.json({ limit: '2mb' })` in `server/index.ts`.
+
+### Preview
+
+The Settings UI has a "Preview" button that generates a sample invoice HTML with current form values and opens it in a popup window, letting admins see changes before saving.
+
+---
+
+## Dark / Light Mode
+
+### How It Works
+
+```
+1. CSS class `dark` on <html> element toggles dark theme
+2. src/index.css defines html.dark overrides for all Tailwind utility classes
+3. Theme is saved in sessionStorage('dg_erp_theme')
+4. App.tsx applies saved theme on page load (before render)
+5. Toggle in Settings → Appearance
+```
+
+### CSS Strategy
+
+Dark mode uses `!important` overrides on Tailwind classes:
+
+```css
+html.dark .bg-white { background-color: #1F2937 !important; }
+html.dark .text-gray-700 { color: #E5E7EB !important; }
+html.dark input, html.dark select, html.dark textarea {
+  background-color: #374151 !important;
+  color: #E5E7EB !important;
+  border-color: #4B5563 !important;
+}
+```
+
+### Adding Dark Mode Support to New Components
+
+No action needed for most components — the CSS overrides target Tailwind classes globally. If a new component uses a hardcoded color not covered:
+
+```css
+/* Add to src/index.css */
+html.dark .your-new-class { background-color: #1F2937 !important; }
+```
 
 ---
 
@@ -420,114 +511,65 @@ Checked in `App.tsx` for nav visibility and in `server/routes/sales.ts` for busi
 SUPER_ADMIN_EMAIL=newemail@domain.com
 SUPER_ADMIN_PASSWORD=newpassword123
 
-# Option 2: Update existing super admin directly in PostgreSQL
+# Option 2: Update directly in PostgreSQL
 psql splendor_erp
-UPDATE super_admins SET email = 'new@email.com' WHERE id = 'SA1';
-# For password, generate bcrypt hash first:
-# node -e "console.log(require('bcrypt').hashSync('newpassword', 10))"
+# Generate bcrypt hash: node -e "console.log(require('bcrypt').hashSync('newpassword', 10))"
 UPDATE super_admins SET password_hash = '$2b$10$...' WHERE id = 'SA1';
 ```
-
-### Change a Tenant Admin's Password
-
-```sql
--- Find the user
-SELECT id, email, name FROM users WHERE email = 'admin@company.com';
-
--- Update password (generate hash first)
--- node -e "console.log(require('bcrypt').hashSync('newpassword', 10))"
-UPDATE users SET password_hash = '$2b$10$...' WHERE email = 'admin@company.com';
-```
-
-Or use the Change Password feature in Settings (requires current password).
 
 ### Add a New API Endpoint
 
 1. **Create or edit route file** in `server/routes/{feature}.ts`
-2. **Follow the pattern**:
-   ```typescript
-   router.get('/api/new-endpoint', async (req, res) => {
-     try {
-       const tenantId = req.headers['x-tenant-id'] as string;
-       if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-       // Your logic with pool.query()
-       res.json({ data });
-     } catch (err) {
-       res.status(500).json({ error: String(err) });
-     }
-   });
-   ```
-3. **Add to API client** in `src/api.ts`
-4. **Use in a component** — import from `../../api`
+2. **Follow the pattern**: get tenantId, validate, query with `$1` param, try/catch
+3. **Register** in `server/index.ts`: import + `app.use(router)`
+4. **Add to API client** in `src/api.ts`
+5. **Use in a component**
+
+### Add a New Database Table
+
+1. Add `CREATE TABLE IF NOT EXISTS` to `server/pg-db.ts` → `initSchema()`
+2. Include `tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE`
+3. Add indexes: `CREATE INDEX IF NOT EXISTS idx_tablename_tenant ON tablename(tenant_id)`
+4. Restart server — table is created automatically
 
 ### Add a New Database Column
 
 ```typescript
-// In server/pg-db.ts → initSchema() function, add to the CREATE TABLE
-// OR add an ALTER TABLE at the end:
+// In server/pg-db.ts → initSchema():
 await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS new_field TEXT');
 ```
 
-Restart the server — the column is added automatically.
-
 ### Add a New Feature Toggle
 
-1. **DB**: Add column in `pg-db.ts` schema: `new_feature_enabled BOOLEAN DEFAULT true`
+1. **DB**: Add column in `pg-db.ts`: `new_feature_enabled BOOLEAN DEFAULT true`
 2. **Server**: Add to auth.ts login/profile responses
-3. **Frontend**: Check in `App.tsx` nav items and in the relevant route handler
-4. **Settings UI**: Add toggle in `SettingsView.tsx` Feature Toggles section
-
-### Add a New Subscription Plan
-
-Via super admin UI → Plans → Create Plan. Or directly:
-
-```sql
-INSERT INTO plans (id, name, max_products, max_vendors, max_users, max_barcodes, features, price_monthly, price_yearly)
-VALUES ('CUSTOM', 'Custom Plan', 200, 10, 5, 2000, '{"warranty":true,"rewards":true}', 1999, 19999);
-```
-
-### Create a Tenant Manually (via SQL)
-
-```typescript
-// Use the provisionTenant function:
-import { provisionTenant } from './server/utils/tenant';
-
-await provisionTenant({
-  companyName: 'New Company',
-  adminEmail: 'admin@newcompany.com',
-  adminName: 'Admin Name',
-  adminPassword: 'secure123',
-  planId: 'PRO',
-});
-```
-
-Or via the super admin API:
-```bash
-curl -X POST http://localhost:3001/api/super-admin/tenants \
-  -H "Authorization: Bearer {super_admin_token}" \
-  -H "Content-Type: application/json" \
-  -d '{"companyName":"New Co","adminEmail":"admin@new.com","adminName":"Admin","planId":"PRO"}'
-```
+3. **Frontend**: Check in `App.tsx` nav items
+4. **Settings UI**: Add toggle in SettingsView.tsx Feature Toggles section
 
 ### Add a New Chatbot Command
 
-Edit `server/routes/chatbot.ts`. Add a new regex match block:
+Edit `server/routes/chatbot.ts`. Add a regex match block BEFORE the vendor/customer fuzzy lookup section:
 
 ```typescript
 if (/your\s*pattern/.test(q)) {
   const result = await pool.query('SELECT ... WHERE tenant_id = $1', [tenantId]);
-  return { text: `Your formatted response\n\n${result.rows.map(...)}` };
+  return { text: `Your response\n\n${result.rows.map(...)}` };
 }
 ```
 
-Place it BEFORE the vendor/customer fuzzy lookup section (at the bottom).
+### Add Bill Customization Fields
+
+1. **DB**: Add column to `bill_settings` table in `pg-db.ts`
+2. **Server**: Add to `bill-settings.ts` GET response mapping + PUT UPSERT query
+3. **Types**: Add to `BillSettings` interface in `src/types.ts`
+4. **Templates**: Use the field in `src/lib/billTemplates.ts` via the `s` object
+5. **Settings UI**: Add input to `BillCustomizationSection` in SettingsView.tsx
 
 ### Generate a Demo for a New Industry
 
 1. Copy `server/demo/seed-demo.ts` → `server/demo/seed-{industry}.ts`
 2. Change products, vendors, customers to match the industry
-3. Add npm script in `package.json`: `"demo:{industry}": "tsx server/demo/clear-all.ts && tsx server/demo/seed-{industry}.ts"`
-4. Run: `npm run demo:{industry}`
+3. Add npm script: `"demo:{industry}": "tsx server/demo/clear-all.ts && tsx server/demo/seed-{industry}.ts"`
 
 ---
 
@@ -550,69 +592,25 @@ Place it BEFORE the vendor/customer fuzzy lookup section (at the bottom).
 ### Adding a New Role
 
 1. Add role string to `canAccess()` in `src/App.tsx`
-2. Add role option in Settings → User Management → Add User form
+2. Add role option in Settings → User Management
 3. Define which tabs the role can access
-
-### Adding Plan Enforcement to a Route
-
-```typescript
-router.post('/api/products', async (req, res) => {
-  const tenantId = req.headers['x-tenant-id'] as string;
-
-  // Check plan limits
-  const tenant = (await pool.query('SELECT plan_id FROM tenants WHERE id = $1', [tenantId])).rows[0];
-  const plan = (await pool.query('SELECT * FROM plans WHERE id = $1', [tenant.plan_id])).rows[0];
-  if (plan.max_products !== -1) {
-    const count = (await pool.query('SELECT COUNT(*) as c FROM products WHERE tenant_id = $1', [tenantId])).rows[0].c;
-    if (count >= plan.max_products) {
-      return res.status(403).json({ error: `Plan limit: max ${plan.max_products} products. Upgrade your plan.` });
-    }
-  }
-  // ... create product
-});
-```
 
 ---
 
 ## Troubleshooting
 
-### "Tenant ID required" error
-The frontend isn't sending the `X-Tenant-ID` header. Check:
-- Is `tenant_id` stored in `sessionStorage`?
-- Is `api.ts` reading it correctly?
-- Did the login response include `tenantId`?
-
-### "Invalid or expired token" error
-JWT token expired (default 7 days). Re-login to get a new token.
-
-### Server won't start — "connection refused"
-PostgreSQL isn't running. Start it:
-- Postgres.app: click the app icon
-- Homebrew: `brew services start postgresql@16`
-- Check: `pg_isready -h localhost -p 5432`
-
-### Database schema out of date
-The schema auto-creates tables on startup. For new columns:
-```sql
-ALTER TABLE table_name ADD COLUMN IF NOT EXISTS new_column TYPE;
-```
-
-### Data not showing for a tenant
-Check the tenant's `status` in the `tenants` table. Must be `'active'` or `'trial'`.
-```sql
-SELECT id, company_name, status FROM tenants;
-UPDATE tenants SET status = 'active' WHERE id = 'T...';
-```
-
-### Frontend caching old code
-Clear Vite cache: `rm -rf node_modules/.vite`
-Hard refresh: `Cmd+Shift+R` (Mac) or `Ctrl+Shift+R`
-
-### Port already in use
-```bash
-kill $(lsof -ti :3001)  # Kill API server
-kill $(lsof -ti :3000)  # Kill dev server
-```
+| Problem | Solution |
+|---|---|
+| "Tenant ID required" error | Check `sessionStorage` has `tenant_id`; check `api.ts` sends `X-Tenant-ID` header |
+| "Invalid or expired token" | JWT expired (7 days). Re-login |
+| Server won't start — "connection refused" | PostgreSQL not running. `pg_isready -h localhost -p 5432` to check |
+| Super admin login page not showing at `/admin` | Vite dev server must be running; check `window.location.pathname` routing in App.tsx |
+| Dark mode not applying | Check `html` element has class `dark`; check `sessionStorage` for `dg_erp_theme` |
+| Logo/signature upload fails | Check file < 500KB; check `express.json({ limit: '2mb' })` in server/index.ts |
+| Bill not showing custom settings | Verify `bill_settings` row exists for the tenant: `SELECT * FROM bill_settings WHERE tenant_id = 'T...'` |
+| Frontend caching old code | Clear Vite cache: `rm -rf node_modules/.vite`; Hard refresh: `Cmd+Shift+R` |
+| Port already in use | `kill $(lsof -ti :3001)` for API; `kill $(lsof -ti :3000)` for dev server |
+| Finance tab empty | Check route ordering in `finance.ts` — static routes (`/reminders-due`) MUST come before `/:vendorId` |
 
 ---
 
@@ -644,8 +642,9 @@ npm start              # Serves dist/ + API from one server
 2. **Environment**: Set `DATABASE_URL`, `JWT_SECRET` (use a strong random string)
 3. **HTTPS**: Required for JWT security — use platform's built-in SSL
 4. **CORS**: Update `server/index.ts` if frontend is on a different domain
-5. **Monitoring**: Check `audit_log` table for activity
-6. **Backups**: Use `pg_dump` for PostgreSQL backups
+5. **Body Limit**: Already set to 2MB for image uploads
+6. **Monitoring**: Check `audit_log` table for activity
+7. **Backups**: Use `pg_dump` for PostgreSQL backups
 
 ### Docker (optional)
 
@@ -677,15 +676,18 @@ CMD ["node", "dist/server/index.js"]
 
 - **TypeScript strict** — all files are `.ts` / `.tsx`
 - **No comments unless non-obvious** — code should be self-documenting
-- **Named exports** — `export function ComponentName()`, not default exports (except route modules)
-- **Feature folders** — each feature in its own directory under `src/features/`
-- **One route file per domain** — `server/routes/products.ts`, not mixed
-- **Async/await** — all database calls are async (PostgreSQL)
-- **Error handling** — try/catch in every route handler, return `{ error: string }`
+- **Named exports** — except route modules (default export)
+- **Feature folders** — `src/features/{name}/`
+- **One route file per domain** — `server/routes/{feature}.ts`
+- **Async/await** — all database calls
+- **Error handling** — try/catch in every route handler
 - **Tenant scoping** — EVERY query MUST include `tenant_id`
-- **No raw SQL interpolation** — always use `$1, $2` parameterized queries
+- **No raw SQL interpolation** — always `$1, $2` parameterized queries
+- **Base64 for images** — no file system storage, no multer
+- **sessionStorage** — not localStorage (per-tab isolation)
 
 ---
 
-*Last updated: June 2026*
+*Last updated: June 2025*
+*Platform: DG ERP Management*
 *Built with Claude Code (Anthropic)*

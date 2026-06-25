@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { USER_STORAGE_KEY } from '../../types';
 
-type LoginMode = 'login' | 'signup' | 'super_admin' | 'register';
+type LoginMode = 'login' | 'signup' | 'register';
 
 interface LoginResult {
   token: string;
@@ -38,10 +38,7 @@ export function LoginScreen({ onLogin }: { onLogin: (u: LoginResult['user']) => 
 
     setSubmitting(true);
     try {
-      if (mode === 'super_admin') {
-        const result = await api.superAdmin.login(form.email, form.password);
-        storeAuthAndLogin({ token: result.token, user: { ...result.user, role: 'super_admin' } });
-      } else if (mode === 'register') {
+      if (mode === 'register') {
         const result = await api.tenantRegister({
           companyName: form.companyName,
           adminEmail: form.email,
@@ -70,10 +67,10 @@ export function LoginScreen({ onLogin }: { onLogin: (u: LoginResult['user']) => 
     <div className="min-h-screen bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex w-16 h-16 bg-[#F27D26] rounded-2xl items-center justify-center font-bold text-2xl text-white mb-4">S</div>
-          <h1 className="text-2xl font-bold text-white">SPLENDOR</h1>
+          <div className="inline-flex w-16 h-16 bg-[#F27D26] rounded-2xl items-center justify-center font-bold text-2xl text-white mb-4">DG</div>
+          <h1 className="text-2xl font-bold text-white">DG ERP</h1>
           <p className="text-gray-400 text-sm mt-1">
-            {mode === 'super_admin' ? 'Super Admin Portal' : mode === 'register' ? 'Register Your Company' : 'Inventory & Rewards Management'}
+            {mode === 'register' ? 'Register Your Company' : 'Enterprise Resource Planning'}
           </p>
         </div>
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
@@ -110,18 +107,11 @@ export function LoginScreen({ onLogin }: { onLogin: (u: LoginResult['user']) => 
           </form>
         </div>
         {showTabs && (
-          <>
-            <p className="text-center text-gray-500 text-sm mt-6">
-              <button type="button" onClick={() => { setMode('register'); setError(''); setForm({ email: '', password: '', name: '', confirmPassword: '', companyName: '', phone: '' }); }} className="text-[#F27D26] hover:text-[#FFB347] font-medium underline underline-offset-2">
-                Register your company
-              </button>
-            </p>
-            <p className="text-center text-gray-600 text-xs mt-3">
-              <button type="button" onClick={() => { setMode('super_admin'); setError(''); setForm({ email: '', password: '', name: '', confirmPassword: '', companyName: '', phone: '' }); }} className="hover:text-gray-400 transition-colors">
-                Super Admin
-              </button>
-            </p>
-          </>
+          <p className="text-center text-gray-500 text-sm mt-6">
+            <button type="button" onClick={() => { setMode('register'); setError(''); setForm({ email: '', password: '', name: '', confirmPassword: '', companyName: '', phone: '' }); }} className="text-[#F27D26] hover:text-[#FFB347] font-medium underline underline-offset-2">
+              Register your company
+            </button>
+          </p>
         )}
       </motion.div>
     </div>

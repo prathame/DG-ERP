@@ -27,6 +27,7 @@ import mastersRouter from './routes/masters';
 import mappingRouter from './routes/mapping';
 import auditRouter from './routes/audit';
 import chatbotRouter from './routes/chatbot';
+import billSettingsRouter from './routes/bill-settings';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -38,7 +39,7 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 // Serve static files in production (only if dist exists)
 const distPath = path.join(process.cwd(), 'dist');
@@ -75,6 +76,7 @@ app.use(mastersRouter);
 app.use(mappingRouter);
 app.use(auditRouter);
 app.use(chatbotRouter);
+app.use(billSettingsRouter);
 
 // SPA fallback (only if built)
 app.get('*', (req, res, next) => {

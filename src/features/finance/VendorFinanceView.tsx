@@ -79,7 +79,8 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
   };
 
   const handleSendReminder = (v: { vendorId: string; vendorName: string; vendorPhone: string; balance: number }) => {
-    const msg = `🔔 *Payment Reminder*\n━━━━━━━━━━━━━━━━━\nDear ${v.vendorName},\n\nThis is a reminder that you have an outstanding balance of *₹${v.balance.toLocaleString()}*.\n\nPlease arrange the payment at your earliest convenience.\n\nThank you,\nSplendor ERP`;
+    const companyName = (() => { try { const u = JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}'); return u.companyName || 'Our Company'; } catch { return 'Our Company'; } })();
+    const msg = `🔔 *Payment Reminder*\n━━━━━━━━━━━━━━━━━\nDear ${v.vendorName},\n\nThis is a reminder that you have an outstanding balance of *₹${v.balance.toLocaleString()}*.\n\nPlease arrange the payment at your earliest convenience.\n\nThank you,\n${companyName}`;
     shareViaWhatsApp(v.vendorPhone, msg);
     api.vendorFinance.markReminderSent(v.vendorId).then(() => loadSummary()).catch(() => {});
   };
