@@ -689,6 +689,33 @@ DELETE /api/super-admin/billing/:id          — delete invoice
 
 ---
 
+### Subscription Expiry
+
+**How it works:**
+```
+Super admin creates invoice with Period End date
+    → subscription_ends_at auto-set on tenant
+    → Tenant dashboard shows expiry banner (15/7/0 days)
+    → Login blocked after expiry
+    → Super admin creates new invoice → tenant reactivated
+```
+
+**Expiry banner logic** (in `App.tsx`):
+- `> 15 days` → no banner
+- `8-15 days` → amber warning
+- `1-7 days` → red warning
+- `≤ 0 days` → full red bar, login also blocked
+
+**Login check** (in `auth.ts`):
+- Trial: checks `trial_ends_at` — blocks with "Trial has expired"
+- Paid: checks `subscription_ends_at` — blocks with "Subscription has expired"
+
+**DB column:** `tenants.subscription_ends_at TIMESTAMPTZ`
+
+**To manually extend:** Super admin → Tenant Detail → update via API, or create a new invoice with new Period End.
+
+---
+
 ### Adding Audit Logging to a New Route
 
 ```typescript

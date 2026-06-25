@@ -193,6 +193,7 @@ npm run dev
 - **Analytics**: Revenue per tenant, growth charts, most active tenants
 - **Impersonation**: Log in as any tenant admin for support
 - **Billing**: Generate subscription invoices for tenants with amount + GST, print professional PDF, mark paid/unpaid, filter by status, auto-generated invoice numbers
+- **Subscription Tracking**: Auto-set expiry when creating invoice, expiry banner in tenant UI (amber 15 days, red 7 days), login blocked after expiry
 - **Audit Log**: Cross-tenant activity log with search, action/entity filters, pagination
 - **Feature Toggles**: 10 features controllable per tenant
 - **Separate Route**: Super admin UI at `/admin`, completely hidden from tenant login
