@@ -35,14 +35,14 @@ Industry-agnostic ERP for Inventory, Sales, Distribution, Warranty & Rewards Man
 ### User Hierarchy
 
 ```
-DG ERP Platform Owner (Super Admin) — /admin route
-├── Tenant 1: Splendor Pump LLP
+DG ERP Platform Owner (Super Admin) — /admin
+├── Tenant 1: Splendor Pump LLP — /splendor-pump-llp
 │   ├── Admin → Vendors → Staff
 │   └── Isolated data + custom bill branding
-├── Tenant 2: Radhe Krishan Jewellers
+├── Tenant 2: Radhe Krishan Jewellers — /radhe-krishan-jewellers
 │   ├── Admin → Vendors → Staff
 │   └── Isolated data + custom bill branding
-└── Tenant N: ...
+└── Tenant N: /{slug}
 ```
 
 ## Getting Started
@@ -92,15 +92,16 @@ npm run server
 npm run dev
 ```
 
-- Tenant login: http://localhost:3000
 - Super admin: http://localhost:3000/admin
+- Tenant login: http://localhost:3000/{slug} (e.g., `/splendor-pump-llp`)
+- Generic login: http://localhost:3000 (email lookup finds tenant)
 
 ### Default Logins
 
 | Role | URL | Email | Password |
 |---|---|---|---|
 | Platform Owner | `/admin` | admin@spre.ai | superadmin123 |
-| Tenant Admin | `/` | Created per tenant | Auto-generated |
+| Tenant Admin | `/{slug}` | Created by super admin | Auto-generated |
 
 ## Project Structure
 
@@ -184,6 +185,7 @@ npm run dev
 - **Impersonation**: Log in as any tenant admin for support
 - **Self-Service Registration**: Companies sign up with 14-day trial
 - **Separate Route**: Super admin UI at `/admin`, completely hidden from tenant login
+- **Tenant Onboarding**: Only super admin can create tenants (no self-registration)
 
 ### Subscription Plans
 
@@ -202,9 +204,23 @@ SELECT * FROM products WHERE tenant_id = $1
 ```
 No tenant can see another tenant's data.
 
+### Tenant URL Routing
+
+Each tenant gets a unique branded URL based on their company slug:
+
+```
+/                          → Generic DG ERP login (email finds tenant)
+/splendor-pump-llp         → Branded login for Splendor (logo, color, tagline)
+/radhe-krishan-jewellers   → Branded login for Radhe Krishan
+/admin                     → Super admin portal
+/invalid-slug              → "Company Not Found" page
+```
+
+Slugs are auto-generated from the company name on creation (e.g., "Splendor Pump LLP" → `splendor-pump-llp`). After login, the URL updates to `/{slug}` automatically.
+
 ### Tenant Branding
 
-Each tenant sees their own company name in the sidebar, browser tab, bills, and WhatsApp messages. A subtle "Powered by DG ERP" attribution appears at the bottom.
+Each tenant sees their own company name in the sidebar, browser tab, bills, WhatsApp messages, and login page. Login pages show the tenant's logo, accent color, and tagline. A subtle "Powered by DG ERP" attribution appears at the bottom.
 
 ## Tenant Features
 
@@ -270,8 +286,9 @@ Server middleware validates token + resolves tenant
 ### Routes
 
 ```
-/           → Tenant login (Login / Sign Up / Register Company)
-/admin      → Super Admin login (completely separate)
+/              → Generic tenant login (email lookup finds tenant)
+/{slug}        → Branded tenant login (company logo, color, tagline)
+/admin         → Super Admin login (completely separate)
 ```
 
 ### Password Security
@@ -299,7 +316,8 @@ POST   /api/super-admin/plans
 PUT    /api/super-admin/plans/:id
 DELETE /api/super-admin/plans/:id
 GET    /api/super-admin/analytics
-POST   /api/tenant/register
+POST   /api/tenant/register              ← Super admin only
+GET    /api/tenant/by-slug/:slug         ← Public (returns branding for login page)
 ```
 
 ### Tenant Routes (Tenant JWT required)

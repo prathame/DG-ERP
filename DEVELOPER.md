@@ -34,8 +34,9 @@ Complete technical reference for developers working on this codebase.
 | Password hashing | `server/utils/helpers.ts` → `hashPassword()` |
 | Barcode generation | `server/utils/barcode.ts` |
 | API client (frontend) | `src/api.ts` |
-| App routing (JWT + URL-based) | `src/App.tsx` |
-| Tenant login screen | `src/components/layout/LoginScreen.tsx` |
+| App routing (JWT + URL slug) | `src/App.tsx` |
+| Tenant login screen (branded) | `src/components/layout/LoginScreen.tsx` |
+| Tenant slug lookup (public) | `server/routes/super-admin.ts` → `GET /api/tenant/by-slug/:slug` |
 | Super admin login | `src/features/super-admin/SuperAdminLogin.tsx` |
 | Super admin UI | `src/features/super-admin/` |
 | Bill HTML templates | `src/lib/billTemplates.ts` |
@@ -51,7 +52,7 @@ Complete technical reference for developers working on this codebase.
 | Role | URL | Email | Password | Where to Change |
 |---|---|---|---|---|
 | Super Admin | `/admin` | `admin@spre.ai` | `superadmin123` | `.env` → `SUPER_ADMIN_EMAIL` / `PASSWORD` |
-| Tenant Admin | `/` | Per tenant | Auto-generated | Created via super admin or registration |
+| Tenant Admin | `/{slug}` | Per tenant | Auto-generated | Created by super admin only |
 
 ### Ports
 
@@ -79,19 +80,27 @@ Browser → Express (:3001) → serves static files + API → PostgreSQL
 ### URL-Based Routing
 
 ```
-/          → Tenant LoginScreen (no super admin link visible)
-/admin     → SuperAdminLogin (completely separate UI)
+/              → Generic tenant login (email lookup finds tenant)
+/{slug}        → Branded tenant login (e.g., /splendor-pump-llp)
+/admin         → Super admin portal (completely separate)
+/invalid-slug  → "Company Not Found" page
 ```
 
 Routing logic in `App.tsx`:
 ```
-1. Check window.location.pathname
-2. If starts with /admin:
+1. Apply saved theme (dark/light) from sessionStorage
+2. Parse pathname: detect /admin or /{slug}
+3. If /admin:
    - If has super_admin JWT → render SuperAdminApp
    - Else → render SuperAdminLogin
-3. If super_admin JWT but NOT on /admin → redirect to /admin
-4. If no user session → render tenant LoginScreen
-5. If user session → render tenant ERP (sidebar + views)
+4. If super_admin JWT but NOT on /admin → redirect to /admin
+5. If /{slug} detected and no user session:
+   - Fetch tenant branding via GET /api/tenant/by-slug/{slug}
+   - If found → show branded LoginScreen (logo, color, tagline)
+   - If not found → show "Company Not Found" page
+6. If no user and no slug → render generic LoginScreen
+7. If user session → render tenant ERP, URL set to /{slug}
+8. On logout → stay on /{slug} (branded login page)
 ```
 
 ### Multi-Tenant Data Flow
@@ -111,11 +120,12 @@ Routing logic in `App.tsx`:
 ### Tenant Branding Flow
 
 ```
-1. Sidebar shows user.companyName (not "DG ERP")
-2. Browser tab: "{CompanyName} — DG ERP"
-3. Bills use tenant's company name + custom logo/colors from bill_settings
-4. WhatsApp messages use tenant's company name
-5. Small "Powered by DG ERP" in sidebar footer + bill footers
+1. Login page at /{slug} shows tenant logo, accent color, tagline
+2. Sidebar shows user.companyName (not "DG ERP")
+3. Browser tab: "{CompanyName} — DG ERP"
+4. Bills use tenant's company name + custom logo/colors from bill_settings
+5. WhatsApp messages use tenant's company name
+6. Small "Powered by DG ERP" in sidebar footer + bill footers + login page
 ```
 
 ### File Organization
@@ -326,7 +336,7 @@ export default router;
 
 | File | Routes | Notes |
 |---|---|---|
-| `super-admin.ts` | `/api/super-admin/*` | No tenant_id — queries across all tenants |
+| `super-admin.ts` | `/api/super-admin/*`, `/api/tenant/register`, `/api/tenant/by-slug/:slug` | No tenant_id; register requires super admin JWT; by-slug is public |
 | `auth.ts` | `/api/auth/login`, `/api/auth/signup`, `/api/settings/*` | Login searches across tenants |
 | `bill-settings.ts` | `GET/PUT /api/settings/bill` | Per-tenant bill customization (logo, colors, bank, signatory) |
 | `products.ts` | CRUD + `/add-stock`, `/by-barcode/:barcode` | Barcode range generation |
@@ -370,12 +380,15 @@ export default router;
 
 ```
 1. Apply saved theme (dark/light) from sessionStorage
-2. Check window.location.pathname
+2. Parse pathname → detect /admin or /{slug}
 3. If /admin → super admin flow (login or app)
-4. If not /admin and has super_admin token → redirect to /admin
-5. If no user → tenant LoginScreen
-6. If user → tenant ERP with sidebar showing user.companyName
-7. Browser tab title: "{CompanyName} — DG ERP"
+4. If super_admin token but NOT on /admin → redirect to /admin
+5. If /{slug} and no user → fetch tenant branding, show branded login
+6. If /{slug} not found → "Company Not Found" page
+7. If no user and no slug → generic DG ERP login
+8. If user → tenant ERP, sidebar shows user.companyName, URL = /{slug}
+9. Browser tab title: "{CompanyName} — DG ERP"
+10. On logout → stay on /{slug} for branded login page
 ```
 
 ### State Management
@@ -545,6 +558,26 @@ await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS new_field TEXT
 2. **Server**: Add to auth.ts login/profile responses
 3. **Frontend**: Check in `App.tsx` nav items
 4. **Settings UI**: Add toggle in SettingsView.tsx Feature Toggles section
+
+### Onboard a New Tenant
+
+Tenants can only be created by the super admin. Two methods:
+
+**Via Super Admin UI** (recommended):
+1. Go to `/admin` → Login as super admin
+2. Tenants → Create Tenant → Fill company name, admin email, plan
+3. Tenant gets a slug URL automatically (e.g., "New Company" → `/new-company`)
+4. Share the URL `https://yourdomain.com/new-company` with the tenant admin
+
+**Via API**:
+```bash
+curl -X POST http://localhost:3001/api/tenant/register \
+  -H "Authorization: Bearer {super_admin_token}" \
+  -H "Content-Type: application/json" \
+  -d '{"companyName":"New Co","adminEmail":"admin@new.com","adminName":"Admin","adminPassword":"secure123","planId":"PRO"}'
+```
+
+The slug is auto-generated from the company name. The tenant admin can then login at `/{slug}` with their credentials.
 
 ### Add a New Chatbot Command
 
