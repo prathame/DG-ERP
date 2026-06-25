@@ -1,5 +1,9 @@
 import type { SaleBillData, DistributionBillData } from '../api';
 
+function esc(text: unknown): string {
+  return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 export function buildDistributionBillSlice(
   bill: DistributionBillData,
   items: DistributionBillData['items'],
@@ -75,25 +79,25 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
     <div style="margin-top:20px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;">
       <strong style="font-size:13px;">Bank Details</strong>
       <table style="width:100%;margin-top:8px;font-size:12px;">
-        ${s.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${s.bankAccountName}</td></tr>` : ''}
-        ${s.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${s.bankAccountNumber}</td></tr>` : ''}
-        ${s.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${s.bankName}${s.bankBranch ? `, ${s.bankBranch}` : ''}</td></tr>` : ''}
-        ${s.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${s.bankIfsc}</td></tr>` : ''}
-        ${s.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${s.bankUpiId}</td></tr>` : ''}
+        ${s.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(s.bankAccountName)}</td></tr>` : ''}
+        ${s.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(s.bankAccountNumber)}</td></tr>` : ''}
+        ${s.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(s.bankName)}${s.bankBranch ? `, ${esc(s.bankBranch)}` : ''}</td></tr>` : ''}
+        ${s.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(s.bankIfsc)}</td></tr>` : ''}
+        ${s.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(s.bankUpiId)}</td></tr>` : ''}
       </table>
     </div>` : '';
 
   const tcSection = s.termsAndConditions ? `
     <div style="margin-top:16px;font-size:11px;">
       <strong>Terms & Conditions:</strong>
-      <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${s.termsAndConditions}</p>
+      <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${esc(s.termsAndConditions)}</p>
     </div>` : '';
 
   const sigSection = s.signatoryName ? `
     <div style="margin-top:40px;text-align:right;">
       ${s.signatureBase64 ? `<img src="${s.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}
-      <p style="font-weight:600;font-size:13px;">${s.signatoryName}</p>
-      ${s.signatoryDesignation ? `<p style="font-size:11px;color:#6b7280;">${s.signatoryDesignation}</p>` : ''}
+      <p style="font-weight:600;font-size:13px;">${esc(s.signatoryName)}</p>
+      ${s.signatoryDesignation ? `<p style="font-size:11px;color:#6b7280;">${esc(s.signatoryDesignation)}</p>` : ''}
     </div>` : '';
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sales Invoice - ${invPrefix}${bill.id}</title>
@@ -125,14 +129,14 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
     <div class="logo">
       ${logoHtml}
       <div>
-        <div class="company-name">${bill.company.name}</div>
-        ${tagline ? `<div style="font-size:11px;color:#6b7280;">${tagline}</div>` : ''}
+        <div class="company-name">${esc(bill.company.name)}</div>
+        ${tagline ? `<div style="font-size:11px;color:#6b7280;">${esc(tagline)}</div>` : ''}
       </div>
     </div>
     <div class="company-details">
-      ${bill.company.address ? `<div>${bill.company.address}</div>` : ''}
-      ${bill.company.phone ? `<div>Phone: ${bill.company.phone}</div>` : ''}
-      ${showGst && bill.company.gstNumber ? `<div style="font-weight:600;">GSTIN: ${bill.company.gstNumber}</div>` : ''}
+      ${bill.company.address ? `<div>${esc(bill.company.address)}</div>` : ''}
+      ${bill.company.phone ? `<div>Phone: ${esc(bill.company.phone)}</div>` : ''}
+      ${showGst && bill.company.gstNumber ? `<div style="font-weight:600;">GSTIN: ${esc(bill.company.gstNumber)}</div>` : ''}
     </div>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
@@ -145,25 +149,25 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   <div class="info-grid">
     <div class="info-box">
       <h4>Bill To (Customer)</h4>
-      <p><strong>${bill.customerName}</strong></p>
-      <p>Phone: ${bill.customerPhone}</p>
-      ${bill.customerEmail ? `<p>Email: ${bill.customerEmail}</p>` : ''}
+      <p><strong>${esc(bill.customerName)}</strong></p>
+      <p>Phone: ${esc(bill.customerPhone)}</p>
+      ${bill.customerEmail ? `<p>Email: ${esc(bill.customerEmail)}</p>` : ''}
     </div>
     <div class="info-box">
       <h4>Sold By (Vendor)</h4>
-      <p><strong>${bill.vendor.name}</strong></p>
-      ${bill.vendor.contactPerson ? `<p>${bill.vendor.contactPerson}</p>` : ''}
-      ${bill.vendor.phone ? `<p>Phone: ${bill.vendor.phone}</p>` : ''}
-      ${bill.vendor.address ? `<p>${bill.vendor.address}</p>` : ''}
+      <p><strong>${esc(bill.vendor.name)}</strong></p>
+      ${bill.vendor.contactPerson ? `<p>${esc(bill.vendor.contactPerson)}</p>` : ''}
+      ${bill.vendor.phone ? `<p>Phone: ${esc(bill.vendor.phone)}</p>` : ''}
+      ${bill.vendor.address ? `<p>${esc(bill.vendor.address)}</p>` : ''}
     </div>
   </div>
   <table class="items">
     <thead><tr>${showBarcode ? '<th>Barcode</th>' : ''}<th>Product</th>${showGst && bill.hsnCode ? '<th>HSN</th>' : ''}<th>Qty</th><th style="text-align:right;">Price</th><th style="text-align:right;">Total</th></tr></thead>
     <tbody>
       <tr>
-        ${showBarcode ? `<td style="font-family:monospace;">${bill.barcode}</td>` : ''}
-        <td><strong>${bill.productName}</strong>${bill.productDescription ? `<br/><span style="color:#6b7280;font-size:11px;">${bill.productDescription}</span>` : ''}</td>
-        ${showGst && bill.hsnCode ? `<td>${bill.hsnCode}</td>` : ''}
+        ${showBarcode ? `<td style="font-family:monospace;">${esc(bill.barcode)}</td>` : ''}
+        <td><strong>${esc(bill.productName)}</strong>${bill.productDescription ? `<br/><span style="color:#6b7280;font-size:11px;">${esc(bill.productDescription)}</span>` : ''}</td>
+        ${showGst && bill.hsnCode ? `<td>${esc(bill.hsnCode)}</td>` : ''}
         <td>1</td>
         <td style="text-align:right;">₹${Number(bill.salePrice).toLocaleString()}</td>
         <td style="text-align:right;font-weight:bold;">₹${Number(bill.salePrice).toLocaleString()}</td>
@@ -218,18 +222,18 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
     <div style="margin-top:20px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;">
       <strong style="font-size:13px;">Bank Details</strong>
       <table style="width:100%;margin-top:8px;font-size:12px;">
-        ${s.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${s.bankAccountName}</td></tr>` : ''}
-        ${s.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${s.bankAccountNumber}</td></tr>` : ''}
-        ${s.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${s.bankName}${s.bankBranch ? `, ${s.bankBranch}` : ''}</td></tr>` : ''}
-        ${s.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${s.bankIfsc}</td></tr>` : ''}
-        ${s.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${s.bankUpiId}</td></tr>` : ''}
+        ${s.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(s.bankAccountName)}</td></tr>` : ''}
+        ${s.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(s.bankAccountNumber)}</td></tr>` : ''}
+        ${s.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(s.bankName)}${s.bankBranch ? `, ${esc(s.bankBranch)}` : ''}</td></tr>` : ''}
+        ${s.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(s.bankIfsc)}</td></tr>` : ''}
+        ${s.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(s.bankUpiId)}</td></tr>` : ''}
       </table>
     </div>` : '';
 
   const tcSection = s.termsAndConditions ? `
     <div style="margin-top:16px;font-size:11px;">
       <strong>Terms & Conditions:</strong>
-      <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${s.termsAndConditions}</p>
+      <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${esc(s.termsAndConditions)}</p>
     </div>` : '';
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Distribution Challan - ${chPrefix}${bill.challanId}</title>
@@ -264,14 +268,14 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
     <div class="logo">
       ${logoHtml}
       <div>
-        <div class="company-name">${bill.company.name}</div>
-        ${tagline ? `<div style="font-size:11px;color:#6b7280;">${tagline}</div>` : ''}
+        <div class="company-name">${esc(bill.company.name)}</div>
+        ${tagline ? `<div style="font-size:11px;color:#6b7280;">${esc(tagline)}</div>` : ''}
       </div>
     </div>
     <div class="company-details">
-      ${bill.company.address ? `<div>${bill.company.address}</div>` : ''}
-      ${bill.company.phone ? `<div>Phone: ${bill.company.phone}</div>` : ''}
-      ${showGst && bill.company.gstNumber ? `<div style="font-weight:600;">GSTIN: ${bill.company.gstNumber}</div>` : ''}
+      ${bill.company.address ? `<div>${esc(bill.company.address)}</div>` : ''}
+      ${bill.company.phone ? `<div>Phone: ${esc(bill.company.phone)}</div>` : ''}
+      ${showGst && bill.company.gstNumber ? `<div style="font-weight:600;">GSTIN: ${esc(bill.company.gstNumber)}</div>` : ''}
     </div>
   </div>
   ${fullyPaid ? '<div class="paid-stamp">✓ Paid</div>' : ''}
@@ -286,17 +290,17 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   <div class="info-grid">
     <div class="info-box">
       <h4>From (Company)</h4>
-      <p><strong>${bill.company.name}</strong></p>
-      ${bill.company.contactName ? `<p>${bill.company.contactName}</p>` : ''}
-      ${bill.company.phone ? `<p>Phone: ${bill.company.phone}</p>` : ''}
-      ${bill.company.address ? `<p>${bill.company.address}</p>` : ''}
+      <p><strong>${esc(bill.company.name)}</strong></p>
+      ${bill.company.contactName ? `<p>${esc(bill.company.contactName)}</p>` : ''}
+      ${bill.company.phone ? `<p>Phone: ${esc(bill.company.phone)}</p>` : ''}
+      ${bill.company.address ? `<p>${esc(bill.company.address)}</p>` : ''}
     </div>
     <div class="info-box">
       <h4>To (Vendor)</h4>
-      <p><strong>${bill.vendor.name}</strong></p>
-      ${bill.vendor.contactPerson ? `<p>${bill.vendor.contactPerson}</p>` : ''}
-      ${bill.vendor.phone ? `<p>Phone: ${bill.vendor.phone}</p>` : ''}
-      ${bill.vendor.address ? `<p>${bill.vendor.address}</p>` : ''}
+      <p><strong>${esc(bill.vendor.name)}</strong></p>
+      ${bill.vendor.contactPerson ? `<p>${esc(bill.vendor.contactPerson)}</p>` : ''}
+      ${bill.vendor.phone ? `<p>Phone: ${esc(bill.vendor.phone)}</p>` : ''}
+      ${bill.vendor.address ? `<p>${esc(bill.vendor.address)}</p>` : ''}
     </div>
   </div>
   <table class="items">
@@ -304,8 +308,8 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
     <tbody>${bill.groupedItems.map((g) => `
       <tr>
         <td style="text-align:center;">${g.sno}</td>
-        <td><strong>${g.productName}</strong></td>
-        <td style="font-family:monospace;font-size:12px;">${g.barcodeRange}</td>
+        <td><strong>${esc(g.productName)}</strong></td>
+        <td style="font-family:monospace;font-size:12px;">${esc(g.barcodeRange)}</td>
         <td style="text-align:center;">${g.quantity}</td>
         ${bill.groupedItems.some(gi => gi.discountPercent > 0) ? `<td style="text-align:right;">₹${g.originalPrice.toLocaleString()}</td><td style="text-align:right;color:#16a34a;">${g.discountPercent > 0 ? g.discountPercent + '%' : '-'}</td>` : ''}
         <td style="text-align:right;">₹${g.netPrice.toLocaleString()}</td>
@@ -338,7 +342,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
     <div class="sig-box">
       ${s.signatureBase64 ? `<img src="${s.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : ''}
       <p>${s.signatoryName || 'Authorized Signatory'}</p>
-      ${s.signatoryDesignation ? `<p style="font-size:10px;font-weight:400;margin-top:2px;">${s.signatoryDesignation}</p>` : ''}
+      ${s.signatoryDesignation ? `<p style="font-size:10px;font-weight:400;margin-top:2px;">${esc(s.signatoryDesignation)}</p>` : ''}
     </div>
     <div class="sig-box"><p>Received By</p></div>
   </div>

@@ -6,7 +6,8 @@ Industry-agnostic ERP for Inventory, Sales, Distribution, Warranty & Rewards Man
 
 - **Frontend**: React 19 + TypeScript + Tailwind CSS v4 + Framer Motion + Recharts
 - **Backend**: Express.js + TypeScript + PostgreSQL (pg)
-- **Auth**: JWT (jsonwebtoken) + bcrypt
+- **Auth**: JWT (jsonwebtoken, HS256) + bcrypt (12 rounds)
+- **Security**: Helmet.js, rate limiting, CORS whitelist, XSS escaping
 - **Build**: Vite 6
 - **Theme**: Dark / Light mode with session persistence
 - **i18n**: English, Hindi, Gujarati (JSON-based, zero dependencies)
@@ -73,15 +74,17 @@ psql -U postgres -c "CREATE DATABASE splendor_erp;"
 
 ### Environment Config
 
-Create `.env` in the project root:
+Create `.env` in the project root (never commit this file):
 
 ```env
 DATABASE_URL=postgresql://postgres:your_password@localhost:5432/splendor_erp
-JWT_SECRET=your-secret-key-change-in-production
-JWT_EXPIRES_IN=7d
+JWT_SECRET=your-secret-key-minimum-32-characters-long
 SUPER_ADMIN_EMAIL=admin@yourdomain.com
 SUPER_ADMIN_PASSWORD=your_secure_password
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
 ```
+
+> **Required**: `DATABASE_URL` and `JWT_SECRET` must be set — the app will not start without them.
 
 ### Running
 
@@ -312,9 +315,20 @@ Server middleware validates token + resolves tenant
 
 ### Password Security
 
-- bcrypt with salt rounds
-- Minimum 6 character enforcement
-- Change password with current password verification
+- bcrypt with 12 salt rounds
+- Minimum 8 character enforcement
+- Change password requires current password + JWT auth
+- Rate limited: 5 attempts per 15 minutes
+
+### Security Features
+
+- **Helmet.js** — X-Content-Type-Options, X-Frame-Options, HSTS headers
+- **Rate Limiting** — Login: 10 attempts/15min, Password change: 5 attempts/15min
+- **CORS Whitelist** — Restricted origins in production (configurable via `ALLOWED_ORIGINS`)
+- **XSS Prevention** — All user input HTML-escaped in bill templates, no `dangerouslySetInnerHTML`
+- **JWT Pinning** — Algorithm locked to HS256, no fallback secrets
+- **Tenant Isolation** — Auth middleware on all profile/settings routes, userId verified against JWT
+- **No Hardcoded Secrets** — App refuses to start without `JWT_SECRET` and `DATABASE_URL`
 
 ## API
 

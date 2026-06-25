@@ -52,10 +52,19 @@ export function ChatWidget() {
 
   const formatText = (text: string) => {
     return text.split('\n').map((line, i) => {
-      const formatted = line
-        .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
-        .replace(/₹([\d,]+)/g, '<span style="color:#F27D26;font-weight:600;">₹$1</span>');
-      return <p key={i} className={cn("text-sm", line === '' && "h-2")} dangerouslySetInnerHTML={{ __html: formatted }} />;
+      if (line === '') return <p key={i} className="h-2" />;
+      const parts: React.ReactNode[] = [];
+      let last = 0;
+      const regex = /\*([^*]+)\*|₹([\d,]+)/g;
+      let m: RegExpExecArray | null;
+      while ((m = regex.exec(line)) !== null) {
+        if (m.index > last) parts.push(line.slice(last, m.index));
+        if (m[1]) parts.push(<strong key={`${i}-${m.index}`}>{m[1]}</strong>);
+        else if (m[2]) parts.push(<span key={`${i}-${m.index}`} style={{ color: '#F27D26', fontWeight: 600 }}>₹{m[2]}</span>);
+        last = regex.lastIndex;
+      }
+      if (last < line.length) parts.push(line.slice(last));
+      return <p key={i} className="text-sm">{parts}</p>;
     });
   };
 

@@ -44,6 +44,8 @@ Complete technical reference for developers working on this codebase.
 | Bill customization API | `server/routes/bill-settings.ts` |
 | Bill customization UI | `src/features/settings/SettingsView.tsx` → `BillCustomizationSection` |
 | Chatbot engine | `server/routes/chatbot.ts` |
+| Security middleware | `server/index.ts` → helmet, rate limiting, CORS |
+| HTML escaping (XSS) | `src/lib/billTemplates.ts` → `esc()` function |
 | Dark mode CSS | `src/index.css` (html.dark rules) |
 | Language translations | `src/i18n/en.json`, `hi.json`, `gu.json` |
 | Language context + hook | `src/i18n/index.tsx` → `LanguageProvider`, `useTranslation` |
@@ -283,16 +285,32 @@ Super admin tokens have NO `tenantId` and `role: "super_admin"`.
 ### Middleware Usage
 
 ```typescript
-import { authMiddleware, superAdminMiddleware } from '../middleware/auth';
+import { authMiddleware, superAdminMiddleware, AuthRequest } from '../middleware/auth';
 
-// Protect tenant routes
-router.get('/api/products', authMiddleware, async (req, res) => {
-  const tenantId = req.user.tenantId;
+// Protect tenant routes — always use req.tenantId from JWT, never x-tenant-id header
+router.get('/api/products', authMiddleware, async (req: AuthRequest, res) => {
+  const tenantId = req.tenantId; // From JWT, not header
 });
 
 // Protect super admin routes
 router.get('/api/super-admin/tenants', superAdminMiddleware, async (req, res) => {});
+
+// Profile routes must verify userId matches JWT
+router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res) => {
+  if (req.query.userId !== req.user?.userId) return res.status(403).json({ error: 'Access denied' });
+});
 ```
+
+### Security Middleware Stack
+
+```
+Request → Helmet (security headers) → CORS check → Rate limiter → Auth middleware → Route handler
+```
+
+- **Helmet**: X-Content-Type-Options, X-Frame-Options, HSTS, etc.
+- **Rate Limiting**: Login (10/15min), Password change (5/15min)
+- **CORS**: Whitelist via `ALLOWED_ORIGINS` env var (permissive in dev, strict in production)
+- **Auth**: JWT verification with HS256 algorithm pinning
 
 ### Frontend Token Handling
 
@@ -687,8 +705,12 @@ if (/your\s*pattern/.test(q)) {
 
 | Problem | Solution |
 |---|---|
+| Server exits with "FATAL: JWT_SECRET required" | Set `JWT_SECRET` in `.env` file |
+| Server exits with "DATABASE_URL required" | Set `DATABASE_URL` in `.env` file |
 | "Tenant ID required" error | Check `sessionStorage` has `tenant_id`; check `api.ts` sends `X-Tenant-ID` header |
 | "Invalid or expired token" | JWT expired (7 days). Re-login |
+| "Too many login attempts" | Rate limited — wait 15 minutes or restart server |
+| "Access denied" on profile | userId in request doesn't match JWT — re-login |
 | Server won't start — "connection refused" | PostgreSQL not running. `pg_isready -h localhost -p 5432` to check |
 | Super admin login page not showing at `/admin` | Vite dev server must be running; check `window.location.pathname` routing in App.tsx |
 | Dark mode not applying | Check `html` element has class `dark`; check `sessionStorage` for `dg_erp_theme` |
@@ -704,11 +726,11 @@ if (/your\s*pattern/.test(q)) {
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `DATABASE_URL` | Yes | `postgresql://postgres:1234@localhost:5432/splendor_erp` | PostgreSQL connection string |
-| `JWT_SECRET` | Yes | (hardcoded fallback) | Secret key for JWT signing. **Change in production!** |
-| `JWT_EXPIRES_IN` | No | `7d` | Token expiry duration |
+| `DATABASE_URL` | **Yes** | None — app exits without it | PostgreSQL connection string |
+| `JWT_SECRET` | **Yes** | None — app exits without it | Secret key for JWT signing (min 32 chars) |
 | `SUPER_ADMIN_EMAIL` | No | `admin@spre.ai` | Platform owner email (created on first run) |
 | `SUPER_ADMIN_PASSWORD` | No | `superadmin123` | Platform owner password (created on first run) |
+| `ALLOWED_ORIGINS` | No | `http://localhost:3000,3001` | Comma-separated CORS origins (strict in production) |
 | `PORT` | No | `3001` | API server port |
 
 ---
@@ -769,6 +791,9 @@ CMD ["node", "dist/server/index.js"]
 - **Error handling** — try/catch in every route handler
 - **Tenant scoping** — EVERY query MUST include `tenant_id`
 - **No raw SQL interpolation** — always `$1, $2` parameterized queries
+- **HTML escape user input** — use `esc()` in bill templates, no `dangerouslySetInnerHTML`
+- **No hardcoded secrets** — all secrets via environment variables, no fallbacks
+- **Auth on all routes** — use `authMiddleware` + verify `req.user.userId` on sensitive endpoints
 - **Base64 for images** — no file system storage, no multer
 - **sessionStorage** — not localStorage (per-tab isolation)
 

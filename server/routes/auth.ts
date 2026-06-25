@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { pool } from '../pg-db';
-import { generateToken } from '../middleware/auth';
+import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -90,13 +90,12 @@ router.post('/api/auth/login', async (req, res) => {
   }
 });
 
-router.get('/api/settings/profile', async (req, res) => {
+router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
+    const tenantId = req.tenantId;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-
-    const { userId } = req.query;
-    if (!userId) return res.status(400).json({ error: 'userId required' });
+    const userId = req.query.userId as string || req.user?.userId;
+    if (!userId || userId !== req.user?.userId) return res.status(403).json({ error: 'Access denied' });
 
     const row = (await pool.query('SELECT id, email, name, phone, address, role, company_name, permissions, vendor_id, auto_whatsapp, default_gst_rate, gst_number FROM users WHERE id = $1 AND tenant_id = $2', [userId, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'User not found' });
@@ -107,13 +106,12 @@ router.get('/api/settings/profile', async (req, res) => {
   }
 });
 
-router.put('/api/settings/profile', async (req, res) => {
+router.put('/api/settings/profile', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
+    const tenantId = req.tenantId;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-
     const { userId, name, phone, address, companyName, autoWhatsapp, gstNumber } = req.body;
-    if (!userId) return res.status(400).json({ error: 'userId required' });
+    if (!userId || userId !== req.user?.userId) return res.status(403).json({ error: 'Access denied' });
 
     await pool.query(`
       UPDATE users SET name = COALESCE($1, name), phone = COALESCE($2, phone), address = COALESCE($3, address), company_name = COALESCE($4, company_name) WHERE id = $5 AND tenant_id = $6
@@ -139,14 +137,14 @@ router.put('/api/settings/profile', async (req, res) => {
   }
 });
 
-router.put('/api/settings/change-password', async (req, res) => {
+router.put('/api/settings/change-password', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
+    const tenantId = req.tenantId;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-
     const { userId, currentPassword, newPassword } = req.body;
-    if (!userId || !currentPassword || !newPassword) return res.status(400).json({ error: 'All fields required' });
-    if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    if (!userId || userId !== req.user?.userId) return res.status(403).json({ error: 'Access denied' });
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'All fields required' });
+    if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
     const user = (await pool.query('SELECT id, password_hash FROM users WHERE id = $1 AND tenant_id = $2', [userId, tenantId])).rows[0] as { id: string; password_hash: string } | undefined;
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -155,7 +153,7 @@ router.put('/api/settings/change-password', async (req, res) => {
       return res.status(401).json({ error: 'Current password is incorrect' });
     }
 
-    const newHash = bcrypt.hashSync(newPassword, 10);
+    const newHash = bcrypt.hashSync(newPassword, 12);
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3', [newHash, userId, tenantId]);
     res.json({ ok: true });
   } catch (err) {

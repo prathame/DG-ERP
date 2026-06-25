@@ -52,7 +52,7 @@ function rowToResponse(row: Record<string, unknown>) {
 
 router.get('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const tenantId = req.tenantId || req.headers['x-tenant-id'] as string;
+    const tenantId = req.tenantId;
     if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
 
     const { rows } = await pool.query('SELECT * FROM bill_settings WHERE tenant_id = $1', [tenantId]);
@@ -64,7 +64,7 @@ router.get('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
 
 router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const tenantId = req.tenantId || req.headers['x-tenant-id'] as string;
+    const tenantId = req.tenantId;
     if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
 
     const role = req.user?.role;

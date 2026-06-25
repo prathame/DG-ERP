@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:1234@localhost:5432/splendor_erp',
+  connectionString: process.env.DATABASE_URL,
   max: 20,
   idleTimeoutMillis: 30000,
 });
