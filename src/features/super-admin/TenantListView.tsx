@@ -434,12 +434,13 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Password (Optional)</label>
               <input
-                type="password"
+                type="text"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
-                placeholder="Leave blank to auto-generate"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent font-mono"
+                placeholder={form.companyName ? `${form.companyName.replace(/\s+/g, '').toLowerCase().slice(0, 12)}@123` : 'Auto-generated if blank'}
               />
+              <p className="text-[10px] text-gray-400 mt-1">Leave blank to auto-generate: {form.companyName ? `${form.companyName.replace(/\s+/g, '').toLowerCase().slice(0, 12)}@123` : 'companyname@123'}</p>
             </div>
             {error && <p className="text-sm text-rose-500">{error}</p>}
             <div className="flex gap-3 pt-2">
