@@ -115,20 +115,21 @@ export function PlanManagementView() {
             className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
           >
             <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center">
-                    <CreditCard size={20} className="text-[#F27D26]" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 capitalize">{plan.name}</h3>
-                    <p className="text-xs text-gray-500">{plan.tenantCount} tenants</p>
-                  </div>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center shrink-0">
+                  <CreditCard size={20} className="text-[#F27D26]" />
                 </div>
-                <p className="text-xl font-bold text-[#F27D26]">
-                  ₹{(plan.priceMonthly ?? 0).toLocaleString()}<span className="text-xs text-gray-400 font-normal">/mo</span>
-                  {plan.priceYearly > 0 && <span className="text-xs text-gray-400 font-normal ml-1">(₹{plan.priceYearly.toLocaleString()}/yr)</span>}
-                </p>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold text-gray-900 capitalize truncate">{plan.name}</h3>
+                  <p className="text-xs text-gray-500">{plan.tenantCount} tenants</p>
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2 mb-4">
+                <span className="text-2xl font-bold text-[#F27D26]">₹{(plan.priceMonthly ?? 0).toLocaleString()}</span>
+                <span className="text-sm text-gray-400">/month</span>
+                {plan.priceYearly > 0 && (
+                  <span className="text-xs text-gray-400 ml-auto">₹{plan.priceYearly.toLocaleString()}/year</span>
+                )}
               </div>
 
               {/* Limits */}
