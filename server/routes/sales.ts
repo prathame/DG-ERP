@@ -207,13 +207,13 @@ router.get('/api/sales/:id/bill', async (req, res) => {
 
     const { id } = req.params;
     const sale = (await pool.query(`
-      SELECT ps.*, p.name as product_name, p.category_id, p.warranty_months, p.price as product_price,
+      SELECT ps.*, p.name as product_name, p.warranty_months, p.price as product_price,
              p.description as product_description, p.batch_number, p.hsn_code, p.gst_rate,
              c.name as category_name,
              v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address
       FROM product_sales ps
       JOIN products p ON ps.product_id = p.id AND p.tenant_id = $2
-      LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = $2
+      
       LEFT JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $2
       WHERE ps.id = $1 AND ps.tenant_id = $2
     `, [id, tenantId])).rows[0] as Record<string, unknown> | undefined;

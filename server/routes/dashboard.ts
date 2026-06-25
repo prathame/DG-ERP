@@ -123,14 +123,14 @@ router.get('/api/dashboard/rewards-summary', async (req, res) => {
       ORDER BY v.total_reward_points DESC
     `, [tenantId])).rows as { id: string; name: string; products_sold: number; total_reward_points: number }[];
 
-    const categorySales = (await pool.query(`
-      SELECT p.category_id, c.name as category_name, COUNT(ps.id) as sold
+    const productSales = (await pool.query(`
+      SELECT p.name as product_name, COUNT(ps.id) as sold
       FROM product_sales ps
-      JOIN products p ON ps.product_id = p.id
-      LEFT JOIN categories c ON p.category_id = c.id
+      JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1
       WHERE ps.tenant_id = $1
-      GROUP BY p.category_id, c.name
-    `, [tenantId])).rows as { category_id: string | null; category_name: string | null; sold: number }[];
+      GROUP BY p.name
+      ORDER BY sold DESC
+    `, [tenantId])).rows as { product_name: string; sold: number }[];
 
     res.json({
       vendorSummaries: rows.map((r) => ({
@@ -139,9 +139,9 @@ router.get('/api/dashboard/rewards-summary', async (req, res) => {
         productsSold: r.products_sold,
         totalRewardPoints: r.total_reward_points,
       })),
-      categoryWiseSales: categorySales.map((c) => ({
-        categoryId: c.category_id,
-        categoryName: c.category_name ?? 'Uncategorized',
+      categoryWiseSales: productSales.map((c) => ({
+        categoryId: null,
+        categoryName: c.product_name,
         sold: c.sold,
       })),
     });
@@ -175,13 +175,13 @@ router.get('/api/dashboard/vendor/:vendorId', async (req, res) => {
     `, [vendorId, tenantId])).rows as Record<string, unknown>[];
 
     const categorySales = (await pool.query(`
-      SELECT p.category_id, c.name as category_name, COUNT(ps.id) as sold
+      SELECT p.name as product_name, COUNT(ps.id) as sold
       FROM product_sales ps
-      JOIN products p ON ps.product_id = p.id
-      LEFT JOIN categories c ON p.category_id = c.id
+      JOIN products p ON ps.product_id = p.id AND p.tenant_id = $2
       WHERE ps.vendor_id = $1 AND ps.tenant_id = $2
-      GROUP BY p.category_id, c.name
-    `, [vendorId, tenantId])).rows as { category_id: string | null; category_name: string | null; sold: number }[];
+      GROUP BY p.name
+      ORDER BY sold DESC
+    `, [vendorId, tenantId])).rows as { product_name: string; sold: number }[];
 
     res.json({
       vendor: {
@@ -204,7 +204,7 @@ router.get('/api/dashboard/vendor/:vendorId', async (req, res) => {
         rewardPointsEarned: s.reward_points_earned,
       })),
       categoryWiseSales: categorySales.map((c) => ({
-        categoryName: c.category_name ?? 'Uncategorized',
+        categoryName: c.product_name,
         sold: c.sold,
       })),
     });

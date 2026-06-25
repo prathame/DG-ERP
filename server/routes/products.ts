@@ -85,14 +85,14 @@ router.get('/api/products', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { search } = req.query;
-    let sql = `SELECT p.*, c.name as category_name,
+    let sql = `SELECT p.*,
       (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.tenant_id = $1) as total_inv,
       (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as inv_stock,
       (SELECT COUNT(*) FROM product_sales ps WHERE ps.product_id = p.id AND ps.tenant_id = $1) as sold_count,
       (SELECT COUNT(*) FROM product_distribution pd WHERE pd.product_id = p.id AND pd.status = 'Distributed' AND pd.tenant_id = $1) as with_vendors,
       (SELECT MIN(barcode) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.tenant_id = $1) as barcode_first,
       (SELECT MAX(barcode) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.tenant_id = $1) as barcode_last
-      FROM products p LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = $1 WHERE p.tenant_id = $1`;
+      FROM products p WHERE p.tenant_id = $1`;
     const params: string[] = [tenantId];
     if (typeof search === 'string' && search) {
       const nextIdx = params.length + 1;
@@ -148,17 +148,17 @@ router.get('/api/products/by-barcode/:barcode', async (req, res) => {
 
     const { barcode } = req.params;
     let row = (await pool.query(`
-      SELECT p.*, c.name as category_name,
+      SELECT p.*,
       (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as inv_stock
-      FROM products p LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = $1
+      FROM products p
       JOIN product_inventory pi ON pi.product_id = p.id AND pi.barcode = $2 AND pi.status = 'InStock' AND pi.tenant_id = $1
       WHERE p.tenant_id = $1
     `, [tenantId, barcode])).rows[0] as Record<string, unknown> | undefined;
     if (!row) {
       row = (await pool.query(`
-        SELECT p.*, c.name as category_name,
+        SELECT p.*,
         (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as inv_stock
-        FROM products p LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = $1 WHERE p.barcode = $2 AND p.tenant_id = $1
+        FROM products p WHERE p.barcode = $2 AND p.tenant_id = $1
       `, [tenantId, barcode])).rows[0] as Record<string, unknown> | undefined;
     }
     if (!row) return res.status(404).json({ error: 'Product not found' });
@@ -173,17 +173,15 @@ router.post('/api/products', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const { name, barcode, categoryId, category, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix } = req.body;
+    const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix } = req.body;
     const id = `P${Date.now()}`;
-    const catId = categoryId || null;
-    const cols = 'id, name, barcode, category_id, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id';
     let invStock = 0;
     const mode = barcodeMode ?? 'prefix';
 
     const insertProductRow = async () => {
       await pool.query(
-        `INSERT INTO products (${cols}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-        [id, name, null, catId, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, 0, tenantId]
+        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [id, name, null, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, 0, tenantId]
       );
     };
     const insertBarcodes = async (barcodes: string[]) => {
@@ -222,13 +220,13 @@ router.post('/api/products', async (req, res) => {
       await insertBarcodes(barcodes);
     } else {
       await pool.query(
-        `INSERT INTO products (${cols}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-        [id, name, barcode || null, catId, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, stock ?? 0, tenantId]
+        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [id, name, barcode || null, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, stock ?? 0, tenantId]
       );
       invStock = stock ?? 0;
     }
     const row = (await pool.query(
-      'SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = $1 WHERE p.id = $2 AND p.tenant_id = $1',
+      'SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1',
       [tenantId, id]
     )).rows[0] as Record<string, unknown>;
     res.status(201).json(mapProduct({ ...row, stock: invStock }));
@@ -295,7 +293,7 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
     }
     const count = (await pool.query('SELECT COUNT(*) as c FROM product_inventory WHERE product_id = $1 AND status = $2 AND tenant_id = $3', [id, 'InStock', tenantId])).rows[0] as { c: number };
     const row = (await pool.query(
-      'SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = $1 WHERE p.id = $2 AND p.tenant_id = $1',
+      'SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1',
       [tenantId, id]
     )).rows[0] as Record<string, unknown>;
     res.status(201).json(mapProduct({ ...row, stock: count.c }));
@@ -310,7 +308,7 @@ router.put('/api/products/:id', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const { name, barcode, categoryId, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price } = req.body;
+    const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price } = req.body;
     const row = (await pool.query('SELECT * FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'Product not found' });
     const newBarcode = barcode === undefined ? row.barcode : (barcode || null);
@@ -318,18 +316,17 @@ router.put('/api/products/:id', async (req, res) => {
       UPDATE products SET
         name = COALESCE($1, name),
         barcode = $2,
-        category_id = COALESCE($3, category_id),
-        description = COALESCE($4, description),
-        reward_points_value = COALESCE($5, reward_points_value),
-        manufacturing_date = $6,
-        batch_number = $7,
-        status = COALESCE($8, status),
-        warranty_months = COALESCE($9, warranty_months),
-        price = COALESCE($10, price)
-      WHERE id = $11 AND tenant_id = $12
-    `, [name, newBarcode, categoryId ?? row.category_id, description ?? row.description, rewardPointsValue ?? row.reward_points_value, manufacturingDate ?? row.manufacturing_date, batchNumber ?? row.batch_number, status ?? row.status, warrantyMonths ?? row.warranty_months, price ?? row.price, id, tenantId]);
+        description = COALESCE($3, description),
+        reward_points_value = COALESCE($4, reward_points_value),
+        manufacturing_date = $5,
+        batch_number = $6,
+        status = COALESCE($7, status),
+        warranty_months = COALESCE($8, warranty_months),
+        price = COALESCE($9, price)
+      WHERE id = $10 AND tenant_id = $11
+    `, [name, newBarcode, description ?? row.description, rewardPointsValue ?? row.reward_points_value, manufacturingDate ?? row.manufacturing_date, batchNumber ?? row.batch_number, status ?? row.status, warrantyMonths ?? row.warranty_months, price ?? row.price, id, tenantId]);
     const updated = (await pool.query(
-      'SELECT p.*, c.name as category_name, (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = $1 AND pi.tenant_id = $2) as inv_stock FROM products p LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = $2 WHERE p.id = $3 AND p.tenant_id = $2',
+      'SELECT p.*, (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = $1 AND pi.tenant_id = $2) as inv_stock FROM products p WHERE p.id = $3 AND p.tenant_id = $2',
       ['InStock', tenantId, id]
     )).rows[0] as Record<string, unknown>;
     res.json(mapProduct({ ...updated, stock: (updated.inv_stock as number) ?? updated.stock ?? 0 }));

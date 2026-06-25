@@ -459,12 +459,12 @@ router.get('/api/distribution/bill', async (req, res) => {
     if (!vendorId && !batchId) return res.status(400).json({ error: 'vendorId or batchId is required' });
     let sql = `
       SELECT pd.id, pd.batch_id, pd.barcode, pd.distribution_date, pd.status, pd.discount_percent, pd.net_price, pd.billed_price, pd.gst_applied,
-             pd.product_id, p.name as product_name, p.price, p.category_id, p.batch_number,
+             pd.product_id, p.name as product_name, p.price, p.batch_number,
              c.name as category_name,
              v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
-      LEFT JOIN categories c ON p.category_id = c.id AND c.tenant_id = $1
+      
       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
       WHERE pd.tenant_id = $1
     `;
