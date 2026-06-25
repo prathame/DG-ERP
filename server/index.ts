@@ -6,7 +6,7 @@ dotenv.config();
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
-import { initDatabase } from './pg-db';
+import { initDatabase, pool } from './pg-db';
 
 import superAdminRouter from './routes/super-admin';
 import productsRouter from './routes/products';
@@ -55,6 +55,40 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { e
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/super-admin/login', loginLimiter);
 app.use('/api/settings/change-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: 'Too many password change attempts' } }));
+
+// Dynamic PWA manifest — serves tenant-specific start_url and branding
+app.get('/manifest.json', async (req, res) => {
+  const referer = req.headers.referer || '';
+  const slugMatch = referer.match(/\/([a-z0-9][a-z0-9-]*[a-z0-9])$/i) || referer.match(/\/([a-z0-9]+)$/i);
+  const slug = slugMatch ? slugMatch[1].toLowerCase() : null;
+
+  let name = 'DG ERP Management';
+  let shortName = 'DG ERP';
+  let startUrl = '/';
+
+  if (slug && slug !== 'admin' && slug !== 'privacy' && slug !== 'terms') {
+    try {
+      const tenant = (await pool.query('SELECT company_name FROM tenants WHERE slug = $1', [slug])).rows[0] as { company_name: string } | undefined;
+      if (tenant) {
+        name = tenant.company_name;
+        shortName = tenant.company_name.substring(0, 12);
+        startUrl = `/${slug}`;
+      }
+    } catch {}
+  }
+
+  res.json({
+    name, short_name: shortName,
+    description: 'ERP for Inventory, Sales, Distribution & Billing',
+    start_url: startUrl, display: 'standalone',
+    background_color: '#151619', theme_color: '#F27D26', orientation: 'any',
+    icons: [
+      { src: '/icons/icon-192.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
+      { src: '/icons/icon-512.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
+    ],
+    categories: ['business', 'productivity'], lang: 'en',
+  });
+});
 
 // Serve static files in production (only if dist exists)
 const distPath = path.join(process.cwd(), 'dist');
