@@ -164,7 +164,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
                   <td className="px-4 py-3 font-medium text-gray-900">{t.companyName}</td>
                   <td className="px-4 py-3 text-gray-600">{t.adminEmail}</td>
                   <td className="px-4 py-3">
-                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 capitalize">{t.plan}</span>
+                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 capitalize">{t.planName || t.planId || 'N/A'}</span>
                   </td>
                   <td className="px-4 py-3">{statusBadge(t.status)}</td>
                   <td className="px-4 py-3 text-right text-gray-600">{t.users}</td>

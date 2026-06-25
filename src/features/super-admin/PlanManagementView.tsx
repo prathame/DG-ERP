@@ -227,7 +227,7 @@ function PlanModal({ plan, onClose, onSaved }: {
       maxProducts: form.maxProducts,
       maxVendors: form.maxVendors,
       maxUsers: form.maxUsers,
-      price: form.price,
+      priceMonthly: form.price,
       features: {
         warranty: form.warranty,
         rewards: form.rewards,

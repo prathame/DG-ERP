@@ -47,7 +47,7 @@ interface TenantDetail {
     name: string;
     email: string;
     role: string;
-    lastLogin: string;
+    createdAt?: string;
   }[];
 }
 
@@ -68,7 +68,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then(setTenant)
+      .then((data) => setTenant({ ...data.tenant, stats: data.stats, users: data.users }))
       .catch(() => toast('Failed to load tenant', 'error'))
       .finally(() => setLoading(false));
   };
@@ -96,7 +96,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
       await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ plan: newPlan }),
+        body: JSON.stringify({ planId: newPlan }),
       });
       toast('Plan updated', 'success');
       setChangingPlan(false);
@@ -284,9 +284,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                 type="button"
                 onClick={async () => {
                   const token = sessionStorage.getItem('auth_token');
-                  const currentVal = (tenant as unknown as Record<string, unknown>).tenant
-                    ? ((tenant as unknown as Record<string, unknown>).tenant as Record<string, unknown>)[toggle.key] !== false
-                    : (tenant as unknown as Record<string, unknown>)[toggle.key] !== false;
+                  const currentVal = (tenant as Record<string, unknown>)[toggle.key] !== false;
                   try {
                     await fetch(`/api/super-admin/tenants/${tenantId}`, {
                       method: 'PUT',
@@ -297,19 +295,9 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                     toast(`${toggle.label} ${!currentVal ? 'enabled' : 'disabled'}`, 'success');
                   } catch { toast('Failed to update', 'error'); }
                 }}
-                className={cn("relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors", (() => {
-                  const val = (tenant as unknown as Record<string, unknown>).tenant
-                    ? ((tenant as unknown as Record<string, unknown>).tenant as Record<string, unknown>)[toggle.key] !== false
-                    : (tenant as unknown as Record<string, unknown>)[toggle.key] !== false;
-                  return val ? "bg-green-500" : "bg-gray-300";
-                })())}
+                className={cn("relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors", (tenant as Record<string, unknown>)[toggle.key] !== false ? "bg-green-500" : "bg-gray-300")}
               >
-                <span className={cn("pointer-events-none inline-block h-6 w-6 rounded-full bg-white shadow-md transform transition-transform", (() => {
-                  const val = (tenant as unknown as Record<string, unknown>).tenant
-                    ? ((tenant as unknown as Record<string, unknown>).tenant as Record<string, unknown>)[toggle.key] !== false
-                    : (tenant as unknown as Record<string, unknown>)[toggle.key] !== false;
-                  return val ? "translate-x-5" : "translate-x-0";
-                })())} />
+                <span className={cn("pointer-events-none inline-block h-6 w-6 rounded-full bg-white shadow-md transform transition-transform", (tenant as Record<string, unknown>)[toggle.key] !== false ? "translate-x-5" : "translate-x-0")} />
               </button>
             </div>
           ))}
@@ -329,7 +317,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                 <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">Name</th>
                 <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">Email</th>
                 <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">Role</th>
-                <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">Last Login</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">Created</th>
               </tr>
             </thead>
             <tbody>
@@ -346,7 +334,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                     <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">{u.role}</span>
                   </td>
                   <td className="px-4 py-3 text-gray-500">
-                    {u.lastLogin ? new Date(u.lastLogin).toLocaleString() : 'Never'}
+                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
                   </td>
                 </tr>
               ))}
