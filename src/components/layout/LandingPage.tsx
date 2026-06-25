@@ -1,8 +1,9 @@
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Package, ShoppingCart, Truck, Receipt, IndianRupee, MessageSquare,
   Palette, Moon, ShieldCheck, BarChart3, Users, Zap,
-  ArrowRight, Check, Star,
+  ArrowRight, Check, Star, Mail, Phone, Send, MessageCircle,
 } from 'lucide-react';
 
 const FEATURES = [
@@ -29,6 +30,69 @@ const PLANS = [
   { name: 'Enterprise', price: '₹9,999', period: '/month', features: ['Unlimited Products', 'Unlimited Vendors', 'Unlimited Users', 'Chatbot + API + Priority Support'], highlight: false },
 ];
 
+function EnquiryForm() {
+  const [form, setForm] = useState({ name: '', email: '', phone: '', company: '', message: '' });
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSending(true);
+    const subject = encodeURIComponent(`DG ERP Enquiry from ${form.name} — ${form.company || 'N/A'}`);
+    const body = encodeURIComponent(
+      `Name: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone || 'N/A'}\nCompany: ${form.company || 'N/A'}\n\nMessage:\n${form.message}`
+    );
+    window.open(`mailto:patelprathamesh007@gmail.com?subject=${subject}&body=${body}`, '_self');
+    setTimeout(() => { setSent(true); setSending(false); }, 500);
+  };
+
+  if (sent) {
+    return (
+      <div className="p-8 bg-white/[0.03] border border-white/5 rounded-2xl text-center">
+        <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4"><Check size={32} className="text-green-500" /></div>
+        <h3 className="font-bold text-xl mb-2">Thank You!</h3>
+        <p className="text-gray-400 text-sm mb-4">Your email client should have opened with the enquiry. If not, email us directly at:</p>
+        <a href="mailto:patelprathamesh007@gmail.com" className="text-[#F27D26] font-medium hover:underline">patelprathamesh007@gmail.com</a>
+        <div className="mt-6">
+          <button type="button" onClick={() => { setSent(false); setForm({ name: '', email: '', phone: '', company: '', message: '' }); }} className="text-sm text-gray-500 hover:text-white transition-colors">Send another enquiry</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="p-8 bg-white/[0.03] border border-white/5 rounded-2xl space-y-4">
+      <h3 className="font-bold text-lg mb-1">Send Enquiry</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Name *</label>
+          <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-2 focus:ring-[#F27D26] focus:border-transparent" placeholder="Your name" />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Email *</label>
+          <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-2 focus:ring-[#F27D26] focus:border-transparent" placeholder="you@example.com" />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Phone</label>
+          <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-2 focus:ring-[#F27D26] focus:border-transparent" placeholder="+91 98765 43210" />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Company Name</label>
+          <input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-2 focus:ring-[#F27D26] focus:border-transparent" placeholder="Your Company Ltd." />
+        </div>
+      </div>
+      <div>
+        <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Message *</label>
+        <textarea required rows={4} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-2 focus:ring-[#F27D26] focus:border-transparent resize-none" placeholder="Tell us about your business and what you're looking for..." />
+      </div>
+      <button type="submit" disabled={sending} className="w-full py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+        <Send size={18} /> {sending ? 'Sending...' : 'Send Enquiry'}
+      </button>
+      <p className="text-xs text-gray-600 text-center">Or WhatsApp us directly at <a href="https://wa.me/918806907616?text=Hi%2C%20I%20want%20to%20know%20more%20about%20DG%20ERP" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:underline">+91 88069 07616</a></p>
+    </form>
+  );
+}
+
 export function LandingPage() {
   return (
     <div className="min-h-screen bg-[#0A0B0D] text-white overflow-x-hidden">
@@ -40,7 +104,9 @@ export function LandingPage() {
             <span className="font-bold text-lg">DG ERP</span>
           </div>
           <div className="flex items-center gap-3">
-            <a href="/admin" className="px-5 py-2 text-sm font-semibold text-gray-400 hover:text-white transition-colors">Admin Login</a>
+            <a href="#features" className="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition-colors hidden md:block">Features</a>
+            <a href="#contact" className="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition-colors hidden md:block">Contact</a>
+            <a href="/admin" className="px-5 py-2 text-sm font-semibold bg-white/5 border border-white/10 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-colors">Admin Login</a>
           </div>
         </div>
       </nav>
@@ -183,32 +249,64 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-24 px-6">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="p-12 bg-gradient-to-br from-[#F27D26]/10 to-purple-900/10 border border-white/5 rounded-3xl">
-            <BarChart3 size={40} className="text-[#F27D26] mx-auto mb-4" />
-            <h2 className="text-3xl font-bold mb-3">Ready to Manage Your Business?</h2>
-            <p className="text-gray-400 mb-8">Contact us to get your company onboarded with a branded ERP portal</p>
-            <a href="/admin" className="inline-flex items-center gap-2 px-8 py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-all shadow-lg shadow-[#F27D26]/20">
-              Admin Portal <ArrowRight size={18} />
-            </a>
+      {/* Contact / Enquiry */}
+      <section id="contact" className="py-24 px-6 bg-white/[0.02]">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold">Contact Us</h2>
+            <p className="mt-3 text-gray-400 text-lg">Get in touch to onboard your company</p>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
+            {/* Contact Info */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="p-6 bg-white/[0.03] border border-white/5 rounded-2xl space-y-5">
+                <h3 className="font-bold text-lg mb-1">Get In Touch</h3>
+                <p className="text-sm text-gray-500">Have questions about DG ERP? Want to onboard your company? Reach out to us.</p>
+                <div className="space-y-4 pt-2">
+                  <a href="mailto:patelprathamesh007@gmail.com" className="flex items-center gap-3 text-sm text-gray-400 hover:text-[#F27D26] transition-colors">
+                    <div className="w-10 h-10 bg-[#F27D26]/10 rounded-xl flex items-center justify-center shrink-0"><Mail size={18} className="text-[#F27D26]" /></div>
+                    <div><p className="text-xs text-gray-600">Email</p><p className="text-white text-sm">patelprathamesh007@gmail.com</p></div>
+                  </a>
+                  <a href="tel:+918806907616" className="flex items-center gap-3 text-sm text-gray-400 hover:text-[#F27D26] transition-colors">
+                    <div className="w-10 h-10 bg-[#F27D26]/10 rounded-xl flex items-center justify-center shrink-0"><Phone size={18} className="text-[#F27D26]" /></div>
+                    <div><p className="text-xs text-gray-600">Phone</p><p className="text-white text-sm">+91 88069 07616</p></div>
+                  </a>
+                  <a href="https://wa.me/918806907616?text=Hi%2C%20I%20want%20to%20know%20more%20about%20DG%20ERP" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm text-gray-400 hover:text-green-400 transition-colors">
+                    <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center shrink-0"><MessageCircle size={18} className="text-green-500" /></div>
+                    <div><p className="text-xs text-gray-600">WhatsApp</p><p className="text-white text-sm">+91 88069 07616</p></div>
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Enquiry Form */}
+            <div className="lg:col-span-3">
+              <EnquiryForm />
+            </div>
           </div>
         </div>
       </section>
 
       {/* Footer */}
       <footer className="border-t border-white/5 py-10 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-xs">DG</div>
-            <span className="font-bold">DG ERP Management</span>
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-xs">DG</div>
+              <span className="font-bold">DG ERP Management</span>
+            </div>
+            <div className="flex items-center gap-6 text-sm text-gray-500">
+              <a href="#features" className="hover:text-white transition-colors">Features</a>
+              <a href="#contact" className="hover:text-white transition-colors">Contact</a>
+              <a href="/admin" className="hover:text-white transition-colors">Admin</a>
+            </div>
+            <div className="flex items-center gap-4 text-gray-600">
+              <a href="mailto:patelprathamesh007@gmail.com" className="hover:text-[#F27D26] transition-colors"><Mail size={16} /></a>
+              <a href="tel:+918806907616" className="hover:text-[#F27D26] transition-colors"><Phone size={16} /></a>
+              <a href="https://wa.me/918806907616" target="_blank" rel="noopener noreferrer" className="hover:text-green-500 transition-colors"><MessageCircle size={16} /></a>
+            </div>
           </div>
-          <div className="flex items-center gap-6 text-sm text-gray-500">
-            <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="/admin" className="hover:text-white transition-colors">Admin</a>
-          </div>
-          <p className="text-xs text-gray-600">&copy; {new Date().getFullYear()} DG ERP Management. All rights reserved.</p>
+          <p className="text-xs text-gray-600 text-center mt-6">&copy; {new Date().getFullYear()} DG ERP Management. All rights reserved.</p>
         </div>
       </footer>
     </div>
