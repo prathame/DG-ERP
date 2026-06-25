@@ -430,20 +430,20 @@ export async function seedPlatformData() {
   }
 
   const plans = [
-    ['TRIAL', 'Trial', 20, 3, 2, 100, '{"warranty":true,"rewards":true,"finance":true,"chatbot":true}', 0, 0],
-    ['STARTER', 'Starter', 50, 5, 3, 500, '{"warranty":false,"rewards":false,"finance":true,"chatbot":false}', 999, 9999],
-    ['PRO', 'Professional', 500, 25, 15, 5000, '{"warranty":true,"rewards":true,"finance":true,"chatbot":false}', 2999, 29999],
-    ['ENTERPRISE', 'Enterprise', -1, -1, -1, -1, '{"warranty":true,"rewards":true,"finance":true,"chatbot":true}', 9999, 99999],
+    ['TRIAL', 'Trial', -1, -1, -1, -1, '{"warranty":true,"replacements":true,"rewards":true,"finance":true,"chatbot":true,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}', 0, 0],
+    ['BASIC', 'Basic', 50, 5, 3, 0, '{"warranty":false,"replacements":false,"rewards":false,"finance":true,"chatbot":false,"billCustomization":true,"multiLanguage":true,"vendorPortal":false,"barcodeSystem":false}', 0, 0],
+    ['STANDARD', 'Standard', 200, 15, 10, 5000, '{"warranty":false,"replacements":false,"rewards":false,"finance":true,"chatbot":false,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}', 0, 0],
+    ['PROFESSIONAL', 'Professional', -1, -1, -1, -1, '{"warranty":true,"replacements":true,"rewards":true,"finance":true,"chatbot":true,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}', 0, 0],
   ];
 
   for (const p of plans) {
     await pool.query(
       `INSERT INTO plans (id, name, max_products, max_vendors, max_users, max_barcodes, features, price_monthly, price_yearly)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO UPDATE SET name = $2, max_products = $3, max_vendors = $4, max_users = $5, max_barcodes = $6, features = $7`,
       p
     );
   }
-  console.log('✓ Plans seeded (Trial, Starter, Professional, Enterprise)');
+  console.log('✓ Plans seeded (Trial, Basic, Standard, Professional)');
 }
 
 export async function initDatabase() {

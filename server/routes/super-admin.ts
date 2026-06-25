@@ -193,6 +193,10 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     if (b.address !== undefined) { updates.push(`address = $${idx}`); params.push(b.address); idx++; }
     if (b.subscriptionEndsAt !== undefined) { updates.push(`subscription_ends_at = $${idx}`); params.push(b.subscriptionEndsAt || null); idx++; }
     if (b.gstNumber !== undefined) { updates.push(`gst_number = $${idx}`); params.push(b.gstNumber); idx++; }
+    // Auto-bundle: warranty OFF → replacement OFF, replacement ON → warranty ON
+    if (b.warrantyEnabled === false) b.replacementEnabled = false;
+    if (b.replacementEnabled === true && b.warrantyEnabled === undefined) b.warrantyEnabled = true;
+
     for (const [key, col] of Object.entries(toggleMap)) {
       if (b[key] !== undefined) { updates.push(`${col} = $${idx}`); params.push(!!b[key]); idx++; }
     }
