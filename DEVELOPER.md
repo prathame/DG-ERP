@@ -879,6 +879,18 @@ CMD ["node", "dist/server/index.js"]
 
 ---
 
+## Test Cases
+
+214 manual test cases in `tests/cases/` — one file per feature. See [tests/cases/README.md](tests/cases/README.md) for the full index.
+
+Run through all critical test cases before any production deployment:
+1. `tests/cases/security.md` — XSS, SQL injection, tenant isolation, JWT
+2. `tests/cases/cross-tenant.md` — Data isolation between tenants
+3. `tests/cases/auth-login.md` — Login, forgot password, rate limiting
+4. `tests/cases/super-admin.md` — Tenant CRUD, toggles, impersonation
+
+---
+
 ## Code Style & Conventions
 
 - **TypeScript strict** — all files are `.ts` / `.tsx`

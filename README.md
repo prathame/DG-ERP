@@ -414,6 +414,30 @@ npm start
 
 Compatible with: Railway, Render, AWS, DigitalOcean, Heroku, Vercel (API), any VPS.
 
+## Test Cases
+
+214 manual test cases organized by feature in `tests/cases/`:
+
+| File | Tests | Priority |
+|---|---|---|
+| [super-admin.md](tests/cases/super-admin.md) | 36 | Critical |
+| [auth-login.md](tests/cases/auth-login.md) | 15 | Critical |
+| [security.md](tests/cases/security.md) | 15 | Critical |
+| [cross-tenant.md](tests/cases/cross-tenant.md) | 7 | Critical |
+| [inventory.md](tests/cases/inventory.md) | 17 | High |
+| [verification.md](tests/cases/verification.md) | 17 | High |
+| [sales.md](tests/cases/sales.md) | 15 | High |
+| [distribution.md](tests/cases/distribution.md) | 9 | High |
+| [vendors.md](tests/cases/vendors.md) | 8 | High |
+| [pwa-mobile.md](tests/cases/pwa-mobile.md) | 10 | High |
+| [landing-page.md](tests/cases/landing-page.md) | 13 | Medium |
+| [bill-customization.md](tests/cases/bill-customization.md) | 12 | Medium |
+| [settings.md](tests/cases/settings.md) | 11 | Medium |
+| [finance.md](tests/cases/finance.md) | 6 | Medium |
+| [edge-cases.md](tests/cases/edge-cases.md) | 10 | Medium |
+| [multi-language.md](tests/cases/multi-language.md) | 6 | Low |
+| [chatbot.md](tests/cases/chatbot.md) | 7 | Low |
+
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.
