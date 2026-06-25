@@ -351,6 +351,32 @@ export default function App() {
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
         </div>
       </main>
+      {/* Mobile bottom nav */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 lg:hidden safe-bottom">
+        <div className="flex items-center justify-around px-1 py-1">
+          {visibleNavItems.slice(0, 5).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setActiveTab(item.id as Tab)}
+              className={cn("flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-lg min-w-[56px] transition-colors", activeTab === item.id ? "text-[#F27D26]" : "text-gray-400")}
+            >
+              <item.icon size={20} />
+              <span className="text-[9px] font-medium leading-tight">{item.label.split(' ')[0]}</span>
+            </button>
+          ))}
+          {visibleNavItems.length > 5 && (
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(true)}
+              className="flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-lg text-gray-400"
+            >
+              <Menu size={20} />
+              <span className="text-[9px] font-medium leading-tight">More</span>
+            </button>
+          )}
+        </div>
+      </nav>
       {ux?.chatbotEnabled !== false && <ChatWidget />}
     </div>
     </ToastProvider>

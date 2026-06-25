@@ -120,6 +120,15 @@ button {
   }
 }
 
+/* PWA safe area for iPhone notch + bottom nav spacing */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+@media (max-width: 1023px) {
+  main { padding-bottom: 70px !important; }
+}
+
 /* Hide app chrome when printing */
 @media print {
   body {

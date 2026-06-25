@@ -49,6 +49,10 @@ Complete technical reference for developers working on this codebase.
 | Audit log helper | `server/utils/helpers.ts` → `logAudit()` |
 | Super admin audit UI | `src/features/super-admin/SuperAdminAuditLog.tsx` |
 | HTML escaping (XSS) | `src/lib/billTemplates.ts` → `esc()` function |
+| PWA manifest | `public/manifest.json` |
+| Service worker | `public/sw.js` |
+| Offline page | `public/offline.html` |
+| App icons | `public/icons/icon-192.svg`, `icon-512.svg` |
 | Dark mode CSS | `src/index.css` (html.dark rules) |
 | Language translations | `src/i18n/en.json`, `hi.json`, `gu.json` |
 | Language context + hook | `src/i18n/index.tsx` → `LanguageProvider`, `useTranslation` |
@@ -892,6 +896,7 @@ CMD ["node", "dist/server/index.js"]
 - **Check feature toggles** — read `barcodeSystemEnabled` from sessionStorage before showing scanner/label features
 - **Base64 for images** — no file system storage, no multer
 - **sessionStorage** — not localStorage (per-tab isolation)
+- **PWA** — manifest.json + service worker for installable web app
 
 ---
 

@@ -289,7 +289,13 @@ Each tenant sees their own company name in the sidebar, browser tab, bills, What
 - Dark / Light mode toggle (Settings → Appearance)
 - Multi-language support: English, Hindi (हिन्दी), Gujarati (ગુજરાતી)
 
-### Mobile Ready
+### Mobile Ready (PWA)
+- **Progressive Web App** — install from browser, works like native app
+- Add to home screen with app icon, splash screen, full screen mode
+- Offline fallback page when no internet
+- Bottom navigation bar on mobile (top 5 tabs + "More")
+- iPhone safe area support (notch)
+- Camera barcode scanner works in PWA mode
 - Responsive UI with touch-friendly targets
 - JWT auth works for web + future mobile app
 - Same API serves all clients

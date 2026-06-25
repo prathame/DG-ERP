@@ -165,7 +165,16 @@ After login, walk through each section:
 5. Toggle **off** "Multi-Language" → language selector hidden in Settings
 6. Show all 7 toggles: Warranty, Replacement, Rewards, Finance, Chatbot, Bill Customization, Multi-Language
 
-## 17. Database Backup
+## 17. PWA — Install as App (Mobile)
+
+1. Open the tenant URL on **mobile Chrome** (e.g., `https://dg-erp.onrender.com/test`)
+2. Chrome shows **"Add to Home Screen"** banner (or tap ⋮ menu → "Add to Home Screen")
+3. App icon appears on phone home screen — tap to open
+4. Show it opens **full screen** (no browser bar, no tabs)
+5. Show the **bottom navigation bar** with 5 tabs + "More"
+6. Disconnect internet → show the **offline page** with "Retry" button
+
+## 18. Database Backup
 
 1. Go to tenant **Settings** → **Data Management**
 2. Click **Download Backup** — downloads a JSON file with all tenant data
