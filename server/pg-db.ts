@@ -431,9 +431,9 @@ export async function seedPlatformData() {
 
   const plans = [
     ['TRIAL', 'Trial', -1, -1, -1, -1, '{"warranty":true,"replacements":true,"rewards":true,"finance":true,"chatbot":true,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}', 0, 0],
-    ['BASIC', 'Basic', 50, 5, 3, 0, '{"warranty":false,"replacements":false,"rewards":false,"finance":true,"chatbot":false,"billCustomization":true,"multiLanguage":true,"vendorPortal":false,"barcodeSystem":false}', 0, 0],
-    ['STANDARD', 'Standard', 200, 15, 10, 5000, '{"warranty":false,"replacements":false,"rewards":false,"finance":true,"chatbot":false,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}', 0, 0],
-    ['PROFESSIONAL', 'Professional', -1, -1, -1, -1, '{"warranty":true,"replacements":true,"rewards":true,"finance":true,"chatbot":true,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}', 0, 0],
+    ['BASIC', 'Basic', 50, 5, 3, 0, '{"warranty":false,"replacements":false,"rewards":false,"finance":true,"chatbot":false,"billCustomization":true,"multiLanguage":true,"vendorPortal":false,"barcodeSystem":false}', 499, 4999],
+    ['STANDARD', 'Standard', 200, 15, 10, 5000, '{"warranty":false,"replacements":false,"rewards":false,"finance":true,"chatbot":false,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}', 999, 9999],
+    ['PROFESSIONAL', 'Professional', -1, -1, -1, -1, '{"warranty":true,"replacements":true,"rewards":true,"finance":true,"chatbot":true,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}', 1999, 19999],
   ];
 
   for (const p of plans) {
