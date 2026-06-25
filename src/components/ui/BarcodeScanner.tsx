@@ -9,8 +9,17 @@ interface BarcodeScannerProps {
 
 export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const [error, setError] = useState('');
+  const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannedRef = useRef(false);
   const containerId = 'barcode-scanner-container';
+
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().catch(() => {});
+      scannerRef.current = null;
+    }
+  };
 
   useEffect(() => {
     const scanner = new Html5Qrcode(containerId);
@@ -18,20 +27,27 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
 
     scanner.start(
       { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.5 },
+      { fps: 10, qrbox: { width: 250, height: 150 } },
       (decodedText) => {
-        scanner.stop().catch(() => {});
+        if (scannedRef.current) return;
+        scannedRef.current = true;
+        stopScanner();
         onScan(decodedText);
       },
       () => {}
-    ).catch((err) => {
+    ).then(() => {
+      setScanning(true);
+    }).catch((err) => {
       setError(err?.message || 'Camera access denied. Please allow camera permission.');
     });
 
-    return () => {
-      scanner.stop().catch(() => {});
-    };
+    return () => { stopScanner(); };
   }, []);
+
+  const handleClose = () => {
+    stopScanner();
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4">
@@ -40,8 +56,9 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
           <div className="flex items-center gap-2">
             <Camera size={18} className="text-[#F27D26]" />
             <h3 className="font-bold text-sm">Scan Barcode</h3>
+            {scanning && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
           </div>
-          <button onClick={() => { scannerRef.current?.stop().catch(() => {}); onClose(); }} className="p-1.5 hover:bg-gray-100 rounded-lg">
+          <button onClick={handleClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
             <X size={18} />
           </button>
         </div>
@@ -50,12 +67,13 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
             <div className="text-center py-8">
               <Camera size={40} className="text-gray-300 mx-auto mb-3" />
               <p className="text-sm text-rose-500 mb-2">{error}</p>
-              <p className="text-xs text-gray-400">Make sure camera permission is allowed in your browser settings.</p>
+              <p className="text-xs text-gray-400 mb-4">Make sure camera permission is allowed in your browser settings.</p>
+              <button onClick={handleClose} className="px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200">Close</button>
             </div>
           ) : (
             <>
-              <div id={containerId} className="rounded-xl overflow-hidden" />
-              <p className="text-xs text-gray-500 text-center mt-3">Point your camera at a barcode</p>
+              <div id={containerId} className="rounded-xl overflow-hidden" style={{ minHeight: '250px' }} />
+              <p className="text-xs text-gray-500 text-center mt-3">Point your camera at a barcode or QR code</p>
             </>
           )}
         </div>

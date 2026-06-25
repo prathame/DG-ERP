@@ -37,14 +37,18 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
       toast('Enter barcode', 'error');
       return;
     }
-    if (scannedCode) setBarcode(scannedCode);
+    if (scannedCode) {
+      setBarcode(scannedCode);
+      toast(`Scanned: ${scannedCode}`, 'success');
+    }
     setValidation(null);
     api.sales.validate(code, vendorId)
-.then((r) => {
+      .then((r) => {
         setValidation({ valid: r.valid, productName: r.productName, vendorName: r.vendorName, rewardPointsValue: r.rewardPointsValue, price: (r as { price?: number }).price, error: (r as { error?: string }).error });
         if (r.valid && (r as { price?: number }).price != null) setForm((f) => ({ ...f, salePrice: String((r as { price?: number }).price ?? '') }));
+        if (!r.valid) toast((r as { error?: string }).error || 'Invalid barcode', 'error');
       })
-      .catch(() => setValidation({ valid: false, error: 'Validation failed' }));
+      .catch(() => { setValidation({ valid: false, error: 'Validation failed' }); toast('Validation failed', 'error'); });
   };
 
   const handleSale = (e: React.FormEvent) => {
