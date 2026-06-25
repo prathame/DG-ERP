@@ -241,11 +241,24 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
     adminEmail: '',
     adminName: '',
     phone: '',
-    plan: 'BASIC',
+    plan: '',
     password: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [plans, setPlans] = useState<{ id: string; name: string; priceMonthly: number }[]>([]);
+
+  React.useEffect(() => {
+    const token = sessionStorage.getItem('auth_token');
+    fetch('/api/super-admin/plans', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data.plans ?? [];
+        setPlans(list.map((p: Record<string, unknown>) => ({ id: p.id as string, name: p.name as string, priceMonthly: Number(p.priceMonthly ?? 0) })));
+        if (list.length > 0 && !form.plan) setForm((f) => ({ ...f, plan: list[0].id as string }));
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -427,10 +440,9 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                 onChange={(e) => setForm({ ...form, plan: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent bg-white"
               >
-                <option value="TRIAL">Trial (Free 14 days)</option>
-                <option value="BASIC">Basic — ₹499/mo</option>
-                <option value="STANDARD">Standard — ₹999/mo</option>
-                <option value="PROFESSIONAL">Professional — ₹1,999/mo</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}{p.priceMonthly > 0 ? ` — ₹${p.priceMonthly.toLocaleString()}/mo` : ' (Free)'}</option>
+                ))}
               </select>
             </div>
             <div>
