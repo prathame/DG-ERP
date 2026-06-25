@@ -147,9 +147,27 @@ After login, walk through each section:
 3. Create another sale — WhatsApp opens automatically with bill text
 4. Or manually click the WhatsApp icon on any bill to share
 
-## 15. Database Backup
+## 15. Audit Log (Super Admin)
 
-1. Go to **Settings** → **Data Management**
+1. Go to **http://localhost:3000/admin** → **Audit Log** tab
+2. Show all actions across tenants — logins, creates, updates, deletes
+3. Use **Action filter** — select "Login" to see only login events
+4. Use **Entity filter** — select "Tenant" to see tenant management actions
+5. Use **Search** — type a user name or tenant name
+6. Show pagination — 30 entries per page
+
+## 16. Feature Toggles (Super Admin)
+
+1. Go to **Tenants** → Click a tenant → Scroll to **Feature Toggles**
+2. Toggle **off** "Warranty Management" → save
+3. Switch to tenant login → Warranty tab disappears
+4. Toggle **off** "AI Chatbot" → chat widget disappears
+5. Toggle **off** "Multi-Language" → language selector hidden in Settings
+6. Show all 7 toggles: Warranty, Replacement, Rewards, Finance, Chatbot, Bill Customization, Multi-Language
+
+## 17. Database Backup
+
+1. Go to tenant **Settings** → **Data Management**
 2. Click **Download Backup** — downloads a JSON file with all tenant data
 
 ---
@@ -162,8 +180,8 @@ If short on time, show only these:
 2. Branded login at `/{slug}`
 3. Add product → Make sale → Print customized bill
 4. Dark mode toggle
-5. Chatbot commands
-6. Multi-tenant isolation (second tenant has empty data)
+5. Audit log with filters
+6. Feature toggles (disable warranty → tab disappears)
 
 ---
 

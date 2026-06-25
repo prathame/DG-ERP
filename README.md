@@ -192,7 +192,8 @@ npm run dev
 - **Plan Management**: 4 tiers with configurable limits and feature flags
 - **Analytics**: Revenue per tenant, growth charts, most active tenants
 - **Impersonation**: Log in as any tenant admin for support
-- **Self-Service Registration**: Companies sign up with 14-day trial
+- **Audit Log**: Cross-tenant activity log with search, action/entity filters, pagination
+- **Feature Toggles**: 7 features controllable per tenant (warranty, replacement, rewards, finance, chatbot, bill customization, multi-language)
 - **Separate Route**: Super admin UI at `/admin`, completely hidden from tenant login
 - **Tenant Onboarding**: Only super admin can create tenants (no self-registration)
 - **Credential Sharing**: After onboarding, share login URL + credentials via WhatsApp or Email directly
@@ -329,6 +330,7 @@ Server middleware validates token + resolves tenant
 - **JWT Pinning** — Algorithm locked to HS256, no fallback secrets
 - **Tenant Isolation** — Auth middleware on all profile/settings routes, userId verified against JWT
 - **No Hardcoded Secrets** — App refuses to start without `JWT_SECRET` and `DATABASE_URL`
+- **Audit Logging** — All critical actions logged to DB + optional Better Stack Logtail
 
 ## API
 

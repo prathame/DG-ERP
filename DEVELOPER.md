@@ -45,6 +45,9 @@ Complete technical reference for developers working on this codebase.
 | Bill customization UI | `src/features/settings/SettingsView.tsx` → `BillCustomizationSection` |
 | Chatbot engine | `server/routes/chatbot.ts` |
 | Security middleware | `server/index.ts` → helmet, rate limiting, CORS |
+| Logger (console + Logtail) | `server/utils/logger.ts` |
+| Audit log helper | `server/utils/helpers.ts` → `logAudit()` |
+| Super admin audit UI | `src/features/super-admin/SuperAdminAuditLog.tsx` |
 | HTML escaping (XSS) | `src/lib/billTemplates.ts` → `esc()` function |
 | Dark mode CSS | `src/index.css` (html.dark rules) |
 | Language translations | `src/i18n/en.json`, `hi.json`, `gu.json` |
@@ -582,6 +585,76 @@ Keys are dot-separated paths into the JSON: `t('settings.darkMode')` → `settin
 
 ---
 
+## Logging & Audit
+
+### Audit Log (Business Actions)
+
+All critical actions are logged to the `audit_log` DB table via `logAudit()`:
+
+```typescript
+import { logAudit } from '../utils/helpers';
+await logAudit(pool, tenantId, 'CREATE', 'product', productId, 'Product created: Pump 5HP', userId, userName);
+```
+
+**Actions tracked:**
+
+| Action | Entity | Where |
+|---|---|---|
+| CREATE/UPDATE/DELETE | tenant | `super-admin.ts` |
+| IMPERSONATE | tenant | `super-admin.ts` |
+| LOGIN | user | `auth.ts` |
+| PASSWORD_CHANGE | user | `auth.ts` |
+| CREATE/DISTRIBUTE | product/sale/distribution | `sales.ts`, `distribution.ts` |
+| PAYMENT | payment | `finance.ts` |
+
+**Super Admin Audit View:** `/admin` → Audit Log tab — cross-tenant log viewer with:
+- Search by details, user, entity
+- Filter by action type (Create, Update, Delete, Login, Impersonate, etc.)
+- Filter by entity type (Tenant, User, Product, Sale, etc.)
+- Pagination (30 entries per page)
+
+### System Logging (Better Stack Logtail)
+
+Optional cloud logging via Better Stack (free 1GB/month):
+
+```typescript
+import { logger } from './utils/logger';
+logger.info('Server started', { port: 3001 });
+logger.error('Database connection failed', { error: 'timeout' });
+```
+
+**Setup:**
+1. Sign up at **https://betterstack.com** (free)
+2. Create Source → Node.js → Copy token
+3. Set `LOGTAIL_TOKEN=your-token` in environment
+4. Logs appear in Better Stack dashboard with search, filters, alerts
+
+**Without token:** Everything logs to `console.log/error` only (Render's built-in viewer).
+
+**What's logged where:**
+
+| Event | DB (audit_log) | Console | Logtail |
+|---|---|---|---|
+| Business actions (CRUD) | Yes | Yes | Yes (if token set) |
+| Login/password change | Yes | Yes | Yes |
+| Server startup/shutdown | No | Yes | Yes |
+| Unhandled errors | No | Yes | Yes |
+| Request errors (500s) | No | Yes | Yes |
+
+### Adding Audit Logging to a New Route
+
+```typescript
+import { logAudit } from '../utils/helpers';
+
+router.post('/api/new-thing', async (req, res) => {
+  // ... create the thing ...
+  await logAudit(pool, tenantId, 'CREATE', 'new-thing', id, `Created: ${name}`, userId, userName);
+  res.status(201).json(result);
+});
+```
+
+---
+
 ## Common Tasks (How-To)
 
 ### Change Super Admin Credentials
@@ -731,6 +804,7 @@ if (/your\s*pattern/.test(q)) {
 | `SUPER_ADMIN_EMAIL` | No | `admin@spre.ai` | Platform owner email (created on first run) |
 | `SUPER_ADMIN_PASSWORD` | No | `superadmin123` | Platform owner password (created on first run) |
 | `ALLOWED_ORIGINS` | No | `http://localhost:3000,3001` | Comma-separated CORS origins (strict in production) |
+| `LOGTAIL_TOKEN` | No | None (console only) | Better Stack Logtail source token for cloud logging |
 | `PORT` | No | `3001` | API server port |
 
 ---
