@@ -2,13 +2,11 @@ node_modules/
 build/
 dist/
 coverage/
-.DS_Store
-*.log
-.env*
 data/
 .claude/
+.DS_Store
+*.log
+*.bak
 
-# Environment
-.env
-.env.local
-.env.production
+# Environment (secrets — never commit)
+.env*

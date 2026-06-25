@@ -6,16 +6,10 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "server": "tsx server/index.ts",
-    "server:seed": "tsx server/seed.ts",
-    "server:clear": "tsx server/clear-data.ts",
-    "demo:seed": "tsx server/demo/seed-demo.ts",
-    "demo:clear": "tsx server/demo/clear-all.ts",
-    "demo:reset": "tsx server/demo/clear-all.ts && tsx server/demo/seed-demo.ts",
-    "demo:jewellery": "tsx server/demo/clear-all.ts && tsx server/demo/seed-jewellery.ts",
     "start": "tsx server/index.ts",
+    "build": "vite build",
     "build:prod": "vite build",
     "dev:all": "npm run server & npm run dev",
-    "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
