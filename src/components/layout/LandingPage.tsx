@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Package, ShoppingCart, Truck, Receipt, IndianRupee, MessageSquare,
-  Palette, Moon, ShieldCheck, BarChart3, Users, Zap,
+  Palette, Moon, ShieldCheck, BarChart3, Users, Zap, Languages,
   ArrowRight, Check, Star, Mail, Phone, Send, MessageCircle, Sun,
 } from 'lucide-react';
 
@@ -15,6 +15,7 @@ const FEATURES = [
   { icon: ShieldCheck, title: 'Warranty & Rewards', desc: 'Auto-warranty on sale, replacement tracking, vendor reward points system' },
   { icon: MessageSquare, title: 'ERP Chatbot', desc: '30+ natural language commands — sales today, low stock, top vendors, and more' },
   { icon: Moon, title: 'Dark Mode', desc: 'Light and dark theme with one-click toggle, persisted across sessions' },
+  { icon: Languages, title: 'Multi-Language', desc: 'English, Hindi, and Gujarati support — switch language instantly from settings' },
 ];
 
 const STEPS = [
