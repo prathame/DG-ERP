@@ -14,6 +14,7 @@ import {
   RefreshCw,
   LogOut,
   IndianRupee,
+  ScanSearch,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -36,6 +37,7 @@ import { AccountsView } from './features/accounts/AccountsView';
 import { VendorFinanceView } from './features/finance/VendorFinanceView';
 import { MastersView } from './features/masters/MastersView';
 import { SettingsView } from './features/settings/SettingsView';
+import { ProductVerificationView } from './features/verification/ProductVerificationView';
 import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
 import { SuperAdminLogin } from './features/super-admin/SuperAdminLogin';
 
@@ -123,6 +125,7 @@ export default function App() {
     { id: 'masters', label: t('nav.masters'), icon: Users },
     { id: 'inventory', label: t('nav.inventory'), icon: Package },
     { id: 'accounts', label: t('nav.accounts'), icon: CreditCard },
+    ...(ux?.barcodeSystemEnabled !== false ? [{ id: 'verification', label: t('nav.verification'), icon: ScanSearch }] : []),
     ...(financeEnabled ? [{ id: 'finance', label: t('nav.finance'), icon: IndianRupee }] : []),
     ...(warrantyEnabled ? [{ id: 'warranty', label: t('nav.warranty'), icon: ShieldCheck }] : []),
     ...(replacementEnabled ? [{ id: 'replacements', label: t('nav.replacements'), icon: RefreshCw }] : []),
@@ -347,6 +350,7 @@ export default function App() {
           {activeTab === 'inventory' && <InventoryView />}
           {activeTab === 'accounts' && <AccountsView />}
           {activeTab === 'masters' && <MastersView setActiveTab={setActiveTab} user={user} />}
+          {activeTab === 'verification' && <ProductVerificationView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} />}
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
         </div>

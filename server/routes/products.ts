@@ -155,6 +155,113 @@ router.get('/api/products/:id/barcodes', async (req, res) => {
   }
 });
 
+router.get('/api/products/verify/:barcode', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { barcode } = req.params;
+
+    const tenant = (await pool.query('SELECT warranty_enabled, replacement_enabled, rewards_enabled, vendor_portal_enabled, barcode_system_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;
+    const features = {
+      warranty: tenant?.warranty_enabled !== false,
+      replacement: tenant?.replacement_enabled !== false,
+      rewards: tenant?.rewards_enabled !== false,
+      vendorPortal: tenant?.vendor_portal_enabled !== false,
+      barcodeSystem: tenant?.barcode_system_enabled !== false,
+    };
+
+    const inv = (await pool.query(`
+      SELECT pi.barcode, pi.status, pi.created_at as added_at,
+             p.id as product_id, p.name as product_name, p.price, p.description, p.warranty_months, p.hsn_code, p.gst_rate, p.warranty_applicable
+      FROM product_inventory pi
+      JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
+      WHERE pi.barcode = $1 AND pi.tenant_id = $2
+    `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
+
+    if (!inv) return res.status(404).json({ error: 'Barcode not found', found: false });
+
+    const dist = (await pool.query(`
+      SELECT pd.vendor_id, pd.distribution_date, pd.status as dist_status, pd.discount_percent, pd.net_price, pd.gst_applied, pd.billed_price,
+             v.name as vendor_name, v.phone as vendor_phone, v.contact_person
+      FROM product_distribution pd
+      LEFT JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $2
+      WHERE pd.barcode = $1 AND pd.tenant_id = $2
+    `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
+
+    const sale = (await pool.query(`
+      SELECT ps.customer_name, ps.customer_phone, ps.customer_email, ps.purchase_date, ps.sale_price, ps.reward_points_earned,
+             v.name as sold_by_vendor
+      FROM product_sales ps
+      LEFT JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $2
+      WHERE ps.barcode = $1 AND ps.tenant_id = $2
+    `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
+
+    const warranty = features.warranty ? (await pool.query(
+      'SELECT status, activation_date, expiry_date FROM warranties WHERE barcode = $1 AND tenant_id = $2 ORDER BY activation_date DESC LIMIT 1',
+      [barcode, tenantId]
+    )).rows[0] as Record<string, unknown> | undefined : undefined;
+
+    const replacements = features.replacement ? (await pool.query(
+      'SELECT id, old_barcode, new_barcode, reason, status, created_at FROM product_replacements WHERE (old_barcode = $1 OR new_barcode = $1) AND tenant_id = $2 ORDER BY created_at DESC',
+      [barcode, tenantId]
+    )).rows as Record<string, unknown>[] : [];
+
+    const currentStatus = sale ? 'Sold' : dist ? (dist.dist_status as string) : (inv.status as string);
+
+    const result: Record<string, unknown> = {
+      found: true,
+      barcode,
+      currentStatus,
+      features,
+      product: {
+        name: inv.product_name, price: inv.price, description: inv.description,
+        hsnCode: inv.hsn_code, gstRate: inv.gst_rate,
+        warrantyMonths: inv.warranty_months, warrantyApplicable: inv.warranty_applicable,
+      },
+      timeline: {
+        addedToInventory: inv.added_at,
+      },
+    };
+
+    if (dist) {
+      result.distribution = {
+        date: dist.distribution_date,
+        status: dist.dist_status,
+        discountPercent: dist.discount_percent,
+        netPrice: dist.net_price,
+        gstApplied: !!dist.gst_applied,
+        billedPrice: dist.billed_price,
+        ...(features.vendorPortal ? { vendorName: dist.vendor_name, vendorPhone: dist.vendor_phone, contactPerson: dist.contact_person } : {}),
+      };
+      (result.timeline as Record<string, unknown>).distributed = dist.distribution_date;
+    }
+
+    if (sale) {
+      result.sale = {
+        date: sale.purchase_date,
+        salePrice: sale.sale_price,
+        ...(features.vendorPortal ? { soldByVendor: sale.sold_by_vendor, customerName: sale.customer_name, customerPhone: sale.customer_phone, customerEmail: sale.customer_email } : {}),
+        ...(features.rewards ? { rewardPointsEarned: sale.reward_points_earned } : {}),
+      };
+      (result.timeline as Record<string, unknown>).sold = sale.purchase_date;
+    }
+
+    if (warranty) {
+      result.warranty = { status: warranty.status, activationDate: warranty.activation_date, expiryDate: warranty.expiry_date };
+    }
+
+    if (replacements.length > 0) {
+      result.replacements = replacements.map((r) => ({
+        oldBarcode: r.old_barcode, newBarcode: r.new_barcode, reason: r.reason, status: r.status, date: r.created_at,
+      }));
+    }
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 router.get('/api/products/by-barcode/:barcode', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
