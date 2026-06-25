@@ -33,7 +33,10 @@ interface TenantDetail {
   phone: string;
   gstNumber: string;
   plan: string;
+  planId?: string;
+  planName?: string;
   status: string;
+  subscriptionEndsAt?: string;
   warrantyEnabled: boolean;
   replacementEnabled: boolean;
   rewardsEnabled: boolean;
@@ -112,6 +115,16 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   };
 
   const handleChangePlan = async (newPlan: string) => {
+    const currentPlanId = tenant?.planId || tenant?.plan;
+    if (newPlan === currentPlanId) { setChangingPlan(false); return; }
+
+    const subEnd = tenant?.subscriptionEndsAt;
+    const daysLeft = subEnd ? Math.ceil((new Date(subEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
+    if (daysLeft > 0) {
+      const confirmed = window.confirm(`This tenant has ${daysLeft} days left on their current plan. Changing the plan will take effect immediately but won't affect existing data.\n\nProceed?`);
+      if (!confirmed) { setChangingPlan(false); return; }
+    }
+
     const token = sessionStorage.getItem('auth_token');
     try {
       await fetch(`/api/super-admin/tenants/${tenantId}`, {
