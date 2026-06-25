@@ -70,6 +70,18 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   const [tenant, setTenant] = useState<TenantDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [changingPlan, setChangingPlan] = useState(false);
+  const [plans, setPlans] = useState<{ id: string; name: string; priceMonthly: number }[]>([]);
+
+  React.useEffect(() => {
+    const token = sessionStorage.getItem('auth_token');
+    fetch('/api/super-admin/plans', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data.plans ?? [];
+        setPlans(list.map((p: Record<string, unknown>) => ({ id: p.id as string, name: p.name as string, priceMonthly: Number(p.priceMonthly ?? 0) })));
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchTenant = () => {
     const token = sessionStorage.getItem('auth_token');
@@ -230,22 +242,22 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
             <span className="text-gray-400 text-xs font-bold uppercase">Plan:</span>
             {changingPlan ? (
               <select
-                defaultValue={tenant.plan}
+                defaultValue={tenant.planId || tenant.plan}
                 onChange={(e) => handleChangePlan(e.target.value)}
                 onBlur={() => setChangingPlan(false)}
                 autoFocus
                 className="px-2 py-1 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent bg-white"
               >
-                <option value="starter">Starter</option>
-                <option value="professional">Professional</option>
-                <option value="enterprise">Enterprise</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}{p.priceMonthly > 0 ? ` — ₹${p.priceMonthly.toLocaleString()}/mo` : ' (Free)'}</option>
+                ))}
               </select>
             ) : (
               <button
                 onClick={() => setChangingPlan(true)}
                 className="flex items-center gap-1 text-sm text-gray-600 hover:text-[#F27D26] transition-colors capitalize"
               >
-                {tenant.plan} <ChevronDown size={14} />
+                {tenant.planName || tenant.plan || tenant.planId || 'No plan'} <ChevronDown size={14} />
               </button>
             )}
           </div>
