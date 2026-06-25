@@ -20,6 +20,7 @@ import { cn } from './lib/utils';
 import { Tab, USER_STORAGE_KEY } from './types';
 import { ToastProvider } from './components/ui';
 import { LoginScreen, GlobalSearchBar, NotificationBell } from './components/layout';
+import { LandingPage } from './components/layout/LandingPage';
 import { ChatWidget } from './components/layout/ChatWidget';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { SalesEntryView } from './features/sales/SalesEntryView';
@@ -197,11 +198,17 @@ export default function App() {
       );
     }
 
-    return (
-      <ToastProvider>
-        <LoginScreen onLogin={handleLogin} tenant={tenantBranding} />
-      </ToastProvider>
-    );
+    // Slug URL — show branded tenant login
+    if (urlSlug && tenantBranding) {
+      return (
+        <ToastProvider>
+          <LoginScreen onLogin={handleLogin} tenant={tenantBranding} />
+        </ToastProvider>
+      );
+    }
+
+    // Root URL (/) — show company landing page
+    return <LandingPage />;
   }
 
   return (
