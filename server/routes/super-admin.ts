@@ -164,6 +164,7 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
         adminName: tenant.admin_name, phone: tenant.phone, address: tenant.address, gstNumber: tenant.gst_number,
         planId: tenant.plan_id, planName: tenant.plan_name, status: tenant.status,
         warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false,
+        financeEnabled: tenant.finance_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, billCustomizationEnabled: tenant.bill_customization_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false,
         trialEndsAt: tenant.trial_ends_at, createdAt: tenant.created_at, lastActiveAt: tenant.last_active_at,
       },
       stats,
@@ -178,25 +179,26 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
 router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, planId, companyName, phone, address, gstNumber, warrantyEnabled, replacementEnabled, rewardsEnabled } = req.body;
+    const b = req.body;
+    const toggleMap: Record<string, string> = { warrantyEnabled: 'warranty_enabled', replacementEnabled: 'replacement_enabled', rewardsEnabled: 'rewards_enabled', financeEnabled: 'finance_enabled', chatbotEnabled: 'chatbot_enabled', billCustomizationEnabled: 'bill_customization_enabled', multiLanguageEnabled: 'multi_language_enabled' };
     const updates: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
-    if (status !== undefined) { updates.push(`status = $${idx}`); params.push(status); idx++; }
-    if (planId !== undefined) { updates.push(`plan_id = $${idx}`); params.push(planId); idx++; }
-    if (companyName !== undefined) { updates.push(`company_name = $${idx}`); params.push(companyName); idx++; }
-    if (phone !== undefined) { updates.push(`phone = $${idx}`); params.push(phone); idx++; }
-    if (address !== undefined) { updates.push(`address = $${idx}`); params.push(address); idx++; }
-    if (gstNumber !== undefined) { updates.push(`gst_number = $${idx}`); params.push(gstNumber); idx++; }
-    if (warrantyEnabled !== undefined) { updates.push(`warranty_enabled = $${idx}`); params.push(!!warrantyEnabled); idx++; }
-    if (replacementEnabled !== undefined) { updates.push(`replacement_enabled = $${idx}`); params.push(!!replacementEnabled); idx++; }
-    if (rewardsEnabled !== undefined) { updates.push(`rewards_enabled = $${idx}`); params.push(!!rewardsEnabled); idx++; }
+    if (b.status !== undefined) { updates.push(`status = $${idx}`); params.push(b.status); idx++; }
+    if (b.planId !== undefined) { updates.push(`plan_id = $${idx}`); params.push(b.planId); idx++; }
+    if (b.companyName !== undefined) { updates.push(`company_name = $${idx}`); params.push(b.companyName); idx++; }
+    if (b.phone !== undefined) { updates.push(`phone = $${idx}`); params.push(b.phone); idx++; }
+    if (b.address !== undefined) { updates.push(`address = $${idx}`); params.push(b.address); idx++; }
+    if (b.gstNumber !== undefined) { updates.push(`gst_number = $${idx}`); params.push(b.gstNumber); idx++; }
+    for (const [key, col] of Object.entries(toggleMap)) {
+      if (b[key] !== undefined) { updates.push(`${col} = $${idx}`); params.push(!!b[key]); idx++; }
+    }
     if (updates.length === 0) return res.status(400).json({ error: 'No updates provided' });
     params.push(id);
     const result = await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
     const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
-    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false });
+    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false, financeEnabled: tenant.finance_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, billCustomizationEnabled: tenant.bill_customization_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

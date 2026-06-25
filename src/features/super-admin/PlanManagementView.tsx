@@ -20,9 +20,12 @@ interface Plan {
   price: number;
   features: {
     warranty: boolean;
+    replacements: boolean;
     rewards: boolean;
     finance: boolean;
     chatbot: boolean;
+    billCustomization: boolean;
+    multiLanguage: boolean;
   };
   tenantCount: number;
 }
@@ -142,9 +145,9 @@ export function PlanManagementView() {
 
               {/* Features */}
               <div className="border-t border-gray-100 pt-4 space-y-2">
-                {(['warranty', 'rewards', 'finance', 'chatbot'] as const).map((feat) => (
+                {([['warranty', 'Warranty'], ['replacements', 'Replacements'], ['rewards', 'Rewards'], ['finance', 'Finance'], ['chatbot', 'Chatbot'], ['billCustomization', 'Bill Customization'], ['multiLanguage', 'Multi-Language']] as const).map(([feat, label]) => (
                   <div key={feat} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500 capitalize">{feat}</span>
+                    <span className="text-gray-500">{label}</span>
                     {plan.features?.[feat] ? (
                       <span className="text-emerald-600 flex items-center gap-1">
                         <ToggleRight size={18} /> Enabled
@@ -210,9 +213,12 @@ function PlanModal({ plan, onClose, onSaved }: {
     maxUsers: plan?.maxUsers ?? 5,
     price: plan?.price ?? 0,
     warranty: plan?.features?.warranty ?? true,
+    replacements: plan?.features?.replacements ?? true,
     rewards: plan?.features?.rewards ?? true,
     finance: plan?.features?.finance ?? false,
     chatbot: plan?.features?.chatbot ?? false,
+    billCustomization: plan?.features?.billCustomization ?? true,
+    multiLanguage: plan?.features?.multiLanguage ?? true,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -230,9 +236,12 @@ function PlanModal({ plan, onClose, onSaved }: {
       priceMonthly: form.price,
       features: {
         warranty: form.warranty,
+        replacements: form.replacements,
         rewards: form.rewards,
         finance: form.finance,
         chatbot: form.chatbot,
+        billCustomization: form.billCustomization,
+        multiLanguage: form.multiLanguage,
       },
     };
     try {
@@ -353,9 +362,12 @@ function PlanModal({ plan, onClose, onSaved }: {
             <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Features</label>
             <div className="border border-gray-200 rounded-xl px-4 divide-y divide-gray-100">
               <FeatureToggle label="Warranty Management" checked={form.warranty} onChange={(v) => setForm({ ...form, warranty: v })} />
+              <FeatureToggle label="Replacement Tracking" checked={form.replacements} onChange={(v) => setForm({ ...form, replacements: v })} />
               <FeatureToggle label="Rewards System" checked={form.rewards} onChange={(v) => setForm({ ...form, rewards: v })} />
               <FeatureToggle label="Finance Module" checked={form.finance} onChange={(v) => setForm({ ...form, finance: v })} />
               <FeatureToggle label="AI Chatbot" checked={form.chatbot} onChange={(v) => setForm({ ...form, chatbot: v })} />
+              <FeatureToggle label="Bill Customization" checked={form.billCustomization} onChange={(v) => setForm({ ...form, billCustomization: v })} />
+              <FeatureToggle label="Multi-Language" checked={form.multiLanguage} onChange={(v) => setForm({ ...form, multiLanguage: v })} />
             </div>
           </div>
 

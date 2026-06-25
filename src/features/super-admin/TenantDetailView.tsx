@@ -18,6 +18,9 @@ import {
   ShieldCheck,
   Gift,
   RefreshCw,
+  MessageSquare,
+  FileText,
+  Languages,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
@@ -34,6 +37,10 @@ interface TenantDetail {
   warrantyEnabled: boolean;
   replacementEnabled: boolean;
   rewardsEnabled: boolean;
+  financeEnabled: boolean;
+  chatbotEnabled: boolean;
+  billCustomizationEnabled: boolean;
+  multiLanguageEnabled: boolean;
   createdAt: string;
   stats: {
     products: number;
@@ -269,6 +276,10 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
             { key: 'warrantyEnabled', label: 'Warranty Management', desc: 'Auto-create warranties on sale. Hides warranty tab when disabled.', icon: ShieldCheck },
             { key: 'replacementEnabled', label: 'Replacement Tracking', desc: 'Track product replacements under warranty. Hides replacements tab when disabled.', icon: RefreshCw },
             { key: 'rewardsEnabled', label: 'Rewards & Points', desc: 'Vendor reward points on each sale. Hides rewards tab when disabled.', icon: Gift },
+            { key: 'financeEnabled', label: 'Finance Module', desc: 'Vendor payment tracking, reminders, and balance management.', icon: IndianRupee },
+            { key: 'chatbotEnabled', label: 'AI Chatbot', desc: '30+ natural language commands for quick data access.', icon: MessageSquare },
+            { key: 'billCustomizationEnabled', label: 'Bill Customization', desc: 'Custom logo, colors, bank details, signatory on bills.', icon: FileText },
+            { key: 'multiLanguageEnabled', label: 'Multi-Language', desc: 'Switch UI between English, Hindi, and Gujarati.', icon: Languages },
           ] as const).map((toggle) => (
             <div key={toggle.key} className="flex items-center justify-between">
               <div className="flex items-center gap-3">

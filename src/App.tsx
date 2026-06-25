@@ -112,6 +112,7 @@ export default function App() {
   const warrantyEnabled = ux?.warrantyEnabled !== false;
   const replacementEnabled = ux?.replacementEnabled !== false;
   const rewardsEnabled = ux?.rewardsEnabled !== false;
+  const financeEnabled = ux?.financeEnabled !== false;
 
   const navItems = [
     { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
@@ -120,7 +121,7 @@ export default function App() {
     { id: 'masters', label: t('nav.masters'), icon: Users },
     { id: 'inventory', label: t('nav.inventory'), icon: Package },
     { id: 'accounts', label: t('nav.accounts'), icon: CreditCard },
-    { id: 'finance', label: t('nav.finance'), icon: IndianRupee },
+    ...(financeEnabled ? [{ id: 'finance', label: t('nav.finance'), icon: IndianRupee }] : []),
     ...(warrantyEnabled ? [{ id: 'warranty', label: t('nav.warranty'), icon: ShieldCheck }] : []),
     ...(replacementEnabled ? [{ id: 'replacements', label: t('nav.replacements'), icon: RefreshCw }] : []),
     ...(rewardsEnabled ? [{ id: 'rewards', label: t('nav.rewards'), icon: Gift }] : []),
@@ -344,7 +345,7 @@ export default function App() {
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
         </div>
       </main>
-      <ChatWidget />
+      {ux?.chatbotEnabled !== false && <ChatWidget />}
     </div>
     </ToastProvider>
   );
