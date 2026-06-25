@@ -262,11 +262,13 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
     setAuthError('');
     setAuthSubmitting(true);
     try {
-      const result = await api.auth.login(authForm.email, authForm.password);
-      sessionStorage.setItem('auth_token', result.token);
-      if (result.tenantId) sessionStorage.setItem('tenant_id', result.tenantId);
-      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(result.user));
-      onUserChange(result.user);
+      const r = await api.auth.login(authForm.email, authForm.password);
+      sessionStorage.setItem('auth_token', r.token);
+      if (r.tenantId) sessionStorage.setItem('tenant_id', r.tenantId);
+      if (r.tenantSlug) sessionStorage.setItem('tenant_slug', r.tenantSlug);
+      const u = { id: r.id, email: r.email, name: r.name, phone: r.phone, address: r.address, role: r.role, companyName: r.companyName, vendorId: r.vendorId, autoWhatsapp: r.autoWhatsapp };
+      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u));
+      onUserChange(u);
       setAuthForm({ email: '', password: '', name: '', confirmPassword: '' });
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Login failed');

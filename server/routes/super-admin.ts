@@ -6,6 +6,34 @@ import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
 
 const router = Router();
 
+// ============ PUBLIC TENANT LOOKUP (no auth) ============
+router.get('/api/tenant/by-slug/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const tenant = (await pool.query(
+      'SELECT id, company_name, slug, status FROM tenants WHERE slug = $1',
+      [slug.toLowerCase()]
+    )).rows[0] as { id: string; company_name: string; slug: string; status: string } | undefined;
+    if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+    const billSettings = (await pool.query(
+      'SELECT logo_base64, primary_color, tagline FROM bill_settings WHERE tenant_id = $1',
+      [tenant.id]
+    )).rows[0] as { logo_base64: string | null; primary_color: string | null; tagline: string | null } | undefined;
+    res.json({
+      tenantId: tenant.id,
+      companyName: tenant.company_name,
+      slug: tenant.slug,
+      logoBase64: billSettings?.logo_base64 ?? null,
+      primaryColor: billSettings?.primary_color ?? '#F27D26',
+      tagline: billSettings?.tagline ?? null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // ============ SUPER ADMIN LOGIN ============
 router.post('/api/super-admin/login', async (req, res) => {
   try {
@@ -272,7 +300,7 @@ router.post('/api/tenant/register', async (req, res) => {
     const { generateToken } = await import('../middleware/auth');
     const token = generateToken({ userId: `U-${result.tenantId}`, email: adminEmail, name: adminName, role: 'Super Admin', tenantId: result.tenantId });
 
-    res.status(201).json({ token, tenantId: result.tenantId, companyName, user: { email: adminEmail, name: adminName, role: 'Super Admin' } });
+    res.status(201).json({ token, tenantId: result.tenantId, tenantSlug: result.slug, companyName, user: { email: adminEmail, name: adminName, role: 'Super Admin', companyName } });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

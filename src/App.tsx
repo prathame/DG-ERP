@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { api } from './api';
 import {
   LayoutDashboard,
   ShieldCheck,
@@ -88,11 +89,14 @@ export default function App() {
   });
 
   const handleLogout = () => {
+    const slug = sessionStorage.getItem('tenant_slug');
     sessionStorage.removeItem('auth_token');
     sessionStorage.removeItem('tenant_id');
+    sessionStorage.removeItem('tenant_slug');
     sessionStorage.removeItem(USER_STORAGE_KEY);
     setUser(null);
     setUserMenuOpen(false);
+    if (slug) window.history.replaceState(null, '', `/${slug}`);
   };
 
   const handleLogin = (u: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean }) => {
@@ -133,10 +137,27 @@ export default function App() {
   };
   const visibleNavItems = navItems.filter((item) => canAccess(item.id));
 
-  // /admin route — super admin portal (completely separate from tenant login)
-  const isSuperAdminRoute = window.location.pathname.startsWith('/admin');
+  // Detect slug from URL: /splender, /radhe-krishan, etc. (not /admin, not /)
+  const pathname = window.location.pathname;
+  const isSuperAdminRoute = pathname.startsWith('/admin');
+  const slugMatch = pathname.match(/^\/([a-z0-9][a-z0-9-]*[a-z0-9])$/i) || pathname.match(/^\/([a-z0-9]+)$/i);
+  const urlSlug = (!isSuperAdminRoute && slugMatch) ? slugMatch[1].toLowerCase() : null;
+
+  // Tenant branding state for slug-based login
+  const [tenantBranding, setTenantBranding] = useState<{ tenantId: string; companyName: string; slug: string; logoBase64: string | null; primaryColor: string; tagline: string | null } | null>(null);
+  const [slugNotFound, setSlugNotFound] = useState(false);
+
+  useEffect(() => {
+    if (urlSlug && !user && urlSlug !== 'admin') {
+      api.tenantBySlug(urlSlug)
+        .then((t) => { setTenantBranding(t); setSlugNotFound(false); })
+        .catch(() => setSlugNotFound(true));
+    }
+  }, [urlSlug, !user]);
+
   const authState = getAuthState();
 
+  // /admin route — super admin portal
   if (isSuperAdminRoute) {
     if (authState.isSuperAdmin) {
       const tokenPayload = decodeJwtPayload(sessionStorage.getItem('auth_token') || '') || {};
@@ -147,7 +168,6 @@ export default function App() {
         </ToastProvider>
       );
     }
-    // Show super admin login (import dynamically)
     return (
       <ToastProvider>
         <SuperAdminLoginWrapper onLogin={handleLogin} />
@@ -161,11 +181,25 @@ export default function App() {
     return null;
   }
 
-  // No user session — show tenant login (no super admin link visible)
+  // No user session — show tenant login
   if (!user) {
+    // Slug URL but tenant not found
+    if (urlSlug && slugNotFound) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center p-4">
+          <div className="text-center">
+            <div className="inline-flex w-16 h-16 bg-gray-700 rounded-2xl items-center justify-center font-bold text-2xl text-gray-400 mb-4">?</div>
+            <h1 className="text-xl font-bold text-white mb-2">Company Not Found</h1>
+            <p className="text-gray-400 text-sm mb-6">No company registered with URL <span className="font-mono text-gray-300">/{urlSlug}</span></p>
+            <a href="/" className="px-6 py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C] transition-colors">Go to DG ERP Home</a>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <ToastProvider>
-        <LoginScreen onLogin={handleLogin} />
+        <LoginScreen onLogin={handleLogin} tenant={tenantBranding} />
       </ToastProvider>
     );
   }

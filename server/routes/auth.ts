@@ -40,7 +40,7 @@ router.post('/api/auth/login', async (req, res) => {
       SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name,
              u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, u.gst_number,
              u.password_hash, u.tenant_id,
-             t.id as t_tenant_id, t.company_name as tenant_company_name, t.status as tenant_status
+             t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
       WHERE u.email = $1
@@ -72,6 +72,7 @@ router.post('/api/auth/login', async (req, res) => {
       token,
       tenantId: row.tenant_id,
       companyName: row.tenant_company_name,
+      tenantSlug: row.tenant_slug,
       id: row.id,
       email: row.email,
       name: row.name,

@@ -431,7 +431,7 @@ export const api = {
     signup: (data: { email: string; password: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }) =>
       fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string } }>('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
     login: (email: string, password: string) =>
-      fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string } }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+      fetchApi<{ token: string; tenantId: string; tenantSlug?: string; id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[] | null; vendorId?: string | null; autoWhatsapp?: boolean; defaultGstRate?: number; gstNumber?: string | null }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   },
   superAdmin: {
     login: (email: string, password: string) =>
@@ -462,6 +462,8 @@ export const api = {
   },
   tenantRegister: (data: { companyName: string; adminEmail: string; adminName: string; password: string; phone?: string; planId?: string }) =>
     fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; role?: string; companyName?: string } }>('/tenant/register', { method: 'POST', body: JSON.stringify(data) }),
+  tenantBySlug: (slug: string) =>
+    fetchApi<{ tenantId: string; companyName: string; slug: string; logoBase64: string | null; primaryColor: string; tagline: string | null }>(`/tenant/by-slug/${encodeURIComponent(slug)}`),
   settings: {
     getProfile: (userId: string) =>
       fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),
