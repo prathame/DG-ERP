@@ -214,6 +214,19 @@ addColumnIfMissing('product_distribution', 'discount_percent', 'REAL NOT NULL DE
 addColumnIfMissing('product_distribution', 'net_price', 'REAL');
 addColumnIfMissing('product_distribution', 'gst_applied', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('product_distribution', 'billed_price', 'REAL');
+addColumnIfMissing('product_distribution', 'batch_id', 'TEXT');
+
+// Backfill batch_id from distribution row ids (D1234567890-1 → D1234567890)
+try {
+  db.exec(`
+    UPDATE product_distribution
+    SET batch_id = CASE
+      WHEN instr(id, '-') > 0 THEN substr(id, 1, instr(id, '-') - 1)
+      ELSE id
+    END
+    WHERE batch_id IS NULL OR batch_id = ''
+  `);
+} catch (_) {}
 addColumnIfMissing('products', 'hsn_code', 'TEXT');
 addColumnIfMissing('products', 'gst_rate', 'REAL NOT NULL DEFAULT 18');
 addColumnIfMissing('rewards', 'vendor_id', 'TEXT REFERENCES vendors(id)');

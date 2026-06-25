@@ -25,7 +25,7 @@ router.get('/api/notifications', (_req, res) => {
     }
     const pendingPayments = db.prepare(`
       SELECT v.id, v.name,
-        COALESCE((SELECT SUM(p.price) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id), 0) as val,
+        COALESCE((SELECT SUM(COALESCE(pd.billed_price, pd.net_price, p.price)) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id), 0) as val,
         COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id), 0) as paid
       FROM vendors v WHERE v.id != 'OWNER'
       HAVING (val - paid) > 0 ORDER BY (val - paid) DESC LIMIT 5

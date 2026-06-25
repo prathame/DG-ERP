@@ -2,6 +2,7 @@ const API_BASE = '/api';
 
 export interface DistributionRecord {
   id: string;
+  batchId?: string;
   productId: string;
   productName: string;
   barcode: string;
@@ -9,6 +10,44 @@ export interface DistributionRecord {
   vendorName: string;
   distributionDate: string;
   status: string;
+  discountPercent?: number;
+  netPrice?: number | null;
+  gstApplied?: boolean;
+  billedPrice?: number | null;
+}
+
+export interface DistributionBatch {
+  batchId: string;
+  vendorId: string;
+  vendorName: string;
+  distributionDate: string;
+  productNames: string[];
+  total: number;
+  sold: number;
+  replaced: number;
+  damaged: number;
+  availableWithVendor: number;
+  billValue: number;
+  discountPercent: number;
+  gstApplied: boolean;
+}
+
+export interface DistributionBatchItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  minQuantity: number;
+  sold: number;
+  replaced: number;
+  damaged: number;
+  discountPercent: number;
+  withGst: boolean;
+  availableStock: number;
+}
+
+export interface DistributionBatchDetail extends DistributionBatch {
+  canDelete: boolean;
+  items: DistributionBatchItem[];
 }
 
 export interface SaleRecord {
@@ -72,6 +111,7 @@ export interface SaleBillData {
 
 export interface DistributionBillData {
   challanId: string;
+  batchId?: string | null;
   distributionDate: string;
   vendor: { name: string; contactPerson?: string | null; phone?: string | null; email?: string | null; address?: string | null };
   company: { name: string; contactName?: string | null; phone?: string | null; address?: string | null; gstNumber?: string | null };
@@ -82,6 +122,7 @@ export interface DistributionBillData {
   grossValue: number;
   totalDiscount: number;
   totalValue: number;
+  totalBilled?: number;
   payment?: { totalDistributedValue: number; totalPaid: number; balance: number };
 }
 
@@ -208,8 +249,15 @@ export const api = {
       }>(`/dashboard/vendor/${vendorId}`),
   },
   distribution: {
-    list: (vendorId?: string) =>
-      fetchApi<DistributionRecord[]>(`/distribution${vendorId ? `?vendorId=${encodeURIComponent(vendorId)}` : ''}`),
+    list: (vendorId?: string, batchId?: string) => {
+      const q = new URLSearchParams();
+      if (vendorId) q.set('vendorId', vendorId);
+      if (batchId) q.set('batchId', batchId);
+      const qs = q.toString();
+      return fetchApi<DistributionRecord[]>(`/distribution${qs ? `?${qs}` : ''}`);
+    },
+    batches: (vendorId?: string) =>
+      fetchApi<DistributionBatch[]>(`/distribution/batches${vendorId ? `?vendorId=${encodeURIComponent(vendorId)}` : ''}`),
     summary: () =>
       fetchApi<{
         totalBeforeDistribution: number;
@@ -217,12 +265,31 @@ export const api = {
         totalDistributed: number;
         vendorStats: { vendorId: string; vendorName: string; distributed: number; sold: number; replaced: number; damaged: number; availableWithVendor: number }[];
       }>('/distribution/summary'),
-    create: (data: { productId: string; vendorId: string; distributionDate?: string; quantity?: number; discountPercent?: number; amountPaid?: number; withGst?: boolean; gstRate?: number }) =>
+    createBatch: (data: {
+      vendorId: string;
+      distributionDate?: string;
+      amountPaid?: number;
+      gstRate?: number;
+      items: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean }[];
+    }) => fetchApi<DistributionBatch>('/distribution/batch', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data: { productId: string; vendorId: string; distributionDate?: string; quantity?: number; discountPercent?: number; amountPaid?: number; withGst?: boolean; gstRate?: number; batchId?: string }) =>
       fetchApi<DistributionRecord>('/distribution', { method: 'POST', body: JSON.stringify(data) }),
-    applyBilling: (data: { vendorId: string; gstUnits: number; nonGstUnits: number; gstRate: number }) =>
+    updateBatch: (batchId: string, data: {
+      distributionDate?: string;
+      gstRate?: number;
+      items?: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean }[];
+    }) =>
+      fetchApi<DistributionBatch & { deleted?: boolean }>(`/distribution/batch/${encodeURIComponent(batchId)}`, { method: 'PUT', body: JSON.stringify(data) }),
+    getBatch: (batchId: string) =>
+      fetchApi<DistributionBatchDetail>(`/distribution/batch/${encodeURIComponent(batchId)}`),
+    deleteBatch: (batchId: string) =>
+      fetchApi<{ ok: boolean; batchId: string; unitsReturned: number }>(`/distribution/batch/${encodeURIComponent(batchId)}`, { method: 'DELETE' }),
+    applyBilling: (data: { vendorId?: string; batchId?: string; gstUnits: number; nonGstUnits: number; gstRate: number }) =>
       fetchApi<{ ok: boolean }>('/distribution/apply-billing', { method: 'PUT', body: JSON.stringify(data) }),
-    getBill: (params: { vendorId: string; productId?: string; distributionDate?: string }) => {
-      const q = new URLSearchParams({ vendorId: params.vendorId });
+    getBill: (params: { vendorId?: string; batchId?: string; productId?: string; distributionDate?: string }) => {
+      const q = new URLSearchParams();
+      if (params.vendorId) q.set('vendorId', params.vendorId);
+      if (params.batchId) q.set('batchId', params.batchId);
       if (params.productId) q.set('productId', params.productId);
       if (params.distributionDate) q.set('distributionDate', params.distributionDate);
       return fetchApi<DistributionBillData>(`/distribution/bill?${q.toString()}`);

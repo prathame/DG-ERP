@@ -237,7 +237,7 @@ router.get('/api/sales/:id/bill', (req, res) => {
       vendorFinance: (() => {
         const vid = sale.vendor_id as string;
         if (!vid || vid === 'OWNER') return null;
-        const totalValue = db.prepare('SELECT COALESCE(SUM(p.price), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?').get(vid) as { t: number };
+        const totalValue = db.prepare('SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?').get(vid) as { t: number };
         const totalPaid = db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE vendor_id = ?').get(vid) as { t: number };
         return { totalDistributedValue: totalValue.t, totalPaid: totalPaid.t, balance: totalValue.t - totalPaid.t };
       })(),
