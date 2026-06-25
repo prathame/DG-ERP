@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
 import bcrypt from 'bcrypt';
-import { superAdminMiddleware, generateSuperAdminToken } from '../middleware/auth';
+import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
 import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
+import { logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -144,6 +145,7 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       companyName, adminEmail, adminName, adminPassword: adminPassword || password || undefined, phone, address, gstNumber,
       planId: planId || 'STARTER',
     });
+    await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created by super admin`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ ...result, adminEmail, password: result.credentials.password, companyName });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -198,6 +200,7 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     const result = await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
     const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
+    await logAudit(pool, id, 'UPDATE', 'tenant', id, `Tenant updated: ${updates.join(', ')}`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false, financeEnabled: tenant.finance_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, billCustomizationEnabled: tenant.bill_customization_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -210,6 +213,7 @@ router.delete('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, 
     const { id } = req.params;
     const tenant = (await pool.query('SELECT id FROM tenants WHERE id = $1', [id])).rows[0];
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    await logAudit(pool, null as unknown as string, 'DELETE', 'tenant', id, `Tenant deleted`, (req as AuthRequest).user?.userId, 'Super Admin');
     await deleteTenant(id);
     res.json({ ok: true, message: 'Tenant and all data deleted' });
   } catch (err) {
@@ -228,6 +232,7 @@ router.post('/api/super-admin/tenants/:id/impersonate', superAdminMiddleware, as
 
     const { generateToken } = await import('../middleware/auth');
     const token = generateToken({ userId: admin.id, email: admin.email, name: admin.name, role: admin.role, tenantId: id });
+    await logAudit(pool, id, 'IMPERSONATE', 'tenant', id, `Super admin impersonated ${admin.email}`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.json({ token, tenantId: id, companyName: tenant.company_name, user: { id: admin.id, email: admin.email, name: admin.name, role: admin.role } });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -307,6 +312,41 @@ router.post('/api/tenant/register', superAdminMiddleware, async (req, res) => {
     const token = generateToken({ userId: `U-${result.tenantId}`, email: adminEmail, name: adminName, role: 'Super Admin', tenantId: result.tenantId });
 
     res.status(201).json({ token, tenantId: result.tenantId, tenantSlug: result.slug, companyName, user: { email: adminEmail, name: adminName, role: 'Super Admin', companyName } });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============ AUDIT LOG (cross-tenant) ============
+router.get('/api/super-admin/audit-log', superAdminMiddleware, async (req, res) => {
+  try {
+    const { tenantId, action, entityType, search, page, limit: lim } = req.query;
+    const pageNum = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(10, Number(lim) || 50));
+    const offset = (pageNum - 1) * pageSize;
+
+    let sql = `SELECT a.*, t.company_name as tenant_name FROM audit_log a LEFT JOIN tenants t ON a.tenant_id = t.id WHERE 1=1`;
+    const params: unknown[] = [];
+    let idx = 1;
+    if (typeof tenantId === 'string' && tenantId) { sql += ` AND a.tenant_id = $${idx}`; params.push(tenantId); idx++; }
+    if (typeof action === 'string' && action) { sql += ` AND a.action = $${idx}`; params.push(action); idx++; }
+    if (typeof entityType === 'string' && entityType) { sql += ` AND a.entity_type = $${idx}`; params.push(entityType); idx++; }
+    if (typeof search === 'string' && search) { sql += ` AND (a.details ILIKE $${idx} OR a.user_name ILIKE $${idx} OR a.entity_id ILIKE $${idx})`; params.push(`%${search}%`); idx++; }
+
+    const countResult = (await pool.query(`SELECT COUNT(*) as c FROM (${sql}) sub`, params)).rows[0] as { c: number };
+    sql += ` ORDER BY a.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    params.push(pageSize, offset);
+    const { rows } = await pool.query(sql, params);
+
+    res.json({
+      data: rows.map((r: Record<string, unknown>) => ({
+        id: r.id, tenantId: r.tenant_id, tenantName: r.tenant_name ?? 'Platform', userId: r.user_id, userName: r.user_name,
+        action: r.action, entityType: r.entity_type, entityId: r.entity_id, details: r.details, createdAt: r.created_at,
+      })),
+      total: Number(countResult.c),
+      page: pageNum,
+      totalPages: Math.ceil(Number(countResult.c) / pageSize),
+    });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

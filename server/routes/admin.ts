@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { pool } from '../pg-db';
+import { logAudit } from '../utils/helpers';
 
 const router = Router();
 

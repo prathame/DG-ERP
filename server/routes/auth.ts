@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { pool } from '../pg-db';
+import { logAudit } from '../utils/helpers';
 import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -68,6 +69,8 @@ router.post('/api/auth/login', async (req, res) => {
       name: row.name as string,
       tenantId: row.tenant_id as string,
     });
+
+    await logAudit(pool, row.tenant_id as string, 'LOGIN', 'user', row.id as string, `User logged in: ${row.email}`, row.id as string, row.name as string);
 
     res.json({
       token,
@@ -159,6 +162,7 @@ router.put('/api/settings/change-password', authMiddleware, async (req: AuthRequ
 
     const newHash = bcrypt.hashSync(newPassword, 12);
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3', [newHash, userId, tenantId]);
+    await logAudit(pool, tenantId!, 'PASSWORD_CHANGE', 'user', userId, 'Password changed', userId, req.user?.name);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: String(err) });

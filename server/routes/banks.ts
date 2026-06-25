@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
+import { logAudit } from '../utils/helpers';
 
 const router = Router();
 

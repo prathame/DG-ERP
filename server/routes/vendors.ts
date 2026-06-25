@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { hashPassword } from '../utils/helpers';
+import { hashPassword, logAudit } from '../utils/helpers';
 
 const router = Router();
 

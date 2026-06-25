@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { parsePagination, applyDateFilter } from '../utils/helpers';
+import { parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 
 const router = Router();
 
