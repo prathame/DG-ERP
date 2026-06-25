@@ -17,7 +17,7 @@ interface Plan {
   maxProducts: number;
   maxVendors: number;
   maxUsers: number;
-  price: number;
+  priceMonthly: number;
   priceYearly: number;
   features: {
     warranty: boolean;
