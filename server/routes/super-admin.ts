@@ -1,0 +1,308 @@
+import { Router } from 'express';
+import { pool } from '../pg-db';
+import bcrypt from 'bcrypt';
+import { superAdminMiddleware, generateSuperAdminToken } from '../middleware/auth';
+import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
+
+const router = Router();
+
+// ============ SUPER ADMIN LOGIN ============
+router.post('/api/super-admin/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    const { rows } = await pool.query('SELECT * FROM super_admins WHERE email = $1', [email]);
+    const admin = rows[0];
+    if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
+    const valid = await bcrypt.compare(password, admin.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+    const token = generateSuperAdminToken({ userId: admin.id, email: admin.email, name: admin.name, role: 'super_admin' });
+    res.json({ token, user: { id: admin.id, email: admin.email, name: admin.name, role: 'super_admin' } });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============ DASHBOARD ============
+router.get('/api/super-admin/dashboard', superAdminMiddleware, async (_req, res) => {
+  try {
+    const tenants = (await pool.query('SELECT COUNT(*) as c FROM tenants')).rows[0];
+    const active = (await pool.query("SELECT COUNT(*) as c FROM tenants WHERE status = 'active'")).rows[0];
+    const trial = (await pool.query("SELECT COUNT(*) as c FROM tenants WHERE status = 'trial'")).rows[0];
+    const suspended = (await pool.query("SELECT COUNT(*) as c FROM tenants WHERE status = 'suspended'")).rows[0];
+    const totalUsers = (await pool.query('SELECT COUNT(*) as c FROM users')).rows[0];
+    const totalProducts = (await pool.query('SELECT COUNT(*) as c FROM products')).rows[0];
+    const totalVendors = (await pool.query("SELECT COUNT(*) as c FROM vendors WHERE id != 'OWNER'")).rows[0];
+    const totalSales = (await pool.query('SELECT COUNT(*) as c FROM product_sales')).rows[0];
+    const totalRevenue = (await pool.query('SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales')).rows[0];
+
+    const recentTenants = (await pool.query('SELECT id, company_name, status, plan_id, created_at, last_active_at FROM tenants ORDER BY created_at DESC LIMIT 5')).rows;
+
+    const tenantsByPlan = (await pool.query(`
+      SELECT p.name as plan_name, COUNT(t.id) as count
+      FROM plans p LEFT JOIN tenants t ON t.plan_id = p.id
+      GROUP BY p.id, p.name ORDER BY count DESC
+    `)).rows;
+
+    res.json({
+      totals: {
+        tenants: tenants.c,
+        active: active.c,
+        trial: trial.c,
+        suspended: suspended.c,
+        users: totalUsers.c,
+        products: totalProducts.c,
+        vendors: totalVendors.c,
+        sales: totalSales.c,
+        revenue: totalRevenue.t,
+      },
+      recentTenants,
+      tenantsByPlan,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============ TENANT LIST ============
+router.get('/api/super-admin/tenants', superAdminMiddleware, async (req, res) => {
+  try {
+    const { status, search } = req.query;
+    let sql = `SELECT t.*, p.name as plan_name, p.price_monthly,
+      (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as user_count,
+      (SELECT COUNT(*) FROM products WHERE tenant_id = t.id) as product_count,
+      (SELECT COUNT(*) FROM vendors WHERE tenant_id = t.id AND id != 'OWNER') as vendor_count,
+      (SELECT COUNT(*) FROM product_sales WHERE tenant_id = t.id) as sale_count,
+      (SELECT COALESCE(SUM(sale_price), 0) FROM product_sales WHERE tenant_id = t.id) as revenue
+      FROM tenants t LEFT JOIN plans p ON t.plan_id = p.id WHERE 1=1`;
+    const params: unknown[] = [];
+    let idx = 1;
+    if (typeof status === 'string' && status) { sql += ` AND t.status = $${idx}`; params.push(status); idx++; }
+    if (typeof search === 'string' && search) { sql += ` AND (t.company_name ILIKE $${idx} OR t.admin_email ILIKE $${idx})`; params.push(`%${search}%`); idx++; }
+    sql += ' ORDER BY t.created_at DESC';
+    const { rows } = await pool.query(sql, params);
+    res.json(rows.map((t: Record<string, unknown>) => ({
+      id: t.id,
+      companyName: t.company_name,
+      slug: t.slug,
+      adminEmail: t.admin_email,
+      adminName: t.admin_name,
+      phone: t.phone,
+      status: t.status,
+      planName: t.plan_name,
+      planId: t.plan_id,
+      priceMonthly: t.price_monthly,
+      userCount: t.user_count,
+      productCount: t.product_count,
+      vendorCount: t.vendor_count,
+      saleCount: t.sale_count,
+      revenue: t.revenue,
+      createdAt: t.created_at,
+      lastActiveAt: t.last_active_at,
+    })));
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============ CREATE TENANT ============
+router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) => {
+  try {
+    const { companyName, adminEmail, adminName, adminPassword, phone, address, gstNumber, planId } = req.body;
+    if (!companyName || !adminEmail || !adminName) return res.status(400).json({ error: 'Company name, admin email, and admin name are required' });
+    const existing = (await pool.query('SELECT id FROM tenants WHERE admin_email = $1', [adminEmail])).rows[0];
+    if (existing) return res.status(400).json({ error: 'A tenant with this email already exists' });
+    const result = await provisionTenant({
+      companyName, adminEmail, adminName, adminPassword, phone, address, gstNumber,
+      planId: planId || 'STARTER',
+    });
+    res.status(201).json(result);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============ GET TENANT DETAIL ============
+router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenant = (await pool.query('SELECT t.*, p.name as plan_name FROM tenants t LEFT JOIN plans p ON t.plan_id = p.id WHERE t.id = $1', [id])).rows[0];
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    const stats = await getTenantStats(id);
+    const users = (await pool.query('SELECT id, email, name, role, vendor_id, created_at FROM users WHERE tenant_id = $1 ORDER BY created_at', [id])).rows;
+    res.json({
+      tenant: {
+        id: tenant.id, companyName: tenant.company_name, slug: tenant.slug, adminEmail: tenant.admin_email,
+        adminName: tenant.admin_name, phone: tenant.phone, address: tenant.address, gstNumber: tenant.gst_number,
+        planId: tenant.plan_id, planName: tenant.plan_name, status: tenant.status,
+        trialEndsAt: tenant.trial_ends_at, createdAt: tenant.created_at, lastActiveAt: tenant.last_active_at,
+      },
+      stats,
+      users: users.map((u: Record<string, unknown>) => ({ id: u.id, email: u.email, name: u.name, role: u.role, vendorId: u.vendor_id, createdAt: u.created_at })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============ UPDATE TENANT ============
+router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, planId, companyName, phone, address, gstNumber } = req.body;
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    let idx = 1;
+    if (status !== undefined) { updates.push(`status = $${idx}`); params.push(status); idx++; }
+    if (planId !== undefined) { updates.push(`plan_id = $${idx}`); params.push(planId); idx++; }
+    if (companyName !== undefined) { updates.push(`company_name = $${idx}`); params.push(companyName); idx++; }
+    if (phone !== undefined) { updates.push(`phone = $${idx}`); params.push(phone); idx++; }
+    if (address !== undefined) { updates.push(`address = $${idx}`); params.push(address); idx++; }
+    if (gstNumber !== undefined) { updates.push(`gst_number = $${idx}`); params.push(gstNumber); idx++; }
+    if (updates.length === 0) return res.status(400).json({ error: 'No updates provided' });
+    params.push(id);
+    const result = await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
+    const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0];
+    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============ DELETE TENANT ============
+router.delete('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenant = (await pool.query('SELECT id FROM tenants WHERE id = $1', [id])).rows[0];
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    await deleteTenant(id);
+    res.json({ ok: true, message: 'Tenant and all data deleted' });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============ IMPERSONATE (get tenant admin token) ============
+router.post('/api/super-admin/tenants/:id/impersonate', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0];
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    const admin = (await pool.query("SELECT * FROM users WHERE tenant_id = $1 AND role IN ('Super Admin', 'Admin') ORDER BY created_at LIMIT 1", [id])).rows[0];
+    if (!admin) return res.status(404).json({ error: 'No admin user found for this tenant' });
+
+    const { generateToken } = await import('../middleware/auth');
+    const token = generateToken({ userId: admin.id, email: admin.email, name: admin.name, role: admin.role, tenantId: id });
+    res.json({ token, tenantId: id, companyName: tenant.company_name, user: { id: admin.id, email: admin.email, name: admin.name, role: admin.role } });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============ PLANS ============
+router.get('/api/super-admin/plans', superAdminMiddleware, async (_req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT *, (SELECT COUNT(*) FROM tenants WHERE plan_id = plans.id) as tenant_count FROM plans ORDER BY price_monthly');
+    res.json(rows.map((p: Record<string, unknown>) => ({
+      id: p.id, name: p.name, maxProducts: p.max_products, maxVendors: p.max_vendors, maxUsers: p.max_users, maxBarcodes: p.max_barcodes,
+      features: p.features, priceMonthly: p.price_monthly, priceYearly: p.price_yearly, isActive: p.is_active, tenantCount: p.tenant_count,
+    })));
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+router.post('/api/super-admin/plans', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id, name, maxProducts, maxVendors, maxUsers, maxBarcodes, features, priceMonthly, priceYearly } = req.body;
+    if (!id || !name) return res.status(400).json({ error: 'Plan ID and name required' });
+    await pool.query(
+      'INSERT INTO plans (id, name, max_products, max_vendors, max_users, max_barcodes, features, price_monthly, price_yearly) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      [id, name, maxProducts ?? -1, maxVendors ?? -1, maxUsers ?? -1, maxBarcodes ?? -1, JSON.stringify(features || {}), priceMonthly ?? 0, priceYearly ?? 0]
+    );
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+router.put('/api/super-admin/plans/:id', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, maxProducts, maxVendors, maxUsers, maxBarcodes, features, priceMonthly, priceYearly, isActive } = req.body;
+    await pool.query(
+      `UPDATE plans SET name = COALESCE($1, name), max_products = COALESCE($2, max_products), max_vendors = COALESCE($3, max_vendors),
+       max_users = COALESCE($4, max_users), max_barcodes = COALESCE($5, max_barcodes), features = COALESCE($6, features),
+       price_monthly = COALESCE($7, price_monthly), price_yearly = COALESCE($8, price_yearly), is_active = COALESCE($9, is_active) WHERE id = $10`,
+      [name, maxProducts, maxVendors, maxUsers, maxBarcodes, features ? JSON.stringify(features) : null, priceMonthly, priceYearly, isActive, id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+router.delete('/api/super-admin/plans/:id', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenants = (await pool.query('SELECT COUNT(*) as c FROM tenants WHERE plan_id = $1', [id])).rows[0];
+    if (tenants.c > 0) return res.status(400).json({ error: `Cannot delete plan — ${tenants.c} tenant(s) are using it` });
+    await pool.query('DELETE FROM plans WHERE id = $1', [id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============ SELF-SERVICE REGISTRATION ============
+router.post('/api/tenant/register', async (req, res) => {
+  try {
+    const { companyName, adminName, adminEmail, adminPassword, phone } = req.body;
+    if (!companyName || !adminName || !adminEmail || !adminPassword) return res.status(400).json({ error: 'All fields required' });
+    if (adminPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    const existing = (await pool.query('SELECT id FROM tenants WHERE admin_email = $1', [adminEmail])).rows[0];
+    if (existing) return res.status(400).json({ error: 'An account with this email already exists' });
+    const trialEnds = new Date(); trialEnds.setDate(trialEnds.getDate() + 14);
+    const result = await provisionTenant({
+      companyName, adminEmail, adminName, adminPassword, phone,
+      planId: 'TRIAL', status: 'trial', trialEndsAt: trialEnds.toISOString(),
+    });
+
+    const { generateToken } = await import('../middleware/auth');
+    const token = generateToken({ userId: `U-${result.tenantId}`, email: adminEmail, name: adminName, role: 'Super Admin', tenantId: result.tenantId });
+
+    res.status(201).json({ token, tenantId: result.tenantId, companyName, user: { email: adminEmail, name: adminName, role: 'Super Admin' } });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============ ANALYTICS ============
+router.get('/api/super-admin/analytics', superAdminMiddleware, async (_req, res) => {
+  try {
+    const monthlyTenants = (await pool.query(`
+      SELECT to_char(created_at, 'YYYY-MM') as month, COUNT(*) as count
+      FROM tenants GROUP BY month ORDER BY month DESC LIMIT 12
+    `)).rows;
+
+    const revenueByTenant = (await pool.query(`
+      SELECT t.company_name, COALESCE(SUM(ps.sale_price), 0) as revenue, COUNT(ps.id) as sales
+      FROM tenants t LEFT JOIN product_sales ps ON ps.tenant_id = t.id
+      GROUP BY t.id, t.company_name ORDER BY revenue DESC LIMIT 10
+    `)).rows;
+
+    const mostActiveToday = (await pool.query(`
+      SELECT t.company_name, COUNT(ps.id) as sales_today
+      FROM tenants t JOIN product_sales ps ON ps.tenant_id = t.id
+      WHERE ps.purchase_date = CURRENT_DATE
+      GROUP BY t.id, t.company_name ORDER BY sales_today DESC LIMIT 5
+    `)).rows;
+
+    res.json({ monthlyTenants, revenueByTenant, mostActiveToday });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+export default router;

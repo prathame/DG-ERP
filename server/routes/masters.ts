@@ -1,15 +1,19 @@
 import { Router } from 'express';
-import { db } from '../db';
+import { pool } from '../pg-db';
 
 const router = Router();
 
-router.get('/api/masters/counts', (_req, res) => {
+router.get('/api/masters/counts', async (req, res) => {
   try {
-    const customers = db.prepare('SELECT COUNT(*) as count FROM customers').get() as { count: number };
-    const vendors = db.prepare('SELECT COUNT(*) as count FROM vendors').get() as { count: number };
-    const products = db.prepare('SELECT COUNT(*) as count FROM products').get() as { count: number };
-    const banks = db.prepare('SELECT COUNT(*) as count FROM banks').get() as { count: number };
-    const categories = db.prepare('SELECT COUNT(*) as count FROM categories').get() as { count: number };
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const customers = (await pool.query('SELECT COUNT(*) as count FROM customers WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
+    const vendors = (await pool.query('SELECT COUNT(*) as count FROM vendors WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
+    const products = (await pool.query('SELECT COUNT(*) as count FROM products WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
+    const banks = (await pool.query('SELECT COUNT(*) as count FROM banks WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
+    const categories = (await pool.query('SELECT COUNT(*) as count FROM categories WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
+
     res.json({
       customerMaster: customers.count,
       vendorMaster: vendors.count,

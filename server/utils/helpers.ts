@@ -1,5 +1,5 @@
-import crypto from 'crypto';
-import { db } from '../db';
+import bcrypt from 'bcrypt';
+import { Pool } from 'pg';
 
 /** Billable amount per distributed unit (GST-inclusive when billed_price is set). */
 export const DISTRIBUTION_BILL_UNIT_SQL = 'COALESCE(pd.billed_price, pd.net_price, p.price)';
@@ -10,35 +10,42 @@ export function parsePagination(query: Record<string, unknown>): { limit: number
   return { limit, offset: (page - 1) * limit, page };
 }
 
-export function applyDateFilter(query: Record<string, unknown>, dateColumn: string, params: unknown[]): string {
+export function applyDateFilter(query: Record<string, unknown>, dateColumn: string, params: unknown[], paramOffset?: number): string {
   let sql = '';
+  let idx = (paramOffset ?? params.length) + 1;
   const { dateFrom, dateTo, dateRange } = query;
   const today = new Date().toISOString().slice(0, 10);
   if (dateRange === 'today') {
-    sql += ` AND ${dateColumn} = ?`;
+    sql += ` AND ${dateColumn} = $${idx}`;
     params.push(today);
+    idx++;
   } else if (dateRange === 'week') {
     const d = new Date(); d.setDate(d.getDate() - 7);
-    sql += ` AND ${dateColumn} >= ?`;
+    sql += ` AND ${dateColumn} >= $${idx}`;
     params.push(d.toISOString().slice(0, 10));
+    idx++;
   } else if (dateRange === 'month') {
     const d = new Date(); d.setMonth(d.getMonth() - 1);
-    sql += ` AND ${dateColumn} >= ?`;
+    sql += ` AND ${dateColumn} >= $${idx}`;
     params.push(d.toISOString().slice(0, 10));
+    idx++;
   } else {
-    if (typeof dateFrom === 'string' && dateFrom) { sql += ` AND ${dateColumn} >= ?`; params.push(dateFrom); }
-    if (typeof dateTo === 'string' && dateTo) { sql += ` AND ${dateColumn} <= ?`; params.push(dateTo); }
+    if (typeof dateFrom === 'string' && dateFrom) { sql += ` AND ${dateColumn} >= $${idx}`; params.push(dateFrom); idx++; }
+    if (typeof dateTo === 'string' && dateTo) { sql += ` AND ${dateColumn} <= $${idx}`; params.push(dateTo); idx++; }
   }
   return sql;
 }
 
-export function logAudit(action: string, entityType: string, entityId?: string, details?: string, userId?: string, userName?: string) {
+export async function logAudit(pool: Pool, tenantId: string, action: string, entityType: string, entityId?: string, details?: string, userId?: string, userName?: string) {
   try {
-    db.prepare('INSERT INTO audit_log (user_id, user_name, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?, ?)').run(userId ?? null, userName ?? null, action, entityType, entityId ?? null, details ?? null);
+    await pool.query(
+      'INSERT INTO audit_log (tenant_id, user_id, user_name, action, entity_type, entity_id, details) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [tenantId, userId ?? null, userName ?? null, action, entityType, entityId ?? null, details ?? null]
+    );
   } catch (_) {}
 }
 
-export const hashPassword = (p: string) => crypto.createHash('sha256').update(p).digest('hex');
+export const hashPassword = (p: string) => bcrypt.hashSync(p, 10);
 
 export const mapProduct = (r: Record<string, unknown>) => ({
   id: r.id,
@@ -60,6 +67,5 @@ export const mapProduct = (r: Record<string, unknown>) => ({
   remainingInventory: r.remainingInventory ?? r.stock ?? 0,
   soldCount: r.soldCount ?? 0,
   withVendors: r.withVendors ?? 0,
-  warrantyApplicable: r.warranty_applicable !== 0,
   barcodeRange: r.barcodeRange ?? null,
 });

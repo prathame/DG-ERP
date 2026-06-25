@@ -1,0 +1,84 @@
+import { pool } from '../pg-db';
+import bcrypt from 'bcrypt';
+
+export async function provisionTenant(data: {
+  companyName: string;
+  adminEmail: string;
+  adminName: string;
+  adminPassword?: string;
+  phone?: string;
+  address?: string;
+  gstNumber?: string;
+  planId: string;
+  status?: string;
+  trialEndsAt?: string;
+}) {
+  const tenantId = `T${Date.now()}`;
+  const slug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const defaultPassword = data.adminPassword || `${data.companyName.replace(/\s+/g, '').toLowerCase().slice(0, 12)}@123`;
+  const passwordHash = await bcrypt.hash(defaultPassword, 10);
+  const userId = `U${Date.now()}`;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    await client.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, phone, address, gst_number, plan_id, status, trial_ends_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [tenantId, data.companyName, slug, data.adminEmail, data.adminName, data.phone || null, data.address || null, data.gstNumber || null, data.planId, data.status || 'active', data.trialEndsAt || null]
+    );
+
+    await client.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, phone, address, role, company_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [userId, tenantId, data.adminEmail, passwordHash, data.adminName, data.phone || null, data.address || null, 'Super Admin', data.companyName]
+    );
+
+    await client.query(
+      `INSERT INTO vendors (id, tenant_id, name) VALUES ($1,$2,$3)`,
+      ['OWNER', tenantId, 'Owner']
+    );
+
+    await client.query(
+      `INSERT INTO redemption_settings (id, tenant_id, min_balance, min_points) VALUES ($1,$2,$3,$4)`,
+      ['default', tenantId, 100, 50]
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      tenantId,
+      slug,
+      credentials: { email: data.adminEmail, password: defaultPassword },
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function deleteTenant(tenantId: string) {
+  await pool.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
+}
+
+export async function getTenantStats(tenantId: string) {
+  const [products, vendors, users, sales, revenue, barcodes] = await Promise.all([
+    pool.query('SELECT COUNT(*) as c FROM products WHERE tenant_id = $1', [tenantId]),
+    pool.query("SELECT COUNT(*) as c FROM vendors WHERE tenant_id = $1 AND id != 'OWNER'", [tenantId]),
+    pool.query('SELECT COUNT(*) as c FROM users WHERE tenant_id = $1', [tenantId]),
+    pool.query('SELECT COUNT(*) as c FROM product_sales WHERE tenant_id = $1', [tenantId]),
+    pool.query('SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE tenant_id = $1', [tenantId]),
+    pool.query('SELECT COUNT(*) as c FROM product_inventory WHERE tenant_id = $1', [tenantId]),
+  ]);
+  return {
+    products: products.rows[0].c,
+    vendors: vendors.rows[0].c,
+    users: users.rows[0].c,
+    sales: sales.rows[0].c,
+    revenue: revenue.rows[0].t,
+    barcodes: barcodes.rows[0].c,
+  };
+}

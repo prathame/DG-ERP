@@ -83,3 +83,42 @@ export interface Bank {
   branch?: string;
   ifscCode?: string;
 }
+
+export interface SuperAdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'super_admin';
+}
+
+export interface Tenant {
+  id: string;
+  companyName: string;
+  slug: string;
+  adminEmail: string;
+  adminName: string;
+  phone?: string;
+  status: string;
+  planName?: string;
+  planId?: string;
+  userCount?: number;
+  productCount?: number;
+  vendorCount?: number;
+  saleCount?: number;
+  revenue?: number;
+  createdAt?: string;
+}
+
+export interface Plan {
+  id: string;
+  name: string;
+  maxProducts: number;
+  maxVendors: number;
+  maxUsers: number;
+  maxBarcodes: number;
+  features: Record<string, boolean>;
+  priceMonthly: number;
+  priceYearly: number;
+  isActive: boolean;
+  tenantCount?: number;
+}

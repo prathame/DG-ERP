@@ -1,20 +1,23 @@
 import { Router } from 'express';
-import { db } from '../db';
+import { pool } from '../pg-db';
 
 const router = Router();
 
-router.get('/api/banks', (req, res) => {
+router.get('/api/banks', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { search } = req.query;
-    let sql = 'SELECT * FROM banks ORDER BY name';
-    const params: string[] = [];
+    let sql = 'SELECT * FROM banks WHERE tenant_id = $1';
+    const params: unknown[] = [tenantId];
     if (typeof search === 'string' && search) {
-      sql = 'SELECT * FROM banks WHERE name LIKE ? OR account_number LIKE ? OR bank_name LIKE ? OR ifsc_code LIKE ? ORDER BY name';
+      sql = 'SELECT * FROM banks WHERE tenant_id = $1 AND (name LIKE $2 OR account_number LIKE $3 OR bank_name LIKE $4 OR ifsc_code LIKE $5)';
       params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
-    const stmt = params.length ? db.prepare(sql) : db.prepare(sql);
-    const rows = params.length ? stmt.all(...params) : stmt.all();
-    const list = (rows as Record<string, unknown>[]).map((r) => ({
+    sql += ' ORDER BY name';
+    const { rows } = await pool.query(sql, params);
+    const list = rows.map((r: Record<string, unknown>) => ({
       id: r.id,
       name: r.name,
       accountNumber: r.account_number,
@@ -28,39 +31,51 @@ router.get('/api/banks', (req, res) => {
   }
 });
 
-router.post('/api/banks', (req, res) => {
+router.post('/api/banks', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { name, accountNumber, bankName, branch, ifscCode } = req.body;
     const id = `B${Date.now()}`;
-    const stmt = db.prepare('INSERT INTO banks (id, name, account_number, bank_name, branch, ifsc_code) VALUES (?, ?, ?, ?, ?, ?)');
-    stmt.run(id, name ?? '', accountNumber, bankName, branch, ifscCode);
-    const row = db.prepare('SELECT * FROM banks WHERE id = ?').get(id) as Record<string, unknown>;
+    await pool.query(
+      'INSERT INTO banks (id, tenant_id, name, account_number, bank_name, branch, ifsc_code) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [id, tenantId, name ?? '', accountNumber, bankName, branch, ifscCode]
+    );
+    const row = (await pool.query('SELECT * FROM banks WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.status(201).json({ id: row.id, name: row.name, accountNumber: row.account_number, bankName: row.bank_name, branch: row.branch, ifscCode: row.ifsc_code });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
 });
 
-router.put('/api/banks/:id', (req, res) => {
+router.put('/api/banks/:id', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { id } = req.params;
     const { name, accountNumber, bankName, branch, ifscCode } = req.body;
-    const stmt = db.prepare('UPDATE banks SET name=COALESCE(?,name), account_number=COALESCE(?,account_number), bank_name=COALESCE(?,bank_name), branch=COALESCE(?,branch), ifsc_code=COALESCE(?,ifsc_code) WHERE id=?');
-    const result = stmt.run(name, accountNumber, bankName, branch, ifscCode, id);
-    if (result.changes === 0) return res.status(404).json({ error: 'Bank not found' });
-    const row = db.prepare('SELECT * FROM banks WHERE id = ?').get(id) as Record<string, unknown>;
+    const result = await pool.query(
+      'UPDATE banks SET name=COALESCE($1,name), account_number=COALESCE($2,account_number), bank_name=COALESCE($3,bank_name), branch=COALESCE($4,branch), ifsc_code=COALESCE($5,ifsc_code) WHERE id=$6 AND tenant_id=$7',
+      [name, accountNumber, bankName, branch, ifscCode, id, tenantId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Bank not found' });
+    const row = (await pool.query('SELECT * FROM banks WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.json({ id: row.id, name: row.name, accountNumber: row.account_number, bankName: row.bank_name, branch: row.branch, ifscCode: row.ifsc_code });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
 });
 
-router.delete('/api/banks/:id', (req, res) => {
+router.delete('/api/banks/:id', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { id } = req.params;
-    const stmt = db.prepare('DELETE FROM banks WHERE id = ?');
-    const result = stmt.run(id);
-    if (result.changes === 0) return res.status(404).json({ error: 'Bank not found' });
+    const result = await pool.query('DELETE FROM banks WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Bank not found' });
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: String(err) });

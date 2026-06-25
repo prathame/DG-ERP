@@ -127,10 +127,25 @@ export interface DistributionBillData {
 }
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = sessionStorage.getItem('auth_token');
+  const tenantId = sessionStorage.getItem('tenant_id');
+  const authHeaders: Record<string, string> = {};
+  if (token) authHeaders['Authorization'] = `Bearer ${token}`;
+  if (tenantId) authHeaders['X-Tenant-ID'] = tenantId;
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...authHeaders, ...options?.headers },
   });
+
+  if (res.status === 401) {
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('tenant_id');
+    sessionStorage.removeItem('splendor_user');
+    window.location.href = '/';
+    throw new Error('Session expired. Please log in again.');
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || res.statusText);
@@ -414,10 +429,39 @@ export const api = {
   },
   auth: {
     signup: (data: { email: string; password: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }) =>
-      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }>('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
+      fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string } }>('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
     login: (email: string, password: string) =>
-      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+      fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string } }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   },
+  superAdmin: {
+    login: (email: string, password: string) =>
+      fetchApi<{ token: string; user: import('./types').SuperAdminUser }>('/super-admin/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    dashboard: () =>
+      fetchApi<{ totalTenants: number; activeTenants: number; totalRevenue: number; totalUsers: number }>('/super-admin/dashboard'),
+    tenants: {
+      list: () => fetchApi<import('./types').Tenant[]>('/super-admin/tenants'),
+      create: (data: Partial<import('./types').Tenant>) =>
+        fetchApi<import('./types').Tenant>('/super-admin/tenants', { method: 'POST', body: JSON.stringify(data) }),
+      get: (id: string) => fetchApi<import('./types').Tenant>(`/super-admin/tenants/${id}`),
+      update: (id: string, data: Partial<import('./types').Tenant>) =>
+        fetchApi<import('./types').Tenant>(`/super-admin/tenants/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (id: string) => fetchApi<void>(`/super-admin/tenants/${id}`, { method: 'DELETE' }),
+    },
+    plans: {
+      list: () => fetchApi<import('./types').Plan[]>('/super-admin/plans'),
+      create: (data: Partial<import('./types').Plan>) =>
+        fetchApi<import('./types').Plan>('/super-admin/plans', { method: 'POST', body: JSON.stringify(data) }),
+      update: (id: string, data: Partial<import('./types').Plan>) =>
+        fetchApi<import('./types').Plan>(`/super-admin/plans/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (id: string) => fetchApi<void>(`/super-admin/plans/${id}`, { method: 'DELETE' }),
+    },
+    analytics: () =>
+      fetchApi<{ tenantGrowth: { month: string; count: number }[]; revenueByPlan: { plan: string; revenue: number }[] }>('/super-admin/analytics'),
+    impersonate: (tenantId: string) =>
+      fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; role?: string; companyName?: string } }>(`/super-admin/tenants/${tenantId}/impersonate`, { method: 'POST' }),
+  },
+  tenantRegister: (data: { companyName: string; adminEmail: string; adminName: string; password: string; phone?: string; planId?: string }) =>
+    fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; role?: string; companyName?: string } }>('/tenant/register', { method: 'POST', body: JSON.stringify(data) }),
   settings: {
     getProfile: (userId: string) =>
       fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),

@@ -1,21 +1,26 @@
 import { Router } from 'express';
-import { db } from '../db';
+import { pool } from '../pg-db';
 import { logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
 const router = Router();
 
 // Static routes MUST come before :vendorId param routes
-router.get('/api/vendor-finance/summary', (_req, res) => {
+router.get('/api/vendor-finance/summary', async (req, res) => {
   try {
-    const vendors = db.prepare(`
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const vendors = (await pool.query(`
       SELECT v.id, v.name, v.phone,
-        COALESCE((SELECT SUM(${DISTRIBUTION_BILL_UNIT_SQL}) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id), 0) as total_distributed_value,
-        COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id), 0) as total_paid,
-        (SELECT COUNT(*) FROM product_distribution WHERE vendor_id = v.id) as units_distributed
-      FROM vendors v WHERE v.id != 'OWNER' ORDER BY v.name
-    `).all() as { id: string; name: string; phone: string | null; total_distributed_value: number; total_paid: number; units_distributed: number }[];
-    const reminders = db.prepare('SELECT vendor_id, enabled, reminder_days, last_reminder_date FROM vendor_reminder_settings').all() as { vendor_id: string; enabled: number; reminder_days: number; last_reminder_date: string | null }[];
+        COALESCE((SELECT SUM(${DISTRIBUTION_BILL_UNIT_SQL}) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id AND pd.tenant_id = $1), 0) as total_distributed_value,
+        COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id AND tenant_id = $1), 0) as total_paid,
+        (SELECT COUNT(*) FROM product_distribution WHERE vendor_id = v.id AND tenant_id = $1) as units_distributed
+      FROM vendors v WHERE v.id != 'OWNER' AND v.tenant_id = $1 ORDER BY v.name
+    `, [tenantId])).rows as { id: string; name: string; phone: string | null; total_distributed_value: number; total_paid: number; units_distributed: number }[];
+
+    const reminders = (await pool.query('SELECT vendor_id, enabled, reminder_days, last_reminder_date FROM vendor_reminder_settings WHERE tenant_id = $1', [tenantId])).rows as { vendor_id: string; enabled: boolean; reminder_days: number; last_reminder_date: string | null }[];
     const reminderMap = Object.fromEntries(reminders.map((r) => [r.vendor_id, r]));
+
     res.json(vendors.map((v) => {
       const rem = reminderMap[v.id];
       return {
@@ -34,17 +39,21 @@ router.get('/api/vendor-finance/summary', (_req, res) => {
   }
 });
 
-router.get('/api/vendor-finance/reminders-due', (_req, res) => {
+router.get('/api/vendor-finance/reminders-due', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const today = new Date().toISOString().slice(0, 10);
-    const rows = db.prepare(`
+    const rows = (await pool.query(`
       SELECT vrs.vendor_id, vrs.reminder_days, vrs.last_reminder_date, v.name, v.phone,
-        COALESCE((SELECT SUM(${DISTRIBUTION_BILL_UNIT_SQL}) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id), 0) as total_value,
-        COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id), 0) as total_paid
+        COALESCE((SELECT SUM(${DISTRIBUTION_BILL_UNIT_SQL}) FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = v.id AND pd.tenant_id = $1), 0) as total_value,
+        COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id AND tenant_id = $1), 0) as total_paid
       FROM vendor_reminder_settings vrs
       JOIN vendors v ON vrs.vendor_id = v.id
-      WHERE vrs.enabled = 1
-    `).all() as { vendor_id: string; reminder_days: number; last_reminder_date: string | null; name: string; phone: string | null; total_value: number; total_paid: number }[];
+      WHERE vrs.enabled = true AND vrs.tenant_id = $1
+    `, [tenantId])).rows as { vendor_id: string; reminder_days: number; last_reminder_date: string | null; name: string; phone: string | null; total_value: number; total_paid: number }[];
+
     const due = rows.filter((r) => {
       const balance = r.total_value - r.total_paid;
       if (balance <= 0) return false;
@@ -54,6 +63,7 @@ router.get('/api/vendor-finance/reminders-due', (_req, res) => {
       nextDue.setDate(nextDue.getDate() + r.reminder_days);
       return nextDue.toISOString().slice(0, 10) <= today;
     });
+
     res.json(due.map((r) => ({
       vendorId: r.vendor_id, vendorName: r.name, vendorPhone: r.phone ?? '',
       balance: r.total_value - r.total_paid, totalValue: r.total_value, totalPaid: r.total_paid,
@@ -64,24 +74,29 @@ router.get('/api/vendor-finance/reminders-due', (_req, res) => {
   }
 });
 
-router.get('/api/vendor-finance/:vendorId', (req, res) => {
+router.get('/api/vendor-finance/:vendorId', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { vendorId } = req.params;
-    const vendor = db.prepare('SELECT id, name, phone, email, address, contact_person FROM vendors WHERE id = ?').get(vendorId) as Record<string, unknown> | undefined;
+    const vendor = (await pool.query('SELECT id, name, phone, email, address, contact_person FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
-    const totalValue = db.prepare(`SELECT COALESCE(SUM(${DISTRIBUTION_BILL_UNIT_SQL}), 0) as total FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = ?`).get(vendorId) as { total: number };
-    const totalPaid = db.prepare('SELECT COALESCE(SUM(amount), 0) as total FROM vendor_payments WHERE vendor_id = ?').get(vendorId) as { total: number };
-    const payments = db.prepare('SELECT * FROM vendor_payments WHERE vendor_id = ? ORDER BY payment_date DESC').all(vendorId) as Record<string, unknown>[];
-    const distributions = db.prepare(`
+
+    const totalValue = (await pool.query(`SELECT COALESCE(SUM(${DISTRIBUTION_BILL_UNIT_SQL}), 0) as total FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = $1 AND pd.tenant_id = $2`, [vendorId, tenantId])).rows[0] as { total: number };
+    const totalPaid = (await pool.query('SELECT COALESCE(SUM(amount), 0) as total FROM vendor_payments WHERE vendor_id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as { total: number };
+    const payments = (await pool.query('SELECT * FROM vendor_payments WHERE vendor_id = $1 AND tenant_id = $2 ORDER BY payment_date DESC', [vendorId, tenantId])).rows as Record<string, unknown>[];
+    const distributions = (await pool.query(`
       SELECT pd.distribution_date, p.name as product_name, p.price as original_price, pd.discount_percent,
              ${DISTRIBUTION_BILL_UNIT_SQL} as unit_price, COUNT(*) as qty,
              SUM(${DISTRIBUTION_BILL_UNIT_SQL}) as line_total
       FROM product_distribution pd JOIN products p ON pd.product_id = p.id
-      WHERE pd.vendor_id = ?
-      GROUP BY pd.distribution_date, pd.product_id, pd.discount_percent
+      WHERE pd.vendor_id = $1 AND pd.tenant_id = $2
+      GROUP BY pd.distribution_date, pd.product_id, pd.discount_percent, p.name, p.price, pd.billed_price, pd.net_price
       ORDER BY pd.distribution_date DESC
-    `).all(vendorId) as { distribution_date: string; product_name: string; original_price: number; discount_percent: number; unit_price: number; qty: number; line_total: number }[];
-    const reminder = db.prepare('SELECT enabled, reminder_days, last_reminder_date FROM vendor_reminder_settings WHERE vendor_id = ?').get(vendorId) as { enabled: number; reminder_days: number; last_reminder_date: string | null } | undefined;
+    `, [vendorId, tenantId])).rows as { distribution_date: string; product_name: string; original_price: number; discount_percent: number; unit_price: number; qty: number; line_total: number }[];
+    const reminder = (await pool.query('SELECT enabled, reminder_days, last_reminder_date FROM vendor_reminder_settings WHERE vendor_id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as { enabled: boolean; reminder_days: number; last_reminder_date: string | null } | undefined;
+
     res.json({
       vendor: { id: vendor.id, name: vendor.name, phone: vendor.phone, email: vendor.email, address: vendor.address, contactPerson: vendor.contact_person },
       totalDistributedValue: totalValue.total,
@@ -100,19 +115,28 @@ router.get('/api/vendor-finance/:vendorId', (req, res) => {
   }
 });
 
-router.post('/api/vendor-finance/:vendorId/payments', (req, res) => {
+router.post('/api/vendor-finance/:vendorId/payments', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { vendorId } = req.params;
     const { amount, paymentDate, paymentMethod, referenceNumber, notes } = req.body;
     if (!amount || amount <= 0) return res.status(400).json({ error: 'Amount must be greater than 0' });
-    const vendor = db.prepare('SELECT id FROM vendors WHERE id = ?').get(vendorId);
+
+    const vendor = (await pool.query('SELECT id FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0];
     if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
+
     const id = `VP${Date.now()}`;
-    db.prepare('INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(id, vendorId, amount, paymentDate || new Date().toISOString().slice(0, 10), paymentMethod || 'Cash', referenceNumber || null, notes || null);
-    const vendorName = (db.prepare('SELECT name FROM vendors WHERE id = ?').get(vendorId) as { name: string } | undefined)?.name ?? vendorId;
-    logAudit('Payment Recorded', 'payment', id, `${vendorName} paid ₹${amount}, Method: ${paymentMethod || 'Cash'}`);
-    const row = db.prepare('SELECT * FROM vendor_payments WHERE id = ?').get(id) as Record<string, unknown>;
+    await pool.query(
+      'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [id, vendorId, amount, paymentDate || new Date().toISOString().slice(0, 10), paymentMethod || 'Cash', referenceNumber || null, notes || null, tenantId]
+    );
+
+    const vendorName = ((await pool.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as { name: string } | undefined)?.name ?? vendorId;
+    logAudit(pool, tenantId, 'Payment Recorded', 'payment', id, `${vendorName} paid ₹${amount}, Method: ${paymentMethod || 'Cash'}`);
+
+    const row = (await pool.query('SELECT * FROM vendor_payments WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     res.status(201).json({
       id: row.id, amount: row.amount, paymentDate: row.payment_date, paymentMethod: row.payment_method, referenceNumber: row.reference_number, notes: row.notes,
     });
@@ -121,23 +145,35 @@ router.post('/api/vendor-finance/:vendorId/payments', (req, res) => {
   }
 });
 
-router.put('/api/vendor-finance/:vendorId/reminder', (req, res) => {
+router.put('/api/vendor-finance/:vendorId/reminder', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { vendorId } = req.params;
     const { enabled, reminderDays } = req.body;
-    db.prepare('INSERT OR REPLACE INTO vendor_reminder_settings (vendor_id, enabled, reminder_days) VALUES (?, ?, ?)').run(vendorId, enabled ? 1 : 0, reminderDays ?? 7);
-    const row = db.prepare('SELECT * FROM vendor_reminder_settings WHERE vendor_id = ?').get(vendorId) as Record<string, unknown>;
+
+    await pool.query(
+      `INSERT INTO vendor_reminder_settings (vendor_id, enabled, reminder_days, tenant_id) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (vendor_id, tenant_id) DO UPDATE SET enabled = $2, reminder_days = $3`,
+      [vendorId, enabled ? true : false, reminderDays ?? 7, tenantId]
+    );
+
+    const row = (await pool.query('SELECT * FROM vendor_reminder_settings WHERE vendor_id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as Record<string, unknown>;
     res.json({ enabled: !!(row.enabled), days: row.reminder_days, lastSent: row.last_reminder_date });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
 });
 
-router.post('/api/vendor-finance/:vendorId/reminder-sent', (req, res) => {
+router.post('/api/vendor-finance/:vendorId/reminder-sent', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { vendorId } = req.params;
     const today = new Date().toISOString().slice(0, 10);
-    db.prepare('UPDATE vendor_reminder_settings SET last_reminder_date = ? WHERE vendor_id = ?').run(today, vendorId);
+    await pool.query('UPDATE vendor_reminder_settings SET last_reminder_date = $1 WHERE vendor_id = $2 AND tenant_id = $3', [today, vendorId, tenantId]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: String(err) });
