@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Package, ShoppingCart, Truck, Receipt, IndianRupee, MessageSquare,
-  Palette, Moon, ShieldCheck, BarChart3, Users, Zap, Languages,
+  Palette, Moon, ShieldCheck, BarChart3, Users, Zap, Languages, Building2, Shield,
   ArrowRight, Check, Star, Mail, Phone, Send, MessageCircle, Sun,
 } from 'lucide-react';
 
@@ -187,6 +187,95 @@ export function LandingPage() {
               <p className={`text-sm mt-1 ${textFaint}`}>{s.label}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Visual Flow Diagram */}
+      <section className={`py-20 px-6 ${sectionAlt}`}>
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold">Platform Architecture</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>One platform, unlimited companies, fully isolated</p>
+          </div>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-0">
+            {/* Super Admin */}
+            <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className={`p-6 border rounded-2xl text-center w-full md:w-48 ${cardBg}`}>
+              <div className="w-14 h-14 bg-[#F27D26]/10 rounded-2xl flex items-center justify-center mx-auto mb-3"><Shield size={28} className="text-[#F27D26]" /></div>
+              <p className="font-bold text-sm">Super Admin</p>
+              <p className={`text-[10px] ${textFaint} mt-1`}>Platform Owner</p>
+            </motion.div>
+            {/* Arrow */}
+            <div className={`hidden md:flex items-center px-2 ${textFaint}`}>
+              <div className="w-8 h-0.5 bg-[#F27D26]/30" /><ArrowRight size={16} className="text-[#F27D26]/50" />
+            </div>
+            <div className="md:hidden py-2"><div className="w-0.5 h-6 bg-[#F27D26]/30 mx-auto" /></div>
+            {/* Tenants */}
+            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className={`p-6 border rounded-2xl w-full md:w-auto md:flex-1 ${cardBg}`}>
+              <div className="flex items-center justify-center gap-6 flex-wrap">
+                {[
+                  { icon: Building2, label: 'Pump Co.', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+                  { icon: Building2, label: 'Jewellers', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+                  { icon: Building2, label: 'Electronics', color: 'text-purple-500', bg: 'bg-purple-500/10' },
+                ].map((t, i) => (
+                  <div key={i} className="text-center">
+                    <div className={`w-12 h-12 ${t.bg} rounded-xl flex items-center justify-center mx-auto mb-2`}><t.icon size={22} className={t.color} /></div>
+                    <p className="text-xs font-medium">{t.label}</p>
+                    <p className={`text-[10px] ${textFaint}`}>/{t.label.toLowerCase().replace(/[^a-z]/g, '-')}</p>
+                  </div>
+                ))}
+              </div>
+              <p className={`text-center text-xs ${textFaint} mt-4`}>Each tenant gets isolated data + branded URL + custom bills</p>
+            </motion.div>
+            {/* Arrow */}
+            <div className={`hidden md:flex items-center px-2 ${textFaint}`}>
+              <div className="w-8 h-0.5 bg-[#F27D26]/30" /><ArrowRight size={16} className="text-[#F27D26]/50" />
+            </div>
+            <div className="md:hidden py-2"><div className="w-0.5 h-6 bg-[#F27D26]/30 mx-auto" /></div>
+            {/* Users */}
+            <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className={`p-6 border rounded-2xl text-center w-full md:w-48 ${cardBg}`}>
+              <div className="flex justify-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center"><Users size={20} className="text-emerald-500" /></div>
+                <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center"><Truck size={20} className="text-blue-500" /></div>
+              </div>
+              <p className="font-bold text-sm">Admin + Vendors</p>
+              <p className={`text-[10px] ${textFaint} mt-1`}>Role-based access</p>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Visual Workflow */}
+      <section className="py-20 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold">End-to-End Workflow</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>From inventory to customer — every step tracked</p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {[
+              { icon: Package, label: 'Add Products', sub: 'Auto-barcode', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+              { icon: Truck, label: 'Distribute', sub: 'To vendors', color: 'text-amber-500', bg: 'bg-amber-500/10' },
+              { icon: ShoppingCart, label: 'Sell', sub: 'Barcode scan', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+              { icon: Receipt, label: 'Invoice', sub: 'GST bills', color: 'text-purple-500', bg: 'bg-purple-500/10' },
+              { icon: IndianRupee, label: 'Collect', sub: 'Track payments', color: 'text-[#F27D26]', bg: 'bg-[#F27D26]/10' },
+            ].map((step, i) => (
+              <motion.div
+                key={step.label}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className={`relative p-5 border rounded-2xl text-center ${cardBg} ${cardHover} group`}
+              >
+                {i < 4 && <div className="hidden md:block absolute -right-3 top-1/2 -translate-y-1/2 z-10"><ArrowRight size={14} className={textFaint} /></div>}
+                <div className={`w-12 h-12 ${step.bg} rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform`}>
+                  <step.icon size={24} className={step.color} />
+                </div>
+                <p className="font-bold text-sm">{step.label}</p>
+                <p className={`text-[10px] ${textFaint} mt-1`}>{step.sub}</p>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </section>
 
