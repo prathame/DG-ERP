@@ -251,6 +251,16 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
             <Calendar size={16} className="text-gray-400" />
             <span className="text-gray-600">Created: {tenant.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : 'N/A'}</span>
           </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Calendar size={16} className="text-gray-400" />
+            <span className="text-gray-600">Subscription: {tenant.subscriptionEndsAt ? new Date(tenant.subscriptionEndsAt).toLocaleDateString() : tenant.trialEndsAt ? `Trial ends ${new Date(tenant.trialEndsAt).toLocaleDateString()}` : 'No expiry set'}</span>
+            {(() => {
+              const end = tenant.subscriptionEndsAt || tenant.trialEndsAt;
+              if (!end) return null;
+              const days = Math.ceil((new Date(end).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              return <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", days <= 0 ? "bg-rose-100 text-rose-700" : days <= 7 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700")}>{days <= 0 ? 'Expired' : `${days}d left`}</span>;
+            })()}
+          </div>
           <div className="flex items-center gap-2 text-sm relative">
             <span className="text-gray-400 text-xs font-bold uppercase">Plan:</span>
             {changingPlan ? (
