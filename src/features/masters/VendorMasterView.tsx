@@ -44,10 +44,8 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
           load();
           if (result.credentials) {
             setCredsModal({ vendorName: form.name, email: result.credentials.email, password: result.credentials.password, phone: form.phone || undefined });
-          } else if (!form.email) {
-            toast('Vendor created (no email provided — login account not created)', 'info');
           } else {
-            toast('Vendor created', 'success');
+            toast(form.email ? 'Vendor created (login account already exists for this email)' : 'Vendor created — add email to auto-create login', form.email ? 'success' : 'info');
           }
         })
         .catch((err) => toast(err.message, 'error'))
@@ -111,10 +109,13 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Name</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Contact Person</label><input value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Phone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Email <span className="text-[#F27D26] normal-case font-normal">(used as vendor login)</span></label><input type="email" required={!editing} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="vendor@example.com" /></div>
+                <div className={!editing ? 'bg-blue-50 border border-blue-100 rounded-xl p-3 -mx-1' : ''}>
+                  <label className="text-xs font-bold text-gray-400 uppercase">Email * <span className="text-[#F27D26] normal-case font-normal">(vendor login ID)</span></label>
+                  <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="vendor@example.com" />
+                  {!editing && <p className="text-xs text-blue-600 mt-2">Login will be auto-created. Password: <span className="font-mono font-bold">{form.name ? `${form.name.replace(/\s+/g, '').toLowerCase()}@123` : 'vendorname@123'}</span></p>}
+                </div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Phone * <span className="text-gray-400 normal-case font-normal">(for WhatsApp)</span></label><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="+91 98765 43210" /></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                {!editing && <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">A login account will be auto-created with this email. Default password: <span className="font-mono font-medium">{form.name ? `${form.name.replace(/\s+/g, '').toLowerCase()}@123` : 'vendorname@123'}</span></p>}
                 <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2 border border-gray-200 rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Save'}</button></div>
               </form>
             </motion.div>
