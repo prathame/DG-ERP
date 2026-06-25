@@ -187,7 +187,19 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     const params: unknown[] = [];
     let idx = 1;
     if (b.status !== undefined) { updates.push(`status = $${idx}`); params.push(b.status); idx++; }
-    if (b.planId !== undefined) { updates.push(`plan_id = $${idx}`); params.push(b.planId); idx++; }
+    if (b.planId !== undefined) {
+      updates.push(`plan_id = $${idx}`); params.push(b.planId); idx++;
+      // Auto-apply plan features when plan changes
+      const newPlan = (await pool.query('SELECT features FROM plans WHERE id = $1', [b.planId])).rows[0] as { features: Record<string, boolean> } | undefined;
+      if (newPlan?.features) {
+        const featureToToggle: Record<string, string> = { warranty: 'warrantyEnabled', replacements: 'replacementEnabled', rewards: 'rewardsEnabled', finance: 'financeEnabled', chatbot: 'chatbotEnabled', billCustomization: 'billCustomizationEnabled', multiLanguage: 'multiLanguageEnabled', vendorPortal: 'vendorPortalEnabled', barcodeSystem: 'barcodeSystemEnabled' };
+        for (const [feat, toggleKey] of Object.entries(featureToToggle)) {
+          if (newPlan.features[feat] !== undefined && b[toggleKey] === undefined) {
+            b[toggleKey] = newPlan.features[feat];
+          }
+        }
+      }
+    }
     if (b.companyName !== undefined) { updates.push(`company_name = $${idx}`); params.push(b.companyName); idx++; }
     if (b.phone !== undefined) { updates.push(`phone = $${idx}`); params.push(b.phone); idx++; }
     if (b.address !== undefined) { updates.push(`address = $${idx}`); params.push(b.address); idx++; }
