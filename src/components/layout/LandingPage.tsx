@@ -27,12 +27,6 @@ const STEPS = [
   { num: '03', title: 'Start Working', desc: 'Admin adds products, vendors get auto-login, team starts managing inventory and sales' },
 ];
 
-const PLANS = [
-  { name: 'Trial', price: 'Free', period: '14 days', features: ['20 Products', '3 Vendors', '2 Users', 'All Features'], highlight: false },
-  { name: 'Starter', price: '₹999', period: '/month', features: ['50 Products', '5 Vendors', '3 Users', 'Core Features'], highlight: false },
-  { name: 'Professional', price: '₹2,999', period: '/month', features: ['500 Products', '25 Vendors', '15 Users', 'Warranty + Rewards + Finance'], highlight: true },
-  { name: 'Enterprise', price: '₹9,999', period: '/month', features: ['Unlimited Products', 'Unlimited Vendors', 'Unlimited Users', 'Chatbot + API + Priority Support'], highlight: false },
-];
 
 function EnquiryForm({ dark }: { dark: boolean }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', company: '', message: '' });
@@ -335,40 +329,6 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Pricing */}
-      <section className="py-24 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold">Simple Pricing</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>Start free, scale as you grow</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {PLANS.map((p) => (
-              <motion.div
-                key={p.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className={`p-6 rounded-2xl border transition-all ${p.highlight ? highlightCard : cardBg}`}
-              >
-                {p.highlight && <p className="text-[10px] font-bold text-[#F27D26] uppercase tracking-wider mb-3">Most Popular</p>}
-                <h3 className="font-bold text-lg">{p.name}</h3>
-                <div className="mt-2 mb-4">
-                  <span className="text-3xl font-bold">{p.price}</span>
-                  <span className={`text-sm ${textFaint}`}>{p.period}</span>
-                </div>
-                <ul className="space-y-2.5">
-                  {p.features.map((f) => (
-                    <li key={f} className={`flex items-center gap-2 text-sm ${textMuted}`}>
-                      <Check size={14} className="text-[#F27D26] shrink-0" /> {f}
-                    </li>
-                  ))}
-                </ul>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* Contact / Enquiry */}
       <section id="contact" className={`py-24 px-6 ${sectionAlt}`}>

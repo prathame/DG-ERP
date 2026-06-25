@@ -390,6 +390,24 @@ export async function initSchema() {
       )
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tenant_invoices (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+        invoice_number TEXT NOT NULL,
+        period_start DATE,
+        period_end DATE,
+        plan_name TEXT,
+        amount NUMERIC(12,2) NOT NULL,
+        gst_amount NUMERIC(12,2) DEFAULT 0,
+        total NUMERIC(12,2) NOT NULL,
+        status TEXT DEFAULT 'unpaid',
+        paid_at TIMESTAMPTZ,
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
     console.log('✓ Schema created');
   } finally {
     client.release();

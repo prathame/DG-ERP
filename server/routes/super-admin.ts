@@ -317,6 +317,69 @@ router.post('/api/tenant/register', superAdminMiddleware, async (req, res) => {
   }
 });
 
+// ============ TENANT BILLING ============
+router.get('/api/super-admin/billing', superAdminMiddleware, async (req, res) => {
+  try {
+    const { tenantId, status, page } = req.query;
+    const pageNum = Math.max(1, Number(page) || 1);
+    const pageSize = 30;
+    let sql = `SELECT i.*, t.company_name as tenant_name FROM tenant_invoices i LEFT JOIN tenants t ON i.tenant_id = t.id WHERE 1=1`;
+    const params: unknown[] = [];
+    let idx = 1;
+    if (typeof tenantId === 'string' && tenantId) { sql += ` AND i.tenant_id = $${idx}`; params.push(tenantId); idx++; }
+    if (typeof status === 'string' && status) { sql += ` AND i.status = $${idx}`; params.push(status); idx++; }
+    const countResult = (await pool.query(`SELECT COUNT(*) as c FROM (${sql}) sub`, params)).rows[0] as { c: number };
+    sql += ` ORDER BY i.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    params.push(pageSize, (pageNum - 1) * pageSize);
+    const { rows } = await pool.query(sql, params);
+    res.json({
+      data: rows.map((r: Record<string, unknown>) => ({
+        id: r.id, tenantId: r.tenant_id, tenantName: r.tenant_name, invoiceNumber: r.invoice_number,
+        periodStart: r.period_start, periodEnd: r.period_end, planName: r.plan_name,
+        amount: r.amount, gstAmount: r.gst_amount, total: r.total, status: r.status,
+        paidAt: r.paid_at, notes: r.notes, createdAt: r.created_at,
+      })),
+      total: Number(countResult.c), page: pageNum, totalPages: Math.ceil(Number(countResult.c) / pageSize),
+    });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+router.post('/api/super-admin/billing', superAdminMiddleware, async (req, res) => {
+  try {
+    const { tenantId, periodStart, periodEnd, amount, gstRate, notes } = req.body;
+    if (!tenantId || !amount) return res.status(400).json({ error: 'Tenant and amount required' });
+    const tenant = (await pool.query('SELECT id, company_name, plan_id FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    const plan = tenant.plan_id ? (await pool.query('SELECT name FROM plans WHERE id = $1', [tenant.plan_id])).rows[0] as { name: string } | undefined : null;
+    const gst = gstRate ? Math.round(Number(amount) * Number(gstRate) / 100) : 0;
+    const total = Number(amount) + gst;
+    const id = `INV${Date.now()}`;
+    const invNum = `DG-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    await pool.query(
+      'INSERT INTO tenant_invoices (id, tenant_id, invoice_number, period_start, period_end, plan_name, amount, gst_amount, total, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+      [id, tenantId, invNum, periodStart || null, periodEnd || null, plan?.name || null, amount, gst, total, notes || null]
+    );
+    await logAudit(pool, tenantId, 'CREATE', 'invoice', id, `Invoice ${invNum} — ₹${total} for ${tenant.company_name}`, (req as AuthRequest).user?.userId, 'Super Admin');
+    res.status(201).json({ id, invoiceNumber: invNum, total });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+router.put('/api/super-admin/billing/:id/paid', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('UPDATE tenant_invoices SET status = $1, paid_at = NOW() WHERE id = $2', ['paid', id]);
+    await logAudit(pool, null as unknown as string, 'UPDATE', 'invoice', id, 'Invoice marked as paid', (req as AuthRequest).user?.userId, 'Super Admin');
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+router.delete('/api/super-admin/billing/:id', superAdminMiddleware, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM tenant_invoices WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
 // ============ AUDIT LOG (cross-tenant) ============
 router.get('/api/super-admin/audit-log', superAdminMiddleware, async (req, res) => {
   try {

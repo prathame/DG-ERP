@@ -9,16 +9,18 @@ import {
   Menu,
   X,
   FileText,
+  IndianRupee,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { ToastProvider } from '../../components/ui';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
 import { SuperAdminAuditLog } from './SuperAdminAuditLog';
+import { SuperAdminBilling } from './SuperAdminBilling';
 import { TenantListView } from './TenantListView';
 import { TenantDetailView } from './TenantDetailView';
 import { PlanManagementView } from './PlanManagementView';
 
-type AdminTab = 'dashboard' | 'tenants' | 'plans' | 'audit' | 'analytics';
+type AdminTab = 'dashboard' | 'tenants' | 'plans' | 'billing' | 'audit' | 'analytics';
 
 interface SuperAdminUser {
   id: string;
@@ -41,6 +43,7 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'tenants', label: 'Tenants', icon: Building2 },
     { id: 'plans', label: 'Plans', icon: CreditCard },
+    { id: 'billing', label: 'Billing', icon: IndianRupee },
     { id: 'audit', label: 'Audit Log', icon: FileText },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   ];
@@ -69,6 +72,8 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
         return <TenantListView onSelectTenant={handleSelectTenant} />;
       case 'plans':
         return <PlanManagementView />;
+      case 'billing':
+        return <SuperAdminBilling />;
       case 'audit':
         return <SuperAdminAuditLog />;
       case 'analytics':

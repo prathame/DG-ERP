@@ -192,8 +192,9 @@ npm run dev
 - **Plan Management**: 4 tiers with configurable limits and feature flags
 - **Analytics**: Revenue per tenant, growth charts, most active tenants
 - **Impersonation**: Log in as any tenant admin for support
+- **Billing**: Generate subscription invoices for tenants, print, mark paid, GST breakdown
 - **Audit Log**: Cross-tenant activity log with search, action/entity filters, pagination
-- **Feature Toggles**: 7 features controllable per tenant (warranty, replacement, rewards, finance, chatbot, bill customization, multi-language)
+- **Feature Toggles**: 10 features controllable per tenant
 - **Separate Route**: Super admin UI at `/admin`, completely hidden from tenant login
 - **Tenant Onboarding**: Only super admin can create tenants (no self-registration)
 - **Credential Sharing**: After onboarding, share login URL + credentials via WhatsApp or Email directly

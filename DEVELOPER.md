@@ -48,6 +48,7 @@ Complete technical reference for developers working on this codebase.
 | Logger (console + Logtail) | `server/utils/logger.ts` |
 | Audit log helper | `server/utils/helpers.ts` → `logAudit()` |
 | Super admin audit UI | `src/features/super-admin/SuperAdminAuditLog.tsx` |
+| Super admin billing | `src/features/super-admin/SuperAdminBilling.tsx` |
 | HTML escaping (XSS) | `src/lib/billTemplates.ts` → `esc()` function |
 | PWA manifest | `public/manifest.json` |
 | Service worker | `public/sw.js` |
@@ -383,7 +384,7 @@ export default router;
 
 | File | Routes | Notes |
 |---|---|---|
-| `super-admin.ts` | `/api/super-admin/*`, `/api/tenant/register`, `/api/tenant/by-slug/:slug` | No tenant_id; register requires super admin JWT; by-slug is public |
+| `super-admin.ts` | `/api/super-admin/*`, `/api/tenant/register`, `/api/tenant/by-slug/:slug`, `/api/super-admin/billing` | No tenant_id; billing CRUD for subscription invoices |
 | `auth.ts` | `/api/auth/login`, `/api/auth/signup`, `/api/settings/*` | Login searches across tenants |
 | `bill-settings.ts` | `GET/PUT /api/settings/bill` | Per-tenant bill customization (logo, colors, bank, signatory) |
 | `products.ts` | CRUD + `/add-stock`, `/by-barcode/:barcode` | Barcode range generation |
