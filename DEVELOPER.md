@@ -665,6 +665,30 @@ logger.error('Database connection failed', { error: 'timeout' });
 | Unhandled errors | No | Yes | Yes |
 | Request errors (500s) | No | Yes | Yes |
 
+### Tenant Billing (Super Admin)
+
+Super admin generates subscription invoices for tenants from `/admin` → Billing tab.
+
+**DB Table:** `tenant_invoices`
+```sql
+id, tenant_id, invoice_number, period_start, period_end, plan_name,
+amount, gst_amount, total, status (unpaid/paid), paid_at, notes, created_at
+```
+
+**API:**
+```
+GET    /api/super-admin/billing              — list invoices (filter: status, tenantId)
+POST   /api/super-admin/billing              — create invoice { tenantId, amount, gstRate, periodStart, periodEnd, notes }
+PUT    /api/super-admin/billing/:id/paid     — mark as paid
+DELETE /api/super-admin/billing/:id          — delete invoice
+```
+
+**Invoice number format:** `DG-2026-123456` (auto-generated)
+
+**Print:** Generates professional PDF with DG ERP branding, tenant name, plan, period, GST breakdown, total.
+
+---
+
 ### Adding Audit Logging to a New Route
 
 ```typescript

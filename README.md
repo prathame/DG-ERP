@@ -192,7 +192,7 @@ npm run dev
 - **Plan Management**: 4 tiers with configurable limits and feature flags
 - **Analytics**: Revenue per tenant, growth charts, most active tenants
 - **Impersonation**: Log in as any tenant admin for support
-- **Billing**: Generate subscription invoices for tenants, print, mark paid, GST breakdown
+- **Billing**: Generate subscription invoices for tenants with amount + GST, print professional PDF, mark paid/unpaid, filter by status, auto-generated invoice numbers
 - **Audit Log**: Cross-tenant activity log with search, action/entity filters, pagination
 - **Feature Toggles**: 10 features controllable per tenant
 - **Separate Route**: Super admin UI at `/admin`, completely hidden from tenant login
@@ -366,6 +366,10 @@ DELETE /api/super-admin/plans/:id
 GET    /api/super-admin/analytics
 POST   /api/tenant/register              ← Super admin only
 GET    /api/tenant/by-slug/:slug         ← Public (returns branding for login page)
+GET    /api/super-admin/billing          ← List invoices (filter by status)
+POST   /api/super-admin/billing          ← Create subscription invoice
+PUT    /api/super-admin/billing/:id/paid ← Mark invoice as paid
+DELETE /api/super-admin/billing/:id      ← Delete invoice
 ```
 
 ### Tenant Routes (Tenant JWT required)
