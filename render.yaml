@@ -1,0 +1,28 @@
+databases:
+  - name: dg-erp-db
+    plan: free
+    databaseName: dg_erp
+    user: dg_erp_user
+
+services:
+  - type: web
+    name: dg-erp
+    plan: free
+    runtime: node
+    buildCommand: npm install && npm run build:prod
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dg-erp-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SUPER_ADMIN_EMAIL
+        value: admin@spre.ai
+      - key: SUPER_ADMIN_PASSWORD
+        value: superadmin123
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
