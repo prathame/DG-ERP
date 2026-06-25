@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  Package, ShoppingCart, Truck, Receipt, IndianRupee, MessageSquare,
+  Package, ShoppingCart, Truck, Receipt, IndianRupee, MessageSquare, Smartphone,
   Palette, Moon, ShieldCheck, BarChart3, Users, Zap, Languages, Building2, Shield,
   ArrowRight, Check, Star, Mail, Phone, Send, MessageCircle, Sun,
 } from 'lucide-react';
@@ -18,6 +18,7 @@ const FEATURES = [
   { icon: Languages, title: 'Multi-Language', desc: 'English, Hindi, and Gujarati support — switch language instantly from settings' },
   { icon: Users, title: 'Vendor Portal', desc: 'Optional vendor login — toggle ON for vendor dashboard, OFF for simple distribution-only mode' },
   { icon: BarChart3, title: 'Barcode System', desc: 'Auto-generate barcodes, print labels, scan with phone camera — or use simple SKU mode' },
+  { icon: Smartphone, title: 'Mobile PWA', desc: 'Install as app from browser — full screen, offline support, bottom nav, no Play Store needed' },
 ];
 
 const STEPS = [
