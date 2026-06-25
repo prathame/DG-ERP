@@ -137,15 +137,31 @@ router.get('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =>
 // ============ CREATE TENANT ============
 router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) => {
   try {
-    const { companyName, adminEmail, adminName, adminPassword, password, phone, address, gstNumber, planId, plan } = req.body;
+    const { companyName, adminEmail, adminName, adminPassword, password, phone, address, gstNumber, planId, plan, subscriptionStart, subscriptionEnd } = req.body;
     if (!companyName || !adminEmail || !adminName) return res.status(400).json({ error: 'Company name, admin email, and admin name are required' });
     const existing = (await pool.query('SELECT id FROM tenants WHERE admin_email = $1', [adminEmail])).rows[0];
     if (existing) return res.status(400).json({ error: 'A tenant with this email already exists' });
+    const selectedPlan = planId || plan || 'BASIC';
+    const isTrial = selectedPlan === 'TRIAL';
+    const trialEnd = isTrial ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() : undefined;
     const result = await provisionTenant({
       companyName, adminEmail, adminName, adminPassword: adminPassword || password || undefined, phone, address, gstNumber,
-      planId: planId || plan || 'BASIC',
+      planId: selectedPlan, status: isTrial ? 'trial' : 'active', trialEndsAt: trialEnd,
     });
-    await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created by super admin`, (req as AuthRequest).user?.userId, 'Super Admin');
+    if (subscriptionEnd) {
+      await pool.query('UPDATE tenants SET subscription_ends_at = $1 WHERE id = $2', [subscriptionEnd, result.tenantId]);
+    }
+    // Apply plan features to tenant
+    const planFeatures = (await pool.query('SELECT features FROM plans WHERE id = $1', [selectedPlan])).rows[0] as { features: Record<string, boolean> } | undefined;
+    if (planFeatures?.features) {
+      const colMap: Record<string, string> = { warranty: 'warranty_enabled', replacements: 'replacement_enabled', rewards: 'rewards_enabled', finance: 'finance_enabled', chatbot: 'chatbot_enabled', billCustomization: 'bill_customization_enabled', multiLanguage: 'multi_language_enabled', vendorPortal: 'vendor_portal_enabled', barcodeSystem: 'barcode_system_enabled' };
+      for (const [feat, col] of Object.entries(colMap)) {
+        if (planFeatures.features[feat] !== undefined) {
+          await pool.query(`UPDATE tenants SET ${col} = $1 WHERE id = $2`, [!!planFeatures.features[feat], result.tenantId]);
+        }
+      }
+    }
+    await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ ...result, adminEmail, password: result.credentials.password, companyName });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -376,9 +392,6 @@ router.post('/api/super-admin/billing', superAdminMiddleware, async (req, res) =
       'INSERT INTO tenant_invoices (id, tenant_id, invoice_number, period_start, period_end, plan_name, amount, gst_amount, total, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [id, tenantId, invNum, periodStart || null, periodEnd || null, plan?.name || null, amount, gst, total, notes || null]
     );
-    if (periodEnd) {
-      await pool.query('UPDATE tenants SET subscription_ends_at = $1, status = $2 WHERE id = $3', [periodEnd, 'active', tenantId]);
-    }
     await logAudit(pool, tenantId, 'CREATE', 'invoice', id, `Invoice ${invNum} — ₹${total} for ${tenant.company_name}`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ id, invoiceNumber: invNum, total });
   } catch (err) { res.status(500).json({ error: String(err) }); }

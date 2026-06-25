@@ -253,7 +253,22 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Calendar size={16} className="text-gray-400" />
-            <span className="text-gray-600">Subscription: {tenant.subscriptionEndsAt ? new Date(tenant.subscriptionEndsAt).toLocaleDateString() : tenant.trialEndsAt ? `Trial ends ${new Date(tenant.trialEndsAt).toLocaleDateString()}` : 'No expiry set'}</span>
+            <span className="text-gray-600">Expires:</span>
+            <input
+              type="date"
+              value={tenant.subscriptionEndsAt ? new Date(tenant.subscriptionEndsAt).toISOString().split('T')[0] : tenant.trialEndsAt ? new Date(tenant.trialEndsAt).toISOString().split('T')[0] : ''}
+              onChange={async (e) => {
+                const token = sessionStorage.getItem('auth_token');
+                await fetch(`/api/super-admin/tenants/${tenantId}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ subscriptionEndsAt: e.target.value || null }),
+                });
+                fetchTenant();
+                toast(e.target.value ? `Expiry set to ${e.target.value}` : 'Expiry removed', 'success');
+              }}
+              className="px-2 py-1 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-[#F27D26]"
+            />
             {(() => {
               const end = tenant.subscriptionEndsAt || tenant.trialEndsAt;
               if (!end) return null;

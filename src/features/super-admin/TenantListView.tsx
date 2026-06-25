@@ -243,6 +243,8 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
     phone: '',
     plan: '',
     password: '',
+    subscriptionStart: new Date().toISOString().split('T')[0],
+    subscriptionEnd: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -455,6 +457,17 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                 placeholder={form.companyName ? `${form.companyName.replace(/\s+/g, '').toLowerCase().slice(0, 12)}@123` : 'Auto-generated if blank'}
               />
               <p className="text-[10px] text-gray-400 mt-1">Leave blank to auto-generate: {form.companyName ? `${form.companyName.replace(/\s+/g, '').toLowerCase().slice(0, 12)}@123` : 'companyname@123'}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Subscription Start</label>
+                <input type="date" value={form.subscriptionStart} onChange={(e) => setForm({ ...form, subscriptionStart: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Subscription End</label>
+                <input type="date" value={form.subscriptionEnd} onChange={(e) => setForm({ ...form, subscriptionEnd: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent" />
+                <p className="text-[10px] text-gray-400 mt-1">Leave blank for trial (14 days auto-set)</p>
+              </div>
             </div>
             {error && <p className="text-sm text-rose-500">{error}</p>}
             <div className="flex gap-3 pt-2">
