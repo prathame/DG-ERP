@@ -1,19 +1,55 @@
-# Splendor ERP
+# Splendor ERP — Multi-Tenant SaaS Platform
 
-Inventory, Sales, Warranty & Rewards Management System built for pump manufacturing businesses.
+Industry-agnostic ERP for Inventory, Sales, Warranty & Rewards Management. Built as a multi-tenant SaaS — onboard unlimited companies, each with isolated data.
 
 ## Tech Stack
 
 - **Frontend**: React 19 + TypeScript + Tailwind CSS v4 + Framer Motion + Recharts
-- **Backend**: Express.js + TypeScript + SQLite (better-sqlite3)
+- **Backend**: Express.js + TypeScript + PostgreSQL (pg)
+- **Auth**: JWT (jsonwebtoken) + bcrypt
 - **Build**: Vite 6
+
+## Architecture
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│  Web App     │     │  Mobile App  │     │  WhatsApp    │
+│  (React)     │     │  (Future)    │     │  Chatbot     │
+└──────┬───────┘     └──────┬───────┘     └──────┬───────┘
+       └────────────┬───────┘────────────────────┘
+                    │
+            ┌───────▼────────┐
+            │  Express API   │
+            │  JWT Auth      │
+            │  Tenant Scope  │
+            └───────┬────────┘
+                    │
+            ┌───────▼────────┐
+            │  PostgreSQL    │
+            │  tenant_id     │
+            │  row-level     │
+            └────────────────┘
+```
+
+### User Hierarchy
+
+```
+Platform Owner (Super Admin)
+├── Tenant 1: Splendor Pump LLP
+│   ├── Admin → Vendors → Staff
+│   └── Isolated data (products, sales, finance)
+├── Tenant 2: Radhe Krishan Jewellers
+│   ├── Admin → Vendors → Staff
+│   └── Isolated data
+└── Tenant N: ...
+```
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+
-- npm
+- PostgreSQL 14+
 
 ### Installation
 
@@ -23,168 +59,272 @@ cd splender-inventry
 npm install
 ```
 
-### Running in Development
+### Database Setup
 
 ```bash
-# Terminal 1 — API server (port 3001)
-npm run server
+# Create PostgreSQL database
+createdb splendor_erp
 
-# Terminal 2 — Frontend dev server (port 3000)
-npm run dev
+# Or via psql
+psql -U postgres -c "CREATE DATABASE splendor_erp;"
 ```
 
-Or run both together:
+### Environment Config
+
+Create `.env` in the project root:
+
+```env
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/splendor_erp
+JWT_SECRET=your-secret-key-change-in-production
+JWT_EXPIRES_IN=7d
+SUPER_ADMIN_EMAIL=admin@yourdomain.com
+SUPER_ADMIN_PASSWORD=your_secure_password
+```
+
+### Running
 
 ```bash
-npm run dev:all
+# Terminal 1 — API server (auto-creates tables + seeds plans on first run)
+npm run server
+
+# Terminal 2 — Frontend dev server
+npm run dev
 ```
 
 Open http://localhost:3000
 
-### Default Login
+### Default Logins
 
-```
-Email:    admin@splendor.com
-Password: admin123
-```
-
-### Other Commands
-
-```bash
-npm run server:seed    # Insert sample data
-npm run server:clear   # Reset database
-npm run build          # Production build
-npm start              # Run production build
-npm run lint           # TypeScript type check
-```
+| Role | Email | Password |
+|---|---|---|
+| Platform Owner | admin@spre.ai | superadmin123 |
+| Tenant Admin | Created per tenant | Auto-generated |
 
 ## Project Structure
 
 ```
-splender-inventry/
 ├── server/
-│   ├── index.ts                 # Express setup + mount routers
-│   ├── db.ts                    # DB connection + schema + migrations
-│   ├── db/index.ts              # Re-export for clean imports
+│   ├── index.ts                 # Express setup, route mounting, PostgreSQL init
+│   ├── pg-db.ts                 # PostgreSQL pool + schema + plan seeding
+│   ├── db.ts                    # Legacy SQLite (kept for reference)
+│   ├── middleware/
+│   │   └── auth.ts              # JWT auth + super admin middleware
 │   ├── utils/
-│   │   ├── barcode.ts           # Barcode generation, range expansion, overlap detection
-│   │   └── helpers.ts           # Pagination, date filter, audit logger, password hash
+│   │   ├── barcode.ts           # Barcode generation (async, pool-based)
+│   │   ├── helpers.ts           # Pagination, date filter, audit log, bcrypt
+│   │   └── tenant.ts            # Tenant provisioning + stats
 │   ├── routes/
+│   │   ├── super-admin.ts       # Platform owner: tenants, plans, analytics
+│   │   ├── auth.ts              # JWT login, signup, profile, password
 │   │   ├── products.ts          # Product CRUD + stock management
 │   │   ├── sales.ts             # Sales + barcode validation + bill data
-│   │   ├── distribution.ts      # Distribution + summary + challan
-│   │   ├── warranties.ts        # Warranty CRUD
-│   │   ├── replacements.ts      # Replacement tracking + validation
-│   │   ├── transactions.ts      # Financial transactions
-│   │   ├── rewards.ts           # Rewards + rules + redemption settings
-│   │   ├── customers.ts         # Customer CRUD + purchases
-│   │   ├── vendors.ts           # Vendor CRUD + auto user creation
-│   │   ├── banks.ts             # Bank accounts CRUD
+│   │   ├── distribution.ts      # Distribution + challan + batch operations
+│   │   ├── warranties.ts        # Warranty lifecycle
+│   │   ├── replacements.ts      # Replacement tracking
+│   │   ├── transactions.ts      # Financial ledger
+│   │   ├── rewards.ts           # Points + rules + redemption
+│   │   ├── customers.ts         # Customer CRUD
+│   │   ├── vendors.ts           # Vendor CRUD + auto-login creation
+│   │   ├── banks.ts             # Bank accounts
 │   │   ├── finance.ts           # Vendor payments + reminders
-│   │   ├── auth.ts              # Login, signup, profile, change password
-│   │   ├── admin.ts             # User management (admin only)
-│   │   ├── dashboard.ts         # Stats, charts, KPIs
+│   │   ├── admin.ts             # User management
+│   │   ├── dashboard.ts         # Stats + KPIs
 │   │   ├── search.ts            # Global instant search
-│   │   ├── notifications.ts     # Alert system
-│   │   ├── masters.ts           # Master record counts
+│   │   ├── notifications.ts     # Alerts
+│   │   ├── chatbot.ts           # ERP chatbot (30+ commands)
+│   │   ├── masters.ts           # Master counts
 │   │   ├── mapping.ts           # Vendor-customer mapping
-│   │   └── audit.ts             # Audit log + database backup
-│   ├── seed.ts                  # Sample data seeder
-│   └── clear-data.ts            # Database reset script
+│   │   └── audit.ts             # Activity log
+│   └── demo/
+│       ├── seed-demo.ts         # Pump manufacturing demo data
+│       ├── seed-jewellery.ts    # Silver jewellery demo data
+│       ├── clear-all.ts         # Reset database
+│       └── README.md
 │
 ├── src/
-│   ├── App.tsx                  # Layout shell + routing
-│   ├── api.ts                   # API client with typed methods
-│   ├── types.ts                 # Shared TypeScript interfaces
+│   ├── App.tsx                  # JWT routing: super admin vs tenant vs login
+│   ├── api.ts                   # API client with Bearer token + tenant headers
+│   ├── types.ts                 # Shared types (Tab, Product, Tenant, Plan, etc.)
 │   ├── components/
 │   │   ├── ui/                  # Toast, Spinner, DateFilter, Pagination
-│   │   └── layout/              # LoginScreen, SearchBar, NotificationBell
+│   │   └── layout/              # LoginScreen, SearchBar, NotificationBell, ChatWidget
 │   ├── features/
-│   │   ├── dashboard/           # KPIs, charts, low stock alerts
-│   │   ├── sales/               # Sale entry, print/share bills
-│   │   ├── distribution/        # Distribute products to vendors
-│   │   ├── inventory/           # Product management, barcodes, stock
-│   │   ├── warranty/            # Warranty activation, claims
-│   │   ├── replacements/        # Product replacement tracking
-│   │   ├── rewards/             # Points earned/redeemed
+│   │   ├── super-admin/         # Platform owner UI
+│   │   │   ├── SuperAdminApp.tsx
+│   │   │   ├── SuperAdminDashboard.tsx
+│   │   │   ├── SuperAdminLogin.tsx
+│   │   │   ├── TenantListView.tsx
+│   │   │   ├── TenantDetailView.tsx
+│   │   │   ├── PlanManagementView.tsx
+│   │   │   └── RegisterPage.tsx
+│   │   ├── dashboard/           # Tenant KPIs, charts
+│   │   ├── sales/               # Sale entry, billing
+│   │   ├── distribution/        # Vendor distribution, split billing
+│   │   ├── inventory/           # Products, barcodes, stock
+│   │   ├── warranty/            # Warranty management
+│   │   ├── replacements/        # Product replacements
+│   │   ├── rewards/             # Points, redemption
 │   │   ├── accounts/            # Financial ledger
 │   │   ├── finance/             # Vendor payments, reminders
-│   │   ├── masters/             # Customers, vendors, banks, rules, audit
-│   │   └── settings/            # Profile, password, user management
+│   │   ├── masters/             # Customers, vendors, banks, rules
+│   │   └── settings/            # Profile, password, toggles, users
 │   ├── hooks/useDebounce.ts
 │   └── lib/
-│       ├── utils.ts             # Utilities (cn, CSV, print, WhatsApp, email)
+│       ├── utils.ts             # Utilities (print, WhatsApp, email, CSV)
 │       └── billTemplates.ts     # Invoice + challan HTML generators
-│
-├── data/splendor.db             # SQLite database (auto-created)
+├── .env                         # Environment config (not committed)
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
 └── index.html
 ```
 
-## Features
+## Multi-Tenant Features
 
-### Inventory Management
-- Auto-generated barcode ranges (prefix + quantity, no overlap)
-- Track total inventory, distributed, sold, and remaining
-- HSN code and GST rate per product
+### Platform Owner (Super Admin)
 
-### Sales Entry
-- Barcode scan/verify, customer details, sale price
-- Auto-creates warranty and awards vendor reward points
-- Print invoice, download PDF, send via WhatsApp or Email
+- **Dashboard**: Total tenants, users, products, sales, revenue across all tenants
+- **Tenant Management**: Create, suspend, activate, delete tenants
+- **Plan Management**: 4 tiers with configurable limits and feature flags
+- **Analytics**: Revenue per tenant, growth charts, most active tenants
+- **Impersonation**: Log in as any tenant admin for support
+- **Self-Service Registration**: Companies sign up with 14-day trial
 
-### Distribution
-- Distribute inventory to vendors by quantity
-- Track per-vendor: distributed, sold, replaced, damaged
-- Print challan, share via WhatsApp/Email
+### Subscription Plans
 
-### Warranty & Replacements
-- Auto-activated on sale (configurable duration)
-- Track Active/Expired/Under Claim status
-- Record replacements with old-to-new barcode tracking
+| Plan | Products | Vendors | Users | Monthly | Features |
+|---|---|---|---|---|---|
+| Trial | 20 | 3 | 2 | Free (14 days) | All features |
+| Starter | 50 | 5 | 3 | ₹999 | Inventory, Sales, Distribution |
+| Professional | 500 | 25 | 15 | ₹2,999 | + Warranty, Rewards, Finance |
+| Enterprise | Unlimited | Unlimited | Unlimited | ₹9,999 | + Chatbot, API, Priority Support |
 
-### Rewards & Points
-- Vendors earn points per sale, redeem with configurable thresholds
-- Vendor reward summary and points history
+### Data Isolation
 
-### Vendor Finance (Admin Only)
-- Track distributed value, payments received, balance per vendor
-- Record Cash/UPI/Bank/Cheque payments with reference numbers
-- WhatsApp payment reminders with customizable intervals
-- Payment status on printed invoices
+Every database table has a `tenant_id` column. Every query is scoped:
+```sql
+SELECT * FROM products WHERE tenant_id = $1
+```
 
-### Accounts
-- Sales/Purchase/Expense ledger with date filters and pagination
-- Income vs Expense summary, CSV export
+No tenant can see another tenant's data.
 
-### Dashboard
-- Today's sales, month-over-month comparison
-- Low stock alerts, top selling products, sales chart
+## Tenant Features
 
-### Bills & GST
-- Tax Invoice with CGST/SGST breakdown, GSTIN, HSN codes
-- Print, Save as PDF, WhatsApp text summary, Email
-- Auto-send WhatsApp toggle in settings
+### Core
+- Inventory with auto-barcode ranges (prefix + quantity)
+- Sales entry with barcode scan + invoice generation
+- Distribution to vendors (spreadsheet-style, per-row GST/discount)
+- GST Tax Invoices with CGST/SGST breakdown
+- Split billing (GST + non-GST from same distribution)
 
-### Search & Notifications
-- Global instant search (products, customers, vendors, barcodes)
-- Notification bell: low stock, expiring warranties, pending payments
+### Financial
+- Vendor finance tracking (billed, paid, balance)
+- Payment recording (Cash, UPI, Bank Transfer, Cheque)
+- WhatsApp payment reminders with configurable intervals
+- Financial ledger with date filters + pagination
 
-### User Management
-- Roles: Super Admin, Admin, Manager, Staff, Vendor
-- Custom permissions, auto-created vendor logins
-- Change password, per-tab session isolation
+### Communication
+- Print / Download PDF / WhatsApp / Email for all bills
+- Auto-send WhatsApp toggle after sales
+- ERP Chatbot (30+ queries: vendor lookup, sales today, low stock, etc.)
 
-### Data & Security
-- Database backup download (admin only)
-- Activity/audit log for all critical actions
-- Mobile responsive with touch-friendly design
+### Management
+- Role-based access (Super Admin, Admin, Manager, Staff, Vendor)
+- Auto-created vendor login on vendor creation
+- Warranty & Replacement tracking (optional toggle)
+- Reward points system (optional toggle)
+- Global search with autocomplete
+- Notification center (low stock, expiring warranties, pending payments)
+- Audit log + database backup
 
-## Database
+### Mobile Ready
+- Responsive UI with touch-friendly targets
+- JWT auth works for web + future mobile app
+- Same API serves all clients
 
-SQLite at `data/splendor.db` — auto-created on first server start with all tables, indexes, and migrations. Back up by downloading via Settings or copying the file.
+## Authentication
+
+### JWT Flow
+
+```
+Login → Server validates → Returns JWT token
+       ↓
+Frontend stores token in sessionStorage
+       ↓
+Every API call includes: Authorization: Bearer {token}
+                         X-Tenant-ID: {tenantId}
+       ↓
+Server middleware validates token + resolves tenant
+```
+
+### Password Security
+
+- bcrypt with salt rounds (replaces SHA256)
+- Minimum 6 character enforcement
+- Change password with current password verification
+
+## API
+
+All endpoints prefixed with `/api/`. Tenant routes require JWT + X-Tenant-ID header.
+
+### Platform Routes (Super Admin JWT required)
+```
+POST   /api/super-admin/login
+GET    /api/super-admin/dashboard
+GET    /api/super-admin/tenants
+POST   /api/super-admin/tenants
+GET    /api/super-admin/tenants/:id
+PUT    /api/super-admin/tenants/:id
+DELETE /api/super-admin/tenants/:id
+POST   /api/super-admin/tenants/:id/impersonate
+GET    /api/super-admin/plans
+POST   /api/super-admin/plans
+PUT    /api/super-admin/plans/:id
+DELETE /api/super-admin/plans/:id
+GET    /api/super-admin/analytics
+POST   /api/tenant/register
+```
+
+### Tenant Routes (Tenant JWT required)
+```
+POST   /api/auth/login
+POST   /api/auth/signup
+GET    /api/products, /api/sales, /api/distribution, /api/warranties
+       /api/customers, /api/vendors, /api/banks, /api/transactions
+       /api/rewards, /api/notifications, /api/search, /api/chatbot
+       ... (full CRUD on all resources)
+```
+
+## Scripts
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Frontend dev server (port 3000) |
+| `npm run server` | API server (port 3001, auto-creates schema) |
+| `npm run dev:all` | Start both servers |
+| `npm run build` | Production build |
+| `npm run demo:seed` | Load pump manufacturing demo |
+| `npm run demo:jewellery` | Load jewellery demo |
+| `npm run demo:clear` | Reset all data |
+| `npm run lint` | TypeScript type check |
+
+## Deployment
+
+The app is cloud-ready:
+
+```bash
+# Set environment variables
+DATABASE_URL=postgresql://...  # Use managed PostgreSQL (Supabase, AWS RDS, Railway)
+JWT_SECRET=...
+SUPER_ADMIN_EMAIL=...
+SUPER_ADMIN_PASSWORD=...
+
+# Build and start
+npm run build
+npm start
+```
+
+Compatible with: Railway, Render, AWS, DigitalOcean, Heroku, Vercel (API), any VPS.
 
 ## License
 
