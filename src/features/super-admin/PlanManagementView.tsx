@@ -125,7 +125,7 @@ export function PlanManagementView() {
                   </div>
                 </div>
                 <p className="text-xl font-bold text-[#F27D26]">
-                  ₹{(plan.price ?? 0).toLocaleString()}<span className="text-xs text-gray-400 font-normal">/mo</span>
+                  ₹{(plan.priceMonthly ?? plan.price ?? 0).toLocaleString()}<span className="text-xs text-gray-400 font-normal">/mo</span>
                 </p>
               </div>
 
@@ -213,7 +213,7 @@ function PlanModal({ plan, onClose, onSaved }: {
     maxProducts: plan?.maxProducts ?? 100,
     maxVendors: plan?.maxVendors ?? 10,
     maxUsers: plan?.maxUsers ?? 5,
-    price: plan?.price ?? 0,
+    price: plan?.priceMonthly ?? plan?.price ?? 0,
     warranty: plan?.features?.warranty ?? true,
     replacements: plan?.features?.replacements ?? true,
     rewards: plan?.features?.rewards ?? true,
