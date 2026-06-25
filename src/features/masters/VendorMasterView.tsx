@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Plus, Pencil, Trash2, ArrowLeft, CheckCircle2, AlertTriangle, MessageCircle, Download } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, ArrowLeft, CheckCircle2, AlertTriangle, MessageCircle, Mail, Download } from 'lucide-react';
 import { cn, exportToCsv, shareViaWhatsApp } from '../../lib/utils';
 import { api } from '../../api';
 import type { Vendor } from '../../types';
@@ -16,7 +16,7 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Vendor | null>(null);
-  const [credsModal, setCredsModal] = useState<{ vendorName: string; email: string; password: string } | null>(null);
+  const [credsModal, setCredsModal] = useState<{ vendorName: string; email: string; password: string; phone?: string } | null>(null);
   const [form, setForm] = useState({ name: '', contactPerson: '', phone: '', email: '', address: '' });
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,7 +43,7 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
           setModalOpen(false);
           load();
           if (result.credentials) {
-            setCredsModal({ vendorName: form.name, email: result.credentials.email, password: result.credentials.password });
+            setCredsModal({ vendorName: form.name, email: result.credentials.email, password: result.credentials.password, phone: form.phone || undefined });
           } else if (!form.email) {
             toast('Vendor created (no email provided — login account not created)', 'info');
           } else {
@@ -140,6 +140,10 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
               </div>
               <div className="bg-gray-50 rounded-xl p-4 space-y-3 border border-gray-200">
                 <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase">Login URL</p>
+                  <p className="font-mono font-medium text-sm mt-0.5 text-[#F27D26]">{window.location.origin}/{sessionStorage.getItem('tenant_slug') || ''}</p>
+                </div>
+                <div>
                   <p className="text-xs font-bold text-gray-400 uppercase">Login Email</p>
                   <p className="font-mono font-medium text-lg mt-0.5">{credsModal.email}</p>
                 </div>
@@ -155,10 +159,22 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
               <div className="flex gap-2 mt-4">
                 <button type="button" onClick={() => {
                   const companyName = (() => { try { const u = JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}'); return u.companyName || 'our platform'; } catch { return 'our platform'; } })();
-                  const msg = `Your login credentials for ${companyName}:\n\nEmail: ${credsModal.email}\nPassword: ${credsModal.password}\n\nLogin at the app to manage your sales and products.`;
-                  shareViaWhatsApp(form.phone || '', msg);
-                }} disabled={!form.phone} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                  <MessageCircle size={16} /> Send via WhatsApp
+                  const slug = sessionStorage.getItem('tenant_slug') || '';
+                  const loginUrl = slug ? `${window.location.origin}/${slug}` : window.location.origin;
+                  const msg = `Welcome to ${companyName}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${credsModal.email}\nPassword: ${credsModal.password}\n\nPlease change your password after first login.`;
+                  shareViaWhatsApp(credsModal.phone || '', msg);
+                }} disabled={!credsModal.phone} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <MessageCircle size={16} /> WhatsApp
+                </button>
+                <button type="button" onClick={() => {
+                  const companyName = (() => { try { const u = JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}'); return u.companyName || 'our platform'; } catch { return 'our platform'; } })();
+                  const slug = sessionStorage.getItem('tenant_slug') || '';
+                  const loginUrl = slug ? `${window.location.origin}/${slug}` : window.location.origin;
+                  const subject = encodeURIComponent(`Your ${companyName} Login Credentials`);
+                  const body = encodeURIComponent(`Welcome to ${companyName}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${credsModal.email}\nPassword: ${credsModal.password}\n\nPlease change your password after first login.\n\nRegards,\n${companyName}`);
+                  window.open(`mailto:${credsModal.email}?subject=${subject}&body=${body}`, '_self');
+                }} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700">
+                  <Mail size={16} /> Email
                 </button>
                 <button type="button" onClick={() => setCredsModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-bold text-sm">
                   Done
