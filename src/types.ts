@@ -20,6 +20,7 @@ export interface Product {
   remainingInventory?: number;
   soldCount?: number;
   withVendors?: number;
+  warrantyApplicable?: boolean;
   barcodeRange?: { first: string; last: string } | null;
 }
 

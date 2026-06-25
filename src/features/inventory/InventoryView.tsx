@@ -17,7 +17,7 @@ export function InventoryView() {
   const [barcodeSearch, setBarcodeSearch] = useState('');
   const debouncedBarcodeSearch = useDebounce(barcodeSearch, 250);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', barcodePrefix: '', quantity: 10, description: '', rewardPointsValue: 0, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18 });
+  const [addForm, setAddForm] = useState({ name: '', barcodePrefix: '', quantity: 10, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18 });
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [addStockModal, setAddStockModal] = useState<Product | null>(null);
   const [addStockForm, setAddStockForm] = useState({ quantity: 10 });
@@ -231,11 +231,12 @@ export function InventoryView() {
                     quantity: addForm.quantity,
                     description: addForm.description || undefined,
                     rewardPointsValue: addForm.rewardPointsValue,
-                    warrantyMonths: addForm.warrantyMonths,
+                    warrantyApplicable: addForm.warrantyApplicable,
+                    warrantyMonths: addForm.warrantyApplicable ? addForm.warrantyMonths : 0,
                     price: addForm.price,
                   });
                   setAddModalOpen(false);
-                  setAddForm({ name: '', barcodePrefix: '', quantity: 10, description: '', rewardPointsValue: 0, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18 });
+                  setAddForm({ name: '', barcodePrefix: '', quantity: 10, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18 });
                   api.products.list(debouncedBarcodeSearch || undefined).then(setProducts);
                   toast('Product added successfully', 'success');
                 } catch (err) { toast((err as Error).message, 'error'); }
@@ -254,7 +255,18 @@ export function InventoryView() {
                 </div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Reward Points</label><input type="number" min={0} value={addForm.rewardPointsValue || ''} onChange={(e) => setAddForm({ ...addForm, rewardPointsValue: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Price (₹)</label><input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Warranty (months)</label><input type="number" value={addForm.warrantyMonths || ''} onChange={(e) => setAddForm({ ...addForm, warrantyMonths: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Warranty</label>
+                    <label className="flex items-center gap-2 cursor-pointer text-xs">
+                      <input type="checkbox" checked={addForm.warrantyApplicable} onChange={(e) => setAddForm({ ...addForm, warrantyApplicable: e.target.checked })} className="rounded text-[#F27D26]" />
+                      <span className={addForm.warrantyApplicable ? "text-emerald-600 font-bold" : "text-gray-400"}>
+                        {addForm.warrantyApplicable ? 'Applicable' : 'Not applicable'}
+                      </span>
+                    </label>
+                  </div>
+                  {addForm.warrantyApplicable && <input type="number" placeholder="Months" value={addForm.warrantyMonths || ''} onChange={(e) => setAddForm({ ...addForm, warrantyMonths: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" />}
+                </div>
                 <div className="flex gap-2 pt-2"><button type="button" onClick={() => setAddModalOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={addSubmitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{addSubmitting ? 'Saving...' : 'Save'}</button></div>
               </form>
             </motion.div>

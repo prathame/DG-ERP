@@ -26,9 +26,9 @@ router.post('/api/auth/login', (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-    const row = db.prepare('SELECT id, email, name, phone, address, role, company_name, permissions, vendor_id, auto_whatsapp, default_gst_rate, gst_number FROM users WHERE email = ? AND password_hash = ?').get(email, hashPassword(password)) as Record<string, unknown> | undefined;
+    const row = db.prepare('SELECT id, email, name, phone, address, role, company_name, permissions, vendor_id, auto_whatsapp, default_gst_rate, gst_number, warranty_enabled, replacement_enabled FROM users WHERE email = ? AND password_hash = ?').get(email, hashPassword(password)) as Record<string, unknown> | undefined;
     if (!row) return res.status(401).json({ error: 'Invalid email or password' });
-    res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, permissions: row.permissions ? JSON.parse(row.permissions as string) : null, vendorId: row.vendor_id ?? null, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null });
+    res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, permissions: row.permissions ? JSON.parse(row.permissions as string) : null, vendorId: row.vendor_id ?? null, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, warrantyEnabled: row.warranty_enabled !== 0, replacementEnabled: row.replacement_enabled !== 0 });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -38,9 +38,9 @@ router.get('/api/settings/profile', (req, res) => {
   try {
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: 'userId required' });
-    const row = db.prepare('SELECT id, email, name, phone, address, role, company_name, permissions, vendor_id, auto_whatsapp, default_gst_rate, gst_number FROM users WHERE id = ?').get(userId) as Record<string, unknown> | undefined;
+    const row = db.prepare('SELECT id, email, name, phone, address, role, company_name, permissions, vendor_id, auto_whatsapp, default_gst_rate, gst_number, warranty_enabled, replacement_enabled FROM users WHERE id = ?').get(userId) as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'User not found' });
-    res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, permissions: row.permissions ? JSON.parse(row.permissions as string) : null, vendorId: row.vendor_id ?? null, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null });
+    res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, permissions: row.permissions ? JSON.parse(row.permissions as string) : null, vendorId: row.vendor_id ?? null, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, warrantyEnabled: row.warranty_enabled !== 0, replacementEnabled: row.replacement_enabled !== 0 });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -59,13 +59,19 @@ router.put('/api/settings/profile', (req, res) => {
     if (autoWhatsapp !== undefined) {
       db.prepare('UPDATE users SET auto_whatsapp = ? WHERE id = ?').run(autoWhatsapp ? 1 : 0, userId);
     }
-    const { defaultGstRate } = req.body;
+    const { defaultGstRate, warrantyEnabled, replacementEnabled } = req.body;
     if (defaultGstRate !== undefined) {
       db.prepare('UPDATE users SET default_gst_rate = ? WHERE id = ?').run(Number(defaultGstRate) || 18, userId);
     }
-    const row = db.prepare('SELECT id, email, name, phone, address, role, company_name, auto_whatsapp, default_gst_rate, gst_number FROM users WHERE id = ?').get(userId) as Record<string, unknown> | undefined;
+    if (warrantyEnabled !== undefined) {
+      db.prepare('UPDATE users SET warranty_enabled = ? WHERE id = ?').run(warrantyEnabled ? 1 : 0, userId);
+    }
+    if (replacementEnabled !== undefined) {
+      db.prepare('UPDATE users SET replacement_enabled = ? WHERE id = ?').run(replacementEnabled ? 1 : 0, userId);
+    }
+    const row = db.prepare('SELECT id, email, name, phone, address, role, company_name, auto_whatsapp, default_gst_rate, gst_number, warranty_enabled, replacement_enabled FROM users WHERE id = ?').get(userId) as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'User not found' });
-    res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null });
+    res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, warrantyEnabled: row.warranty_enabled !== 0, replacementEnabled: row.replacement_enabled !== 0 });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

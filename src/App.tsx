@@ -43,6 +43,10 @@ export default function App() {
     } catch { return null; }
   });
 
+  const ux = user as Record<string, unknown>;
+  const warrantyEnabled = ux?.warrantyEnabled !== false;
+  const replacementEnabled = ux?.replacementEnabled !== false;
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'sales', label: 'Sales Entry', icon: ShoppingCart },
@@ -51,8 +55,8 @@ export default function App() {
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'accounts', label: 'Accounts', icon: CreditCard },
     { id: 'finance', label: 'Finance', icon: IndianRupee },
-    { id: 'warranty', label: 'Warranty', icon: ShieldCheck },
-    { id: 'replacements', label: 'Replacements', icon: RefreshCw },
+    ...(warrantyEnabled ? [{ id: 'warranty', label: 'Warranty', icon: ShieldCheck }] : []),
+    ...(replacementEnabled ? [{ id: 'replacements', label: 'Replacements', icon: RefreshCw }] : []),
     { id: 'rewards', label: 'Rewards', icon: Gift },
   ];
 

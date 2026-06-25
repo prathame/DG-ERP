@@ -263,7 +263,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
               acc[key].units.push(d);
               return acc;
             }, {} as Record<string, { productId: string; productName: string; units: typeof batchItems }>);
-            const productList = Object.values(byProduct).map((p) => ({
+            type ByProductVal = { productId: string; productName: string; units: typeof batchItems };
+            const productList = (Object.values(byProduct) as ByProductVal[]).map((p) => ({
               ...p,
               total: p.units.length,
               sold: p.units.filter((u) => u.status === 'Sold').length,

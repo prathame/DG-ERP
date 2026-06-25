@@ -60,5 +60,6 @@ export const mapProduct = (r: Record<string, unknown>) => ({
   remainingInventory: r.remainingInventory ?? r.stock ?? 0,
   soldCount: r.soldCount ?? 0,
   withVendors: r.withVendors ?? 0,
+  warrantyApplicable: r.warranty_applicable !== 0,
   barcodeRange: r.barcodeRange ?? null,
 });

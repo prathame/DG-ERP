@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LogIn, LogOut, UserPlus, Phone, MapPin, Building2, UserCog, Shield, Download, MessageCircle, FileText } from 'lucide-react';
+import { LogIn, LogOut, UserPlus, Phone, MapPin, Building2, UserCog, Shield, Download, MessageCircle, FileText, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import type { Vendor } from '../../types';
@@ -284,6 +284,45 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
               <button type="submit" className="px-6 py-2 bg-[#F27D26] text-white rounded-xl font-bold">Update Password</button>
             </form>
           </div>
+
+          {/* Feature Toggles */}
+          {isAdmin && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
+                <h3 className="font-bold text-lg flex items-center gap-2"><Settings size={20} /> Feature Toggles</h3>
+              </div>
+              <div className="p-6 space-y-4">
+                {[
+                  { key: 'warrantyEnabled', label: 'Warranty Management', desc: 'Auto-create warranties on sale. When OFF, warranty tab is hidden and no warranties are generated.' },
+                  { key: 'replacementEnabled', label: 'Replacement Tracking', desc: 'Track product replacements under warranty. When OFF, replacements tab is hidden.' },
+                ].map((toggle) => (
+                  <div key={toggle.key} className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{toggle.label}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">{toggle.desc}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!user) return;
+                        const currentVal = (user as Record<string, unknown>)[toggle.key] !== false;
+                        const newVal = !currentVal;
+                        api.settings.updateProfile(user.id, { [toggle.key]: newVal }).then((u) => {
+                          const updated = { ...user, ...u, [toggle.key]: newVal };
+                          sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
+                          onUserChange(updated);
+                          toast(`${toggle.label} ${newVal ? 'enabled' : 'disabled'}`, 'success');
+                        }).catch((err) => toast(err instanceof Error ? err.message : 'Failed', 'error'));
+                      }}
+                      className={cn("relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors", (user as Record<string, unknown>)?.[toggle.key] !== false ? "bg-green-500" : "bg-gray-300")}
+                    >
+                      <span className={cn("pointer-events-none inline-block h-6 w-6 rounded-full bg-white shadow-md transform transition-transform", (user as Record<string, unknown>)?.[toggle.key] !== false ? "translate-x-5" : "translate-x-0")} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* WhatsApp Auto-Send */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">

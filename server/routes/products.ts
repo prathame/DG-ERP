@@ -139,16 +139,16 @@ router.get('/api/products/by-barcode/:barcode', (req, res) => {
 
 router.post('/api/products', (req, res) => {
   try {
-    const { name, barcode, categoryId, category, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix } = req.body;
+    const { name, barcode, categoryId, category, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, warrantyApplicable, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix } = req.body;
     const id = `P${Date.now()}`;
     const catId = categoryId || null;
-    const cols = 'id, name, barcode, category_id, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock';
-    const insertProduct = db.prepare(`INSERT INTO products (${cols}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const cols = 'id, name, barcode, category_id, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, warranty_applicable';
+    const insertProduct = db.prepare(`INSERT INTO products (${cols}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     let invStock = 0;
     const mode = barcodeMode ?? 'prefix';
 
     const insertProductRow = () => {
-      insertProduct.run(id, name, null, catId, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, 0);
+      insertProduct.run(id, name, null, catId, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, 0, warrantyApplicable === false ? 0 : 1);
     };
     const insertBarcodes = (barcodes: string[]) => {
       const batchId = `B${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -185,7 +185,7 @@ router.post('/api/products', (req, res) => {
       const err = insertBarcodes(barcodes);
       if (err) return err;
     } else {
-      insertProduct.run(id, name, barcode || null, catId, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, stock ?? 0);
+      insertProduct.run(id, name, barcode || null, catId, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, stock ?? 0, warrantyApplicable === false ? 0 : 1);
       invStock = stock ?? 0;
     }
     const row = db.prepare('SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = ?').get(id) as Record<string, unknown>;

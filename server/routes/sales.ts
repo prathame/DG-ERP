@@ -70,29 +70,30 @@ router.post('/api/sales', (req, res) => {
 
     // Case 1: Distributed to vendor
     const dist = db.prepare(`
-      SELECT pd.*, p.id as product_id, p.reward_points_value, p.warranty_months
+      SELECT pd.*, p.id as product_id, p.reward_points_value, p.warranty_months, p.warranty_applicable
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id
       WHERE pd.barcode = ? AND pd.status = 'Distributed'
-    `).get(barcode) as { id: string; product_id: string; vendor_id: string; reward_points_value: number; warranty_months: number } | undefined;
+    `).get(barcode) as { id: string; product_id: string; vendor_id: string; reward_points_value: number; warranty_months: number; warranty_applicable: number } | undefined;
 
     // Case 2: In inventory only (Owner sale)
     const inv = !dist ? db.prepare(`
-      SELECT pi.product_id, p.reward_points_value, p.warranty_months
+      SELECT pi.product_id, p.reward_points_value, p.warranty_months, p.warranty_applicable
       FROM product_inventory pi
       JOIN products p ON pi.product_id = p.id
       WHERE pi.barcode = ? AND pi.status = 'InStock'
-    `).get(barcode) as { product_id: string; reward_points_value: number; warranty_months: number } | undefined : null;
+    `).get(barcode) as { product_id: string; reward_points_value: number; warranty_months: number; warranty_applicable: number } | undefined : null;
 
     const saleData = dist
-      ? { productId: dist.product_id, vendorId: dist.vendor_id, points: dist.reward_points_value ?? 0, warrantyMonths: dist.warranty_months ?? 12 }
+      ? { productId: dist.product_id, vendorId: dist.vendor_id, points: dist.reward_points_value ?? 0, warrantyMonths: dist.warranty_months ?? 12, warrantyApplicable: dist.warranty_applicable !== 0 }
       : inv
-        ? { productId: inv.product_id, vendorId: 'OWNER', points: inv.reward_points_value ?? 0, warrantyMonths: inv.warranty_months ?? 12 }
+        ? { productId: inv.product_id, vendorId: 'OWNER', points: inv.reward_points_value ?? 0, warrantyMonths: inv.warranty_months ?? 12, warrantyApplicable: inv.warranty_applicable !== 0 }
         : null;
 
     if (!saleData) return res.status(400).json({ error: 'Invalid sale: barcode not found or already sold' });
 
-    const { productId, vendorId, points, warrantyMonths } = saleData;
+    const { productId, vendorId, points, warrantyMonths, warrantyApplicable } = saleData;
+    const globalWarrantyEnabled = (db.prepare("SELECT warranty_enabled FROM users WHERE role IN ('Super Admin','Admin') ORDER BY id LIMIT 1").get() as { warranty_enabled: number } | undefined)?.warranty_enabled !== 0;
 
     const runSale = db.transaction(() => {
       // Find or create customer - match by phone AND name to avoid merging different people
@@ -123,16 +124,17 @@ router.post('/api/sales', (req, res) => {
         INSERT INTO rewards (id, user_id, points, type, description, date, vendor_id, sale_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).run(rewardId, 'D1', points, 'Earned', `${productName?.name ?? 'Product'} sold`, date, vendorId, id);
-      // Auto-create warranty based on product warranty_months
-      const activationDate = date;
-      const expiryDateObj = new Date(activationDate);
-      expiryDateObj.setMonth(expiryDateObj.getMonth() + warrantyMonths);
-      const expiryDate = expiryDateObj.toISOString().slice(0, 10);
-      const warrantyId = `W${Date.now()}`;
-      db.prepare(`
-        INSERT INTO warranties (id, product_id, barcode, customer_name, customer_phone, activation_date, expiry_date, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')
-      `).run(warrantyId, productId, barcode, customerName, customerPhone, activationDate, expiryDate);
+      if (globalWarrantyEnabled && warrantyApplicable) {
+        const activationDate = date;
+        const expiryDateObj = new Date(activationDate);
+        expiryDateObj.setMonth(expiryDateObj.getMonth() + warrantyMonths);
+        const expiryDate = expiryDateObj.toISOString().slice(0, 10);
+        const warrantyId = `W${Date.now()}`;
+        db.prepare(`
+          INSERT INTO warranties (id, product_id, barcode, customer_name, customer_phone, activation_date, expiry_date, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')
+        `).run(warrantyId, productId, barcode, customerName, customerPhone, activationDate, expiryDate);
+      }
     });
     runSale();
     logAudit('Sale Created', 'sale', id, `Barcode: ${barcode}, Customer: ${customerName}, Price: ${salePrice ?? 'N/A'}`);
