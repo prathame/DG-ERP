@@ -385,4 +385,4 @@ Compatible with: Railway, Render, AWS, DigitalOcean, Heroku, Vercel (API), any V
 
 ## License
 
-Private — All rights reserved.
+MIT License — see [LICENSE](LICENSE) for details.
