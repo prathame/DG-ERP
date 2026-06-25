@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { Tab, USER_STORAGE_KEY } from './types';
 import { ToastProvider } from './components/ui';
+import { LanguageProvider, useTranslation } from './i18n';
 import { LoginScreen, GlobalSearchBar, NotificationBell } from './components/layout';
 import { LandingPage } from './components/layout/LandingPage';
 import { ChatWidget } from './components/layout/ChatWidget';
@@ -105,22 +106,24 @@ export default function App() {
     if (u.companyName) document.title = `${u.companyName} — DG ERP`;
   };
 
+  const { t } = useTranslation();
+
   const ux = user as Record<string, unknown>;
   const warrantyEnabled = ux?.warrantyEnabled !== false;
   const replacementEnabled = ux?.replacementEnabled !== false;
   const rewardsEnabled = ux?.rewardsEnabled !== false;
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'sales', label: 'Sales Entry', icon: ShoppingCart },
-    { id: 'distribution', label: 'Distribution', icon: Package },
-    { id: 'masters', label: 'Masters', icon: Users },
-    { id: 'inventory', label: 'Inventory', icon: Package },
-    { id: 'accounts', label: 'Accounts', icon: CreditCard },
-    { id: 'finance', label: 'Finance', icon: IndianRupee },
-    ...(warrantyEnabled ? [{ id: 'warranty', label: 'Warranty', icon: ShieldCheck }] : []),
-    ...(replacementEnabled ? [{ id: 'replacements', label: 'Replacements', icon: RefreshCw }] : []),
-    ...(rewardsEnabled ? [{ id: 'rewards', label: 'Rewards', icon: Gift }] : []),
+    { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { id: 'sales', label: t('nav.sales'), icon: ShoppingCart },
+    { id: 'distribution', label: t('nav.distribution'), icon: Package },
+    { id: 'masters', label: t('nav.masters'), icon: Users },
+    { id: 'inventory', label: t('nav.inventory'), icon: Package },
+    { id: 'accounts', label: t('nav.accounts'), icon: CreditCard },
+    { id: 'finance', label: t('nav.finance'), icon: IndianRupee },
+    ...(warrantyEnabled ? [{ id: 'warranty', label: t('nav.warranty'), icon: ShieldCheck }] : []),
+    ...(replacementEnabled ? [{ id: 'replacements', label: t('nav.replacements'), icon: RefreshCw }] : []),
+    ...(rewardsEnabled ? [{ id: 'rewards', label: t('nav.rewards'), icon: Gift }] : []),
   ];
 
   const canAccess = (tabId: string) => {
@@ -273,7 +276,7 @@ export default function App() {
           <div className="p-4 border-t border-white/5">
             <button type="button" onClick={() => { setActiveTab('settings'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} className={cn("w-full flex items-center gap-3 p-3 rounded-xl transition-all", activeTab === 'settings' ? 'bg-[#F27D26] text-white' : 'hover:bg-white/5 text-gray-400 hover:text-white')}>
               <Settings size={22} />
-              {isSidebarOpen && <span className="font-medium">Settings</span>}
+              {isSidebarOpen && <span className="font-medium">{t('nav.settings')}</span>}
             </button>
           </div>
         )}
@@ -295,7 +298,7 @@ export default function App() {
             >
               <Menu size={22} />
             </button>
-            <h1 className="text-xl sm:text-2xl font-bold capitalize">{activeTab}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">{t(`nav.${activeTab}`)}</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full">
@@ -318,7 +321,7 @@ export default function App() {
                   <motion.div key="user-menu" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="absolute right-0 top-full mt-2 z-50 w-48 bg-white rounded-xl border border-gray-100 shadow-lg py-1 overflow-hidden">
                     <button type="button" onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium">
                       <LogOut size={16} />
-                      Logout
+                      {t('common.logout')}
                     </button>
                   </motion.div>
                 )}

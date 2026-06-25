@@ -4,6 +4,7 @@ import { LogIn, LogOut, UserPlus, Phone, MapPin, Building2, UserCog, Shield, Dow
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import type { Vendor, BillSettings } from '../../types';
+import { useTranslation, LANGUAGES } from '../../i18n';
 import { USER_STORAGE_KEY } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { AuditLogSection } from '../masters/AuditLogSection';
@@ -220,6 +221,7 @@ const PERMISSION_LABELS: { id: string; label: string }[] = [
 
 export function SettingsView({ user, onUserChange }: { user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; autoWhatsapp?: boolean } | null; onUserChange: (u: typeof user) => void }) {
   const { toast } = useToast();
+  const { t: st, lang, setLang } = useTranslation();
   const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', name: '', confirmPassword: '' });
@@ -461,16 +463,16 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             </form>
           </div>
 
-          {/* Appearance / Dark Mode */}
+          {/* Appearance */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
-              <h3 className="font-bold text-lg flex items-center gap-2"><Settings size={20} /> Appearance</h3>
+              <h3 className="font-bold text-lg flex items-center gap-2"><Settings size={20} /> {st('settings.appearance')}</h3>
             </div>
-            <div className="p-6">
+            <div className="p-6 space-y-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-sm">Dark Mode</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Switch between light and dark theme</p>
+                  <p className="font-semibold text-sm">{st('settings.darkMode')}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{st('settings.darkModeDesc')}</p>
                 </div>
                 <button
                   type="button"
@@ -490,6 +492,27 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                     isDarkMode ? 'translate-x-7' : 'translate-x-0.5'
                   )} />
                 </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-sm">{st('settings.language')}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{st('settings.languageDesc')}</p>
+                </div>
+                <div className="flex gap-2">
+                  {LANGUAGES.map((l) => (
+                    <button
+                      key={l.code}
+                      type="button"
+                      onClick={() => setLang(l.code)}
+                      className={cn(
+                        "px-4 py-2 rounded-lg text-sm font-bold border transition-colors",
+                        lang === l.code ? "bg-[#F27D26] text-white border-[#F27D26]" : "bg-white border-gray-200 text-gray-600 hover:border-[#F27D26]"
+                      )}
+                    >
+                      {l.nativeLabel}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
