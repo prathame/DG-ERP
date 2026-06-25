@@ -137,13 +137,13 @@ router.get('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =>
 // ============ CREATE TENANT ============
 router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) => {
   try {
-    const { companyName, adminEmail, adminName, adminPassword, password, phone, address, gstNumber, planId } = req.body;
+    const { companyName, adminEmail, adminName, adminPassword, password, phone, address, gstNumber, planId, plan } = req.body;
     if (!companyName || !adminEmail || !adminName) return res.status(400).json({ error: 'Company name, admin email, and admin name are required' });
     const existing = (await pool.query('SELECT id FROM tenants WHERE admin_email = $1', [adminEmail])).rows[0];
     if (existing) return res.status(400).json({ error: 'A tenant with this email already exists' });
     const result = await provisionTenant({
       companyName, adminEmail, adminName, adminPassword: adminPassword || password || undefined, phone, address, gstNumber,
-      planId: planId || 'STARTER',
+      planId: planId || plan || 'BASIC',
     });
     await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created by super admin`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ ...result, adminEmail, password: result.credentials.password, companyName });
