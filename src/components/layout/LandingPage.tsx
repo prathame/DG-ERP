@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 
 const FEATURES = [
-  { icon: Package, title: 'Inventory Management', desc: 'Auto-barcode ranges, stock tracking, batch management with prefix-based generation' },
-  { icon: ShoppingCart, title: 'Sales & Billing', desc: 'Barcode scan sales, GST tax invoices with CGST/SGST breakdown, split billing' },
+  { icon: Package, title: 'Inventory Management', desc: 'Auto-barcode ranges, stock tracking, batch management, bulk CSV import, barcode label printing' },
+  { icon: ShoppingCart, title: 'Sales & Billing', desc: 'Camera barcode scan, GST tax invoices with CGST/SGST breakdown, split billing' },
   { icon: Truck, title: 'Distribution', desc: 'Spreadsheet-style vendor distribution with per-row discount and GST toggles' },
   { icon: IndianRupee, title: 'Vendor Finance', desc: 'Payment tracking, balance management, automated WhatsApp payment reminders' },
   { icon: Palette, title: 'Custom Branding', desc: 'Company logo, accent colors, bank details, signatory — fully branded bills per tenant' },
@@ -17,6 +17,7 @@ const FEATURES = [
   { icon: Moon, title: 'Dark Mode', desc: 'Light and dark theme with one-click toggle, persisted across sessions' },
   { icon: Languages, title: 'Multi-Language', desc: 'English, Hindi, and Gujarati support — switch language instantly from settings' },
   { icon: Users, title: 'Vendor Portal', desc: 'Optional vendor login — toggle ON for vendor dashboard, OFF for simple distribution-only mode' },
+  { icon: BarChart3, title: 'Barcode System', desc: 'Auto-generate barcodes, print labels, scan with phone camera — or use simple SKU mode' },
 ];
 
 const STEPS = [

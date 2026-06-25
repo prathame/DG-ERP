@@ -11,6 +11,7 @@ import { useDebounce } from '../../hooks/useDebounce';
 
 export function InventoryView() {
   const { toast } = useToast();
+  const barcodeSystemEnabled = (() => { try { const u = JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}'); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
   const [sortBy, setSortBy] = useState<keyof Product>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [products, setProducts] = useState<Product[]>([]);
@@ -140,9 +141,9 @@ export function InventoryView() {
         sortedProducts.map((p) => (
           <div key={p.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative group">
             <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={() => setLabelPrinterId(p.id)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100" title="Print Labels">
+              {barcodeSystemEnabled && <button onClick={() => setLabelPrinterId(p.id)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100" title="Print Labels">
                 <Printer size={18} />
-              </button>
+              </button>}
               <button onClick={() => setProductToDelete(p)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100" title="Delete">
                 <Trash2 size={18} />
               </button>

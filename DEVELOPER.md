@@ -889,6 +889,7 @@ CMD ["node", "dist/server/index.js"]
 - **HTML escape user input** — use `esc()` in bill templates, no `dangerouslySetInnerHTML`
 - **No hardcoded secrets** — all secrets via environment variables, no fallbacks
 - **Auth on all routes** — use `authMiddleware` + verify `req.user.userId` on sensitive endpoints
+- **Check feature toggles** — read `barcodeSystemEnabled` from sessionStorage before showing scanner/label features
 - **Base64 for images** — no file system storage, no multer
 - **sessionStorage** — not localStorage (per-tab isolation)
 

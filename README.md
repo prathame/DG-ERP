@@ -247,7 +247,10 @@ Each tenant sees their own company name in the sidebar, browser tab, bills, What
 ## Tenant Features
 
 ### Core
-- Inventory with auto-barcode ranges (prefix + quantity, overlap prevention)
+- Inventory with auto-barcode ranges (prefix + quantity, overlap prevention) or simple SKU mode
+- Camera barcode scanner (phone camera, no app needed)
+- Barcode/QR label printer (A4 sticker sheets or single labels)
+- Bulk CSV import for products (download template, upload, preview, per-row errors)
 - Sales entry with barcode scan + invoice generation
 - Distribution to vendors (spreadsheet-style, per-row GST/discount)
 - GST Tax Invoices with CGST/SGST breakdown

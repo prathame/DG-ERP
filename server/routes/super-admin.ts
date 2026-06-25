@@ -182,7 +182,7 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
   try {
     const { id } = req.params;
     const b = req.body;
-    const toggleMap: Record<string, string> = { warrantyEnabled: 'warranty_enabled', replacementEnabled: 'replacement_enabled', rewardsEnabled: 'rewards_enabled', financeEnabled: 'finance_enabled', chatbotEnabled: 'chatbot_enabled', billCustomizationEnabled: 'bill_customization_enabled', multiLanguageEnabled: 'multi_language_enabled', vendorPortalEnabled: 'vendor_portal_enabled' };
+    const toggleMap: Record<string, string> = { warrantyEnabled: 'warranty_enabled', replacementEnabled: 'replacement_enabled', rewardsEnabled: 'rewards_enabled', financeEnabled: 'finance_enabled', chatbotEnabled: 'chatbot_enabled', billCustomizationEnabled: 'bill_customization_enabled', multiLanguageEnabled: 'multi_language_enabled', vendorPortalEnabled: 'vendor_portal_enabled', barcodeSystemEnabled: 'barcode_system_enabled' };
     const updates: string[] = [];
     const params: unknown[] = [];
     let idx = 1;

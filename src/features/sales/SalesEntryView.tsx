@@ -11,6 +11,7 @@ import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
 export function SalesEntryView({ user }: { user: { id: string; role?: string; vendorId?: string; autoWhatsapp?: boolean } | null }) {
   const { toast } = useToast();
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
+  const barcodeSystemEnabled = (() => { try { const u = JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}'); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
   const [barcode, setBarcode] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [validation, setValidation] = useState<{ valid: boolean; productName?: string; vendorName?: string; rewardPointsValue?: number; price?: number; error?: string } | null>(null);
@@ -93,7 +94,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
               <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
-                placeholder="Scan or enter product barcode"
+                placeholder={barcodeSystemEnabled ? "Scan or enter product barcode" : "Enter product SKU / code"}
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleValidate()}
@@ -101,10 +102,10 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                 autoComplete="off"
               />
             </div>
-            <button type="button" onClick={() => setScannerOpen(true)} className="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 flex items-center gap-2" title="Scan with camera">
+            {barcodeSystemEnabled && <button type="button" onClick={() => setScannerOpen(true)} className="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 flex items-center gap-2" title="Scan with camera">
               <Camera size={18} />
               <span className="hidden sm:inline">Scan</span>
-            </button>
+            </button>}
             <button type="button" onClick={handleValidate} className="px-6 py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C]">
               Verify
             </button>
