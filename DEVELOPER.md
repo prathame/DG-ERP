@@ -35,6 +35,7 @@ Complete technical reference for developers working on this codebase.
 | Barcode generation | `server/utils/barcode.ts` |
 | API client (frontend) | `src/api.ts` |
 | App routing (JWT + URL slug) | `src/App.tsx` |
+| Landing page (company website) | `src/components/layout/LandingPage.tsx` |
 | Tenant login screen (branded) | `src/components/layout/LoginScreen.tsx` |
 | Tenant slug lookup (public) | `server/routes/super-admin.ts` → `GET /api/tenant/by-slug/:slug` |
 | Super admin login | `src/features/super-admin/SuperAdminLogin.tsx` |
@@ -80,7 +81,7 @@ Browser → Express (:3001) → serves static files + API → PostgreSQL
 ### URL-Based Routing
 
 ```
-/              → Generic tenant login (email lookup finds tenant)
+/              → Landing page (company website with features, pricing, enquiry form)
 /{slug}        → Branded tenant login (e.g., /splendor-pump-llp)
 /admin         → Super admin portal (completely separate)
 /invalid-slug  → "Company Not Found" page
@@ -98,7 +99,7 @@ Routing logic in `App.tsx`:
    - Fetch tenant branding via GET /api/tenant/by-slug/{slug}
    - If found → show branded LoginScreen (logo, color, tagline)
    - If not found → show "Company Not Found" page
-6. If no user and no slug → render generic LoginScreen
+6. If no slug and no user → render LandingPage (company website)
 7. If user session → render tenant ERP, URL set to /{slug}
 8. On logout → stay on /{slug} (branded login page)
 ```

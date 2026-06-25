@@ -92,9 +92,9 @@ npm run server
 npm run dev
 ```
 
+- Landing page: http://localhost:3000 (company website with features, pricing, enquiry form)
 - Super admin: http://localhost:3000/admin
 - Tenant login: http://localhost:3000/{slug} (e.g., `/splendor-pump-llp`)
-- Generic login: http://localhost:3000 (email lookup finds tenant)
 
 ### Default Logins
 
@@ -209,7 +209,7 @@ No tenant can see another tenant's data.
 Each tenant gets a unique branded URL based on their company slug:
 
 ```
-/                          → Generic DG ERP login (email finds tenant)
+/                          → DG ERP landing page (features, pricing, enquiry form)
 /splendor-pump-llp         → Branded login for Splendor (logo, color, tagline)
 /radhe-krishan-jewellers   → Branded login for Radhe Krishan
 /admin                     → Super admin portal
@@ -217,6 +217,17 @@ Each tenant gets a unique branded URL based on their company slug:
 ```
 
 Slugs are auto-generated from the company name on creation (e.g., "Splendor Pump LLP" → `splendor-pump-llp`). After login, the URL updates to `/{slug}` automatically.
+
+### Landing Page (`/`)
+
+Company website with:
+- Hero section with animated gradient
+- Feature grid (8 features)
+- How it works (3 steps)
+- Pricing cards (4 plans)
+- Contact section with enquiry form (opens mailto:), email, phone, WhatsApp
+- Dark/light mode toggle in navbar
+- Footer with contact links
 
 ### Tenant Branding
 
@@ -286,7 +297,7 @@ Server middleware validates token + resolves tenant
 ### Routes
 
 ```
-/              → Generic tenant login (email lookup finds tenant)
+/              → DG ERP company website (landing page with features, pricing, contact)
 /{slug}        → Branded tenant login (company logo, color, tagline)
 /admin         → Super Admin login (completely separate)
 ```
