@@ -202,7 +202,7 @@ router.get('/api/products/verify/:barcode', async (req, res) => {
     )).rows[0] as Record<string, unknown> | undefined : undefined;
 
     const replacements = features.replacement ? (await pool.query(
-      'SELECT id, old_barcode, new_barcode, reason, status, created_at FROM product_replacements WHERE (old_barcode = $1 OR new_barcode = $1) AND tenant_id = $2 ORDER BY created_at DESC',
+      'SELECT id, old_barcode, new_barcode, reason, replaced_date as created_at FROM product_replacements WHERE (old_barcode = $1 OR new_barcode = $1) AND tenant_id = $2 ORDER BY replaced_date DESC',
       [barcode, tenantId]
     )).rows as Record<string, unknown>[] : [];
 
@@ -252,7 +252,7 @@ router.get('/api/products/verify/:barcode', async (req, res) => {
 
     if (replacements.length > 0) {
       result.replacements = replacements.map((r) => ({
-        oldBarcode: r.old_barcode, newBarcode: r.new_barcode, reason: r.reason, status: r.status, date: r.created_at,
+        oldBarcode: r.old_barcode, newBarcode: r.new_barcode, reason: r.reason, date: r.created_at,
       }));
     }
 
