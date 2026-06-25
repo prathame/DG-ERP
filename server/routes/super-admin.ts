@@ -144,7 +144,7 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       companyName, adminEmail, adminName, adminPassword, phone, address, gstNumber,
       planId: planId || 'STARTER',
     });
-    res.status(201).json(result);
+    res.status(201).json({ ...result, adminEmail, password: result.credentials.password, companyName });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

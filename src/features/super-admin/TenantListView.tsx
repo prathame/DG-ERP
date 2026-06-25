@@ -11,6 +11,8 @@ import {
   Copy,
   ChevronDown,
   Building2,
+  MessageCircle,
+  Mail,
 } from 'lucide-react';
 import { LoadingSpinner, useToast } from '../../components/ui';
 
@@ -38,7 +40,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string } | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string; phone?: string; companyName?: string; slug?: string } | null>(null);
 
   const fetchTenants = useCallback(() => {
     const token = sessionStorage.getItem('auth_token');
@@ -231,8 +233,8 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
 
 function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
   onClose: () => void;
-  onCreated: (creds: { email: string; password: string }) => void;
-  createdCredentials: { email: string; password: string } | null;
+  onCreated: (creds: { email: string; password: string; phone?: string; companyName?: string; slug?: string }) => void;
+  createdCredentials: { email: string; password: string; phone?: string; companyName?: string; slug?: string } | null;
 }) {
   const [form, setForm] = useState({
     companyName: '',
@@ -261,7 +263,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
         throw new Error(data.error || 'Failed to create tenant');
       }
       const data = await res.json();
-      onCreated({ email: data.adminEmail ?? form.adminEmail, password: data.password ?? form.password ?? 'auto-generated' });
+      onCreated({ email: data.adminEmail ?? form.adminEmail, password: data.password ?? form.password ?? 'auto-generated', phone: form.phone || undefined, companyName: form.companyName, slug: data.slug || undefined });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Creation failed');
     } finally {
@@ -329,6 +331,44 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                   <Copy size={14} />
                 </button>
               </div>
+              {createdCredentials.slug && (
+                <div className="flex items-center justify-between bg-gray-50 rounded-xl p-3">
+                  <div>
+                    <p className="text-xs text-gray-500">Login URL</p>
+                    <p className="text-sm font-medium text-gray-900">{window.location.origin}/{createdCredentials.slug}</p>
+                  </div>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(`${window.location.origin}/${createdCredentials.slug}`)}
+                    className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  const loginUrl = createdCredentials.slug ? `${window.location.origin}/${createdCredentials.slug}` : window.location.origin;
+                  const msg = `Welcome to ${createdCredentials.companyName || 'DG ERP'}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.`;
+                  const phone = (createdCredentials.phone || '').replace(/[^0-9]/g, '');
+                  window.open(`https://wa.me/${phone ? (phone.startsWith('91') ? phone : '91' + phone) : ''}?text=${encodeURIComponent(msg)}`, '_blank');
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors"
+              >
+                <MessageCircle size={16} /> WhatsApp
+              </button>
+              <button
+                onClick={() => {
+                  const loginUrl = createdCredentials.slug ? `${window.location.origin}/${createdCredentials.slug}` : window.location.origin;
+                  const subject = encodeURIComponent(`Your ${createdCredentials.companyName || 'DG ERP'} Login Credentials`);
+                  const body = encodeURIComponent(`Welcome to ${createdCredentials.companyName || 'DG ERP'}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.\n\nRegards,\nDG ERP Management`);
+                  window.open(`mailto:${createdCredentials.email}?subject=${subject}&body=${body}`, '_self');
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors"
+              >
+                <Mail size={16} /> Email
+              </button>
             </div>
             <button
               onClick={onClose}
