@@ -1,44 +1,55 @@
 import { Router } from 'express';
-import { db } from '../db';
+import { pool } from '../pg-db';
 
 const router = Router();
 
-router.get('/api/dashboard/stats', (req, res) => {
+router.get('/api/dashboard/stats', async (req, res) => {
   try {
-    const revenue = db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'Sales'").get() as { total: number };
-    const warranties = db.prepare("SELECT COUNT(*) as count FROM warranties WHERE status = 'Active'").get() as { count: number };
-    const pendingClaims = db.prepare("SELECT COUNT(*) as count FROM warranties WHERE status = 'Under Claim'").get() as { count: number };
-    const rewardsEarned = db.prepare("SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned'").get() as { total: number };
-    const totalProducts = db.prepare('SELECT COUNT(*) as count FROM products').get() as { count: number };
-    const distributed = db.prepare("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Distributed'").get() as { count: number };
-    const sold = db.prepare("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Sold'").get() as { count: number };
-    const vendorRewards = db.prepare('SELECT COALESCE(SUM(total_reward_points), 0) as total FROM vendors').get() as { total: number };
-    const withAdmin = db.prepare("SELECT COUNT(*) as count FROM product_inventory WHERE status = 'InStock'").get() as { count: number };
-    const withVendors = db.prepare("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Distributed'").get() as { count: number };
-    const totalInventory = db.prepare("SELECT COUNT(*) as count FROM product_inventory").get() as { count: number };
-    const availableInInventory = db.prepare('SELECT COALESCE(SUM(stock), 0) as total FROM products').get() as { total: number };
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const revenue = (await pool.query("SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'Sales' AND tenant_id = $1", [tenantId])).rows[0] as { total: number };
+    const warranties = (await pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Active' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
+    const pendingClaims = (await pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Under Claim' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
+    const rewardsEarned = (await pool.query("SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned' AND tenant_id = $1", [tenantId])).rows[0] as { total: number };
+    const totalProducts = (await pool.query('SELECT COUNT(*) as count FROM products WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
+    const distributed = (await pool.query("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Distributed' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
+    const sold = (await pool.query("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Sold' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
+    const vendorRewards = (await pool.query('SELECT COALESCE(SUM(total_reward_points), 0) as total FROM vendors WHERE tenant_id = $1', [tenantId])).rows[0] as { total: number };
+    const withAdmin = (await pool.query("SELECT COUNT(*) as count FROM product_inventory WHERE status = 'InStock' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
+    const withVendors = (await pool.query("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Distributed' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
+    const totalInventory = (await pool.query("SELECT COUNT(*) as count FROM product_inventory WHERE tenant_id = $1", [tenantId])).rows[0] as { count: number };
+    const availableInInventory = (await pool.query('SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE tenant_id = $1', [tenantId])).rows[0] as { total: number };
     const totalBeforeDistribution = totalInventory.count;
+
     const today = new Date().toISOString().slice(0, 10);
     const thisMonth = today.slice(0, 7);
     const lastMonthDate = new Date(); lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
     const lastMonth = lastMonthDate.toISOString().slice(0, 7);
-    const todaySales = db.prepare("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date = ?").get(today) as { c: number };
-    const thisMonthSales = db.prepare("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date LIKE ?").get(`${thisMonth}%`) as { c: number };
-    const lastMonthSales = db.prepare("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date LIKE ?").get(`${lastMonth}%`) as { c: number };
-    const thisMonthRevenue = db.prepare("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date LIKE ?").get(`${thisMonth}%`) as { t: number };
-    const lastMonthRevenue = db.prepare("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date LIKE ?").get(`${lastMonth}%`) as { t: number };
-    const lowStockProducts = db.prepare(`
+
+    const todaySales = (await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date = $1 AND tenant_id = $2", [today, tenantId])).rows[0] as { c: number };
+    const thisMonthSales = (await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${thisMonth}%`, tenantId])).rows[0] as { c: number };
+    const lastMonthSales = (await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${lastMonth}%`, tenantId])).rows[0] as { c: number };
+    const thisMonthRevenue = (await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${thisMonth}%`, tenantId])).rows[0] as { t: number };
+    const lastMonthRevenue = (await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${lastMonth}%`, tenantId])).rows[0] as { t: number };
+
+    const lowStockProducts = (await pool.query(`
       SELECT p.id, p.name, COUNT(pi.id) as stock FROM products p
-      LEFT JOIN product_inventory pi ON pi.product_id = p.id AND pi.status = 'InStock'
-      GROUP BY p.id HAVING stock < 10 ORDER BY stock ASC LIMIT 5
-    `).all() as { id: string; name: string; stock: number }[];
-    const topProducts = db.prepare(`
+      LEFT JOIN product_inventory pi ON pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1
+      WHERE p.tenant_id = $1
+      GROUP BY p.id HAVING COUNT(pi.id) < 10 ORDER BY COUNT(pi.id) ASC LIMIT 5
+    `, [tenantId])).rows as { id: string; name: string; stock: number }[];
+
+    const topProducts = (await pool.query(`
       SELECT p.name, COUNT(ps.id) as sold FROM product_sales ps JOIN products p ON ps.product_id = p.id
-      GROUP BY ps.product_id ORDER BY sold DESC LIMIT 5
-    `).all() as { name: string; sold: number }[];
-    const expiringWarranties = db.prepare(`
-      SELECT COUNT(*) as c FROM warranties WHERE status = 'Active' AND expiry_date BETWEEN ? AND date(?, '+30 days')
-    `).get(today, today) as { c: number };
+      WHERE ps.tenant_id = $1
+      GROUP BY ps.product_id, p.name ORDER BY sold DESC LIMIT 5
+    `, [tenantId])).rows as { name: string; sold: number }[];
+
+    const expiringWarranties = (await pool.query(`
+      SELECT COUNT(*) as c FROM warranties WHERE status = 'Active' AND expiry_date BETWEEN $1 AND (CAST($1 AS DATE) + INTERVAL '30 days') AND tenant_id = $2
+    `, [today, tenantId])).rows[0] as { c: number };
+
     res.json({
       totalRevenue: revenue.total,
       activeWarranties: warranties.count,
@@ -66,14 +77,18 @@ router.get('/api/dashboard/stats', (req, res) => {
   }
 });
 
-router.get('/api/dashboard/chart', (req, res) => {
+router.get('/api/dashboard/chart', async (req, res) => {
   try {
-    const rows = db.prepare(`
-      SELECT strftime('%m', date) as month_num, strftime('%Y', date) as year, type, SUM(amount) as total
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const rows = (await pool.query(`
+      SELECT to_char(date, 'MM') as month_num, to_char(date, 'YYYY') as year, type, SUM(amount) as total
       FROM transactions
-      WHERE date >= date('now', '-6 months')
+      WHERE date >= CURRENT_DATE - INTERVAL '6 months' AND tenant_id = $1
       GROUP BY year, month_num, type
-    `).all() as { month_num: string; year: string; type: string; total: number }[];
+    `, [tenantId])).rows as { month_num: string; year: string; type: string; total: number }[];
+
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const byMonth: Record<string, { sales: number; claims: number }> = {};
     for (const r of rows) {
@@ -96,20 +111,27 @@ router.get('/api/dashboard/chart', (req, res) => {
   }
 });
 
-router.get('/api/dashboard/rewards-summary', (_req, res) => {
+router.get('/api/dashboard/rewards-summary', async (req, res) => {
   try {
-    const rows = db.prepare(`
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const rows = (await pool.query(`
       SELECT v.id, v.name, v.total_sales as products_sold, v.total_reward_points
       FROM vendors v
+      WHERE v.tenant_id = $1
       ORDER BY v.total_reward_points DESC
-    `).all() as { id: string; name: string; products_sold: number; total_reward_points: number }[];
-    const categorySales = db.prepare(`
+    `, [tenantId])).rows as { id: string; name: string; products_sold: number; total_reward_points: number }[];
+
+    const categorySales = (await pool.query(`
       SELECT p.category_id, c.name as category_name, COUNT(ps.id) as sold
       FROM product_sales ps
       JOIN products p ON ps.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
+      WHERE ps.tenant_id = $1
       GROUP BY p.category_id, c.name
-    `).all() as { category_id: string | null; category_name: string | null; sold: number }[];
+    `, [tenantId])).rows as { category_id: string | null; category_name: string | null; sold: number }[];
+
     res.json({
       vendorSummaries: rows.map((r) => ({
         vendorId: r.id,
@@ -128,32 +150,39 @@ router.get('/api/dashboard/rewards-summary', (_req, res) => {
   }
 });
 
-router.get('/api/dashboard/vendor/:vendorId', (req, res) => {
+router.get('/api/dashboard/vendor/:vendorId', async (req, res) => {
   try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
     const { vendorId } = req.params;
-    const vendor = db.prepare('SELECT * FROM vendors WHERE id = ?').get(vendorId) as Record<string, unknown> | undefined;
+    const vendor = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
-    const assigned = db.prepare(`
+
+    const assigned = (await pool.query(`
       SELECT pd.*, p.name as product_name, p.reward_points_value
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id
-      WHERE pd.vendor_id = ? AND pd.status = 'Distributed'
-    `).all(vendorId) as Record<string, unknown>[];
-    const sales = db.prepare(`
+      WHERE pd.vendor_id = $1 AND pd.status = 'Distributed' AND pd.tenant_id = $2
+    `, [vendorId, tenantId])).rows as Record<string, unknown>[];
+
+    const sales = (await pool.query(`
       SELECT ps.*, p.name as product_name
       FROM product_sales ps
       JOIN products p ON ps.product_id = p.id
-      WHERE ps.vendor_id = ?
+      WHERE ps.vendor_id = $1 AND ps.tenant_id = $2
       ORDER BY ps.purchase_date DESC
-    `).all(vendorId) as Record<string, unknown>[];
-    const categorySales = db.prepare(`
+    `, [vendorId, tenantId])).rows as Record<string, unknown>[];
+
+    const categorySales = (await pool.query(`
       SELECT p.category_id, c.name as category_name, COUNT(ps.id) as sold
       FROM product_sales ps
       JOIN products p ON ps.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
-      WHERE ps.vendor_id = ?
+      WHERE ps.vendor_id = $1 AND ps.tenant_id = $2
       GROUP BY p.category_id, c.name
-    `).all(vendorId) as { category_id: string | null; category_name: string | null; sold: number }[];
+    `, [vendorId, tenantId])).rows as { category_id: string | null; category_name: string | null; sold: number }[];
+
     res.json({
       vendor: {
         id: vendor.id,
