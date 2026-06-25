@@ -241,7 +241,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
     adminEmail: '',
     adminName: '',
     phone: '',
-    plan: 'starter',
+    plan: 'BASIC',
     password: '',
   });
   const [submitting, setSubmitting] = useState(false);
@@ -427,9 +427,10 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                 onChange={(e) => setForm({ ...form, plan: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent bg-white"
               >
-                <option value="starter">Starter</option>
-                <option value="professional">Professional</option>
-                <option value="enterprise">Enterprise</option>
+                <option value="TRIAL">Trial (Free 14 days)</option>
+                <option value="BASIC">Basic — ₹499/mo</option>
+                <option value="STANDARD">Standard — ₹999/mo</option>
+                <option value="PROFESSIONAL">Professional — ₹1,999/mo</option>
               </select>
             </div>
             <div>
