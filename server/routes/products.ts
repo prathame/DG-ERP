@@ -141,6 +141,20 @@ router.get('/api/products/:id/barcode-details', async (req, res) => {
   }
 });
 
+router.get('/api/products/:id/barcodes', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { id } = req.params;
+    const product = (await pool.query('SELECT id, name, price FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as { id: string; name: string; price: number } | undefined;
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    const rows = (await pool.query('SELECT barcode, status FROM product_inventory WHERE product_id = $1 AND tenant_id = $2 ORDER BY barcode', [id, tenantId])).rows as { barcode: string; status: string }[];
+    res.json({ product: { id: product.id, name: product.name, price: product.price }, barcodes: rows.map((r) => ({ barcode: r.barcode, status: r.status })) });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 router.get('/api/products/by-barcode/:barcode', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

@@ -162,6 +162,8 @@ export const api = {
       fetchApi<import('./types').Product>(`/products/by-barcode/${encodeURIComponent(barcode)}`),
     barcodeDetails: (id: string) =>
       fetchApi<{ date: string; barcodeFirst: string; barcodeLast: string; count: number }[]>(`/products/${id}/barcode-details`),
+    getBarcodes: (id: string) =>
+      fetchApi<{ product: { id: string; name: string; price: number }; barcodes: { barcode: string; status: string }[] }>(`/products/${id}/barcodes`),
     create: (data: Partial<Omit<import('./types').Product, 'id'>> & { name: string; rangeStart?: string; rangeEnd?: string; barcodePrefix?: string; barcodeMode?: 'prefix' | 'range' | 'auto'; quantity?: number }) =>
       fetchApi<import('./types').Product>('/products', { method: 'POST', body: JSON.stringify(data) }),
     addStock: (id: string, data: { barcodePrefix?: string; rangeStart?: string; rangeEnd?: string; quantity: number; barcodeMode?: 'prefix' | 'range' | 'auto' }) =>

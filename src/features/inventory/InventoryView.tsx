@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, Plus, Trash2, AlertCircle, AlertTriangle, ArrowUpDown, Barcode, Download, Upload } from 'lucide-react';
+import { Package, Plus, Trash2, AlertCircle, AlertTriangle, ArrowUpDown, Barcode, Download, Upload, Printer } from 'lucide-react';
 import { cn, exportToCsv } from '../../lib/utils';
 import { api } from '../../api';
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
+import { BarcodeLabelPrinter } from '../../components/ui/BarcodeLabelPrinter';
 import { useDebounce } from '../../hooks/useDebounce';
 
 export function InventoryView() {
@@ -16,6 +17,7 @@ export function InventoryView() {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
+  const [labelPrinterId, setLabelPrinterId] = useState<string | null>(null);
   const [barcodeSearch, setBarcodeSearch] = useState('');
   const debouncedBarcodeSearch = useDebounce(barcodeSearch, 250);
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -137,12 +139,14 @@ export function InventoryView() {
         ) : (
         sortedProducts.map((p) => (
           <div key={p.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative group">
-            <button
-              onClick={() => setProductToDelete(p)}
-              className="absolute top-4 right-4 p-2 bg-rose-50 text-rose-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-100"
-            >
-              <Trash2 size={18} />
-            </button>
+            <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={() => setLabelPrinterId(p.id)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100" title="Print Labels">
+                <Printer size={18} />
+              </button>
+              <button onClick={() => setProductToDelete(p)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100" title="Delete">
+                <Trash2 size={18} />
+              </button>
+            </div>
             <div className="w-full aspect-square bg-gray-50 rounded-xl mb-4 flex items-center justify-center overflow-hidden">
                <img
                 src={`https://picsum.photos/seed/pump${p.id}/400/400`}
@@ -376,6 +380,9 @@ export function InventoryView() {
           </div>
         )}
       </AnimatePresence>
+      {labelPrinterId && (
+        <BarcodeLabelPrinter productId={labelPrinterId} onClose={() => setLabelPrinterId(null)} />
+      )}
       {csvImportOpen && (
         <CsvImport
           templateName="products"
