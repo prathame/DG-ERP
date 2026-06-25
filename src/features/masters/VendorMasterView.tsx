@@ -171,9 +171,9 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
                   const companyName = (() => { try { const u = JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}'); return u.companyName || 'our platform'; } catch { return 'our platform'; } })();
                   const slug = sessionStorage.getItem('tenant_slug') || '';
                   const loginUrl = slug ? `${window.location.origin}/${slug}` : window.location.origin;
-                  const subject = encodeURIComponent(`Your ${companyName} Login Credentials`);
-                  const body = encodeURIComponent(`Welcome to ${companyName}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${credsModal.email}\nPassword: ${credsModal.password}\n\nPlease change your password after first login.\n\nRegards,\n${companyName}`);
-                  window.open(`mailto:${credsModal.email}?subject=${subject}&body=${body}`, '_self');
+                  const subject = `Your ${companyName} Login Credentials`;
+                  const body = `Welcome to ${companyName}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${credsModal.email}\nPassword: ${credsModal.password}\n\nPlease change your password after first login.\n\nRegards,\n${companyName}`;
+                  window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(credsModal.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
                 }} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700">
                   <Mail size={16} /> Email
                 </button>

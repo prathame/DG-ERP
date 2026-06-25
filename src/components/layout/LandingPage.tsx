@@ -43,10 +43,8 @@ function EnquiryForm({ dark }: { dark: boolean }) {
     e.preventDefault();
     setSending(true);
     const subject = encodeURIComponent(`DG ERP Enquiry from ${form.name} — ${form.company || 'N/A'}`);
-    const body = encodeURIComponent(
-      `Name: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone || 'N/A'}\nCompany: ${form.company || 'N/A'}\n\nMessage:\n${form.message}`
-    );
-    window.open(`mailto:patelprathamesh007@gmail.com?subject=${subject}&body=${body}`, '_self');
+    const body = `Name: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone || 'N/A'}\nCompany: ${form.company || 'N/A'}\n\nMessage:\n${form.message}`;
+    window.open(`https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
     setTimeout(() => { setSent(true); setSending(false); }, 500);
   };
 
@@ -55,8 +53,8 @@ function EnquiryForm({ dark }: { dark: boolean }) {
       <div className={`p-8 border rounded-2xl text-center ${formCardCls}`}>
         <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4"><Check size={32} className="text-green-500" /></div>
         <h3 className="font-bold text-xl mb-2">Thank You!</h3>
-        <p className={`text-sm mb-4 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Your email client should have opened with the enquiry. If not, email us directly at:</p>
-        <a href="mailto:patelprathamesh007@gmail.com" className="text-[#F27D26] font-medium hover:underline">patelprathamesh007@gmail.com</a>
+        <p className={`text-sm mb-4 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Gmail should have opened with your enquiry. If not, email us directly:</p>
+        <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="text-[#F27D26] font-medium hover:underline">patelprathamesh007@gmail.com</a>
         <div className="mt-6">
           <button type="button" onClick={() => { setSent(false); setForm({ name: '', email: '', phone: '', company: '', message: '' }); }} className="text-sm text-gray-500 hover:text-white transition-colors">Send another enquiry</button>
         </div>
@@ -384,7 +382,7 @@ export function LandingPage() {
                 <h3 className="font-bold text-lg mb-1">Get In Touch</h3>
                 <p className={`text-sm ${textFaint}`}>Have questions about DG ERP? Want to onboard your company? Reach out to us.</p>
                 <div className="space-y-4 pt-2">
-                  <a href="mailto:patelprathamesh007@gmail.com" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-[#F27D26] transition-colors`}>
+                  <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-[#F27D26] transition-colors`}>
                     <div className="w-10 h-10 bg-[#F27D26]/10 rounded-xl flex items-center justify-center shrink-0"><Mail size={18} className="text-[#F27D26]" /></div>
                     <div><p className={`text-xs ${textFooter}`}>Email</p><p className="text-sm font-medium">patelprathamesh007@gmail.com</p></div>
                   </a>
@@ -422,7 +420,7 @@ export function LandingPage() {
               <a href="/admin" className={`${navLink} transition-colors`}>Admin</a>
             </div>
             <div className={`flex items-center gap-4 ${textFooter}`}>
-              <a href="mailto:patelprathamesh007@gmail.com" className="hover:text-[#F27D26] transition-colors"><Mail size={16} /></a>
+              <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#F27D26] transition-colors"><Mail size={16} /></a>
               <a href="tel:+918806907616" className="hover:text-[#F27D26] transition-colors"><Phone size={16} /></a>
               <a href="https://wa.me/918806907616" target="_blank" rel="noopener noreferrer" className="hover:text-green-500 transition-colors"><MessageCircle size={16} /></a>
             </div>

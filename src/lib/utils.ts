@@ -53,9 +53,14 @@ export function shareViaWhatsApp(phone: string, message: string) {
   window.open(`https://wa.me/${p}?text=${encodeURIComponent(message)}`, '_blank');
 }
 
-/** Open mailto: link for email */
+/** Open Gmail compose in browser (works on desktop + mobile) */
 export function shareViaEmail(email: string, subject: string, body: string) {
-  window.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_self');
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.open(gmailUrl, '_blank');
+}
+
+export function getGmailLink(email: string, subject?: string, body?: string): string {
+  return `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(email)}${subject ? `&su=${encodeURIComponent(subject)}` : ''}${body ? `&body=${encodeURIComponent(body)}` : ''}`;
 }
 
 /** Format sales invoice as plain text for WhatsApp / Email */

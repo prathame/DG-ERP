@@ -362,9 +362,9 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
               <button
                 onClick={() => {
                   const loginUrl = createdCredentials.slug ? `${window.location.origin}/${createdCredentials.slug}` : window.location.origin;
-                  const subject = encodeURIComponent(`Your ${createdCredentials.companyName || 'DG ERP'} Login Credentials`);
-                  const body = encodeURIComponent(`Welcome to ${createdCredentials.companyName || 'DG ERP'}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.\n\nRegards,\nDG ERP Management`);
-                  window.open(`mailto:${createdCredentials.email}?subject=${subject}&body=${body}`, '_self');
+                  const subject = `Your ${createdCredentials.companyName || 'DG ERP'} Login Credentials`;
+                  const body = `Welcome to ${createdCredentials.companyName || 'DG ERP'}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.\n\nRegards,\nDG ERP Management`;
+                  window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(createdCredentials.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
                 }}
                 className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors"
               >
