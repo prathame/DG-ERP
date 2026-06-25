@@ -25,3 +25,4 @@ services:
       # Set these manually in Render Dashboard → Environment:
       # SUPER_ADMIN_EMAIL=your-email@domain.com
       # SUPER_ADMIN_PASSWORD=your-secure-password
+      # LOGTAIL_TOKEN=your-logtail-source-token (from betterstack.com)

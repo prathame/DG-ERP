@@ -30,6 +30,7 @@ import mappingRouter from './routes/mapping';
 import auditRouter from './routes/audit';
 import chatbotRouter from './routes/chatbot';
 import billSettingsRouter from './routes/bill-settings';
+import { logger } from './utils/logger';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -92,6 +93,12 @@ app.use(auditRouter);
 app.use(chatbotRouter);
 app.use(billSettingsRouter);
 
+// Request logging for errors
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error('Unhandled error', { method: req.method, path: req.path, error: err.message, stack: err.stack });
+  res.status(500).json({ error: 'Internal server error' });
+});
+
 // SPA fallback (only if built)
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) return next();
@@ -105,9 +112,9 @@ app.get('*', (req, res, next) => {
 
 initDatabase().then(() => {
   app.listen(PORT, () => {
-    console.log(`API server running at http://localhost:${PORT}`);
+    logger.info('Server started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   });
 }).catch((err) => {
-  console.error('Failed to initialize database:', err);
+  logger.error('Failed to initialize database', { error: String(err) });
   process.exit(1);
 });

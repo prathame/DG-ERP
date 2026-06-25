@@ -37,13 +37,17 @@ export function applyDateFilter(query: Record<string, unknown>, dateColumn: stri
 }
 
 export async function logAudit(pool: Pool, tenantId: string, action: string, entityType: string, entityId?: string, details?: string, userId?: string, userName?: string) {
+  const ctx = { tenantId, action, entityType, entityId, details, userId, userName };
   try {
     await pool.query(
       'INSERT INTO audit_log (tenant_id, user_id, user_name, action, entity_type, entity_id, details) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [tenantId, userId ?? null, userName ?? null, action, entityType, entityId ?? null, details ?? null]
     );
+    const { logger } = await import('./logger');
+    logger.info(`[AUDIT] ${action} ${entityType}`, ctx);
   } catch (err) {
-    console.error('Audit log failed:', { tenantId, action, entityType, error: String(err) });
+    const { logger } = await import('./logger');
+    logger.error('Audit log failed', { ...ctx, error: String(err) });
   }
 }
 
