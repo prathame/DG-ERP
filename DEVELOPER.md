@@ -45,6 +45,8 @@ Complete technical reference for developers working on this codebase.
 | Bill customization UI | `src/features/settings/SettingsView.tsx` → `BillCustomizationSection` |
 | Chatbot engine | `server/routes/chatbot.ts` |
 | Dark mode CSS | `src/index.css` (html.dark rules) |
+| Language translations | `src/i18n/en.json`, `hi.json`, `gu.json` |
+| Language context + hook | `src/i18n/index.tsx` → `LanguageProvider`, `useTranslation` |
 | Theme types | `src/types.ts` → `BillSettings` |
 | Demo data scripts | `server/demo/` |
 
@@ -513,6 +515,52 @@ No action needed for most components — the CSS overrides target Tailwind class
 /* Add to src/index.css */
 html.dark .your-new-class { background-color: #1F2937 !important; }
 ```
+
+---
+
+## Multi-Language (i18n)
+
+### How It Works
+
+```
+1. Translation JSON files in src/i18n/ (en.json, hi.json, gu.json)
+2. LanguageProvider wraps the app in main.tsx
+3. Components use useTranslation() hook → t('nav.dashboard') returns translated string
+4. Language stored in sessionStorage('dg_erp_lang')
+5. Selector in Settings → Appearance
+```
+
+### Supported Languages
+
+| Code | Language | Native |
+|---|---|---|
+| `en` | English | English |
+| `hi` | Hindi | हिन्दी |
+| `gu` | Gujarati | ગુજરાતી |
+
+### Adding a New Language
+
+1. Copy `src/i18n/en.json` → `src/i18n/{code}.json`
+2. Translate all values (keep keys identical)
+3. Update `src/i18n/index.tsx`:
+   - Add `import {code} from './{code}.json';`
+   - Add to `Lang` type: `'en' | 'hi' | 'gu' | '{code}'`
+   - Add to `translations` object
+   - Add to `LANGUAGES` array: `{ code: '{code}', label: 'Name', nativeLabel: 'NativeName' }`
+   - Add to `getStoredLang()` check
+
+### Using Translations in Components
+
+```typescript
+import { useTranslation } from '../../i18n';
+
+function MyComponent() {
+  const { t, lang, setLang } = useTranslation();
+  return <h1>{t('nav.dashboard')}</h1>; // "Dashboard" or "डैशबोर्ड" or "ડેશબોર્ડ"
+}
+```
+
+Keys are dot-separated paths into the JSON: `t('settings.darkMode')` → `settings.darkMode` in the JSON file.
 
 ---
 

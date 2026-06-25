@@ -9,6 +9,7 @@ Industry-agnostic ERP for Inventory, Sales, Distribution, Warranty & Rewards Man
 - **Auth**: JWT (jsonwebtoken) + bcrypt
 - **Build**: Vite 6
 - **Theme**: Dark / Light mode with session persistence
+- **i18n**: English, Hindi, Gujarati (JSON-based, zero dependencies)
 
 ## Architecture
 
@@ -163,6 +164,11 @@ npm run dev
 │   │   ├── finance/             # Vendor payments, reminders
 │   │   ├── masters/             # Customers, vendors, banks, rules
 │   │   └── settings/            # Profile, password, toggles, bill customization, users
+│   ├── i18n/
+│   │   ├── index.tsx              # LanguageProvider + useTranslation hook
+│   │   ├── en.json                # English translations (200+ keys)
+│   │   ├── hi.json                # Hindi translations
+│   │   └── gu.json                # Gujarati translations
 │   ├── hooks/useDebounce.ts
 │   └── lib/
 │       ├── utils.ts             # Utilities (print, WhatsApp, email, CSV)
@@ -273,6 +279,7 @@ Each tenant sees their own company name in the sidebar, browser tab, bills, What
 - Notification center (low stock, expiring warranties, pending payments)
 - Audit log + database backup
 - Dark / Light mode toggle (Settings → Appearance)
+- Multi-language support: English, Hindi (हिन्दी), Gujarati (ગુજરાતી)
 
 ### Mobile Ready
 - Responsive UI with touch-friendly targets
