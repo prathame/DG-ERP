@@ -284,7 +284,7 @@ router.delete('/api/super-admin/plans/:id', superAdminMiddleware, async (req, re
 });
 
 // ============ SELF-SERVICE REGISTRATION ============
-router.post('/api/tenant/register', async (req, res) => {
+router.post('/api/tenant/register', superAdminMiddleware, async (req, res) => {
   try {
     const { companyName, adminName, adminEmail, adminPassword, phone } = req.body;
     if (!companyName || !adminName || !adminEmail || !adminPassword) return res.status(400).json({ error: 'All fields required' });

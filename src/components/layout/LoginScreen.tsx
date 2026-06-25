@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { USER_STORAGE_KEY } from '../../types';
 
-type LoginMode = 'login' | 'signup' | 'register';
+type LoginMode = 'login' | 'signup';
 
 interface LoginResult {
   token: string;
@@ -52,23 +52,14 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
     e.preventDefault();
     setError('');
 
-    if ((mode === 'signup' || mode === 'register') && form.password !== form.confirmPassword) {
+    if (mode === 'signup' && form.password !== form.confirmPassword) {
       setError('Passwords do not match');
       return;
     }
 
     setSubmitting(true);
     try {
-      if (mode === 'register') {
-        const result = await api.tenantRegister({
-          companyName: form.companyName,
-          adminEmail: form.email,
-          adminName: form.name,
-          password: form.password,
-          phone: form.phone || undefined,
-        });
-        storeAuthAndLogin(result);
-      } else if (mode === 'login') {
+      if (mode === 'login') {
         const r = await api.auth.login(form.email, form.password);
         storeAuthAndLogin({
           token: r.token,
@@ -102,7 +93,7 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
           )}
           <h1 className="text-2xl font-bold text-white">{isBranded ? tenant.companyName : 'DG ERP'}</h1>
           <p className="text-gray-400 text-sm mt-1">
-            {mode === 'register' ? 'Register Your Company' : isBranded ? (tenant.tagline || '') : 'Enterprise Resource Planning'}
+            {isBranded ? (tenant.tagline || '') : 'Enterprise Resource Planning'}
           </p>
           {isBranded && (
             <p className="text-gray-600 text-[10px] mt-2">Powered by DG ERP</p>
@@ -115,39 +106,21 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
               <button type="button" onClick={() => { setMode('signup'); setError(''); }} className={cn("flex-1 py-3 rounded-xl font-bold transition-all", mode === 'signup' ? 'text-white' : 'bg-white/5 text-gray-400 hover:text-white')} style={mode === 'signup' ? { backgroundColor: accentColor } : undefined}>Sign Up</button>
             </div>
           )}
-          {mode === 'register' && (
-            <button type="button" onClick={() => { setMode('login'); setError(''); }} className="text-sm text-gray-400 hover:text-white mb-4 flex items-center gap-1">
-              &larr; Back to login
-            </button>
-          )}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'register' && (
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Company Name</label><input required value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="Your Company Ltd." /></div>
-            )}
-            {(mode === 'signup' || mode === 'register') && (
+            {mode === 'signup' && (
               <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Name</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="Full name" /></div>
             )}
             <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="you@example.com" /></div>
-            {mode === 'register' && (
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Phone (optional)</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="+91 98765 43210" /></div>
-            )}
             <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><input type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" /></div>
-            {(mode === 'signup' || mode === 'register') && (
+            {mode === 'signup' && (
               <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm Password</label><input type="password" required value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" /></div>
             )}
             {error && <p className="text-sm text-rose-400">{error}</p>}
             <button type="submit" disabled={submitting} className="w-full py-4 text-white rounded-xl font-bold text-lg transition-colors disabled:opacity-60" style={{ backgroundColor: accentColor }}>
-              {submitting ? 'Please wait...' : mode === 'login' ? 'Login' : mode === 'signup' ? 'Sign Up' : 'Register Company'}
+              {submitting ? 'Please wait...' : mode === 'login' ? 'Login' : 'Sign Up'}
             </button>
           </form>
         </div>
-        {showTabs && (
-          <p className="text-center text-gray-500 text-sm mt-6">
-            <button type="button" onClick={() => { setMode('register'); setError(''); setForm({ email: '', password: '', name: '', confirmPassword: '', companyName: '', phone: '' }); }} className="font-medium underline underline-offset-2" style={{ color: accentColor }}>
-              Register your company
-            </button>
-          </p>
-        )}
       </motion.div>
     </div>
   );
