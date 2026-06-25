@@ -51,6 +51,21 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '2mb' }));
 
+// Enforce tenant isolation: if JWT is present, override X-Tenant-ID header with JWT's tenantId
+app.use('/api/', (req, _res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token) {
+    try {
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }) as { tenantId?: string };
+      if (decoded.tenantId) {
+        req.headers['x-tenant-id'] = decoded.tenantId;
+      }
+    } catch {}
+  }
+  next();
+});
+
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many login attempts, try again in 15 minutes' }, standardHeaders: true, legacyHeaders: false });
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/super-admin/login', loginLimiter);
