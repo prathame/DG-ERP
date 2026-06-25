@@ -64,6 +64,9 @@ html.dark .bg-blue-50 { background-color: #172554 !important; }
 html.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #374151 !important; }
 html.dark .ring-gray-200 { --tw-ring-color: #374151 !important; }
 
+/* Landing page light mode overrides (landing uses dark bg by default, flip for light) */
+html:not(.dark) .landing-light { background-color: #FFFFFF !important; color: #1a1a1a !important; }
+
 /* Dark scrollbar */
 html.dark ::-webkit-scrollbar-thumb { background: #4B5563; }
 html.dark ::-webkit-scrollbar-thumb:hover { background: #6B7280; }

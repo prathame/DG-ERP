@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import {
   Package, ShoppingCart, Truck, Receipt, IndianRupee, MessageSquare,
   Palette, Moon, ShieldCheck, BarChart3, Users, Zap,
-  ArrowRight, Check, Star, Mail, Phone, Send, MessageCircle,
+  ArrowRight, Check, Star, Mail, Phone, Send, MessageCircle, Sun,
 } from 'lucide-react';
 
 const FEATURES = [
@@ -29,6 +29,24 @@ const PLANS = [
   { name: 'Professional', price: '₹2,999', period: '/month', features: ['500 Products', '25 Vendors', '15 Users', 'Warranty + Rewards + Finance'], highlight: true },
   { name: 'Enterprise', price: '₹9,999', period: '/month', features: ['Unlimited Products', 'Unlimited Vendors', 'Unlimited Users', 'Chatbot + API + Priority Support'], highlight: false },
 ];
+
+function ThemeToggle() {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const nowDark = document.documentElement.classList.toggle('dark');
+        sessionStorage.setItem('dg_erp_theme', nowDark ? 'dark' : 'light');
+        setDark(nowDark);
+      }}
+      className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+      title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+    >
+      {dark ? <Sun size={18} /> : <Moon size={18} />}
+    </button>
+  );
+}
 
 function EnquiryForm() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', company: '', message: '' });
@@ -106,6 +124,7 @@ export function LandingPage() {
           <div className="flex items-center gap-3">
             <a href="#features" className="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition-colors hidden md:block">Features</a>
             <a href="#contact" className="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition-colors hidden md:block">Contact</a>
+            <ThemeToggle />
             <a href="/admin" className="px-5 py-2 text-sm font-semibold bg-white/5 border border-white/10 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-colors">Admin Login</a>
           </div>
         </div>
