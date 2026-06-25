@@ -1,8 +1,12 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { db } from './db';
+import dotenv from 'dotenv';
+dotenv.config();
 
+import { initDatabase } from './pg-db';
+
+import superAdminRouter from './routes/super-admin';
 import productsRouter from './routes/products';
 import salesRouter from './routes/sales';
 import distributionRouter from './routes/distribution';
@@ -47,7 +51,10 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, message: 'API is running' });
 });
 
-// Mount all route modules
+// Mount super admin routes (no tenant middleware)
+app.use(superAdminRouter);
+
+// Mount tenant route modules
 app.use(productsRouter);
 app.use(salesRouter);
 app.use(distributionRouter);
@@ -80,6 +87,11 @@ app.get('*', (req, res, next) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`API server running at http://localhost:${PORT}`);
+initDatabase().then(() => {
+  app.listen(PORT, () => {
+    console.log(`API server running at http://localhost:${PORT}`);
+  });
+}).catch((err) => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });
