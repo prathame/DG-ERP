@@ -20,9 +20,8 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       { facingMode: 'environment' },
       { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.5 },
       (decodedText) => {
-        onScan(decodedText);
         scanner.stop().catch(() => {});
-        onClose();
+        onScan(decodedText);
       },
       () => {}
     ).catch((err) => {
