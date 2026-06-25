@@ -299,6 +299,21 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative">
+        {/* Subscription expiry banner */}
+        {(() => {
+          const subEnd = (ux?.subscriptionEndsAt || ux?.trialEndsAt) as string | undefined;
+          if (!subEnd) return null;
+          const days = Math.ceil((new Date(subEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          if (days > 15) return null;
+          const isTrial = !!ux?.trialEndsAt && !ux?.subscriptionEndsAt;
+          return (
+            <div className={cn("px-4 py-2 text-center text-sm font-medium", days <= 0 ? "bg-rose-600 text-white" : days <= 7 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700")}>
+              {days <= 0
+                ? `Your ${isTrial ? 'trial' : 'subscription'} has expired. Contact DG ERP to renew.`
+                : `Your ${isTrial ? 'trial' : 'subscription'} expires in ${days} day${days === 1 ? '' : 's'}. Contact DG ERP to renew.`}
+            </div>
+          );
+        })()}
         <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 sm:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button

@@ -167,7 +167,7 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
         planId: tenant.plan_id, planName: tenant.plan_name, status: tenant.status,
         warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false,
         financeEnabled: tenant.finance_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, billCustomizationEnabled: tenant.bill_customization_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false,
-        trialEndsAt: tenant.trial_ends_at, createdAt: tenant.created_at, lastActiveAt: tenant.last_active_at,
+        trialEndsAt: tenant.trial_ends_at, subscriptionEndsAt: tenant.subscription_ends_at, createdAt: tenant.created_at, lastActiveAt: tenant.last_active_at,
       },
       stats,
       users: users.map((u: Record<string, unknown>) => ({ id: u.id, email: u.email, name: u.name, role: u.role, vendorId: u.vendor_id, createdAt: u.created_at })),
@@ -191,6 +191,7 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     if (b.companyName !== undefined) { updates.push(`company_name = $${idx}`); params.push(b.companyName); idx++; }
     if (b.phone !== undefined) { updates.push(`phone = $${idx}`); params.push(b.phone); idx++; }
     if (b.address !== undefined) { updates.push(`address = $${idx}`); params.push(b.address); idx++; }
+    if (b.subscriptionEndsAt !== undefined) { updates.push(`subscription_ends_at = $${idx}`); params.push(b.subscriptionEndsAt || null); idx++; }
     if (b.gstNumber !== undefined) { updates.push(`gst_number = $${idx}`); params.push(b.gstNumber); idx++; }
     for (const [key, col] of Object.entries(toggleMap)) {
       if (b[key] !== undefined) { updates.push(`${col} = $${idx}`); params.push(!!b[key]); idx++; }
@@ -359,6 +360,9 @@ router.post('/api/super-admin/billing', superAdminMiddleware, async (req, res) =
       'INSERT INTO tenant_invoices (id, tenant_id, invoice_number, period_start, period_end, plan_name, amount, gst_amount, total, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [id, tenantId, invNum, periodStart || null, periodEnd || null, plan?.name || null, amount, gst, total, notes || null]
     );
+    if (periodEnd) {
+      await pool.query('UPDATE tenants SET subscription_ends_at = $1, status = $2 WHERE id = $3', [periodEnd, 'active', tenantId]);
+    }
     await logAudit(pool, tenantId, 'CREATE', 'invoice', id, `Invoice ${invNum} — ₹${total} for ${tenant.company_name}`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ id, invoiceNumber: invNum, total });
   } catch (err) { res.status(500).json({ error: String(err) }); }

@@ -42,7 +42,8 @@ router.post('/api/auth/login', async (req, res) => {
              u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, u.gst_number,
              u.password_hash, u.tenant_id,
              t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status,
-             t.warranty_enabled, t.replacement_enabled, t.rewards_enabled, t.finance_enabled, t.chatbot_enabled, t.bill_customization_enabled, t.multi_language_enabled, t.vendor_portal_enabled, t.barcode_system_enabled
+             t.warranty_enabled, t.replacement_enabled, t.rewards_enabled, t.finance_enabled, t.chatbot_enabled, t.bill_customization_enabled, t.multi_language_enabled, t.vendor_portal_enabled, t.barcode_system_enabled,
+             t.trial_ends_at, t.subscription_ends_at
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
       WHERE u.email = $1
@@ -59,6 +60,17 @@ router.post('/api/auth/login', async (req, res) => {
     const tenantStatus = row.tenant_status as string;
     if (tenantStatus !== 'active' && tenantStatus !== 'trial') {
       return res.status(403).json({ error: 'Your account is not active. Please contact support.' });
+    }
+
+    // Check subscription/trial expiry
+    const now = new Date();
+    const trialEnds = row.trial_ends_at ? new Date(row.trial_ends_at as string) : null;
+    const subEnds = row.subscription_ends_at ? new Date(row.subscription_ends_at as string) : null;
+    if (tenantStatus === 'trial' && trialEnds && trialEnds < now) {
+      return res.status(403).json({ error: 'Your trial has expired. Please contact DG ERP to subscribe.' });
+    }
+    if (tenantStatus === 'active' && subEnds && subEnds < now) {
+      return res.status(403).json({ error: 'Your subscription has expired. Please contact DG ERP to renew.' });
     }
 
     // Block vendor login if vendor portal disabled
@@ -96,6 +108,14 @@ router.post('/api/auth/login', async (req, res) => {
       warrantyEnabled: row.warranty_enabled !== false,
       replacementEnabled: row.replacement_enabled !== false,
       rewardsEnabled: row.rewards_enabled !== false,
+      financeEnabled: row.finance_enabled !== false,
+      chatbotEnabled: row.chatbot_enabled !== false,
+      billCustomizationEnabled: row.bill_customization_enabled !== false,
+      multiLanguageEnabled: row.multi_language_enabled !== false,
+      vendorPortalEnabled: row.vendor_portal_enabled !== false,
+      barcodeSystemEnabled: row.barcode_system_enabled !== false,
+      subscriptionEndsAt: row.subscription_ends_at ?? null,
+      trialEndsAt: row.trial_ends_at ?? null,
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });
