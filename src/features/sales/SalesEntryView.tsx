@@ -33,9 +33,10 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
   useEffect(() => { loadSales(1); }, [vendorId, salesDateFilter]);
 
   const handleValidate = (scannedCode?: string) => {
+    if (typeof scannedCode !== 'string') scannedCode = undefined;
     const code = (scannedCode || barcode).trim();
     if (!code) {
-      toast('Enter barcode', 'error');
+      toast('Enter a barcode', 'error');
       return;
     }
     if (scannedCode) {
@@ -44,11 +45,16 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
     }
     setValidation(null);
     setValidating(true);
+    toast('Verifying...', 'info');
     api.sales.validate(code, vendorId)
       .then((r) => {
         setValidation({ valid: r.valid, productName: r.productName, vendorName: r.vendorName, rewardPointsValue: r.rewardPointsValue, price: (r as { price?: number }).price, error: (r as { error?: string }).error });
-        if (r.valid && (r as { price?: number }).price != null) setForm((f) => ({ ...f, salePrice: String((r as { price?: number }).price ?? '') }));
-        if (!r.valid) toast((r as { error?: string }).error || 'Invalid barcode', 'error');
+        if (r.valid) {
+          toast(`Found: ${r.productName}`, 'success');
+          if ((r as { price?: number }).price != null) setForm((f) => ({ ...f, salePrice: String((r as { price?: number }).price ?? '') }));
+        } else {
+          toast((r as { error?: string }).error || 'Invalid barcode', 'error');
+        }
       })
       .catch((err) => { setValidation({ valid: false, error: 'Validation failed' }); toast(err instanceof Error ? err.message : 'Validation failed', 'error'); })
       .finally(() => setValidating(false));
