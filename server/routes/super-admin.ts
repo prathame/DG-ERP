@@ -163,6 +163,7 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
         id: tenant.id, companyName: tenant.company_name, slug: tenant.slug, adminEmail: tenant.admin_email,
         adminName: tenant.admin_name, phone: tenant.phone, address: tenant.address, gstNumber: tenant.gst_number,
         planId: tenant.plan_id, planName: tenant.plan_name, status: tenant.status,
+        warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false,
         trialEndsAt: tenant.trial_ends_at, createdAt: tenant.created_at, lastActiveAt: tenant.last_active_at,
       },
       stats,
@@ -177,7 +178,7 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
 router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, planId, companyName, phone, address, gstNumber } = req.body;
+    const { status, planId, companyName, phone, address, gstNumber, warrantyEnabled, replacementEnabled, rewardsEnabled } = req.body;
     const updates: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
@@ -187,12 +188,15 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     if (phone !== undefined) { updates.push(`phone = $${idx}`); params.push(phone); idx++; }
     if (address !== undefined) { updates.push(`address = $${idx}`); params.push(address); idx++; }
     if (gstNumber !== undefined) { updates.push(`gst_number = $${idx}`); params.push(gstNumber); idx++; }
+    if (warrantyEnabled !== undefined) { updates.push(`warranty_enabled = $${idx}`); params.push(!!warrantyEnabled); idx++; }
+    if (replacementEnabled !== undefined) { updates.push(`replacement_enabled = $${idx}`); params.push(!!replacementEnabled); idx++; }
+    if (rewardsEnabled !== undefined) { updates.push(`rewards_enabled = $${idx}`); params.push(!!rewardsEnabled); idx++; }
     if (updates.length === 0) return res.status(400).json({ error: 'No updates provided' });
     params.push(id);
     const result = await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
-    const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0];
-    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id });
+    const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
+    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
