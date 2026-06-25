@@ -52,7 +52,7 @@ export const mapProduct = (r: Record<string, unknown>) => ({
   name: r.name,
   barcode: r.barcode ?? null,
   category: r.category_name ?? r.category ?? null,
-  categoryId: r.category_id ?? null,
+  categoryId: null,
   description: r.description ?? null,
   rewardPointsValue: r.reward_points_value ?? 0,
   manufacturingDate: r.manufacturing_date ?? null,

@@ -460,11 +460,9 @@ router.get('/api/distribution/bill', async (req, res) => {
     let sql = `
       SELECT pd.id, pd.batch_id, pd.barcode, pd.distribution_date, pd.status, pd.discount_percent, pd.net_price, pd.billed_price, pd.gst_applied,
              pd.product_id, p.name as product_name, p.price, p.batch_number,
-             c.name as category_name,
              v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
-      
       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
       WHERE pd.tenant_id = $1
     `;
@@ -527,7 +525,7 @@ router.get('/api/distribution/bill', async (req, res) => {
         sno: i + 1,
         barcode: r.barcode,
         productName: r.product_name,
-        category: r.category_name ?? null,
+        category: null,
         batchNumber: r.batch_number ?? null,
         originalPrice: r.price ?? 0,
         discountPercent: r.discount_percent ?? 0,

@@ -209,11 +209,9 @@ router.get('/api/sales/:id/bill', async (req, res) => {
     const sale = (await pool.query(`
       SELECT ps.*, p.name as product_name, p.warranty_months, p.price as product_price,
              p.description as product_description, p.batch_number, p.hsn_code, p.gst_rate,
-             c.name as category_name,
              v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address
       FROM product_sales ps
       JOIN products p ON ps.product_id = p.id AND p.tenant_id = $2
-      
       LEFT JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $2
       WHERE ps.id = $1 AND ps.tenant_id = $2
     `, [id, tenantId])).rows[0] as Record<string, unknown> | undefined;
@@ -236,7 +234,7 @@ router.get('/api/sales/:id/bill', async (req, res) => {
       barcode: sale.barcode,
       productName: sale.product_name,
       productDescription: sale.product_description ?? null,
-      category: sale.category_name ?? null,
+      category: null,
       batchNumber: sale.batch_number ?? null,
       productPrice: sale.product_price ?? 0,
       salePrice: sale.sale_price ?? sale.product_price ?? 0,
