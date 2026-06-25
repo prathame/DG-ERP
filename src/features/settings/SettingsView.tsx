@@ -66,9 +66,11 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
     setAuthError('');
     setAuthSubmitting(true);
     try {
-      const u = await api.auth.login(authForm.email, authForm.password);
-      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u));
-      onUserChange(u);
+      const result = await api.auth.login(authForm.email, authForm.password);
+      sessionStorage.setItem('auth_token', result.token);
+      if (result.tenantId) sessionStorage.setItem('tenant_id', result.tenantId);
+      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(result.user));
+      onUserChange(result.user);
       setAuthForm({ email: '', password: '', name: '', confirmPassword: '' });
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Login failed');
@@ -86,9 +88,11 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
     }
     setAuthSubmitting(true);
     try {
-      const u = await api.auth.signup({ email: authForm.email, password: authForm.password, name: authForm.name });
-      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u));
-      onUserChange(u);
+      const result = await api.auth.signup({ email: authForm.email, password: authForm.password, name: authForm.name });
+      sessionStorage.setItem('auth_token', result.token);
+      if (result.tenantId) sessionStorage.setItem('tenant_id', result.tenantId);
+      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(result.user));
+      onUserChange(result.user);
       setAuthForm({ email: '', password: '', name: '', confirmPassword: '' });
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Signup failed');
@@ -98,6 +102,8 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
   };
 
   const handleLogout = () => {
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('tenant_id');
     sessionStorage.removeItem(USER_STORAGE_KEY);
     onUserChange(null);
   };

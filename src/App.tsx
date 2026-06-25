@@ -31,6 +31,32 @@ import { AccountsView } from './features/accounts/AccountsView';
 import { VendorFinanceView } from './features/finance/VendorFinanceView';
 import { MastersView } from './features/masters/MastersView';
 import { SettingsView } from './features/settings/SettingsView';
+import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
+
+/** Decode a JWT payload without any library. Returns null on failure. */
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = parts[1];
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
+/** Check whether we have a stored JWT and what role it carries. */
+function getAuthState(): { isSuperAdmin: boolean; hasTenant: boolean } {
+  const token = sessionStorage.getItem('auth_token');
+  if (!token) return { isSuperAdmin: false, hasTenant: false };
+  const payload = decodeJwtPayload(token);
+  if (!payload) return { isSuperAdmin: false, hasTenant: false };
+  return {
+    isSuperAdmin: payload.role === 'super_admin',
+    hasTenant: Boolean(payload.tenantId || sessionStorage.getItem('tenant_id')),
+  };
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -42,6 +68,18 @@ export default function App() {
       return s ? JSON.parse(s) : null;
     } catch { return null; }
   });
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('tenant_id');
+    sessionStorage.removeItem(USER_STORAGE_KEY);
+    setUser(null);
+    setUserMenuOpen(false);
+  };
+
+  const handleLogin = (u: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean }) => {
+    setUser(u);
+  };
 
   const ux = user as Record<string, unknown>;
   const warrantyEnabled = ux?.warrantyEnabled !== false;
@@ -76,10 +114,23 @@ export default function App() {
   };
   const visibleNavItems = navItems.filter((item) => canAccess(item.id));
 
+  // No user session -- show login
   if (!user) {
     return (
       <ToastProvider>
-        <LoginScreen onLogin={(u) => { sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u)); setUser(u); }} />
+        <LoginScreen onLogin={handleLogin} />
+      </ToastProvider>
+    );
+  }
+
+  // Check JWT for super admin routing
+  const authState = getAuthState();
+  if (authState.isSuperAdmin) {
+    const tokenPayload = decodeJwtPayload(sessionStorage.getItem('auth_token') || '') || {};
+    const superAdminUser = { id: tokenPayload.userId as string || '', email: tokenPayload.email as string || '', name: tokenPayload.name as string || '', role: 'super_admin' as const };
+    return (
+      <ToastProvider>
+        <SuperAdminApp user={superAdminUser} onLogout={handleLogout} />
       </ToastProvider>
     );
   }
@@ -184,7 +235,7 @@ export default function App() {
               <AnimatePresence>
                 {userMenuOpen && (
                   <motion.div key="user-menu" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="absolute right-0 top-full mt-2 z-50 w-48 bg-white rounded-xl border border-gray-100 shadow-lg py-1 overflow-hidden">
-                    <button type="button" onClick={() => { sessionStorage.removeItem(USER_STORAGE_KEY); setUser(null); setUserMenuOpen(false); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium">
+                    <button type="button" onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium">
                       <LogOut size={16} />
                       Logout
                     </button>
