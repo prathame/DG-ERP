@@ -54,6 +54,9 @@ export async function initSchema() {
         status TEXT DEFAULT 'active',
         trial_ends_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT NOW(),
+        warranty_enabled BOOLEAN DEFAULT true,
+        replacement_enabled BOOLEAN DEFAULT true,
+        rewards_enabled BOOLEAN DEFAULT true,
         last_active_at TIMESTAMPTZ
       );
 
@@ -364,6 +367,10 @@ export async function initSchema() {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS warranty_enabled BOOLEAN DEFAULT true');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS replacement_enabled BOOLEAN DEFAULT true');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS rewards_enabled BOOLEAN DEFAULT true');
 
     console.log('✓ Schema created');
   } finally {

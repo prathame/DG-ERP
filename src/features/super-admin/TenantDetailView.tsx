@@ -15,7 +15,11 @@ import {
   Phone,
   Calendar,
   Shield,
+  ShieldCheck,
+  Gift,
+  RefreshCw,
 } from 'lucide-react';
+import { cn } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
 
 interface TenantDetail {
@@ -27,6 +31,9 @@ interface TenantDetail {
   gstNumber: string;
   plan: string;
   status: string;
+  warrantyEnabled: boolean;
+  replacementEnabled: boolean;
+  rewardsEnabled: boolean;
   createdAt: string;
   stats: {
     products: number;
@@ -249,6 +256,64 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
             <p className="text-xs text-gray-500 mt-1">{card.label}</p>
           </div>
         ))}
+      </div>
+
+      {/* Feature Toggles */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-100">
+          <h2 className="text-lg font-bold text-gray-900">Feature Toggles</h2>
+          <p className="text-sm text-gray-500">Enable or disable features for this tenant</p>
+        </div>
+        <div className="p-6 space-y-4">
+          {([
+            { key: 'warrantyEnabled', label: 'Warranty Management', desc: 'Auto-create warranties on sale. Hides warranty tab when disabled.', icon: ShieldCheck },
+            { key: 'replacementEnabled', label: 'Replacement Tracking', desc: 'Track product replacements under warranty. Hides replacements tab when disabled.', icon: RefreshCw },
+            { key: 'rewardsEnabled', label: 'Rewards & Points', desc: 'Vendor reward points on each sale. Hides rewards tab when disabled.', icon: Gift },
+          ] as const).map((toggle) => (
+            <div key={toggle.key} className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-gray-50 rounded-lg flex items-center justify-center">
+                  <toggle.icon size={18} className="text-gray-500" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">{toggle.label}</p>
+                  <p className="text-xs text-gray-500">{toggle.desc}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  const token = sessionStorage.getItem('auth_token');
+                  const currentVal = (tenant as unknown as Record<string, unknown>).tenant
+                    ? ((tenant as unknown as Record<string, unknown>).tenant as Record<string, unknown>)[toggle.key] !== false
+                    : (tenant as unknown as Record<string, unknown>)[toggle.key] !== false;
+                  try {
+                    await fetch(`/api/super-admin/tenants/${tenantId}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ [toggle.key]: !currentVal }),
+                    });
+                    fetchTenant();
+                    toast(`${toggle.label} ${!currentVal ? 'enabled' : 'disabled'}`, 'success');
+                  } catch { toast('Failed to update', 'error'); }
+                }}
+                className={cn("relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors", (() => {
+                  const val = (tenant as unknown as Record<string, unknown>).tenant
+                    ? ((tenant as unknown as Record<string, unknown>).tenant as Record<string, unknown>)[toggle.key] !== false
+                    : (tenant as unknown as Record<string, unknown>)[toggle.key] !== false;
+                  return val ? "bg-green-500" : "bg-gray-300";
+                })())}
+              >
+                <span className={cn("pointer-events-none inline-block h-6 w-6 rounded-full bg-white shadow-md transform transition-transform", (() => {
+                  const val = (tenant as unknown as Record<string, unknown>).tenant
+                    ? ((tenant as unknown as Record<string, unknown>).tenant as Record<string, unknown>)[toggle.key] !== false
+                    : (tenant as unknown as Record<string, unknown>)[toggle.key] !== false;
+                  return val ? "translate-x-5" : "translate-x-0";
+                })())} />
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Users Table */}

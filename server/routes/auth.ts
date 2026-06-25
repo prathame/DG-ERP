@@ -39,9 +39,9 @@ router.post('/api/auth/login', async (req, res) => {
     const row = (await pool.query(`
       SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name,
              u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, u.gst_number,
-             u.warranty_enabled, u.replacement_enabled, u.rewards_enabled,
              u.password_hash, u.tenant_id,
-             t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status
+             t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status,
+             t.warranty_enabled, t.replacement_enabled, t.rewards_enabled
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
       WHERE u.email = $1
@@ -101,7 +101,7 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
     const userId = req.query.userId as string || req.user?.userId;
     if (!userId || userId !== req.user?.userId) return res.status(403).json({ error: 'Access denied' });
 
-    const row = (await pool.query('SELECT id, email, name, phone, address, role, company_name, permissions, vendor_id, auto_whatsapp, default_gst_rate, gst_number, warranty_enabled, replacement_enabled, rewards_enabled FROM users WHERE id = $1 AND tenant_id = $2', [userId, tenantId])).rows[0] as Record<string, unknown> | undefined;
+    const row = (await pool.query('SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, u.gst_number, t.warranty_enabled, t.replacement_enabled, t.rewards_enabled FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1 AND u.tenant_id = $2', [userId, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'User not found' });
 
     res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, permissions: row.permissions ? JSON.parse(row.permissions as string) : null, vendorId: row.vendor_id ?? null, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, warrantyEnabled: row.warranty_enabled !== false, replacementEnabled: row.replacement_enabled !== false, rewardsEnabled: row.rewards_enabled !== false });
@@ -127,21 +127,12 @@ router.put('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
     if (autoWhatsapp !== undefined) {
       await pool.query('UPDATE users SET auto_whatsapp = $1 WHERE id = $2 AND tenant_id = $3', [autoWhatsapp ? true : false, userId, tenantId]);
     }
-    const { defaultGstRate, warrantyEnabled, replacementEnabled, rewardsEnabled } = req.body;
+    const { defaultGstRate } = req.body;
     if (defaultGstRate !== undefined) {
       await pool.query('UPDATE users SET default_gst_rate = $1 WHERE id = $2 AND tenant_id = $3', [Number(defaultGstRate) || 18, userId, tenantId]);
     }
-    if (warrantyEnabled !== undefined) {
-      await pool.query('UPDATE users SET warranty_enabled = $1 WHERE id = $2 AND tenant_id = $3', [!!warrantyEnabled, userId, tenantId]);
-    }
-    if (replacementEnabled !== undefined) {
-      await pool.query('UPDATE users SET replacement_enabled = $1 WHERE id = $2 AND tenant_id = $3', [!!replacementEnabled, userId, tenantId]);
-    }
-    if (rewardsEnabled !== undefined) {
-      await pool.query('UPDATE users SET rewards_enabled = $1 WHERE id = $2 AND tenant_id = $3', [!!rewardsEnabled, userId, tenantId]);
-    }
 
-    const row = (await pool.query('SELECT id, email, name, phone, address, role, company_name, auto_whatsapp, default_gst_rate, gst_number, warranty_enabled, replacement_enabled, rewards_enabled FROM users WHERE id = $1 AND tenant_id = $2', [userId, tenantId])).rows[0] as Record<string, unknown> | undefined;
+    const row = (await pool.query('SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.auto_whatsapp, u.default_gst_rate, u.gst_number, t.warranty_enabled, t.replacement_enabled, t.rewards_enabled FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1 AND u.tenant_id = $2', [userId, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'User not found' });
 
     res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, warrantyEnabled: row.warranty_enabled !== false, replacementEnabled: row.replacement_enabled !== false, rewardsEnabled: row.rewards_enabled !== false });

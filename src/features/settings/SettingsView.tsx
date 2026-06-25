@@ -545,42 +545,26 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             </form>
           </div>
 
-          {/* Feature Toggles */}
+          {/* Feature Toggles (read-only — managed by super admin) */}
           {isAdmin && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
-                <h3 className="font-bold text-lg flex items-center gap-2"><Settings size={20} /> Feature Toggles</h3>
+                <h3 className="font-bold text-lg flex items-center gap-2"><Settings size={20} /> {st('settings.featureToggles')}</h3>
               </div>
               <div className="p-6 space-y-4">
                 {[
-                  { key: 'warrantyEnabled', label: 'Warranty Management', desc: 'Auto-create warranties on sale. When OFF, warranty tab is hidden and no warranties are generated.' },
-                  { key: 'replacementEnabled', label: 'Replacement Tracking', desc: 'Track product replacements under warranty. When OFF, replacements tab is hidden.' },
-                  { key: 'rewardsEnabled', label: 'Rewards & Points', desc: 'Vendor reward points on each sale. When OFF, rewards tab is hidden and no points are earned.' },
+                  { key: 'warrantyEnabled', label: st('settings.warrantyMgmt') },
+                  { key: 'replacementEnabled', label: st('settings.replacementTracking') },
+                  { key: 'rewardsEnabled', label: st('settings.rewardsPoints') },
                 ].map((toggle) => (
                   <div key={toggle.key} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{toggle.label}</p>
-                      <p className="text-sm text-gray-500 mt-0.5">{toggle.desc}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!user) return;
-                        const currentVal = (user as Record<string, unknown>)[toggle.key] !== false;
-                        const newVal = !currentVal;
-                        api.settings.updateProfile(user.id, { [toggle.key]: newVal }).then((u) => {
-                          const updated = { ...user, ...u, [toggle.key]: newVal };
-                          sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
-                          onUserChange(updated);
-                          toast(`${toggle.label} ${newVal ? 'enabled' : 'disabled'}`, 'success');
-                        }).catch((err) => toast(err instanceof Error ? err.message : 'Failed', 'error'));
-                      }}
-                      className={cn("relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors", (user as Record<string, unknown>)?.[toggle.key] !== false ? "bg-green-500" : "bg-gray-300")}
-                    >
-                      <span className={cn("pointer-events-none inline-block h-6 w-6 rounded-full bg-white shadow-md transform transition-transform", (user as Record<string, unknown>)?.[toggle.key] !== false ? "translate-x-5" : "translate-x-0")} />
-                    </button>
+                    <p className="font-medium">{toggle.label}</p>
+                    <span className={cn("px-3 py-1 rounded-full text-xs font-bold", (user as Record<string, unknown>)?.[toggle.key] !== false ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400")}>
+                      {(user as Record<string, unknown>)?.[toggle.key] !== false ? 'Enabled' : 'Disabled'}
+                    </span>
                   </div>
                 ))}
+                <p className="text-xs text-gray-400 mt-2">Feature toggles are managed by the platform administrator.</p>
               </div>
             </div>
           )}
