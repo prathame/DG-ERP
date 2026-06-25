@@ -41,6 +41,7 @@ interface TenantDetail {
   chatbotEnabled: boolean;
   billCustomizationEnabled: boolean;
   multiLanguageEnabled: boolean;
+  vendorPortalEnabled: boolean;
   createdAt: string;
   stats: {
     products: number;
@@ -280,6 +281,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
             { key: 'chatbotEnabled', label: 'AI Chatbot', desc: '30+ natural language commands for quick data access.', icon: MessageSquare },
             { key: 'billCustomizationEnabled', label: 'Bill Customization', desc: 'Custom logo, colors, bank details, signatory on bills.', icon: FileText },
             { key: 'multiLanguageEnabled', label: 'Multi-Language', desc: 'Switch UI between English, Hindi, and Gujarati.', icon: Languages },
+            { key: 'vendorPortalEnabled', label: 'Vendor Portal', desc: 'When OFF, vendors are just names — no login, no dashboard. Distribution still works.', icon: Users },
           ] as const).map((toggle) => (
             <div key={toggle.key} className="flex items-center justify-between">
               <div className="flex items-center gap-3">

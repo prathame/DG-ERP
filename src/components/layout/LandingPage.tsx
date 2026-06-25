@@ -16,6 +16,7 @@ const FEATURES = [
   { icon: MessageSquare, title: 'ERP Chatbot', desc: '30+ natural language commands — sales today, low stock, top vendors, and more' },
   { icon: Moon, title: 'Dark Mode', desc: 'Light and dark theme with one-click toggle, persisted across sessions' },
   { icon: Languages, title: 'Multi-Language', desc: 'English, Hindi, and Gujarati support — switch language instantly from settings' },
+  { icon: Users, title: 'Vendor Portal', desc: 'Optional vendor login — toggle ON for vendor dashboard, OFF for simple distribution-only mode' },
 ];
 
 const STEPS = [

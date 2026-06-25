@@ -47,7 +47,9 @@ router.post('/api/vendors', async (req, res) => {
     );
     const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     let credentials: { email: string; password: string } | null = null;
-    if (email && typeof email === 'string' && email.includes('@')) {
+    const vendorPortal = (await pool.query('SELECT vendor_portal_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0];
+    const portalEnabled = vendorPortal?.vendor_portal_enabled !== false;
+    if (portalEnabled && email && typeof email === 'string' && email.includes('@')) {
       const existing = (await pool.query('SELECT id FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId])).rows[0];
       if (!existing) {
         const defaultPassword = `${(name ?? 'vendor').replace(/\s+/g, '').toLowerCase()}@123`;

@@ -26,6 +26,7 @@ interface Plan {
     chatbot: boolean;
     billCustomization: boolean;
     multiLanguage: boolean;
+    vendorPortal: boolean;
   };
   tenantCount: number;
 }
@@ -145,7 +146,7 @@ export function PlanManagementView() {
 
               {/* Features */}
               <div className="border-t border-gray-100 pt-4 space-y-2">
-                {([['warranty', 'Warranty'], ['replacements', 'Replacements'], ['rewards', 'Rewards'], ['finance', 'Finance'], ['chatbot', 'Chatbot'], ['billCustomization', 'Bill Customization'], ['multiLanguage', 'Multi-Language']] as const).map(([feat, label]) => (
+                {([['warranty', 'Warranty'], ['replacements', 'Replacements'], ['rewards', 'Rewards'], ['finance', 'Finance'], ['chatbot', 'Chatbot'], ['billCustomization', 'Bill Customization'], ['multiLanguage', 'Multi-Language'], ['vendorPortal', 'Vendor Portal']] as const).map(([feat, label]) => (
                   <div key={feat} className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">{label}</span>
                     {plan.features?.[feat] ? (
@@ -219,6 +220,7 @@ function PlanModal({ plan, onClose, onSaved }: {
     chatbot: plan?.features?.chatbot ?? false,
     billCustomization: plan?.features?.billCustomization ?? true,
     multiLanguage: plan?.features?.multiLanguage ?? true,
+    vendorPortal: plan?.features?.vendorPortal ?? true,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -242,6 +244,7 @@ function PlanModal({ plan, onClose, onSaved }: {
         chatbot: form.chatbot,
         billCustomization: form.billCustomization,
         multiLanguage: form.multiLanguage,
+        vendorPortal: form.vendorPortal,
       },
     };
     try {
@@ -368,6 +371,7 @@ function PlanModal({ plan, onClose, onSaved }: {
               <FeatureToggle label="AI Chatbot" checked={form.chatbot} onChange={(v) => setForm({ ...form, chatbot: v })} />
               <FeatureToggle label="Bill Customization" checked={form.billCustomization} onChange={(v) => setForm({ ...form, billCustomization: v })} />
               <FeatureToggle label="Multi-Language" checked={form.multiLanguage} onChange={(v) => setForm({ ...form, multiLanguage: v })} />
+              <FeatureToggle label="Vendor Portal" checked={form.vendorPortal} onChange={(v) => setForm({ ...form, vendorPortal: v })} />
             </div>
           </div>
 

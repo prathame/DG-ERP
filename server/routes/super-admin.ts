@@ -182,7 +182,7 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
   try {
     const { id } = req.params;
     const b = req.body;
-    const toggleMap: Record<string, string> = { warrantyEnabled: 'warranty_enabled', replacementEnabled: 'replacement_enabled', rewardsEnabled: 'rewards_enabled', financeEnabled: 'finance_enabled', chatbotEnabled: 'chatbot_enabled', billCustomizationEnabled: 'bill_customization_enabled', multiLanguageEnabled: 'multi_language_enabled' };
+    const toggleMap: Record<string, string> = { warrantyEnabled: 'warranty_enabled', replacementEnabled: 'replacement_enabled', rewardsEnabled: 'rewards_enabled', financeEnabled: 'finance_enabled', chatbotEnabled: 'chatbot_enabled', billCustomizationEnabled: 'bill_customization_enabled', multiLanguageEnabled: 'multi_language_enabled', vendorPortalEnabled: 'vendor_portal_enabled' };
     const updates: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
@@ -201,7 +201,7 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
     const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
     await logAudit(pool, id, 'UPDATE', 'tenant', id, `Tenant updated: ${updates.join(', ')}`, (req as AuthRequest).user?.userId, 'Super Admin');
-    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false, financeEnabled: tenant.finance_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, billCustomizationEnabled: tenant.bill_customization_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false });
+    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false, financeEnabled: tenant.finance_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, billCustomizationEnabled: tenant.bill_customization_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false, vendorPortalEnabled: tenant.vendor_portal_enabled !== false });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
