@@ -295,6 +295,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                 {[
                   { key: 'warrantyEnabled', label: 'Warranty Management', desc: 'Auto-create warranties on sale. When OFF, warranty tab is hidden and no warranties are generated.' },
                   { key: 'replacementEnabled', label: 'Replacement Tracking', desc: 'Track product replacements under warranty. When OFF, replacements tab is hidden.' },
+                  { key: 'rewardsEnabled', label: 'Rewards & Points', desc: 'Vendor reward points on each sale. When OFF, rewards tab is hidden and no points are earned.' },
                 ].map((toggle) => (
                   <div key={toggle.key} className="flex items-center justify-between">
                     <div>

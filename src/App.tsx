@@ -46,6 +46,7 @@ export default function App() {
   const ux = user as Record<string, unknown>;
   const warrantyEnabled = ux?.warrantyEnabled !== false;
   const replacementEnabled = ux?.replacementEnabled !== false;
+  const rewardsEnabled = ux?.rewardsEnabled !== false;
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -57,7 +58,7 @@ export default function App() {
     { id: 'finance', label: 'Finance', icon: IndianRupee },
     ...(warrantyEnabled ? [{ id: 'warranty', label: 'Warranty', icon: ShieldCheck }] : []),
     ...(replacementEnabled ? [{ id: 'replacements', label: 'Replacements', icon: RefreshCw }] : []),
-    { id: 'rewards', label: 'Rewards', icon: Gift },
+    ...(rewardsEnabled ? [{ id: 'rewards', label: 'Rewards', icon: Gift }] : []),
   ];
 
   const canAccess = (tabId: string) => {

@@ -93,7 +93,9 @@ router.post('/api/sales', (req, res) => {
     if (!saleData) return res.status(400).json({ error: 'Invalid sale: barcode not found or already sold' });
 
     const { productId, vendorId, points, warrantyMonths, warrantyApplicable } = saleData;
-    const globalWarrantyEnabled = (db.prepare("SELECT warranty_enabled FROM users WHERE role IN ('Super Admin','Admin') ORDER BY id LIMIT 1").get() as { warranty_enabled: number } | undefined)?.warranty_enabled !== 0;
+    const adminSettings = db.prepare("SELECT warranty_enabled, rewards_enabled FROM users WHERE role IN ('Super Admin','Admin') ORDER BY id LIMIT 1").get() as { warranty_enabled: number; rewards_enabled: number } | undefined;
+    const globalWarrantyEnabled = adminSettings?.warranty_enabled !== 0;
+    const globalRewardsEnabled = adminSettings?.rewards_enabled !== 0;
 
     const runSale = db.transaction(() => {
       // Find or create customer - match by phone AND name to avoid merging different people
@@ -117,13 +119,16 @@ router.post('/api/sales', (req, res) => {
       `).run(id, barcode, productId, vendorId, customerId, customerName, customerPhone, customerEmail || null, date, points, priceVal);
       if (dist) db.prepare("UPDATE product_distribution SET status = 'Sold' WHERE barcode = ?").run(barcode);
       db.prepare("UPDATE product_inventory SET status = 'Sold' WHERE barcode = ?").run(barcode);
-      db.prepare('UPDATE vendors SET total_sales = total_sales + 1, total_reward_points = total_reward_points + ? WHERE id = ?').run(points, vendorId);
-      const productName = db.prepare('SELECT name FROM products WHERE id = ?').get(productId) as { name: string } | undefined;
-      const rewardId = `R${Date.now()}`;
-      db.prepare(`
-        INSERT INTO rewards (id, user_id, points, type, description, date, vendor_id, sale_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(rewardId, 'D1', points, 'Earned', `${productName?.name ?? 'Product'} sold`, date, vendorId, id);
+      db.prepare('UPDATE vendors SET total_sales = total_sales + 1 WHERE id = ?').run(vendorId);
+      if (globalRewardsEnabled && points > 0) {
+        db.prepare('UPDATE vendors SET total_reward_points = total_reward_points + ? WHERE id = ?').run(points, vendorId);
+        const productName = db.prepare('SELECT name FROM products WHERE id = ?').get(productId) as { name: string } | undefined;
+        const rewardId = `R${Date.now()}`;
+        db.prepare(`
+          INSERT INTO rewards (id, user_id, points, type, description, date, vendor_id, sale_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(rewardId, 'D1', points, 'Earned', `${productName?.name ?? 'Product'} sold`, date, vendorId, id);
+      }
       if (globalWarrantyEnabled && warrantyApplicable) {
         const activationDate = date;
         const expiryDateObj = new Date(activationDate);

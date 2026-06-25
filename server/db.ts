@@ -212,6 +212,7 @@ addColumnIfMissing('users', 'gst_number', 'TEXT');
 addColumnIfMissing('users', 'default_gst_rate', 'REAL NOT NULL DEFAULT 18');
 addColumnIfMissing('users', 'warranty_enabled', 'INTEGER NOT NULL DEFAULT 1');
 addColumnIfMissing('users', 'replacement_enabled', 'INTEGER NOT NULL DEFAULT 1');
+addColumnIfMissing('users', 'rewards_enabled', 'INTEGER NOT NULL DEFAULT 1');
 addColumnIfMissing('products', 'warranty_applicable', 'INTEGER NOT NULL DEFAULT 1');
 addColumnIfMissing('product_distribution', 'discount_percent', 'REAL NOT NULL DEFAULT 0');
 addColumnIfMissing('product_distribution', 'net_price', 'REAL');
