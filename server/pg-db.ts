@@ -370,6 +370,18 @@ export async function initSchema() {
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vendor_portal_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS barcode_system_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ');
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS tab_config JSONB DEFAULT '${JSON.stringify({
+      dashboard:    { label: 'Dashboard',      visible: true },
+      inventory:    { label: 'Inventory',      visible: true },
+      distribution: { label: 'Distribution',   visible: true },
+      sales:        { label: 'Sales Entry',    visible: true },
+      verification: { label: 'Verify Product', visible: true },
+      warranty:     { label: 'Warranty',        visible: true },
+      replacements: { label: 'Replacements',   visible: true },
+      rewards:      { label: 'Rewards',         visible: true },
+      finance:      { label: 'Finance',         visible: true },
+      settings:     { label: 'Settings',        visible: true },
+    })}'`);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS password_reset_tokens (

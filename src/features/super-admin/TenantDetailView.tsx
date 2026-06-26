@@ -21,6 +21,9 @@ import {
   MessageSquare,
   FileText,
   Languages,
+  Pencil,
+  RotateCcw,
+  Save,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
@@ -46,6 +49,7 @@ interface TenantDetail {
   multiLanguageEnabled: boolean;
   vendorPortalEnabled: boolean;
   barcodeSystemEnabled: boolean;
+  tabConfig: Record<string, { label: string; visible: boolean }> | null;
   createdAt: string;
   stats: {
     products: number;
@@ -421,6 +425,9 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
         </div>
       </div>
 
+      {/* Tab Customization */}
+      <TabCustomization tenantId={tenantId} tabConfig={tenant.tabConfig} onSaved={fetchTenant} />
+
       {/* Users Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-100">
@@ -460,5 +467,104 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
         </div>
       </div>
     </motion.div>
+  );
+}
+
+const DEFAULT_TAB_CONFIG: Record<string, { label: string; visible: boolean }> = {
+  dashboard: { label: 'Dashboard', visible: true },
+  inventory: { label: 'Inventory', visible: true },
+  distribution: { label: 'Distribution', visible: true },
+  sales: { label: 'Sales Entry', visible: true },
+  verification: { label: 'Verify Product', visible: true },
+  warranty: { label: 'Warranty', visible: true },
+  replacements: { label: 'Replacements', visible: true },
+  rewards: { label: 'Rewards', visible: true },
+  finance: { label: 'Finance', visible: true },
+  settings: { label: 'Settings', visible: true },
+};
+
+const TAB_KEYS = ['dashboard', 'inventory', 'distribution', 'sales', 'verification', 'warranty', 'replacements', 'rewards', 'finance', 'settings'] as const;
+
+function TabCustomization({ tenantId, tabConfig, onSaved }: { tenantId: string; tabConfig: Record<string, { label: string; visible: boolean }> | null; onSaved: () => void }) {
+  const { toast } = useToast();
+  const [config, setConfig] = useState<Record<string, { label: string; visible: boolean }>>(tabConfig ?? DEFAULT_TAB_CONFIG);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setConfig(tabConfig ?? DEFAULT_TAB_CONFIG);
+  }, [tabConfig]);
+
+  const updateLabel = (key: string, label: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], label } }));
+  const toggleVisible = (key: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], visible: !prev[key].visible } }));
+  const isLocked = (key: string) => key === 'dashboard' || key === 'settings';
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = sessionStorage.getItem('auth_token');
+      const res = await fetch(`/api/super-admin/tenants/${tenantId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ tabConfig: config }),
+      });
+      if (!res.ok) throw new Error();
+      toast('Tab configuration saved', 'success');
+      onSaved();
+    } catch { toast('Failed to save', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="p-6 border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2"><Pencil size={18} /> Tab Customization</h2>
+            <p className="text-sm text-gray-500">Rename tabs and control visibility for this tenant</p>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setConfig(DEFAULT_TAB_CONFIG)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg"><RotateCcw size={14} /> Reset</button>
+            <button type="button" onClick={handleSave} disabled={saving} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-[#F27D26] hover:bg-[#D96A1C] rounded-lg disabled:opacity-60"><Save size={14} /> {saving ? 'Saving...' : 'Save'}</button>
+          </div>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-100">
+              <th className="text-left px-6 py-3 text-xs font-bold text-gray-400 uppercase">Internal Feature</th>
+              <th className="text-left px-6 py-3 text-xs font-bold text-gray-400 uppercase">Display Name</th>
+              <th className="text-center px-6 py-3 text-xs font-bold text-gray-400 uppercase">Visible</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {TAB_KEYS.map((key) => (
+              <tr key={key} className={cn(!config[key]?.visible && !isLocked(key) && "bg-gray-50/50 opacity-60")}>
+                <td className="px-6 py-3">
+                  <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{key}</span>
+                </td>
+                <td className="px-6 py-3">
+                  <input
+                    type="text"
+                    value={config[key]?.label ?? DEFAULT_TAB_CONFIG[key].label}
+                    onChange={(e) => updateLabel(key, e.target.value)}
+                    className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm w-full max-w-[200px] focus:ring-2 focus:ring-[#F27D26]"
+                  />
+                </td>
+                <td className="px-6 py-3 text-center">
+                  {isLocked(key) ? (
+                    <span className="text-xs text-gray-400">Always ON</span>
+                  ) : (
+                    <button type="button" onClick={() => toggleVisible(key)} className={cn("relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors", config[key]?.visible ? "bg-green-500" : "bg-gray-300")}>
+                      <span className={cn("pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform", config[key]?.visible ? "translate-x-4" : "translate-x-0")} />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

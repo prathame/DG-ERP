@@ -8,7 +8,22 @@ interface ChatResponse {
   data?: Record<string, unknown>;
 }
 
-async function query(input: string, tenantId: string): Promise<ChatResponse> {
+type TabConfig = Record<string, { label: string; visible: boolean }>;
+
+function tabLabel(config: TabConfig | null, key: string, fallback: string): string {
+  return config?.[key]?.label || fallback;
+}
+
+function resolveFeature(config: TabConfig | null, term: string): string | null {
+  if (!config) return null;
+  const lower = term.toLowerCase();
+  for (const [key, val] of Object.entries(config)) {
+    if (val.visible && val.label.toLowerCase().includes(lower)) return key;
+  }
+  return null;
+}
+
+async function query(input: string, tenantId: string, tabConfig: TabConfig | null = null): Promise<ChatResponse> {
   const q = input.trim().toLowerCase();
 
   // ============ GREETINGS ============
@@ -18,15 +33,42 @@ async function query(input: string, tenantId: string): Promise<ChatResponse> {
 
   // ============ HELP ============
   if (/^(help|commands|menu|what can you do|options)/.test(q)) {
-    return { text: `Here's everything I can do:\n\n*Sales*\n- "sales today" -- today's count & revenue\n- "sales this month" -- monthly summary\n- "sales this week" -- weekly summary\n- "sales yesterday" -- yesterday's sales\n- "recent sales" -- last 5 sales\n\n*Inventory*\n- "low stock" -- products under 10 units\n- "out of stock" -- products with 0 units\n- "total inventory" -- full stock breakdown\n- "all products" -- list all products\n- Any barcode -- status & details\n\n*Vendors*\n- Any vendor name -- full details + finance\n- "all vendors" -- list all\n- "pending payments" -- who owes money\n- "top vendors" -- by sales volume\n\n*Customers*\n- Any customer name -- purchase history\n- "all customers" -- list all\n- "top customers" -- most purchases\n\n*Finance*\n- "total revenue" -- all-time revenue\n- "today revenue" -- today's revenue\n- "expenses" -- total expenses\n- "profit" -- revenue minus expenses\n\n*Warranty*\n- "active warranties" -- count\n- "expiring warranties" -- expiring in 30 days\n- "warranty claims" -- under claim\n\n*Rewards*\n- "reward points" -- total points summary\n- "top earners" -- vendors with most points\n\n*Banks*\n- "bank accounts" -- list all accounts\n\n*Reports*\n- "daily report" -- today's complete summary\n- "monthly report" -- this month's summary\n- "vendor report" -- all vendors overview` };
+    const salesLabel = tabLabel(tabConfig, 'sales', 'Sales');
+    const distLabel = tabLabel(tabConfig, 'distribution', 'Distribution');
+    const invLabel = tabLabel(tabConfig, 'inventory', 'Inventory');
+    const warLabel = tabLabel(tabConfig, 'warranty', 'Warranty');
+    const finLabel = tabLabel(tabConfig, 'finance', 'Finance');
+    const sections: string[] = [];
+    sections.push(`*${invLabel}*\n- "low stock" -- products under 10 units\n- "out of stock" -- products with 0 units\n- "total inventory" -- full stock breakdown\n- "all products" -- list all products\n- Any barcode -- status & details`);
+    if (tabConfig?.distribution?.visible !== false) sections.push(`*${distLabel}*\n- "dispatch today" -- today's dispatch\n- "dispatch summary" -- distribution overview`);
+    if (tabConfig?.sales?.visible !== false) sections.push(`*${salesLabel}*\n- "sales today" -- today's count & revenue\n- "sales this month" -- monthly summary\n- "recent sales" -- last 5 sales`);
+    sections.push(`*Vendors*\n- Any vendor name -- full details + finance\n- "all vendors" -- list all\n- "pending payments" -- who owes money`);
+    sections.push(`*Customers*\n- Any customer name -- purchase history\n- "all customers" -- list all`);
+    if (tabConfig?.finance?.visible !== false) sections.push(`*${finLabel}*\n- "total revenue" -- all-time revenue\n- "today revenue" -- today's revenue`);
+    if (tabConfig?.warranty?.visible !== false) sections.push(`*${warLabel}*\n- "active warranties" -- count\n- "expiring warranties" -- expiring in 30 days`);
+    sections.push(`*Reports*\n- "daily report" -- today's summary\n- "monthly report" -- this month's summary\n- "vendor report" -- all vendors overview`);
+    return { text: `Here's everything I can do:\n\n${sections.join('\n\n')}` };
   }
 
-  // ============ SALES ============
+  // ============ SMART SALES ROUTING ============
+  // If user types "sales" but their sales tab is OFF and distribution is labeled "Sales", route to distribution data
+  const salesTabVisible = tabConfig?.sales?.visible !== false;
+  const distLabeledAsSales = tabConfig?.distribution?.label?.toLowerCase().includes('sales') ?? false;
+  const salesMeansDistribution = !salesTabVisible && distLabeledAsSales;
+  const salesLbl = salesMeansDistribution ? tabLabel(tabConfig, 'distribution', 'Sales') : tabLabel(tabConfig, 'sales', 'Sales');
+  const distLbl = tabLabel(tabConfig, 'distribution', 'Distribution');
+
   if (/sales\s*today/.test(q)) {
+    if (salesMeansDistribution) {
+      const today = new Date().toISOString().slice(0, 10);
+      const count = ((await pool.query("SELECT COUNT(*) as c FROM product_distribution WHERE distribution_date = $1 AND tenant_id = $2", [today, tenantId])).rows[0] as { c: number }).c;
+      const value = ((await pool.query("SELECT COALESCE(SUM(COALESCE(billed_price, net_price, 0)), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1 WHERE pd.distribution_date = $2 AND pd.tenant_id = $1", [tenantId, today])).rows[0] as { t: number }).t;
+      return { text: `*${salesLbl} Today* (${today})\n\n- ${count} unit${count !== 1 ? 's' : ''} dispatched\n- Value: ${value.toLocaleString()}` };
+    }
     const today = new Date().toISOString().slice(0, 10);
     const count = ((await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date = $1 AND tenant_id = $2", [today, tenantId])).rows[0] as { c: number }).c;
     const revenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date = $1 AND tenant_id = $2", [today, tenantId])).rows[0] as { t: number }).t;
-    return { text: `*Sales Today* (${today})\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}` };
+    return { text: `*${salesLbl} Today* (${today})\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}` };
   }
 
   if (/sales\s*yesterday/.test(q)) {
@@ -34,7 +76,7 @@ async function query(input: string, tenantId: string): Promise<ChatResponse> {
     const yesterday = d.toISOString().slice(0, 10);
     const count = ((await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date = $1 AND tenant_id = $2", [yesterday, tenantId])).rows[0] as { c: number }).c;
     const revenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date = $1 AND tenant_id = $2", [yesterday, tenantId])).rows[0] as { t: number }).t;
-    return { text: `*Sales Yesterday* (${yesterday})\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}` };
+    return { text: `*${salesLbl} Yesterday* (${yesterday})\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}` };
   }
 
   if (/sales\s*(this\s*)?week/.test(q)) {
@@ -42,21 +84,21 @@ async function query(input: string, tenantId: string): Promise<ChatResponse> {
     const weekAgo = d.toISOString().slice(0, 10);
     const count = ((await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date >= $1 AND tenant_id = $2", [weekAgo, tenantId])).rows[0] as { c: number }).c;
     const revenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date >= $1 AND tenant_id = $2", [weekAgo, tenantId])).rows[0] as { t: number }).t;
-    return { text: `*Sales This Week*\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}` };
+    return { text: `*${salesLbl} This Week*\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}` };
   }
 
   if (/sales\s*(this\s*)?month/.test(q)) {
     const month = new Date().toISOString().slice(0, 7);
     const count = ((await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { c: number }).c;
     const revenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { t: number }).t;
-    return { text: `*Sales This Month*\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}` };
+    return { text: `*${salesLbl} This Month*\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}` };
   }
 
   if (/recent\s*sales|last\s*sales|latest\s*sales/.test(q)) {
     const rows = (await pool.query("SELECT ps.barcode, p.name, ps.customer_name, ps.purchase_date, ps.sale_price FROM product_sales ps JOIN products p ON ps.product_id = p.id WHERE ps.tenant_id = $1 ORDER BY ps.purchase_date DESC LIMIT 5", [tenantId])).rows as { barcode: string; name: string; customer_name: string; purchase_date: string; sale_price: number }[];
     if (rows.length === 0) return { text: 'No sales recorded yet.' };
     const list = rows.map((r, i) => `${i + 1}. ${r.name} -> ${r.customer_name}\n   ${r.purchase_date} - ${(r.sale_price ?? 0).toLocaleString()}`).join('\n');
-    return { text: `*Recent Sales*\n\n${list}` };
+    return { text: `*Recent ${salesLbl}*\n\n${list}` };
   }
 
   // ============ TOP PRODUCTS ============
@@ -226,7 +268,7 @@ async function query(input: string, tenantId: string): Promise<ChatResponse> {
         COALESCE((SELECT SUM(COALESCE(pd.billed_price,pd.net_price,p.price)) FROM product_distribution pd JOIN products p ON pd.product_id=p.id WHERE pd.vendor_id=v.id AND pd.tenant_id=$1),0)
         > COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id=v.id AND tenant_id=$1),0)
     `, [tenantId])).rows[0] as { c: number });
-    return { text: `*Daily Report* (${today})\n\nSales: ${sales} (${revenue.toLocaleString()})\nDistributed: ${distributedCount} units\nIn stock: ${inStock} units\nVendors with dues: ${pendingPaymentsCount.c}` };
+    return { text: `*Daily Report* (${today})\n\n${salesLbl}: ${sales} (${revenue.toLocaleString()})\n${distLbl}: ${distributedCount} units\nIn stock: ${inStock} units\nVendors with dues: ${pendingPaymentsCount.c}` };
   }
 
   if (/monthly\s*report|month\s*summary|this\s*month\s*report/.test(q)) {
@@ -235,7 +277,7 @@ async function query(input: string, tenantId: string): Promise<ChatResponse> {
     const revenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { t: number }).t;
     const distributedCount = ((await pool.query("SELECT COUNT(*) as c FROM product_distribution WHERE distribution_date LIKE $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { c: number }).c;
     const payments = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE payment_date LIKE $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { t: number }).t;
-    return { text: `*Monthly Report* (${month})\n\nSales: ${sales} units\nSales Revenue: ${revenue.toLocaleString()}\nDistributed: ${distributedCount} units\nPayments Received: ${payments.toLocaleString()}` };
+    return { text: `*Monthly Report* (${month})\n\n${salesLbl}: ${sales} units\nRevenue: ${revenue.toLocaleString()}\n${distLbl}: ${distributedCount} units\nPayments Received: ${payments.toLocaleString()}` };
   }
 
   if (/vendor\s*report|vendor\s*summary|vendor\s*overview/.test(q)) {
@@ -257,7 +299,7 @@ async function query(input: string, tenantId: string): Promise<ChatResponse> {
     const total = ((await pool.query("SELECT COUNT(*) as c FROM product_distribution WHERE tenant_id = $1", [tenantId])).rows[0] as { c: number }).c;
     const withVendor = ((await pool.query("SELECT COUNT(*) as c FROM product_distribution WHERE status = 'Distributed' AND tenant_id = $1", [tenantId])).rows[0] as { c: number }).c;
     const soldDist = ((await pool.query("SELECT COUNT(*) as c FROM product_distribution WHERE status = 'Sold' AND tenant_id = $1", [tenantId])).rows[0] as { c: number }).c;
-    return { text: `*Distribution Summary*\n\n- Total distributed: ${total}\n- With vendors: ${withVendor}\n- Sold by vendors: ${soldDist}` };
+    return { text: `*${distLbl} Summary*\n\n- Total dispatched: ${total}\n- With vendors: ${withVendor}\n- Sold by vendors: ${soldDist}` };
   }
 
   // ============ BARCODE LOOKUP ============
@@ -329,6 +371,26 @@ async function query(input: string, tenantId: string): Promise<ChatResponse> {
   return { text: `I couldn't find anything for "${input}".\n\nTry:\n- A vendor or customer name\n- A barcode (e.g. SUB1H001)\n- "sales today"\n- "low stock"\n- "pending payments"\n- "daily report"\n- "help" for all commands` };
 }
 
+router.get('/api/chatbot/quick-actions', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const tenantRow = (await pool.query('SELECT tab_config FROM tenants WHERE id = $1', [tenantId])).rows[0] as { tab_config: TabConfig | null } | undefined;
+    const tc = tenantRow?.tab_config ?? null;
+    const actions: string[] = ['daily report'];
+    if (tc?.sales?.visible !== false || tc?.distribution?.visible !== false) {
+      const label = (tc?.sales?.visible === false && tc?.distribution?.label) ? tc.distribution.label.toLowerCase() : 'sales';
+      actions.push(`${label} today`);
+    }
+    actions.push('low stock', 'pending payments');
+    if (tc?.distribution?.visible !== false) actions.push(`${tabLabel(tc, 'distribution', 'distribution').toLowerCase()} summary`);
+    actions.push('all vendors');
+    res.json({ actions });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 router.post('/api/chatbot', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -336,7 +398,9 @@ router.post('/api/chatbot', async (req, res) => {
 
     const { message } = req.body;
     if (!message || typeof message !== 'string') return res.status(400).json({ error: 'message required' });
-    const response = await query(message, tenantId);
+    const tenantRow = (await pool.query('SELECT tab_config FROM tenants WHERE id = $1', [tenantId])).rows[0] as { tab_config: TabConfig | null } | undefined;
+    const tabConfig = tenantRow?.tab_config ?? null;
+    const response = await query(message, tenantId, tabConfig);
     res.json(response);
   } catch (err) {
     res.status(500).json({ text: 'Something went wrong. Please try again.', error: String(err) });

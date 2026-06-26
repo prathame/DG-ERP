@@ -403,6 +403,8 @@ export const api = {
   chatbot: {
     send: (message: string) =>
       fetchApi<{ text: string }>('/chatbot', { method: 'POST', body: JSON.stringify({ message }) }),
+    quickActions: () =>
+      fetchApi<string[]>('/chatbot/quick-actions').then(r => (r as unknown as { actions: string[] }).actions),
   },
   auditLog: {
     list: (params?: { page?: number; dateRange?: string; dateFrom?: string; dateTo?: string; entityType?: string }) => {
