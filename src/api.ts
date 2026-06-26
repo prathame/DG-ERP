@@ -204,22 +204,6 @@ export const api = {
     create: (data: { oldBarcode: string; newBarcode: string; warrantyId?: string; customerName: string; customerPhone: string; replacedDate?: string; reason?: string; vendorId?: string }) =>
       fetchApi<ReplacementRecord>('/replacements', { method: 'POST', body: JSON.stringify(data) }),
   },
-  transactions: {
-    list: (params?: { page?: number; dateRange?: string; dateFrom?: string; dateTo?: string }) => {
-      const q = new URLSearchParams();
-      if (params?.page) q.set('page', String(params.page));
-      if (params?.dateRange) q.set('dateRange', params.dateRange);
-      if (params?.dateFrom) q.set('dateFrom', params.dateFrom);
-      if (params?.dateTo) q.set('dateTo', params.dateTo);
-      const qs = q.toString();
-      return fetchApi<{ data: import('./types').Transaction[]; total: number; page: number; totalPages: number; income: number; expense: number }>(`/transactions${qs ? `?${qs}` : ''}`);
-    },
-    create: (data: Omit<import('./types').Transaction, 'id'>) =>
-      fetchApi<import('./types').Transaction>('/transactions', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: Partial<import('./types').Transaction>) =>
-      fetchApi<import('./types').Transaction>(`/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    delete: (id: string) => fetchApi<void>(`/transactions/${id}`, { method: 'DELETE' }),
-  },
   redemptionSettings: {
     get: () =>
       fetchApi<{ minBalance: number; minPoints: number }>('/redemption-settings'),

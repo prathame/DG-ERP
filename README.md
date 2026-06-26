@@ -128,7 +128,6 @@ npm run dev
 │   │   ├── distribution.ts      # Distribution + challan + batch operations
 │   │   ├── warranties.ts        # Warranty lifecycle
 │   │   ├── replacements.ts      # Replacement tracking
-│   │   ├── transactions.ts      # Financial ledger
 │   │   ├── rewards.ts           # Points + rules + redemption
 │   │   ├── customers.ts         # Customer CRUD
 │   │   ├── vendors.ts           # Vendor CRUD + auto-login creation
@@ -163,7 +162,6 @@ npm run dev
 │   │   ├── warranty/            # Warranty management
 │   │   ├── replacements/        # Product replacements
 │   │   ├── rewards/             # Points, redemption
-│   │   ├── accounts/            # Financial ledger
 │   │   ├── finance/             # Vendor payments, reminders
 │   │   ├── masters/             # Customers, vendors, banks, rules
 │   │   └── settings/            # Profile, password, toggles, bill customization, users
@@ -273,7 +271,6 @@ Each tenant sees their own company name in the sidebar, browser tab, bills, What
 - Vendor finance tracking (billed, paid, balance)
 - Payment recording (Cash, UPI, Bank Transfer, Cheque)
 - WhatsApp payment reminders with configurable intervals
-- Financial ledger with date filters + pagination
 
 ### Communication
 - Print / Download PDF / WhatsApp / Email for all bills
@@ -405,7 +402,7 @@ POST   /api/auth/reset-password         ← Reset with token
 PUT    /api/admin/reset-user-password   ← Admin resets user password
 GET/PUT /api/settings/bill              ← Bill customization
 GET    /api/products, /api/sales, /api/distribution, /api/warranties
-       /api/customers, /api/vendors, /api/banks, /api/transactions
+       /api/customers, /api/vendors, /api/banks
        /api/rewards, /api/notifications, /api/search, /api/chatbot
        ... (full CRUD on all resources)
 ```

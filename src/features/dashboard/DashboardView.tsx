@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { TrendingUp, Package, ShoppingCart, Gift, AlertTriangle, ArrowUpRight, ArrowDownRight, Download } from 'lucide-react';
+import { TrendingUp, Package, ShoppingCart, Gift, AlertTriangle } from 'lucide-react';
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { cn, exportToCsv } from '../../lib/utils';
+import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
-import type { Transaction, Tab } from '../../types';
+import type { Tab } from '../../types';
 
 export function DashboardView({ user, setActiveTab }: { user: { id: string; role?: string; vendorId?: string } | null; setActiveTab: (tab: Tab) => void }) {
   const [stats, setStats] = useState<{ label: string; value: string; change: string; icon: typeof TrendingUp; color: string; bg: string }[]>([]);
   const [chartData, setChartData] = useState<{ name: string; sales: number; claims: number }[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [lowStockProducts, setLowStockProducts] = useState<{ id: string; name: string; stock: number }[]>([]);
   const [topProducts, setTopProducts] = useState<{ name: string; sold: number }[]>([]);
@@ -26,7 +25,6 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
             { label: 'Reward Points', value: String(v.vendor?.totalRewardPoints ?? 0) + ' pts', change: '', icon: Gift, color: 'text-purple-600', bg: 'bg-purple-50' },
           ]);
           setChartData(v.salesHistory?.length ? v.salesHistory.slice(0, 6).map((s, i) => ({ name: s.purchaseDate || `Sale ${i + 1}`, sales: s.rewardPointsEarned ?? 0, claims: 0 })) : []);
-          setTransactions([]);
         })
         .catch(() => { setStats([]); setChartData([]); })
         .finally(() => setLoading(false));
@@ -35,10 +33,8 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
     Promise.all([
       api.dashboard.stats(),
       api.dashboard.chart(),
-      api.transactions.list({ page: 1 }),
     ])
-      .then(([s, c, tResult]) => {
-        const t = tResult.data;
+      .then(([s, c]) => {
         const monthChange = (s as { lastMonthSales?: number }).lastMonthSales ? `${Math.round((((s as { thisMonthSales?: number }).thisMonthSales ?? 0) / ((s as { lastMonthSales?: number }).lastMonthSales ?? 1) - 1) * 100)}%` : '';
         const sx = s as Record<string, unknown>;
         setStats([
@@ -52,7 +48,6 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
         setLowStockProducts((s as { lowStockProducts?: { id: string; name: string; stock: number }[] }).lowStockProducts ?? []);
         setTopProducts((s as { topProducts?: { name: string; sold: number }[] }).topProducts ?? []);
         setChartData(c.length ? c : [{ name: 'No data', sales: 0, claims: 0 }]);
-        setTransactions(t.slice(0, 5));
       })
       .catch(() => {
         setStats([
@@ -155,38 +150,6 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold">Recent Transactions</h3>
-            <button type="button" onClick={() => transactions.length && exportToCsv(transactions.map((t) => ({ id: t.id, date: t.date, type: t.type, amount: t.amount, description: t.description, status: t.status })), 'dashboard-transactions')} disabled={!transactions.length} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              <Download size={16} /> Export CSV
-            </button>
-          </div>
-          <div className="space-y-6">
-            {transactions.map((t) => (
-              <div key={t.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={cn(
-                    "p-2 rounded-lg",
-                    t.type === 'Sales' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
-                  )}>
-                    {t.type === 'Sales' ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold">{t.description}</p>
-                    <p className="text-xs text-gray-500">{t.date}</p>
-                  </div>
-                </div>
-                <p className={cn("text-sm font-bold", t.type === 'Sales' ? 'text-emerald-600' : 'text-rose-600')}>
-                  {t.type === 'Sales' ? '+' : '-'}₹{t.amount.toLocaleString()}
-                </p>
-              </div>
-            ))}
-          </div>
-          <button type="button" onClick={() => setActiveTab('accounts')} className="w-full mt-8 py-3 text-sm font-bold text-[#F27D26] hover:bg-[#F27D26]/5 rounded-xl transition-colors">
-            View All Transactions
-          </button>
-        </div>
       </div>
     </motion.div>
   );

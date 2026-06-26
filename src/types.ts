@@ -46,15 +46,6 @@ export interface RewardPoint {
   date: string;
 }
 
-export interface Transaction {
-  id: string;
-  date: string;
-  type: 'Sales' | 'Purchase' | 'Expense';
-  amount: number;
-  description: string;
-  status: 'Completed' | 'Pending';
-}
-
 export interface Customer {
   id: string;
   name: string;
