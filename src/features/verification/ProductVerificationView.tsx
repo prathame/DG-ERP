@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Search, Package, Truck, ShoppingCart, ShieldCheck, RefreshCw, Gift, Camera, CheckCircle2, XCircle, Clock, AlertCircle, IndianRupee, Users, FileText } from 'lucide-react';
+import { Search, Package, Truck, ShoppingCart, ShieldCheck, RefreshCw, Gift, Camera, CheckCircle2, XCircle, Clock, AlertCircle, IndianRupee, Users, FileText, Barcode } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useToast } from '../../components/ui';
@@ -35,13 +35,13 @@ export function ProductVerificationView() {
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [searchResults, setSearchResults] = useState<{ products: { id: string; name: string; price: number; stock: number }[]; customers: { id: string; name: string; phone: string; email: string }[]; vendors: { id: string; name: string; contact: string; phone: string }[]; challans?: { batchId: string; vendorName: string; date: string; units: number }[] } | null>(null);
+  const [searchResults, setSearchResults] = useState<{ products: { id: string; name: string; price: number; stock: number }[]; customers: { id: string; name: string; phone: string; email: string }[]; vendors: { id: string; name: string; contact: string; phone: string }[]; barcodes: { barcode: string; productName: string; productId: string; status: string }[]; challans?: { batchId: string; vendorName: string; date: string; units: number }[] } | null>(null);
   const [vendorDetail, setVendorDetail] = useState<Record<string, unknown> | null>(null);
-  const debouncedBarcode = useDebounce(barcode, 300);
+  const debouncedBarcode = useDebounce(barcode, 200);
   const barcodeSystem = (() => { try { return JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}').barcodeSystemEnabled !== false; } catch { return true; } })();
 
   useEffect(() => {
-    if (!debouncedBarcode || debouncedBarcode.length < 2) { setSearchResults(null); return; }
+    if (!debouncedBarcode || debouncedBarcode.length < 1) { setSearchResults(null); return; }
     api.search.global(debouncedBarcode).then(r => setSearchResults(r)).catch(() => {});
   }, [debouncedBarcode]);
 
@@ -74,34 +74,44 @@ export function ProductVerificationView() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       {/* Search */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <h3 className="font-bold text-lg mb-4">Search & Verify</h3>
+        <h3 className="font-bold text-lg mb-1">Search</h3>
+        <p className="text-sm text-gray-500 mb-4">Search vendors, products, barcodes, customers, or challans</p>
         <div className="flex gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
               value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
-              placeholder="Search vendor, product, barcode, customer..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-[#F27D26]"
+              onChange={(e) => { setBarcode(e.target.value); setResult(null); setNotFound(false); setVendorDetail(null); }}
+              placeholder="Type to search..."
+              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#F27D26]"
               autoComplete="off"
+              autoFocus
             />
+            {loading && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-[#F27D26] border-t-transparent rounded-full animate-spin" />}
           </div>
           {barcodeSystem && (
             <button type="button" onClick={() => setScannerOpen(true)} className="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 flex items-center gap-2">
               <Camera size={18} /> <span className="hidden sm:inline">Scan</span>
             </button>
           )}
-          <button type="button" onClick={() => handleVerify()} disabled={loading} className="px-6 py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C] disabled:opacity-60">
-            {loading ? 'Checking...' : 'Verify'}
-          </button>
         </div>
       </div>
 
       {/* Search Results */}
       {searchResults && !result && !notFound && !vendorDetail && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {searchResults.barcodes.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2"><Barcode size={16} className="text-gray-500" /><span className="text-xs font-bold text-gray-400 uppercase">Barcodes ({searchResults.barcodes.length})</span></div>
+              {searchResults.barcodes.map((b) => (
+                <button key={b.barcode} type="button" onClick={() => handleVerify(b.barcode)} className="w-full px-4 py-3 text-left hover:bg-orange-50 border-b border-gray-50 last:border-0">
+                  <p className="font-mono font-medium text-sm">{b.barcode}</p>
+                  <p className="text-xs text-gray-500">{b.productName} <span className={cn("ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold", b.status === 'InStock' ? 'bg-emerald-100 text-emerald-700' : b.status === 'Sold' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')}>{b.status}</span></p>
+                </button>
+              ))}
+            </div>
+          )}
           {searchResults.vendors.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2"><ShoppingCart size={16} className="text-purple-500" /><span className="text-xs font-bold text-gray-400 uppercase">Vendors ({searchResults.vendors.length})</span></div>
@@ -200,8 +210,8 @@ export function ProductVerificationView() {
       {notFound && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
           <XCircle size={48} className="text-rose-300 mx-auto mb-3" />
-          <h3 className="font-bold text-lg text-gray-900">Product Not Found</h3>
-          <p className="text-sm text-gray-500 mt-1">No product found with {barcodeSystem ? 'barcode' : 'code'} <span className="font-mono font-bold">{barcode}</span></p>
+          <h3 className="font-bold text-lg text-gray-900">Not Found</h3>
+          <p className="text-sm text-gray-500 mt-1">No results found for "<span className="font-bold">{barcode}</span>"</p>
         </motion.div>
       )}
 
