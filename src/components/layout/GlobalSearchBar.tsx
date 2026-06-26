@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Barcode, Package, Users, ShoppingCart } from 'lucide-react';
+import { Search, Barcode, Package, Users, ShoppingCart, FileText } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -11,6 +11,7 @@ type SearchResult = {
   customers: { id: string; name: string; phone: string; email: string; type: 'customer' }[];
   vendors: { id: string; name: string; contact: string; phone: string; type: 'vendor' }[];
   barcodes: { barcode: string; productName: string; productId: string; status: string; type: 'barcode' }[];
+  challans?: { batchId: string; vendorName: string; date: string; units: number; type: 'challan' }[];
 };
 
 export function GlobalSearchBar({ setActiveTab }: { setActiveTab: (tab: Tab) => void }) {
@@ -38,7 +39,7 @@ export function GlobalSearchBar({ setActiveTab }: { setActiveTab: (tab: Tab) => 
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const hasResults = results && (results.products.length > 0 || results.customers.length > 0 || results.vendors.length > 0 || results.barcodes.length > 0);
+  const hasResults = results && (results.products.length > 0 || results.customers.length > 0 || results.vendors.length > 0 || results.barcodes.length > 0 || (results.challans?.length ?? 0) > 0);
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -70,6 +71,20 @@ export function GlobalSearchBar({ setActiveTab }: { setActiveTab: (tab: Tab) => 
                     <div className="min-w-0">
                       <p className="text-sm font-mono font-medium truncate">{b.barcode}</p>
                       <p className="text-xs text-gray-500 truncate">{b.productName} <span className={cn("ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold", b.status === 'InStock' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600')}>{b.status}</span></p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {(results.challans?.length ?? 0) > 0 && (
+              <div>
+                <p className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100">Challans</p>
+                {results.challans!.map((c) => (
+                  <button key={c.batchId} type="button" onClick={() => { setQuery(''); setOpen(false); setActiveTab('distribution'); }} className="w-full px-4 py-2.5 text-left hover:bg-orange-50 flex items-center gap-3 transition-colors">
+                    <FileText size={16} className="text-indigo-500 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{c.batchId}</p>
+                      <p className="text-xs text-gray-500 truncate">{c.vendorName} &middot; {c.date} &middot; {c.units} units</p>
                     </div>
                   </button>
                 ))}
