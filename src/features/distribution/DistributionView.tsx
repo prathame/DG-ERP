@@ -31,7 +31,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [selectedBatchProductId, setSelectedBatchProductId] = useState<string | null>(null);
   const [editBatchModal, setEditBatchModal] = useState<DistributionBatchDetail | null>(null);
   const [editDate, setEditDate] = useState('');
-  const [editRows, setEditRows] = useState<{ productId: string; productName: string; quantity: number; minQuantity: number; discount: number; withGst: boolean; availableStock: number }[]>([]);
+  const [editRows, setEditRows] = useState<{ productId: string; productName: string; quantity: number; minQuantity: number; discount: number; withGst: boolean; availableStock: number; isNew?: boolean }[]>([]);
+  const [removeConfirm, setRemoveConfirm] = useState<{ idx: number; name: string; qty: number } | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteBatchConfirm, setDeleteBatchConfirm] = useState<string | null>(null);
@@ -721,21 +722,29 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     <th className="px-3 py-3 w-20">Qty</th>
                     <th className="px-3 py-3 w-16">Disc%</th>
                     <th className="px-3 py-3 w-12 text-center">GST</th>
+                    <th className="px-3 py-3 w-10"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {editRows.map((row, idx) => (
-                      <tr key={row.productId}>
-                        <td className="px-3 py-2 text-sm font-medium">{row.productName}</td>
+                      <tr key={row.isNew ? `new-${idx}` : row.productId}>
+                        <td className="px-3 py-2 text-sm font-medium">
+                          {row.isNew ? (
+                            <select value={row.productId} onChange={(e) => { const p = products.find(pr => pr.id === e.target.value); setEditRows(editRows.map((r, i) => i === idx ? { ...r, productId: e.target.value, productName: p?.name || '', availableStock: p?.stock ?? 0 } : r)); }} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]">
+                              <option value="">Select product...</option>
+                              {products.filter(pr => (pr.stock ?? 0) > 0 && !editRows.some((r, ri) => ri !== idx && r.productId === pr.id)).map(pr => <option key={pr.id} value={pr.id}>{pr.name} ({pr.stock} avl)</option>)}
+                            </select>
+                          ) : row.productName}
+                        </td>
                         <td className="px-3 py-2">
                           <input
                             type="number"
-                            min={row.minQuantity}
-                            max={row.minQuantity + row.availableStock}
+                            min={row.isNew ? 1 : row.minQuantity}
+                            max={row.isNew ? (row.availableStock || 1) : (row.minQuantity + row.availableStock)}
                             value={row.quantity || ''}
                             onChange={(e) => updateEditRow(idx, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
                             className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]"
                           />
-                          {row.minQuantity > 0 && <p className="text-[10px] text-gray-400 mt-0.5">min {row.minQuantity}</p>}
+                          {!row.isNew && row.minQuantity > 0 && <p className="text-[10px] text-gray-400 mt-0.5">min {row.minQuantity}</p>}
                         </td>
                         <td className="px-3 py-2">
                           <input type="number" min={0} max={100} step={0.5} value={row.discount || ''} onChange={(e) => updateEditRow(idx, 'discount', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" />
@@ -743,11 +752,19 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                         <td className="px-3 py-2 text-center">
                           <input type="checkbox" checked={row.withGst} onChange={(e) => updateEditRow(idx, 'withGst', e.target.checked)} className="rounded text-[#F27D26]" />
                         </td>
+                        <td className="px-3 py-2 text-center">
+                          {row.isNew ? (
+                            <button type="button" onClick={() => setEditRows(editRows.filter((_, i) => i !== idx))} className="p-1 text-gray-400 hover:text-rose-500" title="Remove"><Trash2 size={14} /></button>
+                          ) : row.minQuantity === 0 ? (
+                            <button type="button" onClick={() => setRemoveConfirm({ idx, name: row.productName, qty: row.quantity })} className="p-1 text-gray-400 hover:text-rose-500" title="Remove product"><Trash2 size={14} /></button>
+                          ) : null}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              <button type="button" onClick={() => setEditRows([...editRows, { productId: '', productName: '', quantity: 1, minQuantity: 0, discount: 0, withGst: true, availableStock: 0, isNew: true }])} className="flex items-center gap-1 text-sm font-medium text-[#F27D26] hover:underline mb-3"><Plus size={16} /> Add Product</button>
               <p className="text-xs text-gray-500 mb-4">Reduce quantity to return units to inventory. Cannot go below sold/replaced/damaged count.</p>
               <div className="flex gap-2 flex-wrap">
                 {editBatchModal.canDelete && (
@@ -770,7 +787,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                       const result = await api.distribution.updateBatch(editBatchModal.batchId, {
                         distributionDate: editDate,
                         gstRate: defaultGstRate,
-                        items: editRows.map((r) => ({
+                        items: editRows.filter((r) => r.productId && !(r.isNew && r.quantity === 0)).map((r) => ({
                           productId: r.productId,
                           quantity: r.quantity,
                           discountPercent: r.discount,
@@ -811,6 +828,22 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
             <div className="flex gap-3">
               <button type="button" onClick={() => setDeleteBatchConfirm(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
               <button type="button" onClick={() => handleDeleteBatch(deleteBatchConfirm)} disabled={deleteSubmitting} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm disabled:opacity-60">{deleteSubmitting ? 'Deleting...' : 'Delete'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {removeConfirm && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setRemoveConfirm(null)} />
+          <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 text-center">
+            <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={28} />
+            </div>
+            <h3 className="text-lg font-bold mb-2">Remove Product?</h3>
+            <p className="text-sm text-gray-500 mb-6">Remove <strong>{removeConfirm.name}</strong> from this distribution? {removeConfirm.qty} unit{removeConfirm.qty !== 1 ? 's' : ''} will return to inventory.</p>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setRemoveConfirm(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
+              <button type="button" onClick={() => { setEditRows(editRows.map((r, i) => i === removeConfirm.idx ? { ...r, quantity: 0 } : r)); setRemoveConfirm(null); }} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm">Remove</button>
             </div>
           </div>
         </div>
