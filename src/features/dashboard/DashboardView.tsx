@@ -113,8 +113,8 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
                 </span>
               )}
             </div>
-            <p className="text-gray-500 text-sm font-medium">{stat.label}</p>
-            <h3 className="text-2xl font-bold mt-1">{stat.value}</h3>
+            <p className="text-gray-500 text-xs sm:text-sm font-medium">{stat.label}</p>
+            <h3 className="text-lg sm:text-2xl font-bold mt-1">{stat.value}</h3>
           </div>
         ))}
       </div>

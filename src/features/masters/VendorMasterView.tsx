@@ -79,18 +79,18 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Contact</th><th className="px-6 py-4">Phone</th><th className="px-6 py-4">Email</th><th className="px-6 py-4">Sales</th><th className="px-6 py-4">Reward Pts</th><th className="px-6 py-4">Actions</th></tr></thead>
+            <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-3 py-3 sm:px-6 sm:py-4">Name</th><th className="px-3 py-3 sm:px-6 sm:py-4">Contact</th><th className="px-3 py-3 sm:px-6 sm:py-4">Phone</th><th className="px-3 py-3 sm:px-6 sm:py-4">Email</th><th className="px-3 py-3 sm:px-6 sm:py-4">Sales</th><th className="px-3 py-3 sm:px-6 sm:py-4">Reward Pts</th><th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th></tr></thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? <tr><td colSpan={7} className="px-6 py-12 text-center"><LoadingSpinner /></td></tr> :
                 list.map((v) => (
                   <tr key={v.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium">{v.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{v.contactPerson || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{v.phone || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{v.email || '-'}</td>
-                    <td className="px-6 py-4 text-sm font-medium">{v.totalSales ?? 0}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-emerald-600">{v.totalRewardPoints ?? 0}</td>
-                    <td className="px-6 py-4 flex gap-2">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 font-medium">{v.name}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.contactPerson || '-'}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.phone || '-'}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.email || '-'}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-medium">{v.totalSales ?? 0}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-emerald-600">{v.totalRewardPoints ?? 0}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2">
                       <button type="button" onClick={() => openEdit(v)} className="p-2 text-[#F27D26] hover:bg-orange-50 rounded-lg"><Pencil size={16} /></button>
                       <button type="button" onClick={() => setDeleteTarget(v)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={16} /></button>
                     </td>

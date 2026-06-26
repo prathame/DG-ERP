@@ -125,13 +125,13 @@ export function ReplacementsView({ user }: { user: { id: string; role?: string; 
           <table className="w-full text-left">
             <thead>
               <tr className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-50">
-                <th className="px-6 py-4">Old Barcode</th>
-                <th className="px-6 py-4">New Barcode</th>
-                <th className="px-6 py-4">Vendor</th>
-                <th className="px-6 py-4">Product</th>
-                <th className="px-6 py-4">Customer</th>
-                <th className="px-6 py-4">Replaced Date</th>
-                <th className="px-6 py-4">Reason</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Old Barcode</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">New Barcode</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Vendor</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Product</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Customer</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Replaced Date</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Reason</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -142,23 +142,23 @@ export function ReplacementsView({ user }: { user: { id: string; role?: string; 
               ) : (
                 filtered.map((r) => (
                   <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-sm font-medium line-through text-gray-500">{r.oldBarcode}</span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">Replaced</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-mono text-sm font-bold text-emerald-600">{r.newBarcode}</td>
-                    <td className="px-6 py-4"><span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{r.vendorName ?? '-'}</span></td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{r.productName ?? '-'}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 font-mono text-sm font-bold text-emerald-600">{r.newBarcode}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4"><span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{r.vendorName ?? '-'}</span></td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{r.productName ?? '-'}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4">
                       <div>
                         <p className="text-sm font-medium">{r.customerName}</p>
                         <p className="text-xs text-gray-500">{r.customerPhone}</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{formatDate(r.replacedDate)}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{r.reason ?? '-'}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{formatDate(r.replacedDate)}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-500">{r.reason ?? '-'}</td>
                   </tr>
                 ))
               )}

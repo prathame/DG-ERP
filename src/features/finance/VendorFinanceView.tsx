@@ -114,11 +114,11 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <p className="text-xs font-bold text-gray-400 uppercase">Total Distributed Value</p>
-            <p className="text-2xl font-bold text-blue-600 mt-1">₹{detail.totalDistributedValue.toLocaleString()}</p>
+            <p className="text-lg sm:text-2xl font-bold text-blue-600 mt-1">₹{detail.totalDistributedValue.toLocaleString()}</p>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <p className="text-xs font-bold text-gray-400 uppercase">Total Paid</p>
-            <p className="text-2xl font-bold text-emerald-600 mt-1">₹{detail.totalPaid.toLocaleString()}</p>
+            <p className="text-lg sm:text-2xl font-bold text-emerald-600 mt-1">₹{detail.totalPaid.toLocaleString()}</p>
           </div>
           <div className={cn("p-5 rounded-2xl border shadow-sm relative overflow-hidden", detail.balance > 0 ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200")}>
             <p className="text-xs font-bold text-gray-400 uppercase">Balance Remaining</p>
@@ -136,7 +136,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-3 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-bold">Payment History</h3>
               <span className="text-sm text-gray-500">{detail.payments.length} payment{detail.payments.length !== 1 ? 's' : ''}</span>
             </div>
@@ -144,7 +144,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
               {detail.payments.length === 0 ? (
                 <p className="p-6 text-center text-gray-500">No payments recorded yet</p>
               ) : detail.payments.map((p) => (
-                <div key={p.id} className="px-6 py-4 flex items-center justify-between">
+                <div key={p.id} className="px-3 py-3 sm:px-6 sm:py-4 flex items-center justify-between">
                   <div>
                     <p className="font-bold text-emerald-600">+₹{p.amount.toLocaleString()}</p>
                     <p className="text-xs text-gray-500">{formatDate(p.paymentDate)} &middot; {p.paymentMethod}{p.referenceNumber ? ` &middot; Ref: ${p.referenceNumber}` : ''}</p>
@@ -156,7 +156,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
+            <div className="px-3 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
               <h3 className="font-bold">Distributions (Money Owed)</h3>
             </div>
             <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
@@ -208,11 +208,11 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase">Total Distributed Value</p>
-          <p className="text-2xl font-bold text-blue-600 mt-1">₹{totalValue.toLocaleString()}</p>
+          <p className="text-lg sm:text-2xl font-bold text-blue-600 mt-1">₹{totalValue.toLocaleString()}</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase">Total Received</p>
-          <p className="text-2xl font-bold text-emerald-600 mt-1">₹{totalPaidAll.toLocaleString()}</p>
+          <p className="text-lg sm:text-2xl font-bold text-emerald-600 mt-1">₹{totalPaidAll.toLocaleString()}</p>
         </div>
         <div className={cn("p-5 rounded-2xl border shadow-sm", totalOwed > 0 ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200")}>
           <p className="text-xs font-bold text-gray-400 uppercase">Total Outstanding</p>
@@ -256,7 +256,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50">
-              <th className="px-6 py-4">Vendor</th><th className="px-6 py-4">Distributed Value</th><th className="px-6 py-4">Paid</th><th className="px-6 py-4">Balance</th><th className="px-6 py-4">Reminder</th><th className="px-6 py-4">Actions</th>
+              <th className="px-3 py-3 sm:px-6 sm:py-4">Vendor</th><th className="px-3 py-3 sm:px-6 sm:py-4">Distributed Value</th><th className="px-3 py-3 sm:px-6 sm:py-4">Paid</th><th className="px-3 py-3 sm:px-6 sm:py-4">Balance</th><th className="px-3 py-3 sm:px-6 sm:py-4">Reminder</th><th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
@@ -272,28 +272,28 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                 <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">{finSearch ? 'No matching vendors' : paymentFilter === 'paid' ? 'No fully paid vendors' : 'No outstanding balances'}</td></tr>
               ) : filtered.map((v) => (
                 <tr key={v.vendorId} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium">{v.vendorName}</p>
                       {isBillFullyPaid(v.totalDistributedValue, v.balance) && <PaidBadge size="sm" />}
                     </div>
                     <p className="text-xs text-gray-500">{v.unitsDistributed} units</p>
                   </td>
-                  <td className="px-6 py-4 font-medium">₹{v.totalDistributedValue.toLocaleString()}</td>
-                  <td className="px-6 py-4 font-bold text-emerald-600">₹{v.totalPaid.toLocaleString()}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 font-medium">₹{v.totalDistributedValue.toLocaleString()}</td>
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 font-bold text-emerald-600">₹{v.totalPaid.toLocaleString()}</td>
+                  <td className="px-3 py-3 sm:px-6 sm:py-4">
                     {isBillFullyPaid(v.totalDistributedValue, v.balance) ? (
                       <PaidBadge size="sm" />
                     ) : (
                       <span className="font-bold text-rose-600">₹{v.balance.toLocaleString()}</span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4">
                     <button type="button" onClick={() => setReminderModal({ vendorId: v.vendorId, vendorName: v.vendorName, enabled: v.reminder.enabled, days: v.reminder.days })} className={cn("text-xs font-bold px-2.5 py-1 rounded-full", v.reminder.enabled ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500")}>
                       {v.reminder.enabled ? `Every ${v.reminder.days}d` : 'Off'}
                     </button>
                   </td>
-                  <td className="px-6 py-4 flex gap-2">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2">
                     <button type="button" onClick={() => { setSelectedVendorId(v.vendorId); loadDetail(v.vendorId); }} className="text-sm font-bold text-[#F27D26] hover:underline">View</button>
                     {v.balance > 0 && v.vendorPhone && (
                       <button type="button" onClick={() => handleSendReminder(v)} className="text-sm font-bold text-green-600 hover:underline flex items-center gap-1"><MessageCircle size={14} /> Remind</button>

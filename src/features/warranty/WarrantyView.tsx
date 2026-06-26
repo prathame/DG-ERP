@@ -131,12 +131,12 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
           <table className="w-full text-left">
             <thead>
               <tr className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-50">
-                <th className="px-6 py-4">Barcode</th>
-                <th className="px-6 py-4">Customer</th>
-                <th className="px-6 py-4">Activation Date</th>
-                <th className="px-6 py-4">Expiry Date</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Actions</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Barcode</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Customer</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Activation Date</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Expiry Date</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Status</th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -151,7 +151,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
               ) : (
               warranties.map((w) => (
                 <tr key={w.id} className="hover:bg-gray-50 transition-colors group">
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center">
                         <Package size={16} className="text-gray-400" />
@@ -159,15 +159,15 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                       <span className="text-sm font-bold">{w.barcode || w.id}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4">
                     <div>
                       <p className="text-sm font-bold">{w.customerName}</p>
                       <p className="text-xs text-gray-500">{w.customerPhone}</p>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{formatDate(w.activationDate)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{formatDate(w.expiryDate)}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{formatDate(w.activationDate)}</td>
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{formatDate(w.expiryDate)}</td>
+                  <td className="px-3 py-3 sm:px-6 sm:py-4">
                     <span className={cn(
                       "text-xs font-bold px-2.5 py-1 rounded-full",
                       w.status === 'Active' ? 'bg-emerald-100 text-emerald-700' :
@@ -176,7 +176,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                       {w.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4">
                     <button type="button" onClick={() => openDetails(w)} className="text-xs font-bold text-[#F27D26] hover:underline">View Details</button>
                   </td>
                 </tr>

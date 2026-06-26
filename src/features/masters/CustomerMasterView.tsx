@@ -141,10 +141,10 @@ export function CustomerMasterView({ onBack, onRefresh, user }: { onBack: () => 
                   <p className="p-6 text-gray-500 text-center">No purchases recorded yet. Sales are matched by customer phone.</p>
                 ) : (
                   <table className="w-full text-left">
-                    <thead className="bg-gray-50 sticky top-0"><tr className="text-xs font-bold text-gray-400 uppercase"><th className="px-6 py-3">Product</th><th className="px-6 py-3">Vendor</th><th className="px-6 py-3">Barcode</th><th className="px-6 py-3">Date</th></tr></thead>
+                    <thead className="bg-gray-50 sticky top-0"><tr className="text-xs font-bold text-gray-400 uppercase"><th className="px-3 py-2 sm:px-6 sm:py-3">Product</th><th className="px-3 py-2 sm:px-6 sm:py-3">Vendor</th><th className="px-3 py-2 sm:px-6 sm:py-3">Barcode</th><th className="px-3 py-2 sm:px-6 sm:py-3">Date</th></tr></thead>
                     <tbody className="divide-y divide-gray-50">
                       {purchasesModal.purchases.map((p, i) => (
-                        <tr key={i}><td className="px-6 py-3 font-medium">{p.productName}</td><td className="px-6 py-3 text-sm text-purple-600">{p.vendorName}</td><td className="px-6 py-3 text-sm font-mono text-gray-600">{p.barcode}</td><td className="px-6 py-3 text-sm text-gray-600">{formatDate(p.purchaseDate)}</td></tr>
+                        <tr key={i}><td className="px-3 py-2 sm:px-6 sm:py-3 font-medium">{p.productName}</td><td className="px-3 py-2 sm:px-6 sm:py-3 text-sm text-purple-600">{p.vendorName}</td><td className="px-3 py-2 sm:px-6 sm:py-3 text-sm font-mono text-gray-600">{p.barcode}</td><td className="px-3 py-2 sm:px-6 sm:py-3 text-sm text-gray-600">{formatDate(p.purchaseDate)}</td></tr>
                       ))}
                     </tbody>
                   </table>

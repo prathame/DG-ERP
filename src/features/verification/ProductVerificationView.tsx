@@ -231,7 +231,7 @@ export function ProductVerificationView() {
               <CheckCircle2 size={28} className="text-emerald-500" />
             </div>
             <div className="p-6">
-              <h3 className="font-bold text-xl">{result.product.name}</h3>
+              <h3 className="font-bold text-base sm:text-xl">{result.product.name}</h3>
               {result.product.description && <p className="text-sm text-gray-500 mt-1">{result.product.description}</p>}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
                 <div className="bg-gray-50 rounded-xl p-3">
@@ -261,7 +261,7 @@ export function ProductVerificationView() {
           </div>
 
           {/* Timeline */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
             <h4 className="font-bold text-sm text-gray-400 uppercase mb-4">Product Journey</h4>
             <div className="space-y-0">
               {/* Added */}
@@ -326,9 +326,9 @@ export function ProductVerificationView() {
 
           {/* Warranty */}
           {result.features.warranty && result.warranty && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
               <h4 className="font-bold text-sm text-gray-400 uppercase mb-3 flex items-center gap-2"><ShieldCheck size={16} /> Warranty</h4>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Status</p>
                   <p className={cn("font-bold text-sm", result.warranty.status === 'Active' ? 'text-emerald-600' : result.warranty.status === 'Expired' ? 'text-rose-600' : 'text-gray-600')}>{result.warranty.status}</p>

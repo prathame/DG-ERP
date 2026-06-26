@@ -63,17 +63,17 @@ export function BankMasterView({ onBack, onRefresh }: { onBack: () => void; onRe
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Account No</th><th className="px-6 py-4">Bank</th><th className="px-6 py-4">Branch</th><th className="px-6 py-4">IFSC</th><th className="px-6 py-4">Actions</th></tr></thead>
+            <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-3 py-3 sm:px-6 sm:py-4">Name</th><th className="px-3 py-3 sm:px-6 sm:py-4">Account No</th><th className="px-3 py-3 sm:px-6 sm:py-4">Bank</th><th className="px-3 py-3 sm:px-6 sm:py-4">Branch</th><th className="px-3 py-3 sm:px-6 sm:py-4">IFSC</th><th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th></tr></thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? <tr><td colSpan={6} className="px-6 py-12 text-center"><LoadingSpinner /></td></tr> :
                 list.map((b) => (
                   <tr key={b.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium">{b.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{b.accountNumber || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{b.bankName || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{b.branch || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 font-mono">{b.ifscCode || '-'}</td>
-                    <td className="px-6 py-4 flex gap-2">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 font-medium">{b.name}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{b.accountNumber || '-'}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{b.bankName || '-'}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{b.branch || '-'}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600 font-mono">{b.ifscCode || '-'}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2">
                       <button type="button" onClick={() => openEdit(b)} className="p-2 text-[#F27D26] hover:bg-orange-50 rounded-lg"><Pencil size={16} /></button>
                       <button type="button" onClick={() => setDeleteTarget(b)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={16} /></button>
                     </td>
