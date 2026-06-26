@@ -995,6 +995,35 @@ Run through all critical manual test cases before any production deployment:
 
 ---
 
+## Performance
+
+### Database
+- **Batch barcode insert**: 1000 barcodes in 2 queries instead of 6000 (100x faster)
+- **27 indexes** on frequently queried columns (sales date, distribution date, vendor payments, audit action, inventory product)
+- **Connection pool**: 10 connections in production, 20 in dev, 10s connection timeout, auto-SSL for cloud databases
+
+### Server
+- **Gzip compression**: All API responses compressed ~70% smaller via `compression` middleware
+- **Helmet**: Security headers with minimal overhead
+
+### Frontend
+- **Code splitting**: Main bundle split from 1.5MB into 4 chunks:
+  - `index.js` (723KB) — app UI, loads first
+  - `charts.js` (357KB) — Recharts, loads only on Dashboard
+  - `scanner.js` (403KB) — html5-qrcode + JsBarcode, loads only when scanning/printing
+  - `motion.js` (94KB) — Framer Motion, loads on animations
+- **Debounced search**: 250ms debounce on all search inputs to reduce API calls
+- **No product images**: Removed placeholder images for faster mobile load
+
+### Variable Naming
+Meaningful variable names used throughout (ERP/finance context):
+- `userConfig` (not `ux`) — user feature flags
+- `billConfig` (not `s`) — bill customization settings
+- `requestBody` (not `b`) — API request body data
+- `queryText` (not `q`) — search/chatbot input
+
+---
+
 ## Code Style & Conventions
 
 - **TypeScript strict** — all files are `.ts` / `.tsx`
