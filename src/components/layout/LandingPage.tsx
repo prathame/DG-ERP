@@ -16,6 +16,7 @@ const FEATURES = [
   { icon: ShieldCheck, title: 'Warranty & Rewards', desc: 'Auto-warranty on sale, replacement tracking, vendor reward points system' },
   { icon: MessageSquare, title: 'ERP Chatbot', desc: 'Natural language commands — sales today, low stock, top vendors, adapts to your business type' },
   { icon: Building2, title: 'Business Types', desc: 'Manufacturer, dealer, or retail — super admin picks type, tabs auto-configure with custom labels' },
+  { icon: Shield, title: '99.99% Secure', desc: 'JWT auth, CSP headers, HSTS, tenant isolation, bcrypt-12, rate limiting, encrypted DB — enterprise-grade security' },
   { icon: Moon, title: 'Dark Mode', desc: 'Light and dark theme with one-click toggle, persisted across sessions' },
   { icon: Languages, title: 'Multi-Language', desc: 'English, Hindi, and Gujarati support — switch language instantly from settings' },
   { icon: Smartphone, title: 'Mobile PWA', desc: 'Install as app from browser — full screen, offline support, bottom nav, no Play Store needed' },
