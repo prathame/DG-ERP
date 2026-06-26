@@ -95,7 +95,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
   }
 
   if (/recent\s*sales|last\s*sales|latest\s*sales/.test(q)) {
-    const rows = (await pool.query("SELECT ps.barcode, p.name, ps.customer_name, ps.purchase_date, ps.sale_price FROM product_sales ps JOIN products p ON ps.product_id = p.id WHERE ps.tenant_id = $1 ORDER BY ps.purchase_date DESC LIMIT 5", [tenantId])).rows as { barcode: string; name: string; customer_name: string; purchase_date: string; sale_price: number }[];
+    const rows = (await pool.query("SELECT ps.barcode, p.name, ps.customer_name, ps.purchase_date, ps.sale_price FROM product_sales ps JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1 WHERE ps.tenant_id = $1 ORDER BY ps.purchase_date DESC LIMIT 5", [tenantId])).rows as { barcode: string; name: string; customer_name: string; purchase_date: string; sale_price: number }[];
     if (rows.length === 0) return { text: 'No sales recorded yet.' };
     const list = rows.map((r, i) => `${i + 1}. ${r.name} -> ${r.customer_name}\n   ${r.purchase_date} - ${(r.sale_price ?? 0).toLocaleString()}`).join('\n');
     return { text: `*Recent ${salesLbl}*\n\n${list}` };
@@ -103,7 +103,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
 
   // ============ TOP PRODUCTS ============
   if (/top\s*product|best\s*sell|popular\s*product/.test(q)) {
-    const rows = (await pool.query("SELECT p.name, COUNT(ps.id) as sold, COALESCE(SUM(ps.sale_price), 0) as revenue FROM product_sales ps JOIN products p ON ps.product_id = p.id WHERE ps.tenant_id = $1 GROUP BY ps.product_id, p.name ORDER BY sold DESC LIMIT 5", [tenantId])).rows as { name: string; sold: number; revenue: number }[];
+    const rows = (await pool.query("SELECT p.name, COUNT(ps.id) as sold, COALESCE(SUM(ps.sale_price), 0) as revenue FROM product_sales ps JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1 WHERE ps.tenant_id = $1 GROUP BY ps.product_id, p.name ORDER BY sold DESC LIMIT 5", [tenantId])).rows as { name: string; sold: number; revenue: number }[];
     if (rows.length === 0) return { text: 'No sales recorded yet.' };
     const list = rows.map((r, i) => `${i + 1}. ${r.name}\n   ${r.sold} sold - ${r.revenue.toLocaleString()} revenue`).join('\n');
     return { text: `*Top Selling Products*\n\n${list}` };
@@ -306,7 +306,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
   const barcodeMatch = q.match(/^[A-Z]{2,}[0-9]+$/i) || q.match(/^[A-Z]+-[A-Z0-9-]+$/i);
   if (barcodeMatch) {
     const barcode = barcodeMatch[0].toUpperCase();
-    const inv = (await pool.query("SELECT pi.barcode, pi.status, p.name as product_name, p.price FROM product_inventory pi JOIN products p ON pi.product_id = p.id WHERE pi.barcode = $1 AND pi.tenant_id = $2", [barcode, tenantId])).rows[0] as { barcode: string; status: string; product_name: string; price: number } | undefined;
+    const inv = (await pool.query("SELECT pi.barcode, pi.status, p.name as product_name, p.price FROM product_inventory pi JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2 WHERE pi.barcode = $1 AND pi.tenant_id = $2", [barcode, tenantId])).rows[0] as { barcode: string; status: string; product_name: string; price: number } | undefined;
     if (inv) {
       let extra = '';
       if (inv.status === 'Distributed') {
@@ -331,7 +331,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
   const vendorRows = (await pool.query("SELECT id, name, phone, contact_person FROM vendors WHERE id != 'OWNER' AND (LOWER(name) LIKE $1 OR LOWER(contact_person) LIKE $1) AND tenant_id = $2", [`%${q}%`, tenantId])).rows as { id: string; name: string; phone: string; contact_person: string }[];
   if (vendorRows.length === 1) {
     const v = vendorRows[0];
-    const totalVal = ((await pool.query("SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id WHERE pd.vendor_id = $1 AND pd.tenant_id = $2", [v.id, tenantId])).rows[0] as { t: number }).t;
+    const totalVal = ((await pool.query("SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $2 WHERE pd.vendor_id = $1 AND pd.tenant_id = $2", [v.id, tenantId])).rows[0] as { t: number }).t;
     const totalPaid = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE vendor_id = $1 AND tenant_id = $2", [v.id, tenantId])).rows[0] as { t: number }).t;
     const balance = totalVal - totalPaid;
     const distCount = ((await pool.query("SELECT COUNT(*) as c FROM product_distribution WHERE vendor_id = $1 AND tenant_id = $2", [v.id, tenantId])).rows[0] as { c: number }).c;

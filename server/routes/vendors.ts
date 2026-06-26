@@ -52,7 +52,8 @@ router.post('/api/vendors', async (req, res) => {
     if (portalEnabled && email && typeof email === 'string' && email.includes('@')) {
       const existing = (await pool.query('SELECT id FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId])).rows[0];
       if (!existing) {
-        const defaultPassword = `${(name ?? 'vendor').replace(/\s+/g, '').toLowerCase()}@123`;
+        const crypto = await import('crypto');
+        const defaultPassword = crypto.randomBytes(12).toString('base64url');
         const userId = `U${Date.now()}`;
         const perms = JSON.stringify(['dashboard', 'sales', 'distribution', 'warranty', 'replacements', 'rewards', 'settings']);
         await pool.query(

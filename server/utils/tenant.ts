@@ -15,7 +15,8 @@ export async function provisionTenant(data: {
 }) {
   const tenantId = `T${Date.now()}`;
   const slug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const defaultPassword = data.adminPassword || `${data.companyName.replace(/\s+/g, '').toLowerCase().slice(0, 12)}@123`;
+  const crypto = await import('crypto');
+  const defaultPassword = data.adminPassword || crypto.randomBytes(12).toString('base64url');
   const passwordHash = await bcrypt.hash(defaultPassword, 12);
   const userId = `U${Date.now()}`;
 

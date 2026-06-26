@@ -57,7 +57,7 @@ app.use(express.json({ limit: '2mb' }));
 const PUBLIC_PATHS = [
   '/api/auth/login', '/api/auth/signup', '/api/auth/forgot-password', '/api/auth/reset-password',
   '/api/super-admin/login', '/api/tenant/by-slug/', '/api/health',
-  '/api/super-admin/', '/manifest.json',
+  '/api/super-admin/login', '/manifest.json',
 ];
 
 // Global auth: protect all /api/ routes except public ones
