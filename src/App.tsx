@@ -78,7 +78,11 @@ if (typeof window !== 'undefined') {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [activeTab, setActiveTabRaw] = useState<Tab>('dashboard');
+  const setActiveTab = (tab: Tab) => {
+    setActiveTabRaw(tab);
+    window.history.pushState({ tab }, '', window.location.pathname);
+  };
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean } | null>(() => {
@@ -89,6 +93,20 @@ export default function App() {
       return u;
     } catch { return null; }
   });
+
+  useEffect(() => {
+    const onPopState = (e: PopStateEvent) => {
+      if (e.state?.tab) {
+        setActiveTabRaw(e.state.tab);
+      } else {
+        window.history.pushState({ tab: 'dashboard' }, '', window.location.pathname);
+        setActiveTabRaw('dashboard');
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    window.history.replaceState({ tab: 'dashboard' }, '', window.location.pathname);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   const handleLogout = () => {
     const slug = localStorage.getItem('tenant_slug');
