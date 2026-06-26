@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, Search, Plus, X, Package, Download, Barcode } from 'lucide-react';
-import { cn, exportToCsv } from '../../lib/utils';
+import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import type { Warranty } from '../../types';
 import { useToast, LoadingSpinner, DateRangeFilter, PaginationControls } from '../../components/ui';
@@ -165,8 +165,8 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                       <p className="text-xs text-gray-500">{w.customerPhone}</p>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{w.activationDate}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{w.expiryDate}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{formatDate(w.activationDate)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{formatDate(w.expiryDate)}</td>
                   <td className="px-6 py-4">
                     <span className={cn(
                       "text-xs font-bold px-2.5 py-1 rounded-full",
@@ -281,8 +281,8 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                     <div><p className="text-xs font-bold text-gray-400 uppercase">Barcode</p><p className="font-mono font-medium">{detailsWarranty.barcode ?? '-'}</p></div>
                     <div><p className="text-xs font-bold text-gray-400 uppercase">Customer</p><p className="font-medium">{detailsWarranty.customerName}</p></div>
                     <div><p className="text-xs font-bold text-gray-400 uppercase">Phone</p><p className="font-medium">{detailsWarranty.customerPhone}</p></div>
-                    <div><p className="text-xs font-bold text-gray-400 uppercase">Activation</p><p className="font-medium">{detailsWarranty.activationDate}</p></div>
-                    <div><p className="text-xs font-bold text-gray-400 uppercase">Expiry</p><p className="font-medium">{detailsWarranty.expiryDate}</p></div>
+                    <div><p className="text-xs font-bold text-gray-400 uppercase">Activation</p><p className="font-medium">{formatDate(detailsWarranty.activationDate)}</p></div>
+                    <div><p className="text-xs font-bold text-gray-400 uppercase">Expiry</p><p className="font-medium">{formatDate(detailsWarranty.expiryDate)}</p></div>
                   </div>
                   <p className="text-xs font-bold text-gray-400 uppercase">Item Replaced</p>
                   {detailsWarranty.replacedBarcode ? (

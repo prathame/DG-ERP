@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Plus, Download, CheckCircle2, AlertCircle } from 'lucide-react';
-import { cn, exportToCsv } from '../../lib/utils';
+import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { api, ReplacementRecord } from '../../api';
 import { useToast, LoadingSpinner } from '../../components/ui';
 
@@ -157,7 +157,7 @@ export function ReplacementsView({ user }: { user: { id: string; role?: string; 
                         <p className="text-xs text-gray-500">{r.customerPhone}</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{r.replacedDate}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{formatDate(r.replacedDate)}</td>
                     <td className="px-6 py-4 text-sm text-gray-500">{r.reason ?? '-'}</td>
                   </tr>
                 ))

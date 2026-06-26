@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, ArrowLeft, Clock, MessageCircle, Send } from 'lucide-react';
-import { cn, shareViaWhatsApp } from '../../lib/utils';
+import { cn, shareViaWhatsApp, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 
@@ -145,7 +145,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                 <div key={p.id} className="px-6 py-4 flex items-center justify-between">
                   <div>
                     <p className="font-bold text-emerald-600">+₹{p.amount.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">{p.paymentDate} &middot; {p.paymentMethod}{p.referenceNumber ? ` &middot; Ref: ${p.referenceNumber}` : ''}</p>
+                    <p className="text-xs text-gray-500">{formatDate(p.paymentDate)} &middot; {p.paymentMethod}{p.referenceNumber ? ` &middot; Ref: ${p.referenceNumber}` : ''}</p>
                     {p.notes && <p className="text-xs text-gray-400 mt-0.5">{p.notes}</p>}
                   </div>
                 </div>
@@ -162,7 +162,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                 <div key={i} className="px-6 py-3 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium">{d.productName}</p>
-                    <p className="text-xs text-gray-500">{d.date} &middot; {d.quantity} units &times; ₹{d.unitPrice.toLocaleString()}</p>
+                    <p className="text-xs text-gray-500">{formatDate(d.date)} &middot; {d.quantity} units &times; ₹{d.unitPrice.toLocaleString()}</p>
                   </div>
                   <p className="font-bold text-sm">₹{d.total.toLocaleString()}</p>
                 </div>
