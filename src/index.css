@@ -49,9 +49,10 @@ html.dark .divide-gray-50 > :not([hidden]) ~ :not([hidden]) { border-color: #1F2
 html.dark .ring-gray-200 { --tw-ring-color: #374151 !important; }
 html.dark .border-t { border-color: #374151; }
 
-/* Text — force all default text to light in dark mode */
-html.dark { color: #E5E7EB; }
-html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6 { color: #F3F4F6; }
+/* Text — force ALL text to light in dark mode */
+html.dark, html.dark * { color: #E5E7EB; }
+html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6,
+html.dark .font-bold, html.dark .font-semibold, html.dark strong { color: #F3F4F6 !important; }
 html.dark p, html.dark span, html.dark td, html.dark th, html.dark label, html.dark li, html.dark div { color: inherit; }
 html.dark .text-\[#1A1A1A\] { color: #F3F4F6 !important; }
 html.dark .text-gray-900 { color: #F3F4F6 !important; }
