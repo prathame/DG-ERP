@@ -161,9 +161,15 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
         }
       }
     }
-    if (req.body.tabConfig) {
-      await pool.query('UPDATE tenants SET tab_config = $1 WHERE id = $2', [JSON.stringify(req.body.tabConfig), result.tenantId]);
-    }
+    const defaultTabConfig = {
+      dashboard: { label: 'Dashboard', visible: true }, inventory: { label: 'Inventory', visible: true },
+      distribution: { label: 'Distribution', visible: true }, sales: { label: 'Sales Entry', visible: true },
+      verification: { label: 'Verify Product', visible: true }, warranty: { label: 'Warranty', visible: true },
+      replacements: { label: 'Replacements', visible: true }, rewards: { label: 'Rewards', visible: true },
+      finance: { label: 'Finance', visible: true }, chatbot: { label: 'Chatbot', visible: true },
+      settings: { label: 'Settings', visible: true },
+    };
+    await pool.query('UPDATE tenants SET tab_config = $1 WHERE id = $2', [JSON.stringify(req.body.tabConfig || defaultTabConfig), result.tenantId]);
     await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ ...result, adminEmail, password: result.credentials.password, companyName });
   } catch (err) {
