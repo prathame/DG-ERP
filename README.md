@@ -194,6 +194,7 @@ npm run dev
 - **Subscription Tracking**: Auto-set expiry when creating invoice, expiry banner in tenant UI (amber 15 days, red 7 days), login blocked after expiry
 - **Audit Log**: Cross-tenant activity log with search, action/entity filters, pagination
 - **Feature Toggles**: 10 features controllable per tenant
+- **Tab Customization**: Rename and show/hide tabs per tenant — same system serves retail shops, manufacturers, and dealers
 - **Separate Route**: Super admin UI at `/admin`, completely hidden from tenant login
 - **Tenant Onboarding**: Only super admin can create tenants (no self-registration)
 - **Credential Sharing**: After onboarding, share login URL + credentials via WhatsApp or Email directly
@@ -243,6 +244,21 @@ Company website with:
 ### Tenant Branding
 
 Each tenant sees their own company name in the sidebar, browser tab, bills, WhatsApp messages, and login page. Login pages show the tenant's logo, accent color, and tagline. A subtle "Powered by DG ERP" attribution appears at the bottom.
+
+### Tab Customization (Business Types)
+
+Super admin can rename and show/hide tabs per tenant, making the same system work for different business types:
+
+| Tab (internal) | Pump Manufacturer | Gold Dealer | Electric Shop |
+|---|---|---|---|
+| inventory | Inventory ✅ | Inventory ✅ | Stock ✅ |
+| distribution | Dispatch ✅ | Sales ✅ | Purchase ✅ |
+| sales | Warranty Reg ✅ | ⬜ OFF | ⬜ OFF |
+| verification | Verify Product ✅ | Verify Product ✅ | ⬜ OFF |
+| warranty | Warranty ✅ | ⬜ OFF | ⬜ OFF |
+| finance | Vendor Payments ✅ | Dealer Payments ✅ | ⬜ OFF |
+
+Backend routes, DB columns, and API paths stay fixed — only the display labels change. Chatbot automatically uses custom labels in responses and routes queries to the correct data.
 
 ## Tenant Features
 
