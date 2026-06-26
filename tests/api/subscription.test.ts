@@ -55,11 +55,11 @@ describe('Subscription — End to End', () => {
   // --- Subscription dates ---
   describe('Subscription Dates', () => {
     it('should set subscription start and end', async () => {
-      const start = '2026-06-01';
-      const end = '2026-07-01';
+      const end = '2026-07-01T00:00:00+05:30';
       await pool.query('UPDATE tenants SET status = $1, subscription_ends_at = $2, trial_ends_at = NULL WHERE id = $3', ['active', end, TENANT]);
       const { rows } = await pool.query('SELECT subscription_ends_at FROM tenants WHERE id = $1', [TENANT]);
-      expect(new Date(rows[0].subscription_ends_at).toISOString().split('T')[0]).toBe(end);
+      const istDate = new Date(rows[0].subscription_ends_at).toLocaleString('en-CA', { timeZone: 'Asia/Kolkata' }).split(',')[0];
+      expect(istDate).toBe('2026-07-01');
     });
 
     it('monthly plan should be start + 1 month', () => {
