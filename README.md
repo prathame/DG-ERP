@@ -345,6 +345,27 @@ Server middleware validates token + resolves tenant
 - **Tenant Isolation** — Auth middleware on all profile/settings routes, userId verified against JWT
 - **No Hardcoded Secrets** — App refuses to start without `JWT_SECRET` and `DATABASE_URL`
 - **Audit Logging** — All critical actions logged to DB + optional Better Stack Logtail
+- **Performance** — Batch barcode insert, gzip compression, code splitting, DB indexes
+
+## Performance
+
+### Database
+- **Batch barcode insert** — Adding 1000 barcodes uses 2 queries (batch INSERT + existence check via `ANY()`) instead of 6000 individual queries. ~100x faster product save.
+- **27 indexes** on frequently queried columns: sales date, distribution date, vendor payments, audit action, inventory product+status, customer name/phone
+- **Connection pool** — `pg.Pool` with max 10 (production) / 20 (dev), 30s idle timeout, 10s connection timeout, auto-SSL for Render/Neon
+
+### Server
+- **Gzip compression** — All API responses compressed via `compression` middleware (~70% smaller payloads)
+- **JWT tenant isolation** — Middleware extracts `tenantId` from JWT and overrides `X-Tenant-ID` header to prevent cross-tenant access
+
+### Frontend
+- **Code splitting** — Vite `manualChunks` splits the 1.5MB bundle into 4 lazy-loaded chunks:
+  - `index.js` (723KB) — core app, loads immediately
+  - `charts.js` (357KB) — Recharts, loads only on Dashboard
+  - `scanner.js` (403KB) — html5-qrcode + JsBarcode, loads only when scanning/printing
+  - `motion.js` (94KB) — Framer Motion animations
+- **Debounced search** — 250ms debounce on all search inputs
+- **No product images** — Removed placeholder images for faster mobile loading
 
 ## API
 
