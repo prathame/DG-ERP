@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search } from 'lucide-react';
 import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate } from '../../lib/utils';
 import { api, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product, Vendor } from '../../types';
@@ -36,6 +36,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState<'unpaid' | 'paid'>('unpaid');
+  const [distSearch, setDistSearch] = useState('');
   const [deleteBatchConfirm, setDeleteBatchConfirm] = useState<string | null>(null);
   const [financeMap, setFinanceMap] = useState<Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }>>({});
 
@@ -193,13 +194,17 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
         </div>
       </div>
 
-      {/* Payment filter tabs */}
-      <div className="flex gap-2">
+      {/* Payment filter + search */}
+      <div className="flex items-center gap-3 flex-wrap">
         {(['unpaid', 'paid'] as const).map((tab) => (
           <button key={tab} type="button" onClick={() => { setPaymentFilter(tab); setSelectedVendorId(null); setSelectedBatchId(null); }} className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", paymentFilter === tab ? (tab === 'unpaid' ? "bg-rose-500 text-white" : "bg-emerald-500 text-white") : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
             {tab === 'unpaid' ? 'Unpaid' : 'Paid'}
           </button>
         ))}
+        <div className="relative flex-1 min-w-[150px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <input type="text" placeholder="Search vendor or product..." value={distSearch} onChange={(e) => setDistSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]" />
+        </div>
       </div>
 
       {/* Vendor cards */}
@@ -208,8 +213,13 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
           if (v.distributed === 0) return false;
           if (vendorId && v.vendorId !== vendorId) return false;
           const f = financeMap[v.vendorId];
-          const isPaid = f ? isBillFullyPaid(f.totalDistributedValue, f.balance) : false;
-          return paymentFilter === 'paid' ? isPaid : !isPaid;
+          const isPaid = f ? f.balance <= 0 : false;
+          if (paymentFilter === 'paid' ? !isPaid : isPaid) return false;
+          if (distSearch) {
+            const q = distSearch.toLowerCase();
+            return v.vendorName.toLowerCase().includes(q);
+          }
+          return true;
         }).map((v) => (
           <button
             key={v.vendorId}

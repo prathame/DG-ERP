@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, ArrowLeft, Clock, MessageCircle, Send } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, MessageCircle, Send, Search } from 'lucide-react';
 import { cn, shareViaWhatsApp, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
@@ -20,6 +20,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [paymentFilter, setPaymentFilter] = useState<'unpaid' | 'paid'>('unpaid');
+  const [finSearch, setFinSearch] = useState('');
   const [paymentModal, setPaymentModal] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -238,13 +239,17 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
         </div>
       )}
 
-      {/* Payment filter tabs */}
-      <div className="flex gap-2">
+      {/* Payment filter + search */}
+      <div className="flex items-center gap-3 flex-wrap">
         {(['unpaid', 'paid'] as const).map((tab) => (
           <button key={tab} type="button" onClick={() => { setPaymentFilter(tab); setSelectedVendorId(null); }} className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", paymentFilter === tab ? (tab === 'unpaid' ? "bg-rose-500 text-white" : "bg-emerald-500 text-white") : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
             {tab === 'unpaid' ? 'Unpaid' : 'Paid'}
           </button>
         ))}
+        <div className="relative flex-1 min-w-[150px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <input type="text" placeholder="Search vendor..." value={finSearch} onChange={(e) => setFinSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]" />
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -256,15 +261,16 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr><td colSpan={6} className="px-6 py-12 text-center"><LoadingSpinner /></td></tr>
-              ) : summaryData.filter((v) => {
-                const isPaid = isBillFullyPaid(v.totalDistributedValue, v.balance);
-                return paymentFilter === 'paid' ? isPaid : !isPaid;
-              }).length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">{paymentFilter === 'paid' ? 'No fully paid vendors' : 'No outstanding balances'}</td></tr>
-              ) : summaryData.filter((v) => {
-                const isPaid = isBillFullyPaid(v.totalDistributedValue, v.balance);
-                return paymentFilter === 'paid' ? isPaid : !isPaid;
-              }).map((v) => (
+              ) : (() => {
+                const filtered = summaryData.filter((v) => {
+                  const isPaid = v.balance <= 0;
+                  if (paymentFilter === 'paid' ? !isPaid : isPaid) return false;
+                  if (finSearch && !v.vendorName.toLowerCase().includes(finSearch.toLowerCase())) return false;
+                  return true;
+                });
+                return filtered.length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">{finSearch ? 'No matching vendors' : paymentFilter === 'paid' ? 'No fully paid vendors' : 'No outstanding balances'}</td></tr>
+              ) : filtered.map((v) => (
                 <tr key={v.vendorId} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -294,7 +300,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                     )}
                   </td>
                 </tr>
-              ))}
+              )); })()}
             </tbody>
           </table>
         </div>
