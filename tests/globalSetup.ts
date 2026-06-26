@@ -7,3 +7,12 @@ if (!process.env.DATABASE_URL) {
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'test-secret-key-for-automated-tests';
 }
+
+export async function setup() {
+  const { initDatabase } = await import('../server/pg-db');
+  await initDatabase();
+}
+
+export async function teardown() {
+  // Pool will close naturally when process exits
+}
