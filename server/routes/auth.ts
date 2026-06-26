@@ -18,7 +18,7 @@ router.post('/api/auth/signup', async (req, res) => {
     if (existing) return res.status(400).json({ error: 'Email already registered' });
 
     const id = `U${Date.now()}`;
-    const passwordHash = bcrypt.hashSync(password, 10);
+    const passwordHash = bcrypt.hashSync(password, 12);
     await pool.query(`
       INSERT INTO users (id, email, password_hash, name, phone, address, role, company_name, tenant_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -226,7 +226,7 @@ router.post('/api/auth/forgot-password', async (req, res) => {
 
     await logAudit(pool, user.tenant_id, 'PASSWORD_RESET_REQUEST', 'user', user.id, `Password reset requested for ${email}`, user.id, email);
 
-    res.json({ ok: true, message: 'If this email exists, a reset link has been generated', token });
+    res.json({ ok: true, message: 'If this email exists, a reset link has been generated. Contact your admin for the reset token.' });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

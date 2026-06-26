@@ -4,6 +4,17 @@ function esc(text: unknown): string {
   return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function safeColor(c: string | null | undefined): string {
+  if (!c) return '#F27D26';
+  return /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : '#F27D26';
+}
+
+function safeImgSrc(src: unknown): string {
+  if (!src || typeof src !== 'string') return '';
+  if (src.startsWith('data:image/')) return src;
+  return '';
+}
+
 function fmtDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
@@ -61,7 +72,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   const billConfig = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
   const color = (billConfig.primaryColor as string) || '#F27D26';
   const logoHtml = billConfig.logoBase64
-    ? `<img src="${billConfig.logoBase64}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
+    ? `<img src="${safeImgSrc(billConfig.logoBase64)}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
     : `<div class="logo-icon">${(bill.company.name || 'C').substring(0, 1).toUpperCase()}</div>`;
   const tagline = (billConfig.tagline as string) || '';
   const invPrefix = (billConfig.invoicePrefix as string) || '';
@@ -102,7 +113,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
 
   const sigSection = billConfig.signatoryName ? `
     <div style="margin-top:40px;text-align:right;">
-      ${billConfig.signatureBase64 ? `<img src="${billConfig.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}
+      ${billConfig.signatureBase64 ? `<img src="${safeImgSrc(billConfig.signatureBase64)}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}
       <p style="font-weight:600;font-size:13px;">${esc(billConfig.signatoryName)}</p>
       ${billConfig.signatoryDesignation ? `<p style="font-size:11px;color:#6b7280;">${esc(billConfig.signatoryDesignation)}</p>` : ''}
     </div>` : '';
@@ -207,7 +218,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   <div class="footer">
     <p>Thank you for your purchase!</p>
     <p style="margin-top:4px;">This is a computer-generated invoice. No signature required.</p>
-    <p style="margin-top:8px;font-size:9px;color:#c0c0c0;">${footerText}</p>
+    <p style="margin-top:8px;font-size:9px;color:#c0c0c0;">${esc(footerText)}</p>
   </div>
 </body></html>`;
 }
@@ -218,7 +229,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   const billConfig = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
   const color = (billConfig.primaryColor as string) || '#F27D26';
   const logoHtml = billConfig.logoBase64
-    ? `<img src="${billConfig.logoBase64}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
+    ? `<img src="${safeImgSrc(billConfig.logoBase64)}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
     : `<div class="logo-icon">${(bill.company.name || 'C').substring(0, 1).toUpperCase()}</div>`;
   const tagline = (billConfig.tagline as string) || '';
   const chPrefix = (billConfig.challanPrefix as string) || '';
@@ -347,15 +358,15 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   ${tcSection}
   <div class="signatures">
     <div class="sig-box">
-      ${billConfig.signatureBase64 ? `<img src="${billConfig.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : ''}
-      <p>${billConfig.signatoryName || 'Authorized Signatory'}</p>
+      ${billConfig.signatureBase64 ? `<img src="${safeImgSrc(billConfig.signatureBase64)}" style="height:50px;margin-bottom:4px;" />` : ''}
+      <p>${esc(billConfig.signatoryName || 'Authorized Signatory')}</p>
       ${billConfig.signatoryDesignation ? `<p style="font-size:10px;font-weight:400;margin-top:2px;">${esc(billConfig.signatoryDesignation)}</p>` : ''}
     </div>
     <div class="sig-box"><p>Received By</p></div>
   </div>
   <div class="footer">
     <p>This is a computer-generated challan. Products listed above have been dispatched as described.</p>
-    <p style="margin-top:8px;font-size:9px;color:#c0c0c0;">${footerText}</p>
+    <p style="margin-top:8px;font-size:9px;color:#c0c0c0;">${esc(footerText)}</p>
   </div>
 </body></html>`;
 }

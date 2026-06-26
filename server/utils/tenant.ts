@@ -16,7 +16,7 @@ export async function provisionTenant(data: {
   const tenantId = `T${Date.now()}`;
   const slug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const defaultPassword = data.adminPassword || `${data.companyName.replace(/\s+/g, '').toLowerCase().slice(0, 12)}@123`;
-  const passwordHash = await bcrypt.hash(defaultPassword, 10);
+  const passwordHash = await bcrypt.hash(defaultPassword, 12);
   const userId = `U${Date.now()}`;
 
   const client = await pool.connect();

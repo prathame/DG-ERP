@@ -57,7 +57,7 @@ router.post('/api/admin/users', async (req, res) => {
 
     const id = `U${Date.now()}`;
     const permsJson = permissions && Array.isArray(permissions) ? JSON.stringify(permissions) : null;
-    const passwordHash = bcrypt.hashSync(password, 10);
+    const passwordHash = bcrypt.hashSync(password, 12);
 
     await pool.query(`
       INSERT INTO users (id, email, password_hash, name, phone, address, role, company_name, permissions, vendor_id, tenant_id)

@@ -53,6 +53,7 @@ export function SuperAdminBilling() {
     fetchInvoices();
   };
 
+  const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const printInvoice = (inv: Invoice) => {
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice-${inv.invoiceNumber}</title>
 <style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',sans-serif;padding:40px;max-width:700px;margin:auto;}
@@ -65,15 +66,15 @@ td{padding:10px;border-bottom:1px solid #e5e7eb;font-size:13px;}.total{font-size
 <div class="header"><div class="logo"><div class="logo-icon">DG</div><div><strong style="font-size:18px;">DG ERP Management</strong><br/><span style="font-size:11px;color:#888;">Subscription Invoice</span></div></div>
 <div style="text-align:right;font-size:13px;"><strong>Invoice #${inv.invoiceNumber}</strong><br/>Date: ${new Date(inv.createdAt).toLocaleDateString()}<br/>Status: <strong style="color:${inv.status === 'paid' ? '#059669' : '#dc2626'}">${inv.status.toUpperCase()}</strong></div></div>
 <div style="margin-bottom:20px;"><h4 style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px;">Bill To</h4>
-<p style="font-size:15px;font-weight:bold;">${inv.tenantName}</p>
-${inv.planName ? `<p style="font-size:12px;color:#666;">Plan: ${inv.planName}</p>` : ''}
+<p style="font-size:15px;font-weight:bold;">${esc(inv.tenantName)}</p>
+${inv.planName ? `<p style="font-size:12px;color:#666;">Plan: ${esc(inv.planName)}</p>` : ''}
 ${inv.periodStart ? `<p style="font-size:12px;color:#666;">Period: ${new Date(inv.periodStart).toLocaleDateString()} — ${inv.periodEnd ? new Date(inv.periodEnd).toLocaleDateString() : 'Ongoing'}</p>` : ''}</div>
 <table><thead><tr><th>Description</th><th style="text-align:right;">Amount</th></tr></thead><tbody>
-<tr><td>Subscription — ${inv.planName || 'DG ERP'}</td><td style="text-align:right;">₹${Number(inv.amount).toLocaleString()}</td></tr>
+<tr><td>Subscription — ${esc(inv.planName || 'DG ERP')}</td><td style="text-align:right;">₹${Number(inv.amount).toLocaleString()}</td></tr>
 ${Number(inv.gstAmount) > 0 ? `<tr><td>GST (18%)</td><td style="text-align:right;">₹${Number(inv.gstAmount).toLocaleString()}</td></tr>` : ''}
 </tbody></table>
 <div class="total">Total: ₹${Number(inv.total).toLocaleString()}</div>
-${inv.notes ? `<p style="margin-top:16px;font-size:12px;color:#666;">${inv.notes}</p>` : ''}
+${inv.notes ? `<p style="margin-top:16px;font-size:12px;color:#666;">${esc(inv.notes)}</p>` : ''}
 <div class="footer"><p>Thank you for choosing DG ERP Management</p><p style="margin-top:4px;">This is a computer-generated invoice.</p></div>
 </body></html>`;
     const win = window.open('', '_blank', 'width=800,height=600');

@@ -416,17 +416,21 @@ export async function initSchema() {
 }
 
 export async function seedPlatformData() {
-  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'admin@spre.ai';
-  const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD || 'superadmin123';
+  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
+  const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
+  if (!superAdminEmail || !superAdminPassword) {
+    console.log('⚠ SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD env vars required for initial setup');
+    return;
+  }
 
   const existing = await pool.query('SELECT id FROM super_admins WHERE email = $1', [superAdminEmail]);
   if (existing.rows.length === 0) {
-    const hash = await bcrypt.hash(superAdminPassword, 10);
+    const hash = await bcrypt.hash(superAdminPassword, 12);
     await pool.query(
       'INSERT INTO super_admins (id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5)',
       ['SA1', superAdminEmail, hash, 'Platform Owner', 'owner']
     );
-    console.log(`✓ Super admin created: ${superAdminEmail} / ${superAdminPassword}`);
+    console.log(`✓ Super admin created: ${superAdminEmail}`);
   }
 
   const plans = [

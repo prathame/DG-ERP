@@ -41,7 +41,7 @@ router.get('/api/dashboard/stats', async (req, res) => {
     `, [tenantId])).rows as { id: string; name: string; stock: number }[];
 
     const topProducts = (await pool.query(`
-      SELECT p.name, COUNT(ps.id) as sold FROM product_sales ps JOIN products p ON ps.product_id = p.id
+      SELECT p.name, COUNT(ps.id) as sold FROM product_sales ps JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1
       WHERE ps.tenant_id = $1
       GROUP BY ps.product_id, p.name ORDER BY sold DESC LIMIT 5
     `, [tenantId])).rows as { name: string; sold: number }[];
@@ -129,14 +129,14 @@ router.get('/api/dashboard/vendor/:vendorId', async (req, res) => {
     const assigned = (await pool.query(`
       SELECT pd.*, p.name as product_name, p.reward_points_value
       FROM product_distribution pd
-      JOIN products p ON pd.product_id = p.id
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $2
       WHERE pd.vendor_id = $1 AND pd.status = 'Distributed' AND pd.tenant_id = $2
     `, [vendorId, tenantId])).rows as Record<string, unknown>[];
 
     const sales = (await pool.query(`
       SELECT ps.*, p.name as product_name
       FROM product_sales ps
-      JOIN products p ON ps.product_id = p.id
+      JOIN products p ON ps.product_id = p.id AND p.tenant_id = $2
       WHERE ps.vendor_id = $1 AND ps.tenant_id = $2
       ORDER BY ps.purchase_date DESC
     `, [vendorId, tenantId])).rows as Record<string, unknown>[];

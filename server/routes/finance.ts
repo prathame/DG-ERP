@@ -90,7 +90,7 @@ router.get('/api/vendor-finance/:vendorId', async (req, res) => {
       SELECT pd.distribution_date, p.name as product_name, p.price as original_price, pd.discount_percent,
              ${DISTRIBUTION_BILL_UNIT_SQL} as unit_price, COUNT(*) as qty,
              SUM(${DISTRIBUTION_BILL_UNIT_SQL}) as line_total
-      FROM product_distribution pd JOIN products p ON pd.product_id = p.id
+      FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $2
       WHERE pd.vendor_id = $1 AND pd.tenant_id = $2
       GROUP BY pd.distribution_date, pd.product_id, pd.discount_percent, p.name, p.price, pd.billed_price, pd.net_price
       ORDER BY pd.distribution_date DESC

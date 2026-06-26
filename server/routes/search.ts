@@ -29,7 +29,7 @@ router.get('/api/search', async (req, res) => {
 
     const barcodeResults = (await pool.query(`
       SELECT pi.barcode, p.name as product_name, p.id as product_id, pi.status
-      FROM product_inventory pi JOIN products p ON pi.product_id = p.id
+      FROM product_inventory pi JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
       WHERE pi.barcode ILIKE $1 AND pi.tenant_id = $2 LIMIT $3
     `, [like, tenantId, limit])).rows as { barcode: string; product_name: string; product_id: string; status: string }[];
 

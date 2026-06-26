@@ -53,16 +53,27 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '2mb' }));
 
-// Enforce tenant isolation: if JWT is present, override X-Tenant-ID header with JWT's tenantId
-app.use('/api/', (req, _res, next) => {
+// Public routes that don't need auth
+const PUBLIC_PATHS = [
+  '/api/auth/login', '/api/auth/signup', '/api/auth/forgot-password', '/api/auth/reset-password',
+  '/api/super-admin/login', '/api/tenant/by-slug/', '/api/health',
+  '/api/super-admin/', '/manifest.json',
+];
+
+// Global auth: protect all /api/ routes except public ones
+app.use('/api/', (req, res, next) => {
+  if (PUBLIC_PATHS.some(p => req.path.startsWith(p.replace('/api', '')))) return next();
   const token = req.headers.authorization?.replace('Bearer ', '');
-  if (token && process.env.JWT_SECRET) {
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }) as { tenantId?: string };
-      if (decoded.tenantId) {
-        req.headers['x-tenant-id'] = decoded.tenantId;
-      }
-    } catch {}
+  if (!token) return res.status(401).json({ error: 'Authentication required' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as { tenantId?: string; userId?: string; role?: string };
+    if (decoded.tenantId) {
+      req.headers['x-tenant-id'] = decoded.tenantId;
+    }
+    (req as unknown as Record<string, unknown>).user = decoded;
+    (req as unknown as Record<string, unknown>).tenantId = decoded.tenantId;
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
   next();
 });
@@ -71,6 +82,9 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { e
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/super-admin/login', loginLimiter);
 app.use('/api/settings/change-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: 'Too many password change attempts' } }));
+app.use('/api/auth/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 3, message: { error: 'Too many reset requests, try again in 15 minutes' } }));
+app.use('/api/auth/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: 'Too many reset attempts' } }));
+app.use('/api/auth/signup', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: 'Too many signup attempts' } }));
 
 // Dynamic PWA manifest — serves tenant-specific start_url and branding
 app.get('/manifest.json', async (req, res) => {
