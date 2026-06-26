@@ -476,17 +476,20 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     key={batch.batchId}
                     type="button"
                     onClick={() => { setSelectedBatchId(batch.batchId); setSelectedBatchProductId(null); }}
-                    className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors"
+                    className={cn("w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors", batch.availableWithVendor === 0 && batch.sold === batch.total && "opacity-60")}
                   >
-                    <div>
-                      <p className="font-medium">Distribution — {formatDate(batch.distributionDate)}</p>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium">Distribution — {formatDate(batch.distributionDate)}</p>
+                        {batch.availableWithVendor === 0 && batch.sold === batch.total && <PaidBadge size="sm" />}
+                      </div>
                       <p className="text-xs text-gray-500 mt-0.5">{batch.productNames.join(' • ')} • {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}</p>
                     </div>
                     <span className="text-sm text-gray-600 shrink-0">
                       <span className="text-emerald-600">{batch.sold} sold</span>
                       {batch.replaced > 0 && <span className="text-amber-600"> • {batch.replaced} replaced</span>}
                       {batch.damaged > 0 && <span className="text-rose-600"> • {batch.damaged} damaged</span>}
-                      <span className="text-blue-600"> • {batch.availableWithVendor} with vendor</span>
+                      {batch.availableWithVendor > 0 && <span className="text-blue-600"> • {batch.availableWithVendor} with vendor</span>}
                     </span>
                   </button>
                 ))}
