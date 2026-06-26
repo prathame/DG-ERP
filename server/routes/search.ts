@@ -33,11 +33,22 @@ router.get('/api/search', async (req, res) => {
       WHERE pi.barcode ILIKE $1 AND pi.tenant_id = $2 LIMIT $3
     `, [like, tenantId, limit])).rows as { barcode: string; product_name: string; product_id: string; status: string }[];
 
+    const challans = (await pool.query(`
+      SELECT COALESCE(pd.batch_id, pd.id) as batch_id, v.name as vendor_name,
+        MIN(pd.distribution_date) as distribution_date, COUNT(*) as total_units
+      FROM product_distribution pd
+      JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+      WHERE pd.tenant_id = $1 AND COALESCE(pd.batch_id, pd.id) ILIKE $2
+      GROUP BY COALESCE(pd.batch_id, pd.id), v.name
+      ORDER BY MIN(pd.distribution_date) DESC LIMIT $3
+    `, [tenantId, like, limit])).rows as { batch_id: string; vendor_name: string; distribution_date: string; total_units: number }[];
+
     res.json({
       products: products.map((p) => ({ id: p.id, name: p.name, price: p.price, stock: p.stock, type: 'product' as const })),
       customers: customers.map((c) => ({ id: c.id, name: c.name, phone: c.phone ?? '', email: c.email ?? '', type: 'customer' as const })),
       vendors: vendors.map((v) => ({ id: v.id, name: v.name, contact: v.contact_person ?? '', phone: v.phone ?? '', type: 'vendor' as const })),
       barcodes: barcodeResults.map((b) => ({ barcode: b.barcode, productName: b.product_name, productId: b.product_id, status: b.status, type: 'barcode' as const })),
+      challans: challans.map((c) => ({ batchId: c.batch_id, vendorName: c.vendor_name, date: c.distribution_date, units: Number(c.total_units), type: 'challan' as const })),
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });

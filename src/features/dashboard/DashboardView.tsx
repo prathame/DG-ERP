@@ -79,11 +79,15 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
   if (selectedMaster === 'mapping') return <VendorCustomerMappingView onBack={() => setSelectedMaster(null)} />;
   if (selectedMaster === 'rewardRules') return <RewardRulesView onBack={() => setSelectedMaster(null)} />;
 
+  const userConfig = user as Record<string, unknown>;
+  const vendorPortalEnabled = userConfig?.vendorPortalEnabled !== false;
+  const rewardsEnabled = userConfig?.rewardsEnabled !== false;
+
   const allMasters = [
     { id: 'customer' as const, name: 'Customers', count: masterCounts.customer, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
     { id: 'vendor' as const, name: 'Vendors', count: masterCounts.vendor, icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { id: 'rewardRules' as const, name: 'Reward Rules', count: null, icon: Gift, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { id: 'mapping' as const, name: 'Vendor-Customer Map', count: null, icon: Link2, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+    ...(rewardsEnabled ? [{ id: 'rewardRules' as const, name: 'Reward Rules', count: null as number | null, icon: Gift, color: 'text-amber-600', bg: 'bg-amber-50' }] : []),
+    ...(vendorPortalEnabled ? [{ id: 'mapping' as const, name: 'Vendor-Customer Map', count: null as number | null, icon: Link2, color: 'text-cyan-600', bg: 'bg-cyan-50' }] : []),
     { id: 'item' as const, name: 'Products', count: masterCounts.item, icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },
     { id: 'bank' as const, name: 'Banks', count: masterCounts.bank, icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   ];
