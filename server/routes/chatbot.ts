@@ -150,29 +150,14 @@ async function query(input: string, tenantId: string): Promise<ChatResponse> {
 
   // ============ FINANCE / REVENUE ============
   if (/total\s*revenue|all\s*time\s*revenue|overall\s*revenue/.test(q)) {
-    const revenue = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM transactions WHERE type = 'Sales' AND tenant_id = $1", [tenantId])).rows[0] as { t: number }).t;
     const saleRevenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE tenant_id = $1", [tenantId])).rows[0] as { t: number }).t;
-    return { text: `*Total Revenue*\n\n- Transaction revenue: ${revenue.toLocaleString()}\n- Product sales: ${saleRevenue.toLocaleString()}` };
+    return { text: `*Total Revenue*\n\n- Product sales: ${saleRevenue.toLocaleString()}` };
   }
 
   if (/today\s*revenue|revenue\s*today/.test(q)) {
     const today = new Date().toISOString().slice(0, 10);
     const revenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date = $1 AND tenant_id = $2", [today, tenantId])).rows[0] as { t: number }).t;
     return { text: `*Today's Revenue*: ${revenue.toLocaleString()}` };
-  }
-
-  if (/expense|total\s*expense/.test(q)) {
-    const expenses = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM transactions WHERE type IN ('Purchase', 'Expense') AND tenant_id = $1", [tenantId])).rows[0] as { t: number }).t;
-    const purchases = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM transactions WHERE type = 'Purchase' AND tenant_id = $1", [tenantId])).rows[0] as { t: number }).t;
-    const other = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM transactions WHERE type = 'Expense' AND tenant_id = $1", [tenantId])).rows[0] as { t: number }).t;
-    return { text: `*Expenses*\n\n- Purchases: ${purchases.toLocaleString()}\n- Other expenses: ${other.toLocaleString()}\n- Total: ${expenses.toLocaleString()}` };
-  }
-
-  if (/profit|net\s*profit|margin/.test(q)) {
-    const revenue = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM transactions WHERE type = 'Sales' AND tenant_id = $1", [tenantId])).rows[0] as { t: number }).t;
-    const expenses = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM transactions WHERE type IN ('Purchase', 'Expense') AND tenant_id = $1", [tenantId])).rows[0] as { t: number }).t;
-    const profit = revenue - expenses;
-    return { text: `*Profit Summary*\n\n- Revenue: ${revenue.toLocaleString()}\n- Expenses: ${expenses.toLocaleString()}\n- *Net Profit: ${profit.toLocaleString()}*` };
   }
 
   // ============ WARRANTY ============
@@ -250,9 +235,7 @@ async function query(input: string, tenantId: string): Promise<ChatResponse> {
     const revenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { t: number }).t;
     const distributedCount = ((await pool.query("SELECT COUNT(*) as c FROM product_distribution WHERE distribution_date LIKE $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { c: number }).c;
     const payments = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE payment_date LIKE $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { t: number }).t;
-    const txRevenue = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM transactions WHERE type = 'Sales' AND date LIKE $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { t: number }).t;
-    const txExpense = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM transactions WHERE type IN ('Purchase','Expense') AND date LIKE $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { t: number }).t;
-    return { text: `*Monthly Report* (${month})\n\nSales: ${sales} units\nSales Revenue: ${revenue.toLocaleString()}\nDistributed: ${distributedCount} units\nPayments Received: ${payments.toLocaleString()}\nTransaction Revenue: ${txRevenue.toLocaleString()}\nExpenses: ${txExpense.toLocaleString()}\nNet: ${(txRevenue - txExpense).toLocaleString()}` };
+    return { text: `*Monthly Report* (${month})\n\nSales: ${sales} units\nSales Revenue: ${revenue.toLocaleString()}\nDistributed: ${distributedCount} units\nPayments Received: ${payments.toLocaleString()}` };
   }
 
   if (/vendor\s*report|vendor\s*summary|vendor\s*overview/.test(q)) {

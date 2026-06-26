@@ -15,7 +15,6 @@ const tables = [
   'product_sales',
   'product_distribution',
   'product_inventory',
-  'transactions',
   'reward_rules',
   'customers',
   'products',

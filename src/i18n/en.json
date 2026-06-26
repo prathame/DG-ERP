@@ -3,9 +3,7 @@
     "dashboard": "Dashboard",
     "sales": "Sales Entry",
     "distribution": "Distribution",
-    "masters": "Masters",
     "inventory": "Inventory",
-    "accounts": "Accounts",
     "finance": "Finance",
     "warranty": "Warranty",
     "replacements": "Replacements",
@@ -173,16 +171,6 @@
     "accountNumber": "Account Number",
     "ifscCode": "IFSC Code",
     "bankName": "Bank Name"
-  },
-  "accounts": {
-    "title": "Accounts",
-    "transactions": "Transactions",
-    "income": "Income",
-    "expense": "Expense",
-    "addTransaction": "Add Transaction",
-    "type": "Type",
-    "category": "Category",
-    "reference": "Reference"
   },
   "settings": {
     "title": "Settings",

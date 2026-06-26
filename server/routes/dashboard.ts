@@ -8,7 +8,7 @@ router.get('/api/dashboard/stats', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const revenue = (await pool.query("SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'Sales' AND tenant_id = $1", [tenantId])).rows[0] as { total: number };
+    const revenue = (await pool.query("SELECT COALESCE(SUM(sale_price), 0) as total FROM product_sales WHERE tenant_id = $1", [tenantId])).rows[0] as { total: number };
     const warranties = (await pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Active' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
     const pendingClaims = (await pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Under Claim' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
     const rewardsEarned = (await pool.query("SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned' AND tenant_id = $1", [tenantId])).rows[0] as { total: number };
@@ -77,39 +77,6 @@ router.get('/api/dashboard/stats', async (req, res) => {
   }
 });
 
-router.get('/api/dashboard/chart', async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-
-    const rows = (await pool.query(`
-      SELECT to_char(date, 'MM') as month_num, to_char(date, 'YYYY') as year, type, SUM(amount) as total
-      FROM transactions
-      WHERE date >= CURRENT_DATE - INTERVAL '6 months' AND tenant_id = $1
-      GROUP BY year, month_num, type
-    `, [tenantId])).rows as { month_num: string; year: string; type: string; total: number }[];
-
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const byMonth: Record<string, { sales: number; claims: number }> = {};
-    for (const r of rows) {
-      const key = `${r.year}-${r.month_num}`;
-      if (!byMonth[key]) byMonth[key] = { sales: 0, claims: 0 };
-      if (r.type === 'Sales') byMonth[key].sales += r.total;
-      else if (r.type === 'Purchase') byMonth[key].claims += r.total;
-    }
-    const sorted = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0])).slice(-6);
-    let chartData = sorted.map(([k, v]) => {
-      const [, m] = k.split('-');
-      return { name: monthNames[parseInt(m, 10) - 1], sales: Math.round(v.sales), claims: Math.round(v.claims) };
-    });
-    if (chartData.length === 0) {
-      chartData = [{ name: 'N/A', sales: 0, claims: 0 }];
-    }
-    res.json(chartData);
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
 
 router.get('/api/dashboard/rewards-summary', async (req, res) => {
   try {

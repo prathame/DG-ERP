@@ -244,18 +244,6 @@ export async function initSchema() {
         PRIMARY KEY (id, tenant_id)
       );
 
-      CREATE TABLE IF NOT EXISTS transactions (
-        id TEXT NOT NULL,
-        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        date DATE NOT NULL,
-        type TEXT NOT NULL,
-        amount NUMERIC(12,2) NOT NULL,
-        description TEXT NOT NULL,
-        status TEXT DEFAULT 'Completed',
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        PRIMARY KEY (id, tenant_id)
-      );
-
       CREATE TABLE IF NOT EXISTS rewards (
         id TEXT NOT NULL,
         tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

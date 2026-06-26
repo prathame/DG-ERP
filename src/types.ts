@@ -1,4 +1,4 @@
-export type Tab = 'dashboard' | 'warranty' | 'rewards' | 'replacements' | 'inventory' | 'accounts' | 'masters' | 'sales' | 'distribution' | 'finance' | 'verification' | 'settings';
+export type Tab = 'dashboard' | 'warranty' | 'rewards' | 'replacements' | 'inventory' | 'sales' | 'distribution' | 'finance' | 'verification' | 'settings';
 
 export const USER_STORAGE_KEY = 'dg_erp_user';
 
@@ -44,15 +44,6 @@ export interface RewardPoint {
   type: 'Earned' | 'Redeemed';
   description: string;
   date: string;
-}
-
-export interface Transaction {
-  id: string;
-  date: string;
-  type: 'Sales' | 'Purchase' | 'Expense';
-  amount: number;
-  description: string;
-  status: 'Completed' | 'Pending';
 }
 
 export interface Customer {

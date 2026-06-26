@@ -3,9 +3,7 @@
     "dashboard": "ડેશબોર્ડ",
     "sales": "વેચાણ એન્ટ્રી",
     "distribution": "વિતરણ",
-    "masters": "માસ્ટર્સ",
     "inventory": "ઇન્વેન્ટરી",
-    "accounts": "હિસાબ",
     "finance": "નાણાં",
     "warranty": "વોરંટી",
     "replacements": "બદલી",
@@ -173,16 +171,6 @@
     "accountNumber": "ખાતા નંબર",
     "ifscCode": "IFSC કોડ",
     "bankName": "બેંકનું નામ"
-  },
-  "accounts": {
-    "title": "હિસાબ",
-    "transactions": "વ્યવહારો",
-    "income": "આવક",
-    "expense": "ખર્ચ",
-    "addTransaction": "વ્યવહાર ઉમેરો",
-    "type": "પ્રકાર",
-    "category": "શ્રેણી",
-    "reference": "સંદર્ભ"
   },
   "settings": {
     "title": "સેટિંગ્સ",

@@ -197,21 +197,6 @@ for (const s of sales) {
 }
 console.log(`✓ ${saleCount} sales\n`);
 
-// ============ TRANSACTIONS ============
-const transactions = [
-  { id: 'JT01', date: daysAgo(25), type: 'Sales', amount: 85000, desc: 'Wholesale to Laxmi Jewellers', status: 'Completed' },
-  { id: 'JT02', date: daysAgo(22), type: 'Sales', amount: 120000, desc: 'Monthly dispatch to Ganesh Silver House', status: 'Completed' },
-  { id: 'JT03', date: daysAgo(20), type: 'Purchase', amount: 55000, desc: 'Raw silver purchase - 1kg', status: 'Completed' },
-  { id: 'JT04', date: daysAgo(15), type: 'Purchase', amount: 12000, desc: 'CZ stones and gems', status: 'Completed' },
-  { id: 'JT05', date: daysAgo(12), type: 'Expense', amount: 8000, desc: 'Karigari (artisan labor)', status: 'Completed' },
-  { id: 'JT06', date: daysAgo(10), type: 'Sales', amount: 45000, desc: 'Direct sale to Rajputana Jewels', status: 'Completed' },
-  { id: 'JT07', date: daysAgo(8), type: 'Expense', amount: 5000, desc: 'Hallmarking charges', status: 'Completed' },
-  { id: 'JT08', date: daysAgo(5), type: 'Sales', amount: 32000, desc: 'Pooja thali orders - Devi Silver', status: 'Pending' },
-];
-const insertTx = db.prepare('INSERT OR IGNORE INTO transactions (id, date, type, amount, description, status) VALUES (?, ?, ?, ?, ?, ?)');
-for (const t of transactions) insertTx.run(t.id, t.date, t.type, t.amount, t.desc, t.status);
-console.log(`✓ ${transactions.length} transactions\n`);
-
 // ============ BANKS ============
 const banks = [
   { id: 'JB01', name: 'Business Current Account', accountNumber: '50200098765432', bankName: 'HDFC Bank', branch: 'Zaveri Bazar, Mumbai', ifscCode: 'HDFC0000123' },

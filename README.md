@@ -4,7 +4,7 @@ Industry-agnostic ERP for Inventory, Sales, Distribution, Warranty & Rewards Man
 
 ## Tech Stack
 
-- **Frontend**: React 19 + TypeScript + Tailwind CSS v4 + Framer Motion + Recharts
+- **Frontend**: React 19 + TypeScript + Tailwind CSS v4 + Framer Motion
 - **Backend**: Express.js + TypeScript + PostgreSQL (pg)
 - **Auth**: JWT (jsonwebtoken, HS256) + bcrypt (12 rounds)
 - **Security**: Helmet.js, rate limiting, CORS whitelist, XSS escaping
@@ -128,7 +128,6 @@ npm run dev
 │   │   ├── distribution.ts      # Distribution + challan + batch operations
 │   │   ├── warranties.ts        # Warranty lifecycle
 │   │   ├── replacements.ts      # Replacement tracking
-│   │   ├── transactions.ts      # Financial ledger
 │   │   ├── rewards.ts           # Points + rules + redemption
 │   │   ├── customers.ts         # Customer CRUD
 │   │   ├── vendors.ts           # Vendor CRUD + auto-login creation
@@ -156,16 +155,15 @@ npm run dev
 │   │   └── layout/              # LoginScreen, SearchBar, NotificationBell, ChatWidget
 │   ├── features/
 │   │   ├── super-admin/         # Platform owner UI (7 components)
-│   │   ├── dashboard/           # Tenant KPIs, charts
+│   │   ├── dashboard/           # Tenant KPIs, stats
 │   │   ├── sales/               # Sale entry, billing
 │   │   ├── distribution/        # Vendor distribution, split billing
 │   │   ├── inventory/           # Products, barcodes, stock
 │   │   ├── warranty/            # Warranty management
 │   │   ├── replacements/        # Product replacements
 │   │   ├── rewards/             # Points, redemption
-│   │   ├── accounts/            # Financial ledger
 │   │   ├── finance/             # Vendor payments, reminders
-│   │   ├── masters/             # Customers, vendors, banks, rules
+│   │   ├── masters/             # Customers, vendors, banks, rules (accessed via Dashboard)
 │   │   └── settings/            # Profile, password, toggles, bill customization, users
 │   ├── i18n/
 │   │   ├── index.tsx              # LanguageProvider + useTranslation hook
@@ -190,7 +188,7 @@ npm run dev
 - **Dashboard**: Total tenants, users, products, sales, revenue across all tenants
 - **Tenant Management**: Create, suspend, activate, delete tenants
 - **Plan Management**: 4 tiers with configurable limits and feature flags
-- **Analytics**: Revenue per tenant, growth charts, most active tenants
+- **Analytics**: Revenue per tenant, most active tenants
 - **Impersonation**: Log in as any tenant admin for support
 - **Billing**: Generate subscription invoices for tenants with amount + GST, print professional PDF, mark paid/unpaid, filter by status, auto-generated invoice numbers
 - **Subscription Tracking**: Auto-set expiry when creating invoice, expiry banner in tenant UI (amber 15 days, red 7 days), login blocked after expiry
@@ -273,7 +271,6 @@ Each tenant sees their own company name in the sidebar, browser tab, bills, What
 - Vendor finance tracking (billed, paid, balance)
 - Payment recording (Cash, UPI, Bank Transfer, Cheque)
 - WhatsApp payment reminders with configurable intervals
-- Financial ledger with date filters + pagination
 
 ### Communication
 - Print / Download PDF / WhatsApp / Email for all bills
@@ -359,11 +356,10 @@ Server middleware validates token + resolves tenant
 - **JWT tenant isolation** — Middleware extracts `tenantId` from JWT and overrides `X-Tenant-ID` header to prevent cross-tenant access
 
 ### Frontend
-- **Code splitting** — Vite `manualChunks` splits the 1.5MB bundle into 4 lazy-loaded chunks:
-  - `index.js` (723KB) — core app, loads immediately
-  - `charts.js` (357KB) — Recharts, loads only on Dashboard
-  - `scanner.js` (403KB) — html5-qrcode + JsBarcode, loads only when scanning/printing
-  - `motion.js` (94KB) — Framer Motion animations
+- **Code splitting** — Vite `manualChunks` splits the bundle into 3 lazy-loaded chunks:
+  - `index.js` — core app, loads immediately
+  - `scanner.js` — html5-qrcode + JsBarcode, loads only when scanning/printing
+  - `motion.js` — Framer Motion animations
 - **Debounced search** — 250ms debounce on all search inputs
 - **No product images** — Removed placeholder images for faster mobile loading
 
@@ -405,7 +401,7 @@ POST   /api/auth/reset-password         ← Reset with token
 PUT    /api/admin/reset-user-password   ← Admin resets user password
 GET/PUT /api/settings/bill              ← Bill customization
 GET    /api/products, /api/sales, /api/distribution, /api/warranties
-       /api/customers, /api/vendors, /api/banks, /api/transactions
+       /api/customers, /api/vendors, /api/banks
        /api/rewards, /api/notifications, /api/search, /api/chatbot
        ... (full CRUD on all resources)
 ```

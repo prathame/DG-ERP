@@ -399,7 +399,7 @@ export default router;
 | `banks.ts` | CRUD | Simple master data |
 | `finance.ts` | `/vendor-finance/summary`, payments, reminders | **Critical**: static routes before `:vendorId` param |
 | `admin.ts` | User management | Admin-only, role/permission CRUD |
-| `dashboard.ts` | `/stats`, `/chart`, `/rewards-summary` | KPIs + analytics |
+| `dashboard.ts` | `/stats`, `/rewards-summary` | KPIs + stats |
 | `search.ts` | `/search?q=` | Searches products, customers, vendors, barcodes |
 | `notifications.ts` | `/notifications` | Low stock, expiring warranties, pending payments |
 | `chatbot.ts` | `/chatbot` | 30+ natural language queries |
@@ -1007,11 +1007,10 @@ Run through all critical manual test cases before any production deployment:
 - **Helmet**: Security headers with minimal overhead
 
 ### Frontend
-- **Code splitting**: Main bundle split from 1.5MB into 4 chunks:
-  - `index.js` (723KB) — app UI, loads first
-  - `charts.js` (357KB) — Recharts, loads only on Dashboard
-  - `scanner.js` (403KB) — html5-qrcode + JsBarcode, loads only when scanning/printing
-  - `motion.js` (94KB) — Framer Motion, loads on animations
+- **Code splitting**: Main bundle split into 3 chunks:
+  - `index.js` — app UI, loads first
+  - `scanner.js` — html5-qrcode + JsBarcode, loads only when scanning/printing
+  - `motion.js` — Framer Motion, loads on animations
 - **Debounced search**: 250ms debounce on all search inputs to reduce API calls
 - **No product images**: Removed placeholder images for faster mobile load
 

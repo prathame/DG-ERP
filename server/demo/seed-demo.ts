@@ -212,26 +212,6 @@ for (const s of sales) {
 }
 console.log(`✓ ${saleCount} sales recorded\n`);
 
-// ============ TRANSACTIONS ============
-const transactions = [
-  { id: 'TD01', date: daysAgo(25), type: 'Sales', amount: 125000, desc: 'Bulk sale to Rajesh Electricals', status: 'Completed' },
-  { id: 'TD02', date: daysAgo(22), type: 'Sales', amount: 180000, desc: 'Monthly dispatch to Sharma Pump House', status: 'Completed' },
-  { id: 'TD03', date: daysAgo(20), type: 'Purchase', amount: 45000, desc: 'Raw material - Copper winding wire', status: 'Completed' },
-  { id: 'TD04', date: daysAgo(18), type: 'Purchase', amount: 28000, desc: 'Stainless steel impellers', status: 'Completed' },
-  { id: 'TD05', date: daysAgo(15), type: 'Expense', amount: 12000, desc: 'Electricity bill - Factory', status: 'Completed' },
-  { id: 'TD06', date: daysAgo(12), type: 'Sales', amount: 95000, desc: 'Direct factory sale - Patel Motors', status: 'Completed' },
-  { id: 'TD07', date: daysAgo(10), type: 'Expense', amount: 8500, desc: 'Transport & logistics', status: 'Completed' },
-  { id: 'TD08', date: daysAgo(8), type: 'Sales', amount: 48000, desc: 'Solar controller sale - Mehta Industrial', status: 'Completed' },
-  { id: 'TD09', date: daysAgo(5), type: 'Purchase', amount: 35000, desc: 'Motor assemblies', status: 'Pending' },
-  { id: 'TD10', date: daysAgo(2), type: 'Sales', amount: 72000, desc: 'Weekly dispatch to Nair Distributors', status: 'Completed' },
-];
-
-const insertTx = db.prepare('INSERT OR IGNORE INTO transactions (id, date, type, amount, description, status) VALUES (?, ?, ?, ?, ?, ?)');
-for (const t of transactions) {
-  insertTx.run(t.id, t.date, t.type, t.amount, t.desc, t.status);
-}
-console.log(`✓ ${transactions.length} transactions created\n`);
-
 // ============ BANKS ============
 const banks = [
   { id: 'BK01', name: 'Main Current Account', accountNumber: '50200012345678', bankName: 'HDFC Bank', branch: 'Pune Main Branch', ifscCode: 'HDFC0001234' },

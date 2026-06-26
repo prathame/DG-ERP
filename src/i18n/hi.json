@@ -3,9 +3,7 @@
     "dashboard": "डैशबोर्ड",
     "sales": "बिक्री एंट्री",
     "distribution": "वितरण",
-    "masters": "मास्टर्स",
     "inventory": "इन्वेंटरी",
-    "accounts": "खाते",
     "finance": "वित्त",
     "warranty": "वारंटी",
     "replacements": "प्रतिस्थापन",
@@ -173,16 +171,6 @@
     "accountNumber": "खाता संख्या",
     "ifscCode": "IFSC कोड",
     "bankName": "बैंक का नाम"
-  },
-  "accounts": {
-    "title": "खाते",
-    "transactions": "लेनदेन",
-    "income": "आय",
-    "expense": "व्यय",
-    "addTransaction": "लेनदेन जोड़ें",
-    "type": "प्रकार",
-    "category": "श्रेणी",
-    "reference": "संदर्भ"
   },
   "settings": {
     "title": "सेटिंग्स",

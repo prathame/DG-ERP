@@ -93,7 +93,7 @@ export function GlobalSearchBar({ setActiveTab }: { setActiveTab: (tab: Tab) => 
               <div>
                 <p className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100">Customers</p>
                 {results.customers.map((c) => (
-                  <button key={c.id} type="button" onClick={() => { setQuery(''); setOpen(false); setActiveTab('masters'); }} className="w-full px-4 py-2.5 text-left hover:bg-orange-50 flex items-center gap-3 transition-colors">
+                  <button key={c.id} type="button" onClick={() => { setQuery(''); setOpen(false); setActiveTab('dashboard'); }} className="w-full px-4 py-2.5 text-left hover:bg-orange-50 flex items-center gap-3 transition-colors">
                     <Users size={16} className="text-purple-500 shrink-0" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{c.name}</p>
@@ -107,7 +107,7 @@ export function GlobalSearchBar({ setActiveTab }: { setActiveTab: (tab: Tab) => 
               <div>
                 <p className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100">Vendors</p>
                 {results.vendors.map((v) => (
-                  <button key={v.id} type="button" onClick={() => { setQuery(''); setOpen(false); setActiveTab('masters'); }} className="w-full px-4 py-2.5 text-left hover:bg-orange-50 flex items-center gap-3 transition-colors">
+                  <button key={v.id} type="button" onClick={() => { setQuery(''); setOpen(false); setActiveTab('dashboard'); }} className="w-full px-4 py-2.5 text-left hover:bg-orange-50 flex items-center gap-3 transition-colors">
                     <ShoppingCart size={16} className="text-emerald-500 shrink-0" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{v.name}</p>
