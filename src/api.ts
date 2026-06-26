@@ -30,6 +30,8 @@ export interface DistributionBatch {
   billValue: number;
   discountPercent: number;
   gstApplied: boolean;
+  amountPaid: number;
+  balanceRemaining: number;
 }
 
 export interface DistributionBatchItem {
@@ -382,7 +384,7 @@ export const api = {
         distributions: { date: string; productName: string; unitPrice: number; quantity: number; total: number }[];
         reminder: { enabled: boolean; days: number; lastSent: string | null };
       }>(`/vendor-finance/${vendorId}`),
-    recordPayment: (vendorId: string, data: { amount: number; paymentDate?: string; paymentMethod?: string; referenceNumber?: string; notes?: string }) =>
+    recordPayment: (vendorId: string, data: { amount: number; paymentDate?: string; paymentMethod?: string; referenceNumber?: string; notes?: string; batchId?: string }) =>
       fetchApi<{ id: string; amount: number; paymentDate: string }>(`/vendor-finance/${vendorId}/payments`, { method: 'POST', body: JSON.stringify(data) }),
     updateReminder: (vendorId: string, data: { enabled: boolean; reminderDays: number }) =>
       fetchApi<{ enabled: boolean; days: number; lastSent: string | null }>(`/vendor-finance/${vendorId}/reminder`, { method: 'PUT', body: JSON.stringify(data) }),

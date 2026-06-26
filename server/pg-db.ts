@@ -386,6 +386,10 @@ export async function initSchema() {
       )
     `);
 
+    // Batch-level payment tracking
+    await client.query('ALTER TABLE vendor_payments ADD COLUMN IF NOT EXISTS batch_id TEXT');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vp_batch ON vendor_payments(tenant_id, batch_id)');
+
     // Performance indexes
     await client.query('CREATE INDEX IF NOT EXISTS idx_ps_date ON product_sales(tenant_id, purchase_date)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pd_date ON product_distribution(tenant_id, distribution_date)');

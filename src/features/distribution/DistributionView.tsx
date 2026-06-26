@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search } from 'lucide-react';
+import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search, IndianRupee } from 'lucide-react';
 import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate } from '../../lib/utils';
 import { api, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product, Vendor } from '../../types';
@@ -39,6 +39,9 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [distSearch, setDistSearch] = useState('');
   const [deleteBatchConfirm, setDeleteBatchConfirm] = useState<string | null>(null);
   const [financeMap, setFinanceMap] = useState<Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }>>({});
+  const [batchPaymentModal, setBatchPaymentModal] = useState<{ batchId: string; vendorId: string; billValue: number; balanceRemaining: number } | null>(null);
+  const [batchPaymentForm, setBatchPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
+  const [batchPaymentSubmitting, setBatchPaymentSubmitting] = useState(false);
 
   const challanOptions = (forVendorId: string) => {
     const f = financeMap[forVendorId];
@@ -320,7 +323,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     <h3 className="font-bold text-lg">
                       {selectedProduct ? selectedProduct.productName : selectedBatch.vendorName}
                     </h3>
-                    {!selectedBatchProductId && financeMap[selectedBatch.vendorId] && isBillFullyPaid(financeMap[selectedBatch.vendorId].totalDistributedValue, financeMap[selectedBatch.vendorId].balance) && (
+                    {!selectedBatchProductId && isBillFullyPaid(selectedBatch.billValue, selectedBatch.balanceRemaining) && (
                       <PaidBadge />
                     )}
                     {!selectedBatchProductId && (
@@ -357,6 +360,19 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     >
                       Split Bill
                     </button>
+                    {!selectedBatchProductId && selectedBatch.balanceRemaining > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBatchPaymentModal({ batchId: selectedBatch.batchId, vendorId: selectedBatch.vendorId, billValue: selectedBatch.billValue, balanceRemaining: selectedBatch.balanceRemaining });
+                          setBatchPaymentForm({ amount: String(selectedBatch.balanceRemaining), paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+                        title="Record payment for this batch"
+                      >
+                        <IndianRupee size={16} /> Record Payment
+                      </button>
+                    )}
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
@@ -405,6 +421,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                           {' • '}<span className="text-blue-600 font-medium">{selectedBatch.availableWithVendor}</span> with vendor
                         </span>
                         <span className="text-sm font-bold text-[#F27D26]">Bill: ₹{selectedBatch.billValue.toLocaleString()}</span>
+                        {selectedBatch.amountPaid > 0 && <span className="text-sm text-emerald-600 font-medium ml-2">Paid: ₹{selectedBatch.amountPaid.toLocaleString()}</span>}
+                        {selectedBatch.balanceRemaining > 0 && <span className="text-sm text-rose-500 font-medium ml-2">Due: ₹{selectedBatch.balanceRemaining.toLocaleString()}</span>}
                       </>
                     )}
                   </div>
@@ -476,14 +494,18 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     key={batch.batchId}
                     type="button"
                     onClick={() => { setSelectedBatchId(batch.batchId); setSelectedBatchProductId(null); }}
-                    className={cn("w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors", batch.availableWithVendor === 0 && batch.sold === batch.total && "opacity-60")}
+                    className={cn("w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors", isBillFullyPaid(batch.billValue, batch.balanceRemaining) && "opacity-60")}
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium">Distribution — {formatDate(batch.distributionDate)}</p>
-                        {batch.availableWithVendor === 0 && batch.sold === batch.total && <PaidBadge size="sm" />}
+                        {isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <PaidBadge size="sm" />}
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">{batch.productNames.join(' • ')} • {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {batch.productNames.join(' • ')} • {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}
+                        {batch.amountPaid > 0 && !isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <span className="text-emerald-600"> • ₹{batch.amountPaid.toLocaleString()} paid</span>}
+                        {batch.balanceRemaining > 0 && <span className="text-rose-500"> • ₹{batch.balanceRemaining.toLocaleString()} due</span>}
+                      </p>
                     </div>
                     <span className="text-sm text-gray-600 shrink-0">
                       <span className="text-emerald-600">{batch.sold} sold</span>
@@ -874,6 +896,72 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
               <button type="button" onClick={() => setRemoveConfirm(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
               <button type="button" onClick={() => { setEditRows(editRows.map((r, i) => i === removeConfirm.idx ? { ...r, quantity: 0 } : r)); setRemoveConfirm(null); }} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm">Remove</button>
             </div>
+          </div>
+        </div>
+      )}
+      {batchPaymentModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setBatchPaymentModal(null)} />
+          <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+            <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <IndianRupee size={28} />
+            </div>
+            <h3 className="text-lg font-bold text-center mb-1">Record Payment</h3>
+            <p className="text-sm text-gray-500 text-center mb-4">Bill: ₹{batchPaymentModal.billValue.toLocaleString()} • Due: ₹{batchPaymentModal.balanceRemaining.toLocaleString()}</p>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const amt = parseFloat(batchPaymentForm.amount);
+              if (!amt || amt <= 0) { toast('Enter a valid amount', 'error'); return; }
+              setBatchPaymentSubmitting(true);
+              api.vendorFinance.recordPayment(batchPaymentModal.vendorId, {
+                amount: amt,
+                paymentDate: batchPaymentForm.paymentDate,
+                paymentMethod: batchPaymentForm.paymentMethod,
+                referenceNumber: batchPaymentForm.referenceNumber || undefined,
+                notes: batchPaymentForm.notes || undefined,
+                batchId: batchPaymentModal.batchId,
+              })
+              .then(() => {
+                setBatchPaymentModal(null);
+                load();
+                toast('Payment recorded', 'success');
+              })
+              .catch((err) => toast(err.message, 'error'))
+              .finally(() => setBatchPaymentSubmitting(false));
+            }} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Amount (₹)</label>
+                <input type="number" min="1" step="0.01" required value={batchPaymentForm.amount} onChange={(e) => setBatchPaymentForm({ ...batchPaymentForm, amount: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+                  <input type="date" value={batchPaymentForm.paymentDate} onChange={(e) => setBatchPaymentForm({ ...batchPaymentForm, paymentDate: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Method</label>
+                  <select value={batchPaymentForm.paymentMethod} onChange={(e) => setBatchPaymentForm({ ...batchPaymentForm, paymentMethod: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm">
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Reference / Transaction ID</label>
+                <input type="text" value={batchPaymentForm.referenceNumber} onChange={(e) => setBatchPaymentForm({ ...batchPaymentForm, referenceNumber: e.target.value })} placeholder="Optional" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                <input type="text" value={batchPaymentForm.notes} onChange={(e) => setBatchPaymentForm({ ...batchPaymentForm, notes: e.target.value })} placeholder="Optional" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setBatchPaymentModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
+                <button type="submit" disabled={batchPaymentSubmitting} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm disabled:opacity-60">{batchPaymentSubmitting ? 'Saving...' : 'Record Payment'}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -120,7 +120,8 @@ router.get('/api/distribution/batches', async (req, res) => {
         SUM(COALESCE(pd.billed_price, pd.net_price, p.price)) as bill_value,
         STRING_AGG(DISTINCT p.name, ',') as product_names,
         MAX(pd.discount_percent) as discount_percent,
-        MAX(pd.gst_applied::int) as gst_applied
+        MAX(pd.gst_applied::int) as gst_applied,
+        COALESCE((SELECT SUM(vp.amount) FROM vendor_payments vp WHERE vp.batch_id = COALESCE(pd.batch_id, pd.id) AND vp.tenant_id = $1), 0) as amount_paid
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
@@ -152,6 +153,8 @@ router.get('/api/distribution/batches', async (req, res) => {
       billValue: Number(r.bill_value),
       discountPercent: Number(r.discount_percent) ?? 0,
       gstApplied: !!(Number(r.gst_applied)),
+      amountPaid: Number(r.amount_paid),
+      balanceRemaining: Number(r.bill_value) - Number(r.amount_paid),
     })));
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
@@ -249,8 +252,8 @@ router.post('/api/distribution/batch', async (req, res) => {
       if (paidAmount) {
         const payId = `VP${Date.now()}`;
         await client.query(
-          'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-          [payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${batchId}`, tenantId]
+          'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+          [payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${batchId}`, tenantId, batchId]
         );
         await client.query('COMMIT');
         await logAudit(pool, tenantId, 'Payment Recorded', 'payment', payId, `${vendorName} paid ₹${paidAmount} (with distribution)`);
@@ -358,8 +361,8 @@ router.post('/api/distribution', async (req, res) => {
     if (paidAmount) {
       const payId = `VP${Date.now()}`;
       await pool.query(
-        'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-        [payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${baseId}`, tenantId]
+        'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+        [payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${baseId}`, tenantId, baseId]
       );
       await logAudit(pool, tenantId, 'Payment Recorded', 'payment', payId, `${vendorName} paid ₹${paidAmount} (with distribution)`);
     }
@@ -561,7 +564,11 @@ router.get('/api/distribution/bill', async (req, res) => {
       totalBilled,
       payment: await (async () => {
         if (typeof batchId === 'string' && batchId) {
-          return { totalDistributedValue: totalBilled, totalPaid: 0, balance: totalBilled };
+          const batchPaid = Number((await pool.query(
+            'SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE batch_id = $1 AND tenant_id = $2',
+            [batchId, tenantId]
+          )).rows[0].t);
+          return { totalDistributedValue: totalBilled, totalPaid: batchPaid, balance: totalBilled - batchPaid };
         }
         const vid = vendorId as string;
         const totalDistValue = Number((await pool.query(
@@ -808,6 +815,12 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
       GROUP BY COALESCE(pd.batch_id, pd.id), pd.vendor_id, v.name
     `, [tenantId, batchId])).rows[0] as Record<string, unknown> | undefined;
 
+    const putBatchPaid = Number((await pool.query(
+      'SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE batch_id = $1 AND tenant_id = $2',
+      [batchId, tenantId]
+    )).rows[0].t);
+    const putBillValue = Number(batch?.bill_value);
+
     res.json({
       batchId,
       vendorId: batch?.vendor_id,
@@ -819,7 +832,9 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
       replaced: Number(batch?.replaced) ?? 0,
       damaged: Number(batch?.damaged) ?? 0,
       availableWithVendor: Number(batch?.available_with_vendor),
-      billValue: Number(batch?.bill_value),
+      billValue: putBillValue,
+      amountPaid: putBatchPaid,
+      balanceRemaining: putBillValue - putBatchPaid,
       discountPercent: Number(batch?.discount_percent) ?? 0,
       gstApplied: !!(Number(batch?.gst_applied)),
       canDelete: Number(batch?.sold ?? 0) + Number(batch?.replaced ?? 0) + Number(batch?.damaged ?? 0) === 0,
@@ -899,6 +914,12 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
     const replaced = Number(batch.replaced) || 0;
     const damaged = Number(batch.damaged) || 0;
 
+    const batchPaid = Number((await pool.query(
+      'SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE batch_id = $1 AND tenant_id = $2',
+      [batchId, tenantId]
+    )).rows[0].t);
+    const billValue = Number(batch.bill_value);
+
     res.json({
       batchId,
       vendorId: batch.vendor_id,
@@ -910,7 +931,9 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
       replaced,
       damaged,
       availableWithVendor: Number(batch.available_with_vendor),
-      billValue: Number(batch.bill_value),
+      billValue,
+      amountPaid: batchPaid,
+      balanceRemaining: billValue - batchPaid,
       canDelete: sold + replaced + damaged === 0,
       items: Object.values(groups),
     });
