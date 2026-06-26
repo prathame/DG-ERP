@@ -39,20 +39,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Initialize database schema
-        run: |
-          node -e "
-            require('dotenv').config();
-            process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/dg_erp_test';
-            process.env.JWT_SECRET = 'test-secret-for-ci-pipeline';
-            const { initDatabase } = require('./server/pg-db');
-            initDatabase().then(() => { console.log('DB ready'); process.exit(0); }).catch(e => { console.error(e); process.exit(1); });
-          " || npx tsx -e "
-            import { initDatabase } from './server/pg-db';
-            await initDatabase();
-            console.log('DB ready');
-            process.exit(0);
-          "
-
       - name: Run tests
         run: npm test
