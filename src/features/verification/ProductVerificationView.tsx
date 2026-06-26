@@ -161,7 +161,7 @@ export function ProductVerificationView() {
 
       {/* Vendor Detail */}
       {vendorDetail && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 space-y-4">
           <button type="button" onClick={() => setVendorDetail(null)} className="text-xs font-medium text-[#F27D26] hover:underline">← Back to results</button>
           {(() => {
             const d = vendorDetail as { vendor?: { name: string; phone?: string; email?: string; address?: string }; totalDistributedValue: number; totalPaid: number; balance: number; payments?: { id: string; amount: number; paymentDate: string; paymentMethod: string }[]; distributions?: { date: string; productName: string; quantity: number; total: number }[] };
@@ -173,17 +173,17 @@ export function ProductVerificationView() {
                   {d.vendor?.email && <p className="text-sm text-gray-500">{d.vendor.email}</p>}
                   {d.vendor?.address && <p className="text-sm text-gray-500">{d.vendor.address}</p>}
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-blue-50 rounded-xl p-3"><p className="text-[10px] font-bold text-gray-400 uppercase">Billed</p><p className="text-lg font-bold text-blue-700">₹{(d.totalDistributedValue ?? 0).toLocaleString()}</p></div>
-                  <div className="bg-emerald-50 rounded-xl p-3"><p className="text-[10px] font-bold text-gray-400 uppercase">Paid</p><p className="text-lg font-bold text-emerald-700">₹{(d.totalPaid ?? 0).toLocaleString()}</p></div>
-                  <div className={cn("rounded-xl p-3", (d.balance ?? 0) > 0 ? "bg-rose-50" : "bg-emerald-50")}><p className="text-[10px] font-bold text-gray-400 uppercase">Balance</p><p className={cn("text-lg font-bold", (d.balance ?? 0) > 0 ? "text-rose-700" : "text-emerald-700")}>₹{(d.balance ?? 0).toLocaleString()}</p></div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-blue-50 rounded-xl p-2.5"><p className="text-[9px] font-bold text-gray-400 uppercase">Billed</p><p className="text-sm sm:text-lg font-bold text-blue-700 truncate">₹{(d.totalDistributedValue ?? 0).toLocaleString()}</p></div>
+                  <div className="bg-emerald-50 rounded-xl p-2.5"><p className="text-[9px] font-bold text-gray-400 uppercase">Paid</p><p className="text-sm sm:text-lg font-bold text-emerald-700 truncate">₹{(d.totalPaid ?? 0).toLocaleString()}</p></div>
+                  <div className={cn("rounded-xl p-2.5", (d.balance ?? 0) > 0 ? "bg-rose-50" : "bg-emerald-50")}><p className="text-[9px] font-bold text-gray-400 uppercase">Balance</p><p className={cn("text-sm sm:text-lg font-bold truncate", (d.balance ?? 0) > 0 ? "text-rose-700" : "text-emerald-700")}>₹{(d.balance ?? 0).toLocaleString()}</p></div>
                 </div>
                 {d.payments && d.payments.length > 0 && (
                   <div>
                     <h4 className="text-sm font-bold text-gray-400 uppercase mb-2">Recent Payments</h4>
                     {d.payments.slice(0, 5).map((p) => (
-                      <div key={p.id} className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
-                        <span className="text-gray-600">{formatDate(p.paymentDate)} · {p.paymentMethod}</span>
+                      <div key={p.id} className="flex flex-wrap justify-between py-1.5 border-b border-gray-50 text-sm gap-1">
+                        <span className="text-gray-600 text-xs sm:text-sm">{formatDate(p.paymentDate)} · {p.paymentMethod}</span>
                         <span className="font-bold text-emerald-600">₹{p.amount.toLocaleString()}</span>
                       </div>
                     ))}
@@ -193,8 +193,8 @@ export function ProductVerificationView() {
                   <div>
                     <h4 className="text-sm font-bold text-gray-400 uppercase mb-2">Recent Distributions</h4>
                     {d.distributions.slice(0, 5).map((dist, i) => (
-                      <div key={i} className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
-                        <span className="text-gray-600">{formatDate(dist.date)} · {dist.productName} × {dist.quantity}</span>
+                      <div key={i} className="flex flex-wrap justify-between py-1.5 border-b border-gray-50 text-sm gap-1">
+                        <span className="text-gray-600 text-xs sm:text-sm">{formatDate(dist.date)} · {dist.productName} × {dist.quantity}</span>
                         <span className="font-bold">₹{dist.total.toLocaleString()}</span>
                       </div>
                     ))}
