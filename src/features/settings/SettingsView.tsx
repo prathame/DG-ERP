@@ -266,7 +266,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
       sessionStorage.setItem('auth_token', r.token);
       if (r.tenantId) sessionStorage.setItem('tenant_id', r.tenantId);
       if (r.tenantSlug) sessionStorage.setItem('tenant_slug', r.tenantSlug);
-      const u = { id: r.id, email: r.email, name: r.name, phone: r.phone, address: r.address, role: r.role, companyName: r.companyName, vendorId: r.vendorId, autoWhatsapp: r.autoWhatsapp };
+      const u = { id: r.id, email: r.email, name: r.name, phone: r.phone, address: r.address, role: r.role, companyName: r.companyName, vendorId: r.vendorId, autoWhatsapp: r.autoWhatsapp, barcodeSystemEnabled: (r as Record<string, unknown>).barcodeSystemEnabled, multiLanguageEnabled: (r as Record<string, unknown>).multiLanguageEnabled, vendorPortalEnabled: (r as Record<string, unknown>).vendorPortalEnabled, tabConfig: (r as Record<string, unknown>).tabConfig };
       sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u));
       onUserChange(u);
       setAuthForm({ email: '', password: '', name: '', confirmPassword: '' });
@@ -289,8 +289,10 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
       const result = await api.auth.signup({ email: authForm.email, password: authForm.password, name: authForm.name });
       sessionStorage.setItem('auth_token', result.token);
       if (result.tenantId) sessionStorage.setItem('tenant_id', result.tenantId);
-      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(result.user));
-      onUserChange(result.user);
+      const existing = JSON.parse(sessionStorage.getItem(USER_STORAGE_KEY) || '{}');
+      const merged = { ...existing, ...result.user };
+      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(merged));
+      onUserChange(merged);
       setAuthForm({ email: '', password: '', name: '', confirmPassword: '' });
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Signup failed');
@@ -312,8 +314,10 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
     setProfileSubmitting(true);
     try {
       const u = await api.settings.updateProfile(user.id, profileForm);
-      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u));
-      onUserChange(u);
+      const existing = JSON.parse(sessionStorage.getItem(USER_STORAGE_KEY) || '{}');
+      const merged = { ...existing, ...u };
+      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(merged));
+      onUserChange(merged);
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Update failed', 'error');
     } finally {
