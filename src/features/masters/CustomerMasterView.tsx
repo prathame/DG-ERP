@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Plus, Pencil, Trash2, ArrowLeft, ShoppingBag, Download } from 'lucide-react';
-import { cn, exportToCsv } from '../../lib/utils';
+import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import type { Customer, Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
@@ -144,7 +144,7 @@ export function CustomerMasterView({ onBack, onRefresh, user }: { onBack: () => 
                     <thead className="bg-gray-50 sticky top-0"><tr className="text-xs font-bold text-gray-400 uppercase"><th className="px-6 py-3">Product</th><th className="px-6 py-3">Vendor</th><th className="px-6 py-3">Barcode</th><th className="px-6 py-3">Date</th></tr></thead>
                     <tbody className="divide-y divide-gray-50">
                       {purchasesModal.purchases.map((p, i) => (
-                        <tr key={i}><td className="px-6 py-3 font-medium">{p.productName}</td><td className="px-6 py-3 text-sm text-purple-600">{p.vendorName}</td><td className="px-6 py-3 text-sm font-mono text-gray-600">{p.barcode}</td><td className="px-6 py-3 text-sm text-gray-600">{p.purchaseDate}</td></tr>
+                        <tr key={i}><td className="px-6 py-3 font-medium">{p.productName}</td><td className="px-6 py-3 text-sm text-purple-600">{p.vendorName}</td><td className="px-6 py-3 text-sm font-mono text-gray-600">{p.barcode}</td><td className="px-6 py-3 text-sm text-gray-600">{formatDate(p.purchaseDate)}</td></tr>
                       ))}
                     </tbody>
                   </table>

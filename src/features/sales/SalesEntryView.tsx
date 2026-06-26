@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Barcode, CheckCircle2, AlertCircle, Download, Printer, MessageCircle, Mail, Camera } from 'lucide-react';
-import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatSalesInvoiceText } from '../../lib/utils';
+import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatSalesInvoiceText, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import type { SaleRecord } from '../../api';
 import { useToast, DateRangeFilter, PaginationControls } from '../../components/ui';
@@ -177,7 +177,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
               <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl group">
                 <div>
                   <p className="font-medium text-sm">{s.productName}</p>
-                  <p className="text-xs text-gray-500">{s.customerName} • {s.purchaseDate}</p>
+                  <p className="text-xs text-gray-500">{s.customerName} • {formatDate(s.purchaseDate)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">

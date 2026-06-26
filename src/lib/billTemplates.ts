@@ -4,6 +4,13 @@ function esc(text: unknown): string {
   return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function fmtDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+}
+
 export function buildDistributionBillSlice(
   bill: DistributionBillData,
   items: DistributionBillData['items'],
@@ -69,8 +76,8 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
       <table style="width:100%;margin-top:8px;font-size:13px;">
         <tr><td style="color:#6b7280;">Duration</td><td><strong>${bill.warrantyMonths} months</strong></td>
             <td style="color:#6b7280;">Status</td><td><strong>${bill.warranty.status}</strong></td></tr>
-        <tr><td style="color:#6b7280;">Activation</td><td>${bill.warranty.activationDate}</td>
-            <td style="color:#6b7280;">Expiry</td><td>${bill.warranty.expiryDate}</td></tr>
+        <tr><td style="color:#6b7280;">Activation</td><td>${fmtDate(bill.warranty.activationDate)}</td>
+            <td style="color:#6b7280;">Expiry</td><td>${fmtDate(bill.warranty.expiryDate)}</td></tr>
       </table>
     </div>` : '';
 
@@ -143,7 +150,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
     <div class="invoice-title">${showGst ? 'Tax Invoice' : 'Invoice'}</div>
     <div style="text-align:right;font-size:13px;">
       <div><strong>Invoice No:</strong> ${invPrefix}${bill.id}</div>
-      <div><strong>Date:</strong> ${bill.purchaseDate}</div>
+      <div><strong>Date:</strong> ${fmtDate(bill.purchaseDate)}</div>
     </div>
   </div>
   <div class="info-grid">
@@ -284,7 +291,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
     <div class="challan-title">${showGst ? 'Tax Challan' : 'Distribution Challan'}</div>
     <div style="text-align:right;font-size:13px;">
       <div><strong>Challan No:</strong> ${chPrefix}${bill.challanId}</div>
-      <div><strong>Date:</strong> ${bill.distributionDate}</div>
+      <div><strong>Date:</strong> ${fmtDate(bill.distributionDate)}</div>
     </div>
   </div>
   <div class="info-grid">

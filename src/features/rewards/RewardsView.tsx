@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Gift, ArrowUpRight, ArrowDownRight, Download } from 'lucide-react';
-import { cn, exportToCsv } from '../../lib/utils';
+import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import type { RewardPoint } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
@@ -176,7 +176,7 @@ export function RewardsView({ user }: { user?: { role?: string; vendorId?: strin
                     </div>
                     <div>
                       <p className="font-bold">{r.description}</p>
-                      <p className="text-xs text-gray-500">{r.date}</p>
+                      <p className="text-xs text-gray-500">{formatDate(r.date)}</p>
                     </div>
                   </div>
                   <div className="text-right">

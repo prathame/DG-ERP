@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
-import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText } from '../../lib/utils';
+import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate } from '../../lib/utils';
 import { api, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
@@ -297,7 +297,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                       <PaidBadge />
                     )}
                     {!selectedBatchProductId && (
-                      <span className="text-xs text-gray-500">Distribution — {selectedBatch.distributionDate}</span>
+                      <span className="text-xs text-gray-500">Distribution — {formatDate(selectedBatch.distributionDate)}</span>
                     )}
                     <button
                       type="button"
@@ -452,7 +452,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors"
                   >
                     <div>
-                      <p className="font-medium">Distribution — {batch.distributionDate}</p>
+                      <p className="font-medium">Distribution — {formatDate(batch.distributionDate)}</p>
                       <p className="text-xs text-gray-500 mt-0.5">{batch.productNames.join(' • ')} • {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}</p>
                     </div>
                     <span className="text-sm text-gray-600 shrink-0">
@@ -709,7 +709,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
             <div className="absolute inset-0 bg-black/40" onClick={() => setEditBatchModal(null)} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-lg font-bold mb-1">Edit Distribution</h3>
-              <p className="text-sm text-gray-500 mb-4">{editBatchModal.vendorName} — {editBatchModal.distributionDate}</p>
+              <p className="text-sm text-gray-500 mb-4">{editBatchModal.vendorName} — {formatDate(editBatchModal.distributionDate)}</p>
               <div className="mb-4">
                 <label className="text-xs font-bold text-gray-400 uppercase">Distribution Date</label>
                 <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" />

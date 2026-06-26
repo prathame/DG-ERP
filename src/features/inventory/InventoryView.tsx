@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Plus, Trash2, AlertCircle, AlertTriangle, ArrowUpDown, Barcode, Download, Upload, Printer } from 'lucide-react';
-import { cn, exportToCsv } from '../../lib/utils';
+import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
@@ -353,7 +353,7 @@ export function InventoryView() {
                     <thead className="bg-gray-50 sticky top-0"><tr className="text-xs font-bold text-gray-400 uppercase"><th className="px-6 py-3">Date</th><th className="px-6 py-3">Barcode range</th><th className="px-6 py-3">Quantity added</th></tr></thead>
                     <tbody className="divide-y divide-gray-50">
                       {barcodeDetailsModal.batches.map((b, i) => (
-                        <tr key={i}><td className="px-6 py-3 text-sm text-gray-600">{b.date}</td><td className="px-6 py-3 font-mono text-sm">{b.barcodeFirst} – {b.barcodeLast}</td><td className="px-6 py-3 font-medium">{b.count} units</td></tr>
+                        <tr key={i}><td className="px-6 py-3 text-sm text-gray-600">{formatDate(b.date)}</td><td className="px-6 py-3 font-mono text-sm">{b.barcodeFirst} – {b.barcodeLast}</td><td className="px-6 py-3 font-medium">{b.count} units</td></tr>
                       ))}
                     </tbody>
                   </table>
