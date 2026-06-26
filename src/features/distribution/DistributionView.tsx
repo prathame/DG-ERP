@@ -323,7 +323,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     <h3 className="font-bold text-lg">
                       {selectedProduct ? selectedProduct.productName : selectedBatch.vendorName}
                     </h3>
-                    {!selectedBatchProductId && isBillFullyPaid(selectedBatch.billValue, selectedBatch.balanceRemaining) && (
+                    {!selectedBatchProductId && (isBillFullyPaid(selectedBatch.billValue, selectedBatch.balanceRemaining) || (selectedBatch.availableWithVendor === 0 && selectedBatch.sold === selectedBatch.total)) && (
                       <PaidBadge />
                     )}
                     {!selectedBatchProductId && (
@@ -494,12 +494,13 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     key={batch.batchId}
                     type="button"
                     onClick={() => { setSelectedBatchId(batch.batchId); setSelectedBatchProductId(null); }}
-                    className={cn("w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors", isBillFullyPaid(batch.billValue, batch.balanceRemaining) && "opacity-60")}
+                    className={cn("w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors", (isBillFullyPaid(batch.billValue, batch.balanceRemaining) || (batch.availableWithVendor === 0 && batch.sold === batch.total)) && "opacity-60")}
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium">Distribution — {formatDate(batch.distributionDate)}</p>
                         {isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <PaidBadge size="sm" />}
+                        {batch.availableWithVendor === 0 && batch.sold === batch.total && !isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-600">Completed</span>}
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {batch.productNames.join(' • ')} • {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}
