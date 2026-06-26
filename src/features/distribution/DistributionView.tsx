@@ -34,6 +34,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [editRows, setEditRows] = useState<{ productId: string; productName: string; quantity: number; minQuantity: number; discount: number; withGst: boolean; availableStock: number }[]>([]);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteBatchConfirm, setDeleteBatchConfirm] = useState<string | null>(null);
   const [financeMap, setFinanceMap] = useState<Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }>>({});
 
   const challanOptions = (forVendorId: string) => {
@@ -131,8 +132,9 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
     }
   };
 
+  const confirmDeleteBatch = (batchId: string) => setDeleteBatchConfirm(batchId);
   const handleDeleteBatch = async (batchId: string) => {
-    if (!window.confirm('Delete this distribution? All unsold units will return to inventory.')) return;
+    setDeleteBatchConfirm(null);
     setDeleteSubmitting(true);
     try {
       await api.distribution.deleteBatch(batchId);
@@ -308,7 +310,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     {batchCanDelete && (
                       <button
                         type="button"
-                        onClick={() => handleDeleteBatch(selectedBatch.batchId)}
+                        onClick={() => confirmDeleteBatch(selectedBatch.batchId)}
                         disabled={deleteSubmitting}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-60"
                         title="Delete distribution"
@@ -639,6 +641,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                   type="button"
                   disabled={splitSaving || totalQty === 0}
                   onClick={async () => {
+                    if (hasUnsavedChanges && !window.confirm(`Amount was already saved as ₹${savedTotal!.toLocaleString()}. Are you sure you want to change it to ₹${combinedBillTotal.toLocaleString()}?`)) return;
                     setSplitSaving(true);
                     try {
                       await api.distribution.applyBilling({
@@ -751,7 +754,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                   <button
                     type="button"
                     disabled={deleteSubmitting || editSubmitting}
-                    onClick={() => handleDeleteBatch(editBatchModal.batchId)}
+                    onClick={() => confirmDeleteBatch(editBatchModal.batchId)}
                     className="px-4 py-2.5 border border-rose-200 text-rose-600 rounded-xl font-medium hover:bg-rose-50 disabled:opacity-60"
                   >
                     {deleteSubmitting ? 'Deleting...' : 'Delete'}
@@ -796,6 +799,22 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
           </div>
         )}
       </AnimatePresence>
+      {deleteBatchConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteBatchConfirm(null)} />
+          <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 text-center">
+            <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={28} />
+            </div>
+            <h3 className="text-lg font-bold mb-2">Delete Distribution?</h3>
+            <p className="text-sm text-gray-500 mb-6">All unsold units will return to inventory. This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setDeleteBatchConfirm(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
+              <button type="button" onClick={() => handleDeleteBatch(deleteBatchConfirm)} disabled={deleteSubmitting} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm disabled:opacity-60">{deleteSubmitting ? 'Deleting...' : 'Delete'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

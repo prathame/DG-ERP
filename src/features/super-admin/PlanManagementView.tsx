@@ -39,6 +39,7 @@ export function PlanManagementView() {
   const [loading, setLoading] = useState(true);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Plan | null>(null);
 
   const fetchPlans = () => {
     const token = sessionStorage.getItem('auth_token');
@@ -53,16 +54,16 @@ export function PlanManagementView() {
 
   useEffect(() => { fetchPlans(); }, []);
 
-  const handleDelete = async (plan: Plan) => {
-    if (plan.tenantCount > 0) {
-      toast('Cannot delete plan with active tenants', 'error');
-      return;
-    }
-    const confirmed = window.confirm(`Delete plan "${plan.name}"? This cannot be undone.`);
-    if (!confirmed) return;
+  const confirmDelete = (plan: Plan) => {
+    if (plan.tenantCount > 0) { toast('Cannot delete plan with active tenants', 'error'); return; }
+    setDeleteTarget(plan);
+  };
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteTarget(null);
     const token = sessionStorage.getItem('auth_token');
     try {
-      const res = await fetch(`/api/super-admin/plans/${plan.id}`, {
+      const res = await fetch(`/api/super-admin/plans/${deleteTarget.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -176,7 +177,7 @@ export function PlanManagementView() {
               </button>
               <div className="w-px bg-gray-100" />
               <button
-                onClick={() => handleDelete(plan)}
+                onClick={() => confirmDelete(plan)}
                 disabled={plan.tenantCount > 0}
                 className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium text-gray-600 hover:bg-rose-50 hover:text-rose-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -202,6 +203,22 @@ export function PlanManagementView() {
           />
         )}
       </AnimatePresence>
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteTarget(null)} />
+          <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 text-center">
+            <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={28} />
+            </div>
+            <h3 className="text-lg font-bold mb-2">Delete Plan?</h3>
+            <p className="text-sm text-gray-500 mb-6">Are you sure you want to delete <strong>"{deleteTarget.name}"</strong>? This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setDeleteTarget(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
+              <button type="button" onClick={handleDelete} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
