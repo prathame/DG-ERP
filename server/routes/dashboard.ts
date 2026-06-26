@@ -8,7 +8,7 @@ router.get('/api/dashboard/stats', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const revenue = (await pool.query("SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'Sales' AND tenant_id = $1", [tenantId])).rows[0] as { total: number };
+    const revenue = (await pool.query("SELECT COALESCE(SUM(sale_price), 0) as total FROM product_sales WHERE tenant_id = $1", [tenantId])).rows[0] as { total: number };
     const warranties = (await pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Active' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
     const pendingClaims = (await pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Under Claim' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
     const rewardsEarned = (await pool.query("SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned' AND tenant_id = $1", [tenantId])).rows[0] as { total: number };

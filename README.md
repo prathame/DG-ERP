@@ -163,7 +163,7 @@ npm run dev
 │   │   ├── replacements/        # Product replacements
 │   │   ├── rewards/             # Points, redemption
 │   │   ├── finance/             # Vendor payments, reminders
-│   │   ├── masters/             # Customers, vendors, banks, rules
+│   │   ├── masters/             # Customers, vendors, banks, rules (accessed via Dashboard)
 │   │   └── settings/            # Profile, password, toggles, bill customization, users
 │   ├── i18n/
 │   │   ├── index.tsx              # LanguageProvider + useTranslation hook

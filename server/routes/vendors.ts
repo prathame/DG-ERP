@@ -54,7 +54,7 @@ router.post('/api/vendors', async (req, res) => {
       if (!existing) {
         const defaultPassword = `${(name ?? 'vendor').replace(/\s+/g, '').toLowerCase()}@123`;
         const userId = `U${Date.now()}`;
-        const perms = JSON.stringify(['dashboard', 'sales', 'distribution', 'warranty', 'replacements', 'rewards', 'masters', 'settings']);
+        const perms = JSON.stringify(['dashboard', 'sales', 'distribution', 'warranty', 'replacements', 'rewards', 'settings']);
         await pool.query(
           `INSERT INTO users (id, tenant_id, email, password_hash, name, phone, address, role, company_name, permissions, vendor_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, 'Vendor', $8, $9, $10)`,
