@@ -12,6 +12,8 @@ import { useDebounce } from '../../hooks/useDebounce';
 export function InventoryView() {
   const { toast } = useToast();
   const barcodeSystemEnabled = (() => { try { const u = JSON.parse(localStorage.getItem('dg_erp_user') || '{}'); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
+  const inventoryTrackingEnabled = (() => { try { const u = JSON.parse(localStorage.getItem('dg_erp_user') || '{}'); return u.inventoryTrackingEnabled !== false; } catch { return true; } })();
+  const warrantyVisible = (() => { try { const u = JSON.parse(localStorage.getItem('dg_erp_user') || '{}'); return u.tabConfig?.warranty?.visible !== false; } catch { return true; } })();
   const [sortBy, setSortBy] = useState<keyof Product>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [products, setProducts] = useState<Product[]>([]);
@@ -145,10 +147,10 @@ export function InventoryView() {
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Product</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Price</th>
-                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Total</th>
+                  {inventoryTrackingEnabled && <><th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Total</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Admin</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center hidden lg:table-cell">Vendors</th>
-                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center hidden lg:table-cell">Sold</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center hidden lg:table-cell">Sold</th></>}
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
@@ -170,7 +172,7 @@ export function InventoryView() {
                       <td className="px-4 py-3 text-right">
                         <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      {inventoryTrackingEnabled && <><td className="px-4 py-3 text-center">
                         <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{p.totalInventory ?? p.stock ?? 0}</span>
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -181,15 +183,15 @@ export function InventoryView() {
                       </td>
                       <td className="px-4 py-3 text-center hidden lg:table-cell">
                         <span className="font-semibold text-sm text-emerald-700">{p.soldCount ?? 0}</span>
-                      </td>
+                      </td></>}
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-[#F27D26] hover:bg-orange-50 rounded-lg" title="Barcode Details">
                             <Barcode size={16} />
                           </button>
-                          <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
+                          {inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
                             <Plus size={16} />
-                          </button>
+                          </button>}
                           {barcodeSystemEnabled && (
                             <button onClick={() => setLabelPrinterId(p.id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Print Labels">
                               <Printer size={16} />
@@ -220,19 +222,19 @@ export function InventoryView() {
                     </div>
                     <span className="font-semibold text-sm text-emerald-600 shrink-0">₹{p.price.toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                  {inventoryTrackingEnabled && <div className="flex items-center gap-3 text-xs text-gray-500">
                     <span>Total: <strong className={isLowStock ? "text-amber-700" : "text-gray-900"}>{p.totalInventory ?? p.stock ?? 0}</strong></span>
                     <span>Admin: <strong className="text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</strong></span>
                     <span>Vendors: <strong className="text-purple-700">{p.withVendors ?? 0}</strong></span>
                     <span>Sold: <strong className="text-emerald-700">{p.soldCount ?? 0}</strong></span>
-                  </div>
+                  </div>}
                   <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-gray-100">
                     <button onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-[#F27D26] hover:bg-orange-50 rounded-lg" title="Barcode Details">
                       <Barcode size={16} />
                     </button>
-                    <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
+                    {inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
                       <Plus size={16} />
-                    </button>
+                    </button>}
                     {barcodeSystemEnabled && (
                       <button onClick={() => setLabelPrinterId(p.id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Print Labels">
                         <Printer size={16} />
@@ -281,11 +283,11 @@ export function InventoryView() {
                 finally { setAddSubmitting(false); }
               }} className="space-y-4">
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Name</label><input required value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div className="grid grid-cols-2 gap-4">
+                {inventoryTrackingEnabled && <><div className="grid grid-cols-2 gap-4">
                   <div><label className="text-xs font-bold text-gray-400 uppercase">Barcode Prefix</label><input required placeholder="e.g. SP, PUMP, A" value={addForm.barcodePrefix} onChange={(e) => setAddForm({ ...addForm, barcodePrefix: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26] font-mono" autoComplete="off" /></div>
                   <div><label className="text-xs font-bold text-gray-400 uppercase">Quantity</label><input type="number" required min={1} max={10000} value={addForm.quantity || ''} onChange={(e) => setAddForm({ ...addForm, quantity: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                 </div>
-                <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">Barcodes auto-generated: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}{String(addForm.quantity || 10).padStart(3, '0')}</span></p>
+                <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">Barcodes auto-generated: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}{String(addForm.quantity || 10).padStart(3, '0')}</span></p></>}
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Description</label><input placeholder="Product description" value={addForm.description} onChange={(e) => setAddForm({ ...addForm, description: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="text-xs font-bold text-gray-400 uppercase">HSN Code</label><input value={addForm.hsnCode ?? ''} onChange={(e) => setAddForm({ ...addForm, hsnCode: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26] font-mono" placeholder="e.g. 8413" /></div>
@@ -293,7 +295,7 @@ export function InventoryView() {
                 </div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Reward Points</label><input type="number" min={0} value={addForm.rewardPointsValue || ''} onChange={(e) => setAddForm({ ...addForm, rewardPointsValue: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Price (₹)</label><input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div>
+                {warrantyVisible && <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-gray-400 uppercase">Warranty</label>
                     <label className="flex items-center gap-2 cursor-pointer text-xs">
@@ -304,7 +306,7 @@ export function InventoryView() {
                     </label>
                   </div>
                   {addForm.warrantyApplicable && <input type="number" placeholder="Months" value={addForm.warrantyMonths || ''} onChange={(e) => setAddForm({ ...addForm, warrantyMonths: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" />}
-                </div>
+                </div>}
                 <div className="flex gap-2 pt-2"><button type="button" onClick={() => setAddModalOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={addSubmitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{addSubmitting ? 'Saving...' : 'Save'}</button></div>
               </form>
             </motion.div>

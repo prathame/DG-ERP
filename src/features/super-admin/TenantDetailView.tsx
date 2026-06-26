@@ -37,6 +37,7 @@ interface TenantDetail {
   barcodeSystemEnabled: boolean;
   multiLanguageEnabled: boolean;
   vendorPortalEnabled: boolean;
+  inventoryTrackingEnabled: boolean;
   tabConfig: Record<string, { label: string; visible: boolean }> | null;
   createdAt: string;
   stats: {
@@ -428,13 +429,15 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
   const [config, setConfig] = useState<Record<string, { label: string; visible: boolean }>>(tabConfig ?? DEFAULT_TAB_CONFIG);
   const [barcodeSystem, setBarcodeSystem] = useState(tenant.barcodeSystemEnabled !== false);
   const [multiLanguage, setMultiLanguage] = useState(tenant.multiLanguageEnabled !== false);
+  const [inventoryTracking, setInventoryTracking] = useState(tenant.inventoryTrackingEnabled !== false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setConfig(tabConfig ?? DEFAULT_TAB_CONFIG);
     setBarcodeSystem(tenant.barcodeSystemEnabled !== false);
     setMultiLanguage(tenant.multiLanguageEnabled !== false);
-  }, [tabConfig, tenant.barcodeSystemEnabled, tenant.multiLanguageEnabled]);
+    setInventoryTracking(tenant.inventoryTrackingEnabled !== false);
+  }, [tabConfig, tenant.barcodeSystemEnabled, tenant.multiLanguageEnabled, tenant.inventoryTrackingEnabled]);
 
   const updateLabel = (key: string, label: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], label } }));
   const toggleVisible = (key: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], visible: !prev[key].visible } }));
@@ -447,7 +450,7 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
       const res = await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tabConfig: config, barcodeSystemEnabled: barcodeSystem, multiLanguageEnabled: multiLanguage }),
+        body: JSON.stringify({ tabConfig: config, barcodeSystemEnabled: barcodeSystem, multiLanguageEnabled: multiLanguage, inventoryTrackingEnabled: inventoryTracking }),
       });
       if (!res.ok) throw new Error();
       toast('Tab configuration saved', 'success');
@@ -525,6 +528,15 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
           </div>
           <button type="button" onClick={() => setMultiLanguage(!multiLanguage)} className={cn("relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors", multiLanguage ? "bg-green-500" : "bg-gray-300")}>
             <span className={cn("pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform", multiLanguage ? "translate-x-4" : "translate-x-0")} />
+          </button>
+        </div>
+        <div className="flex items-center justify-between mt-4">
+          <div>
+            <p className="font-medium text-sm">Inventory Tracking</p>
+            <p className="text-xs text-gray-500">When OFF, products are a simple catalog (name + price). No stock count, barcode quantity, or "Add Stock".</p>
+          </div>
+          <button type="button" onClick={() => setInventoryTracking(!inventoryTracking)} className={cn("relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors", inventoryTracking ? "bg-green-500" : "bg-gray-300")}>
+            <span className={cn("pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform", inventoryTracking ? "translate-x-4" : "translate-x-0")} />
           </button>
         </div>
       </div>
