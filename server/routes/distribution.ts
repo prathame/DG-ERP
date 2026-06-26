@@ -120,8 +120,7 @@ router.get('/api/distribution/batches', async (req, res) => {
         SUM(COALESCE(pd.billed_price, pd.net_price, p.price)) as bill_value,
         STRING_AGG(DISTINCT p.name, ',') as product_names,
         MAX(pd.discount_percent) as discount_percent,
-        MAX(pd.gst_applied::int) as gst_applied,
-        COALESCE((SELECT SUM(vp.amount) FROM vendor_payments vp WHERE vp.batch_id = COALESCE(pd.batch_id, pd.id) AND vp.tenant_id = $1), 0) as amount_paid
+        MAX(pd.gst_applied::int) as gst_applied
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
@@ -139,23 +138,35 @@ router.get('/api/distribution/batches', async (req, res) => {
       ORDER BY MIN(pd.distribution_date) DESC, batch_id DESC
     `;
     const rows = (await pool.query(sql, params)).rows as Record<string, unknown>[];
-    res.json(rows.map((r) => ({
-      batchId: r.batch_id as string,
-      vendorId: r.vendor_id as string,
-      vendorName: r.vendor_name as string,
-      distributionDate: r.distribution_date as string,
-      productNames: (r.product_names as string || '').split(',').filter(Boolean),
-      total: Number(r.total),
-      sold: Number(r.sold),
-      replaced: Number(r.replaced) ?? 0,
-      damaged: Number(r.damaged) ?? 0,
-      availableWithVendor: Number(r.available_with_vendor),
-      billValue: Number(r.bill_value),
-      discountPercent: Number(r.discount_percent) ?? 0,
-      gstApplied: !!(Number(r.gst_applied)),
-      amountPaid: Number(r.amount_paid),
-      balanceRemaining: Number(r.bill_value) - Number(r.amount_paid),
-    })));
+    const batchIds = rows.map(r => r.batch_id as string);
+    const paymentMap: Record<string, number> = {};
+    if (batchIds.length > 0) {
+      const payRows = (await pool.query(
+        `SELECT batch_id, SUM(amount) as total_paid FROM vendor_payments WHERE batch_id = ANY($1) AND tenant_id = $2 GROUP BY batch_id`,
+        [batchIds, tenantId]
+      )).rows as { batch_id: string; total_paid: string }[];
+      for (const pr of payRows) paymentMap[pr.batch_id] = Number(pr.total_paid);
+    }
+    res.json(rows.map((r) => {
+      const paid = paymentMap[r.batch_id as string] ?? 0;
+      return {
+        batchId: r.batch_id as string,
+        vendorId: r.vendor_id as string,
+        vendorName: r.vendor_name as string,
+        distributionDate: r.distribution_date as string,
+        productNames: (r.product_names as string || '').split(',').filter(Boolean),
+        total: Number(r.total),
+        sold: Number(r.sold),
+        replaced: Number(r.replaced) ?? 0,
+        damaged: Number(r.damaged) ?? 0,
+        availableWithVendor: Number(r.available_with_vendor),
+        billValue: Number(r.bill_value),
+        discountPercent: Number(r.discount_percent) ?? 0,
+        gstApplied: !!(Number(r.gst_applied)),
+        amountPaid: paid,
+        balanceRemaining: Number(r.bill_value) - paid,
+      };
+    }));
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
