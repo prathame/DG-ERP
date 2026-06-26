@@ -369,7 +369,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
 
 
       {/* Tab Customization */}
-      <TabCustomization tenantId={tenantId} tabConfig={tenant.tabConfig} onSaved={fetchTenant} />
+      <TabCustomization tenantId={tenantId} tabConfig={tenant.tabConfig} tenant={tenant as unknown as Record<string, unknown>} onSaved={fetchTenant} />
 
       {/* Users Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -429,14 +429,16 @@ const DEFAULT_TAB_CONFIG: Record<string, { label: string; visible: boolean }> = 
 
 const TAB_KEYS = ['dashboard', 'inventory', 'distribution', 'sales', 'verification', 'warranty', 'replacements', 'rewards', 'finance', 'chatbot', 'settings'] as const;
 
-function TabCustomization({ tenantId, tabConfig, onSaved }: { tenantId: string; tabConfig: Record<string, { label: string; visible: boolean }> | null; onSaved: () => void }) {
+function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: string; tabConfig: Record<string, { label: string; visible: boolean }> | null; tenant: Record<string, unknown>; onSaved: () => void }) {
   const { toast } = useToast();
   const [config, setConfig] = useState<Record<string, { label: string; visible: boolean }>>(tabConfig ?? DEFAULT_TAB_CONFIG);
+  const [barcodeSystem, setBarcodeSystem] = useState(tenant.barcodeSystemEnabled !== false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setConfig(tabConfig ?? DEFAULT_TAB_CONFIG);
-  }, [tabConfig]);
+    setBarcodeSystem(tenant.barcodeSystemEnabled !== false);
+  }, [tabConfig, tenant.barcodeSystemEnabled]);
 
   const updateLabel = (key: string, label: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], label } }));
   const toggleVisible = (key: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], visible: !prev[key].visible } }));
@@ -449,7 +451,7 @@ function TabCustomization({ tenantId, tabConfig, onSaved }: { tenantId: string; 
       const res = await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tabConfig: config }),
+        body: JSON.stringify({ tabConfig: config, barcodeSystemEnabled: barcodeSystem }),
       });
       if (!res.ok) throw new Error();
       toast('Tab configuration saved', 'success');
@@ -508,6 +510,18 @@ function TabCustomization({ tenantId, tabConfig, onSaved }: { tenantId: string; 
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="p-6 border-t border-gray-100">
+        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Options</h3>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-medium text-sm">Barcode System</p>
+            <p className="text-xs text-gray-500">When OFF, uses simple SKU codes. No auto-generated barcodes, scanner, or label printing.</p>
+          </div>
+          <button type="button" onClick={() => setBarcodeSystem(!barcodeSystem)} className={cn("relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors", barcodeSystem ? "bg-green-500" : "bg-gray-300")}>
+            <span className={cn("pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform", barcodeSystem ? "translate-x-4" : "translate-x-0")} />
+          </button>
+        </div>
       </div>
     </div>
   );
