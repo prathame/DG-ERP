@@ -202,10 +202,17 @@ export default function App() {
     );
   }
 
-  // Already logged in as super admin but on tenant route — redirect
-  if (authState.isSuperAdmin && !isSuperAdminRoute) {
+  // Already logged in as super admin but on root (/) — redirect to /admin
+  if (authState.isSuperAdmin && !isSuperAdminRoute && !urlSlug) {
     window.location.href = '/admin';
     return null;
+  }
+
+  // Super admin visiting a tenant slug — clear super admin session, show tenant login
+  if (authState.isSuperAdmin && urlSlug) {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('tenant_id');
+    localStorage.removeItem(USER_STORAGE_KEY);
   }
 
   // No user session — show tenant login
