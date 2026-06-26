@@ -148,15 +148,7 @@ export function InventoryView() {
                 <Trash2 size={18} />
               </button>
             </div>
-            <div className="w-full aspect-square bg-gray-50 rounded-xl mb-4 flex items-center justify-center overflow-hidden">
-               <img
-                src={`https://picsum.photos/seed/pump${p.id}/400/400`}
-                alt={p.name}
-                className="w-full h-full object-cover mix-blend-multiply opacity-80"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <div className="space-y-1">
+            <div className="space-y-1 mt-2">
               <h3 className="font-bold text-lg">{p.name}</h3>
               <button type="button" onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="text-xs font-medium text-[#F27D26] hover:underline flex items-center gap-1">
                 <Barcode size={12} /> See barcode

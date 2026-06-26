@@ -395,6 +395,13 @@ export async function initSchema() {
       )
     `);
 
+    // Performance indexes
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ps_date ON product_sales(tenant_id, purchase_date)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pd_date ON product_distribution(tenant_id, distribution_date)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vp_vendor ON vendor_payments(tenant_id, vendor_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log(action, created_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pi_product ON product_inventory(tenant_id, product_id)');
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS tenant_invoices (
         id TEXT PRIMARY KEY,

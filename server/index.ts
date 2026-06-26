@@ -4,6 +4,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 dotenv.config();
 import helmet from 'helmet';
+import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 
@@ -36,6 +37,7 @@ import { logger } from './utils/logger';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+app.use(compression());
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'];

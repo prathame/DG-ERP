@@ -11,6 +11,18 @@ resolve: {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom'],
+            charts: ['recharts'],
+            motion: ['motion'],
+            scanner: ['html5-qrcode', 'jsbarcode'],
+          },
+        },
+      },
+    },
     server: {
       port: 3000,
       host: '0.0.0.0',
