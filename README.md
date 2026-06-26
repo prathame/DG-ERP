@@ -429,7 +429,7 @@ Compatible with: Railway, Render, AWS, DigitalOcean, Heroku, Vercel (API), any V
 | **Lint & Type Check** | TypeScript compilation, no errors | Yes |
 | **Production Build** | Vite build succeeds, dist/ created | Yes |
 | **Security Scan** | npm audit, hardcoded secrets, XSS (dangerouslySetInnerHTML), esc() in bills | Yes |
-| **API Tests** | 98 automated tests against PostgreSQL (auth, security, products, sales, distribution, tenants, plans, finance, billing) | Yes |
+| **API Tests** | 190 automated tests against PostgreSQL (all 21 API modules) | Yes |
 | **PR Quality Gate** | Combined: lint + build + security + bundle size check | Yes |
 
 All checks must pass before PR can be merged to `main`.
@@ -442,19 +442,31 @@ npm run test:watch  # Watch mode
 
 ## Automated Tests
 
-98 API tests in `tests/api/` — 9 files:
+190 API tests in `tests/api/` — 21 files:
 
 | File | Tests | What it covers |
 |---|---|---|
-| `auth.test.ts` | 11 | Login, JWT, password, vendor block, subscription expiry |
-| `security.test.ts` | 11 | Tenant isolation, XSS, SQL injection, bcrypt, shared barcodes |
+| `auth.test.ts` | 14 | Login, JWT, password, vendor block, subscription expiry |
+| `security.test.ts` | 12 | Tenant isolation, XSS, SQL injection, bcrypt, shared barcodes |
 | `products.test.ts` | 12 | CRUD, barcode inventory, duplicates, status |
-| `sales.test.ts` | 8 | Sale flow, barcode status, sold validation |
+| `sales.test.ts` | 9 | Sale flow, barcode status, sold validation |
 | `distribution.test.ts` | 9 | Distribution, discount, GST/CGST/SGST calculation |
 | `tenants.test.ts` | 12 | CRUD, toggles, subscription, suspend/activate |
 | `plans.test.ts` | 14 | Seeded plans, pricing, feature flags |
 | `finance.test.ts` | 9 | Vendor payments, balance |
 | `billing.test.ts` | 10 | Invoices, mark paid, GST calc |
+| `subscription.test.ts` | 26 | End-to-end: trial, expiry, renewal, upgrade, downgrade, feature sync, data safety |
+| `super-admin.test.ts` | 9 | Login, tenant CRUD, impersonate, audit |
+| `replacements.test.ts` | 7 | Barcode swap, status update, history |
+| `customers.test.ts` | 6 | CRUD, vendor link, purchase history |
+| `banks.test.ts` | 5 | CRUD, tenant scoped |
+| `dashboard.test.ts` | 6 | Stats, KPIs, low stock, vendor summary |
+| `search.test.ts` | 5 | Products, customers, vendors, barcodes |
+| `notifications.test.ts` | 6 | Low stock, expiring warranty, pending payments |
+| `masters.test.ts` | 3 | Counts, tenant isolation |
+| `mapping.test.ts` | 4 | Vendor-customer mapping |
+| `audit.test.ts` | 5 | Log entries, tenant scoped, action filter |
+| `bill-settings.test.ts` | 7 | Logo, color, bank, terms, toggles, tenant scoped |
 
 ## Manual Test Cases
 
