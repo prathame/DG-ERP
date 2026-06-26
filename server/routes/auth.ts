@@ -116,7 +116,23 @@ router.post('/api/auth/login', async (req, res) => {
       barcodeSystemEnabled: row.barcode_system_enabled !== false,
       subscriptionEndsAt: row.subscription_ends_at ?? null,
       trialEndsAt: row.trial_ends_at ?? null,
-      tabConfig: typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : (row.tab_config ?? null),
+      tabConfig: (() => {
+        const tc = typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : row.tab_config;
+        if (tc) return tc;
+        return {
+          dashboard:    { label: 'Dashboard',      visible: true },
+          inventory:    { label: 'Inventory',      visible: true },
+          distribution: { label: 'Distribution',   visible: true },
+          sales:        { label: 'Sales Entry',    visible: row.warranty_enabled !== false },
+          verification: { label: 'Verify Product', visible: row.barcode_system_enabled !== false },
+          warranty:     { label: 'Warranty',        visible: row.warranty_enabled !== false },
+          replacements: { label: 'Replacements',   visible: row.replacement_enabled !== false },
+          rewards:      { label: 'Rewards',         visible: row.rewards_enabled !== false },
+          finance:      { label: 'Finance',         visible: row.finance_enabled !== false },
+          chatbot:      { label: 'Chatbot',         visible: row.chatbot_enabled !== false },
+          settings:     { label: 'Settings',        visible: true },
+        };
+      })(),
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });

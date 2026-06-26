@@ -543,29 +543,6 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             </form>
           </div>
 
-          {/* Feature Toggles (read-only — managed by super admin) */}
-          {isAdmin && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
-                <h3 className="font-bold text-lg flex items-center gap-2"><Settings size={20} /> {st('settings.featureToggles')}</h3>
-              </div>
-              <div className="p-6 space-y-4">
-                {[
-                  { key: 'warrantyEnabled', label: st('settings.warrantyMgmt') },
-                  { key: 'replacementEnabled', label: st('settings.replacementTracking') },
-                  { key: 'rewardsEnabled', label: st('settings.rewardsPoints') },
-                ].map((toggle) => (
-                  <div key={toggle.key} className="flex items-center justify-between">
-                    <p className="font-medium">{toggle.label}</p>
-                    <span className={cn("px-3 py-1 rounded-full text-xs font-bold", (user as Record<string, unknown>)?.[toggle.key] !== false ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400")}>
-                      {(user as Record<string, unknown>)?.[toggle.key] !== false ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
-                ))}
-                <p className="text-xs text-gray-400 mt-2">Feature toggles are managed by the platform administrator.</p>
-              </div>
-            </div>
-          )}
 
           {/* Bill Customization */}
           {isAdmin && <BillCustomizationSection />}
