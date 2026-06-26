@@ -12,7 +12,9 @@
     "dev:all": "npm run server & npm run dev",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@logtail/node": "^0.5.8",
@@ -43,8 +45,11 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.14.0",
     "@types/pg": "^8.20.0",
+    "@types/supertest": "^7.2.0",
     "autoprefixer": "^10.4.21",
+    "supertest": "^7.2.2",
     "tailwindcss": "^4.1.14",
-    "typescript": "~5.8.2"
+    "typescript": "~5.8.2",
+    "vitest": "^4.1.9"
   }
 }
