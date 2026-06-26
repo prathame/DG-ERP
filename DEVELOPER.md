@@ -402,7 +402,7 @@ export default router;
 | `dashboard.ts` | `/stats`, `/rewards-summary` | KPIs + stats |
 | `search.ts` | `/search?q=` | Searches products, customers, vendors, barcodes |
 | `notifications.ts` | `/notifications` | Low stock, expiring warranties, pending payments |
-| `chatbot.ts` | `/chatbot` | 30+ natural language queries |
+| `chatbot.ts` | `/chatbot`, `/chatbot/quick-actions` | 30+ queries, label-aware responses, dynamic quick actions |
 | `masters.ts` | `/masters/counts` | Aggregate counts |
 | `mapping.ts` | `/mapping/vendors-with-customers` | Vendor→customer tree |
 | `audit.ts` | `/audit-log`, `/backup` | Activity log with pagination |
@@ -992,6 +992,24 @@ Run through all critical manual test cases before any production deployment:
 2. `tests/cases/cross-tenant.md` — Data isolation between tenants
 3. `tests/cases/auth-login.md` — Login, forgot password, rate limiting
 4. `tests/cases/super-admin.md` — Tenant CRUD, toggles, impersonation
+
+---
+
+## Tab Customization
+
+Per-tenant tab renaming and visibility via `tab_config` JSONB column on `tenants` table.
+
+### How it works
+1. Super admin sets `tab_config` per tenant (Tab Customization section in tenant detail)
+2. Login response includes `tabConfig` — frontend renders custom labels and hides toggled-off tabs
+3. Chatbot reads `tab_config` to use custom labels in responses and route queries correctly
+4. Backend routes, DB columns, API paths are **never renamed** — only display labels change
+
+### Key rule
+When chatbot receives "sales today" and the tenant's `sales` tab is OFF but `distribution` is labeled "Sales", the chatbot queries `product_distribution` instead of `product_sales`. This is handled by `resolveFeature()` in `chatbot.ts`.
+
+### Dashboard and Settings
+Always visible (locked ON in the UI). Cannot be hidden.
 
 ---
 

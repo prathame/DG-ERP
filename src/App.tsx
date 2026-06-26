@@ -109,22 +109,27 @@ export default function App() {
   const { t } = useTranslation();
 
   const userConfig = user as Record<string, unknown>;
+  const tabConfig = (userConfig?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>;
+  const tc = (key: string, fallback: string) => tabConfig[key]?.label || fallback;
+  const tv = (key: string) => tabConfig[key]?.visible !== false;
+
   const warrantyEnabled = userConfig?.warrantyEnabled !== false;
   const replacementEnabled = userConfig?.replacementEnabled !== false;
   const rewardsEnabled = userConfig?.rewardsEnabled !== false;
   const financeEnabled = userConfig?.financeEnabled !== false;
 
-  const navItems = [
-    { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
-    { id: 'sales', label: t('nav.sales'), icon: ShoppingCart },
-    { id: 'distribution', label: t('nav.distribution'), icon: Package },
-    { id: 'inventory', label: t('nav.inventory'), icon: Package },
-...(userConfig?.barcodeSystemEnabled !== false ? [{ id: 'verification', label: t('nav.verification'), icon: ScanSearch }] : []),
-    ...(financeEnabled ? [{ id: 'finance', label: t('nav.finance'), icon: IndianRupee }] : []),
-    ...(warrantyEnabled ? [{ id: 'warranty', label: t('nav.warranty'), icon: ShieldCheck }] : []),
-    ...(replacementEnabled ? [{ id: 'replacements', label: t('nav.replacements'), icon: RefreshCw }] : []),
-    ...(rewardsEnabled ? [{ id: 'rewards', label: t('nav.rewards'), icon: Gift }] : []),
+  const allNavItems = [
+    { id: 'dashboard', label: tc('dashboard', t('nav.dashboard')), icon: LayoutDashboard, show: true },
+    { id: 'sales', label: tc('sales', t('nav.sales')), icon: ShoppingCart, show: tv('sales') },
+    { id: 'distribution', label: tc('distribution', t('nav.distribution')), icon: Package, show: tv('distribution') },
+    { id: 'inventory', label: tc('inventory', t('nav.inventory')), icon: Package, show: tv('inventory') },
+    { id: 'verification', label: tc('verification', t('nav.verification')), icon: ScanSearch, show: tv('verification') && userConfig?.barcodeSystemEnabled !== false },
+    { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') && financeEnabled },
+    { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') && warrantyEnabled },
+    { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') && replacementEnabled },
+    { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') && rewardsEnabled },
   ];
+  const navItems = allNavItems.filter(item => item.show);
 
   const canAccess = (tabId: string) => {
     const u = user as { permissions?: string[] | null; role?: string } | null;

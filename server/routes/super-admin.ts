@@ -184,6 +184,7 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
         warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false,
         financeEnabled: tenant.finance_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, billCustomizationEnabled: tenant.bill_customization_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false,
         trialEndsAt: tenant.trial_ends_at, subscriptionEndsAt: tenant.subscription_ends_at, createdAt: tenant.created_at, lastActiveAt: tenant.last_active_at,
+        tabConfig: tenant.tab_config ?? null,
       },
       stats,
       users: users.map((u: Record<string, unknown>) => ({ id: u.id, email: u.email, name: u.name, role: u.role, vendorId: u.vendor_id, createdAt: u.created_at })),
@@ -221,6 +222,7 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     if (requestBody.address !== undefined) { updates.push(`address = $${idx}`); params.push(requestBody.address); idx++; }
     if (requestBody.subscriptionEndsAt !== undefined) { updates.push(`subscription_ends_at = $${idx}`); params.push(requestBody.subscriptionEndsAt || null); idx++; }
     if (requestBody.gstNumber !== undefined) { updates.push(`gst_number = $${idx}`); params.push(requestBody.gstNumber); idx++; }
+    if (requestBody.tabConfig !== undefined) { updates.push(`tab_config = $${idx}`); params.push(JSON.stringify(requestBody.tabConfig)); idx++; }
     // Auto-bundle: warranty OFF → replacement OFF, replacement ON → warranty ON
     if (requestBody.warrantyEnabled === false) requestBody.replacementEnabled = false;
     if (requestBody.replacementEnabled === true && requestBody.warrantyEnabled === undefined) requestBody.warrantyEnabled = true;
@@ -234,7 +236,7 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
     const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
     await logAudit(pool, id, 'UPDATE', 'tenant', id, `Tenant updated: ${updates.join(', ')}`, (req as AuthRequest).user?.userId, 'Super Admin');
-    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false, financeEnabled: tenant.finance_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, billCustomizationEnabled: tenant.bill_customization_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false, vendorPortalEnabled: tenant.vendor_portal_enabled !== false });
+    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false, financeEnabled: tenant.finance_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, billCustomizationEnabled: tenant.bill_customization_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false, vendorPortalEnabled: tenant.vendor_portal_enabled !== false, tabConfig: tenant.tab_config ?? null });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

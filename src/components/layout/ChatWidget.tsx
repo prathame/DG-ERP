@@ -18,6 +18,7 @@ export function ChatWidget() {
     { id: 0, text: "Hello! I'm your ERP assistant. Type a vendor name, barcode, or try:\n• \"sales today\"\n• \"low stock\"\n• \"pending payments\"\n• \"help\"", sender: 'bot', timestamp: new Date() },
   ]);
   const [loading, setLoading] = useState(false);
+  const [quickActions, setQuickActions] = useState<string[]>(['daily report', 'sales today', 'low stock', 'pending payments', 'all vendors']);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -26,7 +27,10 @@ export function ChatWidget() {
   }, [messages]);
 
   useEffect(() => {
-    if (open) inputRef.current?.focus();
+    if (open) {
+      inputRef.current?.focus();
+      api.chatbot.quickActions().then(setQuickActions).catch(() => {});
+    }
   }, [open]);
 
   const sendMessage = async () => {
@@ -165,7 +169,7 @@ export function ChatWidget() {
 
             {/* Quick actions */}
             <div className="px-3 py-2 border-t border-gray-100 flex gap-1.5 overflow-x-auto bg-white">
-              {['daily report', 'sales today', 'low stock', 'pending payments', 'top products', 'all vendors'].map((cmd) => (
+              {quickActions.map((cmd) => (
                 <button
                   key={cmd}
                   type="button"
