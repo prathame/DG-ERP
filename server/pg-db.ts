@@ -58,9 +58,6 @@ export async function initSchema() {
         status TEXT DEFAULT 'active',
         trial_ends_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT NOW(),
-        warranty_enabled BOOLEAN DEFAULT true,
-        replacement_enabled BOOLEAN DEFAULT true,
-        rewards_enabled BOOLEAN DEFAULT true,
         last_active_at TIMESTAMPTZ
       );
 
@@ -94,9 +91,6 @@ export async function initSchema() {
         auto_whatsapp BOOLEAN DEFAULT false,
         gst_number TEXT,
         default_gst_rate NUMERIC(5,2) DEFAULT 18,
-        warranty_enabled BOOLEAN DEFAULT true,
-        replacement_enabled BOOLEAN DEFAULT true,
-        rewards_enabled BOOLEAN DEFAULT true,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (id, tenant_id)
       );
@@ -360,15 +354,9 @@ export async function initSchema() {
       );
     `);
 
-    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS warranty_enabled BOOLEAN DEFAULT true');
-    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS replacement_enabled BOOLEAN DEFAULT true');
-    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS rewards_enabled BOOLEAN DEFAULT true');
-    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS finance_enabled BOOLEAN DEFAULT true');
-    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS chatbot_enabled BOOLEAN DEFAULT true');
-    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bill_customization_enabled BOOLEAN DEFAULT true');
-    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS multi_language_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vendor_portal_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS barcode_system_enabled BOOLEAN DEFAULT true');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS multi_language_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ');
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS tab_config JSONB DEFAULT '${JSON.stringify({
       dashboard:    { label: 'Dashboard',      visible: true },

@@ -34,15 +34,9 @@ interface TenantDetail {
   planName?: string;
   status: string;
   subscriptionEndsAt?: string;
-  warrantyEnabled: boolean;
-  replacementEnabled: boolean;
-  rewardsEnabled: boolean;
-  financeEnabled: boolean;
-  chatbotEnabled: boolean;
-  billCustomizationEnabled: boolean;
+  barcodeSystemEnabled: boolean;
   multiLanguageEnabled: boolean;
   vendorPortalEnabled: boolean;
-  barcodeSystemEnabled: boolean;
   tabConfig: Record<string, { label: string; visible: boolean }> | null;
   createdAt: string;
   stats: {
@@ -433,12 +427,14 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
   const { toast } = useToast();
   const [config, setConfig] = useState<Record<string, { label: string; visible: boolean }>>(tabConfig ?? DEFAULT_TAB_CONFIG);
   const [barcodeSystem, setBarcodeSystem] = useState(tenant.barcodeSystemEnabled !== false);
+  const [multiLanguage, setMultiLanguage] = useState(tenant.multiLanguageEnabled !== false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setConfig(tabConfig ?? DEFAULT_TAB_CONFIG);
     setBarcodeSystem(tenant.barcodeSystemEnabled !== false);
-  }, [tabConfig, tenant.barcodeSystemEnabled]);
+    setMultiLanguage(tenant.multiLanguageEnabled !== false);
+  }, [tabConfig, tenant.barcodeSystemEnabled, tenant.multiLanguageEnabled]);
 
   const updateLabel = (key: string, label: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], label } }));
   const toggleVisible = (key: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], visible: !prev[key].visible } }));
@@ -451,7 +447,7 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
       const res = await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tabConfig: config, barcodeSystemEnabled: barcodeSystem }),
+        body: JSON.stringify({ tabConfig: config, barcodeSystemEnabled: barcodeSystem, multiLanguageEnabled: multiLanguage }),
       });
       if (!res.ok) throw new Error();
       toast('Tab configuration saved', 'success');
@@ -520,6 +516,15 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
           </div>
           <button type="button" onClick={() => setBarcodeSystem(!barcodeSystem)} className={cn("relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors", barcodeSystem ? "bg-green-500" : "bg-gray-300")}>
             <span className={cn("pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform", barcodeSystem ? "translate-x-4" : "translate-x-0")} />
+          </button>
+        </div>
+        <div className="flex items-center justify-between mt-4">
+          <div>
+            <p className="font-medium text-sm">Multi-Language</p>
+            <p className="text-xs text-gray-500">When ON, tenant can switch UI between English, Hindi, and Gujarati.</p>
+          </div>
+          <button type="button" onClick={() => setMultiLanguage(!multiLanguage)} className={cn("relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors", multiLanguage ? "bg-green-500" : "bg-gray-300")}>
+            <span className={cn("pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform", multiLanguage ? "translate-x-4" : "translate-x-0")} />
           </button>
         </div>
       </div>
