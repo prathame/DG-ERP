@@ -28,10 +28,10 @@ router.get('/api/dashboard/stats', async (req, res) => {
     const lastMonth = lastMonthDate.toISOString().slice(0, 7);
 
     const todaySales = (await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date = $1 AND tenant_id = $2", [today, tenantId])).rows[0] as { c: number };
-    const thisMonthSales = (await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${thisMonth}%`, tenantId])).rows[0] as { c: number };
-    const lastMonthSales = (await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${lastMonth}%`, tenantId])).rows[0] as { c: number };
-    const thisMonthRevenue = (await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${thisMonth}%`, tenantId])).rows[0] as { t: number };
-    const lastMonthRevenue = (await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE purchase_date LIKE $1 AND tenant_id = $2", [`${lastMonth}%`, tenantId])).rows[0] as { t: number };
+    const thisMonthSales = (await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [thisMonth, tenantId])).rows[0] as { c: number };
+    const lastMonthSales = (await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [lastMonth, tenantId])).rows[0] as { c: number };
+    const thisMonthRevenue = (await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [thisMonth, tenantId])).rows[0] as { t: number };
+    const lastMonthRevenue = (await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [lastMonth, tenantId])).rows[0] as { t: number };
 
     const lowStockProducts = (await pool.query(`
       SELECT p.id, p.name, COUNT(pi.id) as stock FROM products p
