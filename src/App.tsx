@@ -112,11 +112,11 @@ export default function App() {
 
   const { t } = useTranslation();
 
-  const ux = user as Record<string, unknown>;
-  const warrantyEnabled = ux?.warrantyEnabled !== false;
-  const replacementEnabled = ux?.replacementEnabled !== false;
-  const rewardsEnabled = ux?.rewardsEnabled !== false;
-  const financeEnabled = ux?.financeEnabled !== false;
+  const userConfig = user as Record<string, unknown>;
+  const warrantyEnabled = userConfig?.warrantyEnabled !== false;
+  const replacementEnabled = userConfig?.replacementEnabled !== false;
+  const rewardsEnabled = userConfig?.rewardsEnabled !== false;
+  const financeEnabled = userConfig?.financeEnabled !== false;
 
   const navItems = [
     { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
@@ -125,7 +125,7 @@ export default function App() {
     { id: 'masters', label: t('nav.masters'), icon: Users },
     { id: 'inventory', label: t('nav.inventory'), icon: Package },
     { id: 'accounts', label: t('nav.accounts'), icon: CreditCard },
-    ...(ux?.barcodeSystemEnabled !== false ? [{ id: 'verification', label: t('nav.verification'), icon: ScanSearch }] : []),
+    ...(userConfig?.barcodeSystemEnabled !== false ? [{ id: 'verification', label: t('nav.verification'), icon: ScanSearch }] : []),
     ...(financeEnabled ? [{ id: 'finance', label: t('nav.finance'), icon: IndianRupee }] : []),
     ...(warrantyEnabled ? [{ id: 'warranty', label: t('nav.warranty'), icon: ShieldCheck }] : []),
     ...(replacementEnabled ? [{ id: 'replacements', label: t('nav.replacements'), icon: RefreshCw }] : []),
@@ -301,11 +301,11 @@ export default function App() {
       <main className="flex-1 overflow-y-auto relative">
         {/* Subscription expiry banner */}
         {(() => {
-          const subEnd = (ux?.subscriptionEndsAt || ux?.trialEndsAt) as string | undefined;
+          const subEnd = (userConfig?.subscriptionEndsAt || userConfig?.trialEndsAt) as string | undefined;
           if (!subEnd) return null;
           const days = Math.ceil((new Date(subEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
           if (days > 15) return null;
-          const isTrial = !!ux?.trialEndsAt && !ux?.subscriptionEndsAt;
+          const isTrial = !!userConfig?.trialEndsAt && !userConfig?.subscriptionEndsAt;
           return (
             <div className={cn("px-4 py-2 text-center text-sm font-medium", days <= 0 ? "bg-rose-600 text-white" : days <= 7 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700")}>
               {days <= 0
@@ -396,7 +396,7 @@ export default function App() {
           )}
         </div>
       </nav>
-      {ux?.chatbotEnabled !== false && <ChatWidget />}
+      {userConfig?.chatbotEnabled !== false && <ChatWidget />}
     </div>
     </ToastProvider>
   );
