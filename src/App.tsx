@@ -387,7 +387,7 @@ export default function App() {
           )}
         </div>
       </nav>
-      {tv('chatbot') && <ChatWidget />}
+      {tv('chatbot') && <div className="hidden lg:block"><ChatWidget /></div>}
     </div>
     </ToastProvider>
   );
