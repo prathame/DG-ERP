@@ -73,21 +73,21 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const b = req.body;
+    const requestBody = req.body;
 
-    if (b.primaryColor && !/^#[0-9a-fA-F]{6}$/.test(b.primaryColor)) {
+    if (requestBody.primaryColor && !/^#[0-9a-fA-F]{6}$/.test(requestBody.primaryColor)) {
       return res.status(400).json({ error: 'Invalid color format. Use hex like #FF6600' });
     }
-    if (b.logoBase64 && (!b.logoBase64.startsWith('data:image/') || b.logoBase64.length > 700_000)) {
+    if (requestBody.logoBase64 && (!requestBody.logoBase64.startsWith('data:image/') || requestBody.logoBase64.length > 700_000)) {
       return res.status(400).json({ error: 'Logo must be a valid image under 500KB' });
     }
-    if (b.signatureBase64 && (!b.signatureBase64.startsWith('data:image/') || b.signatureBase64.length > 700_000)) {
+    if (requestBody.signatureBase64 && (!requestBody.signatureBase64.startsWith('data:image/') || requestBody.signatureBase64.length > 700_000)) {
       return res.status(400).json({ error: 'Signature must be a valid image under 500KB' });
     }
-    if (b.invoicePrefix && b.invoicePrefix.length > 20) {
+    if (requestBody.invoicePrefix && requestBody.invoicePrefix.length > 20) {
       return res.status(400).json({ error: 'Invoice prefix max 20 characters' });
     }
-    if (b.termsAndConditions && b.termsAndConditions.length > 2000) {
+    if (requestBody.termsAndConditions && requestBody.termsAndConditions.length > 2000) {
       return res.status(400).json({ error: 'Terms & Conditions max 2000 characters' });
     }
 
@@ -108,25 +108,25 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
       RETURNING *
     `, [
       tenantId,
-      b.logoBase64 ?? null,
-      b.primaryColor || '#F27D26',
-      b.tagline ?? null,
-      b.invoicePrefix ?? null,
-      b.challanPrefix ?? null,
-      b.bankAccountName ?? null,
-      b.bankAccountNumber ?? null,
-      b.bankName ?? null,
-      b.bankBranch ?? null,
-      b.bankIfsc ?? null,
-      b.bankUpiId ?? null,
-      b.termsAndConditions ?? null,
-      b.signatoryName ?? null,
-      b.signatoryDesignation ?? null,
-      b.signatureBase64 ?? null,
-      b.showRewards !== false,
-      b.showBarcode !== false,
-      b.showWarranty !== false,
-      b.footerText || 'Powered by DG ERP Management',
+      requestBody.logoBase64 ?? null,
+      requestBody.primaryColor || '#F27D26',
+      requestBody.tagline ?? null,
+      requestBody.invoicePrefix ?? null,
+      requestBody.challanPrefix ?? null,
+      requestBody.bankAccountName ?? null,
+      requestBody.bankAccountNumber ?? null,
+      requestBody.bankName ?? null,
+      requestBody.bankBranch ?? null,
+      requestBody.bankIfsc ?? null,
+      requestBody.bankUpiId ?? null,
+      requestBody.termsAndConditions ?? null,
+      requestBody.signatoryName ?? null,
+      requestBody.signatoryDesignation ?? null,
+      requestBody.signatureBase64 ?? null,
+      requestBody.showRewards !== false,
+      requestBody.showBarcode !== false,
+      requestBody.showWarranty !== false,
+      requestBody.footerText || 'Powered by DG ERP Management',
     ]);
 
     res.json(rowToResponse(rows[0]));

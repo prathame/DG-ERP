@@ -197,36 +197,36 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
 router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const b = req.body;
+    const requestBody = req.body;
     const toggleMap: Record<string, string> = { warrantyEnabled: 'warranty_enabled', replacementEnabled: 'replacement_enabled', rewardsEnabled: 'rewards_enabled', financeEnabled: 'finance_enabled', chatbotEnabled: 'chatbot_enabled', billCustomizationEnabled: 'bill_customization_enabled', multiLanguageEnabled: 'multi_language_enabled', vendorPortalEnabled: 'vendor_portal_enabled', barcodeSystemEnabled: 'barcode_system_enabled' };
     const updates: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
-    if (b.status !== undefined) { updates.push(`status = $${idx}`); params.push(b.status); idx++; }
-    if (b.planId !== undefined) {
-      updates.push(`plan_id = $${idx}`); params.push(b.planId); idx++;
+    if (requestBody.status !== undefined) { updates.push(`status = $${idx}`); params.push(requestBody.status); idx++; }
+    if (requestBody.planId !== undefined) {
+      updates.push(`plan_id = $${idx}`); params.push(requestBody.planId); idx++;
       // Auto-apply plan features when plan changes
-      const newPlan = (await pool.query('SELECT features FROM plans WHERE id = $1', [b.planId])).rows[0] as { features: Record<string, boolean> } | undefined;
+      const newPlan = (await pool.query('SELECT features FROM plans WHERE id = $1', [requestBody.planId])).rows[0] as { features: Record<string, boolean> } | undefined;
       if (newPlan?.features) {
         const featureToToggle: Record<string, string> = { warranty: 'warrantyEnabled', replacements: 'replacementEnabled', rewards: 'rewardsEnabled', finance: 'financeEnabled', chatbot: 'chatbotEnabled', billCustomization: 'billCustomizationEnabled', multiLanguage: 'multiLanguageEnabled', vendorPortal: 'vendorPortalEnabled', barcodeSystem: 'barcodeSystemEnabled' };
         for (const [feat, toggleKey] of Object.entries(featureToToggle)) {
-          if (newPlan.features[feat] !== undefined && b[toggleKey] === undefined) {
-            b[toggleKey] = newPlan.features[feat];
+          if (newPlan.features[feat] !== undefined && requestBody[toggleKey] === undefined) {
+            requestBody[toggleKey] = newPlan.features[feat];
           }
         }
       }
     }
-    if (b.companyName !== undefined) { updates.push(`company_name = $${idx}`); params.push(b.companyName); idx++; }
-    if (b.phone !== undefined) { updates.push(`phone = $${idx}`); params.push(b.phone); idx++; }
-    if (b.address !== undefined) { updates.push(`address = $${idx}`); params.push(b.address); idx++; }
-    if (b.subscriptionEndsAt !== undefined) { updates.push(`subscription_ends_at = $${idx}`); params.push(b.subscriptionEndsAt || null); idx++; }
-    if (b.gstNumber !== undefined) { updates.push(`gst_number = $${idx}`); params.push(b.gstNumber); idx++; }
+    if (requestBody.companyName !== undefined) { updates.push(`company_name = $${idx}`); params.push(requestBody.companyName); idx++; }
+    if (requestBody.phone !== undefined) { updates.push(`phone = $${idx}`); params.push(requestBody.phone); idx++; }
+    if (requestBody.address !== undefined) { updates.push(`address = $${idx}`); params.push(requestBody.address); idx++; }
+    if (requestBody.subscriptionEndsAt !== undefined) { updates.push(`subscription_ends_at = $${idx}`); params.push(requestBody.subscriptionEndsAt || null); idx++; }
+    if (requestBody.gstNumber !== undefined) { updates.push(`gst_number = $${idx}`); params.push(requestBody.gstNumber); idx++; }
     // Auto-bundle: warranty OFF → replacement OFF, replacement ON → warranty ON
-    if (b.warrantyEnabled === false) b.replacementEnabled = false;
-    if (b.replacementEnabled === true && b.warrantyEnabled === undefined) b.warrantyEnabled = true;
+    if (requestBody.warrantyEnabled === false) requestBody.replacementEnabled = false;
+    if (requestBody.replacementEnabled === true && requestBody.warrantyEnabled === undefined) requestBody.warrantyEnabled = true;
 
     for (const [key, col] of Object.entries(toggleMap)) {
-      if (b[key] !== undefined) { updates.push(`${col} = $${idx}`); params.push(!!b[key]); idx++; }
+      if (requestBody[key] !== undefined) { updates.push(`${col} = $${idx}`); params.push(!!requestBody[key]); idx++; }
     }
     if (updates.length === 0) return res.status(400).json({ error: 'No updates provided' });
     params.push(id);

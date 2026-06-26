@@ -51,17 +51,17 @@ export function buildDistributionBillSlice(
 
 export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst?: boolean }): string {
   const showGst = options?.showGst ?? true;
-  const s = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
-  const color = (s.primaryColor as string) || '#F27D26';
-  const logoHtml = s.logoBase64
-    ? `<img src="${s.logoBase64}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
+  const billConfig = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
+  const color = (billConfig.primaryColor as string) || '#F27D26';
+  const logoHtml = billConfig.logoBase64
+    ? `<img src="${billConfig.logoBase64}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
     : `<div class="logo-icon">${(bill.company.name || 'C').substring(0, 1).toUpperCase()}</div>`;
-  const tagline = (s.tagline as string) || '';
-  const invPrefix = (s.invoicePrefix as string) || '';
-  const showWarranty = s.showWarranty !== false;
-  const showRewards = s.showRewards !== false;
-  const showBarcode = s.showBarcode !== false;
-  const footerText = (s.footerText as string) || 'Powered by DG ERP Management';
+  const tagline = (billConfig.tagline as string) || '';
+  const invPrefix = (billConfig.invoicePrefix as string) || '';
+  const showWarranty = billConfig.showWarranty !== false;
+  const showRewards = billConfig.showRewards !== false;
+  const showBarcode = billConfig.showBarcode !== false;
+  const footerText = (billConfig.footerText as string) || 'Powered by DG ERP Management';
 
   const warrantySection = (showWarranty && bill.warranty) ? `
     <div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
@@ -74,30 +74,30 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
       </table>
     </div>` : '';
 
-  const hasBankDetails = s.bankAccountName || s.bankAccountNumber || s.bankName;
+  const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
   const bankSection = hasBankDetails ? `
     <div style="margin-top:20px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;">
       <strong style="font-size:13px;">Bank Details</strong>
       <table style="width:100%;margin-top:8px;font-size:12px;">
-        ${s.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(s.bankAccountName)}</td></tr>` : ''}
-        ${s.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(s.bankAccountNumber)}</td></tr>` : ''}
-        ${s.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(s.bankName)}${s.bankBranch ? `, ${esc(s.bankBranch)}` : ''}</td></tr>` : ''}
-        ${s.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(s.bankIfsc)}</td></tr>` : ''}
-        ${s.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(s.bankUpiId)}</td></tr>` : ''}
+        ${billConfig.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
+        ${billConfig.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(billConfig.bankAccountNumber)}</td></tr>` : ''}
+        ${billConfig.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(billConfig.bankName)}${billConfig.bankBranch ? `, ${esc(billConfig.bankBranch)}` : ''}</td></tr>` : ''}
+        ${billConfig.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
+        ${billConfig.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
       </table>
     </div>` : '';
 
-  const tcSection = s.termsAndConditions ? `
+  const tcSection = billConfig.termsAndConditions ? `
     <div style="margin-top:16px;font-size:11px;">
       <strong>Terms & Conditions:</strong>
-      <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${esc(s.termsAndConditions)}</p>
+      <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${esc(billConfig.termsAndConditions)}</p>
     </div>` : '';
 
-  const sigSection = s.signatoryName ? `
+  const sigSection = billConfig.signatoryName ? `
     <div style="margin-top:40px;text-align:right;">
-      ${s.signatureBase64 ? `<img src="${s.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}
-      <p style="font-weight:600;font-size:13px;">${esc(s.signatoryName)}</p>
-      ${s.signatoryDesignation ? `<p style="font-size:11px;color:#6b7280;">${esc(s.signatoryDesignation)}</p>` : ''}
+      ${billConfig.signatureBase64 ? `<img src="${billConfig.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}
+      <p style="font-weight:600;font-size:13px;">${esc(billConfig.signatoryName)}</p>
+      ${billConfig.signatoryDesignation ? `<p style="font-size:11px;color:#6b7280;">${esc(billConfig.signatoryDesignation)}</p>` : ''}
     </div>` : '';
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sales Invoice - ${invPrefix}${bill.id}</title>
@@ -208,32 +208,32 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
 export function generateDistributionChallanHtml(bill: DistributionBillData, options?: { showGst?: boolean; fullyPaid?: boolean }): string {
   const showGst = options?.showGst ?? true;
   const fullyPaid = options?.fullyPaid ?? false;
-  const s = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
-  const color = (s.primaryColor as string) || '#F27D26';
-  const logoHtml = s.logoBase64
-    ? `<img src="${s.logoBase64}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
+  const billConfig = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
+  const color = (billConfig.primaryColor as string) || '#F27D26';
+  const logoHtml = billConfig.logoBase64
+    ? `<img src="${billConfig.logoBase64}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
     : `<div class="logo-icon">${(bill.company.name || 'C').substring(0, 1).toUpperCase()}</div>`;
-  const tagline = (s.tagline as string) || '';
-  const chPrefix = (s.challanPrefix as string) || '';
-  const footerText = (s.footerText as string) || 'Powered by DG ERP Management';
+  const tagline = (billConfig.tagline as string) || '';
+  const chPrefix = (billConfig.challanPrefix as string) || '';
+  const footerText = (billConfig.footerText as string) || 'Powered by DG ERP Management';
 
-  const hasBankDetails = s.bankAccountName || s.bankAccountNumber || s.bankName;
+  const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
   const bankSection = hasBankDetails ? `
     <div style="margin-top:20px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;">
       <strong style="font-size:13px;">Bank Details</strong>
       <table style="width:100%;margin-top:8px;font-size:12px;">
-        ${s.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(s.bankAccountName)}</td></tr>` : ''}
-        ${s.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(s.bankAccountNumber)}</td></tr>` : ''}
-        ${s.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(s.bankName)}${s.bankBranch ? `, ${esc(s.bankBranch)}` : ''}</td></tr>` : ''}
-        ${s.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(s.bankIfsc)}</td></tr>` : ''}
-        ${s.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(s.bankUpiId)}</td></tr>` : ''}
+        ${billConfig.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
+        ${billConfig.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(billConfig.bankAccountNumber)}</td></tr>` : ''}
+        ${billConfig.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(billConfig.bankName)}${billConfig.bankBranch ? `, ${esc(billConfig.bankBranch)}` : ''}</td></tr>` : ''}
+        ${billConfig.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
+        ${billConfig.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
       </table>
     </div>` : '';
 
-  const tcSection = s.termsAndConditions ? `
+  const tcSection = billConfig.termsAndConditions ? `
     <div style="margin-top:16px;font-size:11px;">
       <strong>Terms & Conditions:</strong>
-      <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${esc(s.termsAndConditions)}</p>
+      <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${esc(billConfig.termsAndConditions)}</p>
     </div>` : '';
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Distribution Challan - ${chPrefix}${bill.challanId}</title>
@@ -340,9 +340,9 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   ${tcSection}
   <div class="signatures">
     <div class="sig-box">
-      ${s.signatureBase64 ? `<img src="${s.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : ''}
-      <p>${s.signatoryName || 'Authorized Signatory'}</p>
-      ${s.signatoryDesignation ? `<p style="font-size:10px;font-weight:400;margin-top:2px;">${esc(s.signatoryDesignation)}</p>` : ''}
+      ${billConfig.signatureBase64 ? `<img src="${billConfig.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : ''}
+      <p>${billConfig.signatoryName || 'Authorized Signatory'}</p>
+      ${billConfig.signatoryDesignation ? `<p style="font-size:10px;font-weight:400;margin-top:2px;">${esc(billConfig.signatoryDesignation)}</p>` : ''}
     </div>
     <div class="sig-box"><p>Received By</p></div>
   </div>
