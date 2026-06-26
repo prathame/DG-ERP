@@ -78,8 +78,15 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
     if (requestBody.primaryColor && !/^#[0-9a-fA-F]{6}$/.test(requestBody.primaryColor)) {
       return res.status(400).json({ error: 'Invalid color format. Use hex like #FF6600' });
     }
-    if (requestBody.logoBase64 && (!requestBody.logoBase64.startsWith('data:image/') || requestBody.logoBase64.length > 700_000)) {
-      return res.status(400).json({ error: 'Logo must be a valid image under 500KB' });
+    if (requestBody.logoBase64) {
+      if (!/^data:image\/(jpeg|png|webp|gif);base64,/.test(requestBody.logoBase64) || requestBody.logoBase64.length > 700_000) {
+        return res.status(400).json({ error: 'Logo must be JPEG, PNG, WebP or GIF under 500KB' });
+      }
+    }
+    if (requestBody.signatureBase64) {
+      if (!/^data:image\/(jpeg|png|webp|gif);base64,/.test(requestBody.signatureBase64) || requestBody.signatureBase64.length > 700_000) {
+        return res.status(400).json({ error: 'Signature must be JPEG, PNG, WebP or GIF under 500KB' });
+      }
     }
     if (requestBody.signatureBase64 && (!requestBody.signatureBase64.startsWith('data:image/') || requestBody.signatureBase64.length > 700_000)) {
       return res.status(400).json({ error: 'Signature must be a valid image under 500KB' });

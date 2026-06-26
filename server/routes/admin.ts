@@ -35,7 +35,7 @@ router.get('/api/admin/users', async (req, res) => {
       vendorId: r.vendor_id ?? null,
     })));
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -77,7 +77,7 @@ router.post('/api/admin/users', async (req, res) => {
       vendorId: row.vendor_id ?? null,
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -130,7 +130,7 @@ router.put('/api/admin/users/:id', async (req, res) => {
       vendorId: row.vendor_id ?? null,
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -27,7 +27,7 @@ router.post('/api/auth/signup', async (req, res) => {
     const row = (await pool.query('SELECT id, email, name, phone, address, role, company_name FROM users WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     res.status(201).json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -130,7 +130,7 @@ router.post('/api/auth/login', async (req, res) => {
       })(),
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -146,7 +146,7 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
 
     res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, permissions: typeof row.permissions === 'string' ? JSON.parse(row.permissions) : (row.permissions ?? null), vendorId: row.vendor_id ?? null, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, vendorPortalEnabled: row.vendor_portal_enabled !== false, barcodeSystemEnabled: row.barcode_system_enabled !== false, multiLanguageEnabled: row.multi_language_enabled !== false, inventoryTrackingEnabled: row.inventory_tracking_enabled !== false, tabConfig: typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : (row.tab_config ?? null) });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -177,7 +177,7 @@ router.put('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
 
     res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, vendorPortalEnabled: row.vendor_portal_enabled !== false, barcodeSystemEnabled: row.barcode_system_enabled !== false, multiLanguageEnabled: row.multi_language_enabled !== false });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -198,11 +198,11 @@ router.put('/api/settings/change-password', authMiddleware, async (req: AuthRequ
     }
 
     const newHash = bcrypt.hashSync(newPassword, 12);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3', [newHash, userId, tenantId]);
-    await logAudit(pool, tenantId!, 'PASSWORD_CHANGE', 'user', userId, 'Password changed', userId, req.user?.name);
-    res.json({ ok: true });
+    await pool.query('UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2 AND tenant_id = $3', [newHash, userId, tenantId]);
+    await logAudit(pool, tenantId!, 'PASSWORD_CHANGE', 'user', userId, 'Password changed — all sessions invalidated', userId, req.user?.name);
+    res.json({ ok: true, message: 'Password changed. Please log in again.' });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -229,7 +229,7 @@ router.post('/api/auth/forgot-password', async (req, res) => {
 
     res.json({ ok: true, message: 'If this email exists, a reset link has been generated. Contact your admin for the reset token.' });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -248,14 +248,14 @@ router.post('/api/auth/reset-password', async (req, res) => {
     if (!resetToken) return res.status(400).json({ error: 'Invalid or expired reset token' });
 
     const newHash = bcrypt.hashSync(newPassword, 12);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE email = $2 AND tenant_id = $3', [newHash, resetToken.email, resetToken.tenant_id]);
+    await pool.query('UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE email = $2 AND tenant_id = $3', [newHash, resetToken.email, resetToken.tenant_id]);
     await pool.query('UPDATE password_reset_tokens SET used = true WHERE token = $1', [token]);
 
     await logAudit(pool, resetToken.tenant_id, 'PASSWORD_RESET', 'user', null as unknown as string, `Password reset for ${resetToken.email}`, undefined, resetToken.email);
 
     res.json({ ok: true, message: 'Password has been reset successfully' });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -276,13 +276,13 @@ router.put('/api/admin/reset-user-password', authMiddleware, async (req: AuthReq
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const newHash = bcrypt.hashSync(newPassword, 12);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3', [newHash, userId, tenantId]);
+    await pool.query('UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2 AND tenant_id = $3', [newHash, userId, tenantId]);
 
     await logAudit(pool, tenantId, 'ADMIN_PASSWORD_RESET', 'user', userId, `Admin reset password for ${user.email}`, req.user?.userId, req.user?.name);
 
     res.json({ ok: true, message: `Password reset for ${user.email}` });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

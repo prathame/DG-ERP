@@ -49,7 +49,7 @@ router.get('/api/notifications', async (req, res) => {
 
     res.json({ notifications: items, count: items.length });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

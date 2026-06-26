@@ -30,7 +30,7 @@ router.get('/api/vendors', async (req, res) => {
     }));
     res.json(list);
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -69,7 +69,7 @@ router.post('/api/vendors', async (req, res) => {
       credentials,
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -88,7 +88,7 @@ router.put('/api/vendors/:id', async (req, res) => {
     const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.json({ id: row.id, name: row.name, contactPerson: row.contact_person, phone: row.phone, email: row.email, address: row.address, totalSales: row.total_sales ?? 0, totalRewardPoints: row.total_reward_points ?? 0 });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -102,7 +102,7 @@ router.delete('/api/vendors/:id', async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Vendor not found' });
     res.status(204).send();
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

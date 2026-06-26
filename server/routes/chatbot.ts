@@ -387,7 +387,7 @@ router.get('/api/chatbot/quick-actions', async (req, res) => {
     actions.push('all vendors');
     res.json({ actions });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -9,8 +9,8 @@ export const pool = new Pool({
   max: process.env.NODE_ENV === 'production' ? 10 : 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
-  ...(process.env.DATABASE_URL?.includes('render.com') || process.env.DATABASE_URL?.includes('neon.tech')
-    ? { ssl: { rejectUnauthorized: false } }
+  ...(process.env.NODE_ENV === 'production' || process.env.DATABASE_URL?.includes('render.com') || process.env.DATABASE_URL?.includes('neon.tech')
+    ? { ssl: { rejectUnauthorized: process.env.NODE_ENV === 'production' } }
     : {}),
 });
 
@@ -356,6 +356,7 @@ export async function initSchema() {
 
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vendor_portal_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS barcode_system_enabled BOOLEAN DEFAULT true');
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS inventory_tracking_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS multi_language_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ');

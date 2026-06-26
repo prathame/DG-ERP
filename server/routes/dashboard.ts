@@ -73,7 +73,7 @@ router.get('/api/dashboard/stats', async (req, res) => {
       expiringWarranties: expiringWarranties.c,
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -113,7 +113,7 @@ router.get('/api/dashboard/rewards-summary', async (req, res) => {
       })),
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -176,7 +176,7 @@ router.get('/api/dashboard/vendor/:vendorId', async (req, res) => {
       })),
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

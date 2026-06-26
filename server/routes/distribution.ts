@@ -47,7 +47,7 @@ router.get('/api/distribution/summary', async (req, res) => {
       })),
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -96,7 +96,7 @@ router.get('/api/distribution', async (req, res) => {
       billedPrice: r.billed_price,
     })));
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -154,7 +154,7 @@ router.get('/api/distribution/batches', async (req, res) => {
       gstApplied: !!(Number(r.gst_applied)),
     })));
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -284,7 +284,7 @@ router.post('/api/distribution/batch', async (req, res) => {
       balanceRemaining: totalBilled - (paidAmount ?? 0),
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -392,7 +392,7 @@ router.post('/api/distribution', async (req, res) => {
       balanceRemaining: netAmount - (paidAmount ?? 0),
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -445,7 +445,7 @@ router.put('/api/distribution/apply-billing', async (req, res) => {
     await logAudit(pool, tenantId, 'Billing Applied', 'distribution', batchId || vendorId, `GST: ${gstCount} units, Non-GST: ${nonGstCount} units`);
     res.json({ ok: true, gstUnits: gstCount, nonGstUnits: nonGstCount });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -597,7 +597,7 @@ router.get('/api/distribution/bill', async (req, res) => {
       } : undefined,
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -825,7 +825,7 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
       canDelete: Number(batch?.sold ?? 0) + Number(batch?.replaced ?? 0) + Number(batch?.damaged ?? 0) === 0,
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -915,7 +915,7 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
       items: Object.values(groups),
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -963,7 +963,7 @@ router.delete('/api/distribution/batch/:batchId', async (req, res) => {
     await logAudit(pool, tenantId, 'Distribution Deleted', 'distribution', batchId, `${rows.length} units returned to inventory`);
     res.json({ ok: true, batchId, unitsReturned: rows.length });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

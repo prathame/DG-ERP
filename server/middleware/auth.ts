@@ -25,7 +25,7 @@ export interface AuthRequest extends Request {
 }
 
 export function generateToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET!, { expiresIn: '7d', algorithm: 'HS256' } as jwt.SignOptions);
+  return jwt.sign(payload, JWT_SECRET!, { expiresIn: '24h', algorithm: 'HS256' } as jwt.SignOptions);
 }
 
 export function generateSuperAdminToken(payload: { userId: string; email: string; name: string; role: string }): string {

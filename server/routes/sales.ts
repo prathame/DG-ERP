@@ -61,7 +61,7 @@ router.get('/api/sales/validate/:barcode', async (req, res) => {
     if (exists) return res.json({ valid: false, error: 'Product already sold or distributed' });
     return res.json({ valid: false, error: 'Barcode not found' });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -166,7 +166,7 @@ router.post('/api/sales', async (req, res) => {
       salePrice: row.sale_price ?? null,
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -195,7 +195,7 @@ router.get('/api/sales', async (req, res) => {
       total: Number(total), page, totalPages: Math.ceil(Number(total) / limit),
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -289,7 +289,7 @@ router.get('/api/sales/:id/bill', async (req, res) => {
       } : undefined,
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
