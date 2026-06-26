@@ -6,8 +6,12 @@ dotenv.config();
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20,
+  max: process.env.NODE_ENV === 'production' ? 10 : 20,
   idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+  ...(process.env.DATABASE_URL?.includes('render.com') || process.env.DATABASE_URL?.includes('neon.tech')
+    ? { ssl: { rejectUnauthorized: false } }
+    : {}),
 });
 
 export async function initSchema() {
