@@ -113,21 +113,16 @@ export default function App() {
   const tc = (key: string, fallback: string) => tabConfig[key]?.label || fallback;
   const tv = (key: string) => tabConfig[key]?.visible !== false;
 
-  const warrantyEnabled = userConfig?.warrantyEnabled !== false;
-  const replacementEnabled = userConfig?.replacementEnabled !== false;
-  const rewardsEnabled = userConfig?.rewardsEnabled !== false;
-  const financeEnabled = userConfig?.financeEnabled !== false;
-
   const allNavItems = [
     { id: 'dashboard', label: tc('dashboard', t('nav.dashboard')), icon: LayoutDashboard, show: true },
     { id: 'sales', label: tc('sales', t('nav.sales')), icon: ShoppingCart, show: tv('sales') },
     { id: 'distribution', label: tc('distribution', t('nav.distribution')), icon: Package, show: tv('distribution') },
     { id: 'inventory', label: tc('inventory', t('nav.inventory')), icon: Package, show: tv('inventory') },
-    { id: 'verification', label: tc('verification', t('nav.verification')), icon: ScanSearch, show: tv('verification') && userConfig?.barcodeSystemEnabled !== false },
-    { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') && financeEnabled },
-    { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') && warrantyEnabled },
-    { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') && replacementEnabled },
-    { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') && rewardsEnabled },
+    { id: 'verification', label: tc('verification', t('nav.verification')), icon: ScanSearch, show: tv('verification') },
+    { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
+    { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },
+    { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') },
+    { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') },
   ];
   const navItems = allNavItems.filter(item => item.show);
 
@@ -393,7 +388,7 @@ export default function App() {
           )}
         </div>
       </nav>
-      {userConfig?.chatbotEnabled !== false && <ChatWidget />}
+      {tv('chatbot') && <ChatWidget />}
     </div>
     </ToastProvider>
   );
