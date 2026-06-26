@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Search, Package, Truck, ShoppingCart, ShieldCheck, RefreshCw, Gift, Camera, CheckCircle2, XCircle, Clock, AlertCircle, IndianRupee } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { Search, Package, Truck, ShoppingCart, ShieldCheck, RefreshCw, Gift, Camera, CheckCircle2, XCircle, Clock, AlertCircle, IndianRupee, Users, FileText } from 'lucide-react';
+import { cn, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useToast } from '../../components/ui';
 import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
+import { useDebounce } from '../../hooks/useDebounce';
 
 interface VerificationResult {
   found: boolean;
@@ -34,7 +35,15 @@ export function ProductVerificationView() {
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState<{ products: { id: string; name: string; price: number; stock: number }[]; customers: { id: string; name: string; phone: string; email: string }[]; vendors: { id: string; name: string; contact: string; phone: string }[]; challans?: { batchId: string; vendorName: string; date: string; units: number }[] } | null>(null);
+  const [vendorDetail, setVendorDetail] = useState<Record<string, unknown> | null>(null);
+  const debouncedBarcode = useDebounce(barcode, 300);
   const barcodeSystem = (() => { try { return JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}').barcodeSystemEnabled !== false; } catch { return true; } })();
+
+  useEffect(() => {
+    if (!debouncedBarcode || debouncedBarcode.length < 2) { setSearchResults(null); return; }
+    api.search.global(debouncedBarcode).then(r => setSearchResults(r)).catch(() => {});
+  }, [debouncedBarcode]);
 
   const handleVerify = (code?: string) => {
     const bc = (code || barcode).trim();
@@ -43,6 +52,8 @@ export function ProductVerificationView() {
     setLoading(true);
     setResult(null);
     setNotFound(false);
+    setSearchResults(null);
+    setVendorDetail(null);
     api.products.verify(bc)
       .then((data) => {
         if (data.found) {
@@ -63,7 +74,7 @@ export function ProductVerificationView() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       {/* Search */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <h3 className="font-bold text-lg mb-4">Product Verification</h3>
+        <h3 className="font-bold text-lg mb-4">Search & Verify</h3>
         <div className="flex gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -72,7 +83,7 @@ export function ProductVerificationView() {
               value={barcode}
               onChange={(e) => setBarcode(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
-              placeholder={barcodeSystem ? 'Enter barcode number' : 'Enter SKU / product code'}
+              placeholder="Search vendor, product, barcode, customer..."
               className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-[#F27D26]"
               autoComplete="off"
             />
@@ -87,6 +98,103 @@ export function ProductVerificationView() {
           </button>
         </div>
       </div>
+
+      {/* Search Results */}
+      {searchResults && !result && !notFound && !vendorDetail && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {searchResults.vendors.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2"><ShoppingCart size={16} className="text-purple-500" /><span className="text-xs font-bold text-gray-400 uppercase">Vendors ({searchResults.vendors.length})</span></div>
+              {searchResults.vendors.map((v) => (
+                <button key={v.id} type="button" onClick={() => { api.vendorFinance.detail(v.id).then(d => setVendorDetail(d as unknown as Record<string, unknown>)).catch(() => {}); }} className="w-full px-4 py-3 text-left hover:bg-orange-50 border-b border-gray-50 last:border-0">
+                  <p className="font-medium text-sm">{v.name}</p>
+                  <p className="text-xs text-gray-500">{v.contact || v.phone || '-'}</p>
+                </button>
+              ))}
+            </div>
+          )}
+          {searchResults.products.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2"><Package size={16} className="text-blue-500" /><span className="text-xs font-bold text-gray-400 uppercase">Products ({searchResults.products.length})</span></div>
+              {searchResults.products.map((p) => (
+                <div key={p.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
+                  <p className="font-medium text-sm">{p.name}</p>
+                  <p className="text-xs text-gray-500">₹{p.price.toLocaleString()} · {p.stock} in stock</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {searchResults.customers.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2"><Users size={16} className="text-emerald-500" /><span className="text-xs font-bold text-gray-400 uppercase">Customers ({searchResults.customers.length})</span></div>
+              {searchResults.customers.map((c) => (
+                <div key={c.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
+                  <p className="font-medium text-sm">{c.name}</p>
+                  <p className="text-xs text-gray-500">{c.phone || c.email || '-'}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {(searchResults.challans?.length ?? 0) > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2"><FileText size={16} className="text-indigo-500" /><span className="text-xs font-bold text-gray-400 uppercase">Challans ({searchResults.challans!.length})</span></div>
+              {searchResults.challans!.map((c) => (
+                <div key={c.batchId} className="px-4 py-3 border-b border-gray-50 last:border-0">
+                  <p className="font-medium text-sm">{c.batchId}</p>
+                  <p className="text-xs text-gray-500">{c.vendorName} · {formatDate(c.date)} · {c.units} units</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Vendor Detail */}
+      {vendorDetail && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+          <button type="button" onClick={() => setVendorDetail(null)} className="text-xs font-medium text-[#F27D26] hover:underline">← Back to results</button>
+          {(() => {
+            const d = vendorDetail as { vendor?: { name: string; phone?: string; email?: string; address?: string }; totalDistributedValue: number; totalPaid: number; balance: number; payments?: { id: string; amount: number; paymentDate: string; paymentMethod: string }[]; distributions?: { date: string; productName: string; quantity: number; total: number }[] };
+            return (
+              <>
+                <div>
+                  <h3 className="text-lg font-bold">{d.vendor?.name}</h3>
+                  {d.vendor?.phone && <p className="text-sm text-gray-500">{d.vendor.phone}</p>}
+                  {d.vendor?.email && <p className="text-sm text-gray-500">{d.vendor.email}</p>}
+                  {d.vendor?.address && <p className="text-sm text-gray-500">{d.vendor.address}</p>}
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-blue-50 rounded-xl p-3"><p className="text-[10px] font-bold text-gray-400 uppercase">Billed</p><p className="text-lg font-bold text-blue-700">₹{(d.totalDistributedValue ?? 0).toLocaleString()}</p></div>
+                  <div className="bg-emerald-50 rounded-xl p-3"><p className="text-[10px] font-bold text-gray-400 uppercase">Paid</p><p className="text-lg font-bold text-emerald-700">₹{(d.totalPaid ?? 0).toLocaleString()}</p></div>
+                  <div className={cn("rounded-xl p-3", (d.balance ?? 0) > 0 ? "bg-rose-50" : "bg-emerald-50")}><p className="text-[10px] font-bold text-gray-400 uppercase">Balance</p><p className={cn("text-lg font-bold", (d.balance ?? 0) > 0 ? "text-rose-700" : "text-emerald-700")}>₹{(d.balance ?? 0).toLocaleString()}</p></div>
+                </div>
+                {d.payments && d.payments.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-400 uppercase mb-2">Recent Payments</h4>
+                    {d.payments.slice(0, 5).map((p) => (
+                      <div key={p.id} className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
+                        <span className="text-gray-600">{formatDate(p.paymentDate)} · {p.paymentMethod}</span>
+                        <span className="font-bold text-emerald-600">₹{p.amount.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {d.distributions && d.distributions.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-400 uppercase mb-2">Recent Distributions</h4>
+                    {d.distributions.slice(0, 5).map((dist, i) => (
+                      <div key={i} className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
+                        <span className="text-gray-600">{formatDate(dist.date)} · {dist.productName} × {dist.quantity}</span>
+                        <span className="font-bold">₹{dist.total.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </motion.div>
+      )}
 
       {/* Not Found */}
       {notFound && (
