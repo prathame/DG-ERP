@@ -1,17 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { TrendingUp, Package, ShoppingCart, Gift, AlertTriangle } from 'lucide-react';
+import { TrendingUp, Package, ShoppingCart, Gift, AlertTriangle, Users, CreditCard, Link2, Plus } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
 import type { Tab } from '../../types';
+import { CustomerMasterView } from '../masters/CustomerMasterView';
+import { VendorMasterView } from '../masters/VendorMasterView';
+import { BankMasterView } from '../masters/BankMasterView';
+import { VendorCustomerMappingView } from '../masters/VendorCustomerMappingView';
+import { RewardRulesView } from '../masters/RewardRulesView';
+
+type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules';
 
 export function DashboardView({ user, setActiveTab }: { user: { id: string; role?: string; vendorId?: string } | null; setActiveTab: (tab: Tab) => void }) {
   const [stats, setStats] = useState<{ label: string; value: string; change: string; icon: typeof TrendingUp; color: string; bg: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [lowStockProducts, setLowStockProducts] = useState<{ id: string; name: string; stock: number }[]>([]);
   const [topProducts, setTopProducts] = useState<{ name: string; sold: number }[]>([]);
+  const [masterCounts, setMasterCounts] = useState({ customer: 0, vendor: 0, item: 0, bank: 0 });
+  const [selectedMaster, setSelectedMaster] = useState<MasterType | null>(null);
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
+
+  const refreshCounts = () => {
+    api.masters.counts().then((c) => {
+      setMasterCounts({ customer: c.customerMaster, vendor: c.vendorMaster, item: c.itemMaster, bank: c.bankMaster });
+    }).catch(() => {});
+  };
 
   useEffect(() => {
     if (isVendor && user?.vendorId) {
@@ -53,9 +68,26 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
         ]);
       })
       .finally(() => setLoading(false));
+    refreshCounts();
   }, [isVendor, user?.vendorId]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><LoadingSpinner /></div>;
+
+  if (selectedMaster === 'customer') return <CustomerMasterView onBack={() => { setSelectedMaster(null); refreshCounts(); }} onRefresh={refreshCounts} user={user} />;
+  if (selectedMaster === 'vendor') return <VendorMasterView onBack={() => { setSelectedMaster(null); refreshCounts(); }} onRefresh={refreshCounts} />;
+  if (selectedMaster === 'bank') return <BankMasterView onBack={() => { setSelectedMaster(null); refreshCounts(); }} onRefresh={refreshCounts} />;
+  if (selectedMaster === 'mapping') return <VendorCustomerMappingView onBack={() => setSelectedMaster(null)} />;
+  if (selectedMaster === 'rewardRules') return <RewardRulesView onBack={() => setSelectedMaster(null)} />;
+
+  const allMasters = [
+    { id: 'customer' as const, name: 'Customers', count: masterCounts.customer, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { id: 'vendor' as const, name: 'Vendors', count: masterCounts.vendor, icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { id: 'rewardRules' as const, name: 'Reward Rules', count: null, icon: Gift, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { id: 'mapping' as const, name: 'Vendor-Customer Map', count: null, icon: Link2, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+    { id: 'item' as const, name: 'Products', count: masterCounts.item, icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { id: 'bank' as const, name: 'Banks', count: masterCounts.bank, icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  ];
+  const masters = isVendor ? allMasters.filter((m) => m.id === 'customer') : allMasters;
 
   return (
     <motion.div
@@ -113,6 +145,29 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
           )}
         </div>
       )}
+
+      <div>
+        <h3 className="text-lg font-bold mb-4">Manage</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+          {masters.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => m.id === 'item' ? setActiveTab('inventory') : setSelectedMaster(m.id)}
+              className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all text-left group"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className={cn("p-2.5 rounded-xl transition-transform group-hover:scale-110", m.bg)}>
+                  <m.icon className={m.color} size={20} />
+                </div>
+                <Plus size={16} className="text-gray-300 group-hover:text-[#F27D26] transition-colors" />
+              </div>
+              <p className="text-sm font-semibold text-gray-900">{m.name}</p>
+              {m.count !== null && <p className="text-xs text-gray-400 mt-0.5">{m.count} records</p>}
+            </button>
+          ))}
+        </div>
+      </div>
 
     </motion.div>
   );

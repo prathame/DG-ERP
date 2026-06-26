@@ -5,7 +5,6 @@ import {
   ShieldCheck,
   Gift,
   Package,
-  Users,
   ShoppingCart,
   Settings,
   Menu,
@@ -33,7 +32,6 @@ import { WarrantyView } from './features/warranty/WarrantyView';
 import { ReplacementsView } from './features/replacements/ReplacementsView';
 import { RewardsView } from './features/rewards/RewardsView';
 import { VendorFinanceView } from './features/finance/VendorFinanceView';
-import { MastersView } from './features/masters/MastersView';
 import { SettingsView } from './features/settings/SettingsView';
 import { ProductVerificationView } from './features/verification/ProductVerificationView';
 import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
@@ -120,7 +118,6 @@ export default function App() {
     { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
     { id: 'sales', label: t('nav.sales'), icon: ShoppingCart },
     { id: 'distribution', label: t('nav.distribution'), icon: Package },
-    { id: 'masters', label: t('nav.masters'), icon: Users },
     { id: 'inventory', label: t('nav.inventory'), icon: Package },
 ...(userConfig?.barcodeSystemEnabled !== false ? [{ id: 'verification', label: t('nav.verification'), icon: ScanSearch }] : []),
     ...(financeEnabled ? [{ id: 'finance', label: t('nav.finance'), icon: IndianRupee }] : []),
@@ -137,8 +134,8 @@ export default function App() {
       return u.permissions.includes(tabId);
     }
     if (['Super Admin', 'Admin'].includes(u.role ?? '')) return true;
-    if (u.role === 'Vendor') return ['dashboard', 'sales', 'distribution', 'warranty', 'replacements', 'rewards', 'masters', 'finance', 'settings'].includes(tabId);
-    if (u.role === 'Manager') return ['dashboard', 'sales', 'distribution', 'inventory', 'warranty', 'replacements', 'rewards', 'masters', 'settings'].includes(tabId);
+    if (u.role === 'Vendor') return ['dashboard', 'sales', 'distribution', 'warranty', 'replacements', 'rewards', 'finance', 'settings'].includes(tabId);
+    if (u.role === 'Manager') return ['dashboard', 'sales', 'distribution', 'inventory', 'warranty', 'replacements', 'rewards', 'settings'].includes(tabId);
     if (u.role === 'Staff') return ['dashboard', 'sales', 'inventory', 'warranty', 'replacements'].includes(tabId);
     return true;
   };
@@ -360,7 +357,6 @@ export default function App() {
           {activeTab === 'replacements' && <ReplacementsView user={user} />}
           {activeTab === 'rewards' && <RewardsView user={user} />}
           {activeTab === 'inventory' && <InventoryView />}
-          {activeTab === 'masters' && <MastersView setActiveTab={setActiveTab} user={user} />}
           {activeTab === 'verification' && <ProductVerificationView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} />}
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
