@@ -66,6 +66,16 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Dynamic PWA manifest — includes tenant slug so start_url is correct
+      (function() {
+        var slug = window.location.pathname.replace(/^\//, '').split('/')[0];
+        var link = document.querySelector('link[rel="manifest"]');
+        if (link && slug && slug !== 'admin' && slug !== 'privacy' && slug !== 'terms') {
+          link.href = '/manifest.json?slug=' + slug;
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {

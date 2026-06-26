@@ -74,9 +74,7 @@ app.use('/api/settings/change-password', rateLimit({ windowMs: 15 * 60 * 1000, m
 
 // Dynamic PWA manifest — serves tenant-specific start_url and branding
 app.get('/manifest.json', async (req, res) => {
-  const referer = req.headers.referer || '';
-  const slugMatch = referer.match(/\/([a-z0-9][a-z0-9-]*[a-z0-9])$/i) || referer.match(/\/([a-z0-9]+)$/i);
-  const slug = slugMatch ? slugMatch[1].toLowerCase() : null;
+  const slug = (typeof req.query.slug === 'string' && req.query.slug) ? req.query.slug.toLowerCase() : null;
 
   let name = 'DG ERP Management';
   let shortName = 'DG ERP';
