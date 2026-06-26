@@ -70,7 +70,7 @@ export function buildDistributionBillSlice(
 export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst?: boolean }): string {
   const showGst = options?.showGst ?? true;
   const billConfig = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
-  const color = (billConfig.primaryColor as string) || '#F27D26';
+  const color = safeColor(billConfig.primaryColor as string);
   const logoHtml = billConfig.logoBase64
     ? `<img src="${safeImgSrc(billConfig.logoBase64)}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
     : `<div class="logo-icon">${(bill.company.name || 'C').substring(0, 1).toUpperCase()}</div>`;
@@ -227,7 +227,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   const showGst = options?.showGst ?? true;
   const fullyPaid = options?.fullyPaid ?? false;
   const billConfig = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
-  const color = (billConfig.primaryColor as string) || '#F27D26';
+  const color = safeColor(billConfig.primaryColor as string);
   const logoHtml = billConfig.logoBase64
     ? `<img src="${safeImgSrc(billConfig.logoBase64)}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
     : `<div class="logo-icon">${(bill.company.name || 'C').substring(0, 1).toUpperCase()}</div>`;
