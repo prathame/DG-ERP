@@ -151,16 +151,6 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
     if (subscriptionEnd) {
       await pool.query('UPDATE tenants SET subscription_ends_at = $1 WHERE id = $2', [subscriptionEnd, result.tenantId]);
     }
-    // Apply plan features to tenant
-    const planFeatures = (await pool.query('SELECT features FROM plans WHERE id = $1', [selectedPlan])).rows[0] as { features: Record<string, boolean> } | undefined;
-    if (planFeatures?.features) {
-      const colMap: Record<string, string> = { warranty: 'warranty_enabled', replacements: 'replacement_enabled', rewards: 'rewards_enabled', finance: 'finance_enabled', chatbot: 'chatbot_enabled', billCustomization: 'bill_customization_enabled', multiLanguage: 'multi_language_enabled', vendorPortal: 'vendor_portal_enabled', barcodeSystem: 'barcode_system_enabled' };
-      for (const [feat, col] of Object.entries(colMap)) {
-        if (planFeatures.features[feat] !== undefined) {
-          await pool.query(`UPDATE tenants SET ${col} = $1 WHERE id = $2`, [!!planFeatures.features[feat], result.tenantId]);
-        }
-      }
-    }
     const defaultTabConfig = {
       dashboard: { label: 'Dashboard', visible: true }, inventory: { label: 'Inventory', visible: true },
       distribution: { label: 'Distribution', visible: true }, sales: { label: 'Sales Entry', visible: true },
@@ -215,16 +205,6 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     if (requestBody.status !== undefined) { updates.push(`status = $${idx}`); params.push(requestBody.status); idx++; }
     if (requestBody.planId !== undefined) {
       updates.push(`plan_id = $${idx}`); params.push(requestBody.planId); idx++;
-      // Auto-apply plan features when plan changes
-      const newPlan = (await pool.query('SELECT features FROM plans WHERE id = $1', [requestBody.planId])).rows[0] as { features: Record<string, boolean> } | undefined;
-      if (newPlan?.features) {
-        const featureToToggle: Record<string, string> = { warranty: 'warrantyEnabled', replacements: 'replacementEnabled', rewards: 'rewardsEnabled', finance: 'financeEnabled', chatbot: 'chatbotEnabled', billCustomization: 'billCustomizationEnabled', multiLanguage: 'multiLanguageEnabled', vendorPortal: 'vendorPortalEnabled', barcodeSystem: 'barcodeSystemEnabled' };
-        for (const [feat, toggleKey] of Object.entries(featureToToggle)) {
-          if (newPlan.features[feat] !== undefined && requestBody[toggleKey] === undefined) {
-            requestBody[toggleKey] = newPlan.features[feat];
-          }
-        }
-      }
     }
     if (requestBody.companyName !== undefined) { updates.push(`company_name = $${idx}`); params.push(requestBody.companyName); idx++; }
     if (requestBody.phone !== undefined) { updates.push(`phone = $${idx}`); params.push(requestBody.phone); idx++; }

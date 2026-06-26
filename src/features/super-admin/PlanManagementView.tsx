@@ -6,8 +6,6 @@ import {
   Trash2,
   X,
   CreditCard,
-  ToggleLeft,
-  ToggleRight,
 } from 'lucide-react';
 import { LoadingSpinner, useToast } from '../../components/ui';
 
@@ -149,23 +147,6 @@ export function PlanManagementView() {
                 </div>
               </div>
 
-              {/* Features */}
-              <div className="border-t border-gray-100 pt-4 space-y-2">
-                {([['warranty', 'Warranty'], ['replacements', 'Replacements'], ['rewards', 'Rewards'], ['finance', 'Finance'], ['chatbot', 'Chatbot'], ['billCustomization', 'Bill Customization'], ['multiLanguage', 'Multi-Language'], ['vendorPortal', 'Vendor Portal'], ['barcodeSystem', 'Barcode System']] as const).map(([feat, label]) => (
-                  <div key={feat} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">{label}</span>
-                    {plan.features?.[feat] ? (
-                      <span className="text-emerald-600 flex items-center gap-1">
-                        <ToggleRight size={18} /> Enabled
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 flex items-center gap-1">
-                        <ToggleLeft size={18} /> Disabled
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
             </div>
 
             <div className="flex border-t border-gray-100">
@@ -292,21 +273,6 @@ function PlanModal({ plan, onClose, onSaved }: {
     }
   };
 
-  const FeatureToggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className="flex items-center justify-between w-full py-2"
-    >
-      <span className="text-sm text-gray-700 capitalize">{label}</span>
-      {checked ? (
-        <ToggleRight size={24} className="text-[#F27D26]" />
-      ) : (
-        <ToggleLeft size={24} className="text-gray-300" />
-      )}
-    </button>
-  );
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -398,20 +364,6 @@ function PlanModal({ plan, onClose, onSaved }: {
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Features</label>
-            <div className="border border-gray-200 rounded-xl px-4 divide-y divide-gray-100">
-              <FeatureToggle label="Warranty Management" checked={form.warranty} onChange={(v) => setForm({ ...form, warranty: v })} />
-              <FeatureToggle label="Replacement Tracking" checked={form.replacements} onChange={(v) => setForm({ ...form, replacements: v })} />
-              <FeatureToggle label="Rewards System" checked={form.rewards} onChange={(v) => setForm({ ...form, rewards: v })} />
-              <FeatureToggle label="Finance Module" checked={form.finance} onChange={(v) => setForm({ ...form, finance: v })} />
-              <FeatureToggle label="AI Chatbot" checked={form.chatbot} onChange={(v) => setForm({ ...form, chatbot: v })} />
-              <FeatureToggle label="Bill Customization" checked={form.billCustomization} onChange={(v) => setForm({ ...form, billCustomization: v })} />
-              <FeatureToggle label="Multi-Language" checked={form.multiLanguage} onChange={(v) => setForm({ ...form, multiLanguage: v })} />
-              <FeatureToggle label="Vendor Portal" checked={form.vendorPortal} onChange={(v) => setForm({ ...form, vendorPortal: v })} />
-              <FeatureToggle label="Barcode System" checked={form.barcodeSystem} onChange={(v) => setForm({ ...form, barcodeSystem: v })} />
-            </div>
-          </div>
 
           {error && <p className="text-sm text-rose-500">{error}</p>}
 
