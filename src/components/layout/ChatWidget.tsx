@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { api } from '../../api';
 
 interface Message {
   id: number;
@@ -36,12 +37,7 @@ export function ChatWidget() {
     setInput('');
     setLoading(true);
     try {
-      const res = await fetch('/api/chatbot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-      });
-      const data = await res.json();
+      const data = await api.chatbot.send(text);
       setMessages((m) => [...m, { id: Date.now() + 1, text: data.text || 'No response', sender: 'bot', timestamp: new Date() }]);
     } catch {
       setMessages((m) => [...m, { id: Date.now() + 1, text: 'Connection error. Is the server running?', sender: 'bot', timestamp: new Date() }]);
@@ -138,7 +134,7 @@ export function ChatWidget() {
 
             {/* Quick actions */}
             <div className="px-3 py-2 border-t border-gray-100 flex gap-1.5 overflow-x-auto bg-white">
-              {['daily report', 'sales today', 'low stock', 'pending payments', 'top products', 'all vendors', 'profit'].map((cmd) => (
+              {['daily report', 'sales today', 'low stock', 'pending payments', 'top products', 'all vendors'].map((cmd) => (
                 <button
                   key={cmd}
                   type="button"
@@ -147,8 +143,7 @@ export function ChatWidget() {
                     setMessages((m) => [...m, userMsg]);
                     setLoading(true);
                     try {
-                      const res = await fetch('/api/chatbot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: cmd }) });
-                      const data = await res.json();
+                      const data = await api.chatbot.send(cmd);
                       setMessages((m) => [...m, { id: Date.now() + 1, text: data.text || 'No response', sender: 'bot', timestamp: new Date() }]);
                     } catch { setMessages((m) => [...m, { id: Date.now() + 1, text: 'Connection error.', sender: 'bot', timestamp: new Date() }]); }
                     finally { setLoading(false); }
