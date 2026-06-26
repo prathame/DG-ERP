@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { api } from '../../api';
 
 interface Message {
   id: number;
@@ -36,12 +37,7 @@ export function ChatWidget() {
     setInput('');
     setLoading(true);
     try {
-      const res = await fetch('/api/chatbot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-      });
-      const data = await res.json();
+      const data = await api.chatbot.send(text);
       setMessages((m) => [...m, { id: Date.now() + 1, text: data.text || 'No response', sender: 'bot', timestamp: new Date() }]);
     } catch {
       setMessages((m) => [...m, { id: Date.now() + 1, text: 'Connection error. Is the server running?', sender: 'bot', timestamp: new Date() }]);
@@ -70,17 +66,45 @@ export function ChatWidget() {
 
   return (
     <>
-      {/* Floating button */}
-      <button
+      {/* Floating button with pulse */}
+      <motion.button
         type="button"
         onClick={() => setOpen(!open)}
+        whileTap={{ scale: 0.9 }}
         className={cn(
-          "fixed bottom-6 right-6 z-[150] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110",
-          open ? "bg-gray-700 rotate-0" : "bg-[#F27D26]"
+          "fixed bottom-6 right-6 z-[150] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-colors",
+          open ? "bg-gray-700" : "bg-[#F27D26]"
         )}
       >
-        {open ? <X size={24} className="text-white" /> : <MessageCircle size={24} className="text-white" />}
-      </button>
+        <AnimatePresence mode="wait">
+          {open ? (
+            <motion.div key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
+              <X size={24} className="text-white" />
+            </motion.div>
+          ) : (
+            <motion.div key="open" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ duration: 0.15 }}>
+              <MessageCircle size={24} className="text-white" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {!open && <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-white animate-pulse" />}
+      </motion.button>
+
+      {/* "May I help you?" tooltip */}
+      <AnimatePresence>
+        {!open && (
+          <motion.div
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            transition={{ delay: 1, duration: 0.3 }}
+            className="fixed bottom-10 right-[5.5rem] z-[149] bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-200 text-sm font-medium text-gray-700 whitespace-nowrap"
+          >
+            May I help you? <span className="text-[#F27D26]">👋</span>
+            <div className="absolute top-1/2 -right-2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[8px] border-l-white" />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Chat window */}
       <AnimatePresence>
@@ -94,17 +118,20 @@ export function ChatWidget() {
           >
             {/* Header */}
             <div className="bg-[#151619] text-white px-5 py-4 flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#F27D26] rounded-xl flex items-center justify-center font-bold text-lg">S</div>
+              <div className="relative">
+                <div className="w-10 h-10 bg-[#F27D26] rounded-xl flex items-center justify-center text-xl">🤖</div>
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-[#151619]" />
+              </div>
               <div>
                 <p className="font-bold">ERP Assistant</p>
-                <p className="text-xs text-gray-400">Ask anything about your business</p>
+                <p className="text-xs text-gray-400">Online — ask anything about your business</p>
               </div>
             </div>
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
               {messages.map((msg) => (
-                <div key={msg.id} className={cn("flex", msg.sender === 'user' ? "justify-end" : "justify-start")}>
+                <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={cn("flex", msg.sender === 'user' ? "justify-end" : "justify-start")}>
                   <div className={cn(
                     "max-w-[85%] px-4 py-2.5 rounded-2xl",
                     msg.sender === 'user'
@@ -120,7 +147,7 @@ export function ChatWidget() {
                       {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
-                </div>
+                </motion.div>
               ))}
               {loading && (
                 <div className="flex justify-start">
@@ -138,7 +165,7 @@ export function ChatWidget() {
 
             {/* Quick actions */}
             <div className="px-3 py-2 border-t border-gray-100 flex gap-1.5 overflow-x-auto bg-white">
-              {['daily report', 'sales today', 'low stock', 'pending payments', 'top products', 'all vendors', 'profit'].map((cmd) => (
+              {['daily report', 'sales today', 'low stock', 'pending payments', 'top products', 'all vendors'].map((cmd) => (
                 <button
                   key={cmd}
                   type="button"
@@ -147,8 +174,7 @@ export function ChatWidget() {
                     setMessages((m) => [...m, userMsg]);
                     setLoading(true);
                     try {
-                      const res = await fetch('/api/chatbot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: cmd }) });
-                      const data = await res.json();
+                      const data = await api.chatbot.send(cmd);
                       setMessages((m) => [...m, { id: Date.now() + 1, text: data.text || 'No response', sender: 'bot', timestamp: new Date() }]);
                     } catch { setMessages((m) => [...m, { id: Date.now() + 1, text: 'Connection error.', sender: 'bot', timestamp: new Date() }]); }
                     finally { setLoading(false); }

@@ -400,6 +400,10 @@ export const api = {
         barcodes: { barcode: string; productName: string; productId: string; status: string; type: 'barcode' }[];
       }>(`/search?q=${encodeURIComponent(q)}`),
   },
+  chatbot: {
+    send: (message: string) =>
+      fetchApi<{ text: string }>('/chatbot', { method: 'POST', body: JSON.stringify({ message }) }),
+  },
   auditLog: {
     list: (params?: { page?: number; dateRange?: string; dateFrom?: string; dateTo?: string; entityType?: string }) => {
       const q = new URLSearchParams();
