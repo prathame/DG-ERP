@@ -239,8 +239,6 @@ export const api = {
         availableInInventory?: number;
         totalBeforeDistribution?: number;
       }>('/dashboard/stats'),
-    chart: () =>
-      fetchApi<{ name: string; sales: number; claims: number }[]>('/dashboard/chart'),
     rewardsSummary: () =>
       fetchApi<{
         vendorSummaries: { vendorId: string; vendorName: string; productsSold: number; totalRewardPoints: number }[];

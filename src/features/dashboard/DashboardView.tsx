@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { TrendingUp, Package, ShoppingCart, Gift, AlertTriangle } from 'lucide-react';
-import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
@@ -9,7 +8,6 @@ import type { Tab } from '../../types';
 
 export function DashboardView({ user, setActiveTab }: { user: { id: string; role?: string; vendorId?: string } | null; setActiveTab: (tab: Tab) => void }) {
   const [stats, setStats] = useState<{ label: string; value: string; change: string; icon: typeof TrendingUp; color: string; bg: string }[]>([]);
-  const [chartData, setChartData] = useState<{ name: string; sales: number; claims: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [lowStockProducts, setLowStockProducts] = useState<{ id: string; name: string; stock: number }[]>([]);
   const [topProducts, setTopProducts] = useState<{ name: string; sold: number }[]>([]);
@@ -24,17 +22,13 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
             { label: 'Products Sold', value: String(v.vendor?.totalSales ?? 0), change: '', icon: ShoppingCart, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { label: 'Reward Points', value: String(v.vendor?.totalRewardPoints ?? 0) + ' pts', change: '', icon: Gift, color: 'text-purple-600', bg: 'bg-purple-50' },
           ]);
-          setChartData(v.salesHistory?.length ? v.salesHistory.slice(0, 6).map((s, i) => ({ name: s.purchaseDate || `Sale ${i + 1}`, sales: s.rewardPointsEarned ?? 0, claims: 0 })) : []);
         })
-        .catch(() => { setStats([]); setChartData([]); })
+        .catch(() => { setStats([]); })
         .finally(() => setLoading(false));
       return;
     }
-    Promise.all([
-      api.dashboard.stats(),
-      api.dashboard.chart(),
-    ])
-      .then(([s, c]) => {
+    api.dashboard.stats()
+      .then((s) => {
         const monthChange = (s as { lastMonthSales?: number }).lastMonthSales ? `${Math.round((((s as { thisMonthSales?: number }).thisMonthSales ?? 0) / ((s as { lastMonthSales?: number }).lastMonthSales ?? 1) - 1) * 100)}%` : '';
         const sx = s as Record<string, unknown>;
         setStats([
@@ -47,7 +41,6 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
         ]);
         setLowStockProducts((s as { lowStockProducts?: { id: string; name: string; stock: number }[] }).lowStockProducts ?? []);
         setTopProducts((s as { topProducts?: { name: string; sold: number }[] }).topProducts ?? []);
-        setChartData(c.length ? c : [{ name: 'No data', sales: 0, claims: 0 }]);
       })
       .catch(() => {
         setStats([
@@ -58,7 +51,6 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
           { label: 'With Vendors', value: '0', change: '', icon: Package, color: 'text-purple-600', bg: 'bg-purple-50' },
           { label: 'Total Sold', value: '0', change: '', icon: ShoppingCart, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ]);
-        setChartData([{ name: 'No data', sales: 0, claims: 0 }]);
       })
       .finally(() => setLoading(false));
   }, [isVendor, user?.vendorId]);
@@ -122,35 +114,6 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-lg font-bold">Sales & Claims Overview</h3>
-            <span className="text-xs font-medium text-gray-400 bg-gray-50 px-3 py-1.5 rounded-lg">Last 6 Months</span>
-          </div>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#F27D26" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#F27D26" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F1F1" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9CA3AF'}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9CA3AF'}} />
-                <Tooltip
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                />
-                <Area type="monotone" dataKey="sales" stroke="#F27D26" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
-                <Area type="monotone" dataKey="claims" stroke="#1A1A1A" strokeWidth={3} fillOpacity={0} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-      </div>
     </motion.div>
   );
 }

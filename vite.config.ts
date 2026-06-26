@@ -16,7 +16,6 @@ resolve: {
         output: {
           manualChunks: {
             vendor: ['react', 'react-dom'],
-            charts: ['recharts'],
             motion: ['motion'],
             scanner: ['html5-qrcode', 'jsbarcode'],
           },
