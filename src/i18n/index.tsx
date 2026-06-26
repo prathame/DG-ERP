@@ -17,7 +17,7 @@ export const LANGUAGES: { code: Lang; label: string; nativeLabel: string }[] = [
 const LANG_KEY = 'dg_erp_lang';
 
 function getStoredLang(): Lang {
-  const stored = sessionStorage.getItem(LANG_KEY);
+  const stored = localStorage.getItem(LANG_KEY);
   if (stored === 'hi' || stored === 'gu') return stored;
   return 'en';
 }
@@ -38,7 +38,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>(getStoredLang);
 
   const setLang = useCallback((l: Lang) => {
-    sessionStorage.setItem(LANG_KEY, l);
+    localStorage.setItem(LANG_KEY, l);
     setLangState(l);
   }, []);
 

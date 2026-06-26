@@ -95,7 +95,7 @@ export function LandingPage() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const toggleTheme = () => {
     const nowDark = document.documentElement.classList.toggle('dark');
-    sessionStorage.setItem('dg_erp_theme', nowDark ? 'dark' : 'light');
+    localStorage.setItem('dg_erp_theme', nowDark ? 'dark' : 'light');
     setDark(nowDark);
   };
 

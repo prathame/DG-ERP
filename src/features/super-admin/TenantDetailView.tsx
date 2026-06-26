@@ -70,7 +70,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   const [plans, setPlans] = useState<{ id: string; name: string; priceMonthly: number; priceYearly: number }[]>([]);
 
   React.useEffect(() => {
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     fetch('/api/super-admin/plans', { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((data) => {
@@ -81,7 +81,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   }, []);
 
   const fetchTenant = () => {
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     fetch(`/api/super-admin/tenants/${tenantId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -94,7 +94,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   useEffect(() => { fetchTenant(); }, [tenantId]);
 
   const handleStatusChange = async (newStatus: string) => {
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     try {
       await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
@@ -124,7 +124,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
       return;
     }
 
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     try {
       await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
@@ -140,7 +140,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   };
 
   const handleImpersonate = async () => {
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     try {
       const res = await fetch(`/api/super-admin/tenants/${tenantId}/impersonate`, {
         method: 'POST',
@@ -321,7 +321,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                 <button
                   type="button"
                   onClick={async () => {
-                    const token = sessionStorage.getItem('auth_token');
+                    const token = localStorage.getItem('auth_token');
                     const d = new Date();
                     if (renewalPlan === 'TRIAL') { d.setDate(d.getDate() + 14); }
                     else if (renewalCycle === 'yearly') { d.setFullYear(d.getFullYear() + 1); }
@@ -443,7 +443,7 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const token = sessionStorage.getItem('auth_token');
+      const token = localStorage.getItem('auth_token');
       const res = await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

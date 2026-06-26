@@ -40,7 +40,7 @@ export function PlanManagementView() {
   const [deleteTarget, setDeleteTarget] = useState<Plan | null>(null);
 
   const fetchPlans = () => {
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     fetch('/api/super-admin/plans', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -59,7 +59,7 @@ export function PlanManagementView() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleteTarget(null);
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     try {
       const res = await fetch(`/api/super-admin/plans/${deleteTarget.id}`, {
         method: 'DELETE',
@@ -233,7 +233,7 @@ function PlanModal({ plan, onClose, onSaved }: {
     e.preventDefault();
     setError('');
     setSubmitting(true);
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     const body = {
       name: form.name,
       maxProducts: form.maxProducts,

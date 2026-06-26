@@ -45,7 +45,7 @@ export function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     fetch('/api/super-admin/dashboard', {
       headers: { Authorization: `Bearer ${token}` },
     })

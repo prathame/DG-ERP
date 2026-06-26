@@ -57,7 +57,7 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_token');
     onLogout();
   };
 

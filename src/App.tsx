@@ -61,19 +61,19 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 
 /** Check whether we have a stored JWT and what role it carries. */
 function getAuthState(): { isSuperAdmin: boolean; hasTenant: boolean } {
-  const token = sessionStorage.getItem('auth_token');
+  const token = localStorage.getItem('auth_token');
   if (!token) return { isSuperAdmin: false, hasTenant: false };
   const payload = decodeJwtPayload(token);
   if (!payload) return { isSuperAdmin: false, hasTenant: false };
   return {
     isSuperAdmin: payload.role === 'super_admin',
-    hasTenant: Boolean(payload.tenantId || sessionStorage.getItem('tenant_id')),
+    hasTenant: Boolean(payload.tenantId || localStorage.getItem('tenant_id')),
   };
 }
 
 // Apply saved theme on load
 if (typeof window !== 'undefined') {
-  const savedTheme = sessionStorage.getItem('dg_erp_theme');
+  const savedTheme = localStorage.getItem('dg_erp_theme');
   if (savedTheme === 'dark') document.documentElement.classList.add('dark');
 }
 
@@ -83,7 +83,7 @@ export default function App() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean } | null>(() => {
     try {
-      const s = sessionStorage.getItem(USER_STORAGE_KEY);
+      const s = localStorage.getItem(USER_STORAGE_KEY);
       const u = s ? JSON.parse(s) : null;
       if (u?.companyName) document.title = `${u.companyName} — DG ERP`;
       return u;
@@ -91,11 +91,12 @@ export default function App() {
   });
 
   const handleLogout = () => {
-    const slug = sessionStorage.getItem('tenant_slug');
-    sessionStorage.removeItem('auth_token');
-    sessionStorage.removeItem('tenant_id');
-    sessionStorage.removeItem('tenant_slug');
-    sessionStorage.removeItem(USER_STORAGE_KEY);
+    const slug = localStorage.getItem('tenant_slug');
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('tenant_id');
+    localStorage.removeItem('tenant_slug');
+    localStorage.removeItem(USER_STORAGE_KEY);
+    localStorage.removeItem('remember_me');
     setUser(null);
     setUserMenuOpen(false);
     if (slug) window.history.replaceState(null, '', `/${slug}`);
@@ -168,7 +169,7 @@ export default function App() {
   // /admin route — super admin portal
   if (isSuperAdminRoute) {
     if (authState.isSuperAdmin) {
-      const tokenPayload = decodeJwtPayload(sessionStorage.getItem('auth_token') || '') || {};
+      const tokenPayload = decodeJwtPayload(localStorage.getItem('auth_token') || '') || {};
       const superAdminUser = { id: tokenPayload.userId as string || '', email: tokenPayload.email as string || '', name: tokenPayload.name as string || '', role: 'super_admin' as const };
       return (
         <ToastProvider>

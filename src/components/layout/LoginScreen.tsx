@@ -36,16 +36,24 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
   const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const accentColor = tenant?.primaryColor || '#F27D26';
   const isBranded = !!tenant;
 
   const storeAuthAndLogin = (result: LoginResult) => {
-    sessionStorage.setItem('auth_token', result.token);
-    if (result.tenantId) sessionStorage.setItem('tenant_id', result.tenantId);
-    sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(result.user));
+    localStorage.setItem('auth_token', result.token);
+    if (result.tenantId) localStorage.setItem('tenant_id', result.tenantId);
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(result.user));
     const slug = result.tenantSlug || tenant?.slug;
-    if (slug) sessionStorage.setItem('tenant_slug', slug);
+    if (slug) localStorage.setItem('tenant_slug', slug);
+    if (rememberMe) {
+      localStorage.setItem('auth_token', result.token);
+      if (result.tenantId) localStorage.setItem('tenant_id', result.tenantId);
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(result.user));
+      if (slug) localStorage.setItem('tenant_slug', slug);
+      localStorage.setItem('remember_me', 'true');
+    }
     onLogin(result.user);
     if (slug && window.location.pathname !== `/${slug}`) {
       window.history.replaceState(null, '', `/${slug}`);
@@ -141,6 +149,12 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
                 <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">New Password</label><input type="password" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="Min 8 characters" /></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm New Password</label><input type="password" required minLength={8} value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="Repeat new password" /></div>
               </>
+            )}
+            {mode === 'login' && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-white/20 bg-white/5 text-[#F27D26]" style={{ accentColor }} />
+                <span className="text-sm text-gray-400">Remember me</span>
+              </label>
             )}
             {mode === 'forgot' && <p className="text-xs text-gray-500">Enter your email and we'll send you a password reset. Contact your admin if you don't receive it.</p>}
             {successMessage && <p className="text-sm text-emerald-400">{successMessage}</p>}

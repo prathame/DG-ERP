@@ -28,7 +28,7 @@ export function SuperAdminLogin({ onLogin }: { onLogin: (user: SuperAdminUser) =
         throw new Error(data.error || 'Login failed');
       }
       const data = await res.json();
-      sessionStorage.setItem('auth_token', data.token);
+      localStorage.setItem('auth_token', data.token);
       onLogin(data.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');

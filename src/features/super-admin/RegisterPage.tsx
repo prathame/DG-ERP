@@ -45,7 +45,7 @@ export function RegisterPage({ onRegister, onSwitchToLogin }: {
         throw new Error(data.error || 'Registration failed');
       }
       const data = await res.json();
-      sessionStorage.setItem('auth_token', data.token);
+      localStorage.setItem('auth_token', data.token);
       onRegister(data.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');

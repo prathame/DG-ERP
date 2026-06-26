@@ -45,7 +45,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
   const [deleteTenantId, setDeleteTenantId] = useState<string | null>(null);
 
   const fetchTenants = useCallback(() => {
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     const params = new URLSearchParams();
     if (statusFilter) params.set('status', statusFilter);
     if (search) params.set('search', search);
@@ -61,7 +61,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
   useEffect(() => { fetchTenants(); }, [fetchTenants]);
 
   const handleAction = async (tenantId: string, action: string, body?: Record<string, unknown>) => {
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     try {
       if (action === 'delete') {
         await fetch(`/api/super-admin/tenants/${tenantId}`, {
@@ -340,7 +340,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
   };
 
   React.useEffect(() => {
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     fetch('/api/super-admin/plans', { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((data) => {
@@ -359,7 +359,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
     setError('');
     setSubmitting(true);
     try {
-      const token = sessionStorage.getItem('auth_token');
+      const token = localStorage.getItem('auth_token');
       const res = await fetch('/api/super-admin/tenants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

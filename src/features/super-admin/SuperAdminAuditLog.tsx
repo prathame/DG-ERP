@@ -28,7 +28,7 @@ export function SuperAdminAuditLog() {
 
   const fetchLogs = () => {
     setLoading(true);
-    const token = sessionStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     const q = new URLSearchParams();
     q.set('page', String(page));
     q.set('limit', '30');

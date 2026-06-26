@@ -11,7 +11,7 @@ import { useDebounce } from '../../hooks/useDebounce';
 
 export function InventoryView() {
   const { toast } = useToast();
-  const barcodeSystemEnabled = (() => { try { const u = JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}'); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
+  const barcodeSystemEnabled = (() => { try { const u = JSON.parse(localStorage.getItem('dg_erp_user') || '{}'); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
   const [sortBy, setSortBy] = useState<keyof Product>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [products, setProducts] = useState<Product[]>([]);

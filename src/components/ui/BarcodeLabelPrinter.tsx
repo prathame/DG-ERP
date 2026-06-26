@@ -68,7 +68,7 @@ export function BarcodeLabelPrinter({ productId, onClose }: BarcodeLabelPrinterP
   const [codeType, setCodeType] = useState<CodeType>('barcode');
   const [showPrice, setShowPrice] = useState(true);
   const [selectedBarcodes, setSelectedBarcodes] = useState<Set<string>>(new Set());
-  const companyName = (() => { try { return JSON.parse(sessionStorage.getItem('dg_erp_user') || '{}').companyName || ''; } catch { return ''; } })();
+  const companyName = (() => { try { return JSON.parse(localStorage.getItem('dg_erp_user') || '{}').companyName || ''; } catch { return ''; } })();
 
   useEffect(() => {
     api.products.getBarcodes(productId)
