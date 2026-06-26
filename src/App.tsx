@@ -95,6 +95,16 @@ export default function App() {
   });
 
   useEffect(() => {
+    if (user && localStorage.getItem('auth_token')) {
+      api.settings.getProfile(user.id).then((fresh) => {
+        const merged = { ...user, ...fresh };
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(merged));
+        setUser(merged);
+      }).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
     const onPopState = (e: PopStateEvent) => {
       if (e.state?.tab) {
         setActiveTabRaw(e.state.tab);
