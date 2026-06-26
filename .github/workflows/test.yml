@@ -1,0 +1,58 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: API Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dg_erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dg_erp_test
+      JWT_SECRET: test-secret-for-ci-pipeline
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Initialize database schema
+        run: |
+          node -e "
+            require('dotenv').config();
+            process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/dg_erp_test';
+            process.env.JWT_SECRET = 'test-secret-for-ci-pipeline';
+            const { initDatabase } = require('./server/pg-db');
+            initDatabase().then(() => { console.log('DB ready'); process.exit(0); }).catch(e => { console.error(e); process.exit(1); });
+          " || npx tsx -e "
+            import { initDatabase } from './server/pg-db';
+            await initDatabase();
+            console.log('DB ready');
+            process.exit(0);
+          "
+
+      - name: Run tests
+        run: npm test

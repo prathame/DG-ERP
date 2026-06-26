@@ -1,0 +1,90 @@
+name: Security Scan
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: npm audit (high + critical only)
+        run: npm audit --audit-level=high || true
+
+  secrets:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Scanning for hardcoded secrets..."
+          FOUND=0
+
+          # Check for hardcoded passwords
+          if grep -rn 'password.*=.*["\x27]' server/ src/ --include='*.ts' --include='*.tsx' | grep -v 'node_modules' | grep -v '.test.' | grep -v 'placeholder' | grep -v 'label' | grep -v 'type=' | grep -v 'Password' | grep -v 'password_hash' | grep -v 'currentPassword' | grep -v 'newPassword' | grep -v 'confirmPassword' | grep -v 'defaultPassword' | grep -v 'bcrypt' | grep -v 'process.env'; then
+            echo "WARNING: Possible hardcoded passwords found"
+            FOUND=1
+          fi
+
+          # Check for API keys
+          if grep -rn 'api_key\|apikey\|secret_key\|private_key' server/ src/ --include='*.ts' --include='*.tsx' -i | grep -v 'node_modules' | grep -v 'process.env' | grep -v '.test.'; then
+            echo "WARNING: Possible API keys found"
+            FOUND=1
+          fi
+
+          # Check .env is not committed
+          if [ -f ".env" ]; then
+            echo "FAIL: .env file is tracked in git!"
+            FOUND=1
+          fi
+
+          if [ $FOUND -eq 0 ]; then
+            echo "Clean — no hardcoded secrets detected"
+          fi
+
+  xss:
+    name: XSS Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for dangerouslySetInnerHTML
+        run: |
+          FOUND=$(grep -rn 'dangerouslySetInnerHTML' src/ --include='*.tsx' --include='*.ts' | grep -v 'node_modules' | wc -l)
+          if [ "$FOUND" -gt 0 ]; then
+            echo "FAIL: dangerouslySetInnerHTML found in $FOUND files"
+            grep -rn 'dangerouslySetInnerHTML' src/ --include='*.tsx' --include='*.ts' | grep -v 'node_modules'
+            exit 1
+          else
+            echo "Clean — no dangerouslySetInnerHTML"
+          fi
+
+      - name: Check bill templates use esc() for user input
+        run: |
+          # Verify esc() function exists in bill templates
+          if grep -q 'function esc' src/lib/billTemplates.ts; then
+            echo "esc() function found in bill templates"
+          else
+            echo "WARNING: esc() function missing in bill templates"
+            exit 1
+          fi

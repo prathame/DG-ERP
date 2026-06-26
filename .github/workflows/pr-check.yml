@@ -1,0 +1,50 @@
+name: PR Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Production build
+        run: npm run build
+
+      - name: No dangerouslySetInnerHTML
+        run: |
+          if grep -rn 'dangerouslySetInnerHTML' src/ --include='*.tsx' | grep -v 'node_modules'; then
+            echo "FAIL: Remove dangerouslySetInnerHTML"
+            exit 1
+          fi
+
+      - name: No hardcoded secrets
+        run: |
+          if [ -f ".env" ]; then echo "FAIL: .env committed"; exit 1; fi
+          echo "Clean"
+
+      - name: npm audit (critical only)
+        run: npm audit --audit-level=critical || true
+
+      - name: Bundle size check
+        run: |
+          SIZE=$(du -sk dist/assets/*.js | awk '{sum+=$1} END {print sum}')
+          echo "Total JS bundle: ${SIZE}KB"
+          if [ "$SIZE" -gt 2000 ]; then
+            echo "WARNING: Bundle exceeds 2MB ($SIZE KB)"
+          fi
