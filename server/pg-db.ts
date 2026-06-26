@@ -380,6 +380,7 @@ export async function initSchema() {
       replacements: { label: 'Replacements',   visible: true },
       rewards:      { label: 'Rewards',         visible: true },
       finance:      { label: 'Finance',         visible: true },
+      chatbot:      { label: 'Chatbot',         visible: true },
       settings:     { label: 'Settings',        visible: true },
     })}'`);
 

@@ -15,12 +15,6 @@ import {
   Phone,
   Calendar,
   Shield,
-  ShieldCheck,
-  Gift,
-  RefreshCw,
-  MessageSquare,
-  FileText,
-  Languages,
   Pencil,
   RotateCcw,
   Save,
@@ -373,57 +367,6 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
         ))}
       </div>
 
-      {/* Feature Toggles */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900">Feature Toggles</h2>
-          <p className="text-sm text-gray-500">Enable or disable features for this tenant</p>
-        </div>
-        <div className="p-6 space-y-4">
-          {([
-            { key: 'warrantyEnabled', label: 'Warranty Management', desc: 'Auto-create warranties on sale. Hides warranty tab when disabled.', icon: ShieldCheck },
-            { key: 'replacementEnabled', label: 'Replacement Tracking', desc: 'Track product replacements under warranty. Hides replacements tab when disabled.', icon: RefreshCw },
-            { key: 'rewardsEnabled', label: 'Rewards & Points', desc: 'Vendor reward points on each sale. Hides rewards tab when disabled.', icon: Gift },
-            { key: 'financeEnabled', label: 'Finance Module', desc: 'Vendor payment tracking, reminders, and balance management.', icon: IndianRupee },
-            { key: 'chatbotEnabled', label: 'AI Chatbot', desc: '30+ natural language commands for quick data access.', icon: MessageSquare },
-            { key: 'billCustomizationEnabled', label: 'Bill Customization', desc: 'Custom logo, colors, bank details, signatory on bills.', icon: FileText },
-            { key: 'multiLanguageEnabled', label: 'Multi-Language', desc: 'Switch UI between English, Hindi, and Gujarati.', icon: Languages },
-            { key: 'vendorPortalEnabled', label: 'Vendor Portal', desc: 'When OFF, vendors are just names — no login, no dashboard. Distribution still works.', icon: Users },
-            { key: 'barcodeSystemEnabled', label: 'Barcode System', desc: 'When OFF, uses simple SKU codes instead of auto-generated barcodes. No scanner, no label printing.', icon: Package },
-          ] as const).map((toggle) => (
-            <div key={toggle.key} className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-gray-50 rounded-lg flex items-center justify-center">
-                  <toggle.icon size={18} className="text-gray-500" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">{toggle.label}</p>
-                  <p className="text-xs text-gray-500">{toggle.desc}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={async () => {
-                  const token = sessionStorage.getItem('auth_token');
-                  const currentVal = (tenant as Record<string, unknown>)[toggle.key] !== false;
-                  try {
-                    await fetch(`/api/super-admin/tenants/${tenantId}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ [toggle.key]: !currentVal }),
-                    });
-                    fetchTenant();
-                    toast(`${toggle.label} ${!currentVal ? 'enabled' : 'disabled'}`, 'success');
-                  } catch { toast('Failed to update', 'error'); }
-                }}
-                className={cn("relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors", (tenant as Record<string, unknown>)[toggle.key] !== false ? "bg-green-500" : "bg-gray-300")}
-              >
-                <span className={cn("pointer-events-none inline-block h-6 w-6 rounded-full bg-white shadow-md transform transition-transform", (tenant as Record<string, unknown>)[toggle.key] !== false ? "translate-x-5" : "translate-x-0")} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Tab Customization */}
       <TabCustomization tenantId={tenantId} tabConfig={tenant.tabConfig} onSaved={fetchTenant} />
@@ -480,10 +423,11 @@ const DEFAULT_TAB_CONFIG: Record<string, { label: string; visible: boolean }> = 
   replacements: { label: 'Replacements', visible: true },
   rewards: { label: 'Rewards', visible: true },
   finance: { label: 'Finance', visible: true },
+  chatbot: { label: 'Chatbot', visible: true },
   settings: { label: 'Settings', visible: true },
 };
 
-const TAB_KEYS = ['dashboard', 'inventory', 'distribution', 'sales', 'verification', 'warranty', 'replacements', 'rewards', 'finance', 'settings'] as const;
+const TAB_KEYS = ['dashboard', 'inventory', 'distribution', 'sales', 'verification', 'warranty', 'replacements', 'rewards', 'finance', 'chatbot', 'settings'] as const;
 
 function TabCustomization({ tenantId, tabConfig, onSaved }: { tenantId: string; tabConfig: Record<string, { label: string; visible: boolean }> | null; onSaved: () => void }) {
   const { toast } = useToast();
