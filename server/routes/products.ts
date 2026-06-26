@@ -161,11 +161,8 @@ router.get('/api/products/verify/:barcode', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { barcode } = req.params;
 
-    const tenant = (await pool.query('SELECT warranty_enabled, replacement_enabled, rewards_enabled, vendor_portal_enabled, barcode_system_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;
+    const tenant = (await pool.query('SELECT vendor_portal_enabled, barcode_system_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;
     const features = {
-      warranty: tenant?.warranty_enabled !== false,
-      replacement: tenant?.replacement_enabled !== false,
-      rewards: tenant?.rewards_enabled !== false,
       vendorPortal: tenant?.vendor_portal_enabled !== false,
       barcodeSystem: tenant?.barcode_system_enabled !== false,
     };
@@ -196,15 +193,15 @@ router.get('/api/products/verify/:barcode', async (req, res) => {
       WHERE ps.barcode = $1 AND ps.tenant_id = $2
     `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
 
-    const warranty = features.warranty ? (await pool.query(
+    const warranty = (await pool.query(
       'SELECT status, activation_date, expiry_date FROM warranties WHERE barcode = $1 AND tenant_id = $2 ORDER BY activation_date DESC LIMIT 1',
       [barcode, tenantId]
-    )).rows[0] as Record<string, unknown> | undefined : undefined;
+    )).rows[0] as Record<string, unknown> | undefined;
 
-    const replacements = features.replacement ? (await pool.query(
+    const replacements = (await pool.query(
       'SELECT id, old_barcode, new_barcode, reason, replaced_date as created_at FROM product_replacements WHERE (old_barcode = $1 OR new_barcode = $1) AND tenant_id = $2 ORDER BY replaced_date DESC',
       [barcode, tenantId]
-    )).rows as Record<string, unknown>[] : [];
+    )).rows as Record<string, unknown>[];
 
     const currentStatus = sale ? 'Sold' : dist ? (dist.dist_status as string) : (inv.status as string);
 
@@ -231,7 +228,7 @@ router.get('/api/products/verify/:barcode', async (req, res) => {
         netPrice: dist.net_price,
         gstApplied: !!dist.gst_applied,
         billedPrice: dist.billed_price,
-        ...(features.vendorPortal ? { vendorName: dist.vendor_name, vendorPhone: dist.vendor_phone, contactPerson: dist.contact_person } : {}),
+        vendorName: dist.vendor_name, vendorPhone: dist.vendor_phone, contactPerson: dist.contact_person,
       };
       (result.timeline as Record<string, unknown>).distributed = dist.distribution_date;
     }
@@ -240,8 +237,8 @@ router.get('/api/products/verify/:barcode', async (req, res) => {
       result.sale = {
         date: sale.purchase_date,
         salePrice: sale.sale_price,
-        ...(features.vendorPortal ? { soldByVendor: sale.sold_by_vendor, customerName: sale.customer_name, customerPhone: sale.customer_phone, customerEmail: sale.customer_email } : {}),
-        ...(features.rewards ? { rewardPointsEarned: sale.reward_points_earned } : {}),
+        soldByVendor: sale.sold_by_vendor, customerName: sale.customer_name, customerPhone: sale.customer_phone, customerEmail: sale.customer_email,
+        rewardPointsEarned: sale.reward_points_earned,
       };
       (result.timeline as Record<string, unknown>).sold = sale.purchase_date;
     }

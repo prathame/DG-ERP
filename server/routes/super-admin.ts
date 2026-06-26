@@ -180,8 +180,7 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
         id: tenant.id, companyName: tenant.company_name, slug: tenant.slug, adminEmail: tenant.admin_email,
         adminName: tenant.admin_name, phone: tenant.phone, address: tenant.address, gstNumber: tenant.gst_number,
         planId: tenant.plan_id, planName: tenant.plan_name, status: tenant.status,
-        warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false,
-        financeEnabled: tenant.finance_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, billCustomizationEnabled: tenant.bill_customization_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false,
+        barcodeSystemEnabled: tenant.barcode_system_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false, vendorPortalEnabled: tenant.vendor_portal_enabled !== false,
         trialEndsAt: tenant.trial_ends_at, subscriptionEndsAt: tenant.subscription_ends_at, createdAt: tenant.created_at, lastActiveAt: tenant.last_active_at,
         tabConfig: tenant.tab_config ?? null,
       },
@@ -198,34 +197,27 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
   try {
     const { id } = req.params;
     const requestBody = req.body;
-    const toggleMap: Record<string, string> = { warrantyEnabled: 'warranty_enabled', replacementEnabled: 'replacement_enabled', rewardsEnabled: 'rewards_enabled', financeEnabled: 'finance_enabled', chatbotEnabled: 'chatbot_enabled', billCustomizationEnabled: 'bill_customization_enabled', multiLanguageEnabled: 'multi_language_enabled', vendorPortalEnabled: 'vendor_portal_enabled', barcodeSystemEnabled: 'barcode_system_enabled' };
     const updates: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
     if (requestBody.status !== undefined) { updates.push(`status = $${idx}`); params.push(requestBody.status); idx++; }
-    if (requestBody.planId !== undefined) {
-      updates.push(`plan_id = $${idx}`); params.push(requestBody.planId); idx++;
-    }
+    if (requestBody.planId !== undefined) { updates.push(`plan_id = $${idx}`); params.push(requestBody.planId); idx++; }
     if (requestBody.companyName !== undefined) { updates.push(`company_name = $${idx}`); params.push(requestBody.companyName); idx++; }
     if (requestBody.phone !== undefined) { updates.push(`phone = $${idx}`); params.push(requestBody.phone); idx++; }
     if (requestBody.address !== undefined) { updates.push(`address = $${idx}`); params.push(requestBody.address); idx++; }
     if (requestBody.subscriptionEndsAt !== undefined) { updates.push(`subscription_ends_at = $${idx}`); params.push(requestBody.subscriptionEndsAt || null); idx++; }
     if (requestBody.gstNumber !== undefined) { updates.push(`gst_number = $${idx}`); params.push(requestBody.gstNumber); idx++; }
     if (requestBody.tabConfig !== undefined) { updates.push(`tab_config = $${idx}`); params.push(JSON.stringify(requestBody.tabConfig)); idx++; }
-    // Auto-bundle: warranty OFF → replacement OFF, replacement ON → warranty ON
-    if (requestBody.warrantyEnabled === false) requestBody.replacementEnabled = false;
-    if (requestBody.replacementEnabled === true && requestBody.warrantyEnabled === undefined) requestBody.warrantyEnabled = true;
-
-    for (const [key, col] of Object.entries(toggleMap)) {
-      if (requestBody[key] !== undefined) { updates.push(`${col} = $${idx}`); params.push(!!requestBody[key]); idx++; }
-    }
+    if (requestBody.barcodeSystemEnabled !== undefined) { updates.push(`barcode_system_enabled = $${idx}`); params.push(!!requestBody.barcodeSystemEnabled); idx++; }
+    if (requestBody.multiLanguageEnabled !== undefined) { updates.push(`multi_language_enabled = $${idx}`); params.push(!!requestBody.multiLanguageEnabled); idx++; }
+    if (requestBody.vendorPortalEnabled !== undefined) { updates.push(`vendor_portal_enabled = $${idx}`); params.push(!!requestBody.vendorPortalEnabled); idx++; }
     if (updates.length === 0) return res.status(400).json({ error: 'No updates provided' });
     params.push(id);
     const result = await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
     const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
     await logAudit(pool, id, 'UPDATE', 'tenant', id, `Tenant updated: ${updates.join(', ')}`, (req as AuthRequest).user?.userId, 'Super Admin');
-    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, warrantyEnabled: tenant.warranty_enabled !== false, replacementEnabled: tenant.replacement_enabled !== false, rewardsEnabled: tenant.rewards_enabled !== false, financeEnabled: tenant.finance_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, billCustomizationEnabled: tenant.bill_customization_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false, vendorPortalEnabled: tenant.vendor_portal_enabled !== false, tabConfig: tenant.tab_config ?? null });
+    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, barcodeSystemEnabled: tenant.barcode_system_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false, vendorPortalEnabled: tenant.vendor_portal_enabled !== false, tabConfig: tenant.tab_config ?? null });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
