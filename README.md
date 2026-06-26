@@ -254,7 +254,7 @@ Super admin can rename and show/hide tabs per tenant, making the same system wor
 | inventory | Inventory ✅ | Inventory ✅ | Stock ✅ |
 | distribution | Dispatch ✅ | Sales ✅ | Purchase ✅ |
 | sales | Warranty Reg ✅ | ⬜ OFF | ⬜ OFF |
-| verification | Verify Product ✅ | Verify Product ✅ | ⬜ OFF |
+| verification | Search / Verify ✅ | Search / Verify ✅ | Search / Verify ✅ |
 | warranty | Warranty ✅ | ⬜ OFF | ⬜ OFF |
 | finance | Vendor Payments ✅ | Dealer Payments ✅ | ⬜ OFF |
 

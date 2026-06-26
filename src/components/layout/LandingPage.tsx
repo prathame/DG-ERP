@@ -3,21 +3,21 @@ import { motion } from 'motion/react';
 import {
   Package, ShoppingCart, Truck, Receipt, IndianRupee, MessageSquare, Smartphone,
   Palette, Moon, ShieldCheck, BarChart3, Users, Zap, Languages, Building2, Shield,
-  ArrowRight, Check, Star, Mail, Phone, Send, MessageCircle, Sun,
+  ArrowRight, Check, Star, Mail, Phone, Send, MessageCircle, Sun, Search,
 } from 'lucide-react';
 
 const FEATURES = [
   { icon: Package, title: 'Inventory Management', desc: 'Auto-barcode ranges, stock tracking, batch management, bulk CSV import, barcode label printing' },
   { icon: ShoppingCart, title: 'Sales & Billing', desc: 'Camera barcode scan, GST tax invoices with CGST/SGST breakdown, split billing' },
-  { icon: Truck, title: 'Distribution', desc: 'Spreadsheet-style vendor distribution with per-row discount and GST toggles' },
-  { icon: IndianRupee, title: 'Vendor Finance', desc: 'Payment tracking, balance management, automated WhatsApp payment reminders' },
+  { icon: Truck, title: 'Distribution', desc: 'Spreadsheet-style vendor distribution with per-row discount and GST toggles, paid/unpaid filters' },
+  { icon: IndianRupee, title: 'Vendor Finance', desc: 'Payment tracking, balance management, automated WhatsApp payment reminders, paid/unpaid views' },
+  { icon: Search, title: 'Search / Verify', desc: 'Instant search across vendors, products, barcodes, customers, challans — with full detail view' },
   { icon: Palette, title: 'Custom Branding', desc: 'Company logo, accent colors, bank details, signatory — fully branded bills per tenant' },
   { icon: ShieldCheck, title: 'Warranty & Rewards', desc: 'Auto-warranty on sale, replacement tracking, vendor reward points system' },
-  { icon: MessageSquare, title: 'ERP Chatbot', desc: '30+ natural language commands — sales today, low stock, top vendors, and more' },
+  { icon: MessageSquare, title: 'ERP Chatbot', desc: 'Natural language commands — sales today, low stock, top vendors, adapts to your business type' },
+  { icon: Building2, title: 'Business Types', desc: 'Manufacturer, dealer, or retail — super admin picks type, tabs auto-configure with custom labels' },
   { icon: Moon, title: 'Dark Mode', desc: 'Light and dark theme with one-click toggle, persisted across sessions' },
   { icon: Languages, title: 'Multi-Language', desc: 'English, Hindi, and Gujarati support — switch language instantly from settings' },
-  { icon: Users, title: 'Vendor Portal', desc: 'Optional vendor login — toggle ON for vendor dashboard, OFF for simple distribution-only mode' },
-  { icon: BarChart3, title: 'Barcode System', desc: 'Auto-generate barcodes, print labels, scan with phone camera — or use simple SKU mode' },
   { icon: Smartphone, title: 'Mobile PWA', desc: 'Install as app from browser — full screen, offline support, bottom nav, no Play Store needed' },
 ];
 

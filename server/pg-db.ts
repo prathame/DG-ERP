@@ -363,7 +363,7 @@ export async function initSchema() {
       inventory:    { label: 'Inventory',      visible: true },
       distribution: { label: 'Distribution',   visible: true },
       sales:        { label: 'Sales Entry',    visible: true },
-      verification: { label: 'Search',         visible: true },
+      verification: { label: 'Search / Verify', visible: true },
       warranty:     { label: 'Warranty',        visible: true },
       replacements: { label: 'Replacements',   visible: true },
       rewards:      { label: 'Rewards',         visible: true },
