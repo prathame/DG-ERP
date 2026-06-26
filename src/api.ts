@@ -139,11 +139,12 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (res.status === 401) {
+    const slug = sessionStorage.getItem('tenant_slug');
     sessionStorage.removeItem('auth_token');
     sessionStorage.removeItem('tenant_id');
     sessionStorage.removeItem('dg_erp_user');
-    window.location.href = '/';
-    throw new Error('Session expired. Please log in again.');
+    window.location.href = slug ? `/${slug}` : '/';
+    return new Promise(() => {}) as T;
   }
 
   if (!res.ok) {
