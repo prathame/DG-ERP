@@ -127,91 +127,127 @@ export function InventoryView() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {loading ? (
-          <div className="col-span-full py-20"><LoadingSpinner /></div>
-        ) : sortedProducts.length === 0 ? (
-          <div className="col-span-full bg-white p-12 rounded-2xl border border-gray-100 text-center">
-            <Package className="mx-auto mb-3 text-gray-300" size={48} />
-            <p className="text-gray-500 font-medium text-lg">No products in inventory</p>
-            <p className="text-gray-400 text-sm mt-1">Add your first product to get started</p>
-            <button type="button" onClick={() => setAddModalOpen(true)} className="mt-4 px-6 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold">Add Product</button>
+      {loading ? (
+        <div className="py-20"><LoadingSpinner /></div>
+      ) : sortedProducts.length === 0 ? (
+        <div className="bg-white p-12 rounded-2xl border border-gray-100 text-center">
+          <Package className="mx-auto mb-3 text-gray-300" size={48} />
+          <p className="text-gray-500 font-medium text-lg">No products in inventory</p>
+          <p className="text-gray-400 text-sm mt-1">Add your first product to get started</p>
+          <button type="button" onClick={() => setAddModalOpen(true)} className="mt-4 px-6 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold">Add Product</button>
+        </div>
+      ) : (
+        <>
+          {/* Desktop Table */}
+          <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Product</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Price</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Total</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Admin</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center hidden lg:table-cell">Vendors</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center hidden lg:table-cell">Sold</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {sortedProducts.map((p) => {
+                  const isLowStock = (p.remainingInventory ?? p.stock ?? 0) < 10;
+                  return (
+                    <tr key={p.id} className={cn("hover:bg-gray-50/50 transition-colors", isLowStock && "bg-amber-50/40")}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm text-gray-900">{p.name}</span>
+                          {isLowStock && (
+                            <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                              <AlertTriangle size={10} /> Low
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{p.totalInventory ?? p.stock ?? 0}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="font-semibold text-sm text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center hidden lg:table-cell">
+                        <span className="font-semibold text-sm text-purple-700">{p.withVendors ?? 0}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center hidden lg:table-cell">
+                        <span className="font-semibold text-sm text-emerald-700">{p.soldCount ?? 0}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-[#F27D26] hover:bg-orange-50 rounded-lg" title="Barcode Details">
+                            <Barcode size={16} />
+                          </button>
+                          <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
+                            <Plus size={16} />
+                          </button>
+                          {barcodeSystemEnabled && (
+                            <button onClick={() => setLabelPrinterId(p.id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Print Labels">
+                              <Printer size={16} />
+                            </button>
+                          )}
+                          <button onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        ) : (
-        sortedProducts.map((p) => (
-          <div key={p.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative group">
-            <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {barcodeSystemEnabled && <button onClick={() => setLabelPrinterId(p.id)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100" title="Print Labels">
-                <Printer size={18} />
-              </button>}
-              <button onClick={() => setProductToDelete(p)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100" title="Delete">
-                <Trash2 size={18} />
-              </button>
-            </div>
-            <div className="space-y-1 mt-2">
-              <h3 className="font-bold text-lg">{p.name}</h3>
-              <button type="button" onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="text-xs font-medium text-[#F27D26] hover:underline flex items-center gap-1">
-                <Barcode size={12} /> See barcode
-              </button>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <button type="button" onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10 }); }} className="text-xs font-medium text-[#F27D26] hover:underline">Add stock</button>
-            </div>
-            <div className="mt-4 pt-4 border-t border-gray-50 space-y-3">
-              <div className="flex items-center justify-between gap-4">
-                <div className={cn(
-                  "px-3 py-2 rounded-xl transition-colors flex-1",
-                  (p.remainingInventory ?? p.stock ?? 0) < 10 ? "bg-amber-50 border border-amber-100" : ""
-                )}>
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total inventory</p>
-                    {(p.remainingInventory ?? p.stock ?? 0) < 10 && (
-                      <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full uppercase tracking-tight">
-                        <AlertTriangle size={10} />
-                        Low
-                      </span>
-                    )}
+
+          {/* Mobile List */}
+          <div className="sm:hidden space-y-2">
+            {sortedProducts.map((p) => {
+              const isLowStock = (p.remainingInventory ?? p.stock ?? 0) < 10;
+              return (
+                <div key={p.id} className={cn("bg-white rounded-xl border border-gray-100 p-3", isLowStock && "border-amber-200 bg-amber-50/30")}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-semibold text-sm text-gray-900 truncate">{p.name}</span>
+                      {isLowStock && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
+                    </div>
+                    <span className="font-semibold text-sm text-emerald-600 shrink-0">₹{p.price.toLocaleString()}</span>
                   </div>
-                  <p className={cn(
-                    "font-bold text-lg leading-none",
-                    (p.remainingInventory ?? p.stock ?? 0) < 10 ? "text-amber-700" : "text-gray-900"
-                  )}>
-                    {p.totalInventory ?? p.stock ?? 0} <span className="text-xs font-normal opacity-60">units</span>
-                  </p>
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <span>Total: <strong className={isLowStock ? "text-amber-700" : "text-gray-900"}>{p.totalInventory ?? p.stock ?? 0}</strong></span>
+                    <span>Admin: <strong className="text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</strong></span>
+                    <span>Vendors: <strong className="text-purple-700">{p.withVendors ?? 0}</strong></span>
+                    <span>Sold: <strong className="text-emerald-700">{p.soldCount ?? 0}</strong></span>
+                  </div>
+                  <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-gray-100">
+                    <button onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-[#F27D26] hover:bg-orange-50 rounded-lg" title="Barcode Details">
+                      <Barcode size={16} />
+                    </button>
+                    <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
+                      <Plus size={16} />
+                    </button>
+                    {barcodeSystemEnabled && (
+                      <button onClick={() => setLabelPrinterId(p.id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Print Labels">
+                        <Printer size={16} />
+                      </button>
+                    )}
+                    <button onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
-                <div className="px-3 py-2 rounded-xl bg-blue-50 border border-blue-100 flex-1">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">With Admin</p>
-                  <p className="font-bold text-lg text-blue-700 leading-none">
-                    {p.remainingInventory ?? p.stock ?? 0} <span className="text-xs font-normal opacity-60">units</span>
-                  </p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">In warehouse</p>
-                </div>
-                <div className="px-3 py-2 rounded-xl bg-purple-50 border border-purple-100 flex-1">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">With Vendors</p>
-                  <p className="font-bold text-lg text-purple-700 leading-none">
-                    {p.withVendors ?? 0} <span className="text-xs font-normal opacity-60">units</span>
-                  </p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">Not yet sold</p>
-                </div>
-                <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-100 flex-1">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Sold</p>
-                  <p className="font-bold text-lg text-emerald-700 leading-none">
-                    {p.soldCount ?? 0} <span className="text-xs font-normal opacity-60">units</span>
-                  </p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">To customers</p>
-                </div>
-              </div>
-              <div className="flex justify-end items-center pt-2 border-t border-gray-50">
-                <div className="text-right">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Price</p>
-                  <p className="font-bold text-lg text-emerald-600 leading-none">₹{p.price.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
-        ))
-        )}
-      </div>
+        </>
+      )}
 
       {/* Add Product Modal */}
       <AnimatePresence>
