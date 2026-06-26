@@ -41,6 +41,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string; phone?: string; companyName?: string; slug?: string } | null>(null);
+  const [deleteTenantId, setDeleteTenantId] = useState<string | null>(null);
 
   const fetchTenants = useCallback(() => {
     const token = sessionStorage.getItem('auth_token');
@@ -62,8 +63,6 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
     const token = sessionStorage.getItem('auth_token');
     try {
       if (action === 'delete') {
-        const confirmed = window.confirm('Are you sure you want to delete this tenant? This cannot be undone.');
-        if (!confirmed) return;
         await fetch(`/api/super-admin/tenants/${tenantId}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
@@ -198,7 +197,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
                         </button>
                       )}
                       <button
-                        onClick={() => handleAction(t.id, 'delete')}
+                        onClick={() => setDeleteTenantId(t.id)}
                         title="Delete"
                         className="p-1.5 hover:bg-rose-50 rounded-lg transition-colors text-gray-500 hover:text-rose-600"
                       >
@@ -227,6 +226,22 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
           />
         )}
       </AnimatePresence>
+      {deleteTenantId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteTenantId(null)} />
+          <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 text-center">
+            <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={28} />
+            </div>
+            <h3 className="text-lg font-bold mb-2">Delete Tenant?</h3>
+            <p className="text-sm text-gray-500 mb-6">This will permanently delete the tenant and all their data. This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setDeleteTenantId(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
+              <button type="button" onClick={() => { const id = deleteTenantId; setDeleteTenantId(null); handleAction(id, 'delete'); }} className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
