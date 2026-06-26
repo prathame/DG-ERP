@@ -19,6 +19,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
     reminder: { enabled: boolean; days: number; lastSent: string | null };
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [paymentFilter, setPaymentFilter] = useState<'unpaid' | 'paid'>('unpaid');
   const [paymentModal, setPaymentModal] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -237,6 +238,15 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
         </div>
       )}
 
+      {/* Payment filter tabs */}
+      <div className="flex gap-2">
+        {(['unpaid', 'paid'] as const).map((tab) => (
+          <button key={tab} type="button" onClick={() => { setPaymentFilter(tab); setSelectedVendorId(null); }} className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", paymentFilter === tab ? (tab === 'unpaid' ? "bg-rose-500 text-white" : "bg-emerald-500 text-white") : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
+            {tab === 'unpaid' ? 'Unpaid' : 'Paid'}
+          </button>
+        ))}
+      </div>
+
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -246,9 +256,15 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr><td colSpan={6} className="px-6 py-12 text-center"><LoadingSpinner /></td></tr>
-              ) : summaryData.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No vendor finance data yet</td></tr>
-              ) : summaryData.map((v) => (
+              ) : summaryData.filter((v) => {
+                const isPaid = isBillFullyPaid(v.totalDistributedValue, v.balance);
+                return paymentFilter === 'paid' ? isPaid : !isPaid;
+              }).length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">{paymentFilter === 'paid' ? 'No fully paid vendors' : 'No outstanding balances'}</td></tr>
+              ) : summaryData.filter((v) => {
+                const isPaid = isBillFullyPaid(v.totalDistributedValue, v.balance);
+                return paymentFilter === 'paid' ? isPaid : !isPaid;
+              }).map((v) => (
                 <tr key={v.vendorId} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 flex-wrap">

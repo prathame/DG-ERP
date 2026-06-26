@@ -35,6 +35,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [removeConfirm, setRemoveConfirm] = useState<{ idx: number; name: string; qty: number } | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [paymentFilter, setPaymentFilter] = useState<'unpaid' | 'paid'>('unpaid');
   const [deleteBatchConfirm, setDeleteBatchConfirm] = useState<string | null>(null);
   const [financeMap, setFinanceMap] = useState<Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }>>({});
 
@@ -192,9 +193,24 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
         </div>
       </div>
 
+      {/* Payment filter tabs */}
+      <div className="flex gap-2">
+        {(['unpaid', 'paid'] as const).map((tab) => (
+          <button key={tab} type="button" onClick={() => { setPaymentFilter(tab); setSelectedVendorId(null); setSelectedBatchId(null); }} className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", paymentFilter === tab ? (tab === 'unpaid' ? "bg-rose-500 text-white" : "bg-emerald-500 text-white") : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
+            {tab === 'unpaid' ? 'Unpaid' : 'Paid'}
+          </button>
+        ))}
+      </div>
+
       {/* Vendor cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {summary?.vendorStats?.filter((v) => v.distributed > 0 && (!vendorId || v.vendorId === vendorId)).map((v) => (
+        {summary?.vendorStats?.filter((v) => {
+          if (v.distributed === 0) return false;
+          if (vendorId && v.vendorId !== vendorId) return false;
+          const f = financeMap[v.vendorId];
+          const isPaid = f ? isBillFullyPaid(f.totalDistributedValue, f.balance) : false;
+          return paymentFilter === 'paid' ? isPaid : !isPaid;
+        }).map((v) => (
           <button
             key={v.vendorId}
             type="button"
