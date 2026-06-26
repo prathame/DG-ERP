@@ -420,7 +420,43 @@ npm start
 
 Compatible with: Railway, Render, AWS, DigitalOcean, Heroku, Vercel (API), any VPS.
 
-## Test Cases
+## CI/CD Pipelines
+
+5 GitHub Actions run automatically on every PR to `main`:
+
+| Pipeline | What it checks | Blocks merge? |
+|---|---|---|
+| **Lint & Type Check** | TypeScript compilation, no errors | Yes |
+| **Production Build** | Vite build succeeds, dist/ created | Yes |
+| **Security Scan** | npm audit, hardcoded secrets, XSS (dangerouslySetInnerHTML), esc() in bills | Yes |
+| **API Tests** | 98 automated tests against PostgreSQL (auth, security, products, sales, distribution, tenants, plans, finance, billing) | Yes |
+| **PR Quality Gate** | Combined: lint + build + security + bundle size check | Yes |
+
+All checks must pass before PR can be merged to `main`.
+
+### Run tests locally:
+```bash
+npm test           # Run all 98 tests
+npm run test:watch  # Watch mode
+```
+
+## Automated Tests
+
+98 API tests in `tests/api/` — 9 files:
+
+| File | Tests | What it covers |
+|---|---|---|
+| `auth.test.ts` | 11 | Login, JWT, password, vendor block, subscription expiry |
+| `security.test.ts` | 11 | Tenant isolation, XSS, SQL injection, bcrypt, shared barcodes |
+| `products.test.ts` | 12 | CRUD, barcode inventory, duplicates, status |
+| `sales.test.ts` | 8 | Sale flow, barcode status, sold validation |
+| `distribution.test.ts` | 9 | Distribution, discount, GST/CGST/SGST calculation |
+| `tenants.test.ts` | 12 | CRUD, toggles, subscription, suspend/activate |
+| `plans.test.ts` | 14 | Seeded plans, pricing, feature flags |
+| `finance.test.ts` | 9 | Vendor payments, balance |
+| `billing.test.ts` | 10 | Invoices, mark paid, GST calc |
+
+## Manual Test Cases
 
 214 manual test cases organized by feature in `tests/cases/`:
 

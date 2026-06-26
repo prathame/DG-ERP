@@ -931,11 +931,63 @@ CMD ["node", "dist/server/index.js"]
 
 ---
 
-## Test Cases
+## CI/CD Pipelines
+
+5 GitHub Actions in `.github/workflows/`:
+
+| File | Trigger | What it does |
+|---|---|---|
+| `lint.yml` | PR + push to main | TypeScript type check |
+| `build.yml` | PR | Production build validation |
+| `security.yml` | PR + push to main | npm audit, secret detection, XSS check, esc() verification |
+| `test.yml` | PR | 98 API tests with PostgreSQL service container |
+| `pr-check.yml` | PR | Combined quality gate (lint + build + security + bundle size) |
+
+**Branch protection:** All checks must pass before merging to `main`. Owner can bypass.
+
+### Running tests locally
+
+```bash
+npm test              # Run all 98 tests once
+npm run test:watch    # Watch mode — re-runs on file change
+```
+
+Tests use a real PostgreSQL database. Set `DATABASE_URL` in `.env` or it defaults to `splendor_erp_test`.
+
+### Adding a new test
+
+1. Create `tests/api/{feature}.test.ts`
+2. Import helpers: `import { pool, createTestToken, cleanupTestData } from '../helpers';`
+3. Use `beforeAll` to create test data, `afterAll` to clean up
+4. Use unique tenant IDs (e.g., `T-TEST-MYFEATURE`) to avoid conflicts
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { pool, cleanupTestData } from '../helpers';
+
+const TEST_TENANT = 'T-TEST-MYFEATURE';
+
+describe('MyFeature', () => {
+  beforeAll(async () => {
+    await cleanupTestData(TEST_TENANT);
+    await pool.query(`INSERT INTO tenants (...) VALUES (...)`);
+  });
+  afterAll(async () => { await cleanupTestData(TEST_TENANT); });
+
+  it('should do something', async () => {
+    const { rows } = await pool.query('SELECT ...');
+    expect(rows.length).toBeGreaterThan(0);
+  });
+});
+```
+
+---
+
+## Manual Test Cases
 
 214 manual test cases in `tests/cases/` — one file per feature. See [tests/cases/README.md](tests/cases/README.md) for the full index.
 
-Run through all critical test cases before any production deployment:
+Run through all critical manual test cases before any production deployment:
 1. `tests/cases/security.md` — XSS, SQL injection, tenant isolation, JWT
 2. `tests/cases/cross-tenant.md` — Data isolation between tenants
 3. `tests/cases/auth-login.md` — Login, forgot password, rate limiting
