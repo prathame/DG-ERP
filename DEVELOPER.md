@@ -940,7 +940,7 @@ CMD ["node", "dist/server/index.js"]
 | `lint.yml` | PR + push to main | TypeScript type check |
 | `build.yml` | PR | Production build validation |
 | `security.yml` | PR + push to main | npm audit, secret detection, XSS check, esc() verification |
-| `test.yml` | PR | 98 API tests with PostgreSQL service container |
+| `test.yml` | PR | 190 API tests with PostgreSQL service container |
 | `pr-check.yml` | PR | Combined quality gate (lint + build + security + bundle size) |
 
 **Branch protection:** All checks must pass before merging to `main`. Owner can bypass.
@@ -948,7 +948,7 @@ CMD ["node", "dist/server/index.js"]
 ### Running tests locally
 
 ```bash
-npm test              # Run all 98 tests once
+npm test              # Run all 190 tests once
 npm run test:watch    # Watch mode — re-runs on file change
 ```
 
