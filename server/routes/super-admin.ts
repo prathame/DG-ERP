@@ -161,6 +161,9 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
         }
       }
     }
+    if (req.body.tabConfig) {
+      await pool.query('UPDATE tenants SET tab_config = $1 WHERE id = $2', [JSON.stringify(req.body.tabConfig), result.tenantId]);
+    }
     await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ ...result, adminEmail, password: result.credentials.password, companyName });
   } catch (err) {

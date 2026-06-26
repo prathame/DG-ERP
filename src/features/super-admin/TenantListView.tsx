@@ -15,6 +15,7 @@ import {
   Mail,
 } from 'lucide-react';
 import { LoadingSpinner, useToast } from '../../components/ui';
+import { cn } from '../../lib/utils';
 
 interface Tenant {
   id: string;
@@ -246,6 +247,59 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
   );
 }
 
+type BusinessType = 'manufacturer' | 'dealer' | 'retail' | 'custom';
+
+const BUSINESS_TYPE_CONFIGS: Record<Exclude<BusinessType, 'custom'>, { label: string; desc: string; tabConfig: Record<string, { label: string; visible: boolean }> }> = {
+  manufacturer: {
+    label: 'Manufacturer',
+    desc: 'Full supply chain — dispatch to vendors, warranty, customer tracking',
+    tabConfig: {
+      dashboard: { label: 'Dashboard', visible: true },
+      inventory: { label: 'Inventory', visible: true },
+      distribution: { label: 'Dispatch', visible: true },
+      sales: { label: 'Warranty Registration', visible: true },
+      verification: { label: 'Verify Product', visible: true },
+      warranty: { label: 'Warranty', visible: true },
+      replacements: { label: 'Replacements', visible: true },
+      rewards: { label: 'Rewards', visible: true },
+      finance: { label: 'Vendor Payments', visible: true },
+      settings: { label: 'Settings', visible: true },
+    },
+  },
+  dealer: {
+    label: 'Dealer / Wholesaler',
+    desc: 'Sell to dealers/vendors — no customer tracking, no warranty',
+    tabConfig: {
+      dashboard: { label: 'Dashboard', visible: true },
+      inventory: { label: 'Inventory', visible: true },
+      distribution: { label: 'Sales', visible: true },
+      sales: { label: 'Sales Entry', visible: false },
+      verification: { label: 'Verify Product', visible: true },
+      warranty: { label: 'Warranty', visible: false },
+      replacements: { label: 'Replacements', visible: false },
+      rewards: { label: 'Rewards', visible: false },
+      finance: { label: 'Dealer Payments', visible: true },
+      settings: { label: 'Settings', visible: true },
+    },
+  },
+  retail: {
+    label: 'Retail Shop',
+    desc: 'Buy stock, sell to walk-in customers — no distribution chain',
+    tabConfig: {
+      dashboard: { label: 'Dashboard', visible: true },
+      inventory: { label: 'Stock', visible: true },
+      distribution: { label: 'Purchase', visible: true },
+      sales: { label: 'Sales Entry', visible: false },
+      verification: { label: 'Verify Product', visible: false },
+      warranty: { label: 'Warranty', visible: false },
+      replacements: { label: 'Replacements', visible: false },
+      rewards: { label: 'Rewards', visible: false },
+      finance: { label: 'Supplier Payments', visible: true },
+      settings: { label: 'Settings', visible: true },
+    },
+  },
+};
+
 function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
   onClose: () => void;
   onCreated: (creds: { email: string; password: string; phone?: string; companyName?: string; slug?: string }) => void;
@@ -261,6 +315,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
     billingCycle: 'monthly' as 'monthly' | 'yearly',
     subscriptionStart: new Date().toISOString().split('T')[0],
     subscriptionEnd: '',
+    businessType: 'manufacturer' as BusinessType,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -305,7 +360,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
       const res = await fetch('/api/super-admin/tenants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, tabConfig: form.businessType !== 'custom' ? BUSINESS_TYPE_CONFIGS[form.businessType].tabConfig : undefined }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -480,6 +535,33 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                   <option key={p.id} value={p.id}>{p.name}{p.priceMonthly > 0 ? ` — ₹${p.priceMonthly.toLocaleString()}/mo` : ' (Free)'}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Business Type</label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { id: 'manufacturer' as const, icon: '🏭' },
+                  { id: 'dealer' as const, icon: '🤝' },
+                  { id: 'retail' as const, icon: '🏪' },
+                  { id: 'custom' as const, icon: '⚙️' },
+                ] as const).map((bt) => {
+                  const config = bt.id !== 'custom' ? BUSINESS_TYPE_CONFIGS[bt.id] : null;
+                  return (
+                    <button
+                      key={bt.id}
+                      type="button"
+                      onClick={() => setForm({ ...form, businessType: bt.id })}
+                      className={cn(
+                        "p-3 rounded-xl border-2 text-left transition-all",
+                        form.businessType === bt.id ? "border-[#F27D26] bg-orange-50" : "border-gray-200 hover:border-gray-300"
+                      )}
+                    >
+                      <p className="text-sm font-bold">{bt.icon} {config?.label ?? 'Custom'}</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">{config?.desc ?? 'Configure tabs manually after creation'}</p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             {form.plan !== 'TRIAL' && (
               <div>
