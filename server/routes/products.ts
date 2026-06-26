@@ -307,16 +307,26 @@ router.post('/api/products', async (req, res) => {
     };
     const insertBarcodes = async (barcodes: string[]) => {
       const batchId = `B${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      for (let i = 0; i < barcodes.length; i++) {
-        const bc = barcodes[i];
-        if (await barcodeExists(pool, tenantId, bc)) {
-          throw new Error(`BARCODE_EXISTS:${bc}`);
+      // Batch check: verify no duplicates in one query
+      const existing = (await pool.query(
+        'SELECT barcode FROM product_inventory WHERE barcode = ANY($1) AND tenant_id = $2',
+        [barcodes, tenantId]
+      )).rows;
+      if (existing.length > 0) {
+        throw new Error(`BARCODE_EXISTS:${(existing[0] as { barcode: string }).barcode}`);
+      }
+      // Batch insert all barcodes in one query
+      if (barcodes.length > 0) {
+        const values: string[] = [];
+        const params: unknown[] = [];
+        let paramIdx = 1;
+        for (let i = 0; i < barcodes.length; i++) {
+          values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5})`);
+          params.push(`I${id}-${i + 1}`, id, barcodes[i], batchId, 'InStock', tenantId);
+          paramIdx += 6;
         }
-        await pool.query(
-          'INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id) VALUES ($1, $2, $3, $4, $5, $6)',
-          [`I${id}-${i + 1}`, id, bc, batchId, 'InStock', tenantId]
-        );
-        invStock++;
+        await pool.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id) VALUES ${values.join(',')}`, params);
+        invStock = barcodes.length;
       }
     };
 
