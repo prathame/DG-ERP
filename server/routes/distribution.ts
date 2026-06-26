@@ -554,6 +554,7 @@ router.get('/api/distribution/bill', async (req, res) => {
         });
       })(),
       totalQuantity: rows.length,
+      savedGstUnits: rows.filter(r => r.gst_applied === true).length,
       grossValue,
       totalDiscount,
       totalValue: netTotal,
