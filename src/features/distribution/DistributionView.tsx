@@ -641,6 +641,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                   type="button"
                   disabled={splitSaving || totalQty === 0}
                   onClick={async () => {
+                    if (hasUnsavedChanges && !window.confirm(`Amount was already saved as ₹${savedTotal!.toLocaleString()}. Are you sure you want to change it to ₹${combinedBillTotal.toLocaleString()}?`)) return;
                     setSplitSaving(true);
                     try {
                       await api.distribution.applyBilling({
