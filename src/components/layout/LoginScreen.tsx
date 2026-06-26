@@ -10,7 +10,7 @@ interface LoginResult {
   token: string;
   tenantId?: string;
   tenantSlug?: string;
-  user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean; warrantyEnabled?: boolean; replacementEnabled?: boolean; rewardsEnabled?: boolean; financeEnabled?: boolean; chatbotEnabled?: boolean; billCustomizationEnabled?: boolean; multiLanguageEnabled?: boolean; vendorPortalEnabled?: boolean; barcodeSystemEnabled?: boolean };
+  user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean; barcodeSystemEnabled?: boolean; multiLanguageEnabled?: boolean; vendorPortalEnabled?: boolean; tabConfig?: Record<string, { label: string; visible: boolean }> | null };
 }
 
 interface TenantBranding {
@@ -78,7 +78,7 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
           token: r.token,
           tenantId: r.tenantId,
           tenantSlug: r.tenantSlug,
-          user: { id: r.id, email: r.email, name: r.name, phone: r.phone, address: r.address, role: r.role, companyName: r.companyName, vendorId: r.vendorId, autoWhatsapp: r.autoWhatsapp, warrantyEnabled: r.warrantyEnabled, replacementEnabled: r.replacementEnabled, rewardsEnabled: r.rewardsEnabled, financeEnabled: r.financeEnabled, chatbotEnabled: r.chatbotEnabled, billCustomizationEnabled: r.billCustomizationEnabled, multiLanguageEnabled: r.multiLanguageEnabled, vendorPortalEnabled: r.vendorPortalEnabled },
+          user: { id: r.id, email: r.email, name: r.name, phone: r.phone, address: r.address, role: r.role, companyName: r.companyName, vendorId: r.vendorId, autoWhatsapp: r.autoWhatsapp, barcodeSystemEnabled: (r as Record<string, unknown>).barcodeSystemEnabled as boolean, multiLanguageEnabled: (r as Record<string, unknown>).multiLanguageEnabled as boolean, vendorPortalEnabled: (r as Record<string, unknown>).vendorPortalEnabled as boolean, tabConfig: (r as Record<string, unknown>).tabConfig as Record<string, { label: string; visible: boolean }> | null },
         });
       } else {
         const result = await api.auth.signup({ email: form.email, password: form.password, name: form.name });
