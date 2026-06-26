@@ -50,21 +50,18 @@ html.dark .ring-gray-200 { --tw-ring-color: #374151 !important; }
 html.dark .border-t { border-color: #374151; }
 
 /* Text — force ALL text to light in dark mode */
-html.dark, html.dark * { color: #E5E7EB; }
+html.dark, html.dark *, html.dark *::before, html.dark *::after { color: #D1D5DB !important; }
 html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6,
-html.dark .font-bold, html.dark .font-semibold, html.dark strong { color: #F3F4F6 !important; }
-html.dark p, html.dark span, html.dark td, html.dark th, html.dark label, html.dark li, html.dark div { color: inherit; }
+html.dark .font-bold, html.dark strong, html.dark b { color: #F3F4F6 !important; }
 html.dark .text-\[#1A1A1A\] { color: #F3F4F6 !important; }
 html.dark .text-gray-900 { color: #F3F4F6 !important; }
 html.dark .text-gray-800 { color: #E5E7EB !important; }
 html.dark .text-gray-700 { color: #E5E7EB !important; }
 html.dark .text-gray-600 { color: #D1D5DB !important; }
 html.dark .text-gray-500 { color: #9CA3AF !important; }
-html.dark .text-gray-400 { color: #9CA3AF !important; }
-html.dark .text-gray-300 { color: #6B7280 !important; }
-html.dark .font-bold, html.dark .font-semibold, html.dark .font-medium { color: inherit; }
-html.dark .text-sm, html.dark .text-xs, html.dark .text-lg, html.dark .text-xl, html.dark .text-2xl, html.dark .text-base { color: inherit; }
-html.dark .truncate { color: inherit; }
+html.dark .text-gray-400 { color: #6B7280 !important; }
+html.dark .text-gray-300 { color: #4B5563 !important; }
+html.dark .text-white { color: #FFFFFF !important; }
 
 /* Inputs */
 html.dark input, html.dark select, html.dark textarea {
