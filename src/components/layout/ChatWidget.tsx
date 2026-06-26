@@ -118,7 +118,7 @@ export function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
             className="fixed bottom-36 lg:bottom-24 right-4 lg:right-6 z-[150] w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col"
-            style={{ height: '500px', maxHeight: 'calc(100vh - 8rem)' }}
+            style={{ height: '400px', maxHeight: 'calc(100vh - 12rem)' }}
           >
             {/* Header */}
             <div className="bg-[#151619] text-white px-5 py-4 flex items-center gap-3">
