@@ -371,6 +371,8 @@ export async function initSchema() {
       replacements: { label: 'Replacements',   visible: true },
       rewards:      { label: 'Rewards',         visible: true },
       finance:      { label: 'Finance',         visible: true },
+      quotations:   { label: 'Quotations',      visible: true },
+      accounts:     { label: 'Accounts',        visible: true },
       reports:      { label: 'Reports',          visible: true },
       chatbot:      { label: 'Chatbot',         visible: true },
       settings:     { label: 'Settings',        visible: true },
@@ -465,6 +467,10 @@ export async function initSchema() {
       )
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_tenant ON quotations(tenant_id)');
+
+    // Add accounts + quotations tabs to existing tenants
+    await client.query(`UPDATE tenants SET tab_config = tab_config || '{"accounts":{"label":"Accounts","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'accounts'`);
+    await client.query(`UPDATE tenants SET tab_config = tab_config || '{"quotations":{"label":"Quotations","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'quotations'`);
 
     // Add purchases tab to existing tenants
     await client.query(`UPDATE tenants SET tab_config = tab_config || '{"purchases":{"label":"Purchases","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'purchases'`);
