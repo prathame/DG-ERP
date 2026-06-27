@@ -521,7 +521,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Date</label><input type="date" value={distDate} onChange={(e) => setDistDate(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
               </div>
 
-              <div className="border border-gray-200 rounded-xl overflow-hidden mb-4">
+              <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
                 <table className="w-full text-left">
                   <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
                     <th className="px-3 py-3 w-8">#</th>
@@ -770,7 +770,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                 <label className="text-xs font-bold text-gray-400 uppercase">Distribution Date</label>
                 <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" />
               </div>
-              <div className="border border-gray-200 rounded-xl overflow-hidden mb-4">
+              <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
                 <table className="w-full text-left">
                   <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
                     <th className="px-3 py-3">Product</th>

@@ -8,13 +8,13 @@ import { session } from '../../lib/session';
 
 type ReportTab = 'sales' | 'distribution' | 'outstanding' | 'payments' | 'stock' | 'gst';
 
-const TABS: { key: ReportTab; label: string; icon: React.ElementType }[] = [
-  { key: 'sales', label: 'Sales Register', icon: ShoppingCart },
-  { key: 'distribution', label: 'Distribution Register', icon: Truck },
-  { key: 'outstanding', label: 'Outstanding', icon: Clock },
-  { key: 'payments', label: 'Payment Register', icon: IndianRupee },
-  { key: 'stock', label: 'Stock Summary', icon: Package },
-  { key: 'gst', label: 'GST Summary', icon: Receipt },
+const TABS: { key: ReportTab; label: string; shortLabel: string; icon: React.ElementType }[] = [
+  { key: 'sales', label: 'Sales Register', shortLabel: 'Sales', icon: ShoppingCart },
+  { key: 'distribution', label: 'Distribution Register', shortLabel: 'Dist.', icon: Truck },
+  { key: 'outstanding', label: 'Outstanding', shortLabel: 'Due', icon: Clock },
+  { key: 'payments', label: 'Payment Register', shortLabel: 'Payments', icon: IndianRupee },
+  { key: 'stock', label: 'Stock Summary', shortLabel: 'Stock', icon: Package },
+  { key: 'gst', label: 'GST Summary', shortLabel: 'GST', icon: Receipt },
 ];
 
 interface ReportFilters { from: string; to: string; vendorId: string; productId: string; month: number; year: number }
@@ -113,7 +113,7 @@ export function ReportsView() {
         {TABS.map((t) => (
           <button key={t.key} type="button" onClick={() => { setActiveTab(t.key); setData(null); setGstData(null); }}
             className={cn("flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all", activeTab === t.key ? "bg-[#F27D26] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
-            <t.icon size={16} /> {t.label}
+            <t.icon size={16} /> <span className="hidden sm:inline">{t.label}</span><span className="sm:hidden">{t.shortLabel}</span>
           </button>
         ))}
       </div>
