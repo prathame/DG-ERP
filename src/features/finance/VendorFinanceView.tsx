@@ -33,13 +33,13 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
     setLoading(true);
     if (isVendor && user?.vendorId) {
       api.vendorFinance.detail(user.vendorId)
-        .then((d) => { setDetail(d); setSelectedVendorId(user.vendorId!); })
+        .then((d) => { setDetail({ ...d, totalDistributedValue: Number(d.totalDistributedValue) || 0, totalPaid: Number(d.totalPaid) || 0, balance: Number(d.balance) || 0 }); setSelectedVendorId(user.vendorId!); })
         .catch(() => {})
         .finally(() => setLoading(false));
       return;
     }
     api.vendorFinance.summary()
-      .then((s) => setSummaryData(s))
+      .then((s) => setSummaryData(s.map((v: Record<string, unknown>) => ({ ...v, totalDistributedValue: Number(v.totalDistributedValue) || 0, totalPaid: Number(v.totalPaid) || 0, balance: Number(v.balance) || 0, unitsDistributed: Number(v.unitsDistributed) || 0 }))))
       .catch(() => setSummaryData([]));
     api.vendorFinance.remindersDue()
       .then((r) => setRemindersDue(r))
@@ -50,7 +50,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
 
   const loadDetail = (vendorId: string) => {
     if (isVendor && vendorId !== user?.vendorId) return;
-    api.vendorFinance.detail(vendorId).then(setDetail).catch(() => setDetail(null));
+    api.vendorFinance.detail(vendorId).then((d) => setDetail({ ...d, totalDistributedValue: Number(d.totalDistributedValue) || 0, totalPaid: Number(d.totalPaid) || 0, balance: Number(d.balance) || 0 })).catch(() => setDetail(null));
   };
 
   const handleRecordPayment = (e: React.FormEvent) => {
