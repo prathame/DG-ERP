@@ -23,14 +23,16 @@ router.get('/api/vendor-finance/summary', async (req, res) => {
 
     res.json(vendors.map((v) => {
       const rem = reminderMap[v.id];
+      const distVal = Number(v.total_distributed_value) || 0;
+      const paidVal = Number(v.total_paid) || 0;
       return {
         vendorId: v.id,
         vendorName: v.name,
         vendorPhone: v.phone ?? '',
-        totalDistributedValue: v.total_distributed_value,
-        totalPaid: v.total_paid,
-        balance: v.total_distributed_value - v.total_paid,
-        unitsDistributed: v.units_distributed,
+        totalDistributedValue: distVal,
+        totalPaid: paidVal,
+        balance: distVal - paidVal,
+        unitsDistributed: Number(v.units_distributed) || 0,
         reminder: rem ? { enabled: !!rem.enabled, days: rem.reminder_days, lastSent: rem.last_reminder_date } : { enabled: false, days: 7, lastSent: null },
       };
     }));
@@ -97,11 +99,13 @@ router.get('/api/vendor-finance/:vendorId', async (req, res) => {
     `, [vendorId, tenantId])).rows as { distribution_date: string; product_name: string; original_price: number; discount_percent: number; unit_price: number; qty: number; line_total: number }[];
     const reminder = (await pool.query('SELECT enabled, reminder_days, last_reminder_date FROM vendor_reminder_settings WHERE vendor_id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as { enabled: boolean; reminder_days: number; last_reminder_date: string | null } | undefined;
 
+    const distVal = Number(totalValue.total) || 0;
+    const paidVal = Number(totalPaid.total) || 0;
     res.json({
       vendor: { id: vendor.id, name: vendor.name, phone: vendor.phone, email: vendor.email, address: vendor.address, contactPerson: vendor.contact_person },
-      totalDistributedValue: totalValue.total,
-      totalPaid: totalPaid.total,
-      balance: totalValue.total - totalPaid.total,
+      totalDistributedValue: distVal,
+      totalPaid: paidVal,
+      balance: distVal - paidVal,
       payments: payments.map((p) => ({
         id: p.id, amount: p.amount, paymentDate: p.payment_date, paymentMethod: p.payment_method, referenceNumber: p.reference_number, notes: p.notes, createdAt: p.created_at,
       })),

@@ -387,6 +387,9 @@ export async function initSchema() {
       )
     `);
 
+    // Add reports tab to existing tenants that don't have it
+    await client.query(`UPDATE tenants SET tab_config = tab_config || '{"reports":{"label":"Reports","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'reports'`);
+
     // Pack size support
     await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_size INTEGER DEFAULT 1");
     await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_name TEXT DEFAULT 'Piece'");
