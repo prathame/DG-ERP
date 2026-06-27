@@ -58,10 +58,12 @@ export function LandingPage() {
   const isEn = lang === 'en';
   const langLabel = lang === 'en' ? 'EN' : lang === 'hi' ? 'हि' : 'ગુ';
 
+  const [heroAutoPlay, setHeroAutoPlay] = useState(true);
   React.useEffect(() => {
-    const timer = setInterval(() => setHeroLang(h => (h + 1) % 3), 4000);
+    if (!heroAutoPlay) return;
+    const timer = setInterval(() => setHeroLang(h => (h + 1) % 3), 8000);
     return () => clearInterval(timer);
-  }, []);
+  }, [heroAutoPlay]);
 
   const bg = dark ? 'bg-[#0A0B0D]' : 'bg-[#FAFAFA]';
   const navBg = dark ? 'bg-[#0A0B0D]/80' : 'bg-white/80';
@@ -91,7 +93,7 @@ export function LandingPage() {
             <a href="#features" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Features</a>
             <a href="#pricing" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Pricing</a>
             <a href="#contact" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Contact</a>
-            <button type="button" onClick={nextLang} className={`px-2 sm:px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold border ${dark ? 'border-white/10 text-gray-300' : 'border-gray-200 text-gray-600'}`}>{langLabel}</button>
+            <button type="button" onClick={() => { nextLang(); setHeroAutoPlay(false); setHeroLang(lang === 'en' ? 1 : lang === 'hi' ? 2 : 0); }} className={`px-2 sm:px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold border ${dark ? 'border-white/10 text-gray-300' : 'border-gray-200 text-gray-600'}`}>{langLabel}</button>
             <button type="button" onClick={toggleTheme} className={`p-1.5 sm:p-2 rounded-lg ${navLink}`}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
           </div>
         </div>
@@ -126,7 +128,7 @@ export function LandingPage() {
             </div>
             <div className="flex items-center justify-center gap-2 mt-4">
               {['EN', 'हिं', 'ગુ'].map((l, i) => (
-                <button key={i} type="button" onClick={() => setHeroLang(i)} className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${heroLang === i ? 'bg-[#F27D26] text-white scale-110' : `${dark ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-500'}`}`}>{l}</button>
+                <button key={i} type="button" onClick={() => { setHeroLang(i); setHeroAutoPlay(false); }} className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${heroLang === i ? 'bg-[#F27D26] text-white scale-110' : `${dark ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-500'}`}`}>{l}</button>
               ))}
             </div>
             <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
