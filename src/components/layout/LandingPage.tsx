@@ -50,9 +50,18 @@ function EnquiryForm({ dark }: { dark: boolean }) {
 
 export function LandingPage() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
-  const [lang, setLang] = useState<'hi' | 'gu'>('hi');
+  const [lang, setLang] = useState<'en' | 'hi' | 'gu'>('hi');
+  const [heroLang, setHeroLang] = useState(0);
   const toggleTheme = () => { const d = document.documentElement.classList.toggle('dark'); localStorage.setItem('dg_erp_theme', d ? 'dark' : 'light'); setDark(d); };
+  const nextLang = () => setLang(lang === 'en' ? 'hi' : lang === 'hi' ? 'gu' : 'en');
   const isGu = lang === 'gu';
+  const isEn = lang === 'en';
+  const langLabel = lang === 'en' ? 'EN' : lang === 'hi' ? 'हि' : 'ગુ';
+
+  React.useEffect(() => {
+    const timer = setInterval(() => setHeroLang(h => (h + 1) % 3), 4000);
+    return () => clearInterval(timer);
+  }, []);
 
   const bg = dark ? 'bg-[#0A0B0D]' : 'bg-[#FAFAFA]';
   const navBg = dark ? 'bg-[#0A0B0D]/80' : 'bg-white/80';
@@ -82,7 +91,7 @@ export function LandingPage() {
             <a href="#features" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Features</a>
             <a href="#pricing" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Pricing</a>
             <a href="#contact" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Contact</a>
-            <button type="button" onClick={() => setLang(lang === 'hi' ? 'gu' : 'hi')} className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${dark ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{isGu ? 'हिंदी' : 'ગુજરાતી'}</button>
+            <button type="button" onClick={nextLang} className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${dark ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{langLabel} | {lang === 'en' ? 'हिंदी' : lang === 'hi' ? 'ગુજરાતી' : 'English'}</button>
             <button type="button" onClick={toggleTheme} className={`p-2 rounded-lg ${navLink}`}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
             <a href="/admin" className={`px-5 py-2 text-sm font-semibold border rounded-lg ${adminBtn}`}>Login</a>
           </div>
@@ -96,22 +105,33 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto text-center relative">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#1A1A1A] rounded-full text-sm font-bold mb-6 shadow-lg">
-              🇮🇳 {isGu ? 'ભારતમાં બનેલું, ભારતીયો માટે' : 'भारत में बना, भारतीयों के लिए'}
+              🇮🇳 {['Made in India, for Indian Businesses', 'भारत में बना, भारतीयों के लिए', 'ભારતમાં બનેલું, ભારતીયો માટે'][heroLang]}
             </div>
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
-              <span className="text-3xl md:text-4xl">{isGu ? 'દુકાન હોય કે ફેક્ટરી' : 'दुकान हो या फैक्ट्री'}</span>
-              <br />
-              <span className="bg-gradient-to-r from-[#F27D26] to-[#FFB347] bg-clip-text text-transparent">{isGu ? 'બધાનું ERP અહીં છે' : 'सबका ERP यहीं है'}</span>
-            </h1>
-            <p className={`mt-2 text-base ${textFaint}`}>From Shop to Factory — One ERP for All</p>
-            <p className={`mt-4 text-lg md:text-xl ${textMuted} max-w-3xl mx-auto leading-relaxed`}>
-              {isGu ? 'નાની દુકાનથી લઈને મોટા manufacturer સુધી — inventory, billing, GST, vendor management બધું એક જગ્યાએ। Cloud પર ચાલે, mobile પર ચાલે, budget માં આવે।' : 'छोटी दुकान से लेकर बड़े manufacturer तक — inventory, billing, GST, vendor management सब एक जगह। Cloud पे चले, mobile पे चले, budget में आये।'}
-            </p>
+            <div className="relative h-[180px] md:h-[200px] overflow-hidden">
+              {[
+                { line1: 'From Shop to Factory', line2: 'One ERP for Everyone', sub: 'From small shops to large manufacturers — inventory, billing, GST, vendor management, accounting all in one place.' },
+                { line1: 'दुकान हो या फैक्ट्री', line2: 'सबका ERP यहीं है', sub: 'छोटी दुकान से लेकर बड़े manufacturer तक — inventory, billing, GST, vendor management सब एक जगह।' },
+                { line1: 'દુકાન હોય કે ફેક્ટરી', line2: 'બધાનું ERP અહીં છે', sub: 'નાની દુકાનથી લઈને મોટા manufacturer સુધી — inventory, billing, GST, vendor management બધું એક જગ્યાએ।' },
+              ].map((h, i) => (
+                <motion.div key={i} initial={false} animate={{ opacity: heroLang === i ? 1 : 0, y: heroLang === i ? 0 : 20 }} transition={{ duration: 0.5 }} className={`absolute inset-0 ${heroLang === i ? '' : 'pointer-events-none'}`}>
+                  <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
+                    <span className="text-3xl md:text-4xl">{h.line1}</span><br />
+                    <span className="bg-gradient-to-r from-[#F27D26] to-[#FFB347] bg-clip-text text-transparent">{h.line2}</span>
+                  </h1>
+                  <p className={`mt-4 text-lg md:text-xl ${textMuted} max-w-3xl mx-auto leading-relaxed`}>{h.sub}</p>
+                </motion.div>
+              ))}
+            </div>
+            <div className="flex items-center justify-center gap-2 mt-4">
+              {['EN', 'हिं', 'ગુ'].map((l, i) => (
+                <button key={i} type="button" onClick={() => setHeroLang(i)} className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${heroLang === i ? 'bg-[#F27D26] text-white scale-110' : `${dark ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-500'}`}`}>{l}</button>
+              ))}
+            </div>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
               <a href="#contact" className="group px-8 py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-all flex items-center gap-2 shadow-lg shadow-[#F27D26]/20">
-                {isGu ? 'ફ્રી ટ્રાયલ શરૂ કરો' : 'फ्री ट्रायल शुरू करें'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                {isEn ? 'Start Free Trial' : isGu ? 'ફ્રી ટ્રાયલ શરૂ કરો' : 'फ्री ट्रायल शुरू करें'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </a>
-              <a href="#features" className={`px-8 py-4 border rounded-xl font-bold text-lg transition-all ${btnSecondary}`}>{isGu ? 'Features જુઓ' : 'Features देखें'}</a>
+              <a href="#features" className={`px-8 py-4 border rounded-xl font-bold text-lg transition-all ${btnSecondary}`}>{isEn ? 'See Features' : isGu ? 'Features જુઓ' : 'Features देखें'}</a>
             </div>
             <p className={`mt-4 text-sm ${textFaint}`}>No credit card required • Setup in 5 minutes • Cancel anytime</p>
           </motion.div>
@@ -137,8 +157,8 @@ export function LandingPage() {
       <section id="business" className={`py-20 px-6 ${sectionAlt}`}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">हर बिज़नेस के लिए</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>चाहे दुकान हो, डीलर हो, या manufacturer — आपके काम का software</p>
+            <h2 className="text-3xl md:text-4xl font-bold">{isEn ? 'For Every Business Type' : isGu ? 'દરેક બિઝનેસ માટે' : 'हर बिज़नेस के लिए'}</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>{isEn ? 'Whether shop, dealer, or manufacturer — software that works for you' : isGu ? 'દુકાન હોય, ડીલર હોય, કે manufacturer — તમારા કામનું software' : 'चाहे दुकान हो, डीलर हो, या manufacturer — आपके काम का software'}</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
