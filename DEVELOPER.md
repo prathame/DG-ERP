@@ -1062,6 +1062,123 @@ Meaningful variable names used throughout (ERP/finance context):
 
 ---
 
-*Last updated: June 2025*
-*Platform: DG ERP Management*
+## New Modules (Added June 2026)
+
+### Purchases Module
+**Purpose**: Track what you buy from suppliers (the reverse of Distribution)
+
+| File | Purpose |
+|------|---------|
+| `server/routes/purchases.ts` | Suppliers CRUD + purchase batches + supplier finance |
+| `src/features/purchases/PurchasesView.tsx` | Full purchase UI (mirrors Distribution) |
+
+**Tables**: `suppliers`, `product_purchases`, `supplier_payments`
+
+**Flow**: `POST /api/purchases/batch` → auto-generates barcodes → INSERT product_inventory (InStock) + product_purchases + supplier_payments
+
+**Key**: Purchases ADD stock (opposite of distribution which REMOVES stock). Both use batch-level payment tracking.
+
+### Quotations Module
+**Purpose**: Create quotes → share → convert to distribution
+
+| File | Purpose |
+|------|---------|
+| `server/routes/quotations.ts` | Quotation CRUD + status flow + convert |
+| `src/features/quotations/QuotationsView.tsx` | Quote creation + status management |
+
+**Table**: `quotations` (items stored as JSONB)
+
+**Status flow**: Draft → Sent → Accepted → Converted (or Rejected)
+
+**Convert**: `POST /api/quotations/:id/convert` → creates distribution batch from quote items, deducts stock, marks quote as Converted.
+
+### Accounts Module
+**Purpose**: Auto-generated accounting (no manual bookkeeping)
+
+| File | Purpose |
+|------|---------|
+| `server/routes/accounts.ts` | P&L, Balance Sheet, Cash Flow, Ledger |
+| `src/features/accounts/AccountsView.tsx` | 4-tab accounting view |
+
+**No new tables** — everything computed from existing data:
+- Revenue: `SUM(billed_price)` from `product_distribution`
+- Expenses: `SUM(billed_price)` from `product_purchases`
+- Receivables: distribution total - vendor_payments
+- Payables: purchase total - supplier_payments
+- Cash: vendor_payments - supplier_payments
+
+### Reports Module
+**Purpose**: 6 CA-ready reports for ITR/GST filing
+
+| File | Purpose |
+|------|---------|
+| `server/routes/reports.ts` | All 6 report endpoints |
+| `src/features/reports/ReportsView.tsx` | Report UI with filters + export |
+
+**Reports**: Sales Register, Distribution Register, Outstanding (age-wise), Payment Register, Stock Summary, GST Summary (GSTR-1 format with B2B/B2C/HSN)
+
+### Batch-Level Payment Tracking
+**What changed**: `vendor_payments` and `supplier_payments` now have `batch_id` column. Payments can be linked to specific distribution/purchase batches.
+
+**Paid Badge**: Shows on batch row when `isBillFullyPaid(billValue, balanceRemaining)` — checks actual payment, not sold count.
+
+**Record Payment button**: On each batch in distribution view (⋮ dropdown replaced old button clutter).
+
+### Pack Size Support
+**What changed**: Products have `pack_size` (default 1) and `pack_name` (default 'Piece').
+
+Example: Anchor 6A Switch → packSize=10, packName="Box", price=₹420 per box.
+
+Frontend converts: user enters "2 Boxes" → API receives quantity=20 (pieces). Backend always works in pieces.
+
+### Multi-Tab Session Safety
+**What changed**: Replaced all `localStorage.getItem('auth_token')` with `session.getToken()` from `src/lib/session.ts`.
+
+Storage keys are scoped by URL slug: `auth_token_admin`, `auth_token_expert-electricals`. Two tabs with different tenants no longer conflict.
+
+**Important**: Old code used `sessionStorage` — now uses scoped `localStorage` via `session.ts`. Do NOT use `localStorage` directly.
+
+### Landing Page
+**File**: `src/components/layout/LandingPage.tsx`
+
+Trilingual (English/Hindi/Gujarati) with auto-rotating hero (8 seconds, pauses on click). Language toggle in nav. SEO meta tags in `index.html`.
+
+Key sections: Business types → Flow diagram → 16 features → Pricing → "Tally se aage" comparison → Rajkot pride → Contact form.
+
+### Key Files Added
+
+| File | Purpose |
+|------|---------|
+| `src/lib/session.ts` | Multi-tab localStorage scoping |
+| `server/routes/purchases.ts` | Suppliers + purchases + supplier finance |
+| `server/routes/quotations.ts` | Quotation CRUD + convert |
+| `server/routes/accounts.ts` | Auto-generated accounting |
+| `server/routes/reports.ts` | 6 CA-ready reports |
+| `src/features/purchases/PurchasesView.tsx` | Purchases UI |
+| `src/features/quotations/QuotationsView.tsx` | Quotations UI |
+| `src/features/accounts/AccountsView.tsx` | Accounts UI |
+| `src/features/reports/ReportsView.tsx` | Reports UI |
+
+### Database Tables Added
+
+| Table | Purpose | Key columns |
+|-------|---------|-------------|
+| `suppliers` | Who you buy from | name, gst_number, phone |
+| `product_purchases` | Purchase records per barcode | supplier_id, cost_price, billed_price, batch_id |
+| `supplier_payments` | Payments to suppliers | supplier_id, amount, batch_id |
+| `quotations` | Draft quotes | items (JSONB), status, converted_batch_id |
+
+### Columns Added to Existing Tables
+
+| Table | Column | Purpose |
+|-------|--------|---------|
+| `products` | `pack_size`, `pack_name` | Box/Carton/Pack support |
+| `products` | `hsn_code`, `gst_rate` | Now saved on product creation |
+| `vendor_payments` | `batch_id` | Links payment to distribution batch |
+| `vendors` | `gst_number` | GSTIN for GST B2B reports |
+
+---
+
+*Last updated: June 2026*
+*Platform: DG Business (formerly DG ERP)*
 *Built with Claude Code (Anthropic)*
