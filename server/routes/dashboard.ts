@@ -73,7 +73,8 @@ router.get('/api/dashboard/stats', async (req, res) => {
       expiringWarranties: expiringWarranties.c,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error('[Dashboard Stats Error]', err);
+    res.status(500).json({ error: 'Internal server error', debug: String(err) });
   }
 });
 
