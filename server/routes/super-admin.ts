@@ -347,6 +347,7 @@ router.post('/api/tenant/register', superAdminMiddleware, async (req, res) => {
     const { companyName, adminName, adminEmail, adminPassword, phone } = req.body;
     if (!companyName || !adminName || !adminEmail || !adminPassword) return res.status(400).json({ error: 'All fields required' });
     if (adminPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
     const existing = (await pool.query('SELECT id FROM tenants WHERE admin_email = $1', [adminEmail])).rows[0];
     if (existing) return res.status(400).json({ error: 'An account with this email already exists' });
     const trialEnds = new Date(); trialEnds.setDate(trialEnds.getDate() + 14);

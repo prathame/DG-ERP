@@ -40,10 +40,11 @@ router.post('/api/vendors', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { name, contactPerson, phone, email, address } = req.body;
+    if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
     const id = `V${Date.now()}`;
     await pool.query(
       'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [id, tenantId, name ?? '', contactPerson, phone, email, address]
+      [id, tenantId, name ?? '', contactPerson, phone?.trim() || null, email, address]
     );
     const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     let credentials: { email: string; password: string } | null = null;
@@ -80,9 +81,10 @@ router.put('/api/vendors/:id', async (req, res) => {
 
     const { id } = req.params;
     const { name, contactPerson, phone, email, address } = req.body;
+    if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
     const result = await pool.query(
       'UPDATE vendors SET name=COALESCE($1,name), contact_person=COALESCE($2,contact_person), phone=COALESCE($3,phone), email=COALESCE($4,email), address=COALESCE($5,address) WHERE id=$6 AND tenant_id=$7',
-      [name, contactPerson, phone, email, address, id, tenantId]
+      [name, contactPerson, phone?.trim() || null, email, address, id, tenantId]
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Vendor not found' });
     const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
