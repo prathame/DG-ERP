@@ -103,6 +103,9 @@ export function LandingPage() {
         <div className="absolute top-20 left-1/4 w-96 h-96 bg-[#F27D26]/5 rounded-full blur-3xl pointer-events-none" />
         <div className="max-w-5xl mx-auto text-center relative">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#F27D26] text-white rounded-full text-xs font-bold mb-3 shadow-lg animate-pulse">
+              🚀 {['Coming Soon — Launching Shortly!', 'जल्द आ रहा है!', 'ટૂંક સમયમાં આવી રહ્યું છે!'][heroLang]}
+            </div>
             <div className="inline-flex items-center gap-2 px-4 sm:px-5 py-1.5 sm:py-2 bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#1A1A1A] rounded-full text-xs sm:text-sm font-bold mb-4 sm:mb-6 shadow-lg">
               🇮🇳 {['Made in India, for Indian Businesses', 'भारत में बना, भारतीयों के लिए', 'ભારતમાં બનેલું, ભારતીયો માટે'][heroLang]}
             </div>
@@ -214,7 +217,7 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
             <h2 className="text-3xl md:text-4xl font-bold">सारी Features, एक Platform</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>जो Tally में नहीं, जो Miracle में नहीं — वो सब यहीं है</p>
+            <p className={`mt-3 ${textMuted} text-lg`}>जो पुराने software में नहीं — वो सब यहीं है</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {[
@@ -255,9 +258,9 @@ export function LandingPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { name: 'फ्री ट्रायल', price: '₹0', period: '14 दिन', desc: 'सभी features try करो free में', features: ['All modules', '50 products', '5 vendors', 'Email support'], cta: 'शुरू करें', highlight: false },
-              { name: 'स्टैंडर्ड', price: '₹999', period: '/महीना', desc: 'बढ़ते businesses के लिए', features: ['Unlimited products', '15 vendors', 'Vendor portal', 'Priority support', 'Pack size', 'Reports'], cta: 'शुरू करें', highlight: true },
-              { name: 'प्रोफेशनल', price: '₹1,999', period: '/महीना', desc: 'बड़े manufacturers के लिए', features: ['Everything unlimited', 'Accounts module', 'Multi-language', 'Quotations', 'Chatbot', 'Custom branding'], cta: 'संपर्क करें', highlight: false },
+              { name: 'Free Trial', price: '₹0', period: '14 days', desc: 'All features free for 14 days', features: ['All modules', '50 products', '5 vendors', 'Email support'], cta: 'Join Waitlist', highlight: false },
+              { name: 'Standard', price: '₹XXX', period: '/month', desc: 'Growing businesses', features: ['Unlimited products', '15 vendors', 'Vendor portal', 'Priority support', 'Pack size', 'Reports'], cta: 'Join Waitlist', highlight: true },
+              { name: 'Professional', price: '₹XXX', period: '/month', desc: 'Large manufacturers', features: ['Everything unlimited', 'Accounts module', 'Multi-language', 'Quotations', 'Chatbot', 'Custom branding'], cta: 'Join Waitlist', highlight: false },
             ].map((p, i) => (
               <motion.div key={p.name} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
                 className={`p-6 border rounded-2xl ${p.highlight ? (dark ? 'bg-[#F27D26]/10 border-[#F27D26]/30 ring-2 ring-[#F27D26]/20' : 'bg-[#F27D26]/5 border-[#F27D26]/30 shadow-lg shadow-[#F27D26]/10 ring-2 ring-[#F27D26]/20') : cardBg}`}>
@@ -279,14 +282,14 @@ export function LandingPage() {
       <section className={`py-12 sm:py-20 px-4 sm:px-6 ${sectionAlt}`}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">Tally और Miracle से आगे</h2>
+            <h2 className="text-3xl md:text-4xl font-bold">पुराने Software से आगे</h2>
             <p className={`mt-3 ${textMuted} text-lg`}>पुराने software को replace करो modern cloud ERP से</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
-              { emoji: '☁️', title: 'Cloud — कोई Installation नहीं', desc: 'Tally में software install करो, license खरीदो, backup लो। DG Business में सिर्फ browser खोलो।' },
-              { emoji: '📱', title: 'मोबाइल पे चले', desc: 'Miracle सिर्फ desktop पे चलता है। DG Business phone पे भी tablet पे भी — कहीं से भी काम करो।' },
-              { emoji: '🔐', title: 'वेंडर पोर्टल', desc: 'अपने dealers को उनका login दो — वो अपना stock, sales, payments खुद देख लें। Miracle में नहीं है।' },
+              { emoji: '☁️', title: 'Cloud — कोई Installation नहीं', desc: 'पुराने software में install करो, license खरीदो, backup लो। DG Business में सिर्फ browser खोलो।' },
+              { emoji: '📱', title: 'मोबाइल पे चले', desc: 'पुराने software सिर्फ desktop पे चलते हैं। DG Business phone पे भी tablet पे भी — कहीं से भी काम करो।' },
+              { emoji: '🔐', title: 'वेंडर पोर्टल', desc: 'अपने dealers को उनका login दो — वो अपना stock, sales, payments खुद देख लें। पुराने software में नहीं है।' },
               { emoji: '🤖', title: 'AI चैटबॉट', desc: '"Low stock क्या है?" पूछो chatbot से — वो database check करके जवाब देगा। Real-time।' },
               { emoji: '💰', title: 'Batch-Level भुगतान', desc: 'हर distribution batch का payment अलग track करो — कौन सा batch paid, कौन सा pending। Crystal clear।' },
               { emoji: '📊', title: 'ऑटो हिसाब-किताब', desc: 'P&L, Balance Sheet, Cash Flow — automatically generate होता है transactions से। No manual entry।' },
