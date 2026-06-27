@@ -238,6 +238,36 @@ router.delete('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, 
   }
 });
 
+// ============ RESET TOKEN (generate for admin to share) ============
+router.post('/api/super-admin/tenants/:id/reset-token', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    const user = (await pool.query('SELECT id, email, name FROM users WHERE email = $1 AND tenant_id = $2', [email, id])).rows[0] as { id: string; email: string; name: string } | undefined;
+    if (!user) return res.status(404).json({ error: 'User not found in this tenant' });
+
+    const crypto = await import('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    await pool.query(
+      'INSERT INTO password_reset_tokens (id, email, tenant_id, token, expires_at) VALUES ($1, $2, $3, $4, $5)',
+      [`PRT${Date.now()}`, email, id, token, expiresAt]
+    );
+
+    const tenant = (await pool.query('SELECT slug FROM tenants WHERE id = $1', [id])).rows[0] as { slug: string } | undefined;
+    const resetLink = `${req.protocol}://${req.get('host')}/${tenant?.slug ?? ''}/reset-password?token=${token}`;
+
+    await logAudit(pool, id, 'SUPER_ADMIN_RESET_TOKEN', 'user', user.id, `Super Admin generated reset token for ${email}`, (req as AuthRequest).user?.userId, 'Super Admin');
+
+    res.json({ ok: true, token, resetLink, expiresAt, userName: user.name, email: user.email });
+  } catch (err) {
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ============ IMPERSONATE (get tenant admin token) ============
 router.post('/api/super-admin/tenants/:id/impersonate', superAdminMiddleware, async (req, res) => {
   try {

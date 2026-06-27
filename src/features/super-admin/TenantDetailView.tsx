@@ -18,6 +18,9 @@ import {
   Pencil,
   RotateCcw,
   Save,
+  KeyRound,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
@@ -69,6 +72,9 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   const [renewalPlan, setRenewalPlan] = useState<string>('');
   const [renewalCycle, setRenewalCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [plans, setPlans] = useState<{ id: string; name: string; priceMonthly: number; priceYearly: number }[]>([]);
+  const [resetTokenModal, setResetTokenModal] = useState<{ email: string; userName: string; token: string; resetLink: string; expiresAt: string } | null>(null);
+  const [resetLoading, setResetLoading] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   React.useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -93,6 +99,23 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   };
 
   useEffect(() => { fetchTenant(); }, [tenantId]);
+
+  const handleResetToken = async (email: string) => {
+    setResetLoading(email);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`/api/super-admin/tenants/${tenantId}/reset-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      const data = await res.json();
+      setResetTokenModal(data);
+      setCopied(false);
+    } catch (err) { toast((err as Error).message, 'error'); }
+    finally { setResetLoading(null); }
+  };
 
   const handleStatusChange = async (newStatus: string) => {
     const token = localStorage.getItem('auth_token');
@@ -380,12 +403,13 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                 <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">Email</th>
                 <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">Role</th>
                 <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">Created</th>
+                <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody>
               {(tenant.users ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={4} className="text-center py-6 text-gray-400">No users found</td>
+                  <td colSpan={5} className="text-center py-6 text-gray-400">No users found</td>
                 </tr>
               )}
               {(tenant.users ?? []).map((u) => (
@@ -398,12 +422,40 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                   <td className="px-4 py-3 text-gray-500">
                     {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
                   </td>
+                  <td className="px-4 py-3">
+                    <button type="button" onClick={() => handleResetToken(u.email)} disabled={resetLoading === u.email} className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors disabled:opacity-60">
+                      <KeyRound size={12} /> {resetLoading === u.email ? 'Generating...' : 'Reset Password'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+      {resetTokenModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setResetTokenModal(null)} />
+          <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+            <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <KeyRound size={28} />
+            </div>
+            <h3 className="text-lg font-bold text-center mb-1">Password Reset Link</h3>
+            <p className="text-sm text-gray-500 text-center mb-4">For {resetTokenModal.userName} ({resetTokenModal.email})</p>
+            <div className="bg-gray-50 rounded-xl p-4 mb-4">
+              <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Reset Link (share with user)</label>
+              <div className="flex items-center gap-2">
+                <input type="text" readOnly value={resetTokenModal.resetLink} className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-mono select-all" onClick={(e) => (e.target as HTMLInputElement).select()} />
+                <button type="button" onClick={() => { navigator.clipboard.writeText(resetTokenModal.resetLink); setCopied(true); setTimeout(() => setCopied(false), 2000); }} className={cn("px-3 py-2 rounded-lg text-xs font-bold transition-colors", copied ? "bg-green-100 text-green-600" : "bg-gray-200 text-gray-600 hover:bg-gray-300")}>
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">Expires: {new Date(resetTokenModal.expiresAt).toLocaleString()}</p>
+            </div>
+            <button type="button" onClick={() => setResetTokenModal(null)} className="w-full py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Close</button>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
