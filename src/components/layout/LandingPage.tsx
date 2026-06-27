@@ -144,6 +144,9 @@ export function LandingPage() {
         <div className="absolute top-20 left-1/4 w-96 h-96 bg-[#F27D26]/5 rounded-full blur-3xl pointer-events-none" />
         <div className="max-w-4xl mx-auto text-center relative">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            <div className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-[#F27D26] to-[#FFB347] text-white rounded-full text-sm font-bold mb-6 shadow-lg shadow-[#F27D26]/30 animate-pulse">
+              🚀 Coming Soon — We're launching shortly!
+            </div>
             <div className={`inline-flex items-center gap-2 px-4 py-1.5 border rounded-full text-xs font-medium mb-8 ${badgeBg}`}>
               <Star size={12} className="text-[#F27D26]" /> Cloud ERP Software for Indian Businesses
             </div>
@@ -159,7 +162,7 @@ export function LandingPage() {
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <a href="#contact" className="group px-8 py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-all flex items-center gap-2 shadow-lg shadow-[#F27D26]/20">
-                Start Free Trial <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                Join Waitlist <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </a>
               <a href="#features" className={`px-8 py-4 border rounded-xl font-bold text-lg transition-all ${btnSecondary}`}>
                 See Features
