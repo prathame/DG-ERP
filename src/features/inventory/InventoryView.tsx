@@ -195,11 +195,6 @@ export function InventoryView() {
                           {inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
                             <Plus size={16} />
                           </button>}
-                          {barcodeSystemEnabled && (
-                            <button onClick={() => setLabelPrinterId(p.id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Print Labels">
-                              <Printer size={16} />
-                            </button>
-                          )}
                           <button onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
                             <Trash2 size={16} />
                           </button>
@@ -238,11 +233,6 @@ export function InventoryView() {
                     {inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
                       <Plus size={16} />
                     </button>}
-                    {barcodeSystemEnabled && (
-                      <button onClick={() => setLabelPrinterId(p.id)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Print Labels">
-                        <Printer size={16} />
-                      </button>
-                    )}
                     <button onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
                       <Trash2 size={16} />
                     </button>
