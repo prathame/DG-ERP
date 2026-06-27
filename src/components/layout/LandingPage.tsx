@@ -2,32 +2,10 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Package, ShoppingCart, Truck, Receipt, IndianRupee, MessageSquare, Smartphone,
-  Palette, Moon, ShieldCheck, BarChart3, Users, Zap, Languages, Building2, Shield,
+  Moon, ShieldCheck, BarChart3, Users, Languages, Building2, Shield,
   ArrowRight, Check, Star, Mail, Phone, Send, MessageCircle, Sun, Search,
+  Store, Factory, Warehouse, FileText, Zap, Heart, Globe, BookOpen,
 } from 'lucide-react';
-
-const FEATURES = [
-  { icon: Package, title: 'Inventory Management', desc: 'Auto-barcode ranges, stock tracking, batch management, bulk CSV import, barcode label printing' },
-  { icon: ShoppingCart, title: 'Sales & Billing', desc: 'Camera barcode scan, GST tax invoices with CGST/SGST breakdown, split billing' },
-  { icon: Truck, title: 'Distribution', desc: 'Spreadsheet-style vendor distribution with per-row discount and GST toggles, paid/unpaid filters' },
-  { icon: IndianRupee, title: 'Vendor Finance', desc: 'Payment tracking, balance management, automated WhatsApp payment reminders, paid/unpaid views' },
-  { icon: Search, title: 'Search / Verify', desc: 'Instant search across vendors, products, barcodes, customers, challans — with full detail view' },
-  { icon: Palette, title: 'Custom Branding', desc: 'Company logo, accent colors, bank details, signatory — fully branded bills per tenant' },
-  { icon: ShieldCheck, title: 'Warranty & Rewards', desc: 'Auto-warranty on sale, replacement tracking, vendor reward points system' },
-  { icon: MessageSquare, title: 'ERP Chatbot', desc: 'Natural language commands — sales today, low stock, top vendors, adapts to your business type' },
-  { icon: Building2, title: 'Business Types', desc: 'Manufacturer, dealer, or retail — super admin picks type, tabs auto-configure with custom labels' },
-  { icon: Shield, title: '99.99% Secure', desc: 'JWT auth, CSP headers, HSTS, tenant isolation, bcrypt-12, rate limiting, encrypted DB — enterprise-grade security' },
-  { icon: Moon, title: 'Dark Mode', desc: 'Light and dark theme with one-click toggle, persisted across sessions' },
-  { icon: Languages, title: 'Multi-Language', desc: 'English, Hindi, and Gujarati support — switch language instantly from settings' },
-  { icon: Smartphone, title: 'Mobile PWA', desc: 'Install as app from browser — full screen, offline support, bottom nav, no Play Store needed' },
-];
-
-const STEPS = [
-  { num: '01', title: 'Create Tenant', desc: 'Super admin creates a company with plan, admin credentials, and unique URL' },
-  { num: '02', title: 'Branded Login', desc: 'Tenant gets a branded URL like /your-company with custom logo and colors' },
-  { num: '03', title: 'Start Working', desc: 'Admin adds products, vendors get auto-login, team starts managing inventory and sales' },
-];
-
 
 function EnquiryForm({ dark }: { dark: boolean }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', company: '', message: '' });
@@ -37,268 +15,207 @@ function EnquiryForm({ dark }: { dark: boolean }) {
   const formCardCls = dark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-gray-200 shadow-sm';
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSending(true);
+    e.preventDefault(); setSending(true);
     const subject = encodeURIComponent(`DG ERP Enquiry from ${form.name} — ${form.company || 'N/A'}`);
     const body = `Name: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone || 'N/A'}\nCompany: ${form.company || 'N/A'}\n\nMessage:\n${form.message}`;
     window.open(`https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
     setTimeout(() => { setSent(true); setSending(false); }, 500);
   };
 
-  if (sent) {
-    return (
-      <div className={`p-8 border rounded-2xl text-center ${formCardCls}`}>
-        <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4"><Check size={32} className="text-green-500" /></div>
-        <h3 className="font-bold text-xl mb-2">Thank You!</h3>
-        <p className={`text-sm mb-4 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Gmail should have opened with your enquiry. If not, email us directly:</p>
-        <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="text-[#F27D26] font-medium hover:underline">patelprathamesh007@gmail.com</a>
-        <div className="mt-6">
-          <button type="button" onClick={() => { setSent(false); setForm({ name: '', email: '', phone: '', company: '', message: '' }); }} className="text-sm text-gray-500 hover:text-white transition-colors">Send another enquiry</button>
-        </div>
-      </div>
-    );
-  }
+  if (sent) return (
+    <div className={`p-8 border rounded-2xl text-center ${formCardCls}`}>
+      <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4"><Check size={32} className="text-green-500" /></div>
+      <h3 className="font-bold text-xl mb-2">Dhanyavaad! Thank You!</h3>
+      <p className={`text-sm mb-4 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>We'll get back to you within 24 hours.</p>
+      <button type="button" onClick={() => { setSent(false); setForm({ name: '', email: '', phone: '', company: '', message: '' }); }} className="text-sm text-[#F27D26] hover:underline">Send another</button>
+    </div>
+  );
 
   return (
     <form onSubmit={handleSubmit} className={`p-8 border rounded-2xl space-y-4 ${formCardCls}`}>
-      <h3 className="font-bold text-lg mb-1">Send Enquiry</h3>
+      <h3 className="font-bold text-lg mb-1">Start Your Free Trial</h3>
+      <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'} -mt-2 mb-2`}>No credit card needed. Start managing in 5 minutes.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Name *</label>
-          <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#F27D26] focus:border-transparent ${inputCls}`} placeholder="Your name" />
-        </div>
-        <div>
-          <label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Email *</label>
-          <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#F27D26] focus:border-transparent ${inputCls}`} placeholder="you@example.com" />
-        </div>
-        <div>
-          <label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Phone</label>
-          <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#F27D26] focus:border-transparent ${inputCls}`} placeholder="+91 98765 43210" />
-        </div>
-        <div>
-          <label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Company Name</label>
-          <input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#F27D26] focus:border-transparent ${inputCls}`} placeholder="Your Company Ltd." />
-        </div>
+        <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Name *</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={`w-full px-4 py-3 border rounded-xl ${inputCls}`} placeholder="Aapka naam" /></div>
+        <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Phone *</label><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={`w-full px-4 py-3 border rounded-xl ${inputCls}`} placeholder="+91 98765 43210" /></div>
+        <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={`w-full px-4 py-3 border rounded-xl ${inputCls}`} placeholder="you@example.com" /></div>
+        <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Business Name</label><input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className={`w-full px-4 py-3 border rounded-xl ${inputCls}`} placeholder="Aapki dukaan / company" /></div>
       </div>
-      <div>
-        <label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Message *</label>
-        <textarea required rows={4} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#F27D26] focus:border-transparent resize-none ${inputCls}`} placeholder="Tell us about your business and what you're looking for..." />
-      </div>
-      <button type="submit" disabled={sending} className="w-full py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
-        <Send size={18} /> {sending ? 'Sending...' : 'Send Enquiry'}
-      </button>
-      <p className="text-xs text-gray-600 text-center">Or WhatsApp us directly at <a href="https://wa.me/918806907616?text=Hi%2C%20I%20want%20to%20know%20more%20about%20DG%20ERP" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:underline">+91 88069 07616</a></p>
+      <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Message</label><textarea rows={3} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className={`w-full px-4 py-3 border rounded-xl resize-none ${inputCls}`} placeholder="Business type, products, team size..." /></div>
+      <button type="submit" disabled={sending} className="w-full py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"><Send size={18} /> {sending ? 'Sending...' : 'Get Started Free'}</button>
+      <p className="text-xs text-gray-500 text-center">Or WhatsApp us: <a href="https://wa.me/918806907616?text=Hi%2C%20I%20want%20DG%20ERP%20for%20my%20business" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:underline font-medium">+91 88069 07616</a></p>
     </form>
   );
 }
 
 export function LandingPage() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
-  const toggleTheme = () => {
-    const nowDark = document.documentElement.classList.toggle('dark');
-    localStorage.setItem('dg_erp_theme', nowDark ? 'dark' : 'light');
-    setDark(nowDark);
-  };
+  const toggleTheme = () => { const d = document.documentElement.classList.toggle('dark'); localStorage.setItem('dg_erp_theme', d ? 'dark' : 'light'); setDark(d); };
 
-  // Theme-aware colors
-  const bg = dark ? 'bg-[#0A0B0D]' : 'bg-[#F8F9FA]';
+  const bg = dark ? 'bg-[#0A0B0D]' : 'bg-[#FAFAFA]';
   const navBg = dark ? 'bg-[#0A0B0D]/80' : 'bg-white/80';
   const navBorder = dark ? 'border-white/5' : 'border-gray-200';
   const text = dark ? 'text-white' : 'text-[#1A1A1A]';
   const textMuted = dark ? 'text-gray-400' : 'text-gray-600';
   const textFaint = dark ? 'text-gray-500' : 'text-gray-400';
-  const textFooter = dark ? 'text-gray-600' : 'text-gray-400';
-  const cardBg = dark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-gray-200 shadow-sm';
+  const cardBg = dark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-gray-100 shadow-sm';
   const cardHover = dark ? 'hover:border-[#F27D26]/30 hover:bg-white/[0.05]' : 'hover:border-[#F27D26]/30 hover:shadow-md';
-  const sectionAlt = dark ? 'bg-white/[0.02]' : 'bg-gray-50';
-  const inputBg = dark ? 'bg-white/5 border-white/10 text-white placeholder-gray-600' : 'bg-gray-50 border-gray-200 text-[#1A1A1A] placeholder-gray-400';
+  const sectionAlt = dark ? 'bg-white/[0.02]' : 'bg-white';
   const badgeBg = dark ? 'bg-white/5 border-white/10 text-gray-400' : 'bg-[#F27D26]/5 border-[#F27D26]/20 text-[#F27D26]';
   const btnSecondary = dark ? 'bg-white/5 border-white/10 text-white hover:bg-white/10' : 'bg-white border-gray-200 text-[#1A1A1A] hover:bg-gray-50';
   const navLink = dark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-[#1A1A1A]';
   const adminBtn = dark ? 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10' : 'bg-[#F27D26] border-[#F27D26] text-white hover:bg-[#D96A1C]';
-  const highlightCard = dark ? 'bg-[#F27D26]/10 border-[#F27D26]/30' : 'bg-[#F27D26]/5 border-[#F27D26]/30 shadow-lg shadow-[#F27D26]/10';
 
   return (
     <div className={`min-h-screen ${bg} ${text} overflow-x-hidden transition-colors duration-300`}>
       {/* Nav */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 ${navBg} backdrop-blur-xl border-b ${navBorder} transition-colors duration-300`}>
+      <nav className={`fixed top-0 left-0 right-0 z-50 ${navBg} backdrop-blur-xl border-b ${navBorder}`}>
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-sm text-white">DG</div>
-            <span className="font-bold text-lg">DG ERP</span>
+            <div><span className="font-bold text-lg">DG ERP</span><span className={`text-[10px] ml-1.5 ${textFaint}`}>Made in India</span></div>
           </div>
           <div className="flex items-center gap-3">
-            <a href="#features" className={`px-4 py-2 text-sm font-semibold ${navLink} transition-colors hidden md:block`}>Features</a>
-            <a href="#contact" className={`px-4 py-2 text-sm font-semibold ${navLink} transition-colors hidden md:block`}>Contact</a>
-            <button type="button" onClick={toggleTheme} className={`p-2 rounded-lg ${navLink} transition-colors`} title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}>
-              {dark ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-            <a href="/admin" className={`px-5 py-2 text-sm font-semibold border rounded-lg transition-colors ${adminBtn}`}>Admin Login</a>
+            <a href="#business" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>For Business</a>
+            <a href="#features" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Features</a>
+            <a href="#pricing" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Pricing</a>
+            <a href="#contact" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Contact</a>
+            <button type="button" onClick={toggleTheme} className={`p-2 rounded-lg ${navLink}`}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
+            <a href="/admin" className={`px-5 py-2 text-sm font-semibold border rounded-lg ${adminBtn}`}>Login</a>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="relative pt-32 pb-24 px-6">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#F27D26]/10 via-transparent to-purple-900/10 pointer-events-none" />
+      <section className="relative pt-28 pb-20 px-6">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#FF9933]/10 via-transparent to-[#138808]/10 pointer-events-none" />
         <div className="absolute top-20 left-1/4 w-96 h-96 bg-[#F27D26]/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="max-w-4xl mx-auto text-center relative">
+        <div className="max-w-5xl mx-auto text-center relative">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-[#F27D26] to-[#FFB347] text-white rounded-full text-sm font-bold mb-6 shadow-lg shadow-[#F27D26]/30 animate-pulse">
-              🚀 Coming Soon — We're launching shortly!
-            </div>
-            <div className={`inline-flex items-center gap-2 px-4 py-1.5 border rounded-full text-xs font-medium mb-8 ${badgeBg}`}>
-              <Star size={12} className="text-[#F27D26]" /> Cloud ERP Software for Indian Businesses
+            <div className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#1A1A1A] rounded-full text-sm font-bold mb-6 shadow-lg">
+              🇮🇳 Made in India, for Indian Businesses
             </div>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
-              Manage Inventory, Sales
+              Dukaan ho ya Factory,
               <br />
-              <span className="bg-gradient-to-r from-[#F27D26] to-[#FFB347] bg-clip-text text-transparent">& Distribution</span>
-              <br />
-              <span className="text-3xl md:text-5xl">All in One Platform</span>
+              <span className="bg-gradient-to-r from-[#F27D26] to-[#FFB347] bg-clip-text text-transparent">Sab ka ERP Yahin Hai</span>
             </h1>
-            <p className={`mt-6 text-lg md:text-xl ${textMuted} max-w-2xl mx-auto leading-relaxed`}>
-              Built for manufacturers & distributors across India. GST billing, barcode scanning, vendor management, and more — starting free.
+            <p className={`mt-6 text-lg md:text-xl ${textMuted} max-w-3xl mx-auto leading-relaxed`}>
+              Chhoti dukaan se lekar bade manufacturer tak — inventory, billing, GST, vendor management sab ek jagah. Cloud pe chale, mobile pe chale, budget mein aaye.
             </p>
-            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
               <a href="#contact" className="group px-8 py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-all flex items-center gap-2 shadow-lg shadow-[#F27D26]/20">
-                Join Waitlist <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                Free Trial Shuru Karein <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </a>
-              <a href="#features" className={`px-8 py-4 border rounded-xl font-bold text-lg transition-all ${btnSecondary}`}>
-                See Features
-              </a>
+              <a href="#features" className={`px-8 py-4 border rounded-xl font-bold text-lg transition-all ${btnSecondary}`}>Features Dekhein</a>
             </div>
+            <p className={`mt-4 text-sm ${textFaint}`}>No credit card required • Setup in 5 minutes • Cancel anytime</p>
           </motion.div>
         </div>
       </section>
 
-      {/* Stats */}
-      <section className={`py-12 border-y ${navBorder}`}>
-        <div className="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+      {/* Trust Stats */}
+      <section className={`py-10 border-y ${navBorder}`}>
+        <div className="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-5 gap-6 text-center">
           {[
-            { val: '10+', label: 'Feature Modules' },
-            { val: '3', label: 'Languages Supported' },
-            { val: '30+', label: 'Chatbot Commands' },
-            { val: '100%', label: 'Data Security' },
-          ].map((s) => (
-            <div key={s.label}>
-              <p className="text-3xl font-bold text-[#F27D26]">{s.val}</p>
-              <p className={`text-sm mt-1 ${textFaint}`}>{s.label}</p>
-            </div>
+            { val: '15+', label: 'Modules' },
+            { val: '₹0', label: 'To Start' },
+            { val: '3', label: 'Languages' },
+            { val: '100%', label: 'Cloud Based' },
+            { val: '🇮🇳', label: 'Made in India' },
+          ].map(s => (
+            <div key={s.label}><p className="text-2xl md:text-3xl font-bold text-[#F27D26]">{s.val}</p><p className={`text-xs mt-1 ${textFaint}`}>{s.label}</p></div>
           ))}
         </div>
       </section>
 
-      {/* Visual Flow Diagram */}
-      <section className={`py-20 px-6 ${sectionAlt}`}>
+      {/* For Every Business */}
+      <section id="business" className={`py-20 px-6 ${sectionAlt}`}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">Platform Architecture</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>One platform, unlimited companies, fully isolated</p>
+            <h2 className="text-3xl md:text-4xl font-bold">Har Business Ke Liye</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>Chaahe dukaan ho, dealer ho, ya manufacturer — aapke kaam ka software</p>
           </div>
-          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-0">
-            {/* Super Admin */}
-            <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className={`p-6 border rounded-2xl text-center w-full md:w-48 ${cardBg}`}>
-              <div className="w-14 h-14 bg-[#F27D26]/10 rounded-2xl flex items-center justify-center mx-auto mb-3"><Shield size={28} className="text-[#F27D26]" /></div>
-              <p className="font-bold text-sm">Super Admin</p>
-              <p className={`text-[10px] ${textFaint} mt-1`}>Platform Owner</p>
-            </motion.div>
-            {/* Arrow */}
-            <div className={`hidden md:flex items-center px-2 ${textFaint}`}>
-              <div className="w-8 h-0.5 bg-[#F27D26]/30" /><ArrowRight size={16} className="text-[#F27D26]/50" />
-            </div>
-            <div className="md:hidden py-2"><div className="w-0.5 h-6 bg-[#F27D26]/30 mx-auto" /></div>
-            {/* Tenants */}
-            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className={`p-6 border rounded-2xl w-full md:w-auto md:flex-1 ${cardBg}`}>
-              <div className="flex items-center justify-center gap-6 flex-wrap">
-                {[
-                  { icon: Building2, label: 'Pump Co.', color: 'text-blue-500', bg: 'bg-blue-500/10' },
-                  { icon: Building2, label: 'Jewellers', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-                  { icon: Building2, label: 'Electronics', color: 'text-purple-500', bg: 'bg-purple-500/10' },
-                ].map((t, i) => (
-                  <div key={i} className="text-center">
-                    <div className={`w-12 h-12 ${t.bg} rounded-xl flex items-center justify-center mx-auto mb-2`}><t.icon size={22} className={t.color} /></div>
-                    <p className="text-xs font-medium">{t.label}</p>
-                    <p className={`text-[10px] ${textFaint}`}>/{t.label.toLowerCase().replace(/[^a-z]/g, '-')}</p>
-                  </div>
-                ))}
-              </div>
-              <p className={`text-center text-xs ${textFaint} mt-4`}>Each tenant gets isolated data + branded URL + custom bills</p>
-            </motion.div>
-            {/* Arrow */}
-            <div className={`hidden md:flex items-center px-2 ${textFaint}`}>
-              <div className="w-8 h-0.5 bg-[#F27D26]/30" /><ArrowRight size={16} className="text-[#F27D26]/50" />
-            </div>
-            <div className="md:hidden py-2"><div className="w-0.5 h-6 bg-[#F27D26]/30 mx-auto" /></div>
-            {/* Users */}
-            <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className={`p-6 border rounded-2xl text-center w-full md:w-48 ${cardBg}`}>
-              <div className="flex justify-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center"><Users size={20} className="text-emerald-500" /></div>
-                <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center"><Truck size={20} className="text-blue-500" /></div>
-              </div>
-              <p className="font-bold text-sm">Admin + Vendors</p>
-              <p className={`text-[10px] ${textFaint} mt-1`}>Role-based access</p>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Visual Workflow */}
-      <section className="py-20 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">End-to-End Workflow</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>From inventory to customer — every step tracked</p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { icon: Package, label: 'Add Products', sub: 'Auto-barcode', color: 'text-blue-500', bg: 'bg-blue-500/10' },
-              { icon: Truck, label: 'Distribute', sub: 'To vendors', color: 'text-amber-500', bg: 'bg-amber-500/10' },
-              { icon: ShoppingCart, label: 'Sell', sub: 'Barcode scan', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-              { icon: Receipt, label: 'Invoice', sub: 'GST bills', color: 'text-purple-500', bg: 'bg-purple-500/10' },
-              { icon: IndianRupee, label: 'Collect', sub: 'Track payments', color: 'text-[#F27D26]', bg: 'bg-[#F27D26]/10' },
-            ].map((step, i) => (
-              <motion.div
-                key={step.label}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className={`relative p-5 border rounded-2xl text-center ${cardBg} ${cardHover} group`}
-              >
-                {i < 4 && <div className="hidden md:block absolute -right-3 top-1/2 -translate-y-1/2 z-10"><ArrowRight size={14} className={textFaint} /></div>}
-                <div className={`w-12 h-12 ${step.bg} rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform`}>
-                  <step.icon size={24} className={step.color} />
+              { icon: Store, title: 'Retail Shop / Dukaan', desc: 'Bijli ki dukaan, hardware shop, kirana store — barcode scan karo, bill do, stock track karo. Itna simple.', features: ['Barcode billing', 'Stock alerts', 'WhatsApp bills', 'GST invoice'], color: 'text-blue-500', bg: 'bg-blue-500/10' },
+              { icon: Warehouse, title: 'Dealer / Distributor', desc: 'Products lao supplier se, distribute karo retailers ko. Payment track karo — kaun kitna dena hai, kaun se batch mein.', features: ['Vendor portal', 'Batch-level payment', 'Outstanding reports', 'Quotation → Distribution'], color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+              { icon: Factory, title: 'Manufacturer', desc: 'Production se lekar dealer tak — purchase, inventory, distribution, billing, accounting sab automated.', features: ['Supplier management', 'P&L / Balance Sheet', 'GST GSTR-1 reports', 'Pack size support'], color: 'text-purple-500', bg: 'bg-purple-500/10' },
+            ].map((b, i) => (
+              <motion.div key={b.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                className={`p-6 border rounded-2xl ${cardBg} ${cardHover} transition-all`}>
+                <div className={`w-14 h-14 ${b.bg} rounded-2xl flex items-center justify-center mb-4`}><b.icon size={28} className={b.color} /></div>
+                <h3 className="font-bold text-lg mb-2">{b.title}</h3>
+                <p className={`text-sm ${textFaint} mb-4 leading-relaxed`}>{b.desc}</p>
+                <div className="space-y-1.5">
+                  {b.features.map(f => (
+                    <div key={f} className="flex items-center gap-2"><Check size={14} className="text-[#F27D26] shrink-0" /><span className={`text-xs ${textMuted}`}>{f}</span></div>
+                  ))}
                 </div>
-                <p className="font-bold text-sm">{step.label}</p>
-                <p className={`text-[10px] ${textFaint} mt-1`}>{step.sub}</p>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="py-24 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold">Everything You Need</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>Comprehensive ERP features for any industry</p>
+      {/* End-to-End Flow */}
+      <section className="py-20 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold">Poora Business Ek Jagah</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>Purchase se lekar payment tak — har step tracked</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {FEATURES.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-                className={`p-6 border rounded-2xl transition-all group ${cardBg} ${cardHover}`}
-              >
-                <div className="w-10 h-10 bg-[#F27D26]/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-[#F27D26]/20 transition-colors">
-                  <f.icon size={20} className="text-[#F27D26]" />
-                </div>
-                <h3 className="font-bold text-sm mb-2">{f.title}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            {[
+              { icon: ShoppingCart, label: 'Purchase', sub: 'Supplier se kharido', color: 'text-amber-500', bg: 'bg-amber-500/10' },
+              { icon: Package, label: 'Inventory', sub: 'Stock manage karo', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+              { icon: FileText, label: 'Quotation', sub: 'Quote bhejo', color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
+              { icon: Truck, label: 'Distribute', sub: 'Vendor ko do', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+              { icon: IndianRupee, label: 'Payment', sub: 'Paisa track karo', color: 'text-[#F27D26]', bg: 'bg-[#F27D26]/10' },
+              { icon: BarChart3, label: 'Accounts', sub: 'P&L, Balance Sheet', color: 'text-purple-500', bg: 'bg-purple-500/10' },
+            ].map((step, i) => (
+              <motion.div key={step.label} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+                className={`relative p-4 border rounded-2xl text-center ${cardBg} ${cardHover} group`}>
+                {i < 5 && <div className="hidden md:block absolute -right-2 top-1/2 -translate-y-1/2 z-10"><ArrowRight size={12} className={textFaint} /></div>}
+                <div className={`w-11 h-11 ${step.bg} rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform`}><step.icon size={22} className={step.color} /></div>
+                <p className="font-bold text-xs">{step.label}</p>
+                <p className={`text-[10px] ${textFaint} mt-0.5`}>{step.sub}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features Grid */}
+      <section id="features" className={`py-20 px-6 ${sectionAlt}`}>
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl font-bold">Saari Features, Ek Platform</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>Jo Tally mein nahi, jo Miracle mein nahi — woh sab yahin hai</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[
+              { icon: Package, title: 'Inventory Management', desc: 'Auto-barcode, pack size (box/carton), batch printing, CSV import, stock alerts' },
+              { icon: ShoppingCart, title: 'Purchase Tracking', desc: 'Supplier management, purchase bills, cost tracking, payables (kitna dena hai)' },
+              { icon: Truck, title: 'Distribution', desc: 'Vendor distribution with batch-level payment tracking, custom pricing, discount' },
+              { icon: FileText, title: 'Quotations', desc: 'Create quotes, WhatsApp se share karo, accept hone pe convert to distribution' },
+              { icon: IndianRupee, title: 'Vendor Finance', desc: 'Kaun kitna dena hai, age-wise outstanding, batch-level payment, reminders' },
+              { icon: BarChart3, title: 'Accounts', desc: 'P&L, Balance Sheet, Cash Flow, General Ledger — auto-generated, no manual entry' },
+              { icon: Receipt, title: 'GST Reports', desc: 'Sales register, GSTR-1 format B2B/B2C/HSN summary, distribution register, stock valuation' },
+              { icon: Search, title: 'Smart Search', desc: 'Barcode scan ya type karo — product, vendor, customer, challan — sab instant mile' },
+              { icon: Users, title: 'Vendor Portal', desc: 'Dealers ko alag login do, woh apna stock aur sales dekh sakein — separate dashboard' },
+              { icon: MessageSquare, title: 'AI Chatbot', desc: '"Aaj ki sale kitni hai?" — Hindi mein poocho, toh Hindi mein jawab dega' },
+              { icon: Shield, title: 'Enterprise Security', desc: 'JWT auth, bcrypt-12, HSTS, CSP, rate limiting, tenant isolation, audit trail' },
+              { icon: Languages, title: '3 Languages', desc: 'English, Hindi, Gujarati — switch karo settings se, poora UI badal jayega' },
+              { icon: Smartphone, title: 'Mobile Ready', desc: 'Phone pe chale, tablet pe chale — bottom nav, touch-friendly, install as app' },
+              { icon: Globe, title: 'Cloud Based', desc: 'Koi server nahi rakhna, koi installation nahi — browser kholo aur shuru karo' },
+              { icon: Building2, title: 'Multi-Tenant SaaS', desc: 'Ek software se 100 companies chala sakte ho — har ek ka data alag, URL alag' },
+              { icon: Heart, title: 'Affordable', desc: 'Chhoti dukaan ke budget mein — free trial, no hidden charges, cancel anytime' },
+            ].map((f, i) => (
+              <motion.div key={f.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.03 }}
+                className={`p-5 border rounded-2xl transition-all group ${cardBg} ${cardHover}`}>
+                <div className="w-10 h-10 bg-[#F27D26]/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-[#F27D26]/20 transition-colors"><f.icon size={20} className="text-[#F27D26]" /></div>
+                <h3 className="font-bold text-sm mb-1">{f.title}</h3>
                 <p className={`text-xs ${textFaint} leading-relaxed`}>{f.desc}</p>
               </motion.div>
             ))}
@@ -306,69 +223,90 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className={`py-24 px-6 ${sectionAlt}`}>
+      {/* Pricing */}
+      <section id="pricing" className="py-20 px-6">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold">How It Works</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>Get your company running in minutes</p>
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl font-bold">Sabke Budget Mein</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>Chhoti dukaan se lekar badi factory tak — affordable plans</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {STEPS.map((s, i) => (
-              <motion.div
-                key={s.num}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="text-center"
-              >
-                <div className="w-16 h-16 bg-gradient-to-br from-[#F27D26] to-[#FFB347] rounded-2xl flex items-center justify-center font-bold text-2xl text-white mx-auto mb-4 shadow-lg shadow-[#F27D26]/20">
-                  {s.num}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { name: 'Free Trial', price: '₹0', period: '14 days', desc: 'Sabhi features try karo free mein', features: ['All modules', '50 products', '5 vendors', 'Email support'], cta: 'Start Free', highlight: false },
+              { name: 'Standard', price: '₹999', period: '/month', desc: 'Growing businesses ke liye', features: ['Unlimited products', '15 vendors', 'Vendor portal', 'Priority support', 'Pack size', 'Reports'], cta: 'Get Started', highlight: true },
+              { name: 'Professional', price: '₹1,999', period: '/month', desc: 'Bade manufacturers ke liye', features: ['Everything unlimited', 'Accounts module', 'Multi-language', 'Quotations', 'Chatbot', 'Custom branding'], cta: 'Contact Us', highlight: false },
+            ].map((p, i) => (
+              <motion.div key={p.name} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                className={`p-6 border rounded-2xl ${p.highlight ? (dark ? 'bg-[#F27D26]/10 border-[#F27D26]/30 ring-2 ring-[#F27D26]/20' : 'bg-[#F27D26]/5 border-[#F27D26]/30 shadow-lg shadow-[#F27D26]/10 ring-2 ring-[#F27D26]/20') : cardBg}`}>
+                {p.highlight && <div className="text-center mb-3"><span className="px-3 py-1 bg-[#F27D26] text-white text-xs font-bold rounded-full">Most Popular</span></div>}
+                <h3 className="font-bold text-lg">{p.name}</h3>
+                <div className="mt-2 mb-1"><span className="text-3xl font-bold">{p.price}</span><span className={`text-sm ${textFaint}`}>{p.period}</span></div>
+                <p className={`text-sm ${textFaint} mb-4`}>{p.desc}</p>
+                <div className="space-y-2 mb-6">
+                  {p.features.map(f => <div key={f} className="flex items-center gap-2"><Check size={14} className="text-[#F27D26]" /><span className={`text-sm ${textMuted}`}>{f}</span></div>)}
                 </div>
-                <h3 className="font-bold text-lg mb-2">{s.title}</h3>
-                <p className={`text-sm ${textFaint}`}>{s.desc}</p>
+                <a href="#contact" className={`block text-center py-3 rounded-xl font-bold transition-colors ${p.highlight ? 'bg-[#F27D26] text-white hover:bg-[#D96A1C]' : `border ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}`}>{p.cta}</a>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-
-      {/* Contact / Enquiry */}
-      <section id="contact" className={`py-24 px-6 ${sectionAlt}`}>
+      {/* Why DG ERP */}
+      <section className={`py-20 px-6 ${sectionAlt}`}>
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold">Contact Us</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>Get in touch to onboard your company</p>
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold">Tally aur Miracle Se Aage</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>Purane software ko replace karo modern cloud ERP se</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[
+              { emoji: '☁️', title: 'Cloud — No Installation', desc: 'Tally mein software install karo, license kharido, backup lo. DG ERP mein sirf browser kholo.' },
+              { emoji: '📱', title: 'Mobile pe Chale', desc: 'Miracle sirf desktop pe chalta hai. DG ERP phone pe bhi tablet pe bhi — kahin se bhi kaam karo.' },
+              { emoji: '🔐', title: 'Vendor Portal', desc: 'Apne dealers ko unka login do — woh apna stock, sales, payments khud dekh lein. Miracle mein nahi hai.' },
+              { emoji: '🤖', title: 'AI Chatbot', desc: '"Low stock kya hai?" poocho chatbot se — woh database check karke jawab dega. Real-time.' },
+              { emoji: '💰', title: 'Batch-Level Payment', desc: 'Har distribution batch ka payment alag track karo — kaun sa batch paid, kaun sa pending. Crystal clear.' },
+              { emoji: '📊', title: 'Auto Accounting', desc: 'P&L, Balance Sheet, Cash Flow — automatically generate hota hai transactions se. No manual entry.' },
+            ].map((w, i) => (
+              <motion.div key={w.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
+                className={`p-5 border rounded-2xl flex gap-4 ${cardBg} ${cardHover}`}>
+                <span className="text-3xl shrink-0">{w.emoji}</span>
+                <div><h3 className="font-bold text-sm mb-1">{w.title}</h3><p className={`text-xs ${textFaint} leading-relaxed`}>{w.desc}</p></div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Contact */}
+      <section id="contact" className="py-20 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl font-bold">Shuru Karein</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>Aaj hi free trial le lein — 5 minute mein setup ho jayega</p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
-            {/* Contact Info */}
             <div className="lg:col-span-2 space-y-6">
               <div className={`p-6 border rounded-2xl space-y-5 ${cardBg}`}>
-                <h3 className="font-bold text-lg mb-1">Get In Touch</h3>
-                <p className={`text-sm ${textFaint}`}>Have questions about DG ERP? Want to onboard your company? Reach out to us.</p>
+                <h3 className="font-bold text-lg">Baat Karein</h3>
+                <p className={`text-sm ${textFaint}`}>Call karo, WhatsApp karo, ya email karo — hum 24 ghante mein reply karenge.</p>
                 <div className="space-y-4 pt-2">
-                  <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-[#F27D26] transition-colors`}>
-                    <div className="w-10 h-10 bg-[#F27D26]/10 rounded-xl flex items-center justify-center shrink-0"><Mail size={18} className="text-[#F27D26]" /></div>
-                    <div><p className={`text-xs ${textFooter}`}>Email</p><p className="text-sm font-medium">patelprathamesh007@gmail.com</p></div>
-                  </a>
-                  <a href="tel:+918806907616" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-[#F27D26] transition-colors`}>
+                  <a href="tel:+918806907616" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-[#F27D26]`}>
                     <div className="w-10 h-10 bg-[#F27D26]/10 rounded-xl flex items-center justify-center shrink-0"><Phone size={18} className="text-[#F27D26]" /></div>
-                    <div><p className={`text-xs ${textFooter}`}>Phone</p><p className="text-sm font-medium">+91 88069 07616</p></div>
+                    <div><p className={`text-xs ${textFaint}`}>Phone</p><p className="font-medium">+91 88069 07616</p></div>
                   </a>
-                  <a href="https://wa.me/918806907616?text=Hi%2C%20I%20want%20to%20know%20more%20about%20DG%20ERP" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-green-400 transition-colors`}>
+                  <a href="https://wa.me/918806907616?text=Hi%2C%20mujhe%20DG%20ERP%20chahiye%20mere%20business%20ke%20liye" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-green-400`}>
                     <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center shrink-0"><MessageCircle size={18} className="text-green-500" /></div>
-                    <div><p className={`text-xs ${textFooter}`}>WhatsApp</p><p className="text-sm font-medium">+91 88069 07616</p></div>
+                    <div><p className={`text-xs ${textFaint}`}>WhatsApp</p><p className="font-medium">+91 88069 07616</p></div>
+                  </a>
+                  <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-[#F27D26]`}>
+                    <div className="w-10 h-10 bg-[#F27D26]/10 rounded-xl flex items-center justify-center shrink-0"><Mail size={18} className="text-[#F27D26]" /></div>
+                    <div><p className={`text-xs ${textFaint}`}>Email</p><p className="font-medium">patelprathamesh007@gmail.com</p></div>
                   </a>
                 </div>
               </div>
             </div>
-
-            {/* Enquiry Form */}
-            <div className="lg:col-span-3">
-              <EnquiryForm dark={dark} />
-            </div>
+            <div className="lg:col-span-3"><EnquiryForm dark={dark} /></div>
           </div>
         </div>
       </section>
@@ -379,22 +317,22 @@ export function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-xs text-white">DG</div>
-              <span className="font-bold">DG ERP Management</span>
+              <div><span className="font-bold">DG ERP</span><span className={`text-xs ${textFaint} ml-2`}>🇮🇳 Made with pride in India</span></div>
             </div>
             <div className={`flex items-center gap-6 text-sm ${textFaint}`}>
-              <a href="#features" className={`${navLink} transition-colors`}>Features</a>
-              <a href="#contact" className={`${navLink} transition-colors`}>Contact</a>
-              <a href="/privacy" className={`${navLink} transition-colors`}>Privacy</a>
-              <a href="/terms" className={`${navLink} transition-colors`}>Terms</a>
-              <a href="/admin" className={`${navLink} transition-colors`}>Admin</a>
+              <a href="#features" className={`${navLink}`}>Features</a>
+              <a href="#pricing" className={`${navLink}`}>Pricing</a>
+              <a href="#contact" className={`${navLink}`}>Contact</a>
+              <a href="/privacy" className={`${navLink}`}>Privacy</a>
+              <a href="/terms" className={`${navLink}`}>Terms</a>
             </div>
-            <div className={`flex items-center gap-4 ${textFooter}`}>
-              <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#F27D26] transition-colors"><Mail size={16} /></a>
-              <a href="tel:+918806907616" className="hover:text-[#F27D26] transition-colors"><Phone size={16} /></a>
-              <a href="https://wa.me/918806907616" target="_blank" rel="noopener noreferrer" className="hover:text-green-500 transition-colors"><MessageCircle size={16} /></a>
+            <div className={`flex items-center gap-4 ${textFaint}`}>
+              <a href="tel:+918806907616" className="hover:text-[#F27D26]"><Phone size={16} /></a>
+              <a href="https://wa.me/918806907616" target="_blank" rel="noopener noreferrer" className="hover:text-green-500"><MessageCircle size={16} /></a>
+              <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#F27D26]"><Mail size={16} /></a>
             </div>
           </div>
-          <p className={`text-xs ${textFooter} text-center mt-6`}>&copy; {new Date().getFullYear()} DG ERP Management. All rights reserved.</p>
+          <p className={`text-xs ${textFaint} text-center mt-6`}>&copy; {new Date().getFullYear()} DG ERP Management. Designed for Indian businesses, built with love.</p>
         </div>
       </footer>
     </div>
