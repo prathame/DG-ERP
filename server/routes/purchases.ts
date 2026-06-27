@@ -89,7 +89,7 @@ router.post('/api/purchases/batch', async (req, res) => {
 
     const gstRate = Number(reqGstRate) || 18;
     const date = purchaseDate || new Date().toISOString().slice(0, 10);
-    const batchId = `PB${Date.now()}`;
+    const batchId = `PB${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const paidAmount = amountPaid ? Math.max(0, Number(amountPaid)) : 0;
 
     let totalBilled = 0;
@@ -174,7 +174,7 @@ router.post('/api/purchases/batch', async (req, res) => {
       productNames: [...new Set(productNames)], total: totalQty,
       billValue: totalBilled, amountPaid: paidAmount, balanceRemaining: totalBilled - paidAmount,
     });
-  } catch (err) { console.error('[Purchase Batch Error]', err); res.status(500).json({ error: 'Internal server error', debug: String(err) }); }
+  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.get('/api/purchases/batches', async (req, res) => {
