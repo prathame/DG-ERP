@@ -13,6 +13,7 @@ import {
   LogOut,
   IndianRupee,
   ScanSearch,
+  FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -32,6 +33,7 @@ import { WarrantyView } from './features/warranty/WarrantyView';
 import { ReplacementsView } from './features/replacements/ReplacementsView';
 import { RewardsView } from './features/rewards/RewardsView';
 import { VendorFinanceView } from './features/finance/VendorFinanceView';
+import { ReportsView } from './features/reports/ReportsView';
 import { SettingsView } from './features/settings/SettingsView';
 import { ProductVerificationView } from './features/verification/ProductVerificationView';
 import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
@@ -148,6 +150,7 @@ export default function App() {
     { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },
     { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') },
     { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') },
+    { id: 'reports', label: tc('reports', 'Reports'), icon: FileText, show: tv('reports') },
   ];
   const navItems = allNavItems.filter(item => item.show);
 
@@ -388,6 +391,7 @@ export default function App() {
           {activeTab === 'inventory' && <InventoryView />}
           {activeTab === 'verification' && <ProductVerificationView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} />}
+          {activeTab === 'reports' && <ReportsView />}
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
         </div>
       </main>
