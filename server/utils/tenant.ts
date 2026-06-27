@@ -24,10 +24,20 @@ export async function provisionTenant(data: {
   try {
     await client.query('BEGIN');
 
+    const defaultTabConfig = JSON.stringify({
+      dashboard: { label: 'Dashboard', visible: true }, inventory: { label: 'Inventory', visible: true },
+      purchases: { label: 'Purchases', visible: true }, distribution: { label: 'Distribution', visible: true },
+      sales: { label: 'Sales Entry', visible: true }, verification: { label: 'Search / Verify', visible: true },
+      warranty: { label: 'Warranty', visible: true }, replacements: { label: 'Replacements', visible: true },
+      rewards: { label: 'Rewards', visible: true }, finance: { label: 'Finance', visible: true },
+      quotations: { label: 'Quotations', visible: true }, accounts: { label: 'Accounts', visible: true },
+      reports: { label: 'Reports', visible: true }, chatbot: { label: 'Chatbot', visible: true },
+      settings: { label: 'Settings', visible: true },
+    });
     await client.query(
-      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, phone, address, gst_number, plan_id, status, trial_ends_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [tenantId, data.companyName, slug, data.adminEmail, data.adminName, data.phone || null, data.address || null, data.gstNumber || null, data.planId, data.status || 'active', data.trialEndsAt || null]
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, phone, address, gst_number, plan_id, status, trial_ends_at, tab_config)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [tenantId, data.companyName, slug, data.adminEmail, data.adminName, data.phone || null, data.address || null, data.gstNumber || null, data.planId, data.status || 'active', data.trialEndsAt || null, defaultTabConfig]
     );
 
     await client.query(

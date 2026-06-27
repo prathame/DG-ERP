@@ -174,7 +174,7 @@ router.post('/api/purchases/batch', async (req, res) => {
       productNames: [...new Set(productNames)], total: totalQty,
       billValue: totalBilled, amountPaid: paidAmount, balanceRemaining: totalBilled - paidAmount,
     });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error('[Purchase Batch Error]', err); res.status(500).json({ error: 'Internal server error', debug: String(err) }); }
 });
 
 router.get('/api/purchases/batches', async (req, res) => {
