@@ -343,7 +343,7 @@ export function LandingPage() {
               {isGu ? 'રાજકોટની ધરતી પરથી, દુનિયા માટે' : 'राजकोट की धरती से, दुनिया के लिए'}
             </h2>
             <p className={`text-lg ${textMuted} max-w-2xl mx-auto leading-relaxed`}>
-              {isGu ? 'રાજકોટ — industrialisation નું હૃદય। અહીંના દરેક ઉદ્યોગપતિ, દુકાનદાર, અને manufacturer ને ધ્યાનમાં રાખીને બનાવેલું software। મોજીલા રાજકોટ! 🦁' : 'राजकोट — industrialisation का दिल। यहाँ के हर उद्योगपति, दुकानदार, और manufacturer को ध्यान में रखकर बनाया गया software। मोजीला राजकोट! 🦁'}
+              {isGu ? 'રાજકોટ — industrialisation નું હૃદય। અહીંના દરેક ઉદ્યોગપતિ, દુકાનદાર, અને manufacturer ને ધ્યાનમાં રાખીને બનાવેલું software। રંગીલું રાજકોટ! 🦁 🦁' : 'राजकोट — industrialisation का दिल। यहाँ के हर उद्योगपति, दुकानदार, और manufacturer को ध्यान में रखकर बनाया गया software। रंगीलो राजकोट! 🦁'}
             </p>
             <div className={`mt-6 inline-flex items-center gap-3 px-6 py-3 rounded-2xl border ${cardBg}`}>
               <span className="text-2xl">🦁</span>
