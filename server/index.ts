@@ -26,6 +26,7 @@ import adminRouter from './routes/admin';
 import dashboardRouter from './routes/dashboard';
 import searchRouter from './routes/search';
 import reportsRouter from './routes/reports';
+import purchasesRouter from './routes/purchases';
 import notificationsRouter from './routes/notifications';
 import mastersRouter from './routes/masters';
 import mappingRouter from './routes/mapping';
@@ -170,6 +171,7 @@ app.use(auditRouter);
 app.use(chatbotRouter);
 app.use(billSettingsRouter);
 app.use(reportsRouter);
+app.use(purchasesRouter);
 
 // Request logging for errors
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {

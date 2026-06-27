@@ -363,6 +363,7 @@ export async function initSchema() {
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS tab_config JSONB DEFAULT '${JSON.stringify({
       dashboard:    { label: 'Dashboard',      visible: true },
       inventory:    { label: 'Inventory',      visible: true },
+      purchases:    { label: 'Purchases',      visible: true },
       distribution: { label: 'Distribution',   visible: true },
       sales:        { label: 'Sales Entry',    visible: true },
       verification: { label: 'Search / Verify', visible: true },
@@ -386,6 +387,60 @@ export async function initSchema() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
+
+    // Purchase module tables
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS suppliers (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        contact_person TEXT,
+        phone TEXT,
+        email TEXT,
+        address TEXT,
+        gst_number TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS product_purchases (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        batch_id TEXT,
+        product_id TEXT NOT NULL,
+        barcode TEXT NOT NULL,
+        supplier_id TEXT NOT NULL,
+        purchase_date DATE NOT NULL,
+        cost_price NUMERIC(12,2),
+        gst_applied BOOLEAN DEFAULT false,
+        billed_price NUMERIC(12,2),
+        discount_percent NUMERIC(5,2) DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS supplier_payments (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        supplier_id TEXT NOT NULL,
+        amount NUMERIC(12,2) NOT NULL,
+        payment_date DATE NOT NULL,
+        payment_method TEXT DEFAULT 'Cash',
+        reference_number TEXT,
+        notes TEXT,
+        batch_id TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_suppliers_tenant ON suppliers(tenant_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pp_tenant ON product_purchases(tenant_id, supplier_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sp_tenant ON supplier_payments(tenant_id, supplier_id)');
+
+    // Add purchases tab to existing tenants
+    await client.query(`UPDATE tenants SET tab_config = tab_config || '{"purchases":{"label":"Purchases","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'purchases'`);
 
     // Vendor GSTIN for GST reports
     await client.query("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gst_number TEXT");

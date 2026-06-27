@@ -1,0 +1,328 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ShoppingBag, Plus, ArrowLeft, Search, IndianRupee } from 'lucide-react';
+import { cn, formatDate } from '../../lib/utils';
+import { api } from '../../api';
+import type { Product } from '../../types';
+import { useToast, LoadingSpinner, PaidBadge, isBillFullyPaid } from '../../components/ui';
+import { session } from '../../lib/session';
+
+interface Supplier { id: string; name: string; contactPerson?: string; phone?: string; email?: string; address?: string; gstNumber?: string | null }
+interface PurchaseBatch { batchId: string; supplierId: string; supplierName: string; purchaseDate: string; productNames: string[]; total: number; billValue: number; amountPaid: number; balanceRemaining: number }
+
+function fetchApi<T>(path: string, opts?: RequestInit): Promise<T> {
+  const token = session.getToken();
+  const tenantId = session.getTenantId();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (tenantId) headers['X-Tenant-ID'] = tenantId;
+  return fetch(`/api${path}`, { ...opts, headers: { ...headers, ...opts?.headers } }).then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.error || r.statusText); }); return r.json(); });
+}
+
+export function PurchasesView() {
+  const { toast } = useToast();
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [batches, setBatches] = useState<PurchaseBatch[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [batchDetail, setBatchDetail] = useState<Record<string, unknown> | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [supplierModal, setSupplierModal] = useState(false);
+  const [supplierForm, setSupplierForm] = useState({ name: '', contactPerson: '', phone: '', email: '', address: '', gstNumber: '' });
+  const [purchaseForm, setPurchaseForm] = useState({ supplierId: '', date: new Date().toISOString().slice(0, 10), amountPaid: '' });
+  const [purchaseRows, setPurchaseRows] = useState<{ productId: string; quantity: number; costPrice: string; withGst: boolean }[]>([{ productId: '', quantity: 1, costPrice: '', withGst: true }]);
+  const [submitting, setSubmitting] = useState(false);
+  const [paymentFilter, setPaymentFilter] = useState<'unpaid' | 'paid'>('unpaid');
+  const [searchText, setSearchText] = useState('');
+  const [paymentModal, setPaymentModal] = useState<{ batchId: string; supplierId: string; billValue: number; balanceRemaining: number } | null>(null);
+  const [paymentForm, setPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [financeMap, setFinanceMap] = useState<Record<string, { totalPurchasedValue: number; totalPaid: number; balance: number }>>({});
+
+  const load = () => {
+    Promise.all([
+      fetchApi<Supplier[]>('/suppliers'),
+      fetchApi<PurchaseBatch[]>('/purchases/batches'),
+      api.products.list(),
+    ]).then(([s, b, p]) => { setSuppliers(s); setBatches(b); setProducts(p); })
+      .then(() => {
+        fetchApi<{ supplierId: string; totalPurchasedValue: number; totalPaid: number; balance: number }[]>('/supplier-finance/summary')
+          .then(fs => { const m: Record<string, { totalPurchasedValue: number; totalPaid: number; balance: number }> = {}; for (const f of fs) m[f.supplierId] = { totalPurchasedValue: Number(f.totalPurchasedValue) || 0, totalPaid: Number(f.totalPaid) || 0, balance: Number(f.balance) || 0 }; setFinanceMap(m); })
+          .catch(() => {});
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { setLoading(true); load(); }, []);
+
+  const defaultGstRate = 18;
+  const purchaseTotals = purchaseRows.reduce((acc, r) => {
+    const p = products.find(x => x.id === r.productId);
+    const cost = r.costPrice ? parseFloat(r.costPrice) : (p?.price ?? 0);
+    const gross = cost * (r.quantity || 0);
+    const gst = r.withGst ? Math.round(gross * defaultGstRate / 100) : 0;
+    acc.gross += gross; acc.gst += gst; acc.billed += gross + gst; acc.items += r.quantity || 0;
+    return acc;
+  }, { gross: 0, gst: 0, billed: 0, items: 0 });
+
+  const handleCreateSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supplierForm.name) { toast('Enter supplier name', 'error'); return; }
+    setSubmitting(true);
+    try {
+      await fetchApi('/suppliers', { method: 'POST', body: JSON.stringify(supplierForm) });
+      setSupplierModal(false); setSupplierForm({ name: '', contactPerson: '', phone: '', email: '', address: '', gstNumber: '' }); load(); toast('Supplier added', 'success');
+    } catch (err) { toast((err as Error).message, 'error'); }
+    finally { setSubmitting(false); }
+  };
+
+  const handleCreatePurchase = async () => {
+    if (!purchaseForm.supplierId) { toast('Select a supplier', 'error'); return; }
+    const validRows = purchaseRows.filter(r => r.productId && r.quantity > 0);
+    if (validRows.length === 0) { toast('Add at least one product', 'error'); return; }
+    const paid = parseFloat(purchaseForm.amountPaid) || 0;
+    if (paid > purchaseTotals.billed) { toast(`Amount paid (₹${paid}) exceeds bill (₹${purchaseTotals.billed})`, 'error'); return; }
+    setSubmitting(true);
+    try {
+      await fetchApi('/purchases/batch', {
+        method: 'POST',
+        body: JSON.stringify({
+          supplierId: purchaseForm.supplierId, purchaseDate: purchaseForm.date, gstRate: defaultGstRate,
+          amountPaid: paid > 0 ? paid : undefined,
+          items: validRows.map(r => ({ productId: r.productId, quantity: r.quantity, costPrice: r.costPrice ? parseFloat(r.costPrice) : undefined, withGst: r.withGst })),
+        }),
+      });
+      setModalOpen(false); setPurchaseRows([{ productId: '', quantity: 1, costPrice: '', withGst: true }]); setPurchaseForm({ supplierId: '', date: new Date().toISOString().slice(0, 10), amountPaid: '' });
+      load(); toast(`Purchase recorded — ${validRows.length} product(s), ${purchaseTotals.items} items`, 'success');
+    } catch (err) { toast((err as Error).message, 'error'); }
+    finally { setSubmitting(false); }
+  };
+
+  if (loading) return <div className="flex items-center justify-center py-20"><LoadingSpinner /></div>;
+
+  // Supplier list with finance
+  const supplierStats = suppliers.map(s => {
+    const f = financeMap[s.id];
+    const sBatches = batches.filter(b => b.supplierId === s.id);
+    return { ...s, totalPurchased: f?.totalPurchasedValue ?? 0, totalPaid: f?.totalPaid ?? 0, balance: f?.balance ?? 0, batchCount: sBatches.length };
+  }).filter(s => {
+    const isPaid = s.balance <= 0 && s.totalPurchased > 0;
+    if (paymentFilter === 'paid' ? !isPaid : (s.totalPurchased > 0 && isPaid)) return false;
+    if (paymentFilter === 'unpaid' && s.totalPurchased === 0 && s.batchCount === 0) return false;
+    if (searchText && !s.name.toLowerCase().includes(searchText.toLowerCase())) return false;
+    return true;
+  });
+
+  // Selected supplier view
+  if (selectedSupplierId) {
+    const supplierBatches = batches.filter(b => b.supplierId === selectedSupplierId);
+    const supplierName = supplierBatches[0]?.supplierName ?? suppliers.find(s => s.id === selectedSupplierId)?.name ?? 'Supplier';
+
+    if (selectedBatchId && batchDetail) {
+      const bd = batchDetail;
+      return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <button type="button" onClick={() => { setSelectedBatchId(null); setBatchDetail(null); }} className="p-2 hover:bg-gray-200 rounded-lg"><ArrowLeft size={20} className="text-gray-600" /></button>
+                <h3 className="font-bold text-lg">{supplierName}</h3>
+                {isBillFullyPaid(Number(bd.billValue), Number(bd.balanceRemaining)) && <PaidBadge />}
+                <span className="text-xs text-gray-500">Purchase — {formatDate(bd.purchaseDate as string)}</span>
+                {Number(bd.balanceRemaining) > 0 && (
+                  <button type="button" onClick={() => { setPaymentModal({ batchId: selectedBatchId, supplierId: selectedSupplierId, billValue: Number(bd.billValue), balanceRemaining: Number(bd.balanceRemaining) }); setPaymentForm({ amount: String(bd.balanceRemaining), paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' }); }} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg"><IndianRupee size={16} /> Record Payment</button>
+                )}
+              </div>
+              <div className="text-right">
+                <span className="text-sm text-gray-600"><strong>{bd.total as number}</strong> items</span>
+                <span className="text-sm font-bold text-[#F27D26] ml-2">Bill: ₹{Number(bd.billValue).toLocaleString()}</span>
+                {Number(bd.amountPaid) > 0 && <span className="text-sm text-emerald-600 font-medium ml-2">Paid: ₹{Number(bd.amountPaid).toLocaleString()}</span>}
+                {Number(bd.balanceRemaining) > 0 && <span className="text-sm text-rose-500 font-medium ml-2">Due: ₹{Number(bd.balanceRemaining).toLocaleString()}</span>}
+              </div>
+            </div>
+            <div className="divide-y divide-gray-50">
+              <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Products</div>
+              {((bd.items as Record<string, unknown>[]) || []).map((item, i) => (
+                <div key={i} className="px-6 py-3 flex items-center justify-between">
+                  <div><p className="font-medium">{item.productName as string}</p><p className="text-xs text-gray-500">{item.quantity as number} units • ₹{Number(item.costPrice).toLocaleString()}/unit{item.withGst ? ' +GST' : ''}</p></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {paymentModal && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/40" onClick={() => setPaymentModal(null)} />
+              <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+                <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><IndianRupee size={28} /></div>
+                <h3 className="text-lg font-bold text-center mb-1">Record Payment to Supplier</h3>
+                <p className="text-sm text-gray-500 text-center mb-4">Bill: ₹{paymentModal.billValue.toLocaleString()} • Due: ₹{paymentModal.balanceRemaining.toLocaleString()}</p>
+                <form onSubmit={(e) => { e.preventDefault(); const amt = parseFloat(paymentForm.amount); if (!amt || amt <= 0) { toast('Enter valid amount', 'error'); return; } setPaymentSubmitting(true); fetchApi(`/supplier-finance/${paymentModal.supplierId}/payments`, { method: 'POST', body: JSON.stringify({ amount: amt, paymentDate: paymentForm.paymentDate, paymentMethod: paymentForm.paymentMethod, referenceNumber: paymentForm.referenceNumber || undefined, notes: paymentForm.notes || undefined, batchId: paymentModal.batchId }) }).then(() => { setPaymentModal(null); load(); fetchApi(`/purchases/batch/${selectedBatchId}`).then(d => setBatchDetail(d as Record<string, unknown>)); toast('Payment recorded', 'success'); }).catch(err => toast(err.message, 'error')).finally(() => setPaymentSubmitting(false)); }} className="space-y-3">
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Amount (₹)</label><input type="number" min="1" step="0.01" required value={paymentForm.amount} onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Date</label><input type="date" value={paymentForm.paymentDate} onChange={e => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" /></div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Method</label><select value={paymentForm.paymentMethod} onChange={e => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"><option>Cash</option><option>Bank Transfer</option><option>UPI</option><option>Cheque</option></select></div>
+                  </div>
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Reference</label><input value={paymentForm.referenceNumber} onChange={e => setPaymentForm({ ...paymentForm, referenceNumber: e.target.value })} placeholder="Optional" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" /></div>
+                  <div className="flex gap-3 pt-2">
+                    <button type="button" onClick={() => setPaymentModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
+                    <button type="submit" disabled={paymentSubmitting} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm disabled:opacity-60">{paymentSubmitting ? 'Saving...' : 'Record Payment'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      );
+    }
+
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center gap-3">
+            <button type="button" onClick={() => setSelectedSupplierId(null)} className="p-2 hover:bg-gray-200 rounded-lg"><ArrowLeft size={20} className="text-gray-600" /></button>
+            <h3 className="font-bold text-lg">{supplierName}</h3>
+          </div>
+          <div className="divide-y divide-gray-50">
+            <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Purchases ({supplierBatches.length})</div>
+            {supplierBatches.length === 0 ? (
+              <div className="px-6 py-8 text-center text-gray-500">No purchases from this supplier</div>
+            ) : supplierBatches.map(batch => (
+              <button key={batch.batchId} type="button" onClick={() => { setSelectedBatchId(batch.batchId); fetchApi(`/purchases/batch/${batch.batchId}`).then(d => setBatchDetail(d as Record<string, unknown>)).catch(err => toast(err.message, 'error')); }}
+                className={cn("w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors", isBillFullyPaid(batch.billValue, batch.balanceRemaining) && "opacity-60")}>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium">Purchase — {formatDate(batch.purchaseDate)}</p>
+                    {isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <PaidBadge size="sm" />}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {batch.productNames.join(' • ')} • {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}
+                    {batch.amountPaid > 0 && !isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <span className="text-emerald-600"> • ₹{batch.amountPaid.toLocaleString()} paid</span>}
+                    {batch.balanceRemaining > 0 && <span className="text-rose-500"> • ₹{batch.balanceRemaining.toLocaleString()} due</span>}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div><h2 className="text-xl font-bold flex items-center gap-2"><ShoppingBag size={22} /> Purchases</h2><p className="text-sm text-gray-500">Track what you buy from suppliers</p></div>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setSupplierModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50"><Plus size={16} /> Add Supplier</button>
+          <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold"><ShoppingBag size={16} /> New Purchase</button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        {(['unpaid', 'paid'] as const).map(tab => (
+          <button key={tab} type="button" onClick={() => { setPaymentFilter(tab); setSelectedSupplierId(null); }} className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", paymentFilter === tab ? (tab === 'unpaid' ? "bg-rose-500 text-white" : "bg-emerald-500 text-white") : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>{tab === 'unpaid' ? 'Unpaid' : 'Paid'}</button>
+        ))}
+        <div className="relative flex-1 min-w-[150px]"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Search supplier..." value={searchText} onChange={e => setSearchText(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm" /></div>
+      </div>
+
+      {suppliers.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
+          <ShoppingBag size={48} className="mx-auto mb-3 opacity-30" />
+          <p className="font-medium mb-2">No suppliers yet</p>
+          <p className="text-sm">Add your first supplier to start recording purchases</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {supplierStats.map(s => (
+            <button key={s.id} type="button" onClick={() => setSelectedSupplierId(s.id)} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-left hover:shadow-md transition-all">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{s.name}</p>
+              {s.totalPurchased > 0 && (
+                <div className="mt-2 flex gap-4 text-sm flex-wrap">
+                  <span className="text-blue-600"><strong>₹{s.totalPurchased.toLocaleString()}</strong> purchased</span>
+                  <span className="text-emerald-600"><strong>₹{s.totalPaid.toLocaleString()}</strong> paid</span>
+                  {s.balance > 0 ? <span className="text-rose-600"><strong>₹{s.balance.toLocaleString()}</strong> due</span> : s.totalPurchased > 0 && <PaidBadge size="sm" />}
+                </div>
+              )}
+              {s.batchCount === 0 && <p className="mt-2 text-xs text-gray-400">No purchases yet</p>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* New Purchase Modal */}
+      <AnimatePresence>
+        {modalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto p-6">
+              <h3 className="text-lg font-bold mb-4">New Purchase from Supplier</h3>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Supplier</label><select value={purchaseForm.supplierId} onChange={e => setPurchaseForm({ ...purchaseForm, supplierId: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg"><option value="">Select supplier</option>{suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Date</label><input type="date" value={purchaseForm.date} onChange={e => setPurchaseForm({ ...purchaseForm, date: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg" /></div>
+              </div>
+              <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
+                <table className="w-full text-left"><thead className="bg-gray-50"><tr className="text-xs font-bold text-gray-400 uppercase">
+                  <th className="px-3 py-3 w-8">#</th><th className="px-3 py-3">Product</th><th className="px-3 py-3 w-20">Qty</th><th className="px-3 py-3 w-24">Cost Price</th><th className="px-3 py-3 w-12 text-center">GST</th><th className="px-3 py-3 w-28 text-right">Billed</th><th className="px-3 py-3 w-10"></th>
+                </tr></thead><tbody className="divide-y divide-gray-100">
+                  {purchaseRows.map((row, idx) => {
+                    const p = products.find(x => x.id === row.productId);
+                    const cost = row.costPrice ? parseFloat(row.costPrice) : (p?.price ?? 0);
+                    const gross = cost * (row.quantity || 0);
+                    const gst = row.withGst ? Math.round(gross * defaultGstRate / 100) : 0;
+                    const billed = gross + gst;
+                    return (
+                      <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
+                        <td className="px-3 py-2"><select value={row.productId} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, productId: e.target.value } : r))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"><option value="">Select product</option>{products.map(pr => <option key={pr.id} value={pr.id}>{pr.name} (₹{pr.price.toLocaleString()})</option>)}</select></td>
+                        <td className="px-3 py-2"><input type="number" min={1} value={row.quantity || ''} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, quantity: parseInt(e.target.value) || 0 } : r))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center" /></td>
+                        <td className="px-3 py-2"><input type="number" min={0} step={0.01} value={row.costPrice} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, costPrice: e.target.value } : r))} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-2 py-1.5 border rounded-lg text-sm text-center", row.costPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
+                        <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, withGst: e.target.checked } : r))} className="rounded text-[#F27D26]" /></td>
+                        <td className="px-3 py-2 text-right text-sm font-bold">{billed > 0 ? `₹${billed.toLocaleString()}` : '—'}</td>
+                        <td className="px-3 py-2">{purchaseRows.length > 1 && <button type="button" onClick={() => setPurchaseRows(purchaseRows.filter((_, i) => i !== idx))} className="p-1 text-rose-400 hover:text-rose-600 rounded">×</button>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody></table>
+              </div>
+              <button type="button" onClick={() => setPurchaseRows([...purchaseRows, { productId: '', quantity: 1, costPrice: '', withGst: true }])} className="text-sm font-bold text-[#F27D26] mb-4">+ Add Product</button>
+              <div className="bg-gray-50 rounded-xl p-4 mb-4 flex items-center justify-between flex-wrap gap-2">
+                <span className="text-sm text-gray-600">{purchaseTotals.items} items • Gross ₹{purchaseTotals.gross.toLocaleString()} • GST ₹{purchaseTotals.gst.toLocaleString()}</span>
+                <span className="text-lg font-bold text-[#F27D26]">Total: ₹{purchaseTotals.billed.toLocaleString()}</span>
+              </div>
+              <div className="mb-4"><label className="text-xs font-bold text-gray-400 uppercase">Amount Paid (₹)</label><input type="number" min={0} step={0.01} value={purchaseForm.amountPaid} onChange={e => setPurchaseForm({ ...purchaseForm, amountPaid: e.target.value })} placeholder="0" className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg" /></div>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium">Cancel</button>
+                <button type="button" onClick={handleCreatePurchase} disabled={submitting} className="flex-1 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold disabled:opacity-60">{submitting ? 'Saving...' : `Record Purchase (${purchaseTotals.items} Items)`}</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Supplier Modal */}
+      {supplierModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSupplierModal(false)} />
+          <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+            <h3 className="text-lg font-bold mb-4">Add Supplier</h3>
+            <form onSubmit={handleCreateSupplier} className="space-y-3">
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Name *</label><input required value={supplierForm.name} onChange={e => setSupplierForm({ ...supplierForm, name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Contact Person</label><input value={supplierForm.contactPerson} onChange={e => setSupplierForm({ ...supplierForm, contactPerson: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" /></div>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Phone</label><input value={supplierForm.phone} onChange={e => setSupplierForm({ ...supplierForm, phone: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" /></div>
+              </div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">GSTIN</label><input value={supplierForm.gstNumber} onChange={e => setSupplierForm({ ...supplierForm, gstNumber: e.target.value })} placeholder="e.g. 24AABCU9603R1ZM" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-mono" /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Address</label><input value={supplierForm.address} onChange={e => setSupplierForm({ ...supplierForm, address: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" /></div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setSupplierModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
+                <button type="submit" disabled={submitting} className="flex-1 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold text-sm disabled:opacity-60">{submitting ? 'Saving...' : 'Add Supplier'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}

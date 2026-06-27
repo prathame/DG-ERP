@@ -14,6 +14,7 @@ import {
   IndianRupee,
   ScanSearch,
   FileText,
+  ShoppingBag,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -34,6 +35,7 @@ import { ReplacementsView } from './features/replacements/ReplacementsView';
 import { RewardsView } from './features/rewards/RewardsView';
 import { VendorFinanceView } from './features/finance/VendorFinanceView';
 import { ReportsView } from './features/reports/ReportsView';
+import { PurchasesView } from './features/purchases/PurchasesView';
 import { SettingsView } from './features/settings/SettingsView';
 import { ProductVerificationView } from './features/verification/ProductVerificationView';
 import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
@@ -145,6 +147,7 @@ export default function App() {
     { id: 'sales', label: tc('sales', t('nav.sales')), icon: ShoppingCart, show: tv('sales') },
     { id: 'distribution', label: tc('distribution', t('nav.distribution')), icon: Package, show: tv('distribution') },
     { id: 'inventory', label: tc('inventory', t('nav.inventory')), icon: Package, show: tv('inventory') },
+    { id: 'purchases', label: tc('purchases', 'Purchases'), icon: ShoppingBag, show: tv('purchases') },
     { id: 'verification', label: tc('verification', t('nav.verification')), icon: ScanSearch, show: tv('verification') },
     { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
     { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },
@@ -384,6 +387,7 @@ export default function App() {
         <div className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
           {activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} />}
           {activeTab === 'sales' && <SalesEntryView user={user} />}
+          {activeTab === 'purchases' && <PurchasesView />}
           {activeTab === 'distribution' && <DistributionView user={user} />}
           {activeTab === 'warranty' && <WarrantyView user={user} />}
           {activeTab === 'replacements' && <ReplacementsView user={user} />}
