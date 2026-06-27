@@ -37,13 +37,13 @@ router.get('/api/dashboard/stats', async (req, res) => {
       SELECT p.id, p.name, COUNT(pi.id) as stock FROM products p
       LEFT JOIN product_inventory pi ON pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1
       WHERE p.tenant_id = $1
-      GROUP BY p.id HAVING COUNT(pi.id) < 10 ORDER BY COUNT(pi.id) ASC LIMIT 5
+      GROUP BY p.id, p.name HAVING COUNT(pi.id) < 10 ORDER BY COUNT(pi.id) ASC LIMIT 5
     `, [tenantId])).rows as { id: string; name: string; stock: number }[];
 
     const topProducts = (await pool.query(`
       SELECT p.name, COUNT(ps.id) as sold FROM product_sales ps JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1
       WHERE ps.tenant_id = $1
-      GROUP BY ps.product_id, p.name ORDER BY sold DESC LIMIT 5
+      GROUP BY p.name ORDER BY sold DESC LIMIT 5
     `, [tenantId])).rows as { name: string; sold: number }[];
 
     const expiringWarranties = (await pool.query(`
@@ -73,8 +73,7 @@ router.get('/api/dashboard/stats', async (req, res) => {
       expiringWarranties: expiringWarranties.c,
     });
   } catch (err) {
-    console.error('[Dashboard Stats Error]', err);
-    res.status(500).json({ error: 'Internal server error', debug: String(err) });
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
