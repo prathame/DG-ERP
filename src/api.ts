@@ -274,7 +274,7 @@ export const api = {
       distributionDate?: string;
       amountPaid?: number;
       gstRate?: number;
-      items: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean }[];
+      items: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean; customPrice?: number }[];
     }) => fetchApi<DistributionBatch>('/distribution/batch', { method: 'POST', body: JSON.stringify(data) }),
     create: (data: { productId: string; vendorId: string; distributionDate?: string; quantity?: number; discountPercent?: number; amountPaid?: number; withGst?: boolean; gstRate?: number; batchId?: string }) =>
       fetchApi<DistributionRecord>('/distribution', { method: 'POST', body: JSON.stringify(data) }),

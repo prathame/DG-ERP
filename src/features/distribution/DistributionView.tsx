@@ -19,7 +19,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [modalOpen, setModalOpen] = useState(false);
   const [distVendorId, setDistVendorId] = useState('');
   const [distDate, setDistDate] = useState(new Date().toISOString().slice(0, 10));
-  const [distRows, setDistRows] = useState<{ productId: string; quantity: number; discount: number; withGst: boolean }[]>([{ productId: '', quantity: 1, discount: 0, withGst: true }]);
+  const [distRows, setDistRows] = useState<{ productId: string; quantity: number; discount: number; withGst: boolean; customPrice: string }[]>([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
   const [distAmountPaid, setDistAmountPaid] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [includeGst, setIncludeGst] = useState(true);
@@ -86,14 +86,15 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   };
   useEffect(() => { setLoading(true); load(); }, [vendorId]);
 
-  const addDistRow = () => setDistRows([...distRows, { productId: '', quantity: 1, discount: 0, withGst: true }]);
+  const addDistRow = () => setDistRows([...distRows, { productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
   const removeDistRow = (idx: number) => setDistRows(distRows.filter((_, i) => i !== idx));
   const updateDistRow = (idx: number, field: string, value: string | number) => setDistRows(distRows.map((r, i) => i === idx ? { ...r, [field]: value } : r));
 
   const defaultGstRate = (user as Record<string, unknown>)?.defaultGstRate as number ?? 18;
   const distTotals = distRows.reduce((acc, r) => {
     const p = products.find(x => x.id === r.productId);
-    const gross = (p?.price ?? 0) * (r.quantity || 0);
+    const basePrice = r.customPrice ? parseFloat(r.customPrice) : (p?.price ?? 0);
+    const gross = basePrice * (r.quantity || 0);
     const disc = Math.round(gross * (r.discount || 0) / 100);
     const netBase = gross - disc;
     const gst = r.withGst ? Math.round(netBase * defaultGstRate / 100) : 0;
@@ -124,10 +125,11 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
           quantity: row.quantity,
           discountPercent: row.discount > 0 ? row.discount : undefined,
           withGst: row.withGst,
+          customPrice: row.customPrice ? parseFloat(row.customPrice) : undefined,
         })),
       });
       setModalOpen(false);
-      setDistRows([{ productId: '', quantity: 1, discount: 0, withGst: true }]);
+      setDistRows([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
       setDistVendorId('');
       setDistAmountPaid('');
       load();
@@ -517,6 +519,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     <th className="px-3 py-3 w-8">#</th>
                     <th className="px-3 py-3">Product</th>
                     <th className="px-3 py-3 w-20">Qty</th>
+                    <th className="px-3 py-3 w-24">Price</th>
                     <th className="px-3 py-3 w-16">Disc%</th>
                     <th className="px-3 py-3 w-12 text-center">GST</th>
                     <th className="px-3 py-3 w-28 text-right">Billed</th>
@@ -525,7 +528,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                   <tbody className="divide-y divide-gray-100">
                     {distRows.map((row, idx) => {
                       const p = products.find(x => x.id === row.productId);
-                      const gross = (p?.price ?? 0) * (row.quantity || 0);
+                      const basePrice = row.customPrice ? parseFloat(row.customPrice) : (p?.price ?? 0);
+                      const gross = basePrice * (row.quantity || 0);
                       const disc = Math.round(gross * (row.discount || 0) / 100);
                       const net = gross - disc;
                       const gstOnRow = row.withGst ? Math.round(net * defaultGstRate / 100) : 0;
@@ -540,6 +544,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                             </select>
                           </td>
                           <td className="px-3 py-2"><input type="number" min={1} max={p?.stock ?? 9999} value={row.quantity || ''} onChange={(e) => updateDistRow(idx, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" /></td>
+                          <td className="px-3 py-2"><input type="number" min={0} step={0.01} value={row.customPrice} onChange={(e) => updateDistRow(idx, 'customPrice', e.target.value)} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-2 py-1.5 border rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
                           <td className="px-3 py-2"><input type="number" min={0} max={100} step={0.5} value={row.discount || ''} onChange={(e) => updateDistRow(idx, 'discount', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" /></td>
                           <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-[#F27D26]" /></td>
                           <td className="px-3 py-2 text-right text-sm font-bold">{billed > 0 ? <span>{row.withGst && <span className="text-[10px] text-gray-400 block">₹{net.toLocaleString()} +GST</span>}₹{billed.toLocaleString()}</span> : '-'}</td>

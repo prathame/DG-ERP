@@ -183,7 +183,7 @@ router.post('/api/distribution/batch', async (req, res) => {
       distributionDate?: string;
       amountPaid?: number;
       gstRate?: number;
-      items?: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean }[];
+      items?: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean; customPrice?: number }[];
     };
     if (!vendorId) return res.status(400).json({ error: 'Vendor is required' });
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Add at least one product' });
@@ -205,8 +205,9 @@ router.post('/api/distribution/batch', async (req, res) => {
         [item.productId, tenantId]
       )).rows[0] as { id: string; name: string; price: number } | undefined;
       if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
+      const basePrice = item.customPrice ? Number(item.customPrice) : product.price;
       const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
-      const netPricePerUnit = Math.round((product.price * (100 - disc) / 100) * 100) / 100;
+      const netPricePerUnit = Math.round((basePrice * (100 - disc) / 100) * 100) / 100;
       const gstApplied = item.withGst !== false ? 1 : 0;
       const billedPricePerUnit = gstApplied ? Math.round(netPricePerUnit * (100 + gstRate) / 100) : netPricePerUnit;
       const invRows = (await pool.query(
@@ -307,7 +308,7 @@ router.post('/api/distribution', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const { productId, vendorId, distributionDate, quantity, discountPercent, amountPaid, withGst, gstRate: reqGstRate, batchId: reqBatchId } = req.body;
+    const { productId, vendorId, distributionDate, quantity, discountPercent, amountPaid, withGst, gstRate: reqGstRate, batchId: reqBatchId, customPrice } = req.body;
     if (!productId || !vendorId) return res.status(400).json({ error: 'Product and vendor are required' });
     const qty = Math.max(1, parseInt(String(quantity), 10) || 1);
     const product = (await pool.query(
@@ -315,11 +316,12 @@ router.post('/api/distribution', async (req, res) => {
       [productId, tenantId]
     )).rows[0] as { id: string; price: number } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
+    const basePrice = customPrice ? Number(customPrice) : product.price;
     const disc = Math.min(100, Math.max(0, Number(discountPercent) || 0));
-    const grossValue = product.price * qty;
+    const grossValue = basePrice * qty;
     const discountAmount = Math.round(grossValue * disc / 100);
     const netAmount = grossValue - discountAmount;
-    const netPricePerUnit = Math.round((product.price * (100 - disc) / 100) * 100) / 100;
+    const netPricePerUnit = Math.round((basePrice * (100 - disc) / 100) * 100) / 100;
     const gstApplied = withGst !== false;
     const gstRate = Number(reqGstRate) || 18;
     const billedPricePerUnit = gstApplied ? Math.round(netPricePerUnit * (100 + gstRate) / 100) : netPricePerUnit;
