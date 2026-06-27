@@ -19,6 +19,7 @@ import { SuperAdminBilling } from './SuperAdminBilling';
 import { TenantListView } from './TenantListView';
 import { TenantDetailView } from './TenantDetailView';
 import { PlanManagementView } from './PlanManagementView';
+import { session } from '../../lib/session';
 
 type AdminTab = 'dashboard' | 'tenants' | 'plans' | 'billing' | 'audit' | 'analytics';
 
@@ -57,7 +58,7 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('auth_token');
+    session.removeToken();
     onLogout();
   };
 

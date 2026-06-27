@@ -8,6 +8,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { LoadingSpinner, useToast } from '../../components/ui';
+import { session } from '../../lib/session';
 
 interface Plan {
   id: string;
@@ -40,7 +41,7 @@ export function PlanManagementView() {
   const [deleteTarget, setDeleteTarget] = useState<Plan | null>(null);
 
   const fetchPlans = () => {
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     fetch('/api/super-admin/plans', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -59,7 +60,7 @@ export function PlanManagementView() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleteTarget(null);
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     try {
       const res = await fetch(`/api/super-admin/plans/${deleteTarget.id}`, {
         method: 'DELETE',
@@ -233,7 +234,7 @@ function PlanModal({ plan, onClose, onSaved }: {
     e.preventDefault();
     setError('');
     setSubmitting(true);
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     const body = {
       name: form.name,
       maxProducts: form.maxProducts,

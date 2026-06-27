@@ -6,6 +6,7 @@ import { api } from '../../api';
 import type { Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useDebounce } from '../../hooks/useDebounce';
+import { session } from '../../lib/session';
 
 export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; onRefresh: () => void }) {
   const { toast } = useToast();
@@ -142,7 +143,7 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
               <div className="bg-gray-50 rounded-xl p-4 space-y-3 border border-gray-200">
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase">Login URL</p>
-                  <p className="font-mono font-medium text-sm mt-0.5 text-[#F27D26]">{window.location.origin}/{localStorage.getItem('tenant_slug') || ''}</p>
+                  <p className="font-mono font-medium text-sm mt-0.5 text-[#F27D26]">{window.location.origin}/{session.getSlug() || ''}</p>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase">Login Email</p>
@@ -159,8 +160,8 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
               </p>
               <div className="flex gap-2 mt-4">
                 <button type="button" onClick={() => {
-                  const companyName = (() => { try { const u = JSON.parse(localStorage.getItem('dg_erp_user') || '{}'); return u.companyName || 'our platform'; } catch { return 'our platform'; } })();
-                  const slug = localStorage.getItem('tenant_slug') || '';
+                  const companyName = (() => { try { const u = (session.getUser() || {}); return u.companyName || 'our platform'; } catch { return 'our platform'; } })();
+                  const slug = session.getSlug() || '';
                   const loginUrl = slug ? `${window.location.origin}/${slug}` : window.location.origin;
                   const msg = `Welcome to ${companyName}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${credsModal.email}\nPassword: ${credsModal.password}\n\nPlease change your password after first login.`;
                   shareViaWhatsApp(credsModal.phone || '', msg);
@@ -168,8 +169,8 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
                   <MessageCircle size={16} /> WhatsApp
                 </button>
                 <button type="button" onClick={() => {
-                  const companyName = (() => { try { const u = JSON.parse(localStorage.getItem('dg_erp_user') || '{}'); return u.companyName || 'our platform'; } catch { return 'our platform'; } })();
-                  const slug = localStorage.getItem('tenant_slug') || '';
+                  const companyName = (() => { try { const u = (session.getUser() || {}); return u.companyName || 'our platform'; } catch { return 'our platform'; } })();
+                  const slug = session.getSlug() || '';
                   const loginUrl = slug ? `${window.location.origin}/${slug}` : window.location.origin;
                   const subject = `Your ${companyName} Login Credentials`;
                   const body = `Welcome to ${companyName}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${credsModal.email}\nPassword: ${credsModal.password}\n\nPlease change your password after first login.\n\nRegards,\n${companyName}`;

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { LoadingSpinner, useToast } from '../../components/ui';
 import { cn } from '../../lib/utils';
+import { session } from '../../lib/session';
 
 interface Tenant {
   id: string;
@@ -45,7 +46,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
   const [deleteTenantId, setDeleteTenantId] = useState<string | null>(null);
 
   const fetchTenants = useCallback(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     const params = new URLSearchParams();
     if (statusFilter) params.set('status', statusFilter);
     if (search) params.set('search', search);
@@ -61,7 +62,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
   useEffect(() => { fetchTenants(); }, [fetchTenants]);
 
   const handleAction = async (tenantId: string, action: string, body?: Record<string, unknown>) => {
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     try {
       if (action === 'delete') {
         await fetch(`/api/super-admin/tenants/${tenantId}`, {
@@ -340,7 +341,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
   };
 
   React.useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     fetch('/api/super-admin/plans', { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((data) => {
@@ -359,7 +360,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
     setError('');
     setSubmitting(true);
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = session.getToken();
       const res = await fetch('/api/super-admin/tenants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

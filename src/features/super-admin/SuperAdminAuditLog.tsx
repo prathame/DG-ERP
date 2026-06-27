@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui';
+import { session } from '../../lib/session';
 
 interface AuditEntry {
   id: number;
@@ -28,7 +29,7 @@ export function SuperAdminAuditLog() {
 
   const fetchLogs = () => {
     setLoading(true);
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     const q = new URLSearchParams();
     q.set('page', String(page));
     q.set('limit', '30');

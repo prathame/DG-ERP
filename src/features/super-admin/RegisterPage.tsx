@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
+import { session } from '../../lib/session';
 
 export function RegisterPage({ onRegister, onSwitchToLogin }: {
   onRegister: (user: { id: string; email: string; name: string }) => void;
@@ -45,7 +46,7 @@ export function RegisterPage({ onRegister, onSwitchToLogin }: {
         throw new Error(data.error || 'Registration failed');
       }
       const data = await res.json();
-      localStorage.setItem('auth_token', data.token);
+      session.setToken(data.token);
       onRegister(data.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');

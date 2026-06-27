@@ -36,6 +36,7 @@ import { SettingsView } from './features/settings/SettingsView';
 import { ProductVerificationView } from './features/verification/ProductVerificationView';
 import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
 import { SuperAdminLogin } from './features/super-admin/SuperAdminLogin';
+import { session } from './lib/session';
 
 function SuperAdminLoginWrapper({ onLogin }: { onLogin: (u: Record<string, unknown>) => void }) {
   return (
@@ -61,13 +62,13 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 
 /** Check whether we have a stored JWT and what role it carries. */
 function getAuthState(): { isSuperAdmin: boolean; hasTenant: boolean } {
-  const token = localStorage.getItem('auth_token');
+  const token = session.getToken();
   if (!token) return { isSuperAdmin: false, hasTenant: false };
   const payload = decodeJwtPayload(token);
   if (!payload) return { isSuperAdmin: false, hasTenant: false };
   return {
     isSuperAdmin: payload.role === 'super_admin',
-    hasTenant: Boolean(payload.tenantId || localStorage.getItem('tenant_id')),
+    hasTenant: Boolean(payload.tenantId || session.getTenantId()),
   };
 }
 
@@ -87,18 +88,17 @@ export default function App() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean } | null>(() => {
     try {
-      const s = localStorage.getItem(USER_STORAGE_KEY);
-      const u = s ? JSON.parse(s) : null;
+      const u = session.getUser();
       if (u?.companyName) document.title = `${u.companyName} — DG ERP`;
       return u;
     } catch { return null; }
   });
 
   useEffect(() => {
-    if (user && localStorage.getItem('auth_token')) {
+    if (user && session.getToken()) {
       api.settings.getProfile(user.id).then((fresh) => {
         const merged = { ...user, ...fresh };
-        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(merged));
+        session.setUser(merged);
         setUser(merged);
       }).catch(() => {});
     }
@@ -119,12 +119,8 @@ export default function App() {
   }, []);
 
   const handleLogout = () => {
-    const slug = localStorage.getItem('tenant_slug');
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('tenant_id');
-    localStorage.removeItem('tenant_slug');
-    localStorage.removeItem(USER_STORAGE_KEY);
-    localStorage.removeItem('remember_me');
+    const slug = session.getSlug();
+    session.clearAll();
     setUser(null);
     setUserMenuOpen(false);
     if (slug) window.history.replaceState(null, '', `/${slug}`);
@@ -197,7 +193,7 @@ export default function App() {
   // /admin route — super admin portal
   if (isSuperAdminRoute) {
     if (authState.isSuperAdmin) {
-      const tokenPayload = decodeJwtPayload(localStorage.getItem('auth_token') || '') || {};
+      const tokenPayload = decodeJwtPayload(session.getToken() || '') || {};
       const superAdminUser = { id: tokenPayload.userId as string || '', email: tokenPayload.email as string || '', name: tokenPayload.name as string || '', role: 'super_admin' as const };
       return (
         <ToastProvider>
@@ -220,9 +216,7 @@ export default function App() {
 
   // Super admin visiting a tenant slug — clear super admin session, show tenant login
   if (authState.isSuperAdmin && urlSlug) {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('tenant_id');
-    localStorage.removeItem(USER_STORAGE_KEY);
+    session.clearAll();
   }
 
   // No user session — show tenant login

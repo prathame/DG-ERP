@@ -130,8 +130,9 @@ export interface DistributionBillData {
 }
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = localStorage.getItem('auth_token');
-  const tenantId = localStorage.getItem('tenant_id');
+  const { session } = await import('./lib/session');
+  const token = session.getToken();
+  const tenantId = session.getTenantId();
   const authHeaders: Record<string, string> = {};
   if (token) authHeaders['Authorization'] = `Bearer ${token}`;
   if (tenantId) authHeaders['X-Tenant-ID'] = tenantId;
@@ -142,10 +143,8 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (res.status === 401) {
-    const slug = localStorage.getItem('tenant_slug');
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('tenant_id');
-    localStorage.removeItem('dg_erp_user');
+    const slug = session.getSlug();
+    session.clearAll();
     window.location.href = slug ? `/${slug}` : '/';
     return new Promise(() => {}) as T;
   }

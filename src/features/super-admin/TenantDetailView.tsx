@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
+import { session } from '../../lib/session';
 
 interface TenantDetail {
   id: string;
@@ -77,7 +78,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   const [copied, setCopied] = useState(false);
 
   React.useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     fetch('/api/super-admin/plans', { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((data) => {
@@ -88,7 +89,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   }, []);
 
   const fetchTenant = () => {
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     fetch(`/api/super-admin/tenants/${tenantId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -103,7 +104,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   const handleResetToken = async (email: string) => {
     setResetLoading(email);
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = session.getToken();
       const res = await fetch(`/api/super-admin/tenants/${tenantId}/reset-token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -118,7 +119,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     try {
       await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
@@ -148,7 +149,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
       return;
     }
 
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     try {
       await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
@@ -164,7 +165,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   };
 
   const handleImpersonate = async () => {
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     try {
       const res = await fetch(`/api/super-admin/tenants/${tenantId}/impersonate`, {
         method: 'POST',
@@ -345,7 +346,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                 <button
                   type="button"
                   onClick={async () => {
-                    const token = localStorage.getItem('auth_token');
+                    const token = session.getToken();
                     const d = new Date();
                     if (renewalPlan === 'TRIAL') { d.setDate(d.getDate() + 14); }
                     else if (renewalCycle === 'yearly') { d.setFullYear(d.getFullYear() + 1); }
@@ -500,7 +501,7 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = session.getToken();
       const res = await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

@@ -4,6 +4,7 @@ import JsBarcode from 'jsbarcode';
 import { api } from '../../api';
 import { LoadingSpinner } from './index';
 import { cn } from '../../lib/utils';
+import { session } from '../../lib/session';
 
 interface BarcodeLabelPrinterProps {
   productId: string;
@@ -68,7 +69,7 @@ export function BarcodeLabelPrinter({ productId, onClose }: BarcodeLabelPrinterP
   const [codeType, setCodeType] = useState<CodeType>('barcode');
   const [showPrice, setShowPrice] = useState(true);
   const [selectedBarcodes, setSelectedBarcodes] = useState<Set<string>>(new Set());
-  const companyName = (() => { try { return JSON.parse(localStorage.getItem('dg_erp_user') || '{}').companyName || ''; } catch { return ''; } })();
+  const companyName = (() => { try { return (session.getUser() || {}).companyName || ''; } catch { return ''; } })();
 
   useEffect(() => {
     api.products.getBarcodes(productId)

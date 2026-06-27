@@ -8,6 +8,7 @@ import { useTranslation, LANGUAGES } from '../../i18n';
 import { USER_STORAGE_KEY } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { AuditLogSection } from '../masters/AuditLogSection';
+import { session } from '../../lib/session';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
@@ -59,7 +60,7 @@ function BillCustomizationSection() {
       salePrice: 10000, gstRate: 18, customerName: 'John Doe', customerPhone: '9876543210',
       customerEmail: 'john@example.com', purchaseDate: new Date().toISOString().split('T')[0],
       rewardPointsEarned: 50,
-      company: { name: (() => { try { return JSON.parse(localStorage.getItem('dg_erp_user') || '{}').companyName || 'Your Company'; } catch { return 'Your Company'; } })(), phone: '9999999999', address: '123 Main St, City', gstNumber: '27AABCU9603R1ZM' },
+      company: { name: (() => { try { return (session.getUser() || {}).companyName || 'Your Company'; } catch { return 'Your Company'; } })(), phone: '9999999999', address: '123 Main St, City', gstNumber: '27AABCU9603R1ZM' },
       vendor: { name: 'Sample Vendor', phone: '8888888888', address: '456 Vendor St' },
       warranty: { status: 'Active', activationDate: new Date().toISOString().split('T')[0], expiryDate: '2027-06-25' },
       billSettings: form,
@@ -263,11 +264,11 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
     setAuthSubmitting(true);
     try {
       const r = await api.auth.login(authForm.email, authForm.password);
-      localStorage.setItem('auth_token', r.token);
-      if (r.tenantId) localStorage.setItem('tenant_id', r.tenantId);
-      if (r.tenantSlug) localStorage.setItem('tenant_slug', r.tenantSlug);
+      session.setToken(r.token);
+      if (r.tenantId) session.setTenantId(r.tenantId);
+      if (r.tenantSlug) session.setSlug(r.tenantSlug);
       const u = { id: r.id, email: r.email, name: r.name, phone: r.phone, address: r.address, role: r.role, companyName: r.companyName, vendorId: r.vendorId, autoWhatsapp: r.autoWhatsapp, barcodeSystemEnabled: (r as Record<string, unknown>).barcodeSystemEnabled, multiLanguageEnabled: (r as Record<string, unknown>).multiLanguageEnabled, vendorPortalEnabled: (r as Record<string, unknown>).vendorPortalEnabled, tabConfig: (r as Record<string, unknown>).tabConfig };
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u));
+      session.setUser(u);
       onUserChange(u);
       setAuthForm({ email: '', password: '', name: '', confirmPassword: '' });
     } catch (err) {
@@ -287,11 +288,11 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
     setAuthSubmitting(true);
     try {
       const result = await api.auth.signup({ email: authForm.email, password: authForm.password, name: authForm.name });
-      localStorage.setItem('auth_token', result.token);
-      if (result.tenantId) localStorage.setItem('tenant_id', result.tenantId);
-      const existing = JSON.parse(localStorage.getItem(USER_STORAGE_KEY) || '{}');
+      session.setToken(result.token);
+      if (result.tenantId) session.setTenantId(result.tenantId);
+      const existing = session.getUser() || {};
       const merged = { ...existing, ...result.user };
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(merged));
+      session.setUser(merged);
       onUserChange(merged);
       setAuthForm({ email: '', password: '', name: '', confirmPassword: '' });
     } catch (err) {
@@ -302,9 +303,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('tenant_id');
-    localStorage.removeItem(USER_STORAGE_KEY);
+    session.clearAll();
     onUserChange(null);
   };
 
@@ -314,9 +313,9 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
     setProfileSubmitting(true);
     try {
       const u = await api.settings.updateProfile(user.id, profileForm);
-      const existing = JSON.parse(localStorage.getItem(USER_STORAGE_KEY) || '{}');
+      const existing = (session.getUser() || {});
       const merged = { ...existing, ...u };
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(merged));
+      session.setUser(merged);
       onUserChange(merged);
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Update failed', 'error');
@@ -569,7 +568,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                     const newVal = !user.autoWhatsapp;
                     api.settings.updateProfile(user.id, { autoWhatsapp: newVal } as Record<string, unknown>).then((u) => {
                       const updated = { ...user, ...u, autoWhatsapp: newVal };
-                      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
+                      session.setUser(updated);
                       onUserChange(updated);
                       toast(newVal ? 'Auto WhatsApp enabled' : 'Auto WhatsApp disabled', 'success');
                     }).catch((err) => toast(err instanceof Error ? err.message : 'Failed', 'error'));

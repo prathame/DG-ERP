@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Check, X, ChevronLeft, ChevronRight, IndianRupee, Printer } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
+import { session } from '../../lib/session';
 
 interface Invoice {
   id: string; tenantId: string; tenantName: string; invoiceNumber: string;
@@ -24,7 +25,7 @@ export function SuperAdminBilling() {
   const [createOpen, setCreateOpen] = useState(false);
   const [tenants, setTenants] = useState<Tenant[]>([]);
 
-  const token = localStorage.getItem('auth_token');
+  const token = session.getToken();
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
   const fetchInvoices = () => {
@@ -176,7 +177,7 @@ function CreateInvoiceModal({ tenants, onClose, onCreated }: { tenants: { id: st
     if (!form.tenantId || !form.amount) { setError('Select tenant and enter amount'); return; }
     setSubmitting(true);
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = session.getToken();
       const res = await fetch('/api/super-admin/billing', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ tenantId: form.tenantId, amount: Number(form.amount), gstRate: Number(form.gstRate) || 0, periodStart: form.periodStart || undefined, periodEnd: form.periodEnd || undefined, notes: form.notes || undefined }),

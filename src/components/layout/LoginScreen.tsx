@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { USER_STORAGE_KEY } from '../../types';
+import { session } from '../../lib/session';
 
 type LoginMode = 'login' | 'signup' | 'forgot' | 'reset';
 
@@ -42,18 +43,11 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
   const isBranded = !!tenant;
 
   const storeAuthAndLogin = (result: LoginResult) => {
-    localStorage.setItem('auth_token', result.token);
-    if (result.tenantId) localStorage.setItem('tenant_id', result.tenantId);
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(result.user));
+    session.setToken(result.token);
+    if (result.tenantId) session.setTenantId(result.tenantId);
+    session.setUser(result.user);
     const slug = result.tenantSlug || tenant?.slug;
-    if (slug) localStorage.setItem('tenant_slug', slug);
-    if (rememberMe) {
-      localStorage.setItem('auth_token', result.token);
-      if (result.tenantId) localStorage.setItem('tenant_id', result.tenantId);
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(result.user));
-      if (slug) localStorage.setItem('tenant_slug', slug);
-      localStorage.setItem('remember_me', 'true');
-    }
+    if (slug) session.setSlug(slug);
     onLogin(result.user);
     if (slug && window.location.pathname !== `/${slug}`) {
       window.history.replaceState(null, '', `/${slug}`);

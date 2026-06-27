@@ -7,11 +7,12 @@ import type { SaleRecord } from '../../api';
 import { useToast, DateRangeFilter, PaginationControls } from '../../components/ui';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
+import { session } from '../../lib/session';
 
 export function SalesEntryView({ user }: { user: { id: string; role?: string; vendorId?: string; autoWhatsapp?: boolean } | null }) {
   const { toast } = useToast();
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
-  const barcodeSystemEnabled = (() => { try { const u = JSON.parse(localStorage.getItem('dg_erp_user') || '{}'); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
+  const barcodeSystemEnabled = (() => { try { const u = (session.getUser() || {}); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
   const [barcode, setBarcode] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [validating, setValidating] = useState(false);

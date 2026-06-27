@@ -6,6 +6,7 @@ import { api } from '../../api';
 import { useToast } from '../../components/ui';
 import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
 import { useDebounce } from '../../hooks/useDebounce';
+import { session } from '../../lib/session';
 
 interface VerificationResult {
   found: boolean;
@@ -38,7 +39,7 @@ export function ProductVerificationView() {
   const [searchResults, setSearchResults] = useState<{ products: { id: string; name: string; price: number; stock: number }[]; customers: { id: string; name: string; phone: string; email: string }[]; vendors: { id: string; name: string; contact: string; phone: string }[]; barcodes: { barcode: string; productName: string; productId: string; status: string }[]; challans?: { batchId: string; vendorName: string; date: string; units: number }[] } | null>(null);
   const [vendorDetail, setVendorDetail] = useState<Record<string, unknown> | null>(null);
   const debouncedBarcode = useDebounce(barcode, 200);
-  const barcodeSystem = (() => { try { return JSON.parse(localStorage.getItem('dg_erp_user') || '{}').barcodeSystemEnabled !== false; } catch { return true; } })();
+  const barcodeSystem = (() => { try { return (session.getUser() || {}).barcodeSystemEnabled !== false; } catch { return true; } })();
 
   useEffect(() => {
     if (!debouncedBarcode || debouncedBarcode.length < 1) { setSearchResults(null); return; }

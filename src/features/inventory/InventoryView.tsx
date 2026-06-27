@@ -8,12 +8,13 @@ import { useToast, LoadingSpinner } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { BarcodeLabelPrinter } from '../../components/ui/BarcodeLabelPrinter';
 import { useDebounce } from '../../hooks/useDebounce';
+import { session } from '../../lib/session';
 
 export function InventoryView() {
   const { toast } = useToast();
-  const barcodeSystemEnabled = (() => { try { const u = JSON.parse(localStorage.getItem('dg_erp_user') || '{}'); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
-  const inventoryTrackingEnabled = (() => { try { const u = JSON.parse(localStorage.getItem('dg_erp_user') || '{}'); return u.inventoryTrackingEnabled !== false; } catch { return true; } })();
-  const warrantyVisible = (() => { try { const u = JSON.parse(localStorage.getItem('dg_erp_user') || '{}'); return u.tabConfig?.warranty?.visible !== false; } catch { return true; } })();
+  const barcodeSystemEnabled = (() => { try { const u = (session.getUser() || {}); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
+  const inventoryTrackingEnabled = (() => { try { const u = (session.getUser() || {}); return u.inventoryTrackingEnabled !== false; } catch { return true; } })();
+  const warrantyVisible = (() => { try { const u = (session.getUser() || {}); return u.tabConfig?.warranty?.visible !== false; } catch { return true; } })();
   const [sortBy, setSortBy] = useState<keyof Product>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [products, setProducts] = useState<Product[]>([]);

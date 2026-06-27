@@ -13,6 +13,7 @@ import {
   Pause,
 } from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui';
+import { session } from '../../lib/session';
 
 interface DashboardData {
   totals: {
@@ -45,7 +46,7 @@ export function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = session.getToken();
     fetch('/api/super-admin/dashboard', {
       headers: { Authorization: `Bearer ${token}` },
     })
