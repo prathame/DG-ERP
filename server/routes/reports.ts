@@ -153,6 +153,14 @@ router.get('/api/reports/outstanding', async (req, res) => {
         else if (days <= 90) d61_90 += batchBal;
         else d90plus += batchBal;
       }
+      const agingTotal = d0_30 + d31_60 + d61_90 + d90plus;
+      if (agingTotal > 0 && Math.abs(agingTotal - balance) > 1) {
+        const scale = balance / agingTotal;
+        d0_30 = Math.round(d0_30 * scale);
+        d31_60 = Math.round(d31_60 * scale);
+        d61_90 = Math.round(d61_90 * scale);
+        d90plus = balance - d0_30 - d31_60 - d61_90;
+      }
       rows.push({ vendorId: v.id, vendorName: v.name, totalBilled: billed, totalPaid: paid, balance, d0_30, d31_60, d61_90, d90plus });
     }
     const totals = rows.reduce((acc, r) => {
