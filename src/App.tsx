@@ -36,6 +36,7 @@ import { RewardsView } from './features/rewards/RewardsView';
 import { VendorFinanceView } from './features/finance/VendorFinanceView';
 import { ReportsView } from './features/reports/ReportsView';
 import { PurchasesView } from './features/purchases/PurchasesView';
+import { QuotationsView } from './features/quotations/QuotationsView';
 import { SettingsView } from './features/settings/SettingsView';
 import { ProductVerificationView } from './features/verification/ProductVerificationView';
 import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
@@ -149,6 +150,7 @@ export default function App() {
     { id: 'inventory', label: tc('inventory', t('nav.inventory')), icon: Package, show: tv('inventory') },
     { id: 'purchases', label: tc('purchases', 'Purchases'), icon: ShoppingBag, show: tv('purchases') },
     { id: 'verification', label: tc('verification', t('nav.verification')), icon: ScanSearch, show: tv('verification') },
+    { id: 'quotations', label: 'Quotations', icon: FileText, show: true },
     { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
     { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },
     { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') },
@@ -394,6 +396,7 @@ export default function App() {
           {activeTab === 'rewards' && <RewardsView user={user} />}
           {activeTab === 'inventory' && <InventoryView />}
           {activeTab === 'verification' && <ProductVerificationView />}
+          {activeTab === 'quotations' && <QuotationsView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} />}
           {activeTab === 'reports' && <ReportsView />}
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}

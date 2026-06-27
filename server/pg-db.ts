@@ -439,6 +439,33 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_tenant ON product_purchases(tenant_id, supplier_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_sp_tenant ON supplier_payments(tenant_id, supplier_id)');
 
+    // Quotation module
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS quotations (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        quotation_number TEXT,
+        vendor_id TEXT,
+        vendor_name TEXT,
+        customer_name TEXT,
+        customer_phone TEXT,
+        customer_email TEXT,
+        quotation_date DATE NOT NULL,
+        valid_until DATE,
+        status TEXT DEFAULT 'Draft',
+        items JSONB NOT NULL,
+        subtotal NUMERIC(12,2),
+        gst_rate NUMERIC(5,2) DEFAULT 18,
+        gst_amount NUMERIC(12,2),
+        total NUMERIC(12,2),
+        notes TEXT,
+        converted_batch_id TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_tenant ON quotations(tenant_id)');
+
     // Add purchases tab to existing tenants
     await client.query(`UPDATE tenants SET tab_config = tab_config || '{"purchases":{"label":"Purchases","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'purchases'`);
 
