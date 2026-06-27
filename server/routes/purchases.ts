@@ -144,11 +144,12 @@ router.post('/api/purchases/batch', async (req, res) => {
     try {
       await client.query('BEGIN');
       const invBatchId = `B${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      for (const u of unitRows) {
+      for (let ui = 0; ui < unitRows.length; ui++) {
+        const u = unitRows[ui];
         // Add to inventory
         await client.query(
           'INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id) VALUES ($1, $2, $3, $4, $5, $6)',
-          [`I${u.productId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, u.productId, u.barcode, invBatchId, 'InStock', tenantId]
+          [`${invBatchId}-${ui + 1}`, u.productId, u.barcode, invBatchId, 'InStock', tenantId]
         );
         // Record purchase
         await client.query(
