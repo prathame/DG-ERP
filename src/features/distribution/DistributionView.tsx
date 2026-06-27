@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search, IndianRupee } from 'lucide-react';
+import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search, IndianRupee, MoreVertical } from 'lucide-react';
 import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate } from '../../lib/utils';
 import { api, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product, Vendor } from '../../types';
@@ -39,6 +39,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [distSearch, setDistSearch] = useState('');
   const [deleteBatchConfirm, setDeleteBatchConfirm] = useState<string | null>(null);
   const [financeMap, setFinanceMap] = useState<Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }>>({});
+  const [batchActionsOpen, setBatchActionsOpen] = useState(false);
   const [batchPaymentModal, setBatchPaymentModal] = useState<{ batchId: string; vendorId: string; billValue: number; balanceRemaining: number } | null>(null);
   const [batchPaymentForm, setBatchPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
   const [batchPaymentSubmitting, setBatchPaymentSubmitting] = useState(false);
@@ -329,37 +330,6 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     {!selectedBatchProductId && (
                       <span className="text-xs text-gray-500">Distribution — {formatDate(selectedBatch.distributionDate)}</span>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => openEdit(selectedBatch)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors"
-                      title="Edit distribution"
-                    >
-                      <Pencil size={16} /> Edit
-                    </button>
-                    {batchCanDelete && (
-                      <button
-                        type="button"
-                        onClick={() => confirmDeleteBatch(selectedBatch.batchId)}
-                        disabled={deleteSubmitting}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-60"
-                        title="Delete distribution"
-                      >
-                        <Trash2 size={16} /> Delete
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        api.distribution.getBill(billParams(selectedBatch.batchId))
-                          .then((bill) => { setSplitBillModal({ bill }); setSplitGstQty(bill.savedGstUnits > 0 ? bill.savedGstUnits : Math.ceil(bill.totalQuantity / 2)); })
-                          .catch((err) => toast(err.message, 'error'));
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
-                      title="Split into GST + Non-GST bills"
-                    >
-                      Split Bill
-                    </button>
                     {!selectedBatchProductId && selectedBatch.balanceRemaining > 0 && (
                       <button
                         type="button"
@@ -373,35 +343,42 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                         <IndianRupee size={16} /> Record Payment
                       </button>
                     )}
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          api.distribution.getBill(billParams(selectedBatch.batchId)).then((bill) => {
-                            const phone = bill.vendor.phone;
-                            if (!phone) { toast('No vendor phone number on record', 'error'); return; }
-                            shareViaWhatsApp(phone, formatDistributionChallanText(bill));
-                          }).catch((err) => toast(err.message, 'error'));
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        title="Send Challan via WhatsApp"
-                      >
-                        <MessageCircle size={16} /> WhatsApp
+                    <button
+                      type="button"
+                      onClick={() => openEdit(selectedBatch)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors"
+                      title="Edit distribution"
+                    >
+                      <Pencil size={16} /> Edit
+                    </button>
+                    <div className="relative">
+                      <button type="button" onClick={() => setBatchActionsOpen(!batchActionsOpen)} className="p-2 hover:bg-gray-200 rounded-lg transition-colors" title="More actions">
+                        <MoreVertical size={18} className="text-gray-600" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          api.distribution.getBill(billParams(selectedBatch.batchId)).then((bill) => {
-                            const email = bill.vendor.email || '';
-                            if (!email) { toast('No vendor email on record — enter email manually', 'info'); }
-                            shareViaEmail(email, `Distribution Challan ${bill.challanId} — ${bill.company.name}`, formatDistributionChallanText(bill));
-                          }).catch((err) => toast(err.message, 'error'));
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Send Challan via Email"
-                      >
-                        <Mail size={16} /> Email
-                      </button>
+                      {batchActionsOpen && (
+                        <>
+                          <div className="fixed inset-0 z-[50]" onClick={() => setBatchActionsOpen(false)} />
+                          <div className="absolute right-0 top-full mt-1 z-[51] bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[180px]">
+                            <button type="button" onClick={() => { setBatchActionsOpen(false); api.distribution.getBill(billParams(selectedBatch.batchId)).then((bill) => { setSplitBillModal({ bill }); setSplitGstQty(bill.savedGstUnits > 0 ? bill.savedGstUnits : Math.ceil(bill.totalQuantity / 2)); }).catch((err) => toast(err.message, 'error')); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-purple-600">
+                              <Package size={14} /> Split Bill
+                            </button>
+                            <button type="button" onClick={() => { setBatchActionsOpen(false); api.distribution.getBill(billParams(selectedBatch.batchId)).then((bill) => { const phone = bill.vendor.phone; if (!phone) { toast('No vendor phone number on record', 'error'); return; } shareViaWhatsApp(phone, formatDistributionChallanText(bill)); }).catch((err) => toast(err.message, 'error')); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-green-600">
+                              <MessageCircle size={14} /> WhatsApp Challan
+                            </button>
+                            <button type="button" onClick={() => { setBatchActionsOpen(false); api.distribution.getBill(billParams(selectedBatch.batchId)).then((bill) => { const email = bill.vendor.email || ''; if (!email) { toast('No vendor email on record — enter email manually', 'info'); } shareViaEmail(email, `Distribution Challan ${bill.challanId} — ${bill.company.name}`, formatDistributionChallanText(bill)); }).catch((err) => toast(err.message, 'error')); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-blue-600">
+                              <Mail size={14} /> Email Challan
+                            </button>
+                            {batchCanDelete && (
+                              <>
+                                <div className="border-t border-gray-100 my-1" />
+                                <button type="button" onClick={() => { setBatchActionsOpen(false); confirmDeleteBatch(selectedBatch.batchId); }} disabled={deleteSubmitting} className="w-full px-4 py-2 text-left text-sm hover:bg-rose-50 flex items-center gap-2 text-rose-600">
+                                  <Trash2 size={14} /> Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">
