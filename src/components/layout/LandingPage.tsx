@@ -16,7 +16,7 @@ function EnquiryForm({ dark }: { dark: boolean }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault(); setSending(true);
-    const subject = encodeURIComponent(`DG ERP Enquiry from ${form.name} — ${form.company || 'N/A'}`);
+    const subject = encodeURIComponent(`DG Business Enquiry from ${form.name} — ${form.company || 'N/A'}`);
     const body = `Name: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone || 'N/A'}\nCompany: ${form.company || 'N/A'}\n\nMessage:\n${form.message}`;
     window.open(`https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
     setTimeout(() => { setSent(true); setSending(false); }, 500);
@@ -81,44 +81,43 @@ export function LandingPage() {
     <div className={`min-h-screen ${bg} ${text} overflow-x-hidden transition-colors duration-300`}>
       {/* Nav */}
       <nav className={`fixed top-0 left-0 right-0 z-50 ${navBg} backdrop-blur-xl border-b ${navBorder}`}>
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-sm text-white">DG</div>
-            <div><span className="font-bold text-lg">DG ERP</span><span className={`text-[10px] ml-1.5 ${textFaint}`}>Made in India</span></div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm text-white">DG</div>
+            <span className="font-bold text-base sm:text-lg">DG Business</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             <a href="#business" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>For Business</a>
             <a href="#features" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Features</a>
             <a href="#pricing" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Pricing</a>
             <a href="#contact" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Contact</a>
-            <button type="button" onClick={nextLang} className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${dark ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{langLabel} | {lang === 'en' ? 'हिंदी' : lang === 'hi' ? 'ગુજરાતી' : 'English'}</button>
-            <button type="button" onClick={toggleTheme} className={`p-2 rounded-lg ${navLink}`}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
-            <a href="/admin" className={`px-5 py-2 text-sm font-semibold border rounded-lg ${adminBtn}`}>Login</a>
+            <button type="button" onClick={nextLang} className={`px-2 sm:px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold border ${dark ? 'border-white/10 text-gray-300' : 'border-gray-200 text-gray-600'}`}>{langLabel}</button>
+            <button type="button" onClick={toggleTheme} className={`p-1.5 sm:p-2 rounded-lg ${navLink}`}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="relative pt-28 pb-20 px-6">
+      <section className="relative pt-24 sm:pt-28 pb-14 sm:pb-20 px-4 sm:px-6">
         <div className="absolute inset-0 bg-gradient-to-br from-[#FF9933]/10 via-transparent to-[#138808]/10 pointer-events-none" />
         <div className="absolute top-20 left-1/4 w-96 h-96 bg-[#F27D26]/5 rounded-full blur-3xl pointer-events-none" />
         <div className="max-w-5xl mx-auto text-center relative">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#1A1A1A] rounded-full text-sm font-bold mb-6 shadow-lg">
+            <div className="inline-flex items-center gap-2 px-4 sm:px-5 py-1.5 sm:py-2 bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#1A1A1A] rounded-full text-xs sm:text-sm font-bold mb-4 sm:mb-6 shadow-lg">
               🇮🇳 {['Made in India, for Indian Businesses', 'भारत में बना, भारतीयों के लिए', 'ભારતમાં બનેલું, ભારતીયો માટે'][heroLang]}
             </div>
-            <div className="relative h-[180px] md:h-[200px] overflow-hidden">
+            <div className="relative h-[200px] sm:h-[180px] md:h-[200px] overflow-hidden">
               {[
-                { line1: 'From Shop to Factory', line2: 'One ERP for Everyone', sub: 'From small shops to large manufacturers — inventory, billing, GST, vendor management, accounting all in one place.' },
-                { line1: 'दुकान हो या फैक्ट्री', line2: 'सबका ERP यहीं है', sub: 'छोटी दुकान से लेकर बड़े manufacturer तक — inventory, billing, GST, vendor management सब एक जगह।' },
-                { line1: 'દુકાન હોય કે ફેક્ટરી', line2: 'બધાનું ERP અહીં છે', sub: 'નાની દુકાનથી લઈને મોટા manufacturer સુધી — inventory, billing, GST, vendor management બધું એક જગ્યાએ।' },
+                { line1: 'From Shop to Factory', line2: 'Your Business, Simplified', sub: 'From small shops to large manufacturers — inventory, billing, GST, vendor management, accounting all in one place.' },
+                { line1: 'दुकान हो या फैक्ट्री', line2: 'बिज़नेस आसान बनाओ', sub: 'छोटी दुकान से लेकर बड़े manufacturer तक — inventory, billing, GST, vendor management सब एक जगह।' },
+                { line1: 'દુકાન હોય કે ફેક્ટરી', line2: 'બિઝનેસ સરળ બનાવો', sub: 'નાની દુકાનથી લઈને મોટા manufacturer સુધી — inventory, billing, GST, vendor management બધું એક જગ્યાએ।' },
               ].map((h, i) => (
                 <motion.div key={i} initial={false} animate={{ opacity: heroLang === i ? 1 : 0, y: heroLang === i ? 0 : 20 }} transition={{ duration: 0.5 }} className={`absolute inset-0 ${heroLang === i ? '' : 'pointer-events-none'}`}>
-                  <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
-                    <span className="text-3xl md:text-4xl">{h.line1}</span><br />
+                  <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold tracking-tight leading-tight">
+                    <span className="text-2xl sm:text-3xl md:text-4xl">{h.line1}</span><br />
                     <span className="bg-gradient-to-r from-[#F27D26] to-[#FFB347] bg-clip-text text-transparent">{h.line2}</span>
                   </h1>
-                  <p className={`mt-4 text-lg md:text-xl ${textMuted} max-w-3xl mx-auto leading-relaxed`}>{h.sub}</p>
+                  <p className={`mt-3 sm:mt-4 text-sm sm:text-lg md:text-xl ${textMuted} max-w-3xl mx-auto leading-relaxed px-2`}>{h.sub}</p>
                 </motion.div>
               ))}
             </div>
@@ -127,11 +126,11 @@ export function LandingPage() {
                 <button key={i} type="button" onClick={() => setHeroLang(i)} className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${heroLang === i ? 'bg-[#F27D26] text-white scale-110' : `${dark ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-500'}`}`}>{l}</button>
               ))}
             </div>
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <a href="#contact" className="group px-8 py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-all flex items-center gap-2 shadow-lg shadow-[#F27D26]/20">
+            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+              <a href="#contact" className="group w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 bg-[#F27D26] text-white rounded-xl font-bold text-base sm:text-lg hover:bg-[#D96A1C] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#F27D26]/20">
                 {isEn ? 'Start Free Trial' : isGu ? 'ફ્રી ટ્રાયલ શરૂ કરો' : 'फ्री ट्रायल शुरू करें'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </a>
-              <a href="#features" className={`px-8 py-4 border rounded-xl font-bold text-lg transition-all ${btnSecondary}`}>{isEn ? 'See Features' : isGu ? 'Features જુઓ' : 'Features देखें'}</a>
+              <a href="#features" className={`w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 border rounded-xl font-bold text-base sm:text-lg transition-all text-center ${btnSecondary}`}>{isEn ? 'See Features' : isGu ? 'Features જુઓ' : 'Features देखें'}</a>
             </div>
             <p className={`mt-4 text-sm ${textFaint}`}>No credit card required • Setup in 5 minutes • Cancel anytime</p>
           </motion.div>
@@ -139,8 +138,8 @@ export function LandingPage() {
       </section>
 
       {/* Trust Stats */}
-      <section className={`py-10 border-y ${navBorder}`}>
-        <div className="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-5 gap-6 text-center">
+      <section className={`py-8 sm:py-10 border-y ${navBorder}`}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 grid grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6 text-center">
           {[
             { val: '15+', label: 'Modules' },
             { val: '₹0', label: 'To Start' },
@@ -154,7 +153,7 @@ export function LandingPage() {
       </section>
 
       {/* For Every Business */}
-      <section id="business" className={`py-20 px-6 ${sectionAlt}`}>
+      <section id="business" className={`py-12 sm:py-20 px-4 sm:px-6 ${sectionAlt}`}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold">{isEn ? 'For Every Business Type' : isGu ? 'દરેક બિઝનેસ માટે' : 'हर बिज़नेस के लिए'}</h2>
@@ -189,7 +188,7 @@ export function LandingPage() {
             <h2 className="text-3xl md:text-4xl font-bold">पूरा बिज़नेस एक जगह</h2>
             <p className={`mt-3 ${textMuted} text-lg`}>Purchase से लेकर payment तक — हर step tracked</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2 sm:gap-3">
             {[
               { icon: ShoppingCart, label: 'खरीदो', sub: 'Supplier से खरीदो', color: 'text-amber-500', bg: 'bg-amber-500/10' },
               { icon: Package, label: 'स्टॉक', sub: 'Stock manage करो', color: 'text-blue-500', bg: 'bg-blue-500/10' },
@@ -211,7 +210,7 @@ export function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section id="features" className={`py-20 px-6 ${sectionAlt}`}>
+      <section id="features" className={`py-12 sm:py-20 px-4 sm:px-6 ${sectionAlt}`}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
             <h2 className="text-3xl md:text-4xl font-bold">सारी Features, एक Platform</h2>
@@ -276,8 +275,8 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Why DG ERP */}
-      <section className={`py-20 px-6 ${sectionAlt}`}>
+      {/* Why DG Business */}
+      <section className={`py-12 sm:py-20 px-4 sm:px-6 ${sectionAlt}`}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold">Tally और Miracle से आगे</h2>
@@ -285,8 +284,8 @@ export function LandingPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
-              { emoji: '☁️', title: 'Cloud — कोई Installation नहीं', desc: 'Tally में software install करो, license खरीदो, backup लो। DG ERP में सिर्फ browser खोलो।' },
-              { emoji: '📱', title: 'मोबाइल पे चले', desc: 'Miracle सिर्फ desktop पे चलता है। DG ERP phone पे भी tablet पे भी — कहीं से भी काम करो।' },
+              { emoji: '☁️', title: 'Cloud — कोई Installation नहीं', desc: 'Tally में software install करो, license खरीदो, backup लो। DG Business में सिर्फ browser खोलो।' },
+              { emoji: '📱', title: 'मोबाइल पे चले', desc: 'Miracle सिर्फ desktop पे चलता है। DG Business phone पे भी tablet पे भी — कहीं से भी काम करो।' },
               { emoji: '🔐', title: 'वेंडर पोर्टल', desc: 'अपने dealers को उनका login दो — वो अपना stock, sales, payments खुद देख लें। Miracle में नहीं है।' },
               { emoji: '🤖', title: 'AI चैटबॉट', desc: '"Low stock क्या है?" पूछो chatbot से — वो database check करके जवाब देगा। Real-time।' },
               { emoji: '💰', title: 'Batch-Level भुगतान', desc: 'हर distribution batch का payment अलग track करो — कौन सा batch paid, कौन सा pending। Crystal clear।' },
@@ -358,12 +357,12 @@ export function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className={`border-t ${navBorder} py-10 px-6`}>
+      <footer className={`border-t ${navBorder} py-8 sm:py-10 px-4 sm:px-6`}>
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-xs text-white">DG</div>
-              <div><span className="font-bold">DG ERP</span><span className={`text-xs ${textFaint} ml-2`}>🇮🇳 Made with pride in India</span></div>
+              <div><span className="font-bold">DG Business</span><span className={`text-xs ${textFaint} ml-2`}>🇮🇳 Made with pride in India</span></div>
             </div>
             <div className={`flex items-center gap-6 text-sm ${textFaint}`}>
               <a href="#features" className={`${navLink}`}>Features</a>
@@ -378,7 +377,7 @@ export function LandingPage() {
               <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#F27D26]"><Mail size={16} /></a>
             </div>
           </div>
-          <p className={`text-xs ${textFaint} text-center mt-6`}>&copy; {new Date().getFullYear()} DG ERP Management. Designed for Indian businesses, built with love.</p>
+          <p className={`text-xs ${textFaint} text-center mt-6`}>&copy; {new Date().getFullYear()} DG Business Management. Designed for Indian businesses, built with love.</p>
         </div>
       </footer>
     </div>
