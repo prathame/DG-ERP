@@ -387,6 +387,9 @@ export async function initSchema() {
       )
     `);
 
+    // Vendor GSTIN for GST reports
+    await client.query("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gst_number TEXT");
+
     // Add reports tab to existing tenants that don't have it
     await client.query(`UPDATE tenants SET tab_config = tab_config || '{"reports":{"label":"Reports","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'reports'`);
 
