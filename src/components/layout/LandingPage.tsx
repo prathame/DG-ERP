@@ -50,7 +50,9 @@ function EnquiryForm({ dark }: { dark: boolean }) {
 
 export function LandingPage() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const [lang, setLang] = useState<'hi' | 'gu'>('hi');
   const toggleTheme = () => { const d = document.documentElement.classList.toggle('dark'); localStorage.setItem('dg_erp_theme', d ? 'dark' : 'light'); setDark(d); };
+  const isGu = lang === 'gu';
 
   const bg = dark ? 'bg-[#0A0B0D]' : 'bg-[#FAFAFA]';
   const navBg = dark ? 'bg-[#0A0B0D]/80' : 'bg-white/80';
@@ -80,6 +82,7 @@ export function LandingPage() {
             <a href="#features" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Features</a>
             <a href="#pricing" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Pricing</a>
             <a href="#contact" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Contact</a>
+            <button type="button" onClick={() => setLang(lang === 'hi' ? 'gu' : 'hi')} className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${dark ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{isGu ? 'हिंदी' : 'ગુજરાતી'}</button>
             <button type="button" onClick={toggleTheme} className={`p-2 rounded-lg ${navLink}`}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
             <a href="/admin" className={`px-5 py-2 text-sm font-semibold border rounded-lg ${adminBtn}`}>Login</a>
           </div>
@@ -93,21 +96,22 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto text-center relative">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#1A1A1A] rounded-full text-sm font-bold mb-6 shadow-lg">
-              🇮🇳 Made in India, for Indian Businesses
+              🇮🇳 {isGu ? 'ભારતમાં બનેલું, ભારતીયો માટે' : 'भारत में बना, भारतीयों के लिए'}
             </div>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
-              Dukaan ho ya Factory,
+              <span className="text-3xl md:text-4xl">{isGu ? 'દુકાન હોય કે ફેક્ટરી' : 'दुकान हो या फैक्ट्री'}</span>
               <br />
-              <span className="bg-gradient-to-r from-[#F27D26] to-[#FFB347] bg-clip-text text-transparent">Sab ka ERP Yahin Hai</span>
+              <span className="bg-gradient-to-r from-[#F27D26] to-[#FFB347] bg-clip-text text-transparent">{isGu ? 'બધાનું ERP અહીં છે' : 'सबका ERP यहीं है'}</span>
             </h1>
-            <p className={`mt-6 text-lg md:text-xl ${textMuted} max-w-3xl mx-auto leading-relaxed`}>
-              Chhoti dukaan se lekar bade manufacturer tak — inventory, billing, GST, vendor management sab ek jagah. Cloud pe chale, mobile pe chale, budget mein aaye.
+            <p className={`mt-2 text-base ${textFaint}`}>From Shop to Factory — One ERP for All</p>
+            <p className={`mt-4 text-lg md:text-xl ${textMuted} max-w-3xl mx-auto leading-relaxed`}>
+              {isGu ? 'નાની દુકાનથી લઈને મોટા manufacturer સુધી — inventory, billing, GST, vendor management બધું એક જગ્યાએ। Cloud પર ચાલે, mobile પર ચાલે, budget માં આવે।' : 'छोटी दुकान से लेकर बड़े manufacturer तक — inventory, billing, GST, vendor management सब एक जगह। Cloud पे चले, mobile पे चले, budget में आये।'}
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
               <a href="#contact" className="group px-8 py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-all flex items-center gap-2 shadow-lg shadow-[#F27D26]/20">
-                Free Trial Shuru Karein <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                {isGu ? 'ફ્રી ટ્રાયલ શરૂ કરો' : 'फ्री ट्रायल शुरू करें'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </a>
-              <a href="#features" className={`px-8 py-4 border rounded-xl font-bold text-lg transition-all ${btnSecondary}`}>Features Dekhein</a>
+              <a href="#features" className={`px-8 py-4 border rounded-xl font-bold text-lg transition-all ${btnSecondary}`}>{isGu ? 'Features જુઓ' : 'Features देखें'}</a>
             </div>
             <p className={`mt-4 text-sm ${textFaint}`}>No credit card required • Setup in 5 minutes • Cancel anytime</p>
           </motion.div>
@@ -133,14 +137,14 @@ export function LandingPage() {
       <section id="business" className={`py-20 px-6 ${sectionAlt}`}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">Har Business Ke Liye</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>Chaahe dukaan ho, dealer ho, ya manufacturer — aapke kaam ka software</p>
+            <h2 className="text-3xl md:text-4xl font-bold">हर बिज़नेस के लिए</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>चाहे दुकान हो, डीलर हो, या manufacturer — आपके काम का software</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { icon: Store, title: 'Retail Shop / Dukaan', desc: 'Bijli ki dukaan, hardware shop, kirana store — barcode scan karo, bill do, stock track karo. Itna simple.', features: ['Barcode billing', 'Stock alerts', 'WhatsApp bills', 'GST invoice'], color: 'text-blue-500', bg: 'bg-blue-500/10' },
-              { icon: Warehouse, title: 'Dealer / Distributor', desc: 'Products lao supplier se, distribute karo retailers ko. Payment track karo — kaun kitna dena hai, kaun se batch mein.', features: ['Vendor portal', 'Batch-level payment', 'Outstanding reports', 'Quotation → Distribution'], color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-              { icon: Factory, title: 'Manufacturer', desc: 'Production se lekar dealer tak — purchase, inventory, distribution, billing, accounting sab automated.', features: ['Supplier management', 'P&L / Balance Sheet', 'GST GSTR-1 reports', 'Pack size support'], color: 'text-purple-500', bg: 'bg-purple-500/10' },
+              { icon: Store, title: 'दुकान / Retail Shop', desc: 'बिजली की दुकान, hardware shop, किराना store — barcode scan करो, bill दो, stock track करो। इतना simple।', features: ['Barcode billing', 'Stock alerts', 'WhatsApp bills', 'GST invoice'], color: 'text-blue-500', bg: 'bg-blue-500/10' },
+              { icon: Warehouse, title: 'डीलर / Distributor', desc: 'Products लाओ supplier से, distribute करो retailers को। Payment track करो — कौन कितना देना है, कौन से batch में।', features: ['Vendor portal', 'Batch-level payment', 'Outstanding reports', 'Quotation → Distribution'], color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+              { icon: Factory, title: 'निर्माता / Manufacturer', desc: 'Production से लेकर dealer तक — purchase, inventory, distribution, billing, accounting सब automated।', features: ['Supplier management', 'P&L / Balance Sheet', 'GST GSTR-1 reports', 'Pack size support'], color: 'text-purple-500', bg: 'bg-purple-500/10' },
             ].map((b, i) => (
               <motion.div key={b.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
                 className={`p-6 border rounded-2xl ${cardBg} ${cardHover} transition-all`}>
@@ -162,17 +166,17 @@ export function LandingPage() {
       <section className="py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">Poora Business Ek Jagah</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>Purchase se lekar payment tak — har step tracked</p>
+            <h2 className="text-3xl md:text-4xl font-bold">पूरा बिज़नेस एक जगह</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>Purchase से लेकर payment तक — हर step tracked</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
             {[
-              { icon: ShoppingCart, label: 'Purchase', sub: 'Supplier se kharido', color: 'text-amber-500', bg: 'bg-amber-500/10' },
-              { icon: Package, label: 'Inventory', sub: 'Stock manage karo', color: 'text-blue-500', bg: 'bg-blue-500/10' },
-              { icon: FileText, label: 'Quotation', sub: 'Quote bhejo', color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
-              { icon: Truck, label: 'Distribute', sub: 'Vendor ko do', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-              { icon: IndianRupee, label: 'Payment', sub: 'Paisa track karo', color: 'text-[#F27D26]', bg: 'bg-[#F27D26]/10' },
-              { icon: BarChart3, label: 'Accounts', sub: 'P&L, Balance Sheet', color: 'text-purple-500', bg: 'bg-purple-500/10' },
+              { icon: ShoppingCart, label: 'खरीदो', sub: 'Supplier से खरीदो', color: 'text-amber-500', bg: 'bg-amber-500/10' },
+              { icon: Package, label: 'स्टॉक', sub: 'Stock manage करो', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+              { icon: FileText, label: 'कोटेशन', sub: 'Quote भेजो', color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
+              { icon: Truck, label: 'वितरण', sub: 'Vendor को दो', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+              { icon: IndianRupee, label: 'भुगतान', sub: 'पैसा track करो', color: 'text-[#F27D26]', bg: 'bg-[#F27D26]/10' },
+              { icon: BarChart3, label: 'हिसाब', sub: 'P&L, Balance Sheet', color: 'text-purple-500', bg: 'bg-purple-500/10' },
             ].map((step, i) => (
               <motion.div key={step.label} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
                 className={`relative p-4 border rounded-2xl text-center ${cardBg} ${cardHover} group`}>
@@ -190,8 +194,8 @@ export function LandingPage() {
       <section id="features" className={`py-20 px-6 ${sectionAlt}`}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-bold">Saari Features, Ek Platform</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>Jo Tally mein nahi, jo Miracle mein nahi — woh sab yahin hai</p>
+            <h2 className="text-3xl md:text-4xl font-bold">सारी Features, एक Platform</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>जो Tally में नहीं, जो Miracle में नहीं — वो सब यहीं है</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {[
@@ -227,14 +231,14 @@ export function LandingPage() {
       <section id="pricing" className="py-20 px-6">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-bold">Sabke Budget Mein</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>Chhoti dukaan se lekar badi factory tak — affordable plans</p>
+            <h2 className="text-3xl md:text-4xl font-bold">सबके बजट में</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>छोटी दुकान से लेकर बड़ी factory तक — affordable plans</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { name: 'Free Trial', price: '₹0', period: '14 days', desc: 'Sabhi features try karo free mein', features: ['All modules', '50 products', '5 vendors', 'Email support'], cta: 'Start Free', highlight: false },
-              { name: 'Standard', price: '₹999', period: '/month', desc: 'Growing businesses ke liye', features: ['Unlimited products', '15 vendors', 'Vendor portal', 'Priority support', 'Pack size', 'Reports'], cta: 'Get Started', highlight: true },
-              { name: 'Professional', price: '₹1,999', period: '/month', desc: 'Bade manufacturers ke liye', features: ['Everything unlimited', 'Accounts module', 'Multi-language', 'Quotations', 'Chatbot', 'Custom branding'], cta: 'Contact Us', highlight: false },
+              { name: 'फ्री ट्रायल', price: '₹0', period: '14 दिन', desc: 'सभी features try करो free में', features: ['All modules', '50 products', '5 vendors', 'Email support'], cta: 'शुरू करें', highlight: false },
+              { name: 'स्टैंडर्ड', price: '₹999', period: '/महीना', desc: 'बढ़ते businesses के लिए', features: ['Unlimited products', '15 vendors', 'Vendor portal', 'Priority support', 'Pack size', 'Reports'], cta: 'शुरू करें', highlight: true },
+              { name: 'प्रोफेशनल', price: '₹1,999', period: '/महीना', desc: 'बड़े manufacturers के लिए', features: ['Everything unlimited', 'Accounts module', 'Multi-language', 'Quotations', 'Chatbot', 'Custom branding'], cta: 'संपर्क करें', highlight: false },
             ].map((p, i) => (
               <motion.div key={p.name} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
                 className={`p-6 border rounded-2xl ${p.highlight ? (dark ? 'bg-[#F27D26]/10 border-[#F27D26]/30 ring-2 ring-[#F27D26]/20' : 'bg-[#F27D26]/5 border-[#F27D26]/30 shadow-lg shadow-[#F27D26]/10 ring-2 ring-[#F27D26]/20') : cardBg}`}>
@@ -256,17 +260,17 @@ export function LandingPage() {
       <section className={`py-20 px-6 ${sectionAlt}`}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">Tally aur Miracle Se Aage</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>Purane software ko replace karo modern cloud ERP se</p>
+            <h2 className="text-3xl md:text-4xl font-bold">Tally और Miracle से आगे</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>पुराने software को replace करो modern cloud ERP से</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
-              { emoji: '☁️', title: 'Cloud — No Installation', desc: 'Tally mein software install karo, license kharido, backup lo. DG ERP mein sirf browser kholo.' },
-              { emoji: '📱', title: 'Mobile pe Chale', desc: 'Miracle sirf desktop pe chalta hai. DG ERP phone pe bhi tablet pe bhi — kahin se bhi kaam karo.' },
-              { emoji: '🔐', title: 'Vendor Portal', desc: 'Apne dealers ko unka login do — woh apna stock, sales, payments khud dekh lein. Miracle mein nahi hai.' },
-              { emoji: '🤖', title: 'AI Chatbot', desc: '"Low stock kya hai?" poocho chatbot se — woh database check karke jawab dega. Real-time.' },
-              { emoji: '💰', title: 'Batch-Level Payment', desc: 'Har distribution batch ka payment alag track karo — kaun sa batch paid, kaun sa pending. Crystal clear.' },
-              { emoji: '📊', title: 'Auto Accounting', desc: 'P&L, Balance Sheet, Cash Flow — automatically generate hota hai transactions se. No manual entry.' },
+              { emoji: '☁️', title: 'Cloud — कोई Installation नहीं', desc: 'Tally में software install करो, license खरीदो, backup लो। DG ERP में सिर्फ browser खोलो।' },
+              { emoji: '📱', title: 'मोबाइल पे चले', desc: 'Miracle सिर्फ desktop पे चलता है। DG ERP phone पे भी tablet पे भी — कहीं से भी काम करो।' },
+              { emoji: '🔐', title: 'वेंडर पोर्टल', desc: 'अपने dealers को उनका login दो — वो अपना stock, sales, payments खुद देख लें। Miracle में नहीं है।' },
+              { emoji: '🤖', title: 'AI चैटबॉट', desc: '"Low stock क्या है?" पूछो chatbot से — वो database check करके जवाब देगा। Real-time।' },
+              { emoji: '💰', title: 'Batch-Level भुगतान', desc: 'हर distribution batch का payment अलग track करो — कौन सा batch paid, कौन सा pending। Crystal clear।' },
+              { emoji: '📊', title: 'ऑटो हिसाब-किताब', desc: 'P&L, Balance Sheet, Cash Flow — automatically generate होता है transactions से। No manual entry।' },
             ].map((w, i) => (
               <motion.div key={w.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
                 className={`p-5 border rounded-2xl flex gap-4 ${cardBg} ${cardHover}`}>
@@ -282,8 +286,8 @@ export function LandingPage() {
       <section id="contact" className="py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-bold">Shuru Karein</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>Aaj hi free trial le lein — 5 minute mein setup ho jayega</p>
+            <h2 className="text-3xl md:text-4xl font-bold">શરૂ કરો / शुरू करें</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>આજે જ free trial લો — 5 minute માં setup થઈ જશે</p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
             <div className="lg:col-span-2 space-y-6">
@@ -308,6 +312,28 @@ export function LandingPage() {
             </div>
             <div className="lg:col-span-3"><EnquiryForm dark={dark} /></div>
           </div>
+        </div>
+      </section>
+
+      {/* Rajkot Pride */}
+      <section className={`py-16 px-6 ${sectionAlt}`}>
+        <div className="max-w-4xl mx-auto text-center">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <p className="text-4xl mb-4">🏭</p>
+            <h2 className="text-2xl md:text-3xl font-bold mb-3">
+              {isGu ? 'રાજકોટની ધરતી પરથી, દુનિયા માટે' : 'राजकोट की धरती से, दुनिया के लिए'}
+            </h2>
+            <p className={`text-lg ${textMuted} max-w-2xl mx-auto leading-relaxed`}>
+              {isGu ? 'રાજકોટ — industrialisation નું હૃદય। અહીંના દરેક ઉદ્યોગપતિ, દુકાનદાર, અને manufacturer ને ધ્યાનમાં રાખીને બનાવેલું software। મોજેલો રાજકોટ! 🦁' : 'राजकोट — industrialisation का दिल। यहाँ के हर उद्योगपति, दुकानदार, और manufacturer को ध्यान में रखकर बनाया गया software। मोजेलो राजकोट! 🦁'}
+            </p>
+            <div className={`mt-6 inline-flex items-center gap-3 px-6 py-3 rounded-2xl border ${cardBg}`}>
+              <span className="text-2xl">🦁</span>
+              <div className="text-left">
+                <p className="font-bold text-sm">{isGu ? 'રાજકોટમાં ડિઝાઇન, ભારત માટે બનેલું' : 'राजकोट में डिज़ाइन, भारत के लिए बना'}</p>
+                <p className={`text-xs ${textFaint}`}>Designed in Rajkot, Built for Bharat</p>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 
