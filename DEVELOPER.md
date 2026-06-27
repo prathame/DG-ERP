@@ -180,7 +180,7 @@ All routes import: `import { pool } from '../pg-db';`
 
 Body limit set to 2MB in `server/index.ts` for base64 image uploads (logo, signature).
 
-### Schema (23 Tables)
+### Schema (28 Tables)
 
 **Platform Tables** (no tenant_id):
 
@@ -188,32 +188,56 @@ Body limit set to 2MB in `server/index.ts` for base64 image uploads (logo, signa
 |---|---|---|
 | `super_admins` | Platform owner accounts | email, password_hash, role |
 | `plans` | Subscription tiers | name, max_products, max_vendors, features (JSONB), price |
-| `tenants` | Company registry | company_name, slug, admin_email, plan_id, status |
+| `tenants` | Company registry | company_name, slug, admin_email, plan_id, status, tab_config (JSONB) |
 | `tenant_stats` | Historical metrics | tenant_id, date, products_count, revenue |
+| `tenant_invoices` | Subscription billing | tenant_id, invoice_number, amount, status |
+| `password_reset_tokens` | Password reset links | email, token, expires_at, used |
 
-**Tenant Tables** (all have `tenant_id` as part of primary key):
+**Core Tables** (all have `tenant_id` with ON DELETE CASCADE):
 
-| Table | Purpose | Key Relations |
+| Table | Purpose | Key Columns |
 |---|---|---|
-| `users` | Login accounts | tenant_id, vendor_id (nullable) |
-| `vendors` | Distributor/reseller | tenant_id |
+| `users` | Login accounts | tenant_id, vendor_id (nullable), role, permissions (JSONB) |
+| `products` | Product catalog | tenant_id, price, hsn_code, gst_rate, pack_size, pack_name, warranty_months |
+| `product_inventory` | Individual barcode units | tenant_id, product_id, barcode, batch_id, status (InStock/Distributed/Sold) |
+
+**Buying (Payables)**:
+
+| Table | Purpose | Key Columns |
+|---|---|---|
+| `suppliers` | Who you buy from | tenant_id, name, gst_number, phone |
+| `product_purchases` | Purchase records (per barcode) | tenant_id, supplier_id, batch_id, cost_price, billed_price |
+| `supplier_payments` | Payments TO suppliers | tenant_id, supplier_id, batch_id, amount, payment_method |
+
+**Selling (Receivables)**:
+
+| Table | Purpose | Key Columns |
+|---|---|---|
+| `vendors` | Who you sell to (dealers) | tenant_id, name, gst_number, phone |
+| `product_distribution` | Distribution records (per barcode) | tenant_id, vendor_id, batch_id, net_price, billed_price, gst_applied |
+| `vendor_payments` | Payments FROM vendors | tenant_id, vendor_id, batch_id, amount, payment_method |
+| `product_sales` | End-customer sales | tenant_id, vendor_id, barcode, sale_price, customer_name |
+
+**Quotations**:
+
+| Table | Purpose | Key Columns |
+|---|---|---|
+| `quotations` | Draft quotes | tenant_id, vendor_id, items (JSONB), status (Draft/Sent/Accepted/Converted), total |
+
+**Other**:
+
+| Table | Purpose | Key Columns |
+|---|---|---|
 | `customers` | End customers | tenant_id, vendor_id |
-| `products` | Product catalog | tenant_id, warranty_applicable |
-| `product_inventory` | Individual barcode units | tenant_id, product_id, barcode, status |
-| `product_distribution` | Units sent to vendors | tenant_id, vendor_id, barcode, discount, billed_price |
-| `product_sales` | Customer sales | tenant_id, vendor_id, barcode, customer_id |
-| `warranties` | Warranty records | tenant_id, barcode, status |
-| `product_replacements` | Replaced items | tenant_id, old_barcode, new_barcode |
-| `transactions` | Financial entries | tenant_id, type (Sales/Purchase/Expense) |
-| `rewards` | Points earned/redeemed | tenant_id, vendor_id, sale_id |
+| `warranties` | Warranty lifecycle | tenant_id, barcode, status (Active/Under Claim/Expired) |
+| `product_replacements` | Replacement history | tenant_id, old_barcode, new_barcode |
+| `rewards` | Points earned/redeemed | tenant_id, vendor_id, sale_id, points |
 | `reward_rules` | Milestone rules | tenant_id, threshold, points |
 | `redemption_settings` | Min balance/points | tenant_id |
 | `banks` | Bank accounts | tenant_id |
-| `vendor_payments` | Payments received | tenant_id, vendor_id |
 | `vendor_reminder_settings` | Auto-remind config | tenant_id, vendor_id, enabled, days |
-| `audit_log` | Activity tracking | tenant_id, action, entity_type |
-| `categories` | Product categories (legacy) | tenant_id |
-| `bill_settings` | Per-tenant bill customization | tenant_id (PK), logo_base64, primary_color, bank details, signatory, toggles |
+| `bill_settings` | Per-tenant bill customization | tenant_id (PK), logo_base64, primary_color, signatory, bank details |
+| `audit_log` | Activity tracking | tenant_id, action, entity_type, details |
 
 ### bill_settings Table Detail
 
