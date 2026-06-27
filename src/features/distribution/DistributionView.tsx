@@ -19,7 +19,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [modalOpen, setModalOpen] = useState(false);
   const [distVendorId, setDistVendorId] = useState('');
   const [distDate, setDistDate] = useState(new Date().toISOString().slice(0, 10));
-  const [distRows, setDistRows] = useState<{ productId: string; quantity: number; discount: number; withGst: boolean; customPrice: string }[]>([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
+  const [distRows, setDistRows] = useState<{ productId: string; quantity: number; discount: number; withGst: boolean; customPrice: string; unitMode: 'piece' | 'pack' }[]>([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '', unitMode: 'piece' }]);
   const [distAmountPaid, setDistAmountPaid] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [includeGst, setIncludeGst] = useState(true);
@@ -86,15 +86,18 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   };
   useEffect(() => { setLoading(true); load(); }, [vendorId]);
 
-  const addDistRow = () => setDistRows([...distRows, { productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
+  const addDistRow = () => setDistRows([...distRows, { productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '', unitMode: 'piece' }]);
   const removeDistRow = (idx: number) => setDistRows(distRows.filter((_, i) => i !== idx));
   const updateDistRow = (idx: number, field: string, value: string | number) => setDistRows(distRows.map((r, i) => i === idx ? { ...r, [field]: value } : r));
 
   const defaultGstRate = (user as Record<string, unknown>)?.defaultGstRate as number ?? 18;
   const distTotals = distRows.reduce((acc, r) => {
     const p = products.find(x => x.id === r.productId);
+    const packSz = (p?.packSize ?? 1);
+    const actualPieces = r.unitMode === 'pack' && packSz > 1 ? (r.quantity || 0) * packSz : (r.quantity || 0);
     const basePrice = r.customPrice ? parseFloat(r.customPrice) : (p?.price ?? 0);
-    const gross = basePrice * (r.quantity || 0);
+    const priceMultiplier = r.unitMode === 'pack' && packSz > 1 ? r.quantity || 0 : actualPieces;
+    const gross = basePrice * priceMultiplier;
     const disc = Math.round(gross * (r.discount || 0) / 100);
     const netBase = gross - disc;
     const gst = r.withGst ? Math.round(netBase * defaultGstRate / 100) : 0;
@@ -103,7 +106,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
     acc.net += netBase;
     acc.gst += gst;
     acc.billed += netBase + gst;
-    acc.items += r.quantity || 0;
+    acc.items += actualPieces;
     return acc;
   }, { gross: 0, discount: 0, net: 0, gst: 0, billed: 0, items: 0 });
 
@@ -120,16 +123,21 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
         distributionDate: distDate,
         amountPaid: paid > 0 ? paid : undefined,
         gstRate: defaultGstRate,
-        items: validRows.map((row) => ({
-          productId: row.productId,
-          quantity: row.quantity,
-          discountPercent: row.discount > 0 ? row.discount : undefined,
-          withGst: row.withGst,
-          customPrice: row.customPrice ? parseFloat(row.customPrice) : undefined,
-        })),
+        items: validRows.map((row) => {
+          const rp = products.find(x => x.id === row.productId);
+          const ps = rp?.packSize ?? 1;
+          const qty = row.unitMode === 'pack' && ps > 1 ? row.quantity * ps : row.quantity;
+          return {
+            productId: row.productId,
+            quantity: qty,
+            discountPercent: row.discount > 0 ? row.discount : undefined,
+            withGst: row.withGst,
+            customPrice: row.customPrice ? parseFloat(row.customPrice) : undefined,
+          };
+        }),
       });
       setModalOpen(false);
-      setDistRows([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
+      setDistRows([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '', unitMode: 'piece' }]);
       setDistVendorId('');
       setDistAmountPaid('');
       load();
@@ -528,8 +536,12 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                   <tbody className="divide-y divide-gray-100">
                     {distRows.map((row, idx) => {
                       const p = products.find(x => x.id === row.productId);
+                      const packSz = p?.packSize ?? 1;
+                      const hasPack = packSz > 1;
+                      const actualPieces = row.unitMode === 'pack' && hasPack ? (row.quantity || 0) * packSz : (row.quantity || 0);
                       const basePrice = row.customPrice ? parseFloat(row.customPrice) : (p?.price ?? 0);
-                      const gross = basePrice * (row.quantity || 0);
+                      const priceQty = row.unitMode === 'pack' && hasPack ? (row.quantity || 0) : actualPieces;
+                      const gross = basePrice * priceQty;
                       const disc = Math.round(gross * (row.discount || 0) / 100);
                       const net = gross - disc;
                       const gstOnRow = row.withGst ? Math.round(net * defaultGstRate / 100) : 0;
@@ -540,10 +552,20 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                           <td className="px-3 py-2">
                             <select value={row.productId} onChange={(e) => updateDistRow(idx, 'productId', e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]">
                               <option value="">Select product</option>
-                              {products.filter(pr => (pr.stock ?? 0) > 0).map((pr) => <option key={pr.id} value={pr.id}>{pr.name} (₹{pr.price.toLocaleString()}) — {pr.stock} avl</option>)}
+                              {products.filter(pr => (pr.stock ?? 0) > 0).map((pr) => {
+                                const ps = pr.packSize ?? 1;
+                                const stockLabel = ps > 1 ? `${Math.floor(pr.stock / ps)} ${pr.packName}s (${pr.stock} pcs)` : `${pr.stock} avl`;
+                                return <option key={pr.id} value={pr.id}>{pr.name} (₹{pr.price.toLocaleString()}) — {stockLabel}</option>;
+                              })}
                             </select>
                           </td>
-                          <td className="px-3 py-2"><input type="number" min={1} max={p?.stock ?? 9999} value={row.quantity || ''} onChange={(e) => updateDistRow(idx, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" /></td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1">
+                              <input type="number" min={1} max={row.unitMode === 'pack' && hasPack ? Math.floor((p?.stock ?? 9999) / packSz) : (p?.stock ?? 9999)} value={row.quantity || ''} onChange={(e) => updateDistRow(idx, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" />
+                              {hasPack && <select value={row.unitMode} onChange={(e) => updateDistRow(idx, 'unitMode', e.target.value)} className="px-1 py-1.5 border border-gray-200 rounded-lg text-[10px] font-bold text-gray-500"><option value="piece">Pc</option><option value="pack">{p?.packName}</option></select>}
+                            </div>
+                            {hasPack && row.unitMode === 'pack' && <span className="text-[10px] text-gray-400">= {actualPieces} pcs</span>}
+                          </td>
                           <td className="px-3 py-2"><input type="number" min={0} step={0.01} value={row.customPrice} onChange={(e) => updateDistRow(idx, 'customPrice', e.target.value)} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-2 py-1.5 border rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
                           <td className="px-3 py-2"><input type="number" min={0} max={100} step={0.5} value={row.discount || ''} onChange={(e) => updateDistRow(idx, 'discount', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" /></td>
                           <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-[#F27D26]" /></td>

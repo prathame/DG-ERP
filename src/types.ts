@@ -22,6 +22,8 @@ export interface Product {
   withVendors?: number;
   warrantyApplicable?: boolean;
   barcodeRange?: { first: string; last: string } | null;
+  packSize?: number;
+  packName?: string;
 }
 
 export interface Warranty {

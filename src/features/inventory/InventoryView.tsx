@@ -25,7 +25,7 @@ export function InventoryView() {
   const [barcodeSearch, setBarcodeSearch] = useState('');
   const debouncedBarcodeSearch = useDebounce(barcodeSearch, 250);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', barcodePrefix: '', quantity: 10, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18 });
+  const [addForm, setAddForm] = useState({ name: '', barcodePrefix: '', quantity: 10, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece' });
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [addStockModal, setAddStockModal] = useState<Product | null>(null);
   const [addStockForm, setAddStockForm] = useState({ quantity: 10 });
@@ -178,6 +178,7 @@ export function InventoryView() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="font-semibold text-sm text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</span>
+                        {(p.packSize ?? 1) > 1 && <span className="block text-[10px] text-gray-400">{Math.floor((p.remainingInventory ?? p.stock ?? 0) / (p.packSize ?? 1))} {p.packName ?? 'Pack'}s</span>}
                       </td>
                       <td className="px-4 py-3 text-center hidden lg:table-cell">
                         <span className="font-semibold text-sm text-purple-700">{p.withVendors ?? 0}</span>
@@ -275,9 +276,11 @@ export function InventoryView() {
                     warrantyApplicable: addForm.warrantyApplicable,
                     warrantyMonths: addForm.warrantyApplicable ? addForm.warrantyMonths : 0,
                     price: addForm.price,
+                    packSize: addForm.packSize > 1 ? addForm.packSize : undefined,
+                    packName: addForm.packSize > 1 ? addForm.packName : undefined,
                   });
                   setAddModalOpen(false);
-                  setAddForm({ name: '', barcodePrefix: '', quantity: 10, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18 });
+                  setAddForm({ name: '', barcodePrefix: '', quantity: 10, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece' });
                   api.products.list(debouncedBarcodeSearch || undefined).then(setProducts);
                   toast('Product added successfully', 'success');
                 } catch (err) { toast((err as Error).message, 'error'); }
@@ -294,8 +297,12 @@ export function InventoryView() {
                   <div><label className="text-xs font-bold text-gray-400 uppercase">HSN Code</label><input value={addForm.hsnCode ?? ''} onChange={(e) => setAddForm({ ...addForm, hsnCode: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26] font-mono" placeholder="e.g. 8413" /></div>
                   <div><label className="text-xs font-bold text-gray-400 uppercase">GST Rate (%)</label><input type="number" min={0} max={28} value={addForm.gstRate ?? 18} onChange={(e) => setAddForm({ ...addForm, gstRate: e.target.value === '' ? 18 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><label className="text-xs font-bold text-gray-400 uppercase">Pack Size</label><input type="number" min={1} value={addForm.packSize} onChange={(e) => setAddForm({ ...addForm, packSize: Math.max(1, Number(e.target.value) || 1) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /><p className="text-[10px] text-gray-400 mt-0.5">Pieces per pack (1 = no pack)</p></div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase">Pack Name</label><select value={addForm.packName} onChange={(e) => setAddForm({ ...addForm, packName: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]"><option>Piece</option><option>Box</option><option>Carton</option><option>Roll</option><option>Bundle</option><option>Set</option><option>Pack</option></select></div>
+                </div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Reward Points</label><input type="number" min={0} value={addForm.rewardPointsValue || ''} onChange={(e) => setAddForm({ ...addForm, rewardPointsValue: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Price (₹)</label><input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Price (₹){addForm.packSize > 1 ? ` per ${addForm.packName}` : ''}</label><input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                 {warrantyVisible && <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-gray-400 uppercase">Warranty</label>

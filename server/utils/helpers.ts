@@ -86,4 +86,6 @@ export const mapProduct = (r: Record<string, unknown>) => ({
   soldCount: r.soldCount ?? 0,
   withVendors: r.withVendors ?? 0,
   barcodeRange: r.barcodeRange ?? null,
+  packSize: Number(r.pack_size) || 1,
+  packName: (r.pack_name as string) || 'Piece',
 });

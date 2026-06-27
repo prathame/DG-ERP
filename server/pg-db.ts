@@ -387,6 +387,10 @@ export async function initSchema() {
       )
     `);
 
+    // Pack size support
+    await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_size INTEGER DEFAULT 1");
+    await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_name TEXT DEFAULT 'Piece'");
+
     // Batch-level payment tracking
     await client.query('ALTER TABLE vendor_payments ADD COLUMN IF NOT EXISTS batch_id TEXT');
     await client.query('CREATE INDEX IF NOT EXISTS idx_vp_batch ON vendor_payments(tenant_id, batch_id)');
