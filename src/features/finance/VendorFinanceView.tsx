@@ -135,7 +135,9 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
           <div className={cn("p-5 rounded-2xl border shadow-sm relative overflow-hidden", detail.balance > 0 ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200")}>
             <p className="text-xs font-bold text-gray-400 uppercase">Balance Remaining</p>
             <p className={cn("text-2xl font-bold mt-1", detail.balance > 0 ? "text-rose-600" : "text-emerald-600")}>
-              {isBillFullyPaid(detail.totalDistributedValue, detail.balance) ? (
+              {detail.balance < 0 ? (
+                <>₹{Math.abs(detail.balance).toLocaleString()} credit</>
+              ) : isBillFullyPaid(detail.totalDistributedValue, detail.balance) ? (
                 <span className="inline-flex items-center gap-2">
                   <PaidBadge size="md" className="text-sm px-3 py-1.5" />
                 </span>
@@ -244,7 +246,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
         </div>
         <div className={cn("p-5 rounded-2xl border shadow-sm", totalOwed > 0 ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200")}>
           <p className="text-xs font-bold text-gray-400 uppercase">Total Outstanding</p>
-          <p className={cn("text-2xl font-bold mt-1", totalOwed > 0 ? "text-rose-600" : "text-emerald-600")}>₹{totalOwed.toLocaleString()}</p>
+          <p className={cn("text-2xl font-bold mt-1", totalOwed > 0 ? "text-rose-600" : "text-emerald-600")}>₹{Math.abs(totalOwed).toLocaleString()}{totalOwed < 0 ? ' credit' : ''}</p>
         </div>
       </div>
 
@@ -310,7 +312,9 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                   <td className="px-3 py-3 sm:px-6 sm:py-4 font-medium">₹{v.totalDistributedValue.toLocaleString()}</td>
                   <td className="px-3 py-3 sm:px-6 sm:py-4 font-bold text-emerald-600">₹{v.totalPaid.toLocaleString()}</td>
                   <td className="px-3 py-3 sm:px-6 sm:py-4">
-                    {isBillFullyPaid(v.totalDistributedValue, v.balance) ? (
+                    {v.balance < 0 ? (
+                      <span className="font-bold text-blue-600">₹{Math.abs(v.balance).toLocaleString()} credit</span>
+                    ) : isBillFullyPaid(v.totalDistributedValue, v.balance) ? (
                       <PaidBadge size="sm" />
                     ) : (
                       <span className="font-bold text-rose-600">₹{v.balance.toLocaleString()}</span>
