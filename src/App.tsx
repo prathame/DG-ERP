@@ -398,7 +398,7 @@ export default function App() {
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 lg:hidden safe-bottom">
         <div className="flex items-center justify-around px-1 py-1">
-          {visibleNavItems.slice(0, 5).map((item) => (
+          {visibleNavItems.filter(i => i.id !== 'reports').slice(0, 5).map((item) => (
             <button
               key={item.id}
               type="button"
