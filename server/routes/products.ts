@@ -96,7 +96,7 @@ router.get('/api/products', async (req, res) => {
     const params: string[] = [tenantId];
     if (typeof search === 'string' && search) {
       const nextIdx = params.length + 1;
-      sql += ` AND (p.name LIKE $${nextIdx} OR p.barcode LIKE $${nextIdx + 1} OR EXISTS (SELECT 1 FROM product_inventory pi2 WHERE pi2.product_id = p.id AND pi2.tenant_id = $1 AND pi2.barcode LIKE $${nextIdx + 2}))`;
+      sql += ` AND (p.name ILIKE $${nextIdx} OR p.barcode ILIKE $${nextIdx + 1} OR EXISTS (SELECT 1 FROM product_inventory pi2 WHERE pi2.product_id = p.id AND pi2.tenant_id = $1 AND pi2.barcode ILIKE $${nextIdx + 2}))`;
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
     sql += ' ORDER BY p.name';
@@ -375,10 +375,11 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
 
     const { id } = req.params;
     const { rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix } = req.body;
+    if (!quantity || Number(quantity) < 1) return res.status(400).json({ error: 'Quantity must be at least 1' });
     const product = (await pool.query('SELECT id FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as { id: string } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
     const mode = barcodeMode === 'auto' ? 'auto' : barcodeMode === 'range' ? 'range' : 'prefix';
-    const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
+    const qty = Math.min(Math.max(1, Math.floor(Number(quantity))), 10000);
     let barcodes: string[] = [];
 
     if (mode === 'prefix' || (mode !== 'auto' && mode !== 'range')) {
