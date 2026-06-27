@@ -1,5 +1,92 @@
 # Developer Guide — DG Business
 
+## Where is What?
+
+### "I need to change the landing page"
+→ `src/components/layout/LandingPage.tsx` (single file, ~400 lines)
+- Hero with trilingual slider: line ~107
+- Business cards (Shop/Dealer/Manufacturer): line ~165
+- Features grid (16 cards): line ~215
+- Pricing cards: line ~255
+- Rajkot pride section: line ~335
+- Contact form: line ~10 (EnquiryForm component)
+- SEO meta tags: `index.html` head section
+
+### "I need to change a bill/invoice template"
+→ `src/lib/billTemplates.ts`
+- `generateSalesInvoiceHtml()` — sales invoice with GST
+- `generateDistributionChallanHtml()` — distribution challan
+- `buildDistributionBillSlice()` — split bill (GST + non-GST)
+- Signature rendered at bottom if `bill_settings.signatureBase64` exists
+- Bill settings (logo, color, bank): `server/routes/bill-settings.ts`
+
+### "I need to change the login page"
+→ `src/components/layout/LoginScreen.tsx`
+- Branded login (tenant logo, color, tagline)
+- Login/Signup/Forgot Password modes
+- Tenant branding fetched via `GET /api/tenant/by-slug/:slug`
+
+### "I need to add/change a sidebar tab"
+→ `src/App.tsx` line ~145 `allNavItems` array
+- Each item: `{ id, label, icon, show }`
+- Tab type: `src/types.ts` line 1
+- Component rendering: `src/App.tsx` line ~385
+- Bottom mobile nav: `src/App.tsx` line ~400
+
+### "I need to change the chatbot"
+→ `server/routes/chatbot.ts` — all commands and responses
+→ `src/components/layout/ChatWidget.tsx` — chat UI bubble
+
+### "I need to find a feature"
+
+| Feature | Frontend | Backend | Database |
+|---------|----------|---------|----------|
+| Products/Inventory | `src/features/inventory/InventoryView.tsx` | `server/routes/products.ts` | `products`, `product_inventory` |
+| Purchases | `src/features/purchases/PurchasesView.tsx` | `server/routes/purchases.ts` | `suppliers`, `product_purchases`, `supplier_payments` |
+| Distribution | `src/features/distribution/DistributionView.tsx` | `server/routes/distribution.ts` | `product_distribution`, `vendor_payments` |
+| Quotations | `src/features/quotations/QuotationsView.tsx` | `server/routes/quotations.ts` | `quotations` |
+| Finance (Vendors) | `src/features/finance/VendorFinanceView.tsx` | `server/routes/finance.ts` | `vendor_payments` |
+| Accounts | `src/features/accounts/AccountsView.tsx` | `server/routes/accounts.ts` | (auto-generated from existing tables) |
+| Reports | `src/features/reports/ReportsView.tsx` | `server/routes/reports.ts` | (queries across all tables) |
+| Dashboard | `src/features/dashboard/DashboardView.tsx` | `server/routes/dashboard.ts` | (aggregates) |
+| Settings | `src/features/settings/SettingsView.tsx` | `server/routes/auth.ts` + `bill-settings.ts` | `users`, `bill_settings` |
+| Vendors | (inside Distribution) | `server/routes/vendors.ts` | `vendors` |
+| Customers | (inside Dashboard masters) | `server/routes/customers.ts` | `customers` |
+| Sales | `src/features/sales/SalesEntryView.tsx` | `server/routes/sales.ts` | `product_sales` |
+| Warranty | `src/features/warranty/WarrantyView.tsx` | `server/routes/warranties.ts` | `warranties` |
+| Replacements | `src/features/replacements/ReplacementsView.tsx` | `server/routes/replacements.ts` | `product_replacements` |
+| Rewards | `src/features/rewards/RewardsView.tsx` | `server/routes/rewards.ts` | `rewards` |
+| Barcode Printer | `src/components/ui/BarcodeLabelPrinter.tsx` | (frontend only) | — |
+| Search/Verify | `src/features/verification/ProductVerificationView.tsx` | `server/routes/search.ts` | — |
+| Super Admin | `src/features/super-admin/*.tsx` (8 files) | `server/routes/super-admin.ts` | `tenants`, `plans`, `super_admins` |
+
+### "I need to find a UI component"
+
+| Component | Location |
+|-----------|----------|
+| Toast notifications | `src/components/ui/index.tsx` → `useToast()` |
+| Loading spinner | `src/components/ui/index.tsx` → `LoadingSpinner` |
+| Paid badge | `src/components/ui/PaidBadge.tsx` → `PaidBadge`, `isBillFullyPaid()` |
+| Barcode label printer | `src/components/ui/BarcodeLabelPrinter.tsx` |
+| Dark/Light theme | `src/App.tsx` (localStorage `dg_erp_theme`) |
+| Multi-language | `src/i18n/index.tsx` → `useTranslation()` |
+| Session helper | `src/lib/session.ts` → `session.getToken()`, `session.setUser()` |
+| CSV export | `src/lib/utils.ts` → `exportToCsv()` |
+| Print window | `src/lib/utils.ts` → `openPrintWindow()` |
+| WhatsApp share | `src/lib/utils.ts` → `shareViaWhatsApp()` |
+
+### "Where are the database tables defined?"
+→ `server/pg-db.ts` → `initSchema()` function (line ~17)
+- 28 tables defined with `CREATE TABLE IF NOT EXISTS`
+- Migrations (ALTER TABLE) run after table creation
+- All tables have `tenant_id` with `ON DELETE CASCADE`
+- `initDatabase()` → `initSchema()` + `seedPlatformData()`
+
+### "Where is tenant creation?"
+→ `server/utils/tenant.ts` → `provisionTenant()`
+- Creates tenant row + admin user + default tab config
+- Called from `server/routes/super-admin.ts` POST `/api/tenant/register`
+
 ## Quick Start
 
 ```bash
