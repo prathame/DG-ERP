@@ -23,8 +23,9 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
   const [paymentFilter, setPaymentFilter] = useState<'unpaid' | 'paid'>('unpaid');
   const [finSearch, setFinSearch] = useState('');
   const [paymentModal, setPaymentModal] = useState(false);
-  const [paymentForm, setPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
+  const [paymentForm, setPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '', batchId: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [vendorBatches, setVendorBatches] = useState<{ batchId: string; distributionDate: string; billValue: number; balanceRemaining: number; productNames: string[] }[]>([]);
   const [reminderModal, setReminderModal] = useState<{ vendorId: string; vendorName: string; enabled: boolean; days: number } | null>(null);
   const [remindersDue, setRemindersDue] = useState<{ vendorId: string; vendorName: string; vendorPhone: string; balance: number }[]>([]);
 
@@ -62,16 +63,26 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
       paymentMethod: paymentForm.paymentMethod,
       referenceNumber: paymentForm.referenceNumber || undefined,
       notes: paymentForm.notes || undefined,
+      batchId: paymentForm.batchId || undefined,
     })
       .then(() => {
         setPaymentModal(false);
-        setPaymentForm({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
+        setPaymentForm({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '', batchId: '' });
         loadDetail(selectedVendorId!);
         loadSummary();
         toast('Payment recorded', 'success');
       })
       .catch((err) => toast(err.message, 'error'))
       .finally(() => setSubmitting(false));
+  };
+
+  const openPaymentModal = () => {
+    setPaymentModal(true);
+    if (selectedVendorId) {
+      api.distribution.batches(selectedVendorId).then((b) => {
+        setVendorBatches(b.filter((x) => x.balanceRemaining > 0));
+      }).catch(() => setVendorBatches([]));
+    }
   };
 
   const handleSaveReminder = () => {
@@ -109,7 +120,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
               <PaidStamp className="hidden sm:flex text-xs opacity-80" />
             )}
           </div>
-          {isAdmin && <button type="button" onClick={() => setPaymentModal(true)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"><Plus size={18} /> Record Payment</button>}
+          {isAdmin && <button type="button" onClick={openPaymentModal} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"><Plus size={18} /> Record Payment</button>}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -182,6 +193,22 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                 <h3 className="text-lg font-bold mb-4">Record Payment — {detail.vendor.name}</h3>
                 <p className="text-sm text-gray-500 mb-4">Balance: <span className="font-bold text-rose-600">₹{detail.balance.toLocaleString()}</span></p>
                 <form onSubmit={handleRecordPayment} className="space-y-4">
+                  {vendorBatches.length > 0 && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 uppercase">Distribution Batch (optional)</label>
+                      <select value={paymentForm.batchId} onChange={(e) => {
+                        const batch = vendorBatches.find((b) => b.batchId === e.target.value);
+                        setPaymentForm({ ...paymentForm, batchId: e.target.value, amount: batch ? String(batch.balanceRemaining) : paymentForm.amount });
+                      }} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]">
+                        <option value="">General (no specific batch)</option>
+                        {vendorBatches.map((b) => (
+                          <option key={b.batchId} value={b.batchId}>
+                            {formatDate(b.distributionDate)} — {b.productNames.join(', ')} — ₹{b.balanceRemaining.toLocaleString()} due
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div><label className="text-xs font-bold text-gray-400 uppercase">Amount (₹)</label><input type="number" required min={1} step={0.01} value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="0.00" /></div>
                   <div><label className="text-xs font-bold text-gray-400 uppercase">Payment Date</label><input type="date" value={paymentForm.paymentDate} onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                   <div><label className="text-xs font-bold text-gray-400 uppercase">Payment Method</label><select value={paymentForm.paymentMethod} onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]"><option>Cash</option><option>Bank Transfer</option><option>UPI</option><option>Cheque</option><option>Other</option></select></div>
