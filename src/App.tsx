@@ -15,6 +15,7 @@ import {
   ScanSearch,
   FileText,
   ShoppingBag,
+  BarChart3,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -37,6 +38,7 @@ import { VendorFinanceView } from './features/finance/VendorFinanceView';
 import { ReportsView } from './features/reports/ReportsView';
 import { PurchasesView } from './features/purchases/PurchasesView';
 import { QuotationsView } from './features/quotations/QuotationsView';
+import { AccountsView } from './features/accounts/AccountsView';
 import { SettingsView } from './features/settings/SettingsView';
 import { ProductVerificationView } from './features/verification/ProductVerificationView';
 import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
@@ -155,6 +157,7 @@ export default function App() {
     { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },
     { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') },
     { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') },
+    { id: 'accounts', label: 'Accounts', icon: BarChart3, show: true },
     { id: 'reports', label: tc('reports', 'Reports'), icon: FileText, show: tv('reports') },
   ];
   const navItems = allNavItems.filter(item => item.show);
@@ -398,6 +401,7 @@ export default function App() {
           {activeTab === 'verification' && <ProductVerificationView />}
           {activeTab === 'quotations' && <QuotationsView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} />}
+          {activeTab === 'accounts' && <AccountsView />}
           {activeTab === 'reports' && <ReportsView />}
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
         </div>

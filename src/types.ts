@@ -1,4 +1,4 @@
-export type Tab = 'dashboard' | 'warranty' | 'rewards' | 'replacements' | 'inventory' | 'purchases' | 'sales' | 'distribution' | 'quotations' | 'finance' | 'verification' | 'reports' | 'settings';
+export type Tab = 'dashboard' | 'warranty' | 'rewards' | 'replacements' | 'inventory' | 'purchases' | 'sales' | 'distribution' | 'quotations' | 'finance' | 'accounts' | 'verification' | 'reports' | 'settings';
 
 export const USER_STORAGE_KEY = 'dg_erp_user';
 

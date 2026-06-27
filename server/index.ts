@@ -28,6 +28,7 @@ import searchRouter from './routes/search';
 import reportsRouter from './routes/reports';
 import purchasesRouter from './routes/purchases';
 import quotationsRouter from './routes/quotations';
+import accountsRouter from './routes/accounts';
 import notificationsRouter from './routes/notifications';
 import mastersRouter from './routes/masters';
 import mappingRouter from './routes/mapping';
@@ -174,6 +175,7 @@ app.use(billSettingsRouter);
 app.use(reportsRouter);
 app.use(purchasesRouter);
 app.use(quotationsRouter);
+app.use(accountsRouter);
 
 // Request logging for errors
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
