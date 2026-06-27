@@ -22,6 +22,7 @@ export function InventoryView() {
   const [loading, setLoading] = useState(true);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [labelPrinterId, setLabelPrinterId] = useState<string | null>(null);
+  const [labelBarcodeRange, setLabelBarcodeRange] = useState<{ first: string; last: string } | undefined>(undefined);
   const [barcodeSearch, setBarcodeSearch] = useState('');
   const debouncedBarcodeSearch = useDebounce(barcodeSearch, 250);
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -360,10 +361,15 @@ export function InventoryView() {
                   <p className="p-6 text-gray-500 text-center">No barcode history yet.</p>
                 ) : (
                   <table className="w-full text-left">
-                    <thead className="bg-gray-50 sticky top-0"><tr className="text-xs font-bold text-gray-400 uppercase"><th className="px-6 py-3">Date</th><th className="px-6 py-3">Barcode range</th><th className="px-6 py-3">Quantity added</th></tr></thead>
+                    <thead className="bg-gray-50 sticky top-0"><tr className="text-xs font-bold text-gray-400 uppercase"><th className="px-6 py-3">Date</th><th className="px-6 py-3">Barcode range</th><th className="px-6 py-3">Qty</th><th className="px-6 py-3"></th></tr></thead>
                     <tbody className="divide-y divide-gray-50">
                       {barcodeDetailsModal.batches.map((b, i) => (
-                        <tr key={i}><td className="px-6 py-3 text-sm text-gray-600">{formatDate(b.date)}</td><td className="px-6 py-3 font-mono text-sm">{b.barcodeFirst} – {b.barcodeLast}</td><td className="px-6 py-3 font-medium">{b.count} units</td></tr>
+                        <tr key={i}>
+                          <td className="px-6 py-3 text-sm text-gray-600">{formatDate(b.date)}</td>
+                          <td className="px-6 py-3 font-mono text-sm">{b.barcodeFirst} – {b.barcodeLast}</td>
+                          <td className="px-6 py-3 font-medium">{b.count} units</td>
+                          <td className="px-6 py-3"><button type="button" onClick={() => { setLabelPrinterId(barcodeDetailsModal.product.id); setLabelBarcodeRange({ first: b.barcodeFirst, last: b.barcodeLast }); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg"><Printer size={12} /> Print</button></td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
@@ -420,7 +426,7 @@ export function InventoryView() {
         )}
       </AnimatePresence>
       {labelPrinterId && (
-        <BarcodeLabelPrinter productId={labelPrinterId} onClose={() => setLabelPrinterId(null)} />
+        <BarcodeLabelPrinter productId={labelPrinterId} barcodeRange={labelBarcodeRange} onClose={() => { setLabelPrinterId(null); setLabelBarcodeRange(undefined); }} />
       )}
       {csvImportOpen && (
         <CsvImport

@@ -9,6 +9,7 @@ import { session } from '../../lib/session';
 interface BarcodeLabelPrinterProps {
   productId: string;
   onClose: () => void;
+  barcodeRange?: { first: string; last: string };
 }
 
 type LabelFormat = 'a4-24' | 'a4-40' | 'single';
@@ -61,7 +62,7 @@ function generateQrDataUrl(text: string, size: number = 100): string {
   return canvas.toDataURL('image/png');
 }
 
-export function BarcodeLabelPrinter({ productId, onClose }: BarcodeLabelPrinterProps) {
+export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: BarcodeLabelPrinterProps) {
   const [loading, setLoading] = useState(true);
   const [product, setProduct] = useState<{ name: string; price: number } | null>(null);
   const [barcodes, setBarcodes] = useState<{ barcode: string; status: string }[]>([]);
@@ -75,12 +76,18 @@ export function BarcodeLabelPrinter({ productId, onClose }: BarcodeLabelPrinterP
     api.products.getBarcodes(productId)
       .then((data) => {
         setProduct(data.product);
-        setBarcodes(data.barcodes);
-        setSelectedBarcodes(new Set(data.barcodes.map((b) => b.barcode)));
+        const allBarcodes = data.barcodes;
+        setBarcodes(allBarcodes);
+        if (barcodeRange) {
+          const inRange = allBarcodes.filter((b) => b.barcode >= barcodeRange.first && b.barcode <= barcodeRange.last);
+          setSelectedBarcodes(new Set(inRange.map((b) => b.barcode)));
+        } else {
+          setSelectedBarcodes(new Set(allBarcodes.map((b) => b.barcode)));
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [productId]);
+  }, [productId, barcodeRange]);
 
   const toggleBarcode = (bc: string) => {
     setSelectedBarcodes((prev) => {
