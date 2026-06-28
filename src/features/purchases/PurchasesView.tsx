@@ -32,7 +32,7 @@ export function PurchasesView() {
   const [supplierModal, setSupplierModal] = useState(false);
   const [supplierForm, setSupplierForm] = useState({ name: '', contactPerson: '', phone: '', email: '', address: '', gstNumber: '' });
   const [purchaseForm, setPurchaseForm] = useState({ supplierId: '', date: new Date().toISOString().slice(0, 10), amountPaid: '' });
-  const [purchaseRows, setPurchaseRows] = useState<{ productId: string; quantity: number; costPrice: string; withGst: boolean }[]>([{ productId: '', quantity: 1, costPrice: '', withGst: true }]);
+  const [purchaseRows, setPurchaseRows] = useState<{ productId: string; quantity: number; packs: number; loosePieces: number; costPrice: string; withGst: boolean }[]>([{ productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }]);
   const [submitting, setSubmitting] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState<'unpaid' | 'paid'>('unpaid');
   const [searchText, setSearchText] = useState('');
@@ -60,10 +60,12 @@ export function PurchasesView() {
   const defaultGstRate = 18;
   const purchaseTotals = purchaseRows.reduce((acc, r) => {
     const p = products.find(x => x.id === r.productId);
+    const ps = p?.packSize ?? 1;
+    const actualQty = ps > 1 ? (r.packs * ps) + r.loosePieces : r.quantity;
     const cost = r.costPrice ? parseFloat(r.costPrice) : (p?.price ?? 0);
-    const gross = cost * (r.quantity || 0);
+    const gross = cost * (actualQty || 0);
     const gst = r.withGst ? Math.round(gross * defaultGstRate / 100) : 0;
-    acc.gross += gross; acc.gst += gst; acc.billed += gross + gst; acc.items += r.quantity || 0;
+    acc.gross += gross; acc.gst += gst; acc.billed += gross + gst; acc.items += actualQty || 0;
     return acc;
   }, { gross: 0, gst: 0, billed: 0, items: 0 });
 
@@ -91,10 +93,14 @@ export function PurchasesView() {
         body: JSON.stringify({
           supplierId: purchaseForm.supplierId, purchaseDate: purchaseForm.date, gstRate: defaultGstRate,
           amountPaid: paid > 0 ? paid : undefined,
-          items: validRows.map(r => ({ productId: r.productId, quantity: r.quantity, costPrice: r.costPrice ? parseFloat(r.costPrice) : undefined, withGst: r.withGst })),
+          items: validRows.map(r => {
+            const rp = products.find(x => x.id === r.productId);
+            const ps = rp?.packSize ?? 1;
+            return { productId: r.productId, quantity: ps > 1 ? (r.packs * ps) + r.loosePieces : r.quantity, costPrice: r.costPrice ? parseFloat(r.costPrice) : undefined, withGst: r.withGst };
+          }),
         }),
       });
-      setModalOpen(false); setPurchaseRows([{ productId: '', quantity: 1, costPrice: '', withGst: true }]); setPurchaseForm({ supplierId: '', date: new Date().toISOString().slice(0, 10), amountPaid: '' });
+      setModalOpen(false); setPurchaseRows([{ productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }]); setPurchaseForm({ supplierId: '', date: new Date().toISOString().slice(0, 10), amountPaid: '' });
       load(); toast(`Purchase recorded — ${validRows.length} product(s), ${purchaseTotals.items} items`, 'success');
     } catch (err) { toast((err as Error).message, 'error'); }
     finally { setSubmitting(false); }
@@ -268,15 +274,29 @@ export function PurchasesView() {
                 </tr></thead><tbody className="divide-y divide-gray-100">
                   {purchaseRows.map((row, idx) => {
                     const p = products.find(x => x.id === row.productId);
+                    const ps = p?.packSize ?? 1;
+                    const hasPack = ps > 1;
+                    const actualQty = hasPack ? (row.packs * ps) + row.loosePieces : row.quantity;
                     const cost = row.costPrice ? parseFloat(row.costPrice) : (p?.price ?? 0);
-                    const gross = cost * (row.quantity || 0);
+                    const gross = cost * (actualQty || 0);
                     const gst = row.withGst ? Math.round(gross * defaultGstRate / 100) : 0;
                     const billed = gross + gst;
                     return (
                       <tr key={idx} className="hover:bg-gray-50">
                         <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
-                        <td className="px-3 py-2"><select value={row.productId} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, productId: e.target.value } : r))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"><option value="">Select product</option>{products.map(pr => <option key={pr.id} value={pr.id}>{pr.name} (₹{pr.price.toLocaleString()})</option>)}</select></td>
-                        <td className="px-3 py-2"><input type="number" min={1} value={row.quantity || ''} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, quantity: parseInt(e.target.value) || 0 } : r))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center" /></td>
+                        <td className="px-3 py-2"><select value={row.productId} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, productId: e.target.value } : r))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"><option value="">Select product</option>{products.map(pr => <option key={pr.id} value={pr.id}>{pr.name} (₹{pr.price.toLocaleString()}){(pr.packSize ?? 1) > 1 ? ` [${pr.packName}=${pr.packSize}]` : ''}</option>)}</select></td>
+                        <td className="px-3 py-2">{hasPack ? (
+                          <div className="flex items-center gap-1">
+                            <input type="number" min={0} value={row.packs || ''} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, packs: parseInt(e.target.value) || 0 } : r))} className="w-12 px-1 py-1.5 border border-gray-200 rounded-lg text-sm text-center" placeholder="0" />
+                            <span className="text-[9px] text-gray-400">{p?.packName}</span>
+                            <span className="text-gray-300">+</span>
+                            <input type="number" min={0} value={row.loosePieces || ''} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, loosePieces: parseInt(e.target.value) || 0 } : r))} className="w-12 px-1 py-1.5 border border-gray-200 rounded-lg text-sm text-center" placeholder="0" />
+                            <span className="text-[9px] text-gray-400">pcs</span>
+                            {actualQty > 0 && <span className="text-[9px] text-emerald-500">={actualQty}</span>}
+                          </div>
+                        ) : (
+                          <input type="number" min={1} value={row.quantity || ''} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, quantity: parseInt(e.target.value) || 0 } : r))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center" />
+                        )}</td>
                         <td className="px-3 py-2"><input type="number" min={0} step={0.01} value={row.costPrice} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, costPrice: e.target.value } : r))} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-2 py-1.5 border rounded-lg text-sm text-center", row.costPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
                         <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, withGst: e.target.checked } : r))} className="rounded text-[#F27D26]" /></td>
                         <td className="px-3 py-2 text-right text-sm font-bold">{billed > 0 ? `₹${billed.toLocaleString()}` : '—'}</td>
@@ -286,7 +306,7 @@ export function PurchasesView() {
                   })}
                 </tbody></table>
               </div>
-              <button type="button" onClick={() => setPurchaseRows([...purchaseRows, { productId: '', quantity: 1, costPrice: '', withGst: true }])} className="text-sm font-bold text-[#F27D26] mb-4">+ Add Product</button>
+              <button type="button" onClick={() => setPurchaseRows([...purchaseRows, { productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }])} className="text-sm font-bold text-[#F27D26] mb-4">+ Add Product</button>
               <div className="bg-gray-50 rounded-xl p-4 mb-4 flex items-center justify-between flex-wrap gap-2">
                 <span className="text-sm text-gray-600">{purchaseTotals.items} items • Gross ₹{purchaseTotals.gross.toLocaleString()} • GST ₹{purchaseTotals.gst.toLocaleString()}</span>
                 <span className="text-lg font-bold text-[#F27D26]">Total: ₹{purchaseTotals.billed.toLocaleString()}</span>
