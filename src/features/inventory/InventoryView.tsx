@@ -279,34 +279,51 @@ export function InventoryView() {
                 finally { setAddSubmitting(false); }
               }} className="space-y-4">
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Name</label><input required value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                {inventoryTrackingEnabled && <><div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-xs font-bold text-gray-400 uppercase">Barcode Prefix</label><input required placeholder="e.g. SP, PUMP, A" value={addForm.barcodePrefix} onChange={(e) => setAddForm({ ...addForm, barcodePrefix: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26] font-mono" autoComplete="off" /></div>
-                  {addForm.packSize > 1 ? (
-                    <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase">Quantity</label>
-                      <div className="flex gap-2 mt-1">
-                        <div className="flex-1"><input type="number" min={0} max={10000} value={addForm.packs || ''} onChange={(e) => setAddForm({ ...addForm, packs: parseInt(e.target.value) || 0 })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="0" /><p className="text-[10px] text-gray-400 mt-0.5 text-center">{addForm.packName}s</p></div>
-                        <span className="self-center text-gray-400 font-bold">+</span>
-                        <div className="flex-1"><input type="number" min={0} max={10000} value={addForm.loosePieces || ''} onChange={(e) => setAddForm({ ...addForm, loosePieces: parseInt(e.target.value) || 0 })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="0" /><p className="text-[10px] text-gray-400 mt-0.5 text-center">Loose Pieces</p></div>
-                      </div>
-                      <p className="text-xs text-emerald-600 font-medium mt-1">= {(addForm.packs * addForm.packSize) + addForm.loosePieces} pieces total</p>
-                    </div>
-                  ) : (
-                    <div><label className="text-xs font-bold text-gray-400 uppercase">Quantity</label><input type="number" required min={1} max={10000} value={addForm.quantity || ''} onChange={(e) => setAddForm({ ...addForm, quantity: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">Barcodes auto-generated: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}{String(addForm.packSize > 1 ? (addForm.packs * addForm.packSize) + addForm.loosePieces : (addForm.quantity || 10)).padStart(3, '0')}</span></p></>}
+                {inventoryTrackingEnabled && <><div><label className="text-xs font-bold text-gray-400 uppercase">Barcode Prefix</label><input required placeholder="e.g. SP, PUMP, A" value={addForm.barcodePrefix} onChange={(e) => setAddForm({ ...addForm, barcodePrefix: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26] font-mono" autoComplete="off" /></div>
+                </>}
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Description</label><input placeholder="Product description" value={addForm.description} onChange={(e) => setAddForm({ ...addForm, description: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="text-xs font-bold text-gray-400 uppercase">HSN Code</label><input value={addForm.hsnCode ?? ''} onChange={(e) => setAddForm({ ...addForm, hsnCode: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26] font-mono" placeholder="e.g. 8413" /></div>
                   <div><label className="text-xs font-bold text-gray-400 uppercase">GST Rate (%)</label><input type="number" min={0} max={28} value={addForm.gstRate ?? 18} onChange={(e) => setAddForm({ ...addForm, gstRate: e.target.value === '' ? 18 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-xs font-bold text-gray-400 uppercase">Pack Size</label><input type="number" min={1} value={addForm.packSize} onChange={(e) => setAddForm({ ...addForm, packSize: Math.max(1, Number(e.target.value) || 1) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /><p className="text-[10px] text-gray-400 mt-0.5">Pieces per pack (1 = no pack)</p></div>
-                  <div><label className="text-xs font-bold text-gray-400 uppercase">Pack Name</label><select value={addForm.packName} onChange={(e) => setAddForm({ ...addForm, packName: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]"><option>Piece</option><option>Box</option><option>Carton</option><option>Roll</option><option>Bundle</option><option>Set</option><option>Pack</option></select></div>
+
+                {/* Unit Type: Piece or Box */}
+                <div>
+                  <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Unit Type</label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setAddForm({ ...addForm, packSize: 1, packName: 'Piece', packs: 0, loosePieces: 0 })} className={cn("flex-1 py-2.5 rounded-xl font-bold text-sm border transition-all", addForm.packSize <= 1 ? "bg-[#F27D26] text-white border-[#F27D26]" : "border-gray-200 text-gray-600 hover:border-[#F27D26]")}>
+                      Piece
+                    </button>
+                    <button type="button" onClick={() => setAddForm({ ...addForm, packSize: addForm.packSize > 1 ? addForm.packSize : 10, packName: 'Box', quantity: 0 })} className={cn("flex-1 py-2.5 rounded-xl font-bold text-sm border transition-all", addForm.packSize > 1 ? "bg-[#F27D26] text-white border-[#F27D26]" : "border-gray-200 text-gray-600 hover:border-[#F27D26]")}>
+                      Box
+                    </button>
+                  </div>
                 </div>
+
+                {addForm.packSize > 1 ? (
+                  <>
+                    <div><label className="text-xs font-bold text-gray-400 uppercase">Pieces per Box</label><input type="number" min={2} value={addForm.packSize} onChange={(e) => setAddForm({ ...addForm, packSize: Math.max(2, Number(e.target.value) || 2) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 uppercase">Quantity</label>
+                      <div className="flex gap-2 mt-1">
+                        <div className="flex-1"><input type="number" min={0} max={10000} value={addForm.packs || ''} onChange={(e) => setAddForm({ ...addForm, packs: parseInt(e.target.value) || 0 })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="0" /><p className="text-[10px] text-gray-400 mt-0.5 text-center">Boxes</p></div>
+                        <span className="self-center text-gray-400 font-bold text-lg">+</span>
+                        <div className="flex-1"><input type="number" min={0} max={10000} value={addForm.loosePieces || ''} onChange={(e) => setAddForm({ ...addForm, loosePieces: parseInt(e.target.value) || 0 })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="0" /><p className="text-[10px] text-gray-400 mt-0.5 text-center">Loose Pieces</p></div>
+                      </div>
+                      <p className="text-xs text-emerald-600 font-medium mt-1">= {(addForm.packs * addForm.packSize) + addForm.loosePieces} pieces total</p>
+                    </div>
+                    {inventoryTrackingEnabled && <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">Barcodes: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}{String((addForm.packs * addForm.packSize) + addForm.loosePieces || 1).padStart(3, '0')}</span></p>}
+                    <div><label className="text-xs font-bold text-gray-400 uppercase">Price (₹ per Box)</label><input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                  </>
+                ) : (
+                  <>
+                    {inventoryTrackingEnabled && <><div><label className="text-xs font-bold text-gray-400 uppercase">Quantity</label><input type="number" required min={1} max={10000} value={addForm.quantity || ''} onChange={(e) => setAddForm({ ...addForm, quantity: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                    <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">Barcodes: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}{String(addForm.quantity || 10).padStart(3, '0')}</span></p></>}
+                    <div><label className="text-xs font-bold text-gray-400 uppercase">Price (₹ per Piece)</label><input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                  </>
+                )}
+
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Reward Points</label><input type="number" min={0} value={addForm.rewardPointsValue || ''} onChange={(e) => setAddForm({ ...addForm, rewardPointsValue: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Price (₹){addForm.packSize > 1 ? ` per ${addForm.packName}` : ''}</label><input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
                 {warrantyVisible && <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-gray-400 uppercase">Warranty</label>
