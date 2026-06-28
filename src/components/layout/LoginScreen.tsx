@@ -29,9 +29,10 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
-  const [mode, setMode] = useState<LoginMode>('login');
+  const urlToken = new URLSearchParams(window.location.search).get('token');
+  const [mode, setMode] = useState<LoginMode>(urlToken ? 'reset' : 'login');
   const [form, setForm] = useState({ email: '', password: '', name: '', confirmPassword: '', companyName: '', phone: '' });
-  const [resetToken, setResetToken] = useState('');
+  const [resetToken, setResetToken] = useState(urlToken || '');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
