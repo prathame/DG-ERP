@@ -86,8 +86,10 @@ if (typeof window !== 'undefined') {
 
 export default function App() {
   const [activeTab, setActiveTabRaw] = useState<Tab>('dashboard');
+  const [tabKey, setTabKey] = useState(0);
   const setActiveTab = (tab: Tab) => {
     setActiveTabRaw(tab);
+    setTabKey(k => k + 1);
     window.history.pushState({ tab }, '', window.location.pathname);
   };
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -388,6 +390,7 @@ export default function App() {
         </header>
 
         <div className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
+          <div key={tabKey}>
           {activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} />}
           {activeTab === 'sales' && <SalesEntryView user={user} />}
           {activeTab === 'purchases' && <PurchasesView />}
@@ -400,6 +403,7 @@ export default function App() {
           {activeTab === 'quotations' && <QuotationsView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} />}
           {activeTab === 'accounts' && <AccountsView />}
+          </div>
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
         </div>
       </main>
