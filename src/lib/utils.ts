@@ -5,6 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function formatPackQty(qty: number, packSize?: number, packName?: string): string {
+  if (!packSize || packSize <= 1) return `${qty}`;
+  const boxes = Math.floor(qty / packSize);
+  const loose = qty % packSize;
+  if (boxes === 0) return `${loose} pcs`;
+  if (loose === 0) return `${boxes} ${packName || 'Box'}${boxes > 1 ? 's' : ''}`;
+  return `${boxes} ${packName || 'Box'}${boxes > 1 ? 's' : ''} + ${loose} pcs`;
+}
+
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
   const d = new Date(dateStr);

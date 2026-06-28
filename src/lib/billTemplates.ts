@@ -328,7 +328,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
         <td style="text-align:center;">${g.sno}</td>
         <td><strong>${esc(g.productName)}</strong></td>
         <td style="font-family:monospace;font-size:12px;">${esc(g.barcodeRange)}</td>
-        <td style="text-align:center;">${g.quantity}</td>
+        <td style="text-align:center;">${g.quantity}${(g as Record<string, unknown>).packQuantity ? `<br><span style="font-size:10px;color:#666;">${(g as Record<string, unknown>).packQuantity}</span>` : ''}</td>
         ${bill.groupedItems.some(gi => gi.discountPercent > 0) ? `<td style="text-align:right;">₹${g.originalPrice.toLocaleString()}</td><td style="text-align:right;color:#16a34a;">${g.discountPercent > 0 ? g.discountPercent + '%' : '-'}</td>` : ''}
         <td style="text-align:right;">₹${g.netPrice.toLocaleString()}</td>
         <td style="text-align:right;font-weight:bold;">₹${g.lineTotal.toLocaleString()}</td>

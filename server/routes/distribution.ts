@@ -475,7 +475,7 @@ router.get('/api/distribution/bill', async (req, res) => {
     if (!vendorId && !batchId) return res.status(400).json({ error: 'vendorId or batchId is required' });
     let sql = `
       SELECT pd.id, pd.batch_id, pd.barcode, pd.distribution_date, pd.status, pd.discount_percent, pd.net_price, pd.billed_price, pd.gst_applied,
-             pd.product_id, p.name as product_name, p.price, p.batch_number,
+             pd.product_id, p.name as product_name, p.price, p.batch_number, p.pack_size, p.pack_name,
              v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
@@ -549,23 +549,27 @@ router.get('/api/distribution/bill', async (req, res) => {
         status: r.status,
       })),
       groupedItems: (() => {
-        const groups: Record<string, { productName: string; barcodes: string[]; originalPrice: number; discountPercent: number; netPrice: number }> = {};
+        const groups: Record<string, { productName: string; barcodes: string[]; originalPrice: number; discountPercent: number; netPrice: number; packSize: number; packName: string }> = {};
         for (const r of rows) {
           const key = `${r.product_id}-${r.discount_percent ?? 0}-${r.distribution_date}`;
-          if (!groups[key]) groups[key] = { productName: r.product_name as string, barcodes: [], originalPrice: Number(r.price) || 0, discountPercent: Number(r.discount_percent) || 0, netPrice: Number(r.net_price) || Number(r.price) || 0 };
+          if (!groups[key]) groups[key] = { productName: r.product_name as string, barcodes: [], originalPrice: Number(r.price) || 0, discountPercent: Number(r.discount_percent) || 0, netPrice: Number(r.net_price) || Number(r.price) || 0, packSize: Number(r.pack_size) || 1, packName: (r.pack_name as string) || 'Piece' };
           groups[key].barcodes.push(r.barcode as string);
         }
         return Object.values(groups).map((g, i) => {
           const sorted = g.barcodes.sort();
+          const qty = sorted.length;
+          const ps = g.packSize;
+          const packQty = ps > 1 ? `${Math.floor(qty / ps)} ${g.packName}${Math.floor(qty / ps) > 1 ? 's' : ''}${qty % ps > 0 ? ` + ${qty % ps} pcs` : ''}` : null;
           return {
             sno: i + 1,
             productName: g.productName,
             barcodeRange: sorted.length === 1 ? sorted[0] : `${sorted[0]} – ${sorted[sorted.length - 1]}`,
-            quantity: sorted.length,
+            quantity: qty,
+            packQuantity: packQty,
             originalPrice: g.originalPrice,
             discountPercent: g.discountPercent,
             netPrice: g.netPrice,
-            lineTotal: g.netPrice * sorted.length,
+            lineTotal: g.netPrice * qty,
           };
         });
       })(),
@@ -866,7 +870,7 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
     const { batchId } = req.params;
     const rows = (await pool.query(`
       SELECT pd.product_id, pd.status, pd.discount_percent, pd.gst_applied,
-             p.name as product_name, p.price,
+             p.name as product_name, p.price, p.pack_size, p.pack_name,
              (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as available_stock
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
@@ -898,6 +902,7 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
       productId: string; productName: string; quantity: number; minQuantity: number;
       sold: number; replaced: number; damaged: number;
       discountPercent: number; withGst: boolean; availableStock: number;
+      packSize: number; packName: string;
     }> = {};
     for (const r of rows) {
       const pid = r.product_id as string;
@@ -913,6 +918,8 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
           discountPercent: Number(r.discount_percent) || 0,
           withGst: !!r.gst_applied,
           availableStock: Number(r.available_stock) || 0,
+          packSize: Number(r.pack_size) || 1,
+          packName: (r.pack_name as string) || 'Piece',
         };
       }
       const g = groups[pid];
