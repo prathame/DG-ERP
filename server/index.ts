@@ -79,6 +79,9 @@ const PUBLIC_PATHS = [
   '/api/super-admin/login', '/manifest.json',
 ];
 
+// Tenant status cache (60s TTL — avoids DB query on every request)
+export const tenantStatusCache = new Map<string, { status: string; expiresAt: string | null; cachedAt: number }>();
+
 // Global auth: protect all /api/ routes except public ones
 app.use('/api/', async (req, res, next) => {
   if (PUBLIC_PATHS.some(p => req.path.startsWith(p.replace('/api', '')))) return next();
@@ -88,15 +91,20 @@ app.use('/api/', async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as { tenantId?: string; userId?: string; role?: string };
     if (decoded.tenantId) {
       req.headers['x-tenant-id'] = decoded.tenantId;
-      const tenant = (await pool.query('SELECT status, subscription_ends_at, trial_ends_at FROM tenants WHERE id = $1', [decoded.tenantId])).rows[0] as { status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
-      if (tenant && tenant.status === 'suspended') {
+      const cached = tenantStatusCache.get(decoded.tenantId);
+      let tenantStatus = cached && (Date.now() - cached.cachedAt < 60000) ? cached : null;
+      if (!tenantStatus) {
+        const tenant = (await pool.query('SELECT status, subscription_ends_at, trial_ends_at FROM tenants WHERE id = $1', [decoded.tenantId])).rows[0] as { status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
+        if (tenant) {
+          tenantStatus = { status: tenant.status, expiresAt: tenant.subscription_ends_at || tenant.trial_ends_at, cachedAt: Date.now() };
+          tenantStatusCache.set(decoded.tenantId, tenantStatus);
+        }
+      }
+      if (tenantStatus?.status === 'suspended') {
         return res.status(403).json({ error: 'Account suspended. Contact admin.' });
       }
-      if (tenant) {
-        const endDate = tenant.subscription_ends_at || tenant.trial_ends_at;
-        if (endDate && new Date(endDate).getTime() < Date.now()) {
-          return res.status(403).json({ error: 'Subscription expired. Contact admin to renew.' });
-        }
+      if (tenantStatus?.expiresAt && new Date(tenantStatus.expiresAt).getTime() < Date.now()) {
+        return res.status(403).json({ error: 'Subscription expired. Contact admin to renew.' });
       }
     }
     (req as unknown as Record<string, unknown>).user = decoded;
