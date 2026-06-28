@@ -219,12 +219,6 @@ export default function App() {
     );
   }
 
-  // Already logged in as super admin but on root (/) — redirect to /admin
-  if (authState.isSuperAdmin && !isSuperAdminRoute && !urlSlug) {
-    window.location.href = '/admin';
-    return null;
-  }
-
   // Super admin visiting a tenant slug — clear super admin session, show tenant login
   if (authState.isSuperAdmin && urlSlug) {
     session.clearAll();
