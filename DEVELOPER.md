@@ -1,4 +1,4 @@
-# Developer Guide — DG ERP Management
+# Developer Guide — DG Business Management
 
 Complete technical reference for developers working on this codebase.
 
@@ -134,11 +134,11 @@ Routing logic in `App.tsx`:
 
 ```
 1. Login page at /{slug} shows tenant logo, accent color, tagline
-2. Sidebar shows user.companyName (not "DG ERP")
-3. Browser tab: "{CompanyName} — DG ERP"
+2. Sidebar shows user.companyName (not "DG Business")
+3. Browser tab: "{CompanyName} — DG Business"
 4. Bills use tenant's company name + custom logo/colors from bill_settings
 5. WhatsApp messages use tenant's company name
-6. Small "Powered by DG ERP" in sidebar footer + bill footers + login page
+6. Small "Powered by DG Business" in sidebar footer + bill footers + login page
 ```
 
 ### File Organization
@@ -262,7 +262,7 @@ CREATE TABLE IF NOT EXISTS bill_settings (
   show_rewards BOOLEAN DEFAULT true,
   show_barcode BOOLEAN DEFAULT true,
   show_warranty BOOLEAN DEFAULT true,
-  footer_text TEXT DEFAULT 'Powered by DG ERP Management',
+  footer_text TEXT DEFAULT 'Powered by DG Business Management',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -457,9 +457,9 @@ export default router;
 4. If super_admin token but NOT on /admin → redirect to /admin
 5. If /{slug} and no user → fetch tenant branding, show branded login
 6. If /{slug} not found → "Company Not Found" page
-7. If no user and no slug → generic DG ERP login
+7. If no user and no slug → generic DG Business login
 8. If user → tenant ERP, sidebar shows user.companyName, URL = /{slug}
-9. Browser tab title: "{CompanyName} — DG ERP"
+9. Browser tab title: "{CompanyName} — DG Business"
 10. On logout → stay on /{slug} for branded login page
 ```
 
@@ -709,7 +709,7 @@ DELETE /api/super-admin/billing/:id          — delete invoice
 
 **Invoice number format:** `DG-2026-123456` (auto-generated)
 
-**Print:** Generates professional PDF with DG ERP branding, tenant name, plan, period, GST breakdown, total.
+**Print:** Generates professional PDF with DG Business branding, tenant name, plan, period, GST breakdown, total.
 
 ---
 
@@ -1131,15 +1131,15 @@ Meaningful variable names used throughout (ERP/finance context):
 - Payables: purchase total - supplier_payments
 - Cash: vendor_payments - supplier_payments
 
-### Reports Module
-**Purpose**: 6 CA-ready reports for ITR/GST filing
+### Reports (merged into Accounts tab)
+**Purpose**: 6 CA-ready reports for ITR/GST filing — now inside the Accounts & Reports tab
 
 | File | Purpose |
 |------|---------|
-| `server/routes/reports.ts` | All 6 report endpoints |
-| `src/features/reports/ReportsView.tsx` | Report UI with filters + export |
+| `server/routes/reports.ts` | All 6 report endpoints (unchanged) |
+| `src/features/accounts/AccountsView.tsx` | Unified UI — Accounts (P&L, Balance Sheet, Cash Flow, Ledger) + Reports (Sales, Distribution, Outstanding, Payments, Stock, GST) |
 
-**Reports**: Sales Register, Distribution Register, Outstanding (age-wise), Payment Register, Stock Summary, GST Summary (GSTR-1 format with B2B/B2C/HSN)
+**Note**: `src/features/reports/ReportsView.tsx` still exists but is unused. The report API endpoints are the same — only the UI was merged into AccountsView.
 
 ### Batch-Level Payment Tracking
 **What changed**: `vendor_payments` and `supplier_payments` now have `batch_id` column. Payments can be linked to specific distribution/purchase batches.
@@ -1181,7 +1181,7 @@ Key sections: Business types → Flow diagram → 16 features → Pricing → "T
 | `src/features/purchases/PurchasesView.tsx` | Purchases UI |
 | `src/features/quotations/QuotationsView.tsx` | Quotations UI |
 | `src/features/accounts/AccountsView.tsx` | Accounts UI |
-| `src/features/reports/ReportsView.tsx` | Reports UI |
+| `src/features/accounts/AccountsView.tsx` | Accounts + Reports (merged) |
 
 ### Database Tables Added
 
@@ -1204,5 +1204,5 @@ Key sections: Business types → Flow diagram → 16 features → Pricing → "T
 ---
 
 *Last updated: June 2026*
-*Platform: DG Business (formerly DG ERP)*
+*Platform: DG Business (formerly DG Business)*
 *Built with Claude Code (Anthropic)*

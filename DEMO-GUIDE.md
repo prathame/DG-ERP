@@ -1,4 +1,4 @@
-# DG ERP — Demo Flow Guide
+# DG Business — Demo Flow Guide
 
 Step-by-step guide to demonstrate the full platform.
 
@@ -46,7 +46,7 @@ npm run dev
 1. Open a **new browser tab**
 2. Go to **http://localhost:3000/splendor-pump-llp**
 3. Show the branded login page — company name, logo (letter icon initially), accent color
-4. Point out "Powered by DG ERP" at the bottom
+4. Point out "Powered by DG Business" at the bottom
 5. Login with the tenant admin credentials from step 2
 
 ## 4. Tenant ERP Tour
@@ -121,7 +121,7 @@ After login, walk through each section:
 ## 11. Generic Login (No Slug)
 
 1. Open **http://localhost:3000** (no slug in URL)
-2. Show the generic "DG ERP" login — no company branding
+2. Show the generic "DG Business" login — no company branding
 3. Login with the same tenant admin email
 4. After login, URL automatically updates to `/splendor-pump-llp`
 
@@ -129,7 +129,7 @@ After login, walk through each section:
 
 1. Go to **http://localhost:3000/random-company**
 2. Show the "Company Not Found" error page
-3. Click "Go to DG ERP Home" → redirects to `/`
+3. Click "Go to DG Business Home" → redirects to `/`
 
 ## 13. Multi-Tenant Isolation
 

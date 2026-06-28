@@ -16,7 +16,7 @@ Cloud-based business management software for shops, dealers, and manufacturers. 
 | **Quotations** | Create quotes → share via WhatsApp → convert to distribution on approval |
 | **Finance** | Vendor receivables, supplier payables, payment recording (Cash/UPI/Bank/Cheque), reminders |
 | **Accounts** | Auto-generated P&L, Balance Sheet, Cash Flow, General Ledger — no manual bookkeeping |
-| **Reports** | Sales register, distribution register, outstanding (age-wise), payment register, stock summary, GST summary (GSTR-1 format) |
+| **Accounts & Reports** | P&L, Balance Sheet, Cash Flow, Ledger + Sales register, distribution register, outstanding (age-wise), payment register, stock summary, GST summary — all in one tab |
 | **Vendor Portal** | Separate login for dealers to view their stock, sales, and payments |
 | **AI Chatbot** | Natural language queries — "aaj ki sale kitni hai?" |
 | **Dashboard** | KPIs, low stock alerts, top products, revenue tracking |
@@ -125,7 +125,7 @@ src/
 │   ├── quotations/          # Quote → Share → Convert
 │   ├── finance/             # Vendor payments + batch selector
 │   ├── accounts/            # P&L, Balance Sheet, Cash Flow, Ledger
-│   ├── reports/             # 6 report types with export/print
+│   ├── accounts/            # Accounts + Reports (merged, 10 sub-tabs)
 │   ├── dashboard/           # KPIs, charts, masters
 │   ├── sales/               # Barcode scan + billing
 │   ├── settings/            # Profile, users, bill customization

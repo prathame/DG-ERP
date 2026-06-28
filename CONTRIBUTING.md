@@ -47,7 +47,7 @@
 | Quotations | `src/features/quotations/QuotationsView.tsx` | `server/routes/quotations.ts` | `quotations` |
 | Finance (Vendors) | `src/features/finance/VendorFinanceView.tsx` | `server/routes/finance.ts` | `vendor_payments` |
 | Accounts | `src/features/accounts/AccountsView.tsx` | `server/routes/accounts.ts` | (auto-generated from existing tables) |
-| Reports | `src/features/reports/ReportsView.tsx` | `server/routes/reports.ts` | (queries across all tables) |
+| Accounts & Reports | `src/features/accounts/AccountsView.tsx` | `server/routes/accounts.ts` + `reports.ts` | (auto-generated from all tables) |
 | Dashboard | `src/features/dashboard/DashboardView.tsx` | `server/routes/dashboard.ts` | (aggregates) |
 | Settings | `src/features/settings/SettingsView.tsx` | `server/routes/auth.ts` + `bill-settings.ts` | `users`, `bill_settings` |
 | Vendors | (inside Distribution) | `server/routes/vendors.ts` | `vendors` |
