@@ -142,10 +142,12 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...authHeaders, ...options?.headers },
   });
 
-  if (res.status === 401) {
+  if (res.status === 401 || res.status === 403) {
     const slug = session.getSlug();
+    const pathSlug = window.location.pathname.match(/^\/([a-z0-9][a-z0-9-]*)/i)?.[1];
     session.clearAll();
-    window.location.href = slug ? `/${slug}` : '/';
+    const redirectSlug = slug || pathSlug;
+    window.location.href = redirectSlug ? `/${redirectSlug}` : '/';
     return new Promise(() => {}) as T;
   }
 
