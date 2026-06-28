@@ -158,7 +158,6 @@ export default function App() {
     { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') },
     { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') },
     { id: 'accounts', label: 'Accounts', icon: BarChart3, show: true },
-    { id: 'reports', label: tc('reports', 'Reports'), icon: FileText, show: tv('reports') },
   ];
   const navItems = allNavItems.filter(item => item.show);
 
@@ -402,14 +401,13 @@ export default function App() {
           {activeTab === 'quotations' && <QuotationsView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} />}
           {activeTab === 'accounts' && <AccountsView />}
-          {activeTab === 'reports' && <ReportsView />}
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
         </div>
       </main>
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 lg:hidden safe-bottom">
         <div className="flex items-center justify-around px-1 py-1">
-          {visibleNavItems.filter(i => i.id !== 'reports').slice(0, 5).map((item) => (
+          {visibleNavItems.slice(0, 5).map((item) => (
             <button
               key={item.id}
               type="button"
