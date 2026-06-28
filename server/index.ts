@@ -80,7 +80,7 @@ const PUBLIC_PATHS = [
 ];
 
 // Global auth: protect all /api/ routes except public ones
-app.use('/api/', (req, res, next) => {
+app.use('/api/', async (req, res, next) => {
   if (PUBLIC_PATHS.some(p => req.path.startsWith(p.replace('/api', '')))) return next();
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Authentication required' });
@@ -88,6 +88,16 @@ app.use('/api/', (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as { tenantId?: string; userId?: string; role?: string };
     if (decoded.tenantId) {
       req.headers['x-tenant-id'] = decoded.tenantId;
+      const tenant = (await pool.query('SELECT status, subscription_ends_at, trial_ends_at FROM tenants WHERE id = $1', [decoded.tenantId])).rows[0] as { status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
+      if (tenant && tenant.status === 'suspended') {
+        return res.status(403).json({ error: 'Account suspended. Contact admin.' });
+      }
+      if (tenant) {
+        const endDate = tenant.subscription_ends_at || tenant.trial_ends_at;
+        if (endDate && new Date(endDate).getTime() < Date.now()) {
+          return res.status(403).json({ error: 'Subscription expired. Contact admin to renew.' });
+        }
+      }
     }
     (req as unknown as Record<string, unknown>).user = decoded;
     (req as unknown as Record<string, unknown>).tenantId = decoded.tenantId;
