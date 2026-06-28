@@ -182,7 +182,7 @@ export default function App() {
 
   // Detect slug from URL: /splender, /radhe-krishan, etc. (not /admin, not /)
   const isSuperAdminRoute = pathname.startsWith('/admin');
-  const slugMatch = pathname.match(/^\/([a-z0-9][a-z0-9-]*[a-z0-9])$/i) || pathname.match(/^\/([a-z0-9]+)$/i);
+  const slugMatch = pathname.match(/^\/([a-z0-9][a-z0-9-]*[a-z0-9])(\/.*)?$/i) || pathname.match(/^\/([a-z0-9]+)(\/.*)?$/i);
   const urlSlug = (!isSuperAdminRoute && slugMatch) ? slugMatch[1].toLowerCase() : null;
 
   // Tenant branding state for slug-based login
