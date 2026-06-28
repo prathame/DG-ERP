@@ -92,7 +92,7 @@ app.use('/api/', async (req, res, next) => {
     if (decoded.tenantId) {
       req.headers['x-tenant-id'] = decoded.tenantId;
       const cached = tenantStatusCache.get(decoded.tenantId);
-      let tenantStatus = cached && (Date.now() - cached.cachedAt < 60000) ? cached : null;
+      let tenantStatus = cached && (Date.now() - cached.cachedAt < 3600000) ? cached : null;
       if (!tenantStatus) {
         const tenant = (await pool.query('SELECT status, subscription_ends_at, trial_ends_at FROM tenants WHERE id = $1', [decoded.tenantId])).rows[0] as { status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
         if (tenant) {
