@@ -147,7 +147,7 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
             )}
             {mode === 'login' && (
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-white/20 bg-white/5 text-[#F27D26]" style={{ accentColor }} />
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-white/20 bg-white/5 text-brand" style={{ accentColor }} />
                 <span className="text-sm text-gray-400">Remember me</span>
               </label>
             )}

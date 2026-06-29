@@ -3,17 +3,9 @@ import { motion } from 'motion/react';
 import { BarChart3, Download, Printer, Search, BookOpen, TrendingUp, Scale, Banknote, ShoppingCart, Truck, Clock, IndianRupee, Package, Receipt } from 'lucide-react';
 import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { useToast, LoadingSpinner } from '../../components/ui';
-import { session } from '../../lib/session';
+import { fetchApi } from '../../api';
 
 type AccountTab = 'pnl' | 'balance' | 'cashflow' | 'ledger' | 'sales' | 'distribution' | 'outstanding' | 'payments' | 'stock' | 'gst';
-
-function fetchApi<T>(path: string): Promise<T> {
-  const token = session.getToken(); const tenantId = session.getTenantId();
-  const h: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) h['Authorization'] = `Bearer ${token}`;
-  if (tenantId) h['X-Tenant-ID'] = tenantId;
-  return fetch(`/api${path}`, { headers: h }).then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.error || r.statusText); }); return r.json(); });
-}
 
 function fmtCurrency(n: number) { return `₹${Math.abs(n).toLocaleString('en-IN')}${n < 0 ? ' (Cr)' : ''}`; }
 
@@ -93,7 +85,7 @@ export function AccountsView() {
           <div className="flex gap-1.5 flex-wrap">
             {TABS.filter(t => t.group === 'accounts').map(t => (
               <button key={t.key} type="button" onClick={() => { setTab(t.key); setData(null); }}
-                className={cn("flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all", tab === t.key ? "bg-[#F27D26] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
+                className={cn("flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all", tab === t.key ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
                 <t.icon size={14} /> <span className="hidden sm:inline">{t.label}</span><span className="sm:hidden">{t.shortLabel}</span>
               </button>
             ))}
@@ -104,7 +96,7 @@ export function AccountsView() {
           <div className="flex gap-1.5 flex-wrap">
             {TABS.filter(t => t.group === 'reports').map(t => (
               <button key={t.key} type="button" onClick={() => { setTab(t.key); setData(null); }}
-                className={cn("flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all", tab === t.key ? "bg-[#F27D26] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
+                className={cn("flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all", tab === t.key ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
                 <t.icon size={14} /> <span className="hidden sm:inline">{t.label}</span><span className="sm:hidden">{t.shortLabel}</span>
               </button>
             ))}
@@ -129,7 +121,7 @@ export function AccountsView() {
               <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Year</label><input type="number" value={gstYear} onChange={e => setGstYear(parseInt(e.target.value))} className="w-24 px-3 py-2 border border-gray-200 rounded-lg text-sm" /></div>
             </>
           )}
-          <button type="button" onClick={loadData} disabled={loading} className="flex items-center gap-1.5 px-5 py-2 bg-[#F27D26] text-white rounded-lg text-sm font-bold disabled:opacity-60"><Search size={16} /> {loading ? 'Loading...' : 'Generate'}</button>
+          <button type="button" onClick={loadData} disabled={loading} className="flex items-center gap-1.5 px-5 py-2 bg-brand text-white rounded-lg text-sm font-bold disabled:opacity-60"><Search size={16} /> {loading ? 'Loading...' : 'Generate'}</button>
         </div>
       </div>
 

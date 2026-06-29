@@ -201,7 +201,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                       <select value={paymentForm.batchId} onChange={(e) => {
                         const batch = vendorBatches.find((b) => b.batchId === e.target.value);
                         setPaymentForm({ ...paymentForm, batchId: e.target.value, amount: batch ? String(batch.balanceRemaining) : paymentForm.amount });
-                      }} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]">
+                      }} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand">
                         <option value="">General (no specific batch)</option>
                         {vendorBatches.map((b) => (
                           <option key={b.batchId} value={b.batchId}>
@@ -211,11 +211,11 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                       </select>
                     </div>
                   )}
-                  <div><label className="text-xs font-bold text-gray-400 uppercase">Amount (₹)</label><input type="number" required min={1} step={0.01} value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="0.00" /></div>
-                  <div><label className="text-xs font-bold text-gray-400 uppercase">Payment Date</label><input type="date" value={paymentForm.paymentDate} onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                  <div><label className="text-xs font-bold text-gray-400 uppercase">Payment Method</label><select value={paymentForm.paymentMethod} onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]"><option>Cash</option><option>Bank Transfer</option><option>UPI</option><option>Cheque</option><option>Other</option></select></div>
-                  <div><label className="text-xs font-bold text-gray-400 uppercase">Reference / Transaction ID</label><input value={paymentForm.referenceNumber} onChange={(e) => setPaymentForm({ ...paymentForm, referenceNumber: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="Optional" /></div>
-                  <div><label className="text-xs font-bold text-gray-400 uppercase">Notes</label><input value={paymentForm.notes} onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="Optional" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase">Amount (₹)</label><input type="number" required min={1} step={0.01} value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="0.00" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase">Payment Date</label><input type="date" value={paymentForm.paymentDate} onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase">Payment Method</label><select value={paymentForm.paymentMethod} onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"><option>Cash</option><option>Bank Transfer</option><option>UPI</option><option>Cheque</option><option>Other</option></select></div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase">Reference / Transaction ID</label><input value={paymentForm.referenceNumber} onChange={(e) => setPaymentForm({ ...paymentForm, referenceNumber: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Optional" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase">Notes</label><input value={paymentForm.notes} onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Optional" /></div>
                   <div className="flex gap-2 pt-2"><button type="button" onClick={() => setPaymentModal(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-emerald-600 text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Record Payment'}</button></div>
                 </form>
               </motion.div>
@@ -278,7 +278,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
         ))}
         <div className="relative flex-1 min-w-[150px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          <input type="text" placeholder="Search vendor..." value={finSearch} onChange={(e) => setFinSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]" />
+          <input type="text" placeholder="Search vendor..." value={finSearch} onChange={(e) => setFinSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" />
         </div>
       </div>
 
@@ -326,7 +326,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                     </button>
                   </td>
                   <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2">
-                    <button type="button" onClick={() => { setSelectedVendorId(v.vendorId); loadDetail(v.vendorId); }} className="text-sm font-bold text-[#F27D26] hover:underline">View</button>
+                    <button type="button" onClick={() => { setSelectedVendorId(v.vendorId); loadDetail(v.vendorId); }} className="text-sm font-bold text-brand hover:underline">View</button>
                     {v.balance > 0 && v.vendorPhone && (
                       <button type="button" onClick={() => handleSendReminder(v)} className="text-sm font-bold text-green-600 hover:underline flex items-center gap-1"><MessageCircle size={14} /> Remind</button>
                     )}
@@ -352,9 +352,9 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                   </button>
                 </div>
                 {reminderModal.enabled && (
-                  <div><label className="text-xs font-bold text-gray-400 uppercase">Send reminder every (days)</label><input type="number" min={1} value={reminderModal.days || ''} onChange={(e) => setReminderModal({ ...reminderModal, days: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase">Send reminder every (days)</label><input type="number" min={1} value={reminderModal.days || ''} onChange={(e) => setReminderModal({ ...reminderModal, days: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
                 )}
-                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setReminderModal(null)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="button" onClick={handleSaveReminder} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">Save</button></div>
+                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setReminderModal(null)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="button" onClick={handleSaveReminder} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">Save</button></div>
               </div>
             </motion.div>
           </div>

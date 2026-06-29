@@ -112,7 +112,7 @@ export function ReportsView() {
       <div className="flex gap-2 flex-wrap">
         {TABS.map((t) => (
           <button key={t.key} type="button" onClick={() => { setActiveTab(t.key); setData(null); setGstData(null); }}
-            className={cn("flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all", activeTab === t.key ? "bg-[#F27D26] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
+            className={cn("flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all", activeTab === t.key ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
             <t.icon size={16} /> <span className="hidden sm:inline">{t.label}</span><span className="sm:hidden">{t.shortLabel}</span>
           </button>
         ))}
@@ -132,7 +132,7 @@ export function ReportsView() {
               <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Year</label><input type="number" value={filters.year} onChange={(e) => setFilters({ ...filters, year: parseInt(e.target.value) })} className="w-24 px-3 py-2 border border-gray-200 rounded-lg text-sm" /></div>
             </>
           )}
-          <button type="button" onClick={loadReport} disabled={loading} className="flex items-center gap-1.5 px-5 py-2 bg-[#F27D26] text-white rounded-lg text-sm font-bold disabled:opacity-60">
+          <button type="button" onClick={loadReport} disabled={loading} className="flex items-center gap-1.5 px-5 py-2 bg-brand text-white rounded-lg text-sm font-bold disabled:opacity-60">
             <Search size={16} /> {loading ? 'Loading...' : 'Generate'}
           </button>
         </div>

@@ -66,14 +66,14 @@ export function CustomerMasterView({ onBack, onRefresh, user }: { onBack: () => 
           <button type="button" onClick={() => list.length && exportToCsv(list.map((c) => ({ id: c.id, name: c.name, phone: c.phone ?? '', email: c.email ?? '', address: c.address ?? '', vendorId: c.vendorId ?? '' })), 'customers')} disabled={!list.length} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={18} /> Export CSV
           </button>
-          {!vendorId && <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add Customer</button>}
+          {!vendorId && <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add Customer</button>}
         </div>
       </div>
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-50 flex items-center gap-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input type="text" placeholder="Search customers..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" />
+            <input type="text" placeholder="Search customers..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -88,12 +88,12 @@ export function CustomerMasterView({ onBack, onRefresh, user }: { onBack: () => 
                     <td className="px-6 py-4 text-sm text-gray-600">{c.email || '-'}</td>
                     {!vendorId && <td className="px-6 py-4 text-sm"><span className={cn("px-2 py-0.5 rounded-full text-xs font-bold", c.vendorId ? "bg-purple-100 text-purple-700" : "bg-amber-100 text-amber-700")}>{c.vendorId ? vendors.find(v => v.id === c.vendorId)?.name ?? c.vendorId : 'Direct'}</span></td>}
                     <td className="px-6 py-4">
-                      <button type="button" onClick={() => openPurchases(c)} className="flex items-center gap-1.5 text-sm font-medium text-[#F27D26] hover:underline">
+                      <button type="button" onClick={() => openPurchases(c)} className="flex items-center gap-1.5 text-sm font-medium text-brand hover:underline">
                         <ShoppingBag size={14} /> View purchases
                       </button>
                     </td>
                     <td className="px-6 py-4 flex gap-2">
-                      <button type="button" onClick={() => openEdit(c)} className="p-2 text-[#F27D26] hover:bg-orange-50 rounded-lg"><Pencil size={16} /></button>
+                      <button type="button" onClick={() => openEdit(c)} className="p-2 text-brand hover:bg-orange-50 rounded-lg"><Pencil size={16} /></button>
                       <button type="button" onClick={() => setDeleteTarget(c)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={16} /></button>
                     </td>
                   </tr>
@@ -109,12 +109,12 @@ export function CustomerMasterView({ onBack, onRefresh, user }: { onBack: () => 
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-lg font-bold mb-4">{editing ? 'Edit Customer' : 'Add Customer'}</h3>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Name</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Phone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                {!vendorId && <div><label className="text-xs font-bold text-gray-400 uppercase">Vendor</label><select value={form.vendorId} onChange={(e) => setForm({ ...form, vendorId: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]"><option value="">Direct (Factory Purchase)</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>}
-                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2 border border-gray-200 rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Save'}</button></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Name</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Phone</label><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                {!vendorId && <div><label className="text-xs font-bold text-gray-400 uppercase">Vendor</label><select value={form.vendorId} onChange={(e) => setForm({ ...form, vendorId: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"><option value="">Direct (Factory Purchase)</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>}
+                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2 border border-gray-200 rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Save'}</button></div>
               </form>
             </motion.div>
           </div>
@@ -133,7 +133,7 @@ export function CustomerMasterView({ onBack, onRefresh, user }: { onBack: () => 
             <div className="absolute inset-0 bg-black/40" onClick={() => setPurchasesModal(null)} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl overflow-hidden">
               <div className="p-6 border-b border-gray-100">
-                <h3 className="text-lg font-bold flex items-center gap-2"><ShoppingBag size={22} className="text-[#F27D26]" /> Products bought by {purchasesModal.customer.name}</h3>
+                <h3 className="text-lg font-bold flex items-center gap-2"><ShoppingBag size={22} className="text-brand" /> Products bought by {purchasesModal.customer.name}</h3>
                 <p className="text-sm text-gray-500 mt-1">Products purchased and the vendor they bought from</p>
               </div>
               <div className="max-h-[60vh] overflow-y-auto">

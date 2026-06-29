@@ -27,7 +27,7 @@ function EnquiryForm({ dark }: { dark: boolean }) {
       <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4"><Check size={32} className="text-green-500" /></div>
       <h3 className="font-bold text-xl mb-2">Thank You!</h3>
       <p className={`text-sm mb-4 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>We'll get back to you within 24 hours.</p>
-      <button type="button" onClick={() => { setSent(false); setForm({ name: '', email: '', phone: '', company: '', message: '' }); }} className="text-sm text-[#F27D26] hover:underline">Send another</button>
+      <button type="button" onClick={() => { setSent(false); setForm({ name: '', email: '', phone: '', company: '', message: '' }); }} className="text-sm text-brand hover:underline">Send another</button>
     </div>
   );
 
@@ -42,7 +42,7 @@ function EnquiryForm({ dark }: { dark: boolean }) {
         <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Business Name</label><input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className={`w-full px-4 py-3 border rounded-xl ${inputCls}`} placeholder="Your shop / company" /></div>
       </div>
       <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Message</label><textarea rows={3} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className={`w-full px-4 py-3 border rounded-xl resize-none ${inputCls}`} placeholder="Business type, products, team size..." /></div>
-      <button type="submit" disabled={sending} className="w-full py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"><Send size={18} /> {sending ? 'Sending...' : 'Get Started Free'}</button>
+      <button type="submit" disabled={sending} className="w-full py-4 bg-brand text-white rounded-xl font-bold text-lg hover:bg-brand-dark transition-colors disabled:opacity-60 flex items-center justify-center gap-2"><Send size={18} /> {sending ? 'Sending...' : 'Get Started Free'}</button>
       <p className="text-xs text-gray-500 text-center">Or WhatsApp us: <a href="https://wa.me/918806907616?text=Hi%2C%20I%20want%20DG%20Business%20for%20my%20business" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:underline font-medium">+91 88069 07616</a></p>
     </form>
   );
@@ -73,12 +73,12 @@ export function LandingPage() {
   const textMuted = dark ? 'text-gray-400' : 'text-gray-600';
   const textFaint = dark ? 'text-gray-500' : 'text-gray-400';
   const cardBg = dark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-gray-100 shadow-sm';
-  const cardHover = dark ? 'hover:border-[#F27D26]/30 hover:bg-white/[0.05]' : 'hover:border-[#F27D26]/30 hover:shadow-md';
+  const cardHover = dark ? 'hover:border-brand/30 hover:bg-white/[0.05]' : 'hover:border-brand/30 hover:shadow-md';
   const sectionAlt = dark ? 'bg-white/[0.02]' : 'bg-white';
-  const badgeBg = dark ? 'bg-white/5 border-white/10 text-gray-400' : 'bg-[#F27D26]/5 border-[#F27D26]/20 text-[#F27D26]';
+  const badgeBg = dark ? 'bg-white/5 border-white/10 text-gray-400' : 'bg-brand/5 border-brand/20 text-brand';
   const btnSecondary = dark ? 'bg-white/5 border-white/10 text-white hover:bg-white/10' : 'bg-white border-gray-200 text-[#1A1A1A] hover:bg-gray-50';
   const navLink = dark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-[#1A1A1A]';
-  const adminBtn = dark ? 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10' : 'bg-[#F27D26] border-[#F27D26] text-white hover:bg-[#D96A1C]';
+  const adminBtn = dark ? 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10' : 'bg-brand border-brand text-white hover:bg-brand-dark';
 
   return (
     <div className={`min-h-screen ${bg} ${text} overflow-x-hidden transition-colors duration-300`}>
@@ -86,7 +86,7 @@ export function LandingPage() {
       <nav className={`fixed top-0 left-0 right-0 z-50 ${navBg} backdrop-blur-xl border-b ${navBorder}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm text-white">DG</div>
+            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-brand rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm text-white">DG</div>
             <span className="font-bold text-base sm:text-lg">DG Business</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
@@ -103,10 +103,10 @@ export function LandingPage() {
       {/* Hero */}
       <section className="relative pt-24 sm:pt-28 pb-14 sm:pb-20 px-4 sm:px-6">
         <div className="absolute inset-0 bg-gradient-to-br from-[#FF9933]/10 via-transparent to-[#138808]/10 pointer-events-none" />
-        <div className="absolute top-20 left-1/4 w-96 h-96 bg-[#F27D26]/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-20 left-1/4 w-96 h-96 bg-brand/5 rounded-full blur-3xl pointer-events-none" />
         <div className="max-w-5xl mx-auto text-center relative">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#F27D26] text-white rounded-full text-xs font-bold mb-3 shadow-lg animate-pulse">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand text-white rounded-full text-xs font-bold mb-3 shadow-lg">
               🚀 {L('Coming Soon — Launching Shortly!', 'जल्द आ रहा है!', 'ટૂંક સમયમાં આવી રહ્યું છે!')}
             </div>
             <div className="inline-flex items-center gap-2 px-4 sm:px-5 py-1.5 sm:py-2 bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#1A1A1A] rounded-full text-xs sm:text-sm font-bold mb-4 sm:mb-6 shadow-lg">
@@ -121,7 +121,7 @@ export function LandingPage() {
                 <motion.div key={i} initial={false} animate={{ opacity: heroLang === i ? 1 : 0, y: heroLang === i ? 0 : 20 }} transition={{ duration: 0.5 }} className={`absolute inset-0 ${heroLang === i ? '' : 'pointer-events-none'}`}>
                   <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold tracking-tight leading-tight">
                     <span className="text-2xl sm:text-3xl md:text-4xl">{h.line1}</span><br />
-                    <span className="bg-gradient-to-r from-[#F27D26] to-[#FFB347] bg-clip-text text-transparent">{h.line2}</span>
+                    <span className="bg-gradient-to-r from-brand to-brand-light bg-clip-text text-transparent">{h.line2}</span>
                   </h1>
                   <p className={`mt-3 sm:mt-4 text-sm sm:text-lg md:text-xl ${textMuted} max-w-3xl mx-auto leading-relaxed px-2`}>{h.sub}</p>
                 </motion.div>
@@ -129,11 +129,11 @@ export function LandingPage() {
             </div>
             <div className="flex items-center justify-center gap-2 mt-4">
               {['EN', 'हिं', 'ગુ'].map((l, i) => (
-                <button key={i} type="button" onClick={() => { setHeroLang(i); setHeroAutoPlay(false); }} className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${heroLang === i ? 'bg-[#F27D26] text-white scale-110' : `${dark ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-500'}`}`}>{l}</button>
+                <button key={i} type="button" onClick={() => { setHeroLang(i); setHeroAutoPlay(false); }} className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${heroLang === i ? 'bg-brand text-white scale-110' : `${dark ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-500'}`}`}>{l}</button>
               ))}
             </div>
             <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-              <a href="#contact" className="group w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 bg-[#F27D26] text-white rounded-xl font-bold text-base sm:text-lg hover:bg-[#D96A1C] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#F27D26]/20">
+              <a href="#contact" className="group w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 bg-brand text-white rounded-xl font-bold text-base sm:text-lg hover:bg-brand-dark transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand/20">
                 {isEn ? 'Start Free Trial' : isGu ? 'ફ્રી ટ્રાયલ શરૂ કરો' : 'फ्री ट्रायल शुरू करें'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </a>
               <a href="#features" className={`w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 border rounded-xl font-bold text-base sm:text-lg transition-all text-center ${btnSecondary}`}>{isEn ? 'See Features' : isGu ? 'Features જુઓ' : 'Features देखें'}</a>
@@ -145,7 +145,7 @@ export function LandingPage() {
 
       {/* Trust Stats */}
       <section className={`py-8 sm:py-10 border-y ${navBorder}`}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 grid grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6 text-center">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6 text-center">
           {[
             { val: '15+', label: 'Modules' },
             { val: '₹0', label: 'To Start' },
@@ -153,7 +153,7 @@ export function LandingPage() {
             { val: '100%', label: 'Cloud Based' },
             { val: '🇮🇳', label: 'Made in India' },
           ].map(s => (
-            <div key={s.label}><p className="text-2xl md:text-3xl font-bold text-[#F27D26]">{s.val}</p><p className={`text-xs mt-1 ${textFaint}`}>{s.label}</p></div>
+            <div key={s.label}><p className="text-2xl md:text-3xl font-bold text-brand">{s.val}</p><p className={`text-xs mt-1 ${textFaint}`}>{s.label}</p></div>
           ))}
         </div>
       </section>
@@ -178,7 +178,7 @@ export function LandingPage() {
                 <p className={`text-sm ${textFaint} mb-4 leading-relaxed`}>{b.desc}</p>
                 <div className="space-y-1.5">
                   {b.features.map(f => (
-                    <div key={f} className="flex items-center gap-2"><Check size={14} className="text-[#F27D26] shrink-0" /><span className={`text-xs ${textMuted}`}>{f}</span></div>
+                    <div key={f} className="flex items-center gap-2"><Check size={14} className="text-brand shrink-0" /><span className={`text-xs ${textMuted}`}>{f}</span></div>
                   ))}
                 </div>
               </motion.div>
@@ -200,7 +200,7 @@ export function LandingPage() {
               { icon: Package, label: L('Stock', 'स्टॉक', 'સ્ટોક'), sub: L('Manage stock', 'Stock manage करो', 'Stock manage કરો'), color: 'text-blue-500', bg: 'bg-blue-500/10' },
               { icon: FileText, label: L('Quote', 'कोटेशन', 'કોટેશન'), sub: L('Send quote', 'Quote भेजो', 'Quote મોકલો'), color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
               { icon: Truck, label: L('Distribute', 'वितरण', 'વિતરણ'), sub: L('Send to vendor', 'Vendor को दो', 'Vendor ને આપો'), color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-              { icon: IndianRupee, label: L('Payment', 'भुगतान', 'ચુકવણી'), sub: L('Track money', 'पैसा track करो', 'પૈસા track કરો'), color: 'text-[#F27D26]', bg: 'bg-[#F27D26]/10' },
+              { icon: IndianRupee, label: L('Payment', 'भुगतान', 'ચુકવણી'), sub: L('Track money', 'पैसा track करो', 'પૈસા track કરો'), color: 'text-brand', bg: 'bg-brand/10' },
               { icon: BarChart3, label: L('Accounts', 'हिसाब', 'હિસાબ'), sub: 'P&L, Balance Sheet', color: 'text-purple-500', bg: 'bg-purple-500/10' },
             ].map((step, i) => (
               <motion.div key={step.label} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
@@ -243,7 +243,7 @@ export function LandingPage() {
             ].map((f, i) => (
               <motion.div key={f.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.03 }}
                 className={`p-5 border rounded-2xl transition-all group ${cardBg} ${cardHover}`}>
-                <div className="w-10 h-10 bg-[#F27D26]/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-[#F27D26]/20 transition-colors"><f.icon size={20} className="text-[#F27D26]" /></div>
+                <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand/20 transition-colors"><f.icon size={20} className="text-brand" /></div>
                 <h3 className="font-bold text-sm mb-1">{f.title}</h3>
                 <p className={`text-xs ${textFaint} leading-relaxed`}>{f.desc}</p>
               </motion.div>
@@ -262,19 +262,19 @@ export function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
               { name: 'Free Trial', price: '₹0', period: '14 days', desc: 'All features free for 14 days', features: ['All modules', '50 products', '5 vendors', 'Email support'], cta: 'Join Waitlist', highlight: false },
-              { name: 'Standard', price: '₹XXX', period: '/month', desc: 'Growing businesses', features: ['Unlimited products', '15 vendors', 'Vendor portal', 'Priority support', 'Pack size', 'Reports'], cta: 'Join Waitlist', highlight: true },
-              { name: 'Professional', price: '₹XXX', period: '/month', desc: 'Large manufacturers', features: ['Everything unlimited', 'Accounts module', 'Multi-language', 'Quotations', 'Chatbot', 'Custom branding'], cta: 'Join Waitlist', highlight: false },
+              { name: 'Standard', price: 'Contact Us', period: '', desc: 'Growing businesses', features: ['Unlimited products', '15 vendors', 'Vendor portal', 'Priority support', 'Pack size', 'Reports'], cta: 'Join Waitlist', highlight: true },
+              { name: 'Professional', price: 'Contact Us', period: '', desc: 'Large manufacturers', features: ['Everything unlimited', 'Accounts module', 'Multi-language', 'Quotations', 'Chatbot', 'Custom branding'], cta: 'Join Waitlist', highlight: false },
             ].map((p, i) => (
               <motion.div key={p.name} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                className={`p-6 border rounded-2xl ${p.highlight ? (dark ? 'bg-[#F27D26]/10 border-[#F27D26]/30 ring-2 ring-[#F27D26]/20' : 'bg-[#F27D26]/5 border-[#F27D26]/30 shadow-lg shadow-[#F27D26]/10 ring-2 ring-[#F27D26]/20') : cardBg}`}>
-                {p.highlight && <div className="text-center mb-3"><span className="px-3 py-1 bg-[#F27D26] text-white text-xs font-bold rounded-full">Most Popular</span></div>}
+                className={`p-6 border rounded-2xl ${p.highlight ? (dark ? 'bg-brand/10 border-brand/30 ring-2 ring-brand/20' : 'bg-brand/5 border-brand/30 shadow-lg shadow-brand/10 ring-2 ring-brand/20') : cardBg}`}>
+                {p.highlight && <div className="text-center mb-3"><span className="px-3 py-1 bg-brand text-white text-xs font-bold rounded-full">Most Popular</span></div>}
                 <h3 className="font-bold text-lg">{p.name}</h3>
                 <div className="mt-2 mb-1"><span className="text-3xl font-bold">{p.price}</span><span className={`text-sm ${textFaint}`}>{p.period}</span></div>
                 <p className={`text-sm ${textFaint} mb-4`}>{p.desc}</p>
                 <div className="space-y-2 mb-6">
-                  {p.features.map(f => <div key={f} className="flex items-center gap-2"><Check size={14} className="text-[#F27D26]" /><span className={`text-sm ${textMuted}`}>{f}</span></div>)}
+                  {p.features.map(f => <div key={f} className="flex items-center gap-2"><Check size={14} className="text-brand" /><span className={`text-sm ${textMuted}`}>{f}</span></div>)}
                 </div>
-                <a href="#contact" className={`block text-center py-3 rounded-xl font-bold transition-colors ${p.highlight ? 'bg-[#F27D26] text-white hover:bg-[#D96A1C]' : `border ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}`}>{p.cta}</a>
+                <a href="#contact" className={`block text-center py-3 rounded-xl font-bold transition-colors ${p.highlight ? 'bg-brand text-white hover:bg-brand-dark' : `border ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}`}>{p.cta}</a>
               </motion.div>
             ))}
           </div>
@@ -320,16 +320,16 @@ export function LandingPage() {
                 <h3 className="font-bold text-lg">{L("Let's Talk", 'बात करें', 'વાત કરો')}</h3>
                 <p className={`text-sm ${textFaint}`}>{L('Call, WhatsApp, or email us — we reply within 24 hours.', 'Call karo, WhatsApp karo, ya email karo — hum 24 ghante mein reply karenge.', 'Call કરો, WhatsApp કરો, કે email કરો — અમે 24 કલાકમાં reply કરીશું.')}</p>
                 <div className="space-y-4 pt-2">
-                  <a href="tel:+918806907616" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-[#F27D26]`}>
-                    <div className="w-10 h-10 bg-[#F27D26]/10 rounded-xl flex items-center justify-center shrink-0"><Phone size={18} className="text-[#F27D26]" /></div>
+                  <a href="tel:+918806907616" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-brand`}>
+                    <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center shrink-0"><Phone size={18} className="text-brand" /></div>
                     <div><p className={`text-xs ${textFaint}`}>Phone</p><p className="font-medium">+91 88069 07616</p></div>
                   </a>
                   <a href="https://wa.me/918806907616?text=Hi%2C%20I%20want%20DG%20Business%20for%20my%20business" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-green-400`}>
                     <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center shrink-0"><MessageCircle size={18} className="text-green-500" /></div>
                     <div><p className={`text-xs ${textFaint}`}>WhatsApp</p><p className="font-medium">+91 88069 07616</p></div>
                   </a>
-                  <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-[#F27D26]`}>
-                    <div className="w-10 h-10 bg-[#F27D26]/10 rounded-xl flex items-center justify-center shrink-0"><Mail size={18} className="text-[#F27D26]" /></div>
+                  <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-brand`}>
+                    <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center shrink-0"><Mail size={18} className="text-brand" /></div>
                     <div><p className={`text-xs ${textFaint}`}>Email</p><p className="font-medium">patelprathamesh007@gmail.com</p></div>
                   </a>
                 </div>
@@ -367,7 +367,7 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-xs text-white">DG</div>
+              <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center font-bold text-xs text-white">DG</div>
               <div><span className="font-bold">DG Business</span><span className={`text-xs ${textFaint} ml-2`}>🇮🇳 Made with pride in India</span></div>
             </div>
             <div className={`flex items-center gap-6 text-sm ${textFaint}`}>
@@ -378,9 +378,9 @@ export function LandingPage() {
               <a href="/terms" className={`${navLink}`}>Terms</a>
             </div>
             <div className={`flex items-center gap-4 ${textFaint}`}>
-              <a href="tel:+918806907616" className="hover:text-[#F27D26]"><Phone size={16} /></a>
+              <a href="tel:+918806907616" className="hover:text-brand"><Phone size={16} /></a>
               <a href="https://wa.me/918806907616" target="_blank" rel="noopener noreferrer" className="hover:text-green-500"><MessageCircle size={16} /></a>
-              <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#F27D26]"><Mail size={16} /></a>
+              <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand"><Mail size={16} /></a>
             </div>
           </div>
           <p className={`text-xs ${textFaint} text-center mt-6`}>&copy; {new Date().getFullYear()} DG Business Management. Designed for Indian businesses, built with love.</p>

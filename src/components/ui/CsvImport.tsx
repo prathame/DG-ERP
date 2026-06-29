@@ -77,7 +77,7 @@ export function CsvImport({ onImport, onClose, columns, templateName }: CsvImpor
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-lg flex items-center gap-2"><Upload size={20} className="text-[#F27D26]" /> Import from CSV</h3>
+          <h3 className="font-bold text-lg flex items-center gap-2"><Upload size={20} className="text-brand" /> Import from CSV</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
         </div>
 
@@ -97,7 +97,7 @@ export function CsvImport({ onImport, onClose, columns, templateName }: CsvImpor
                   {result.errors.map((err, i) => <p key={i} className="text-xs text-amber-600">{err}</p>)}
                 </div>
               )}
-              <button onClick={onClose} className="w-full py-3 bg-[#F27D26] text-white rounded-xl font-bold">Done</button>
+              <button onClick={onClose} className="w-full py-3 bg-brand text-white rounded-xl font-bold">Done</button>
             </div>
           ) : (
             <>
@@ -105,7 +105,7 @@ export function CsvImport({ onImport, onClose, columns, templateName }: CsvImpor
                 <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50">
                   <Download size={16} /> Download Template
                 </button>
-                <label className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-sm font-medium cursor-pointer hover:border-[#F27D26] hover:bg-[#F27D26]/5 transition-colors">
+                <label className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-sm font-medium cursor-pointer hover:border-brand hover:bg-brand/5 transition-colors">
                   <Upload size={16} /> {rows.length > 0 ? `${rows.length} rows loaded` : 'Choose CSV file'}
                   <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFile} />
                 </label>
@@ -115,7 +115,7 @@ export function CsvImport({ onImport, onClose, columns, templateName }: CsvImpor
                 <p className="text-xs font-bold text-gray-500 mb-2">Expected columns:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {columns.map((c) => (
-                    <span key={c.key} className={cn("text-[10px] px-2 py-1 rounded-full font-medium", c.required ? "bg-[#F27D26]/10 text-[#F27D26]" : "bg-gray-200 text-gray-500")}>
+                    <span key={c.key} className={cn("text-[10px] px-2 py-1 rounded-full font-medium", c.required ? "bg-brand/10 text-brand" : "bg-gray-200 text-gray-500")}>
                       {c.key} {c.required ? '*' : ''}
                     </span>
                   ))}
@@ -146,7 +146,7 @@ export function CsvImport({ onImport, onClose, columns, templateName }: CsvImpor
                     {rows.length > 10 && <p className="text-xs text-gray-400 px-3 py-2 bg-gray-50 border-t">...and {rows.length - 10} more rows</p>}
                   </div>
 
-                  <button onClick={handleImport} disabled={importing} className="w-full py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C] disabled:opacity-60 flex items-center justify-center gap-2">
+                  <button onClick={handleImport} disabled={importing} className="w-full py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:opacity-60 flex items-center justify-center gap-2">
                     <Upload size={16} /> {importing ? 'Importing...' : `Import ${rows.length} Products`}
                   </button>
                 </>

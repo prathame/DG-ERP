@@ -64,7 +64,7 @@ export function SuperAdminDashboard() {
   };
 
   const kpiCards = [
-    { label: 'Total Tenants', value: totals.tenants, icon: Building2, color: 'text-[#F27D26]', bg: 'bg-orange-50' },
+    { label: 'Total Tenants', value: totals.tenants, icon: Building2, color: 'text-brand', bg: 'bg-orange-50' },
     { label: 'Active', value: totals.active, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'Trial', value: totals.trial, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
     { label: 'Suspended', value: totals.suspended, icon: Pause, color: 'text-rose-600', bg: 'bg-rose-50' },
@@ -109,7 +109,7 @@ export function SuperAdminDashboard() {
         {/* Recent Tenants */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center gap-2 mb-4">
-            <TrendingUp size={18} className="text-[#F27D26]" />
+            <TrendingUp size={18} className="text-brand" />
             <h2 className="text-lg font-bold text-gray-900">Recent Tenants</h2>
           </div>
           <div className="space-y-3">
@@ -140,7 +140,7 @@ export function SuperAdminDashboard() {
         {/* Tenants by Plan */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle size={18} className="text-[#F27D26]" />
+            <AlertTriangle size={18} className="text-brand" />
             <h2 className="text-lg font-bold text-gray-900">Tenants by Plan</h2>
           </div>
           <div className="space-y-3">
@@ -158,7 +158,7 @@ export function SuperAdminDashboard() {
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-2">
                     <div
-                      className="bg-[#F27D26] h-2 rounded-full transition-all"
+                      className="bg-brand h-2 rounded-full transition-all"
                       style={{ width: `${pct}%` }}
                     />
                   </div>

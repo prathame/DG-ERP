@@ -129,7 +129,7 @@ export interface DistributionBillData {
   payment?: { totalDistributedValue: number; totalPaid: number; balance: number };
 }
 
-async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
+export async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const { session } = await import('./lib/session');
   const token = session.getToken();
   const tenantId = session.getTenantId();

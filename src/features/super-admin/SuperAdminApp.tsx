@@ -102,7 +102,7 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
         >
           {/* Logo */}
           <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-            <div className="w-10 h-10 bg-[#F27D26] rounded-xl flex items-center justify-center font-bold text-sm text-white shrink-0">
+            <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center font-bold text-sm text-white shrink-0">
               DG
             </div>
             {sidebarOpen && (
@@ -127,7 +127,7 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
                     isActive
-                      ? "bg-[#F27D26] text-white shadow-lg shadow-[#F27D26]/20"
+                      ? "bg-brand text-white shadow-lg shadow-brand/20"
                       : "text-gray-400 hover:text-white hover:bg-white/5"
                   )}
                 >
@@ -173,7 +173,7 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
                 {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-[#F27D26] rounded-full flex items-center justify-center text-white text-xs font-bold">
+                <div className="w-8 h-8 bg-brand rounded-full flex items-center justify-center text-white text-xs font-bold">
                   {user.name?.charAt(0)?.toUpperCase() ?? 'A'}
                 </div>
               </div>

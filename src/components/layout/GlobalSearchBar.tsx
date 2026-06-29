@@ -50,10 +50,10 @@ export function GlobalSearchBar({ setActiveTab }: { setActiveTab: (tab: Tab) => 
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => results && setOpen(true)}
-        className="pl-10 pr-4 py-2 bg-gray-100 border-none rounded-full text-sm focus:ring-2 focus:ring-[#F27D26] transition-all w-36 sm:w-56 md:w-72 focus:w-56 sm:focus:w-72 md:focus:w-96"
+        className="pl-10 pr-4 py-2 bg-gray-100 border-none rounded-full text-sm focus:ring-2 focus:ring-brand transition-all w-36 sm:w-56 md:w-72 focus:w-56 sm:focus:w-72 md:focus:w-96"
         autoComplete="off"
       />
-      {loading && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-[#F27D26] border-t-transparent rounded-full animate-spin" />}
+      {loading && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />}
       <AnimatePresence>
         {open && hasResults && (
           <motion.div

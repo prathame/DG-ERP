@@ -4,6 +4,9 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-brand: #F27D26;
+  --color-brand-dark: #D96A1C;
+  --color-brand-light: #FFB347;
 }
 
 :root {
@@ -169,6 +172,13 @@ html.dark ::-webkit-scrollbar-thumb:hover { background: #6B7280; }
 
 button {
   cursor: pointer;
+}
+
+/* Focus-visible for keyboard accessibility */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* Custom Scrollbar */

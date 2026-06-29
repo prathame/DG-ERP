@@ -2,22 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShoppingBag, Plus, ArrowLeft, Search, IndianRupee } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
-import { api } from '../../api';
+import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, isBillFullyPaid } from '../../components/ui';
-import { session } from '../../lib/session';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 interface Supplier { id: string; name: string; contactPerson?: string; phone?: string; email?: string; address?: string; gstNumber?: string | null }
 interface PurchaseBatch { batchId: string; supplierId: string; supplierName: string; purchaseDate: string; productNames: string[]; total: number; billValue: number; amountPaid: number; balanceRemaining: number }
-
-function fetchApi<T>(path: string, opts?: RequestInit): Promise<T> {
-  const token = session.getToken();
-  const tenantId = session.getTenantId();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (tenantId) headers['X-Tenant-ID'] = tenantId;
-  return fetch(`/api${path}`, { ...opts, headers: { ...headers, ...opts?.headers } }).then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.error || r.statusText); }); return r.json(); });
-}
 
 export function PurchasesView() {
   const { toast } = useToast();
@@ -40,8 +31,17 @@ export function PurchasesView() {
   const [paymentForm, setPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [financeMap, setFinanceMap] = useState<Record<string, { totalPurchasedValue: number; totalPaid: number; balance: number }>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEscapeKey(() => {
+    if (paymentModal) setPaymentModal(null);
+    else if (supplierModal) setSupplierModal(false);
+    else if (modalOpen) setModalOpen(false);
+    else if (selectedBatchId) setSelectedBatchId(null);
+  });
 
   const load = () => {
+    setLoadError(null);
     Promise.all([
       fetchApi<Supplier[]>('/suppliers'),
       fetchApi<PurchaseBatch[]>('/purchases/batches'),
@@ -52,7 +52,7 @@ export function PurchasesView() {
           .then(fs => { const m: Record<string, { totalPurchasedValue: number; totalPaid: number; balance: number }> = {}; for (const f of fs) m[f.supplierId] = { totalPurchasedValue: Number(f.totalPurchasedValue) || 0, totalPaid: Number(f.totalPaid) || 0, balance: Number(f.balance) || 0 }; setFinanceMap(m); })
           .catch(() => {});
       })
-      .catch(() => {})
+      .catch((err) => setLoadError(err.message || 'Failed to load data'))
       .finally(() => setLoading(false));
   };
   useEffect(() => { setLoading(true); load(); }, []);
@@ -107,6 +107,7 @@ export function PurchasesView() {
   };
 
   if (loading) return <div className="flex items-center justify-center py-20"><LoadingSpinner /></div>;
+  if (loadError) return <div className="bg-white rounded-xl border border-rose-200 p-12 text-center"><p className="text-rose-600 font-medium mb-2">Failed to load purchases</p><p className="text-sm text-gray-500 mb-4">{loadError}</p><button type="button" onClick={() => { setLoading(true); load(); }} className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark">Retry</button></div>;
 
   // Supplier list with finance
   const supplierStats = suppliers.map(s => {
@@ -130,7 +131,7 @@ export function PurchasesView() {
       const bd = batchDetail;
       return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3 flex-wrap">
                 <button type="button" onClick={() => { setSelectedBatchId(null); setBatchDetail(null); }} className="p-2 hover:bg-gray-200 rounded-lg"><ArrowLeft size={20} className="text-gray-600" /></button>
@@ -143,7 +144,7 @@ export function PurchasesView() {
               </div>
               <div className="text-right">
                 <span className="text-sm text-gray-600"><strong>{bd.total as number}</strong> items</span>
-                <span className="text-sm font-bold text-[#F27D26] ml-2">Bill: ₹{Number(bd.billValue).toLocaleString()}</span>
+                <span className="text-sm font-bold text-brand ml-2">Bill: ₹{Number(bd.billValue).toLocaleString()}</span>
                 {Number(bd.amountPaid) > 0 && <span className="text-sm text-emerald-600 font-medium ml-2">Paid: ₹{Number(bd.amountPaid).toLocaleString()}</span>}
                 {Number(bd.balanceRemaining) > 0 && <span className="text-sm text-rose-500 font-medium ml-2">Due: ₹{Number(bd.balanceRemaining).toLocaleString()}</span>}
               </div>
@@ -185,7 +186,7 @@ export function PurchasesView() {
 
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center gap-3">
             <button type="button" onClick={() => setSelectedSupplierId(null)} className="p-2 hover:bg-gray-200 rounded-lg"><ArrowLeft size={20} className="text-gray-600" /></button>
             <h3 className="font-bold text-lg">{supplierName}</h3>
@@ -222,7 +223,7 @@ export function PurchasesView() {
         <div><h2 className="text-xl font-bold flex items-center gap-2"><ShoppingBag size={22} /> Purchases</h2><p className="text-sm text-gray-500">Track what you buy from suppliers</p></div>
         <div className="flex gap-2">
           <button type="button" onClick={() => setSupplierModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50"><Plus size={16} /> Add Supplier</button>
-          <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold"><ShoppingBag size={16} /> New Purchase</button>
+          <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><ShoppingBag size={16} /> New Purchase</button>
         </div>
       </div>
 
@@ -234,15 +235,16 @@ export function PurchasesView() {
       </div>
 
       {suppliers.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
           <ShoppingBag size={48} className="mx-auto mb-3 opacity-30" />
           <p className="font-medium mb-2">No suppliers yet</p>
-          <p className="text-sm">Add your first supplier to start recording purchases</p>
+          <p className="text-sm mb-4">Add your first supplier to start recording purchases</p>
+          <button type="button" onClick={() => setSupplierModal(true)} className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark transition-colors">+ Add Supplier</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {supplierStats.map(s => (
-            <button key={s.id} type="button" onClick={() => setSelectedSupplierId(s.id)} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-left hover:shadow-md transition-all">
+            <button key={s.id} type="button" onClick={() => setSelectedSupplierId(s.id)} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 text-left hover:shadow-md transition-all">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{s.name}</p>
               {s.totalPurchased > 0 && (
                 <div className="mt-2 flex gap-4 text-sm flex-wrap">
@@ -298,7 +300,7 @@ export function PurchasesView() {
                           <input type="number" min={1} value={row.quantity || ''} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, quantity: parseInt(e.target.value) || 0 } : r))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center" />
                         )}</td>
                         <td className="px-3 py-2"><input type="number" min={0} step={0.01} value={row.costPrice} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, costPrice: e.target.value } : r))} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-2 py-1.5 border rounded-lg text-sm text-center", row.costPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
-                        <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, withGst: e.target.checked } : r))} className="rounded text-[#F27D26]" /></td>
+                        <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={e => setPurchaseRows(purchaseRows.map((r, i) => i === idx ? { ...r, withGst: e.target.checked } : r))} className="rounded text-brand" /></td>
                         <td className="px-3 py-2 text-right text-sm font-bold">{billed > 0 ? `₹${billed.toLocaleString()}` : '—'}</td>
                         <td className="px-3 py-2">{purchaseRows.length > 1 && <button type="button" onClick={() => setPurchaseRows(purchaseRows.filter((_, i) => i !== idx))} className="p-1 text-rose-400 hover:text-rose-600 rounded">×</button>}</td>
                       </tr>
@@ -306,15 +308,15 @@ export function PurchasesView() {
                   })}
                 </tbody></table>
               </div>
-              <button type="button" onClick={() => setPurchaseRows([...purchaseRows, { productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }])} className="text-sm font-bold text-[#F27D26] mb-4">+ Add Product</button>
+              <button type="button" onClick={() => setPurchaseRows([...purchaseRows, { productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }])} className="text-sm font-bold text-brand mb-4">+ Add Product</button>
               <div className="bg-gray-50 rounded-xl p-4 mb-4 flex items-center justify-between flex-wrap gap-2">
                 <span className="text-sm text-gray-600">{purchaseTotals.items} items • Gross ₹{purchaseTotals.gross.toLocaleString()} • GST ₹{purchaseTotals.gst.toLocaleString()}</span>
-                <span className="text-lg font-bold text-[#F27D26]">Total: ₹{purchaseTotals.billed.toLocaleString()}</span>
+                <span className="text-lg font-bold text-brand">Total: ₹{purchaseTotals.billed.toLocaleString()}</span>
               </div>
               <div className="mb-4"><label className="text-xs font-bold text-gray-400 uppercase">Amount Paid (₹)</label><input type="number" min={0} step={0.01} value={purchaseForm.amountPaid} onChange={e => setPurchaseForm({ ...purchaseForm, amountPaid: e.target.value })} placeholder="0" className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg" /></div>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium">Cancel</button>
-                <button type="button" onClick={handleCreatePurchase} disabled={submitting} className="flex-1 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold disabled:opacity-60">{submitting ? 'Saving...' : `Record Purchase (${purchaseTotals.items} Items)`}</button>
+                <button type="button" onClick={handleCreatePurchase} disabled={submitting} className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60">{submitting ? 'Saving...' : `Record Purchase (${purchaseTotals.items} Items)`}</button>
               </div>
             </motion.div>
           </div>
@@ -337,7 +339,7 @@ export function PurchasesView() {
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Address</label><input value={supplierForm.address} onChange={e => setSupplierForm({ ...supplierForm, address: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" /></div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setSupplierModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
-                <button type="submit" disabled={submitting} className="flex-1 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold text-sm disabled:opacity-60">{submitting ? 'Saving...' : 'Add Supplier'}</button>
+                <button type="submit" disabled={submitting} className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold text-sm disabled:opacity-60">{submitting ? 'Saving...' : 'Add Supplier'}</button>
               </div>
             </form>
           </div>

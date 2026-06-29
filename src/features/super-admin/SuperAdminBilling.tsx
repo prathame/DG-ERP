@@ -92,7 +92,7 @@ ${inv.notes ? `<p style="margin-top:16px;font-size:12px;color:#666;">${esc(inv.n
           <h1 className="text-2xl font-bold text-gray-900">Billing</h1>
           <p className="text-sm text-gray-500 mt-1">{total} invoices — ₹{totalRevenue.toLocaleString()} total</p>
         </div>
-        <button onClick={() => { setCreateOpen(true); fetch('/api/super-admin/tenants', { headers }).then((r) => r.json()).then((data) => setTenants(data.map((t: Record<string, unknown>) => ({ id: t.id, companyName: t.companyName, planName: t.planName })))).catch(() => {}); }} className="flex items-center gap-2 px-4 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold text-sm hover:bg-[#D96A1C]">
+        <button onClick={() => { setCreateOpen(true); fetch('/api/super-admin/tenants', { headers }).then((r) => r.json()).then((data) => setTenants(data.map((t: Record<string, unknown>) => ({ id: t.id, companyName: t.companyName, planName: t.planName })))).catch(() => {}); }} className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-dark">
           <Plus size={18} /> Create Invoice
         </button>
       </div>
@@ -100,7 +100,7 @@ ${inv.notes ? `<p style="margin-top:16px;font-size:12px;color:#666;">${esc(inv.n
       {/* Filters */}
       <div className="flex gap-2">
         {['', 'unpaid', 'paid'].map((s) => (
-          <button key={s} onClick={() => { setFilterStatus(s); setPage(1); }} className={cn("px-4 py-2 rounded-xl text-sm font-medium border transition-colors", filterStatus === s ? "bg-[#F27D26] text-white border-[#F27D26]" : "border-gray-200 text-gray-600 hover:border-[#F27D26]")}>
+          <button key={s} onClick={() => { setFilterStatus(s); setPage(1); }} className={cn("px-4 py-2 rounded-xl text-sm font-medium border transition-colors", filterStatus === s ? "bg-brand text-white border-brand" : "border-gray-200 text-gray-600 hover:border-brand")}>
             {s === '' ? 'All' : s === 'unpaid' ? 'Unpaid' : 'Paid'}
           </button>
         ))}
@@ -196,7 +196,7 @@ function CreateInvoiceModal({ tenants, onClose, onCreated }: { tenants: { id: st
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Tenant *</label>
-            <select required value={form.tenantId} onChange={(e) => setForm({ ...form, tenantId: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]">
+            <select required value={form.tenantId} onChange={(e) => setForm({ ...form, tenantId: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand">
               <option value="">Select tenant</option>
               {tenants.map((t) => <option key={t.id} value={t.id}>{t.companyName} {t.planName ? `(${t.planName})` : ''}</option>)}
             </select>
@@ -204,38 +204,38 @@ function CreateInvoiceModal({ tenants, onClose, onCreated }: { tenants: { id: st
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Amount (₹) *</label>
-              <input type="number" required min={1} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="999" />
+              <input type="number" required min={1} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" placeholder="999" />
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase block mb-1">GST Rate (%)</label>
-              <input type="number" min={0} max={28} value={form.gstRate} onChange={(e) => setForm({ ...form, gstRate: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]" />
+              <input type="number" min={0} max={28} value={form.gstRate} onChange={(e) => setForm({ ...form, gstRate: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Period Start</label>
-              <input type="date" value={form.periodStart} onChange={(e) => setForm({ ...form, periodStart: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]" />
+              <input type="date" value={form.periodStart} onChange={(e) => setForm({ ...form, periodStart: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" />
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Period End</label>
-              <input type="date" value={form.periodEnd} onChange={(e) => setForm({ ...form, periodEnd: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]" />
+              <input type="date" value={form.periodEnd} onChange={(e) => setForm({ ...form, periodEnd: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" />
             </div>
           </div>
           <div>
             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Notes</label>
-            <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="Optional notes" />
+            <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" placeholder="Optional notes" />
           </div>
           {Number(form.amount) > 0 && (
             <div className="bg-gray-50 rounded-xl p-3 text-sm">
               <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>₹{Number(form.amount).toLocaleString()}</span></div>
               {gst > 0 && <div className="flex justify-between"><span className="text-gray-500">GST ({form.gstRate}%)</span><span>₹{gst.toLocaleString()}</span></div>}
-              <div className="flex justify-between font-bold text-[#F27D26] border-t border-gray-200 pt-2 mt-2"><span>Total</span><span>₹{total.toLocaleString()}</span></div>
+              <div className="flex justify-between font-bold text-brand border-t border-gray-200 pt-2 mt-2"><span>Total</span><span>₹{total.toLocaleString()}</span></div>
             </div>
           )}
           {error && <p className="text-sm text-rose-500">{error}</p>}
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium">Cancel</button>
-            <button type="submit" disabled={submitting} className="flex-1 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold disabled:opacity-60">{submitting ? 'Creating...' : 'Create Invoice'}</button>
+            <button type="submit" disabled={submitting} className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60">{submitting ? 'Creating...' : 'Create Invoice'}</button>
           </div>
         </form>
       </motion.div>

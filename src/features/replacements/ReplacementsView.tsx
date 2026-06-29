@@ -107,7 +107,7 @@ export function ReplacementsView({ user }: { user: { id: string; role?: string; 
           <button type="button" onClick={() => replacements.length && exportToCsv(filtered.map((r) => ({ id: r.id, oldBarcode: r.oldBarcode, newBarcode: r.newBarcode, vendorName: r.vendorName ?? '', productName: r.productName ?? '', customerName: r.customerName, customerPhone: r.customerPhone, replacedDate: r.replacedDate, reason: r.reason ?? '' })), 'replacements')} disabled={!replacements.length} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={18} /> Export CSV
           </button>
-          <button type="button" onClick={() => { setModalOpen(true); setOldBarcodeValidation(null); setNewBarcodeValidation(null); }} className="flex items-center gap-2 px-4 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold">
+          <button type="button" onClick={() => { setModalOpen(true); setOldBarcodeValidation(null); setNewBarcodeValidation(null); }} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold">
             <Plus size={18} /> Record Replacement
           </button>
         </div>
@@ -117,7 +117,7 @@ export function ReplacementsView({ user }: { user: { id: string; role?: string; 
         <div className="p-4 border-b border-gray-50 flex items-center gap-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input type="text" placeholder="Search by barcode, product or customer..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" />
+            <input type="text" placeholder="Search by barcode, product or customer..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
           </div>
           <span className="text-sm text-gray-500">{filtered.length} replacement{filtered.length !== 1 ? 's' : ''}</span>
         </div>
@@ -178,7 +178,7 @@ export function ReplacementsView({ user }: { user: { id: string; role?: string; 
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Old Barcode (damaged)</label>
                   <div className="flex gap-2">
-                    <input required value={form.oldBarcode} onChange={(e) => { setForm({ ...form, oldBarcode: e.target.value }); setOldBarcodeValidation(null); setNewBarcodeValidation(null); }} placeholder="Barcode of damaged product" className="flex-1 px-4 py-2 border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-[#F27D26]" />
+                    <input required value={form.oldBarcode} onChange={(e) => { setForm({ ...form, oldBarcode: e.target.value }); setOldBarcodeValidation(null); setNewBarcodeValidation(null); }} placeholder="Barcode of damaged product" className="flex-1 px-4 py-2 border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-brand" />
                     <button type="button" onClick={handleValidateOld} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium">Verify</button>
                   </div>
                   {oldBarcodeValidation && (
@@ -199,7 +199,7 @@ export function ReplacementsView({ user }: { user: { id: string; role?: string; 
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase block mb-1">New Barcode (replacement)</label>
                   <div className="flex gap-2">
-                    <input required value={form.newBarcode} onChange={(e) => { setForm({ ...form, newBarcode: e.target.value }); setNewBarcodeValidation(null); }} placeholder="Barcode of new product given" className="flex-1 px-4 py-2 border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-[#F27D26]" />
+                    <input required value={form.newBarcode} onChange={(e) => { setForm({ ...form, newBarcode: e.target.value }); setNewBarcodeValidation(null); }} placeholder="Barcode of new product given" className="flex-1 px-4 py-2 border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-brand" />
                     <button type="button" onClick={handleValidateNew} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium">Verify</button>
                   </div>
                   {newBarcodeValidation && (
@@ -212,11 +212,11 @@ export function ReplacementsView({ user }: { user: { id: string; role?: string; 
                     </div>
                   )}
                 </div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Customer Name</label><input required value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Customer Phone</label><input required value={form.customerPhone} onChange={(e) => setForm({ ...form, customerPhone: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Replaced Date</label><input type="date" value={form.replacedDate} onChange={(e) => setForm({ ...form, replacedDate: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Reason (optional)</label><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="e.g. Damaged, Defect" className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Save'}</button></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Customer Name</label><input required value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Customer Phone</label><input required value={form.customerPhone} onChange={(e) => setForm({ ...form, customerPhone: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Replaced Date</label><input type="date" value={form.replacedDate} onChange={(e) => setForm({ ...form, replacedDate: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Reason (optional)</label><input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="e.g. Damaged, Defect" className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Save'}</button></div>
               </form>
             </motion.div>
           </div>

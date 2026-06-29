@@ -67,16 +67,16 @@ export function RewardRulesView({ onBack }: { onBack: () => void }) {
           <button type="button" onClick={() => list.length && exportToCsv(list.map((r) => ({ id: r.id, productsSoldThreshold: r.productsSoldThreshold, rewardPoints: r.rewardPoints, description: r.description ?? '' })), 'reward-rules')} disabled={!list.length} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={18} /> Export CSV
           </button>
-          <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add Rule</button>
+          <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add Rule</button>
         </div>
       </div>
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <h3 className="font-bold text-lg mb-4">Redemption Settings</h3>
         <p className="text-sm text-gray-500 mb-4">When can users redeem points? Set minimum balance and minimum points per redemption.</p>
         <form onSubmit={handleRedemptionSave} className="flex flex-wrap items-end gap-4">
-          <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Min balance to redeem (pts)</label><input type="number" min={0} value={redemptionForm.minBalance || ''} onChange={(e) => setRedemptionForm({ ...redemptionForm, minBalance: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-32 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-          <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Min points per redemption</label><input type="number" min={1} value={redemptionForm.minPoints || ''} onChange={(e) => setRedemptionForm({ ...redemptionForm, minPoints: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-32 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-          <button type="submit" disabled={redemptionSubmitting} className="px-4 py-2 bg-[#F27D26] text-white rounded-xl font-bold text-sm">{redemptionSubmitting ? 'Saving...' : 'Save'}</button>
+          <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Min balance to redeem (pts)</label><input type="number" min={0} value={redemptionForm.minBalance || ''} onChange={(e) => setRedemptionForm({ ...redemptionForm, minBalance: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-32 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+          <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Min points per redemption</label><input type="number" min={1} value={redemptionForm.minPoints || ''} onChange={(e) => setRedemptionForm({ ...redemptionForm, minPoints: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-32 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+          <button type="submit" disabled={redemptionSubmitting} className="px-4 py-2 bg-brand text-white rounded-xl font-bold text-sm">{redemptionSubmitting ? 'Saving...' : 'Save'}</button>
         </form>
       </div>
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -91,7 +91,7 @@ export function RewardRulesView({ onBack }: { onBack: () => void }) {
                     <td className="px-6 py-4 text-sm font-bold text-emerald-600">{r.rewardPoints} pts</td>
                     <td className="px-6 py-4 text-sm text-gray-600">{r.description || '-'}</td>
                     <td className="px-6 py-4 flex gap-2">
-                      <button type="button" onClick={() => openEdit(r)} className="p-2 text-[#F27D26] hover:bg-orange-50 rounded-lg"><Pencil size={16} /></button>
+                      <button type="button" onClick={() => openEdit(r)} className="p-2 text-brand hover:bg-orange-50 rounded-lg"><Pencil size={16} /></button>
                       <button type="button" onClick={() => setDeleteTarget(r)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={16} /></button>
                     </td>
                   </tr>
@@ -107,10 +107,10 @@ export function RewardRulesView({ onBack }: { onBack: () => void }) {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-lg font-bold mb-4">{editing ? 'Edit Reward Rule' : 'Add Reward Rule'}</h3>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Products sold threshold</label><input type="number" min={1} value={form.productsSoldThreshold || ''} onChange={(e) => setForm({ ...form, productsSoldThreshold: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Reward points</label><input type="number" min={0} value={form.rewardPoints || ''} onChange={(e) => setForm({ ...form, rewardPoints: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Description</label><input placeholder="e.g. 10 Submersible sold = 100 pts" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Save'}</button></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Products sold threshold</label><input type="number" min={1} value={form.productsSoldThreshold || ''} onChange={(e) => setForm({ ...form, productsSoldThreshold: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Reward points</label><input type="number" min={0} value={form.rewardPoints || ''} onChange={(e) => setForm({ ...form, rewardPoints: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Description</label><input placeholder="e.g. 10 Submersible sold = 100 pts" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Save'}</button></div>
               </form>
             </motion.div>
           </div>

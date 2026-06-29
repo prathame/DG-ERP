@@ -85,11 +85,11 @@ export function ProductVerificationView() {
               value={barcode}
               onChange={(e) => { setBarcode(e.target.value); setResult(null); setNotFound(false); setVendorDetail(null); }}
               placeholder="Type to search..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#F27D26]"
+              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
               autoComplete="off"
               autoFocus
             />
-            {loading && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-[#F27D26] border-t-transparent rounded-full animate-spin" />}
+            {loading && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />}
           </div>
           {barcodeSystem && (
             <button type="button" onClick={() => setScannerOpen(true)} className="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 flex items-center gap-2">
@@ -163,7 +163,7 @@ export function ProductVerificationView() {
       {/* Vendor Detail */}
       {vendorDetail && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 space-y-4">
-          <button type="button" onClick={() => setVendorDetail(null)} className="text-xs font-medium text-[#F27D26] hover:underline">← Back to results</button>
+          <button type="button" onClick={() => setVendorDetail(null)} className="text-xs font-medium text-brand hover:underline">← Back to results</button>
           {(() => {
             const d = vendorDetail as { vendor?: { name: string; phone?: string; email?: string; address?: string }; totalDistributedValue: number; totalPaid: number; balance: number; payments?: { id: string; amount: number; paymentDate: string; paymentMethod: string }[]; distributions?: { date: string; productName: string; quantity: number; total: number }[] };
             return (

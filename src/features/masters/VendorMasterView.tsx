@@ -68,14 +68,14 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
           <button type="button" onClick={() => list.length && exportToCsv(list.map((v) => ({ id: v.id, name: v.name, contactPerson: v.contactPerson ?? '', phone: v.phone ?? '', email: v.email ?? '', address: v.address ?? '', totalSales: v.totalSales ?? 0, totalRewardPoints: v.totalRewardPoints ?? 0 })), 'vendors')} disabled={!list.length} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={18} /> Export CSV
           </button>
-          <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add Vendor</button>
+          <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add Vendor</button>
         </div>
       </div>
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-50 flex items-center gap-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input type="text" placeholder="Search vendors..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" />
+            <input type="text" placeholder="Search vendors..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -92,7 +92,7 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
                     <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-medium">{v.totalSales ?? 0}</td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-emerald-600">{v.totalRewardPoints ?? 0}</td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2">
-                      <button type="button" onClick={() => openEdit(v)} className="p-2 text-[#F27D26] hover:bg-orange-50 rounded-lg"><Pencil size={16} /></button>
+                      <button type="button" onClick={() => openEdit(v)} className="p-2 text-brand hover:bg-orange-50 rounded-lg"><Pencil size={16} /></button>
                       <button type="button" onClick={() => setDeleteTarget(v)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={16} /></button>
                     </td>
                   </tr>
@@ -108,16 +108,16 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-lg font-bold mb-4">{editing ? 'Edit Vendor' : 'Add Vendor'}</h3>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Name</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Contact Person</label><input value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Name</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Contact Person</label><input value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
                 <div className={!editing ? 'bg-blue-50 border border-blue-100 rounded-xl p-3 -mx-1' : ''}>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Email * <span className="text-[#F27D26] normal-case font-normal">(vendor login ID)</span></label>
-                  <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="vendor@example.com" />
+                  <label className="text-xs font-bold text-gray-400 uppercase">Email * <span className="text-brand normal-case font-normal">(vendor login ID)</span></label>
+                  <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="vendor@example.com" />
                   {!editing && <p className="text-xs text-blue-600 mt-2">Login will be auto-created. Password: <span className="font-mono font-bold">{form.name ? `${form.name.replace(/\s+/g, '').toLowerCase()}@123` : 'vendorname@123'}</span></p>}
                 </div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Phone * <span className="text-gray-400 normal-case font-normal">(for WhatsApp)</span></label><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="+91 98765 43210" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2 border border-gray-200 rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Save'}</button></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Phone * <span className="text-gray-400 normal-case font-normal">(for WhatsApp)</span></label><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="+91 98765 43210" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2 border border-gray-200 rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Save'}</button></div>
               </form>
             </motion.div>
           </div>
@@ -143,7 +143,7 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
               <div className="bg-gray-50 rounded-xl p-4 space-y-3 border border-gray-200">
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase">Login URL</p>
-                  <p className="font-mono font-medium text-sm mt-0.5 text-[#F27D26]">{window.location.origin}/{session.getSlug() || ''}</p>
+                  <p className="font-mono font-medium text-sm mt-0.5 text-brand">{window.location.origin}/{session.getSlug() || ''}</p>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase">Login Email</p>

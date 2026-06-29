@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FileText, Plus, ArrowLeft, Send, MessageCircle, Mail, Check, X, Trash2, ArrowRight } from 'lucide-react';
 import { cn, formatDate, shareViaWhatsApp, shareViaEmail } from '../../lib/utils';
-import { api } from '../../api';
+import { api, fetchApi } from '../../api';
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
-import { session } from '../../lib/session';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 interface Quotation {
   id: string; quotationNumber: string; vendorId?: string; vendorName?: string;
@@ -13,14 +13,6 @@ interface Quotation {
   quotationDate: string; validUntil?: string; status: string;
   items: { productId: string; productName: string; quantity: number; price: number; discountPercent: number; withGst: boolean; lineNet: number; lineGst: number; lineTotal: number }[];
   subtotal: number; gstRate: number; gstAmount: number; total: number; notes?: string; convertedBatchId?: string;
-}
-
-function fetchApi<T>(path: string, opts?: RequestInit): Promise<T> {
-  const token = session.getToken(); const tenantId = session.getTenantId();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (tenantId) headers['X-Tenant-ID'] = tenantId;
-  return fetch(`/api${path}`, { ...opts, headers: { ...headers, ...opts?.headers } }).then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.error || r.statusText); }); return r.json(); });
 }
 
 export function QuotationsView() {
@@ -38,15 +30,22 @@ export function QuotationsView() {
   const [form, setForm] = useState({ vendorId: '', customerName: '', customerPhone: '', customerEmail: '', date: new Date().toISOString().slice(0, 10), validUntil: '', notes: '' });
   const [rows, setRows] = useState<{ productId: string; quantity: number; customPrice: string; discount: number; withGst: boolean }[]>([{ productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }]);
 
-  const companyName = (() => { try { return (session.getUser() || {}).companyName || ''; } catch { return ''; } })();
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const companyName = (() => { try { const { session } = require('../../lib/session'); return (session.getUser() || {}).companyName || ''; } catch { return ''; } })();
+
+  useEscapeKey(() => {
+    if (modalOpen) setModalOpen(false);
+    else if (selectedId) { setSelectedId(null); setSelected(null); }
+  });
 
   const load = () => {
+    setLoadError(null);
     Promise.all([
       fetchApi<Quotation[]>('/quotations'),
       api.products.list(),
       api.vendors.list(),
     ]).then(([q, p, v]) => { setQuotations(q); setProducts(p); setVendors(v); })
-      .catch(() => {}).finally(() => setLoading(false));
+      .catch((err) => setLoadError(err.message || 'Failed to load')).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
 
@@ -119,6 +118,7 @@ export function QuotationsView() {
   };
 
   if (loading) return <div className="flex items-center justify-center py-20"><LoadingSpinner /></div>;
+  if (loadError) return <div className="bg-white rounded-xl border border-rose-200 p-12 text-center"><p className="text-rose-600 font-medium mb-2">Failed to load quotations</p><p className="text-sm text-gray-500 mb-4">{loadError}</p><button type="button" onClick={() => { setLoading(true); load(); }} className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark">Retry</button></div>;
 
   const statusColors: Record<string, string> = { Draft: 'bg-gray-100 text-gray-600', Sent: 'bg-blue-50 text-blue-600', Accepted: 'bg-emerald-50 text-emerald-600', Rejected: 'bg-rose-50 text-rose-600', Expired: 'bg-amber-50 text-amber-600', Converted: 'bg-purple-50 text-purple-600' };
   const filtered = statusFilter === 'all' ? quotations : quotations.filter(q => q.status === statusFilter);
@@ -159,7 +159,7 @@ export function QuotationsView() {
                   <tr key={i}><td className="py-2">{item.productName}</td><td className="py-2 text-right">{item.quantity}</td><td className="py-2 text-right">₹{item.price.toLocaleString()}</td><td className="py-2 text-right">{item.discountPercent}%</td><td className="py-2 text-right">₹{item.lineNet.toLocaleString()}</td><td className="py-2 text-right">₹{item.lineGst.toLocaleString()}</td><td className="py-2 text-right font-bold">₹{item.lineTotal.toLocaleString()}</td></tr>
                 ))}
               </tbody>
-              <tfoot><tr className="border-t-2 border-gray-300 font-bold"><td colSpan={4}>Total</td><td className="py-2 text-right">₹{selected.subtotal.toLocaleString()}</td><td className="py-2 text-right">₹{selected.gstAmount.toLocaleString()}</td><td className="py-2 text-right text-[#F27D26]">₹{selected.total.toLocaleString()}</td></tr></tfoot>
+              <tfoot><tr className="border-t-2 border-gray-300 font-bold"><td colSpan={4}>Total</td><td className="py-2 text-right">₹{selected.subtotal.toLocaleString()}</td><td className="py-2 text-right">₹{selected.gstAmount.toLocaleString()}</td><td className="py-2 text-right text-brand">₹{selected.total.toLocaleString()}</td></tr></tfoot>
             </table>
             {selected.notes && <p className="text-sm text-gray-500 italic">Notes: {selected.notes}</p>}
             {selected.convertedBatchId && <p className="text-sm text-purple-600 font-medium mt-2">Converted to distribution: {selected.convertedBatchId}</p>}
@@ -173,12 +173,12 @@ export function QuotationsView() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div><h2 className="text-xl font-bold flex items-center gap-2"><FileText size={22} /> Quotations</h2><p className="text-sm text-gray-500">Create quotes, share with customers, convert to distribution</p></div>
-        <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold"><Plus size={16} /> New Quotation</button>
+        <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={16} /> New Quotation</button>
       </div>
 
       <div className="flex gap-2 flex-wrap">
         {(['all', 'Draft', 'Sent', 'Accepted', 'Converted'] as const).map(s => (
-          <button key={s} type="button" onClick={() => setStatusFilter(s)} className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", statusFilter === s ? "bg-[#F27D26] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>{s === 'all' ? 'All' : s}</button>
+          <button key={s} type="button" onClick={() => setStatusFilter(s)} className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", statusFilter === s ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>{s === 'all' ? 'All' : s}</button>
         ))}
       </div>
 
@@ -199,7 +199,7 @@ export function QuotationsView() {
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">{q.customerName || q.vendorName || 'No customer'} • {formatDate(q.quotationDate)} • {q.items.length} item{q.items.length !== 1 ? 's' : ''}</p>
               </div>
-              <span className="text-sm font-bold text-[#F27D26] shrink-0">₹{q.total.toLocaleString()}</span>
+              <span className="text-sm font-bold text-brand shrink-0">₹{q.total.toLocaleString()}</span>
             </button>
           ))}
         </div>
@@ -245,12 +245,12 @@ export function QuotationsView() {
                   })}
                 </tbody></table>
               </div>
-              <button type="button" onClick={() => setRows([...rows, { productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }])} className="text-sm font-bold text-[#F27D26] mb-4">+ Add Product</button>
-              <div className="bg-gray-50 rounded-xl p-4 mb-4 flex items-center justify-between"><span className="text-sm text-gray-600">{totals.items} items • Net ₹{totals.net.toLocaleString()} • GST ₹{totals.gst.toLocaleString()}</span><span className="text-lg font-bold text-[#F27D26]">Total: ₹{totals.total.toLocaleString()}</span></div>
+              <button type="button" onClick={() => setRows([...rows, { productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }])} className="text-sm font-bold text-brand mb-4">+ Add Product</button>
+              <div className="bg-gray-50 rounded-xl p-4 mb-4 flex items-center justify-between"><span className="text-sm text-gray-600">{totals.items} items • Net ₹{totals.net.toLocaleString()} • GST ₹{totals.gst.toLocaleString()}</span><span className="text-lg font-bold text-brand">Total: ₹{totals.total.toLocaleString()}</span></div>
               <div><label className="text-xs font-bold text-gray-400 uppercase">Notes</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg text-sm" placeholder="Terms, conditions, remarks..." /></div>
               <div className="flex gap-3 mt-4">
                 <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium">Cancel</button>
-                <button type="button" onClick={handleCreate} disabled={submitting} className="flex-1 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold disabled:opacity-60">{submitting ? 'Creating...' : 'Create Quotation'}</button>
+                <button type="button" onClick={handleCreate} disabled={submitting} className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60">{submitting ? 'Creating...' : 'Create Quotation'}</button>
               </div>
             </motion.div>
           </div>

@@ -173,7 +173,7 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
             <p className="text-xs font-bold text-gray-400 uppercase mb-2">Label Format</p>
             <div className="flex gap-2">
               {([['a4-24', 'A4 — 24 labels (63×33mm)'], ['a4-40', 'A4 — 40 labels (48×25mm)'], ['single', 'Single (80×40mm)']] as const).map(([val, label]) => (
-                <button key={val} onClick={() => setFormat(val)} className={cn("flex-1 py-2.5 rounded-xl text-xs font-bold border transition-colors", format === val ? "bg-[#F27D26] text-white border-[#F27D26]" : "border-gray-200 text-gray-600 hover:border-[#F27D26]")}>
+                <button key={val} onClick={() => setFormat(val)} className={cn("flex-1 py-2.5 rounded-xl text-xs font-bold border transition-colors", format === val ? "bg-brand text-white border-brand" : "border-gray-200 text-gray-600 hover:border-brand")}>
                   {label}
                 </button>
               ))}
@@ -184,10 +184,10 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase mb-2">Code Type</p>
             <div className="flex gap-2">
-              <button onClick={() => setCodeType('barcode')} className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors", codeType === 'barcode' ? "bg-[#F27D26] text-white border-[#F27D26]" : "border-gray-200 text-gray-600 hover:border-[#F27D26]")}>
+              <button onClick={() => setCodeType('barcode')} className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors", codeType === 'barcode' ? "bg-brand text-white border-brand" : "border-gray-200 text-gray-600 hover:border-brand")}>
                 ||||| Barcode
               </button>
-              <button onClick={() => setCodeType('qr')} className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors", codeType === 'qr' ? "bg-[#F27D26] text-white border-[#F27D26]" : "border-gray-200 text-gray-600 hover:border-[#F27D26]")}>
+              <button onClick={() => setCodeType('qr')} className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors", codeType === 'qr' ? "bg-brand text-white border-brand" : "border-gray-200 text-gray-600 hover:border-brand")}>
                 <QrCode size={16} /> QR Code
               </button>
             </div>
@@ -206,13 +206,13 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold text-gray-400 uppercase">{selectedBarcodes.size} of {barcodes.length} selected</p>
               <div className="flex gap-2">
-                <button onClick={selectAll} className="text-xs text-[#F27D26] font-medium">Select All</button>
+                <button onClick={selectAll} className="text-xs text-brand font-medium">Select All</button>
                 <button onClick={selectNone} className="text-xs text-gray-500 font-medium">None</button>
               </div>
             </div>
             <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-2 grid grid-cols-2 gap-1">
               {barcodes.map((b) => (
-                <label key={b.barcode} className={cn("flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-gray-50", selectedBarcodes.has(b.barcode) ? "bg-[#F27D26]/5" : "")}>
+                <label key={b.barcode} className={cn("flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-gray-50", selectedBarcodes.has(b.barcode) ? "bg-brand/5" : "")}>
                   <input type="checkbox" checked={selectedBarcodes.has(b.barcode)} onChange={() => toggleBarcode(b.barcode)} className="rounded" />
                   <span className="font-mono">{b.barcode}</span>
                   <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full", b.status === 'InStock' ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-400")}>{b.status}</span>
@@ -240,7 +240,7 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
           </div>
 
           {/* Print */}
-          <button onClick={handlePrint} disabled={selectedBarcodes.size === 0} className="w-full py-3.5 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] disabled:opacity-40 flex items-center justify-center gap-2">
+          <button onClick={handlePrint} disabled={selectedBarcodes.size === 0} className="w-full py-3.5 bg-brand text-white rounded-xl font-bold text-lg hover:bg-brand-dark disabled:opacity-40 flex items-center justify-center gap-2">
             <Printer size={20} /> Print {selectedBarcodes.size} Labels
           </button>
         </div>

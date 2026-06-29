@@ -83,7 +83,7 @@ function BillCustomizationSection() {
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
         <h3 className="font-bold text-lg flex items-center gap-2"><FileText size={20} /> Bill Customization</h3>
-        <button type="button" onClick={handlePreview} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#F27D26] border border-[#F27D26] rounded-lg hover:bg-[#F27D26]/5">
+        <button type="button" onClick={handlePreview} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand border border-brand rounded-lg hover:bg-brand/5">
           <Eye size={14} /> Preview
         </button>
       </div>
@@ -114,12 +114,12 @@ function BillCustomizationSection() {
               <label className="text-xs font-bold text-gray-500 block mb-1">Bill Color</label>
               <div className="flex items-center gap-2">
                 <input type="color" value={form.primaryColor} onChange={(e) => setForm((p) => ({ ...p, primaryColor: e.target.value }))} className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0" />
-                <input value={form.primaryColor} onChange={(e) => setForm((p) => ({ ...p, primaryColor: e.target.value }))} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-[#F27D26]" maxLength={7} />
+                <input value={form.primaryColor} onChange={(e) => setForm((p) => ({ ...p, primaryColor: e.target.value }))} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-brand" maxLength={7} />
               </div>
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 block mb-1">Tagline / Subtitle</label>
-              <input value={form.tagline || ''} onChange={(e) => setForm((p) => ({ ...p, tagline: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="e.g. Manufacturers of Premium Pumps" />
+              <input value={form.tagline || ''} onChange={(e) => setForm((p) => ({ ...p, tagline: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="e.g. Manufacturers of Premium Pumps" />
             </div>
           </div>
         </div>
@@ -130,11 +130,11 @@ function BillCustomizationSection() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-gray-500 block mb-1">Invoice Prefix</label>
-              <input value={form.invoicePrefix || ''} onChange={(e) => setForm((p) => ({ ...p, invoicePrefix: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="e.g. SPL-INV-" maxLength={20} />
+              <input value={form.invoicePrefix || ''} onChange={(e) => setForm((p) => ({ ...p, invoicePrefix: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="e.g. SPL-INV-" maxLength={20} />
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 block mb-1">Challan Prefix</label>
-              <input value={form.challanPrefix || ''} onChange={(e) => setForm((p) => ({ ...p, challanPrefix: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="e.g. SPL-CH-" maxLength={20} />
+              <input value={form.challanPrefix || ''} onChange={(e) => setForm((p) => ({ ...p, challanPrefix: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="e.g. SPL-CH-" maxLength={20} />
             </div>
           </div>
         </div>
@@ -143,19 +143,19 @@ function BillCustomizationSection() {
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Bank Details (printed on bill)</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Account Name</label><input value={form.bankAccountName || ''} onChange={(e) => setForm((p) => ({ ...p, bankAccountName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="Company Name" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Account Number</label><input value={form.bankAccountNumber || ''} onChange={(e) => setForm((p) => ({ ...p, bankAccountNumber: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-[#F27D26]" placeholder="1234567890" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Bank Name</label><input value={form.bankName || ''} onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="State Bank of India" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Branch</label><input value={form.bankBranch || ''} onChange={(e) => setForm((p) => ({ ...p, bankBranch: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="Main Branch" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">IFSC Code</label><input value={form.bankIfsc || ''} onChange={(e) => setForm((p) => ({ ...p, bankIfsc: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-[#F27D26]" placeholder="SBIN0001234" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">UPI ID</label><input value={form.bankUpiId || ''} onChange={(e) => setForm((p) => ({ ...p, bankUpiId: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="company@upi" /></div>
+            <div><label className="text-xs font-bold text-gray-500 block mb-1">Account Name</label><input value={form.bankAccountName || ''} onChange={(e) => setForm((p) => ({ ...p, bankAccountName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Company Name" /></div>
+            <div><label className="text-xs font-bold text-gray-500 block mb-1">Account Number</label><input value={form.bankAccountNumber || ''} onChange={(e) => setForm((p) => ({ ...p, bankAccountNumber: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-brand" placeholder="1234567890" /></div>
+            <div><label className="text-xs font-bold text-gray-500 block mb-1">Bank Name</label><input value={form.bankName || ''} onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="State Bank of India" /></div>
+            <div><label className="text-xs font-bold text-gray-500 block mb-1">Branch</label><input value={form.bankBranch || ''} onChange={(e) => setForm((p) => ({ ...p, bankBranch: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Main Branch" /></div>
+            <div><label className="text-xs font-bold text-gray-500 block mb-1">IFSC Code</label><input value={form.bankIfsc || ''} onChange={(e) => setForm((p) => ({ ...p, bankIfsc: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-brand" placeholder="SBIN0001234" /></div>
+            <div><label className="text-xs font-bold text-gray-500 block mb-1">UPI ID</label><input value={form.bankUpiId || ''} onChange={(e) => setForm((p) => ({ ...p, bankUpiId: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="company@upi" /></div>
           </div>
         </div>
 
         {/* Terms & Conditions */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Terms & Conditions</p>
-          <textarea value={form.termsAndConditions || ''} onChange={(e) => setForm((p) => ({ ...p, termsAndConditions: e.target.value || null }))} rows={3} maxLength={2000} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="Enter terms & conditions to appear on bills..." />
+          <textarea value={form.termsAndConditions || ''} onChange={(e) => setForm((p) => ({ ...p, termsAndConditions: e.target.value || null }))} rows={3} maxLength={2000} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Enter terms & conditions to appear on bills..." />
           <p className="text-[10px] text-gray-400 mt-1">{(form.termsAndConditions || '').length}/2000</p>
         </div>
 
@@ -163,8 +163,8 @@ function BillCustomizationSection() {
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Authorized Signatory</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Name</label><input value={form.signatoryName || ''} onChange={(e) => setForm((p) => ({ ...p, signatoryName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="Mr. Rajesh Kumar" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Designation</label><input value={form.signatoryDesignation || ''} onChange={(e) => setForm((p) => ({ ...p, signatoryDesignation: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="Managing Director" /></div>
+            <div><label className="text-xs font-bold text-gray-500 block mb-1">Name</label><input value={form.signatoryName || ''} onChange={(e) => setForm((p) => ({ ...p, signatoryName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Mr. Rajesh Kumar" /></div>
+            <div><label className="text-xs font-bold text-gray-500 block mb-1">Designation</label><input value={form.signatoryDesignation || ''} onChange={(e) => setForm((p) => ({ ...p, signatoryDesignation: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Managing Director" /></div>
             <div>
               <label className="text-xs font-bold text-gray-500 block mb-1">Signature Image</label>
               <div className="flex items-center gap-2">
@@ -195,10 +195,10 @@ function BillCustomizationSection() {
         {/* Footer */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Footer Text</p>
-          <input value={form.footerText} onChange={(e) => setForm((p) => ({ ...p, footerText: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]" placeholder="Powered by DG ERP Management" />
+          <input value={form.footerText} onChange={(e) => setForm((p) => ({ ...p, footerText: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Powered by DG ERP Management" />
         </div>
 
-        <button type="button" onClick={handleSave} disabled={saving} className="px-6 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C] disabled:opacity-60">
+        <button type="button" onClick={handleSave} disabled={saving} className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:opacity-60">
           {saving ? 'Saving...' : 'Save Bill Settings'}
         </button>
       </div>
@@ -378,7 +378,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
           {user ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#F27D26] to-[#FFB347] flex items-center justify-center text-white font-bold text-xl">{user.name.charAt(0)}</div>
+                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white font-bold text-xl">{user.name.charAt(0)}</div>
                 <div>
                   <p className="font-bold text-lg">{user.name}</p>
                   <p className="text-sm text-gray-500">{user.email}</p>
@@ -392,20 +392,20 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
           ) : (
             <div className="max-w-md space-y-4">
               <div className="flex gap-2">
-                <button type="button" onClick={() => { setAuthMode('login'); setAuthError(''); }} className={cn("flex-1 py-2 rounded-lg font-medium transition-colors", authMode === 'login' ? 'bg-[#F27D26] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>Login</button>
-                <button type="button" onClick={() => { setAuthMode('signup'); setAuthError(''); }} className={cn("flex-1 py-2 rounded-lg font-medium transition-colors", authMode === 'signup' ? 'bg-[#F27D26] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>Sign Up</button>
+                <button type="button" onClick={() => { setAuthMode('login'); setAuthError(''); }} className={cn("flex-1 py-2 rounded-lg font-medium transition-colors", authMode === 'login' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>Login</button>
+                <button type="button" onClick={() => { setAuthMode('signup'); setAuthError(''); }} className={cn("flex-1 py-2 rounded-lg font-medium transition-colors", authMode === 'signup' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>Sign Up</button>
               </div>
               <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
                 {authMode === 'signup' && (
-                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Name</label><input required value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="Full name" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Name</label><input required value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Full name" /></div>
                 )}
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" required value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="you@example.com" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><input type="password" required value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="••••••••" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" required value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="you@example.com" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><input type="password" required value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="••••••••" /></div>
                 {authMode === 'signup' && (
-                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm Password</label><input type="password" required value={authForm.confirmPassword} onChange={(e) => setAuthForm({ ...authForm, confirmPassword: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="••••••••" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm Password</label><input type="password" required value={authForm.confirmPassword} onChange={(e) => setAuthForm({ ...authForm, confirmPassword: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="••••••••" /></div>
                 )}
                 {authError && <p className="text-sm text-rose-600">{authError}</p>}
-                <button type="submit" disabled={authSubmitting} className="w-full py-3 bg-[#F27D26] text-white rounded-xl font-bold">{authSubmitting ? 'Please wait...' : authMode === 'login' ? 'Login' : 'Sign Up'}</button>
+                <button type="submit" disabled={authSubmitting} className="w-full py-3 bg-brand text-white rounded-xl font-bold">{authSubmitting ? 'Please wait...' : authMode === 'login' ? 'Login' : 'Sign Up'}</button>
               </form>
             </div>
           )}
@@ -421,11 +421,11 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             </div>
             <form onSubmit={handleProfileSave} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Full Name</label><input value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Full Name</label><input value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" value={user.email} disabled className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500" /></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Role</label><input type="text" value={profileForm.role} disabled className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600" /></div>
               </div>
-              <button type="submit" disabled={profileSubmitting} className="px-6 py-2 bg-[#F27D26] text-white rounded-xl font-bold">{profileSubmitting ? 'Saving...' : 'Save'}</button>
+              <button type="submit" disabled={profileSubmitting} className="px-6 py-2 bg-brand text-white rounded-xl font-bold">{profileSubmitting ? 'Saving...' : 'Save'}</button>
             </form>
           </div>
 
@@ -435,10 +435,10 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             </div>
             <form onSubmit={handleProfileSave} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"><Phone size={12} /> Phone</label><input type="tel" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="+91 98765 43210" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"><MapPin size={12} /> Address</label><input value={profileForm.address} onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="Street, City, State" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"><Phone size={12} /> Phone</label><input type="tel" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="+91 98765 43210" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"><MapPin size={12} /> Address</label><input value={profileForm.address} onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Street, City, State" /></div>
               </div>
-              <button type="submit" disabled={profileSubmitting} className="px-6 py-2 bg-[#F27D26] text-white rounded-xl font-bold">{profileSubmitting ? 'Saving...' : 'Save'}</button>
+              <button type="submit" disabled={profileSubmitting} className="px-6 py-2 bg-brand text-white rounded-xl font-bold">{profileSubmitting ? 'Saving...' : 'Save'}</button>
             </form>
           </div>
 
@@ -447,20 +447,20 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
               <h3 className="font-bold text-lg flex items-center gap-2"><Building2 size={20} /> Company & Other</h3>
             </div>
             <form onSubmit={handleProfileSave} className="p-6 space-y-4">
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Company / Business Name</label><input value={profileForm.companyName} onChange={(e) => setProfileForm({ ...profileForm, companyName: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="Your Company Name" /></div>
+              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Company / Business Name</label><input value={profileForm.companyName} onChange={(e) => setProfileForm({ ...profileForm, companyName: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Your Company Name" /></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">GST Number (GSTIN)</label><input value={profileForm.gstNumber ?? ''} onChange={(e) => setProfileForm({ ...profileForm, gstNumber: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26] font-mono" placeholder="e.g. 27AABCU9603R1ZM" maxLength={15} /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">GST Number (GSTIN)</label><input value={profileForm.gstNumber ?? ''} onChange={(e) => setProfileForm({ ...profileForm, gstNumber: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono" placeholder="e.g. 27AABCU9603R1ZM" maxLength={15} /></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Default GST Rate (%)</label>
                   <div className="flex gap-2 mt-1">
                     {[3, 5, 12, 18, 28].map((rate) => (
-                      <button key={rate} type="button" onClick={() => setProfileForm({ ...profileForm, defaultGstRate: rate })} className={cn("px-3 py-2 rounded-lg text-sm font-bold border transition-colors", profileForm.defaultGstRate === rate ? "bg-[#F27D26] text-white border-[#F27D26]" : "bg-white border-gray-200 text-gray-600 hover:border-[#F27D26]")}>{rate}%</button>
+                      <button key={rate} type="button" onClick={() => setProfileForm({ ...profileForm, defaultGstRate: rate })} className={cn("px-3 py-2 rounded-lg text-sm font-bold border transition-colors", profileForm.defaultGstRate === rate ? "bg-brand text-white border-brand" : "bg-white border-gray-200 text-gray-600 hover:border-brand")}>{rate}%</button>
                     ))}
-                    <input type="number" min={0} max={100} value={profileForm.defaultGstRate || ''} onChange={(e) => setProfileForm({ ...profileForm, defaultGstRate: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" />
+                    <input type="number" min={0} max={100} value={profileForm.defaultGstRate || ''} onChange={(e) => setProfileForm({ ...profileForm, defaultGstRate: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">CGST + SGST will split equally (e.g. 18% = 9% + 9%)</p>
                 </div>
               </div>
-              <button type="submit" disabled={profileSubmitting} className="px-6 py-2 bg-[#F27D26] text-white rounded-xl font-bold">{profileSubmitting ? 'Saving...' : 'Save'}</button>
+              <button type="submit" disabled={profileSubmitting} className="px-6 py-2 bg-brand text-white rounded-xl font-bold">{profileSubmitting ? 'Saving...' : 'Save'}</button>
             </form>
           </div>
 
@@ -485,7 +485,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                   }}
                   className={cn(
                     "relative w-14 h-7 rounded-full transition-colors",
-                    isDarkMode ? 'bg-[#F27D26]' : 'bg-gray-300'
+                    isDarkMode ? 'bg-brand' : 'bg-gray-300'
                   )}
                 >
                   <span className={cn(
@@ -507,7 +507,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                       onClick={() => setLang(l.code)}
                       className={cn(
                         "px-4 py-2 rounded-lg text-sm font-bold border transition-colors",
-                        lang === l.code ? "bg-[#F27D26] text-white border-[#F27D26]" : "bg-white border-gray-200 text-gray-600 hover:border-[#F27D26]"
+                        lang === l.code ? "bg-brand text-white border-brand" : "bg-white border-gray-200 text-gray-600 hover:border-brand"
                       )}
                     >
                       {l.nativeLabel}
@@ -538,11 +538,11 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
               } catch (err) { toast(err instanceof Error ? err.message : 'Failed', 'error'); }
             }} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Current Password</label><input type="password" name="currentPassword" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">New Password</label><input type="password" name="newPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm New Password</label><input type="password" name="confirmPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Current Password</label><input type="password" name="currentPassword" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">New Password</label><input type="password" name="newPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm New Password</label><input type="password" name="confirmPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
               </div>
-              <button type="submit" className="px-6 py-2 bg-[#F27D26] text-white rounded-xl font-bold">Update Password</button>
+              <button type="submit" className="px-6 py-2 bg-brand text-white rounded-xl font-bold">Update Password</button>
             </form>
           </div>
 
@@ -622,7 +622,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="font-bold text-lg flex items-center gap-2"><UserCog size={20} /> User Management</h3>
-                <button type="button" onClick={() => setAddUserOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold">
+                <button type="button" onClick={() => setAddUserOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold">
                   <UserPlus size={16} /> Add User
                 </button>
               </div>
@@ -640,7 +640,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                             <td className="px-4 py-3 text-sm text-gray-600">{u.email}</td>
                             <td className="px-4 py-3"><span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{u.role ?? 'Staff'}</span></td>
                             <td className="px-4 py-3">
-                              <button type="button" onClick={() => { setEditUserTarget(u); setEditUserForm({ role: u.role ?? 'Staff', permissions: u.permissions ?? [], vendorId: (u as Record<string, unknown>).vendorId as string ?? '' }); }} className="text-sm font-bold text-[#F27D26] hover:underline flex items-center gap-1"><Shield size={14} /> Permissions</button>
+                              <button type="button" onClick={() => { setEditUserTarget(u); setEditUserForm({ role: u.role ?? 'Staff', permissions: u.permissions ?? [], vendorId: (u as Record<string, unknown>).vendorId as string ?? '' }); }} className="text-sm font-bold text-brand hover:underline flex items-center gap-1"><Shield size={14} /> Permissions</button>
                             </td>
                           </tr>
                         ))}
@@ -671,7 +671,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                     <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vendor (required)</label><select required value={addUserForm.vendorId} onChange={(e) => setAddUserForm({ ...addUserForm, vendorId: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option value="">Select vendor</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
                   )}
                   <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Permissions (optional - leave empty for role defaults)</label><div className="grid grid-cols-2 gap-2 mt-2">{PERMISSION_LABELS.map((p) => (<label key={p.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={addUserForm.permissions.includes(p.id)} onChange={() => setAddUserForm({ ...addUserForm, permissions: togglePermission(addUserForm.permissions, p.id) })} className="rounded" /><span>{p.label}</span></label>))}</div></div>
-                  <div className="flex gap-2 pt-2"><button type="button" onClick={() => setAddUserOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={userSubmitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{userSubmitting ? 'Creating...' : 'Create User'}</button></div>
+                  <div className="flex gap-2 pt-2"><button type="button" onClick={() => setAddUserOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={userSubmitting} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">{userSubmitting ? 'Creating...' : 'Create User'}</button></div>
                 </form>
               </div>
             </motion.div>
@@ -689,7 +689,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                     <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vendor (required)</label><select required value={editUserForm.vendorId} onChange={(e) => setEditUserForm({ ...editUserForm, vendorId: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option value="">Select vendor</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
                   )}
                   <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Permissions</label><div className="grid grid-cols-2 gap-2 mt-2">{PERMISSION_LABELS.map((p) => (<label key={p.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editUserForm.permissions.includes(p.id)} onChange={() => setEditUserForm({ ...editUserForm, permissions: togglePermission(editUserForm.permissions, p.id) })} className="rounded" /><span>{p.label}</span></label>))}</div></div>
-                  <div className="flex gap-2 pt-2"><button type="button" onClick={() => setEditUserTarget(null)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={userSubmitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{userSubmitting ? 'Saving...' : 'Save'}</button></div>
+                  <div className="flex gap-2 pt-2"><button type="button" onClick={() => setEditUserTarget(null)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={userSubmitting} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">{userSubmitting ? 'Saving...' : 'Save'}</button></div>
                 </form>
               </div>
             </motion.div>

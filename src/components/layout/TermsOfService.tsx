@@ -4,7 +4,7 @@ export function TermsOfService() {
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-[#1A1A1A]">
       <div className="max-w-3xl mx-auto px-6 py-16">
-        <a href="/" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#F27D26] mb-8"><ArrowLeft size={16} /> Back to Home</a>
+        <a href="/" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-brand mb-8"><ArrowLeft size={16} /> Back to Home</a>
         <h1 className="text-3xl font-bold mb-2">Terms of Service</h1>
         <p className="text-sm text-gray-500 mb-10">Last updated: June 2026</p>
 

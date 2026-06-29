@@ -93,7 +93,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold hover:bg-[#D96A1C] transition-colors shadow-lg shadow-[#F27D26]/20"
+            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark transition-colors shadow-lg shadow-brand/20"
           >
             <Plus size={18} />
             Activate New Warranty
@@ -111,13 +111,13 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                 placeholder="Search by Barcode or Customer Name..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26] transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand transition-all"
               />
           </div>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-sm bg-white border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#F27D26]"
+            className="text-sm bg-white border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-brand"
           >
             <option>All Status</option>
             <option>Active</option>
@@ -177,7 +177,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                     </span>
                   </td>
                   <td className="px-3 py-3 sm:px-6 sm:py-4">
-                    <button type="button" onClick={() => openDetails(w)} className="text-xs font-bold text-[#F27D26] hover:underline">View Details</button>
+                    <button type="button" onClick={() => openDetails(w)} className="text-xs font-bold text-brand hover:underline">View Details</button>
                   </td>
                 </tr>
               ))
@@ -223,7 +223,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                         placeholder="Scan product barcode or enter"
                         value={formData.barcode}
                         onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-[#F27D26] outline-none transition-all font-mono"
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-brand outline-none transition-all font-mono"
                         autoComplete="off"
                       />
                     </div>
@@ -238,7 +238,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                         value={formData.customerName}
                         onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
                         required
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-[#F27D26] outline-none transition-all"
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-brand outline-none transition-all"
                       />
                     </div>
                     <div className="space-y-2">
@@ -249,7 +249,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                         value={formData.customerPhone}
                         onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
                         required
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-[#F27D26] outline-none transition-all"
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-brand outline-none transition-all"
                       />
                     </div>
                   </div>
@@ -257,7 +257,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
 <button
                     type="submit"
                     disabled={submitting}
-                    className="w-full bg-[#F27D26] text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-[#F27D26]/20 hover:bg-[#D96A1C] transition-all transform active:scale-[0.98] disabled:opacity-60"
+                    className="w-full bg-brand text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-brand/20 hover:bg-brand-dark transition-all transform active:scale-[0.98] disabled:opacity-60"
                   >
                     {submitting ? 'Activating...' : 'Activate Warranty'}
                   </button>
@@ -297,19 +297,19 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                   <div className="flex gap-4">
                     <div className="flex-1">
                       <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Status</label>
-                      <select value={detailsForm.status} onChange={(e) => setDetailsForm({ ...detailsForm, status: e.target.value })} className="w-full px-6 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]">
+                      <select value={detailsForm.status} onChange={(e) => setDetailsForm({ ...detailsForm, status: e.target.value })} className="w-full px-6 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand">
                         <option value="Active">Active</option>
                         <option value="Under Claim">Under Claim (Under Repair)</option>
                       </select>
                     </div>
                     <div className="flex-1">
                       <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Replaced Barcode</label>
-                      <input type="text" placeholder="New barcode if item replaced" value={detailsForm.replacedBarcode} onChange={(e) => setDetailsForm({ ...detailsForm, replacedBarcode: e.target.value })} className="w-full px-6 py-2 border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-[#F27D26]" />
+                      <input type="text" placeholder="New barcode if item replaced" value={detailsForm.replacedBarcode} onChange={(e) => setDetailsForm({ ...detailsForm, replacedBarcode: e.target.value })} className="w-full px-6 py-2 border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-brand" />
                     </div>
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button type="button" onClick={() => setDetailsWarranty(null)} className="flex-1 py-2 border border-gray-200 rounded-lg font-medium">Close</button>
-                    <button type="submit" disabled={detailsSubmitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{detailsSubmitting ? 'Saving...' : 'Save Changes'}</button>
+                    <button type="submit" disabled={detailsSubmitting} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">{detailsSubmitting ? 'Saving...' : 'Save Changes'}</button>
                   </div>
                 </form>
               </div>

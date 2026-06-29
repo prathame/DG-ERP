@@ -42,7 +42,7 @@ export function SuperAdminLogin({ onLogin }: { onLogin: (user: SuperAdminUser) =
     <div className="min-h-screen bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex w-16 h-16 bg-[#F27D26] rounded-2xl items-center justify-center font-bold text-2xl text-white mb-4">
+          <div className="inline-flex w-16 h-16 bg-brand rounded-2xl items-center justify-center font-bold text-2xl text-white mb-4">
             S
           </div>
           <h1 className="text-2xl font-bold text-white">Platform Admin</h1>
@@ -57,7 +57,7 @@ export function SuperAdminLogin({ onLogin }: { onLogin: (user: SuperAdminUser) =
                 required
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="admin@platform.com"
               />
             </div>
@@ -68,7 +68,7 @@ export function SuperAdminLogin({ onLogin }: { onLogin: (user: SuperAdminUser) =
                 required
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="••••••••"
               />
             </div>
@@ -76,7 +76,7 @@ export function SuperAdminLogin({ onLogin }: { onLogin: (user: SuperAdminUser) =
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-4 bg-[#F27D26] text-white rounded-xl font-bold text-lg hover:bg-[#D96A1C] transition-colors disabled:opacity-60"
+              className="w-full py-4 bg-brand text-white rounded-xl font-bold text-lg hover:bg-brand-dark transition-colors disabled:opacity-60"
             >
               {submitting ? 'Signing in...' : 'Sign In'}
             </button>

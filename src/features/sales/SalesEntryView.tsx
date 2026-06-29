@@ -112,7 +112,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleValidate()}
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-[#F27D26]"
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-brand"
                 autoComplete="off"
               />
             </div>
@@ -120,7 +120,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
               <Camera size={18} />
               <span className="hidden sm:inline">Scan</span>
             </button>}
-            <button type="button" onClick={() => handleValidate()} disabled={validating} className="px-6 py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C] disabled:opacity-60">
+            <button type="button" onClick={() => handleValidate()} disabled={validating} className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:opacity-60">
               {validating ? 'Checking...' : 'Verify'}
             </button>
           </div>
@@ -149,11 +149,11 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
           {validation?.valid && (
             <form onSubmit={handleSale} className="space-y-4 pt-4 border-t border-gray-100">
               <h3 className="font-bold text-lg">2. Customer Details</h3>
-              <div><label className="text-xs font-bold text-gray-400 uppercase">Customer Name</label><input required value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-              <div><label className="text-xs font-bold text-gray-400 uppercase">Phone</label><input required value={form.customerPhone} onChange={(e) => setForm({ ...form, customerPhone: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-              <div><label className="text-xs font-bold text-gray-400 uppercase">Email (optional)</label><input type="email" value={form.customerEmail} onChange={(e) => setForm({ ...form, customerEmail: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-              <div><label className="text-xs font-bold text-gray-400 uppercase">Purchase Date</label><input type="date" value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
-              <div><label className="text-xs font-bold text-gray-400 uppercase">Sale Price (₹)</label><input type="number" min={0} step={0.01} placeholder="Price at which product is sold" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+              <div><label className="text-xs font-bold text-gray-400 uppercase">Customer Name</label><input required value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+              <div><label className="text-xs font-bold text-gray-400 uppercase">Phone</label><input required value={form.customerPhone} onChange={(e) => setForm({ ...form, customerPhone: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+              <div><label className="text-xs font-bold text-gray-400 uppercase">Email (optional)</label><input type="email" value={form.customerEmail} onChange={(e) => setForm({ ...form, customerEmail: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+              <div><label className="text-xs font-bold text-gray-400 uppercase">Purchase Date</label><input type="date" value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+              <div><label className="text-xs font-bold text-gray-400 uppercase">Sale Price (₹)</label><input type="number" min={0} step={0.01} placeholder="Price at which product is sold" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
               <button type="submit" disabled={submitting} className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-60">Complete Sale</button>
             </form>
           )}
@@ -162,14 +162,14 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <h3 className="font-bold text-lg">Sales ({salesTotal})</h3>
-            <button type="button" onClick={() => sales.length && exportToCsv(sales.map((s) => ({ id: s.id, barcode: s.barcode, productName: s.productName, customerName: s.customerName, customerPhone: s.customerPhone, purchaseDate: s.purchaseDate, salePrice: s.salePrice ?? '', rewardPointsEarned: s.rewardPointsEarned })), 'sales')} disabled={!sales.length} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <button type="button" onClick={() => sales.length && exportToCsv(sales.map((s) => ({ id: s.id, barcode: s.barcode, productName: s.productName, customerName: s.customerName, customerPhone: s.customerPhone, purchaseDate: s.purchaseDate, salePrice: s.salePrice ?? '', rewardPointsEarned: s.rewardPointsEarned })), 'sales')} disabled={!sales.length} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-brand hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <Download size={16} /> Export CSV
             </button>
           </div>
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <DateRangeFilter value={salesDateFilter} onChange={(v) => { setSalesDateFilter(v); setSalesPage(1); }} />
             <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-500 bg-white border border-gray-200 px-3 py-1.5 rounded-full select-none">
-              <input type="checkbox" checked={includeGst} onChange={(e) => setIncludeGst(e.target.checked)} className="rounded text-[#F27D26]" />
+              <input type="checkbox" checked={includeGst} onChange={(e) => setIncludeGst(e.target.checked)} className="rounded text-brand" />
               GST on Bill
             </label>
           </div>
@@ -185,7 +185,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                     <button
                       type="button"
                       onClick={() => { const w = openPrintWindow(); if (!w) return; api.sales.getBill(s.id).then((bill) => printBillInWindow(w, generateSalesInvoiceHtml(bill, { showGst: includeGst }))).catch((err) => { w.close(); toast(err.message, 'error'); }); }}
-                      className="p-1.5 text-gray-400 hover:text-[#F27D26] hover:bg-orange-50 rounded-lg"
+                      className="p-1.5 text-gray-400 hover:text-brand hover:bg-orange-50 rounded-lg"
                       title="Print Invoice"
                     >
                       <Printer size={15} />
@@ -193,7 +193,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                     <button
                       type="button"
                       onClick={() => api.sales.getBill(s.id).then((bill) => saveBillAsPdf(generateSalesInvoiceHtml(bill, { showGst: includeGst }), `Invoice-${s.customerName}-${s.id}`)).catch((err) => toast(err.message, 'error'))}
-                      className="p-1.5 text-gray-400 hover:text-[#F27D26] hover:bg-orange-50 rounded-lg"
+                      className="p-1.5 text-gray-400 hover:text-brand hover:bg-orange-50 rounded-lg"
                       title="Save as PDF"
                     >
                       <Download size={15} />
@@ -220,7 +220,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                     </button>
                   </div>
                   <div className="text-right">
-                    {s.salePrice != null && <p className="text-xs font-bold text-[#F27D26]">₹{Number(s.salePrice).toLocaleString()}</p>}
+                    {s.salePrice != null && <p className="text-xs font-bold text-brand">₹{Number(s.salePrice).toLocaleString()}</p>}
                     <span className="text-xs font-bold text-emerald-600">+{s.rewardPointsEarned} pts</span>
                   </div>
                 </div>

@@ -6,6 +6,7 @@ import { api, DistributionRecord, DistributionBatch, DistributionBatchDetail } f
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 export function DistributionView({ user }: { user: { id: string; role?: string; vendorId?: string } | null }) {
   const { toast } = useToast();
@@ -44,6 +45,15 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [batchPaymentForm, setBatchPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
   const [batchPaymentSubmitting, setBatchPaymentSubmitting] = useState(false);
 
+  useEscapeKey(() => {
+    if (batchPaymentModal) setBatchPaymentModal(null);
+    else if (splitBillModal) setSplitBillModal(null);
+    else if (editBatchModal) setEditBatchModal(null);
+    else if (modalOpen) setModalOpen(false);
+    else if (selectedBatchProductId) setSelectedBatchProductId(null);
+    else if (selectedBatchId) setSelectedBatchId(null);
+  });
+
   const challanOptions = (forVendorId: string) => {
     const f = financeMap[forVendorId];
     return {
@@ -81,10 +91,11 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
           }).catch(() => {});
         }
       })
-      .catch(() => {})
+      .catch((err) => setLoadError(err.message || 'Failed to load'))
       .finally(() => setLoading(false));
   };
-  useEffect(() => { setLoading(true); load(); }, [vendorId]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  useEffect(() => { setLoading(true); setLoadError(null); load(); }, [vendorId]);
 
   const addDistRow = () => setDistRows([...distRows, { productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '', unitMode: 'piece' }]);
   const removeDistRow = (idx: number) => setDistRows(distRows.filter((_, i) => i !== idx));
@@ -201,7 +212,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
             <Download size={18} /> Export CSV
           </button>
           {!vendorId && (
-            <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#F27D26] text-white rounded-xl text-sm font-bold">
+            <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold">
               <Plus size={18} /> Distribute to Vendor
             </button>
           )}
@@ -217,7 +228,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
         ))}
         <div className="relative flex-1 min-w-[150px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          <input type="text" placeholder="Search vendor or product..." value={distSearch} onChange={(e) => setDistSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]" />
+          <input type="text" placeholder="Search vendor or product..." value={distSearch} onChange={(e) => setDistSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" />
         </div>
       </div>
 
@@ -241,7 +252,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
             onClick={() => { setSelectedVendorId(selectedVendorId === v.vendorId ? null : v.vendorId); setSelectedBatchId(null); setSelectedBatchProductId(null); }}
             className={cn(
               "relative bg-white p-4 rounded-xl border shadow-sm text-left transition-all cursor-pointer hover:shadow-md overflow-hidden",
-              selectedVendorId === v.vendorId ? "border-[#F27D26] ring-2 ring-[#F27D26]/30" : "border-gray-100"
+              selectedVendorId === v.vendorId ? "border-brand ring-2 ring-brand/30" : "border-gray-100"
             )}
           >
             {financeMap[v.vendorId] && isBillFullyPaid(financeMap[v.vendorId].totalDistributedValue, financeMap[v.vendorId].balance) && (
@@ -279,7 +290,10 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
       {/* Product details - only when vendor tile is clicked */}
       <div className="space-y-6">
         {loading && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center"><LoadingSpinner /></div>
+          <div className="bg-white rounded-xl border border-gray-100 p-12 text-center"><LoadingSpinner /></div>
+        )}
+        {!loading && loadError && (
+          <div className="bg-white rounded-xl border border-rose-200 p-12 text-center"><p className="text-rose-600 font-medium mb-2">Failed to load distribution data</p><p className="text-sm text-gray-500 mb-4">{loadError}</p><button type="button" onClick={() => { setLoading(true); setLoadError(null); load(); }} className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark">Retry</button></div>
         )}
         {!loading && !selectedVendorId && (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
@@ -407,7 +421,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                           {selectedBatch.damaged > 0 && <> • <span className="text-rose-600 font-medium">{selectedBatch.damaged}</span> damaged</>}
                           {' • '}<span className="text-blue-600 font-medium">{selectedBatch.availableWithVendor}</span> with vendor
                         </span>
-                        <span className="text-sm font-bold text-[#F27D26]">Bill: ₹{selectedBatch.billValue.toLocaleString()}</span>
+                        <span className="text-sm font-bold text-brand">Bill: ₹{selectedBatch.billValue.toLocaleString()}</span>
                         {selectedBatch.amountPaid > 0 && <span className="text-sm text-emerald-600 font-medium ml-2">Paid: ₹{selectedBatch.amountPaid.toLocaleString()}</span>}
                         {selectedBatch.balanceRemaining > 0 && <span className="text-sm text-rose-500 font-medium ml-2">Due: ₹{selectedBatch.balanceRemaining.toLocaleString()}</span>}
                       </>
@@ -517,8 +531,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
               <p className="text-sm text-gray-500 mb-4">Add multiple products, set quantity and discount for each. Save all at once.</p>
 
               <div className="grid grid-cols-2 gap-4 mb-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Vendor</label><select value={distVendorId} onChange={(e) => setDistVendorId(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]"><option value="">Select vendor</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Date</label><input type="date" value={distDate} onChange={(e) => setDistDate(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Vendor</label><select value={distVendorId} onChange={(e) => setDistVendorId(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"><option value="">Select vendor</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Date</label><input type="date" value={distDate} onChange={(e) => setDistDate(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
               </div>
 
               <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
@@ -550,7 +564,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                         <tr key={idx} className="hover:bg-gray-50">
                           <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
                           <td className="px-3 py-2">
-                            <select value={row.productId} onChange={(e) => updateDistRow(idx, 'productId', e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]">
+                            <select value={row.productId} onChange={(e) => updateDistRow(idx, 'productId', e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand">
                               <option value="">Select product</option>
                               {products.filter(pr => (pr.stock ?? 0) > 0).map((pr) => {
                                 const ps = pr.packSize ?? 1;
@@ -561,14 +575,14 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-1">
-                              <input type="number" min={1} max={row.unitMode === 'pack' && hasPack ? Math.floor((p?.stock ?? 9999) / packSz) : (p?.stock ?? 9999)} value={row.quantity || ''} onChange={(e) => updateDistRow(idx, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" />
+                              <input type="number" min={1} max={row.unitMode === 'pack' && hasPack ? Math.floor((p?.stock ?? 9999) / packSz) : (p?.stock ?? 9999)} value={row.quantity || ''} onChange={(e) => updateDistRow(idx, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
                               {hasPack && <select value={row.unitMode} onChange={(e) => updateDistRow(idx, 'unitMode', e.target.value)} className="px-1 py-1.5 border border-gray-200 rounded-lg text-[10px] font-bold text-gray-500"><option value="piece">Pc</option><option value="pack">{p?.packName}</option></select>}
                             </div>
                             {hasPack && row.unitMode === 'pack' && <span className="text-[10px] text-gray-400">= {actualPieces} pcs</span>}
                           </td>
-                          <td className="px-3 py-2"><input type="number" min={0} step={0.01} value={row.customPrice} onChange={(e) => updateDistRow(idx, 'customPrice', e.target.value)} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-2 py-1.5 border rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
-                          <td className="px-3 py-2"><input type="number" min={0} max={100} step={0.5} value={row.discount || ''} onChange={(e) => updateDistRow(idx, 'discount', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" /></td>
-                          <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-[#F27D26]" /></td>
+                          <td className="px-3 py-2"><input type="number" min={0} step={0.01} value={row.customPrice} onChange={(e) => updateDistRow(idx, 'customPrice', e.target.value)} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-2 py-1.5 border rounded-lg text-sm text-center focus:ring-2 focus:ring-brand", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
+                          <td className="px-3 py-2"><input type="number" min={0} max={100} step={0.5} value={row.discount || ''} onChange={(e) => updateDistRow(idx, 'discount', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
+                          <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-brand" /></td>
                           <td className="px-3 py-2 text-right text-sm font-bold">{billed > 0 ? <span>{row.withGst && <span className="text-[10px] text-gray-400 block">₹{net.toLocaleString()} +GST</span>}₹{billed.toLocaleString()}</span> : '-'}</td>
                           <td className="px-3 py-2">{distRows.length > 1 && <button type="button" onClick={() => removeDistRow(idx)} className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded">×</button>}</td>
                         </tr>
@@ -576,7 +590,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     })}
                   </tbody>
                 </table>
-                <button type="button" onClick={addDistRow} className="w-full py-2 text-sm font-medium text-[#F27D26] hover:bg-orange-50 border-t border-gray-200 transition-colors">+ Add Product Row</button>
+                <button type="button" onClick={addDistRow} className="w-full py-2 text-sm font-medium text-brand hover:bg-orange-50 border-t border-gray-200 transition-colors">+ Add Product Row</button>
               </div>
 
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2 mb-4">
@@ -585,17 +599,17 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                 {distTotals.discount > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Discount</span><span className="font-bold text-emerald-600">-₹{distTotals.discount.toLocaleString()}</span></div>}
                 <div className="flex justify-between text-sm"><span className="text-gray-500">Subtotal (base)</span><span className="font-bold">₹{distTotals.net.toLocaleString()}</span></div>
                 {distTotals.gst > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">GST ({defaultGstRate}%)</span><span className="font-bold">₹{distTotals.gst.toLocaleString()}</span></div>}
-                <div className="flex justify-between text-sm border-t border-gray-200 pt-2"><span className="text-gray-700 font-medium">Total Billed Amount</span><span className="font-bold text-lg text-[#F27D26]">₹{distTotals.billed.toLocaleString()}</span></div>
+                <div className="flex justify-between text-sm border-t border-gray-200 pt-2"><span className="text-gray-700 font-medium">Total Billed Amount</span><span className="font-bold text-lg text-brand">₹{distTotals.billed.toLocaleString()}</span></div>
                 <div className="pt-2">
                   <label className="text-xs font-bold text-gray-400 uppercase">Amount Paid</label>
-                  <input type="number" min={0} max={distTotals.billed} step={0.01} value={distAmountPaid} onChange={(e) => setDistAmountPaid(e.target.value)} className={cn("w-full mt-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F27D26]", (parseFloat(distAmountPaid) || 0) > distTotals.billed ? "border-rose-400 bg-rose-50" : "border-gray-200")} placeholder="0.00" />
+                  <input type="number" min={0} max={distTotals.billed} step={0.01} value={distAmountPaid} onChange={(e) => setDistAmountPaid(e.target.value)} className={cn("w-full mt-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-brand", (parseFloat(distAmountPaid) || 0) > distTotals.billed ? "border-rose-400 bg-rose-50" : "border-gray-200")} placeholder="0.00" />
                 </div>
                 {distTotals.billed > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Balance</span><span className={cn("font-bold", (distTotals.billed - (parseFloat(distAmountPaid) || 0)) > 0 ? "text-rose-600" : "text-emerald-600")}>₹{Math.max(0, distTotals.billed - (parseFloat(distAmountPaid) || 0)).toLocaleString()}</span></div>}
               </div>
 
               <div className="flex gap-2">
                 <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium">Cancel</button>
-                <button type="button" onClick={handleDistributeAll} disabled={submitting} className="flex-1 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold disabled:opacity-60">{submitting ? 'Saving...' : `Distribute ${distTotals.items} Items`}</button>
+                <button type="button" onClick={handleDistributeAll} disabled={submitting} className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60">{submitting ? 'Saving...' : `Distribute ${distTotals.items} Items`}</button>
               </div>
             </motion.div>
           </div>
@@ -650,7 +664,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     )}
                     <div className="flex justify-between border-t border-gray-200 pt-2">
                       <span className="font-bold text-gray-800">Total to collect</span>
-                      <span className="font-bold text-[#F27D26] text-base">₹{combinedBillTotal.toLocaleString()}</span>
+                      <span className="font-bold text-brand text-base">₹{combinedBillTotal.toLocaleString()}</span>
                     </div>
                   </div>
                   {hasUnsavedChanges && (
@@ -660,7 +674,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                   )}
                   <div className="border-t border-gray-200 pt-3 mt-3">
                     <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Units on GST bill</label>
-                    <input type="range" min={0} max={totalQty} value={gstQty} onChange={(e) => setSplitGstQty(parseInt(e.target.value, 10))} className="w-full accent-[#F27D26]" />
+                    <input type="range" min={0} max={totalQty} value={gstQty} onChange={(e) => setSplitGstQty(parseInt(e.target.value, 10))} className="w-full accent-brand" />
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
                       <span>0 (all non-GST)</span>
                       <span className="font-medium text-gray-700">{gstQty} GST · {nonGstQty} non-GST</span>
@@ -717,7 +731,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                       setSplitSaving(false);
                     }
                   }}
-                  className="w-full py-3 mb-3 bg-[#F27D26] text-white rounded-xl font-bold text-sm hover:bg-[#e06f1f] disabled:opacity-60"
+                  className="w-full py-3 mb-3 bg-brand text-white rounded-xl font-bold text-sm hover:bg-[#e06f1f] disabled:opacity-60"
                 >
                   {splitSaving ? 'Saving...' : `Save Amount — ₹${combinedBillTotal.toLocaleString()}`}
                 </button>
@@ -768,7 +782,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
               <p className="text-sm text-gray-500 mb-4">{editBatchModal.vendorName} — {formatDate(editBatchModal.distributionDate)}</p>
               <div className="mb-4">
                 <label className="text-xs font-bold text-gray-400 uppercase">Distribution Date</label>
-                <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" />
+                <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" />
               </div>
               <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
                 <table className="w-full text-left">
@@ -784,7 +798,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                       <tr key={row.isNew ? `new-${idx}` : row.productId}>
                         <td className="px-3 py-2 text-sm font-medium">
                           {row.isNew ? (
-                            <select value={row.productId} onChange={(e) => { const p = products.find(pr => pr.id === e.target.value); setEditRows(editRows.map((r, i) => i === idx ? { ...r, productId: e.target.value, productName: p?.name || '', availableStock: p?.stock ?? 0 } : r)); }} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#F27D26]">
+                            <select value={row.productId} onChange={(e) => { const p = products.find(pr => pr.id === e.target.value); setEditRows(editRows.map((r, i) => i === idx ? { ...r, productId: e.target.value, productName: p?.name || '', availableStock: p?.stock ?? 0 } : r)); }} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand">
                               <option value="">Select product...</option>
                               {products.filter(pr => (pr.stock ?? 0) > 0 && !editRows.some((r, ri) => ri !== idx && r.productId === pr.id)).map(pr => <option key={pr.id} value={pr.id}>{pr.name} ({pr.stock} avl)</option>)}
                             </select>
@@ -797,15 +811,15 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                             max={row.isNew ? (row.availableStock || 1) : (row.minQuantity + row.availableStock)}
                             value={row.quantity || ''}
                             onChange={(e) => updateEditRow(idx, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]"
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
                           />
                           {!row.isNew && row.minQuantity > 0 && <p className="text-[10px] text-gray-400 mt-0.5">min {row.minQuantity}</p>}
                         </td>
                         <td className="px-3 py-2">
-                          <input type="number" min={0} max={100} step={0.5} value={row.discount || ''} onChange={(e) => updateEditRow(idx, 'discount', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-[#F27D26]" />
+                          <input type="number" min={0} max={100} step={0.5} value={row.discount || ''} onChange={(e) => updateEditRow(idx, 'discount', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
                         </td>
                         <td className="px-3 py-2 text-center">
-                          <input type="checkbox" checked={row.withGst} onChange={(e) => updateEditRow(idx, 'withGst', e.target.checked)} className="rounded text-[#F27D26]" />
+                          <input type="checkbox" checked={row.withGst} onChange={(e) => updateEditRow(idx, 'withGst', e.target.checked)} className="rounded text-brand" />
                         </td>
                         <td className="px-3 py-2 text-center">
                           {row.isNew ? (
@@ -819,7 +833,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                   </tbody>
                 </table>
               </div>
-              <button type="button" onClick={() => setEditRows([...editRows, { productId: '', productName: '', quantity: 1, minQuantity: 0, discount: 0, withGst: true, availableStock: 0, isNew: true }])} className="flex items-center gap-1 text-sm font-medium text-[#F27D26] hover:underline mb-3"><Plus size={16} /> Add Product</button>
+              <button type="button" onClick={() => setEditRows([...editRows, { productId: '', productName: '', quantity: 1, minQuantity: 0, discount: 0, withGst: true, availableStock: 0, isNew: true }])} className="flex items-center gap-1 text-sm font-medium text-brand hover:underline mb-3"><Plus size={16} /> Add Product</button>
               <p className="text-xs text-gray-500 mb-4">Reduce quantity to return units to inventory. Cannot go below sold/replaced/damaged count.</p>
               <div className="flex gap-2 flex-wrap">
                 {editBatchModal.canDelete && (
@@ -862,7 +876,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                       setEditSubmitting(false);
                     }
                   }}
-                  className="flex-1 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold disabled:opacity-60"
+                  className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60"
                 >
                   {editSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>

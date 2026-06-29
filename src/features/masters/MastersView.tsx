@@ -68,7 +68,7 @@ export function MastersView({ setActiveTab, user }: { setActiveTab: (tab: Tab) =
                 <p className="text-sm text-gray-500">{typeof m.count === 'number' ? `${m.count} records found` : 'View & manage mapping'}</p>
               </div>
             </div>
-            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-[#F27D26] group-hover:text-white transition-colors"><Plus size={20} /></div>
+            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-brand group-hover:text-white transition-colors"><Plus size={20} /></div>
           </div>
         </button>
       ))}

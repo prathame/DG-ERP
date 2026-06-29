@@ -104,7 +104,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#F27D26] text-white rounded-xl font-medium hover:bg-[#D96A1C] transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl font-medium hover:bg-brand-dark transition-colors"
         >
           <Plus size={18} />
           Create Tenant
@@ -119,14 +119,14 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by company name or email..."
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
           />
         </div>
         <div className="relative">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent bg-white"
+            className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent bg-white"
           >
             <option value="">All Statuses</option>
             <option value="active">Active</option>
@@ -398,7 +398,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center">
-              <Building2 size={20} className="text-[#F27D26]" />
+              <Building2 size={20} className="text-brand" />
             </div>
             <h2 className="text-lg font-bold text-gray-900">
               {createdCredentials ? 'Tenant Created' : 'Create New Tenant'}
@@ -481,7 +481,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
             </div>
             <button
               onClick={onClose}
-              className="w-full py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C] transition-colors"
+              className="w-full py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors"
             >
               Done
             </button>
@@ -494,7 +494,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                 required
                 value={form.companyName}
                 onChange={(e) => setForm({ ...form, companyName: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="Acme Corp"
               />
             </div>
@@ -504,7 +504,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                 required
                 value={form.adminName}
                 onChange={(e) => setForm({ ...form, adminName: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="John Doe"
               />
             </div>
@@ -515,7 +515,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                 required
                 value={form.adminEmail}
                 onChange={(e) => setForm({ ...form, adminEmail: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="admin@company.com"
               />
             </div>
@@ -524,7 +524,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
               <input
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="+91 XXXXX XXXXX"
               />
             </div>
@@ -533,7 +533,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
               <select
                 value={form.plan}
                 onChange={(e) => updatePlanAndDate(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent bg-white"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent bg-white"
               >
                 {plans.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}{p.priceMonthly > 0 ? ` — ₹${p.priceMonthly.toLocaleString()}/mo` : ' (Free)'}</option>
@@ -557,7 +557,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                       onClick={() => setForm({ ...form, businessType: bt.id })}
                       className={cn(
                         "p-3 rounded-xl border-2 text-left transition-all",
-                        form.businessType === bt.id ? "border-[#F27D26] bg-orange-50" : "border-gray-200 hover:border-gray-300"
+                        form.businessType === bt.id ? "border-brand bg-orange-50" : "border-gray-200 hover:border-gray-300"
                       )}
                     >
                       <p className="text-sm font-bold">{bt.icon} {config?.label ?? 'Custom'}</p>
@@ -576,7 +576,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                     const price = c === 'monthly' ? selectedPlan?.priceMonthly : selectedPlan?.priceYearly;
                     return (
                       <button key={c} type="button" onClick={() => updatePlanAndDate(form.plan, c)}
-                        className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-colors ${form.billingCycle === c ? 'bg-[#F27D26] text-white border-[#F27D26]' : 'border-gray-200 text-gray-600 hover:border-[#F27D26]'}`}>
+                        className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-colors ${form.billingCycle === c ? 'bg-brand text-white border-brand' : 'border-gray-200 text-gray-600 hover:border-brand'}`}>
                         {c === 'monthly' ? 'Monthly' : 'Yearly'}{price ? ` — ₹${price.toLocaleString()}` : ''}
                       </button>
                     );
@@ -590,7 +590,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                 type="text"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent font-mono"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent font-mono"
                 placeholder={form.companyName ? `${form.companyName.replace(/\s+/g, '').toLowerCase().slice(0, 12)}@123` : 'Auto-generated if blank'}
               />
               <p className="text-[10px] text-gray-400 mt-1">Leave blank to auto-generate: {form.companyName ? `${form.companyName.replace(/\s+/g, '').toLowerCase().slice(0, 12)}@123` : 'companyname@123'}</p>
@@ -598,7 +598,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Start Date</label>
-                <input type="date" value={form.subscriptionStart} onChange={(e) => { setForm({ ...form, subscriptionStart: e.target.value, subscriptionEnd: calcEndDate(e.target.value, form.plan, form.billingCycle) }); }} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent" />
+                <input type="date" value={form.subscriptionStart} onChange={(e) => { setForm({ ...form, subscriptionStart: e.target.value, subscriptionEnd: calcEndDate(e.target.value, form.plan, form.billingCycle) }); }} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent" />
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">End Date (auto)</label>
@@ -611,7 +611,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
               <button type="button" onClick={onClose} className="flex-1 py-3 border border-gray-200 rounded-xl font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
-              <button type="submit" disabled={submitting} className="flex-1 py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C] transition-colors disabled:opacity-60">
+              <button type="submit" disabled={submitting} className="flex-1 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors disabled:opacity-60">
                 {submitting ? 'Creating...' : 'Create Tenant'}
               </button>
             </div>

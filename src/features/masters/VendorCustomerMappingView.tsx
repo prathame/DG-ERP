@@ -55,7 +55,7 @@ export function VendorCustomerMappingView({ onBack }: { onBack: () => void }) {
                 {v.customers.length === 0 ? <p className="text-sm text-gray-400 italic">No customers mapped</p> : v.customers.map((c) => (
                   <div key={c.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                     <div><p className="font-medium text-sm">{c.name}</p><p className="text-xs text-gray-500">{c.phone || c.email || '-'}</p></div>
-                    <button type="button" onClick={() => setAssignModal({ customer: c, currentVendorId: v.vendor.id })} className="text-xs font-bold text-[#F27D26] hover:underline">Change</button>
+                    <button type="button" onClick={() => setAssignModal({ customer: c, currentVendorId: v.vendor.id })} className="text-xs font-bold text-brand hover:underline">Change</button>
                   </div>
                 ))}
               </div>
@@ -74,7 +74,7 @@ export function VendorCustomerMappingView({ onBack }: { onBack: () => void }) {
               {data.directCustomers.length === 0 ? <p className="text-sm text-gray-400 italic">No direct customers</p> : data.directCustomers.map((c) => (
                 <div key={c.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                   <div><p className="font-medium text-sm">{c.name}</p><p className="text-xs text-gray-500">{c.phone || c.email || '-'}</p></div>
-                  <button type="button" onClick={() => setAssignModal({ customer: c, currentVendorId: null })} className="text-xs font-bold text-[#F27D26] hover:underline">Assign Vendor</button>
+                  <button type="button" onClick={() => setAssignModal({ customer: c, currentVendorId: null })} className="text-xs font-bold text-brand hover:underline">Assign Vendor</button>
                 </div>
               ))}
             </div>
@@ -90,12 +90,12 @@ export function VendorCustomerMappingView({ onBack }: { onBack: () => void }) {
               <h3 className="text-lg font-bold mb-2">Assign Vendor for {assignModal.customer.name}</h3>
               <p className="text-sm text-gray-500 mb-4">Select a vendor or choose Direct (factory purchase)</p>
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                <button type="button" onClick={() => handleAssignVendor(assignModal.customer.id, null)} className={cn("w-full text-left px-4 py-3 rounded-xl border-2 transition-all", assignModal.currentVendorId === null ? "border-[#F27D26] bg-orange-50" : "border-gray-200 hover:border-gray-300")}>
+                <button type="button" onClick={() => handleAssignVendor(assignModal.customer.id, null)} className={cn("w-full text-left px-4 py-3 rounded-xl border-2 transition-all", assignModal.currentVendorId === null ? "border-brand bg-orange-50" : "border-gray-200 hover:border-gray-300")}>
                   <span className="font-bold">Direct (Factory)</span>
                   <span className="text-xs text-gray-500 block">No vendor – purchases directly</span>
                 </button>
                 {vendors.map((v) => (
-                  <button key={v.id} type="button" onClick={() => handleAssignVendor(assignModal.customer.id, v.id)} className={cn("w-full text-left px-4 py-3 rounded-xl border-2 transition-all", assignModal.currentVendorId === v.id ? "border-[#F27D26] bg-orange-50" : "border-gray-200 hover:border-gray-300")}>
+                  <button key={v.id} type="button" onClick={() => handleAssignVendor(assignModal.customer.id, v.id)} className={cn("w-full text-left px-4 py-3 rounded-xl border-2 transition-all", assignModal.currentVendorId === v.id ? "border-brand bg-orange-50" : "border-gray-200 hover:border-gray-300")}>
                     <span className="font-bold">{v.name}</span>
                     <span className="text-xs text-gray-500 block">{v.contactPerson || v.phone || '-'}</span>
                   </button>

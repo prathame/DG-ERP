@@ -95,7 +95,7 @@ export function PlanManagementView() {
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#F27D26] text-white rounded-xl font-medium hover:bg-[#D96A1C] transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl font-medium hover:bg-brand-dark transition-colors"
         >
           <Plus size={18} />
           New Plan
@@ -117,7 +117,7 @@ export function PlanManagementView() {
             <div className="p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center shrink-0">
-                  <CreditCard size={20} className="text-[#F27D26]" />
+                  <CreditCard size={20} className="text-brand" />
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-lg font-bold text-gray-900 capitalize truncate">{plan.name}</h3>
@@ -125,7 +125,7 @@ export function PlanManagementView() {
                 </div>
               </div>
               <div className="flex items-baseline gap-2 mb-4">
-                <span className="text-2xl font-bold text-[#F27D26]">₹{(plan.priceMonthly ?? 0).toLocaleString()}</span>
+                <span className="text-2xl font-bold text-brand">₹{(plan.priceMonthly ?? 0).toLocaleString()}</span>
                 <span className="text-sm text-gray-400">/month</span>
                 {plan.priceYearly > 0 && (
                   <span className="text-xs text-gray-400 ml-auto">₹{plan.priceYearly.toLocaleString()}/year</span>
@@ -303,7 +303,7 @@ function PlanModal({ plan, onClose, onSaved }: {
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
               placeholder="e.g., Professional"
             />
           </div>
@@ -316,7 +316,7 @@ function PlanModal({ plan, onClose, onSaved }: {
                 required
                 value={form.maxProducts}
                 onChange={(e) => setForm({ ...form, maxProducts: Number(e.target.value) })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
               />
             </div>
             <div>
@@ -326,7 +326,7 @@ function PlanModal({ plan, onClose, onSaved }: {
                 required
                 value={form.maxVendors}
                 onChange={(e) => setForm({ ...form, maxVendors: Number(e.target.value) })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
               />
             </div>
             <div>
@@ -336,7 +336,7 @@ function PlanModal({ plan, onClose, onSaved }: {
                 required
                 value={form.maxUsers}
                 onChange={(e) => setForm({ ...form, maxUsers: Number(e.target.value) })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
               />
             </div>
           </div>
@@ -349,7 +349,7 @@ function PlanModal({ plan, onClose, onSaved }: {
                 required
                 value={form.price}
                 onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="999"
               />
             </div>
@@ -359,7 +359,7 @@ function PlanModal({ plan, onClose, onSaved }: {
                 type="number"
                 value={form.priceYearly}
                 onChange={(e) => setForm({ ...form, priceYearly: Number(e.target.value) })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="9999"
               />
             </div>
@@ -372,7 +372,7 @@ function PlanModal({ plan, onClose, onSaved }: {
             <button type="button" onClick={onClose} className="flex-1 py-3 border border-gray-200 rounded-xl font-medium text-gray-600 hover:bg-gray-50 transition-colors">
               Cancel
             </button>
-            <button type="submit" disabled={submitting} className="flex-1 py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C] transition-colors disabled:opacity-60">
+            <button type="submit" disabled={submitting} className="flex-1 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors disabled:opacity-60">
               {submitting ? 'Saving...' : plan ? 'Update Plan' : 'Create Plan'}
             </button>
           </div>

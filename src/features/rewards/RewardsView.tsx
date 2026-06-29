@@ -113,7 +113,7 @@ export function RewardsView({ user }: { user?: { role?: string; vendorId?: strin
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-[#151619] text-white p-5 sm:p-8 rounded-3xl relative overflow-hidden shadow-2xl">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#F27D26] blur-[80px] opacity-20" />
+            <div className="absolute top-0 right-0 w-32 h-32 bg-brand blur-[80px] opacity-20" />
             <div className="relative z-10">
               <p className="text-gray-400 text-sm font-medium mb-2">Total Points Balance</p>
               <h2 className="text-4xl font-bold mb-2">{balance.toLocaleString()} <span className="text-lg font-normal text-gray-500">pts</span></h2>
@@ -122,7 +122,7 @@ export function RewardsView({ user }: { user?: { role?: string; vendorId?: strin
               )}
               {(!canRedeem || !redemptionSettings) && <div className="mb-6" />}
               <div className="flex gap-4">
-                <button type="button" onClick={() => canRedeem && setRedeemModalOpen(true)} disabled={!canRedeem} className={cn("flex-1 py-3 rounded-xl font-bold text-sm transition-colors", canRedeem ? "bg-[#F27D26] text-white hover:bg-[#D96A1C]" : "bg-white/10 text-white/50 cursor-not-allowed")}>
+                <button type="button" onClick={() => canRedeem && setRedeemModalOpen(true)} disabled={!canRedeem} className={cn("flex-1 py-3 rounded-xl font-bold text-sm transition-colors", canRedeem ? "bg-brand text-white hover:bg-brand-dark" : "bg-white/10 text-white/50 cursor-not-allowed")}>
                   Redeem Now
                 </button>
                 <button type="button" onClick={() => setFilter('Redeemed')} className="flex-1 bg-white/10 text-white py-3 rounded-xl font-bold text-sm hover:bg-white/20 transition-colors">
@@ -138,7 +138,7 @@ export function RewardsView({ user }: { user?: { role?: string; vendorId?: strin
           <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
             <h3 className="text-lg font-bold">Points History</h3>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => rewards.length && exportToCsv(rewards.map((r) => ({ id: r.id, date: r.date, type: r.type, points: r.points, description: r.description })), 'rewards')} disabled={!rewards.length} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[#F27D26] hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <button type="button" onClick={() => rewards.length && exportToCsv(rewards.map((r) => ({ id: r.id, date: r.date, type: r.type, points: r.points, description: r.description })), 'rewards')} disabled={!rewards.length} className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-brand hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <Download size={16} /> Export CSV
               </button>
               {(['All', 'Earned', 'Redeemed'] as const).map((f) => (
@@ -147,7 +147,7 @@ export function RewardsView({ user }: { user?: { role?: string; vendorId?: strin
                   onClick={() => setFilter(f)}
                   className={cn(
                     "px-3 py-1 text-xs font-bold rounded-full",
-                    filter === f ? "bg-[#F27D26] text-white" : "text-gray-500 hover:bg-gray-100"
+                    filter === f ? "bg-brand text-white" : "text-gray-500 hover:bg-gray-100"
                   )}
                 >
                   {f}
@@ -200,9 +200,9 @@ export function RewardsView({ user }: { user?: { role?: string; vendorId?: strin
               <h3 className="text-lg font-bold mb-4">Redeem Points</h3>
               <p className="text-sm text-gray-500 mb-4">Min balance: {minBalance} pts • Min per redemption: {minPoints} pts</p>
               <form onSubmit={handleRedeem} className="space-y-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Points to redeem</label><input type="number" min={minPoints} max={balance} value={redeemForm.points} onChange={(e) => setRedeemForm({ ...redeemForm, points: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder={`Min ${minPoints} - Max ${balance} pts`} /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Description (optional)</label><input value={redeemForm.description} onChange={(e) => setRedeemForm({ ...redeemForm, description: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F27D26]" placeholder="e.g. Gift voucher" /></div>
-                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setRedeemModalOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={redeemSubmitting} className="flex-1 py-2 bg-[#F27D26] text-white rounded-lg font-bold">{redeemSubmitting ? 'Redeeming...' : 'Redeem'}</button></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Points to redeem</label><input type="number" min={minPoints} max={balance} value={redeemForm.points} onChange={(e) => setRedeemForm({ ...redeemForm, points: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder={`Min ${minPoints} - Max ${balance} pts`} /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Description (optional)</label><input value={redeemForm.description} onChange={(e) => setRedeemForm({ ...redeemForm, description: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="e.g. Gift voucher" /></div>
+                <div className="flex gap-2 pt-2"><button type="button" onClick={() => setRedeemModalOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={redeemSubmitting} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">{redeemSubmitting ? 'Redeeming...' : 'Redeem'}</button></div>
               </form>
             </motion.div>
           </div>

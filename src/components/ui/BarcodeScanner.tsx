@@ -54,7 +54,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <div className="flex items-center gap-2">
-            <Camera size={18} className="text-[#F27D26]" />
+            <Camera size={18} className="text-brand" />
             <h3 className="font-bold text-sm">Scan Barcode</h3>
             {scanning && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
           </div>

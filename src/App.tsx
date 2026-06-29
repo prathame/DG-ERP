@@ -234,7 +234,7 @@ export default function App() {
             <div className="inline-flex w-16 h-16 bg-gray-700 rounded-2xl items-center justify-center font-bold text-2xl text-gray-400 mb-4">?</div>
             <h1 className="text-xl font-bold text-white mb-2">Company Not Found</h1>
             <p className="text-gray-400 text-sm mb-6">No company registered with URL <span className="font-mono text-gray-300">/{urlSlug}</span></p>
-            <a href="/" className="px-6 py-3 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C] transition-colors">Go to DG ERP Home</a>
+            <a href="/" className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors">Go to DG ERP Home</a>
           </div>
         </div>
       );
@@ -279,7 +279,7 @@ export default function App() {
               animate={{ opacity: 1 }}
               className="flex items-center gap-2"
             >
-              <div className="w-8 h-8 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-xs">{(user?.companyName || 'DG').substring(0, 2).toUpperCase()}</div>
+              <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center font-bold text-xs">{(user?.companyName || 'DG').substring(0, 2).toUpperCase()}</div>
               <span className="font-bold text-xl tracking-tight">{user?.companyName || 'DG ERP'}</span>
             </motion.div>
           )}
@@ -299,21 +299,22 @@ export default function App() {
               type="button"
               onClick={() => { setActiveTab(item.id as Tab); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
               className={cn(
-                "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group",
+                "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group relative",
                 activeTab === item.id
-                  ? "bg-[#F27D26] text-white shadow-lg shadow-[#F27D26]/20"
+                  ? "bg-brand text-white shadow-lg shadow-brand/20"
                   : "hover:bg-white/5 text-gray-400 hover:text-white"
               )}
             >
               <item.icon size={22} />
               {isSidebarOpen && <span className="font-medium">{item.label}</span>}
+              {!isSidebarOpen && <span className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">{item.label}</span>}
             </button>
           ))}
         </nav>
 
         {canAccess('settings') && (
           <div className="p-4 border-t border-white/5">
-            <button type="button" onClick={() => { setActiveTab('settings'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} className={cn("w-full flex items-center gap-3 p-3 rounded-xl transition-all", activeTab === 'settings' ? 'bg-[#F27D26] text-white' : 'hover:bg-white/5 text-gray-400 hover:text-white')}>
+            <button type="button" onClick={() => { setActiveTab('settings'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} className={cn("w-full flex items-center gap-3 p-3 rounded-xl transition-all", activeTab === 'settings' ? 'bg-brand text-white' : 'hover:bg-white/5 text-gray-400 hover:text-white')}>
               <Settings size={22} />
               {isSidebarOpen && <span className="font-medium">{t('nav.settings')}</span>}
             </button>
@@ -366,7 +367,7 @@ export default function App() {
                   <p className="text-sm font-semibold">{user?.name ?? 'Guest'}</p>
                   <p className="text-xs text-gray-500">{user?.role ?? 'Not signed in'}</p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#F27D26] to-[#FFB347] border-2 border-white shadow-sm flex items-center justify-center text-white font-bold text-sm">{user?.name?.charAt(0) ?? '?'}</div>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] border-2 border-white shadow-sm flex items-center justify-center text-white font-bold text-sm">{user?.name?.charAt(0) ?? '?'}</div>
               </button>
               {userMenuOpen && <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} aria-hidden="true" />}
               <AnimatePresence>
@@ -409,7 +410,7 @@ export default function App() {
               key={item.id}
               type="button"
               onClick={() => setActiveTab(item.id as Tab)}
-              className={cn("flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-lg min-w-[56px] transition-colors", activeTab === item.id ? "text-[#F27D26]" : "text-gray-400")}
+              className={cn("flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-lg min-w-[56px] transition-colors", activeTab === item.id ? "text-brand" : "text-gray-400")}
             >
               <item.icon size={20} />
               <span className="text-[9px] font-medium leading-tight">{item.label.split(' ')[0]}</span>

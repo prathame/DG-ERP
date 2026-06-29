@@ -192,7 +192,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
     { label: 'Vendors', value: stats.vendors, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Users', value: stats.users, icon: Users, color: 'text-cyan-600', bg: 'bg-cyan-50' },
     { label: 'Sales', value: stats.sales, icon: ShoppingCart, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Revenue', value: `₹${(stats.revenue ?? 0).toLocaleString()}`, icon: IndianRupee, color: 'text-[#F27D26]', bg: 'bg-orange-50' },
+    { label: 'Revenue', value: `₹${(stats.revenue ?? 0).toLocaleString()}`, icon: IndianRupee, color: 'text-brand', bg: 'bg-orange-50' },
   ];
 
   const statusBadge = tenant.status === 'active'
@@ -249,7 +249,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center">
-            <Building2 size={24} className="text-[#F27D26]" />
+            <Building2 size={24} className="text-brand" />
           </div>
           <div>
             <h2 className="text-lg font-bold text-gray-900">{tenant.companyName}</h2>
@@ -307,7 +307,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {plans.map((p) => (
                   <button key={p.id} type="button" onClick={() => setRenewalPlan(p.id)}
-                    className={cn("p-3 rounded-xl border-2 text-left transition-all", renewalPlan === p.id ? "border-[#F27D26] bg-[#F27D26]/5" : "border-gray-200 hover:border-gray-300")}>
+                    className={cn("p-3 rounded-xl border-2 text-left transition-all", renewalPlan === p.id ? "border-brand bg-brand/5" : "border-gray-200 hover:border-gray-300")}>
                     <p className="font-bold text-sm">{p.name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{p.priceMonthly > 0 ? `₹${p.priceMonthly.toLocaleString()}/mo` : 'Free'}</p>
                   </button>
@@ -323,7 +323,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                     const price = c === 'monthly' ? p?.priceMonthly : p?.priceYearly;
                     return (
                       <button key={c} type="button" onClick={() => setRenewalCycle(c)}
-                        className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors", renewalCycle === c ? "bg-[#F27D26] text-white border-[#F27D26]" : "border-gray-200 text-gray-600 hover:border-[#F27D26]")}>
+                        className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors", renewalCycle === c ? "bg-brand text-white border-brand" : "border-gray-200 text-gray-600 hover:border-brand")}>
                         {c === 'monthly' ? 'Monthly' : 'Yearly'}{price ? ` — ₹${price.toLocaleString()}` : ''}
                       </button>
                     );
@@ -361,7 +361,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
                       fetchTenant();
                     } catch { toast('Failed to renew', 'error'); }
                   }}
-                  className="px-6 py-2.5 bg-[#F27D26] text-white rounded-xl font-bold hover:bg-[#D96A1C]"
+                  className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark"
                 >
                   {tenant.planId === renewalPlan ? 'Renew' : (plans.findIndex((p) => p.id === renewalPlan) > plans.findIndex((p) => p.id === tenant.planId)) ? 'Upgrade' : 'Downgrade'}
                 </button>
@@ -524,7 +524,7 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => setConfig(DEFAULT_TAB_CONFIG)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg"><RotateCcw size={14} /> Reset</button>
-            <button type="button" onClick={handleSave} disabled={saving} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-[#F27D26] hover:bg-[#D96A1C] rounded-lg disabled:opacity-60"><Save size={14} /> {saving ? 'Saving...' : 'Save'}</button>
+            <button type="button" onClick={handleSave} disabled={saving} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-brand hover:bg-brand-dark rounded-lg disabled:opacity-60"><Save size={14} /> {saving ? 'Saving...' : 'Save'}</button>
           </div>
         </div>
       </div>
@@ -548,7 +548,7 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
                     type="text"
                     value={config[key]?.label ?? DEFAULT_TAB_CONFIG[key].label}
                     onChange={(e) => updateLabel(key, e.target.value)}
-                    className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm w-full max-w-[200px] focus:ring-2 focus:ring-[#F27D26]"
+                    className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm w-full max-w-[200px] focus:ring-2 focus:ring-brand"
                   />
                 </td>
                 <td className="px-6 py-3 text-center">

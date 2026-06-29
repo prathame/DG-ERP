@@ -77,7 +77,7 @@ export function ChatWidget() {
         whileTap={{ scale: 0.9 }}
         className={cn(
           "fixed bottom-20 lg:bottom-6 right-4 lg:left-[17rem] lg:right-auto z-[150] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-colors",
-          open ? "bg-gray-700" : "bg-[#F27D26]"
+          open ? "bg-gray-700" : "bg-brand"
         )}
       >
         <AnimatePresence mode="wait">
@@ -104,7 +104,7 @@ export function ChatWidget() {
             transition={{ delay: 1, duration: 0.3 }}
             className="fixed bottom-24 lg:bottom-10 right-[5.5rem] lg:left-[21.5rem] lg:right-auto z-[149] bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-200 text-sm font-medium text-gray-700 whitespace-nowrap"
           >
-            May I help you? <span className="text-[#F27D26]">👋</span>
+            May I help you? <span className="text-brand">👋</span>
             <div className="absolute top-1/2 -right-2 lg:-left-2 lg:right-auto -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[8px] lg:border-l-0 border-l-white lg:border-r-[8px] lg:border-r-white" />
           </motion.div>
         )}
@@ -122,7 +122,7 @@ export function ChatWidget() {
             {/* Header */}
             <div className="bg-[#151619] text-white px-5 py-4 flex items-center gap-3">
               <div className="relative">
-                <div className="w-10 h-10 bg-[#F27D26] rounded-xl flex items-center justify-center text-xl">🤖</div>
+                <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center text-xl">🤖</div>
                 <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-[#151619]" />
               </div>
               <div>
@@ -138,7 +138,7 @@ export function ChatWidget() {
                   <div className={cn(
                     "max-w-[85%] px-4 py-2.5 rounded-2xl",
                     msg.sender === 'user'
-                      ? "bg-[#F27D26] text-white rounded-br-md"
+                      ? "bg-brand text-white rounded-br-md"
                       : "bg-white border border-gray-200 text-gray-700 rounded-bl-md shadow-sm"
                   )}>
                     {msg.sender === 'user' ? (
@@ -198,14 +198,14 @@ export function ChatWidget() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
                 placeholder="Type a vendor name, barcode, or query..."
-                className="flex-1 px-4 py-2.5 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:outline-none"
+                className="flex-1 px-4 py-2.5 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand focus:outline-none"
                 disabled={loading}
               />
               <button
                 type="button"
                 onClick={sendMessage}
                 disabled={!input.trim() || loading}
-                className="p-2.5 bg-[#F27D26] text-white rounded-xl hover:bg-[#D96A1C] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="p-2.5 bg-brand text-white rounded-xl hover:bg-brand-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Send size={18} />
               </button>

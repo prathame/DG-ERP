@@ -47,7 +47,7 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
         const monthChange = (s as { lastMonthSales?: number }).lastMonthSales ? `${Math.round((((s as { thisMonthSales?: number }).thisMonthSales ?? 0) / ((s as { lastMonthSales?: number }).lastMonthSales ?? 1) - 1) * 100)}%` : '';
         const sx = s as Record<string, unknown>;
         setStats([
-          { label: "Today's Sales", value: String(sx.todaySales ?? 0), change: '', icon: TrendingUp, color: 'text-[#F27D26]', bg: 'bg-orange-50' },
+          { label: "Today's Sales", value: String(sx.todaySales ?? 0), change: '', icon: TrendingUp, color: 'text-brand', bg: 'bg-orange-50' },
           { label: 'This Month', value: String(sx.thisMonthSales ?? 0), change: monthChange ? (monthChange.startsWith('-') ? monthChange : `+${monthChange}`) : '', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Total Inventory', value: (s.totalBeforeDistribution ?? 0).toLocaleString(), change: '', icon: Package, color: 'text-gray-600', bg: 'bg-gray-50' },
           { label: 'With Admin', value: (Number(sx.withAdmin) ?? 0).toLocaleString(), change: '', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -59,7 +59,7 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
       })
       .catch(() => {
         setStats([
-          { label: "Today's Sales", value: '0', change: '', icon: TrendingUp, color: 'text-[#F27D26]', bg: 'bg-orange-50' },
+          { label: "Today's Sales", value: '0', change: '', icon: TrendingUp, color: 'text-brand', bg: 'bg-orange-50' },
           { label: 'This Month', value: '0', change: '', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Total Inventory', value: '0', change: '', icon: Package, color: 'text-gray-600', bg: 'bg-gray-50' },
           { label: 'With Admin', value: '0', change: '', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -164,7 +164,7 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
                 <div className={cn("p-2.5 rounded-xl transition-transform group-hover:scale-110", m.bg)}>
                   <m.icon className={m.color} size={20} />
                 </div>
-                <Plus size={16} className="text-gray-300 group-hover:text-[#F27D26] transition-colors" />
+                <Plus size={16} className="text-gray-300 group-hover:text-brand transition-colors" />
               </div>
               <p className="text-sm font-semibold text-gray-900">{m.name}</p>
               {m.count !== null && <p className="text-xs text-gray-400 mt-0.5">{m.count} records</p>}

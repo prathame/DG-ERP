@@ -79,14 +79,14 @@ export function SuperAdminAuditLog() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { setSearch(searchInput); setPage(1); } }}
-            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26] focus:border-transparent"
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
             placeholder="Search by details, user, entity..."
           />
         </div>
         <select
           value={filterAction}
           onChange={(e) => { setFilterAction(e.target.value); setPage(1); }}
-          className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]"
+          className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
         >
           <option value="">All Actions</option>
           <option value="CREATE">Create</option>
@@ -102,7 +102,7 @@ export function SuperAdminAuditLog() {
         <select
           value={filterEntity}
           onChange={(e) => { setFilterEntity(e.target.value); setPage(1); }}
-          className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#F27D26]"
+          className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
         >
           <option value="">All Entities</option>
           <option value="tenant">Tenant</option>
