@@ -101,15 +101,22 @@ router.get('/api/products', async (req, res) => {
     }
     sql += ' ORDER BY p.name';
     const rows = (await pool.query(sql, params)).rows;
-    res.json((rows as Record<string, unknown>[]).map((r) => mapProduct({
+    res.json((rows as Record<string, unknown>[]).map((r) => {
+      const invCount = Number(r.inv_stock) || 0;
+      const dbStock = Number(r.stock) || 0;
+      const pSz = Number(r.pack_size) || 1;
+      const realStock = pSz > 1 && dbStock > invCount ? dbStock : invCount;
+      const totalInv = Number(r.total_inv) || 0;
+      const realTotal = pSz > 1 && dbStock > 0 ? Math.max(totalInv, dbStock) : totalInv;
+      return mapProduct({
       ...r,
-      stock: (r.inv_stock as number) ?? r.stock ?? 0,
-      totalInventory: (r.total_inv as number) ?? 0,
-      remainingInventory: (r.inv_stock as number) ?? 0,
+      stock: realStock,
+      totalInventory: realTotal,
+      remainingInventory: realStock,
       soldCount: (r.sold_count as number) ?? 0,
       withVendors: (r.with_vendors as number) ?? 0,
       barcodeRange: (r.barcode_first && r.barcode_last) ? { first: r.barcode_first as string, last: r.barcode_last as string } : null,
-    })));
+    }); }));
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
@@ -427,11 +434,12 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
       );
     }
     const count = (await pool.query('SELECT COUNT(*) as c FROM product_inventory WHERE product_id = $1 AND status = $2 AND tenant_id = $3', [id, 'InStock', tenantId])).rows[0] as { c: number };
+    const stockCount = barcodePerBox && pSize > 1 ? Number(count.c) * pSize : Number(count.c);
+    await pool.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [stockCount, id, tenantId]);
     const row = (await pool.query(
       'SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1',
       [tenantId, id]
     )).rows[0] as Record<string, unknown>;
-    const stockCount = barcodePerBox && pSize > 1 ? Number(count.c) * pSize : Number(count.c);
     res.status(201).json(mapProduct({ ...row, stock: stockCount, remaining_inventory: stockCount }));
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });

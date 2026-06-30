@@ -182,7 +182,7 @@ export function InventoryView() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {(p.packSize ?? 1) > 1 ? (
-                          <><span className="font-semibold text-sm text-emerald-600">₹{(p.price * (p.packSize ?? 1)).toLocaleString()}</span><span className="block text-[10px] text-gray-400">₹{p.price}/pc × {p.packSize}</span></>
+                          <><span className="font-semibold text-sm text-emerald-600">₹{(p.price * (p.packSize ?? 1)).toLocaleString()}</span><span className="block text-[10px] text-gray-400">₹{Math.round(p.price)}/pc × {p.packSize}</span></>
                         ) : (
                           <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
                         )}
@@ -192,7 +192,7 @@ export function InventoryView() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="font-semibold text-sm text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</span>
-                        {(p.packSize ?? 1) > 1 && <span className="block text-[10px] text-gray-400">{Math.floor((p.remainingInventory ?? p.stock ?? 0) / (p.packSize ?? 1))} {p.packName ?? 'Pack'}s</span>}
+                        {(p.packSize ?? 1) > 1 && <span className="block text-[10px] text-gray-400">{Math.floor((p.remainingInventory ?? p.stock ?? 0) / (p.packSize ?? 1))} {(p.packName ?? 'Pack').endsWith('x') ? (p.packName ?? 'Pack') + 'es' : (p.packName ?? 'Pack') + 's'}</span>}
                       </td>
                       <td className="px-4 py-3 text-center hidden lg:table-cell">
                         <span className="font-semibold text-sm text-purple-700">{p.withVendors ?? 0}</span>
