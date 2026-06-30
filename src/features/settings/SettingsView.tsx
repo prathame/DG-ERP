@@ -7,7 +7,6 @@ import type { Vendor, BillSettings } from '../../types';
 import { useTranslation, LANGUAGES } from '../../i18n';
 import { USER_STORAGE_KEY } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
-import { AuditLogSection } from '../masters/AuditLogSection';
 import { session } from '../../lib/session';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 
@@ -604,16 +603,6 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                 </button>
                 <p className="w-full text-xs text-gray-500 mt-1">Backup downloads the full SQLite database file. Keep it safe — it contains all your data.</p>
               </div>
-            </div>
-          )}
-
-          {/* Audit Log - Admin only */}
-          {isAdmin && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
-                <h3 className="font-bold text-lg flex items-center gap-2"><FileText size={20} /> Activity Log</h3>
-              </div>
-              <AuditLogSection />
             </div>
           )}
 
