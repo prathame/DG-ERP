@@ -50,9 +50,11 @@ router.post('/api/auth/login', async (req, res) => {
              u.password_hash, u.tenant_id,
              t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status,
              t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
-             t.trial_ends_at, t.subscription_ends_at, t.tab_config
+             t.trial_ends_at, t.subscription_ends_at, t.tab_config,
+             COALESCE(p.name, CASE WHEN t.trial_ends_at IS NOT NULL AND t.subscription_ends_at IS NULL THEN 'Free Trial' ELSE 'Standard' END) as plan_name
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
+      LEFT JOIN plans p ON t.plan_id = p.id
       WHERE LOWER(u.email) = LOWER($1)
     `, [email.trim()])).rows[0] as Record<string, unknown> | undefined;
 
@@ -116,6 +118,7 @@ router.post('/api/auth/login', async (req, res) => {
       barcodeSystemEnabled: row.barcode_system_enabled !== false,
       multiLanguageEnabled: row.multi_language_enabled !== false,
       inventoryTrackingEnabled: row.inventory_tracking_enabled !== false,
+      planName: row.plan_name ?? 'Standard',
       subscriptionEndsAt: row.subscription_ends_at ?? null,
       trialEndsAt: row.trial_ends_at ?? null,
       tabConfig: (() => {
