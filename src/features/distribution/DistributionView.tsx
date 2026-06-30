@@ -592,7 +592,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                                   : <select value={row.unitMode} onChange={(e) => updateDistRow(idx, 'unitMode', e.target.value)} className="px-1 py-1.5 border border-gray-200 rounded-lg text-[10px] font-bold text-gray-500"><option value="piece">Pc</option><option value="pack">{p?.packName}</option></select>;
                               })()}
                             </div>
-                            {hasPack && row.unitMode === 'pack' && <span className="text-[10px] text-gray-400">= {actualPieces} pcs</span>}
+                            {hasPack && isPackMode && <span className="text-[10px] text-gray-400">= {actualPieces} pcs</span>}
+                            {hasPack && p?.barcodeUnitType === 'box' && <span className="text-[10px] text-amber-600 block">⚠ Box barcodes — distribute in full {p.packName || 'box'}es only (1 {p.packName || 'box'} = {packSz} pcs)</span>}
                           </td>
                           <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? `₹${isPackMode ? boxPrice : p.price}` : '—'} className={cn("w-full px-3 py-2 border rounded-lg text-sm text-center focus:ring-2 focus:ring-brand", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
                           <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.discount || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'discount', v === '' ? 0 : parseFloat(v)); }} placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
