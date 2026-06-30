@@ -11,6 +11,9 @@ router.post('/api/auth/signup', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const existingAdmins = (await pool.query("SELECT COUNT(*) as c FROM users WHERE tenant_id = $1 AND role IN ('Admin', 'Super Admin')", [tenantId])).rows[0] as { c: number };
+    if (Number(existingAdmins.c) > 0) return res.status(403).json({ error: 'Signup is disabled. Contact your admin to create accounts.' });
+
     const { email, password, name, phone, address, companyName } = req.body;
     if (!email || !password || !name) return res.status(400).json({ error: 'Email, password and name are required' });
     if (typeof password === 'string' && password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -27,7 +30,9 @@ router.post('/api/auth/signup', async (req, res) => {
     `, [id, emailLower, passwordHash, name ?? '', phone ?? null, address ?? null, 'Admin', companyName ?? null, tenantId]);
 
     const row = (await pool.query('SELECT id, email, name, phone, address, role, company_name FROM users WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
-    res.status(201).json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name });
+    const tenant = (await pool.query('SELECT slug FROM tenants WHERE id = $1', [tenantId])).rows[0] as { slug: string } | undefined;
+    const token = generateToken({ userId: id, tenantId, role: 'Admin', email: emailLower, name: name ?? '' });
+    res.status(201).json({ token, tenantId, tenantSlug: tenant?.slug, user: { id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name } });
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }

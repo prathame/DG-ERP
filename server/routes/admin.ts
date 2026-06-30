@@ -16,8 +16,9 @@ router.get('/api/admin/users', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const { adminUserId } = req.query;
-    if (!adminUserId) return res.status(400).json({ error: 'adminUserId required' });
+    const jwtUser = (req as unknown as Record<string, unknown>).user as { userId?: string; role?: string } | undefined;
+    const adminUserId = jwtUser?.userId || (req.query.adminUserId as string);
+    if (!adminUserId) return res.status(400).json({ error: 'Authentication required' });
 
     const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [adminUserId, tenantId])).rows[0] as { role: string } | undefined;
     if (!admin || !isAdmin(admin.role)) return res.status(403).json({ error: 'Admin access required' });
@@ -44,8 +45,10 @@ router.post('/api/admin/users', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const { adminUserId, email, password, name, phone, address, role, companyName, permissions, vendorId } = req.body;
-    if (!adminUserId) return res.status(400).json({ error: 'adminUserId required' });
+    const jwtUser = (req as unknown as Record<string, unknown>).user as { userId?: string; role?: string } | undefined;
+    const adminUserId = jwtUser?.userId || req.body.adminUserId;
+    const { email, password, name, phone, address, role, companyName, permissions, vendorId } = req.body;
+    if (!adminUserId) return res.status(400).json({ error: 'Authentication required' });
 
     const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [adminUserId, tenantId])).rows[0] as { role: string } | undefined;
     if (!admin || !isAdmin(admin.role)) return res.status(403).json({ error: 'Admin access required' });
@@ -89,8 +92,10 @@ router.put('/api/admin/users/:id', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const { adminUserId, role, permissions, vendorId } = req.body;
-    if (!adminUserId) return res.status(400).json({ error: 'adminUserId required' });
+    const jwtUser = (req as unknown as Record<string, unknown>).user as { userId?: string; role?: string } | undefined;
+    const adminUserId = jwtUser?.userId || req.body.adminUserId;
+    const { role, permissions, vendorId } = req.body;
+    if (!adminUserId) return res.status(400).json({ error: 'Authentication required' });
 
     const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [adminUserId, tenantId])).rows[0] as { role: string } | undefined;
     if (!admin || !isAdmin(admin.role)) return res.status(403).json({ error: 'Admin access required' });

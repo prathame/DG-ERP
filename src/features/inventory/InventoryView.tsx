@@ -181,8 +181,8 @@ export function InventoryView() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {(p.packSize ?? 1) > 1 ? (
-                          <><span className="font-semibold text-sm text-emerald-600">₹{(p.price * (p.packSize ?? 1)).toLocaleString()}</span><span className="block text-[10px] text-gray-400">₹{Math.round(p.price)}/pc × {p.packSize}</span></>
+                        {(p.packSize || 1) > 1 ? (
+                          <><span className="font-semibold text-sm text-emerald-600">₹{(p.price * (p.packSize || 1)).toLocaleString()}</span><span className="block text-[10px] text-gray-400">₹{Math.round(p.price)}/pc × {p.packSize}</span></>
                         ) : (
                           <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
                         )}
@@ -192,7 +192,7 @@ export function InventoryView() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="font-semibold text-sm text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</span>
-                        {(p.packSize ?? 1) > 1 && <span className="block text-[10px] text-gray-400">{Math.floor((p.remainingInventory ?? p.stock ?? 0) / (p.packSize ?? 1))} {(p.packName ?? 'Pack').endsWith('x') ? (p.packName ?? 'Pack') + 'es' : (p.packName ?? 'Pack') + 's'}</span>}
+                        {(p.packSize || 1) > 1 && <span className="block text-[10px] text-gray-400">{Math.floor((p.remainingInventory ?? p.stock ?? 0) / (p.packSize || 1))} {(p.packName ?? 'Pack').endsWith('x') ? (p.packName ?? 'Pack') + 'es' : (p.packName ?? 'Pack') + 's'}</span>}
                       </td>
                       <td className="px-4 py-3 text-center hidden lg:table-cell">
                         <span className="font-semibold text-sm text-purple-700">{p.withVendors ?? 0}</span>
@@ -231,7 +231,7 @@ export function InventoryView() {
                       <span className="font-semibold text-sm text-gray-900 truncate">{p.name}</span>
                       {isLowStock && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
                     </div>
-                    <span className="font-semibold text-sm text-emerald-600 shrink-0">{(p.packSize ?? 1) > 1 ? `₹${(p.price * (p.packSize ?? 1)).toLocaleString()}/box` : `₹${p.price.toLocaleString()}`}</span>
+                    <span className="font-semibold text-sm text-emerald-600 shrink-0">{(p.packSize || 1) > 1 ? `₹${(p.price * (p.packSize || 1)).toLocaleString()}/box` : `₹${p.price.toLocaleString()}`}</span>
                   </div>
                   {inventoryTrackingEnabled && <div className="flex items-center gap-3 text-xs text-gray-500">
                     <span>Total: <strong className={isLowStock ? "text-amber-700" : "text-gray-900"}>{p.totalInventory ?? p.stock ?? 0}</strong></span>
@@ -280,7 +280,7 @@ export function InventoryView() {
                     rewardPointsValue: addForm.rewardPointsValue,
                     warrantyApplicable: addForm.warrantyApplicable,
                     warrantyMonths: addForm.warrantyApplicable ? addForm.warrantyMonths : 0,
-                    price: addForm.packSize > 1 && addForm.pricePerBox ? Math.round(addForm.price / addForm.packSize) : addForm.price,
+                    price: addForm.packSize > 1 && addForm.pricePerBox ? Math.round(addForm.price / (addForm.packSize || 1)) : addForm.price,
                     packSize: addForm.packSize > 1 ? addForm.packSize : undefined,
                     packName: addForm.packSize > 1 ? addForm.packName : undefined,
                     barcodePerBox: addForm.packSize > 1 ? addForm.barcodePerBox : undefined,
@@ -346,7 +346,7 @@ export function InventoryView() {
                         </div>
                       </div>
                       <input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder={addForm.pricePerBox ? 'Box price' : 'Piece price'} />
-                      {addForm.price > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{addForm.pricePerBox ? `= ₹${Math.round(addForm.price / addForm.packSize)} per piece` : `= ₹${addForm.price * addForm.packSize} per box`}</p>}
+                      {addForm.price > 0 && addForm.packSize > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{addForm.pricePerBox ? `= ₹${Math.round(addForm.price / (addForm.packSize || 1))} per piece` : `= ₹${addForm.price * addForm.packSize} per box`}</p>}
                     </div>
                   </>
                 ) : (
@@ -383,8 +383,8 @@ export function InventoryView() {
               <p className="text-sm text-gray-500 mb-4">New barcodes will continue from where the existing range left off — no overlaps.</p>
               <form onSubmit={async (e) => {
                 e.preventDefault();
-                const hasPack = (addStockModal.packSize ?? 1) > 1;
-                const stockQty = hasPack ? (addStockForm.packs * (addStockModal.packSize ?? 1)) + addStockForm.loosePieces : addStockForm.quantity;
+                const hasPack = (addStockModal.packSize || 1) > 1;
+                const stockQty = hasPack ? (addStockForm.packs * (addStockModal.packSize || 1)) + addStockForm.loosePieces : addStockForm.quantity;
                 if (!stockQty || stockQty < 1) { toast('Enter quantity', 'error'); return; }
                 setAddSubmitting(true);
                 try {
@@ -395,7 +395,7 @@ export function InventoryView() {
                 } catch (err) { toast((err as Error).message, 'error'); }
                 finally { setAddSubmitting(false); }
               }} className="space-y-4">
-                {(addStockModal.packSize ?? 1) > 1 ? (
+                {(addStockModal.packSize || 1) > 1 ? (
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase">Quantity to add</label>
                     <div className="flex gap-2 mt-1">
@@ -403,14 +403,14 @@ export function InventoryView() {
                       <span className="self-center text-gray-400 font-bold">+</span>
                       <div className="flex-1"><input type="number" min={0} max={10000} value={addStockForm.loosePieces || ''} onChange={(e) => setAddStockForm({ ...addStockForm, loosePieces: parseInt(e.target.value) || 0 })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="0" /><p className="text-[10px] text-gray-400 mt-0.5 text-center">Loose Pieces</p></div>
                     </div>
-                    <p className="text-xs text-emerald-600 font-medium mt-1">= {(addStockForm.packs * (addStockModal.packSize ?? 1)) + addStockForm.loosePieces} pieces total</p>
+                    <p className="text-xs text-emerald-600 font-medium mt-1">= {(addStockForm.packs * (addStockModal.packSize || 1)) + addStockForm.loosePieces} pieces total</p>
                     <div className="mt-3">
                       <label className="text-xs font-bold text-gray-400 uppercase">Barcode on</label>
                       <div className="flex gap-2 mt-1">
                         <button type="button" onClick={() => setAddStockForm({ ...addStockForm, barcodePerBox: true })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold transition-all", addStockForm.barcodePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>📦 Each {addStockModal.packName ?? 'Box'}</button>
                         <button type="button" onClick={() => setAddStockForm({ ...addStockForm, barcodePerBox: false })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold transition-all", !addStockForm.barcodePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>🔲 Each Piece</button>
                       </div>
-                      <p className="text-[10px] text-gray-400 mt-1">{addStockForm.barcodePerBox ? `${addStockForm.packs || 0} barcode labels (1 per ${addStockModal.packName ?? 'box'})` : `${(addStockForm.packs * (addStockModal.packSize ?? 1)) + addStockForm.loosePieces} barcode labels (1 per piece)`}</p>
+                      <p className="text-[10px] text-gray-400 mt-1">{addStockForm.barcodePerBox ? `${addStockForm.packs || 0} barcode labels (1 per ${addStockModal.packName ?? 'box'})` : `${(addStockForm.packs * (addStockModal.packSize || 1)) + addStockForm.loosePieces} barcode labels (1 per piece)`}</p>
                     </div>
                   </div>
                 ) : (

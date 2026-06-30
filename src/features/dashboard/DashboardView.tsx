@@ -44,7 +44,9 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
     }
     api.dashboard.stats()
       .then((s) => {
-        const monthChange = (s as { lastMonthSales?: number }).lastMonthSales ? `${Math.round((((s as { thisMonthSales?: number }).thisMonthSales ?? 0) / ((s as { lastMonthSales?: number }).lastMonthSales ?? 1) - 1) * 100)}%` : '';
+        const lms = Number((s as { lastMonthSales?: number }).lastMonthSales) || 0;
+        const tms = Number((s as { thisMonthSales?: number }).thisMonthSales) || 0;
+        const monthChange = lms > 0 ? `${Math.round((tms / lms - 1) * 100)}%` : '';
         const sx = s as Record<string, unknown>;
         setStats([
           { label: "Today's Sales", value: String(sx.todaySales ?? 0), change: '', icon: TrendingUp, color: 'text-brand', bg: 'bg-orange-50' },

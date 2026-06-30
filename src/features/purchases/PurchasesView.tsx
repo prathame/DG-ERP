@@ -82,7 +82,7 @@ export function PurchasesView() {
 
   const handleCreatePurchase = async () => {
     if (!purchaseForm.supplierId) { toast('Select a supplier', 'error'); return; }
-    const validRows = purchaseRows.filter(r => r.productId && r.quantity > 0);
+    const validRows = purchaseRows.filter(r => r.productId && (r.quantity > 0 || r.packs > 0 || r.loosePieces > 0));
     if (validRows.length === 0) { toast('Add at least one product', 'error'); return; }
     const paid = parseFloat(purchaseForm.amountPaid) || 0;
     if (paid > purchaseTotals.billed) { toast(`Amount paid (₹${paid}) exceeds bill (₹${purchaseTotals.billed})`, 'error'); return; }
