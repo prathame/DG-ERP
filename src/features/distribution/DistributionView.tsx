@@ -105,11 +105,11 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const defaultGstRate = (user as Record<string, unknown>)?.defaultGstRate as number ?? 18;
   const distTotals = distRows.reduce((acc, r) => {
     const p = products.find(x => x.id === r.productId);
-    const packSz = (p?.packSize ?? 1);
-    const actualPieces = r.unitMode === 'pack' && packSz > 1 ? (r.quantity || 0) * packSz : (r.quantity || 0);
-    const basePrice = r.customPrice ? parseFloat(r.customPrice) : (p?.price ?? 0);
-    const priceMultiplier = r.unitMode === 'pack' && packSz > 1 ? r.quantity || 0 : actualPieces;
-    const gross = basePrice * priceMultiplier;
+    const packSz = p?.packSize || 1;
+    const isPackMode = r.unitMode === 'pack' && packSz > 1;
+    const boxPrice = (p?.price ?? 0) * packSz;
+    const basePrice = r.customPrice ? parseFloat(r.customPrice) : (isPackMode ? boxPrice : (p?.price ?? 0));
+    const gross = basePrice * (r.quantity || 0);
     const disc = Math.round(gross * (r.discount || 0) / 100);
     const netBase = gross - disc;
     const gst = r.withGst ? Math.round(netBase * defaultGstRate / 100) : 0;
@@ -118,9 +118,10 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
     acc.net += netBase;
     acc.gst += gst;
     acc.billed += netBase + gst;
-    acc.items += actualPieces;
+    acc.items += r.quantity || 0;
+    acc.hasBoxItems = acc.hasBoxItems || isPackMode;
     return acc;
-  }, { gross: 0, discount: 0, net: 0, gst: 0, billed: 0, items: 0 });
+  }, { gross: 0, discount: 0, net: 0, gst: 0, billed: 0, items: 0, hasBoxItems: false });
 
   const handleDistributeAll = async () => {
     if (!distVendorId) { toast('Select a vendor', 'error'); return; }
@@ -602,7 +603,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
               </div>
 
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2 mb-4">
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Total Items</span><span className="font-bold">{distTotals.items}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Total Items</span><span className="font-bold">{distTotals.items}{distTotals.hasBoxItems ? ' (as entered)' : ''}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-500">Gross Value</span><span className="font-bold">₹{distTotals.gross.toLocaleString()}</span></div>
                 {distTotals.discount > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Discount</span><span className="font-bold text-emerald-600">-₹{distTotals.discount.toLocaleString()}</span></div>}
                 <div className="flex justify-between text-sm"><span className="text-gray-500">Subtotal (base)</span><span className="font-bold">₹{distTotals.net.toLocaleString()}</span></div>
