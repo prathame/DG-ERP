@@ -540,7 +540,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                   <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
                     <th className="px-3 py-3 w-8">#</th>
                     <th className="px-3 py-3">Product</th>
-                    <th className="px-3 py-3 w-24">Qty</th>
+                    <th className="px-3 py-3 w-28">Qty</th>
                     <th className="px-3 py-3 w-28">Price</th>
                     <th className="px-3 py-3 w-24">Disc%</th>
                     <th className="px-3 py-3 w-14 text-center">GST</th>
@@ -573,9 +573,9 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                               })}
                             </select>
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-2">
                             <div className="flex items-center gap-1">
-                              <input type="text" inputMode="numeric" pattern="[0-9]*" value={row.quantity || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); updateDistRow(idx, 'quantity', v === '' ? 0 : parseInt(v, 10)); }} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
+                              <input type="text" inputMode="numeric" pattern="[0-9]*" value={row.quantity || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); updateDistRow(idx, 'quantity', v === '' ? 0 : parseInt(v, 10)); }} className="w-16 min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
                               {hasPack && <select value={row.unitMode} onChange={(e) => updateDistRow(idx, 'unitMode', e.target.value)} className="px-1 py-1.5 border border-gray-200 rounded-lg text-[10px] font-bold text-gray-500"><option value="piece">Pc</option><option value="pack">{p?.packName}</option></select>}
                             </div>
                             {hasPack && row.unitMode === 'pack' && <span className="text-[10px] text-gray-400">= {actualPieces} pcs</span>}
