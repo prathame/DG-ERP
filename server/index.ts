@@ -115,13 +115,13 @@ app.use('/api/', async (req, res, next) => {
   next();
 });
 
-const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many login attempts, try again in 15 minutes' }, standardHeaders: true, legacyHeaders: false });
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 50, message: { error: 'Too many login attempts, try again in 15 minutes' }, standardHeaders: true, legacyHeaders: false });
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/super-admin/login', loginLimiter);
-app.use('/api/settings/change-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: 'Too many password change attempts' } }));
-app.use('/api/auth/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 3, message: { error: 'Too many reset requests, try again in 15 minutes' } }));
-app.use('/api/auth/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: 'Too many reset attempts' } }));
-app.use('/api/auth/signup', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: 'Too many signup attempts' } }));
+app.use('/api/settings/change-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many password change attempts' } }));
+app.use('/api/auth/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many reset requests, try again in 15 minutes' } }));
+app.use('/api/auth/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many reset attempts' } }));
+app.use('/api/auth/signup', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many signup attempts' } }));
 
 // Dynamic PWA manifest — serves tenant-specific start_url and branding
 app.get('/manifest.json', async (req, res) => {
