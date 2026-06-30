@@ -514,6 +514,24 @@ export async function initSchema() {
       )
     `);
 
+    // UNIQUE constraints — prevent duplicates at DB level
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_users_tenant_email ON users(tenant_id, LOWER(email))');
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_products_tenant_name ON products(tenant_id, LOWER(name))');
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_vendors_tenant_name ON vendors(tenant_id, LOWER(name))');
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_suppliers_tenant_name ON suppliers(tenant_id, LOWER(name))');
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_pi_tenant_barcode ON product_inventory(tenant_id, barcode)');
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_banks_tenant_acct ON banks(tenant_id, account_number) WHERE account_number IS NOT NULL');
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_quotations_tenant_num ON quotations(tenant_id, quotation_number)');
+
+    // Missing performance indexes
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pp_batch ON product_purchases(tenant_id, batch_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pp_date ON product_purchases(tenant_id, purchase_date)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pp_product ON product_purchases(tenant_id, product_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sp_batch ON supplier_payments(tenant_id, batch_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pd_batch ON product_distribution(tenant_id, batch_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pd_status ON product_distribution(tenant_id, status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(tenant_id, status)');
+
     console.log('✓ Schema created');
   } finally {
     client.release();

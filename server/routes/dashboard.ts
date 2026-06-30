@@ -8,30 +8,31 @@ router.get('/api/dashboard/stats', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const revenue = (await pool.query("SELECT COALESCE(SUM(sale_price), 0) as total FROM product_sales WHERE tenant_id = $1", [tenantId])).rows[0] as { total: number };
-    const warranties = (await pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Active' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
-    const pendingClaims = (await pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Under Claim' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
-    const rewardsEarned = (await pool.query("SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned' AND tenant_id = $1", [tenantId])).rows[0] as { total: number };
-    const totalProducts = (await pool.query('SELECT COUNT(*) as count FROM products WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
-    const distributed = (await pool.query("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Distributed' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
-    const sold = (await pool.query("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Sold' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
-    const vendorRewards = (await pool.query('SELECT COALESCE(SUM(total_reward_points), 0) as total FROM vendors WHERE tenant_id = $1', [tenantId])).rows[0] as { total: number };
-    const withAdmin = (await pool.query("SELECT COUNT(*) as count FROM product_inventory WHERE status = 'InStock' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
-    const withVendors = (await pool.query("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Distributed' AND tenant_id = $1", [tenantId])).rows[0] as { count: number };
-    const totalInventory = (await pool.query("SELECT COUNT(*) as count FROM product_inventory WHERE tenant_id = $1", [tenantId])).rows[0] as { count: number };
-    const availableInInventory = (await pool.query('SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE tenant_id = $1', [tenantId])).rows[0] as { total: number };
-    const totalBeforeDistribution = totalInventory.count;
-
     const today = new Date().toISOString().slice(0, 10);
     const thisMonth = today.slice(0, 7);
     const lastMonthDate = new Date(); lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
     const lastMonth = lastMonthDate.toISOString().slice(0, 7);
 
-    const todaySales = (await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date = $1 AND tenant_id = $2", [today, tenantId])).rows[0] as { c: number };
-    const thisMonthSales = (await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [thisMonth, tenantId])).rows[0] as { c: number };
-    const lastMonthSales = (await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [lastMonth, tenantId])).rows[0] as { c: number };
-    const thisMonthRevenue = (await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [thisMonth, tenantId])).rows[0] as { t: number };
-    const lastMonthRevenue = (await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [lastMonth, tenantId])).rows[0] as { t: number };
+    const [revenue, warranties, pendingClaims, rewardsEarned, totalProducts, distributed, sold, vendorRewards, withAdmin, withVendors, totalInventory, availableInInventory, todaySales, thisMonthSales, lastMonthSales, thisMonthRevenue, lastMonthRevenue] = await Promise.all([
+      pool.query("SELECT COALESCE(SUM(sale_price), 0) as total FROM product_sales WHERE tenant_id = $1", [tenantId]).then(r => r.rows[0] as { total: number }),
+      pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Active' AND tenant_id = $1", [tenantId]).then(r => r.rows[0] as { count: number }),
+      pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Under Claim' AND tenant_id = $1", [tenantId]).then(r => r.rows[0] as { count: number }),
+      pool.query("SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned' AND tenant_id = $1", [tenantId]).then(r => r.rows[0] as { total: number }),
+      pool.query('SELECT COUNT(*) as count FROM products WHERE tenant_id = $1', [tenantId]).then(r => r.rows[0] as { count: number }),
+      pool.query("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Distributed' AND tenant_id = $1", [tenantId]).then(r => r.rows[0] as { count: number }),
+      pool.query("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Sold' AND tenant_id = $1", [tenantId]).then(r => r.rows[0] as { count: number }),
+      pool.query('SELECT COALESCE(SUM(total_reward_points), 0) as total FROM vendors WHERE tenant_id = $1', [tenantId]).then(r => r.rows[0] as { total: number }),
+      pool.query("SELECT COUNT(*) as count FROM product_inventory WHERE status = 'InStock' AND tenant_id = $1", [tenantId]).then(r => r.rows[0] as { count: number }),
+      pool.query("SELECT COUNT(*) as count FROM product_distribution WHERE status = 'Distributed' AND tenant_id = $1", [tenantId]).then(r => r.rows[0] as { count: number }),
+      pool.query("SELECT COUNT(*) as count FROM product_inventory WHERE tenant_id = $1", [tenantId]).then(r => r.rows[0] as { count: number }),
+      pool.query('SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE tenant_id = $1', [tenantId]).then(r => r.rows[0] as { total: number }),
+      pool.query("SELECT COUNT(*) as c FROM product_sales WHERE purchase_date = $1 AND tenant_id = $2", [today, tenantId]).then(r => r.rows[0] as { c: number }),
+      pool.query("SELECT COUNT(*) as c FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [thisMonth, tenantId]).then(r => r.rows[0] as { c: number }),
+      pool.query("SELECT COUNT(*) as c FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [lastMonth, tenantId]).then(r => r.rows[0] as { c: number }),
+      pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [thisMonth, tenantId]).then(r => r.rows[0] as { t: number }),
+      pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [lastMonth, tenantId]).then(r => r.rows[0] as { t: number }),
+    ]);
+    const totalBeforeDistribution = totalInventory.count;
 
     const lowStockProducts = (await pool.query(`
       SELECT p.id, p.name, COUNT(pi.id) as stock FROM products p

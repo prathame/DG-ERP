@@ -305,9 +305,12 @@ router.post('/api/products', async (req, res) => {
     const id = `P${Date.now()}`;
     let invStock = 0;
     const mode = barcodeMode ?? 'prefix';
+    const client = await pool.connect();
+    try {
+    await client.query('BEGIN');
 
     const insertProductRow = async () => {
-      await pool.query(
+      await client.query(
         `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
         [id, name, null, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, 0, tenantId, packSize ?? 1, packName || 'Piece', hsnCode || null, gstRate ?? 18]
       );
@@ -315,7 +318,7 @@ router.post('/api/products', async (req, res) => {
     const insertBarcodes = async (barcodes: string[]) => {
       const batchId = `B${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       // Batch check: verify no duplicates in one query
-      const existing = (await pool.query(
+      const existing = (await client.query(
         'SELECT barcode FROM product_inventory WHERE barcode = ANY($1) AND tenant_id = $2',
         [barcodes, tenantId]
       )).rows;
@@ -332,7 +335,7 @@ router.post('/api/products', async (req, res) => {
           params.push(`I${id}-${i + 1}`, id, barcodes[i], batchId, 'InStock', tenantId);
           paramIdx += 6;
         }
-        await pool.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id) VALUES ${values.join(',')}`, params);
+        await client.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id) VALUES ${values.join(',')}`, params);
         invStock = barcodes.length;
       }
     };
@@ -359,26 +362,32 @@ router.post('/api/products', async (req, res) => {
       await insertProductRow();
       await insertBarcodes(barcodes);
     } else {
-      await pool.query(
+      await client.query(
         `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
         [id, name, barcode || null, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, stock ?? 0, tenantId, packSize ?? 1, packName || 'Piece', hsnCode || null, gstRate ?? 18]
       );
       invStock = stock ?? 0;
     }
+    const createdPSize = Number(packSize) || 1;
+    const finalStock = barcodePerBox && createdPSize > 1 ? invStock * createdPSize : invStock;
+    if (finalStock > 0) await client.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [finalStock, id, tenantId]);
+    await client.query('COMMIT');
     const row = (await pool.query(
       'SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1',
       [tenantId, id]
     )).rows[0] as Record<string, unknown>;
-    const createdPSize = Number(packSize) || 1;
-    const finalStock = barcodePerBox && createdPSize > 1 ? invStock * createdPSize : invStock;
     res.status(201).json(mapProduct({ ...row, stock: finalStock, remaining_inventory: finalStock }));
-  } catch (err) {
+    } catch (err) {
+    await client.query('ROLLBACK');
     const errStr = String(err);
-    if (errStr.includes('BARCODE_EXISTS:')) {
-      const bc = errStr.split('BARCODE_EXISTS:')[1];
-      return res.status(400).json({ error: `Barcode ${bc} already exists` });
+    if (errStr.includes('BARCODE_EXISTS:') || errStr.includes('uq_products_tenant_name')) {
+      const bc = errStr.includes('BARCODE_EXISTS:') ? errStr.split('BARCODE_EXISTS:')[1] : null;
+      return res.status(400).json({ error: bc ? `Barcode ${bc} already exists` : `Product "${name}" already exists` });
     }
     res.status(500).json({ error: errStr });
+  } finally { client.release(); }
+  } catch (outerErr) {
+    console.error('[API Error]', req.path, outerErr); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -428,13 +437,18 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
 
     const batchId = `B${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const base = `I${id}-${Date.now()}`;
-    for (let i = 0; i < barcodes.length; i++) {
-      const bc = barcodes[i];
-      if (await barcodeExists(pool, tenantId, bc)) return res.status(400).json({ error: `Barcode ${bc} already exists` });
-      await pool.query(
-        'INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id) VALUES ($1, $2, $3, $4, $5, $6)',
-        [`${base}-${i + 1}`, id, bc, batchId, 'InStock', tenantId]
-      );
+    const existingBc = (await pool.query('SELECT barcode FROM product_inventory WHERE barcode = ANY($1) AND tenant_id = $2', [barcodes, tenantId])).rows;
+    if (existingBc.length > 0) return res.status(400).json({ error: `Barcode ${(existingBc[0] as { barcode: string }).barcode} already exists` });
+    if (barcodes.length > 0) {
+      const values: string[] = [];
+      const params: unknown[] = [];
+      let pi = 1;
+      for (let i = 0; i < barcodes.length; i++) {
+        values.push(`($${pi}, $${pi+1}, $${pi+2}, $${pi+3}, $${pi+4}, $${pi+5})`);
+        params.push(`${base}-${i + 1}`, id, barcodes[i], batchId, 'InStock', tenantId);
+        pi += 6;
+      }
+      await pool.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id) VALUES ${values.join(',')}`, params);
     }
     const count = (await pool.query('SELECT COUNT(*) as c FROM product_inventory WHERE product_id = $1 AND status = $2 AND tenant_id = $3', [id, 'InStock', tenantId])).rows[0] as { c: number };
     const stockCount = barcodePerBox && pSize > 1 ? Number(count.c) * pSize : Number(count.c);
