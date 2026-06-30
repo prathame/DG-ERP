@@ -571,12 +571,13 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                         <tr key={idx} className="hover:bg-gray-50">
                           <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
                           <td className="px-3 py-2">
-                            <select value={row.productId} onChange={(e) => updateDistRow(idx, 'productId', e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand">
+                            <select value={row.productId} onChange={(e) => { const pid = e.target.value; const pr = products.find(x => x.id === pid); updateDistRow(idx, 'productId', pid); if (pr?.barcodeUnitType === 'box' && (pr.packSize || 1) > 1) updateDistRow(idx, 'unitMode', 'pack'); }} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand">
                               <option value="">Select product</option>
                               {products.filter(pr => (pr.stock ?? 0) > 0).map((pr) => {
                                 const ps = pr.packSize || 1;
-                                const priceLabel = ps > 1 ? `₹${(pr.price * ps).toLocaleString()}/box` : `₹${pr.price.toLocaleString()}`;
-                                const stockLabel = ps > 1 ? `${Math.floor(pr.stock / ps)} ${pr.packName || 'Box'}es` : `${pr.stock} avl`;
+                                const isBxBarcode = pr.barcodeUnitType === 'box' && ps > 1;
+                                const priceLabel = ps > 1 ? `₹${(pr.price * ps).toLocaleString()}/${pr.packName || 'box'}` : `₹${pr.price.toLocaleString()}`;
+                                const stockLabel = isBxBarcode ? `${pr.remainingInventory ?? pr.stock} ${pr.packName || 'Box'}es` : (ps > 1 ? `${pr.stock} pcs (${Math.floor(pr.stock / ps)} ${pr.packName || 'Box'}es)` : `${pr.stock} avl`);
                                 return <option key={pr.id} value={pr.id}>{pr.name} ({priceLabel}) — {stockLabel}</option>;
                               })}
                             </select>
@@ -584,7 +585,12 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                           <td className="px-2 py-2">
                             <div className="flex items-center gap-1">
                               <input type="text" inputMode="numeric" pattern="[0-9]*" value={row.quantity || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); updateDistRow(idx, 'quantity', v === '' ? 0 : parseInt(v, 10)); }} className="w-16 min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
-                              {hasPack && <select value={row.unitMode} onChange={(e) => updateDistRow(idx, 'unitMode', e.target.value)} className="px-1 py-1.5 border border-gray-200 rounded-lg text-[10px] font-bold text-gray-500"><option value="piece">Pc</option><option value="pack">{p?.packName}</option></select>}
+                              {hasPack && (() => {
+                                const isBx = p?.barcodeUnitType === 'box';
+                                return isBx
+                                  ? <span className="px-1.5 py-1.5 bg-gray-100 rounded-lg text-[10px] font-bold text-gray-500">{p?.packName || 'Box'}</span>
+                                  : <select value={row.unitMode} onChange={(e) => updateDistRow(idx, 'unitMode', e.target.value)} className="px-1 py-1.5 border border-gray-200 rounded-lg text-[10px] font-bold text-gray-500"><option value="piece">Pc</option><option value="pack">{p?.packName}</option></select>;
+                              })()}
                             </div>
                             {hasPack && row.unitMode === 'pack' && <span className="text-[10px] text-gray-400">= {actualPieces} pcs</span>}
                           </td>

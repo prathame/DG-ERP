@@ -24,6 +24,7 @@ export interface Product {
   barcodeRange?: { first: string; last: string } | null;
   packSize?: number;
   packName?: string;
+  barcodeUnitType?: 'box' | 'piece';
 }
 
 export interface Warranty {

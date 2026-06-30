@@ -91,7 +91,8 @@ router.get('/api/products', async (req, res) => {
       (SELECT COUNT(*) FROM product_sales ps WHERE ps.product_id = p.id AND ps.tenant_id = $1) as sold_count,
       (SELECT COUNT(*) FROM product_distribution pd WHERE pd.product_id = p.id AND pd.status = 'Distributed' AND pd.tenant_id = $1) as with_vendors,
       (SELECT MIN(barcode) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.tenant_id = $1) as barcode_first,
-      (SELECT MAX(barcode) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.tenant_id = $1) as barcode_last
+      (SELECT MAX(barcode) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.tenant_id = $1) as barcode_last,
+      (SELECT COALESCE(pi.unit_type, 'piece') FROM product_inventory pi WHERE pi.product_id = p.id AND pi.tenant_id = $1 LIMIT 1) as barcode_unit_type
       FROM products p WHERE p.tenant_id = $1`;
     const params: string[] = [tenantId];
     if (typeof search === 'string' && search) {
@@ -105,9 +106,11 @@ router.get('/api/products', async (req, res) => {
       const invCount = Number(r.inv_stock) || 0;
       const dbStock = Number(r.stock) || 0;
       const pSz = Number(r.pack_size) || 1;
-      const realStock = pSz > 1 ? Math.max(dbStock, invCount * pSz) : Math.max(dbStock, invCount);
+      const unitType = (r.barcode_unit_type as string) || 'piece';
+      const isBoxBarcode = unitType === 'box' && pSz > 1;
+      const realStock = isBoxBarcode ? invCount * pSz : Math.max(dbStock, invCount);
       const totalInv = Number(r.total_inv) || 0;
-      const realTotal = pSz > 1 ? Math.max(totalInv * pSz, realStock) : Math.max(totalInv, dbStock);
+      const realTotal = isBoxBarcode ? totalInv * pSz : Math.max(totalInv, dbStock);
       return mapProduct({
       ...r,
       stock: realStock,
@@ -116,6 +119,7 @@ router.get('/api/products', async (req, res) => {
       soldCount: (r.sold_count as number) ?? 0,
       withVendors: (r.with_vendors as number) ?? 0,
       barcodeRange: (r.barcode_first && r.barcode_last) ? { first: r.barcode_first as string, last: r.barcode_last as string } : null,
+      barcodeUnitType: (r.barcode_unit_type as string) || 'piece',
     }); }));
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
@@ -326,16 +330,17 @@ router.post('/api/products', async (req, res) => {
         throw new Error(`BARCODE_EXISTS:${(existing[0] as { barcode: string }).barcode}`);
       }
       // Batch insert all barcodes in one query
+      const unitType = barcodePerBox && (Number(packSize) || 1) > 1 ? 'box' : 'piece';
       if (barcodes.length > 0) {
         const values: string[] = [];
         const params: unknown[] = [];
         let paramIdx = 1;
         for (let i = 0; i < barcodes.length; i++) {
-          values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5})`);
-          params.push(`I${id}-${i + 1}`, id, barcodes[i], batchId, 'InStock', tenantId);
-          paramIdx += 6;
+          values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5}, $${paramIdx + 6})`);
+          params.push(`I${id}-${i + 1}`, id, barcodes[i], batchId, 'InStock', tenantId, unitType);
+          paramIdx += 7;
         }
-        await client.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id) VALUES ${values.join(',')}`, params);
+        await client.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type) VALUES ${values.join(',')}`, params);
         invStock = barcodes.length;
       }
     };
@@ -439,16 +444,17 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
     const base = `I${id}-${Date.now()}`;
     const existingBc = (await pool.query('SELECT barcode FROM product_inventory WHERE barcode = ANY($1) AND tenant_id = $2', [barcodes, tenantId])).rows;
     if (existingBc.length > 0) return res.status(400).json({ error: `Barcode ${(existingBc[0] as { barcode: string }).barcode} already exists` });
+    const addUnitType = barcodePerBox && pSize > 1 ? 'box' : 'piece';
     if (barcodes.length > 0) {
       const values: string[] = [];
       const params: unknown[] = [];
       let pi = 1;
       for (let i = 0; i < barcodes.length; i++) {
-        values.push(`($${pi}, $${pi+1}, $${pi+2}, $${pi+3}, $${pi+4}, $${pi+5})`);
-        params.push(`${base}-${i + 1}`, id, barcodes[i], batchId, 'InStock', tenantId);
-        pi += 6;
+        values.push(`($${pi}, $${pi+1}, $${pi+2}, $${pi+3}, $${pi+4}, $${pi+5}, $${pi+6})`);
+        params.push(`${base}-${i + 1}`, id, barcodes[i], batchId, 'InStock', tenantId, addUnitType);
+        pi += 7;
       }
-      await pool.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id) VALUES ${values.join(',')}`, params);
+      await pool.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type) VALUES ${values.join(',')}`, params);
     }
     const count = (await pool.query('SELECT COUNT(*) as c FROM product_inventory WHERE product_id = $1 AND status = $2 AND tenant_id = $3', [id, 'InStock', tenantId])).rows[0] as { c: number };
     const stockCount = barcodePerBox && pSize > 1 ? Number(count.c) * pSize : Number(count.c);

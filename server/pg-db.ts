@@ -523,6 +523,9 @@ export async function initSchema() {
     // Fix: tenant users should be 'Admin' not 'Super Admin' (Super Admin is platform-level only)
     await client.query("UPDATE users SET role = 'Admin' WHERE role = 'Super Admin' AND tenant_id IS NOT NULL");
 
+    // Track whether each barcode represents a box or a piece
+    await client.query("ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS unit_type TEXT DEFAULT 'piece'");
+
     // UNIQUE constraints — prevent duplicates at DB level
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_users_tenant_email ON users(tenant_id, LOWER(email))');
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_products_tenant_name ON products(tenant_id, LOWER(name))');
