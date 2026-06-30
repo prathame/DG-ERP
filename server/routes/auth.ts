@@ -11,10 +11,12 @@ router.post('/api/auth/signup', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const { email, password, name, phone, address, role, companyName } = req.body;
+    const { email, password, name, phone, address, companyName } = req.body;
     if (!email || !password || !name) return res.status(400).json({ error: 'Email, password and name are required' });
+    if (typeof password === 'string' && password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    const emailLower = email.toLowerCase().trim();
 
-    const existing = (await pool.query('SELECT id FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId])).rows[0];
+    const existing = (await pool.query('SELECT id FROM users WHERE LOWER(email) = $1 AND tenant_id = $2', [emailLower, tenantId])).rows[0];
     if (existing) return res.status(400).json({ error: 'Email already registered' });
 
     const id = `U${Date.now()}`;
@@ -22,7 +24,7 @@ router.post('/api/auth/signup', async (req, res) => {
     await pool.query(`
       INSERT INTO users (id, email, password_hash, name, phone, address, role, company_name, tenant_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `, [id, email, passwordHash, name ?? '', phone ?? null, address ?? null, role ?? 'Admin', companyName ?? null, tenantId]);
+    `, [id, emailLower, passwordHash, name ?? '', phone ?? null, address ?? null, 'Admin', companyName ?? null, tenantId]);
 
     const row = (await pool.query('SELECT id, email, name, phone, address, role, company_name FROM users WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     res.status(201).json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name });
@@ -46,8 +48,8 @@ router.post('/api/auth/login', async (req, res) => {
              t.trial_ends_at, t.subscription_ends_at, t.tab_config
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
-      WHERE u.email = $1
-    `, [email])).rows[0] as Record<string, unknown> | undefined;
+      WHERE LOWER(u.email) = LOWER($1)
+    `, [email.trim()])).rows[0] as Record<string, unknown> | undefined;
 
     if (!row) return res.status(401).json({ error: 'Invalid email or password' });
 

@@ -126,7 +126,8 @@ router.post('/api/vendor-finance/:vendorId/payments', async (req, res) => {
 
     const { vendorId } = req.params;
     const { amount, paymentDate, paymentMethod, referenceNumber, notes, batchId } = req.body;
-    if (!amount || amount <= 0) return res.status(400).json({ error: 'Amount must be greater than 0' });
+    const parsedAmount = Number(amount);
+    if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ error: 'Amount must be a valid number greater than 0' });
 
     const vendor = (await pool.query('SELECT id FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0];
     if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
@@ -134,7 +135,7 @@ router.post('/api/vendor-finance/:vendorId/payments', async (req, res) => {
     const id = `VP${Date.now()}`;
     await pool.query(
       'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-      [id, vendorId, amount, paymentDate || new Date().toISOString().slice(0, 10), paymentMethod || 'Cash', referenceNumber || null, notes || null, tenantId, batchId || null]
+      [id, vendorId, parsedAmount, paymentDate || new Date().toISOString().slice(0, 10), paymentMethod || 'Cash', referenceNumber || null, notes || null, tenantId, batchId || null]
     );
 
     const vendorName = ((await pool.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as { name: string } | undefined)?.name ?? vendorId;

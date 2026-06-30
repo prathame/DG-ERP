@@ -13,7 +13,7 @@ router.get('/api/banks', async (req, res) => {
     let sql = 'SELECT * FROM banks WHERE tenant_id = $1';
     const params: unknown[] = [tenantId];
     if (typeof search === 'string' && search) {
-      sql = 'SELECT * FROM banks WHERE tenant_id = $1 AND (name LIKE $2 OR account_number LIKE $3 OR bank_name LIKE $4 OR ifsc_code LIKE $5)';
+      sql = 'SELECT * FROM banks WHERE tenant_id = $1 AND (name ILIKE $2 OR account_number ILIKE $3 OR bank_name ILIKE $4 OR ifsc_code ILIKE $5)';
       params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
     sql += ' ORDER BY name';
@@ -38,10 +38,15 @@ router.post('/api/banks', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { name, accountNumber, bankName, branch, ifscCode } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Account name is required' });
+    if (accountNumber) {
+      const dup = (await pool.query('SELECT id FROM banks WHERE tenant_id = $1 AND account_number = $2', [tenantId, accountNumber])).rows[0];
+      if (dup) return res.status(400).json({ error: `Account number "${accountNumber}" already exists` });
+    }
     const id = `B${Date.now()}`;
     await pool.query(
       'INSERT INTO banks (id, tenant_id, name, account_number, bank_name, branch, ifsc_code) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [id, tenantId, name ?? '', accountNumber, bankName, branch, ifscCode]
+      [id, tenantId, name.trim(), accountNumber, bankName, branch, ifscCode]
     );
     const row = (await pool.query('SELECT * FROM banks WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.status(201).json({ id: row.id, name: row.name, accountNumber: row.account_number, bankName: row.bank_name, branch: row.branch, ifscCode: row.ifsc_code });

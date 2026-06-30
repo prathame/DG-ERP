@@ -29,7 +29,7 @@ router.get('/api/warranties', async (req, res) => {
     }
 
     if (typeof search === 'string' && search) {
-      sql += ` AND (w.barcode LIKE $${paramIdx} OR w.customer_name LIKE $${paramIdx + 1} OR p.name LIKE $${paramIdx + 2} OR p.barcode = $${paramIdx + 3})`;
+      sql += ` AND (w.barcode ILIKE $${paramIdx} OR w.customer_name ILIKE $${paramIdx + 1} OR p.name ILIKE $${paramIdx + 2} OR p.barcode = $${paramIdx + 3})`;
       params.push(`%${search}%`, `%${search}%`, `%${search}%`, search);
       paramIdx += 4;
     }

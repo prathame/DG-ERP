@@ -96,6 +96,10 @@ router.put('/api/quotations/:id/status', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { status } = req.body;
     if (!['Draft', 'Sent', 'Accepted', 'Rejected', 'Expired', 'Converted'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    const current = (await pool.query('SELECT status FROM quotations WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId])).rows[0] as { status: string } | undefined;
+    if (!current) return res.status(404).json({ error: 'Quotation not found' });
+    const validTransitions: Record<string, string[]> = { Draft: ['Sent', 'Rejected', 'Expired'], Sent: ['Accepted', 'Rejected', 'Expired'], Accepted: ['Converted'], Rejected: ['Draft'], Expired: ['Draft'], Converted: [] };
+    if (!(validTransitions[current.status] ?? []).includes(status)) return res.status(400).json({ error: `Cannot change from ${current.status} to ${status}` });
     const result = await pool.query('UPDATE quotations SET status = $1 WHERE id = $2 AND tenant_id = $3', [status, req.params.id, tenantId]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Quotation not found' });
     res.json({ ok: true, status });

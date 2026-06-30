@@ -19,7 +19,7 @@ router.get('/api/customers', async (req, res) => {
       idx++;
     }
     if (typeof search === 'string' && search) {
-      sql += ` AND (name LIKE $${idx} OR phone LIKE $${idx + 1} OR email LIKE $${idx + 2})`;
+      sql += ` AND (name ILIKE $${idx} OR phone ILIKE $${idx + 1} OR email ILIKE $${idx + 2})`;
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
       idx += 3;
     }
@@ -45,10 +45,13 @@ router.post('/api/customers', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { name, phone, email, address, vendorId } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Customer name is required' });
+    const dup = (await pool.query('SELECT id FROM customers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) AND (phone IS NULL OR phone = $3 OR $3 IS NULL)', [tenantId, name.trim(), phone || null])).rows[0];
+    if (dup) return res.status(400).json({ error: `Customer "${name}" already exists` });
     const id = `C${Date.now()}`;
     await pool.query(
       'INSERT INTO customers (id, tenant_id, name, phone, email, address, vendor_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [id, tenantId, name ?? '', phone, email, address, vendorId || null]
+      [id, tenantId, name.trim(), phone, email, address, vendorId || null]
     );
     const row = (await pool.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.status(201).json({ id: row.id, name: row.name, phone: row.phone, email: row.email, address: row.address, vendorId: row.vendor_id ?? null });

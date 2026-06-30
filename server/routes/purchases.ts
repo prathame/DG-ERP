@@ -31,8 +31,10 @@ router.post('/api/suppliers', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { name, contactPerson, phone, email, address, gstNumber } = req.body;
-    if (!name) return res.status(400).json({ error: 'Supplier name is required' });
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Supplier name is required' });
     if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
+    const dup = (await pool.query('SELECT id FROM suppliers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name.trim()])).rows[0];
+    if (dup) return res.status(400).json({ error: `Supplier "${name}" already exists` });
     const id = `S${Date.now()}`;
     await pool.query(
       'INSERT INTO suppliers (id, tenant_id, name, contact_person, phone, email, address, gst_number) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
@@ -50,8 +52,10 @@ router.put('/api/suppliers/:id', async (req, res) => {
     const { id } = req.params;
     const { name, contactPerson, phone, email, address, gstNumber } = req.body;
     if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
+    if (name !== undefined && (!name || !name.trim())) return res.status(400).json({ error: 'Supplier name cannot be empty' });
+    if (name) { const dup = (await pool.query('SELECT id FROM suppliers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) AND id != $3', [tenantId, name.trim(), id])).rows[0]; if (dup) return res.status(400).json({ error: `Supplier "${name}" already exists` }); }
     const result = await pool.query(
-      'UPDATE suppliers SET name=COALESCE($1,name), contact_person=COALESCE($2,contact_person), phone=COALESCE($3,phone), email=COALESCE($4,email), address=COALESCE($5,address), gst_number=COALESCE($8,gst_number) WHERE id=$6 AND tenant_id=$7',
+      'UPDATE suppliers SET name=COALESCE(NULLIF($1,\'\'),name), contact_person=COALESCE($2,contact_person), phone=COALESCE($3,phone), email=COALESCE($4,email), address=COALESCE($5,address), gst_number=COALESCE($8,gst_number) WHERE id=$6 AND tenant_id=$7',
       [name, contactPerson, phone?.trim() || null, email, address, id, tenantId, gstNumber ?? null]
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Supplier not found' });
@@ -317,13 +321,14 @@ router.post('/api/supplier-finance/:supplierId/payments', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { supplierId } = req.params;
     const { amount, paymentDate, paymentMethod, referenceNumber, notes, batchId } = req.body;
-    if (!amount || amount <= 0) return res.status(400).json({ error: 'Amount must be greater than 0' });
+    const parsedAmount = Number(amount);
+    if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ error: 'Amount must be a valid number greater than 0' });
     const supplier = (await pool.query('SELECT id FROM suppliers WHERE id = $1 AND tenant_id = $2', [supplierId, tenantId])).rows[0];
     if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
     const id = `SP${Date.now()}`;
     await pool.query(
       'INSERT INTO supplier_payments (id, tenant_id, supplier_id, amount, payment_date, payment_method, reference_number, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-      [id, tenantId, supplierId, amount, paymentDate || new Date().toISOString().slice(0, 10), paymentMethod || 'Cash', referenceNumber || null, notes || null, batchId || null]
+      [id, tenantId, supplierId, parsedAmount, paymentDate || new Date().toISOString().slice(0, 10), paymentMethod || 'Cash', referenceNumber || null, notes || null, batchId || null]
     );
     const row = (await pool.query('SELECT * FROM supplier_payments WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     res.status(201).json({ id: row.id, amount: Number(row.amount), paymentDate: row.payment_date, paymentMethod: row.payment_method });
