@@ -42,6 +42,10 @@ interface TenantDetail {
   multiLanguageEnabled: boolean;
   vendorPortalEnabled: boolean;
   inventoryTrackingEnabled: boolean;
+  quotationsEnabled: boolean;
+  accountsEnabled: boolean;
+  purchasesEnabled: boolean;
+  chatbotEnabled: boolean;
   tabConfig: Record<string, { label: string; visible: boolean }> | null;
   createdAt: string;
   stats: {
@@ -484,6 +488,10 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
   const [multiLanguage, setMultiLanguage] = useState(tenant.multiLanguageEnabled !== false);
   const [inventoryTracking, setInventoryTracking] = useState(tenant.inventoryTrackingEnabled !== false);
   const [vendorPortal, setVendorPortal] = useState(tenant.vendorPortalEnabled !== false);
+  const [quotationsEnabled, setQuotationsEnabled] = useState(tenant.quotationsEnabled !== false);
+  const [accountsEnabled, setAccountsEnabled] = useState(tenant.accountsEnabled !== false);
+  const [purchasesEnabled, setPurchasesEnabled] = useState(tenant.purchasesEnabled !== false);
+  const [chatbotEnabled, setChatbotEnabled] = useState(tenant.chatbotEnabled !== false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -492,7 +500,11 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
     setMultiLanguage(tenant.multiLanguageEnabled !== false);
     setInventoryTracking(tenant.inventoryTrackingEnabled !== false);
     setVendorPortal(tenant.vendorPortalEnabled !== false);
-  }, [tabConfig, tenant.barcodeSystemEnabled, tenant.multiLanguageEnabled, tenant.inventoryTrackingEnabled, tenant.vendorPortalEnabled]);
+    setQuotationsEnabled(tenant.quotationsEnabled !== false);
+    setAccountsEnabled(tenant.accountsEnabled !== false);
+    setPurchasesEnabled(tenant.purchasesEnabled !== false);
+    setChatbotEnabled(tenant.chatbotEnabled !== false);
+  }, [tabConfig, tenant.barcodeSystemEnabled, tenant.multiLanguageEnabled, tenant.inventoryTrackingEnabled, tenant.vendorPortalEnabled, tenant.quotationsEnabled, tenant.accountsEnabled, tenant.purchasesEnabled, tenant.chatbotEnabled]);
 
   const updateLabel = (key: string, label: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], label } }));
   const toggleVisible = (key: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], visible: !prev[key].visible } }));
@@ -505,7 +517,7 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
       const res = await fetch(`/api/super-admin/tenants/${tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tabConfig: config, barcodeSystemEnabled: barcodeSystem, multiLanguageEnabled: multiLanguage, inventoryTrackingEnabled: inventoryTracking, vendorPortalEnabled: vendorPortal }),
+        body: JSON.stringify({ tabConfig: config, barcodeSystemEnabled: barcodeSystem, multiLanguageEnabled: multiLanguage, inventoryTrackingEnabled: inventoryTracking, vendorPortalEnabled: vendorPortal, quotationsEnabled, accountsEnabled, purchasesEnabled, chatbotEnabled }),
       });
       if (!res.ok) throw new Error();
       toast('Tab configuration saved', 'success');
@@ -603,6 +615,22 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
             <span className={cn("pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform", vendorPortal ? "translate-x-4" : "translate-x-0")} />
           </button>
         </div>
+        {[
+          { label: 'Quotations', desc: 'Create quotes, share via WhatsApp, convert to distribution.', value: quotationsEnabled, setter: setQuotationsEnabled },
+          { label: 'Accounts & Reports', desc: 'P&L, Balance Sheet, Cash Flow, GST reports, stock summary.', value: accountsEnabled, setter: setAccountsEnabled },
+          { label: 'Purchases', desc: 'Supplier management, purchase batches, supplier finance.', value: purchasesEnabled, setter: setPurchasesEnabled },
+          { label: 'AI Chatbot', desc: 'Ask business questions in natural language, get instant answers.', value: chatbotEnabled, setter: setChatbotEnabled },
+        ].map(f => (
+          <div key={f.label} className="flex items-center justify-between mt-4">
+            <div>
+              <p className="font-medium text-sm">{f.label}</p>
+              <p className="text-xs text-gray-500">{f.desc}</p>
+            </div>
+            <button type="button" onClick={() => f.setter(!f.value)} className={cn("relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors", f.value ? "bg-green-500" : "bg-gray-300")}>
+              <span className={cn("pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform", f.value ? "translate-x-4" : "translate-x-0")} />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

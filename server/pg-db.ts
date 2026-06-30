@@ -485,6 +485,12 @@ export async function initSchema() {
     await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_size INTEGER DEFAULT 1");
     await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_name TEXT DEFAULT 'Piece'");
 
+    // Feature toggles for new modules
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotations_enabled BOOLEAN DEFAULT true');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS accounts_enabled BOOLEAN DEFAULT true');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS purchases_enabled BOOLEAN DEFAULT true');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS chatbot_enabled BOOLEAN DEFAULT true');
+
     // Batch-level payment tracking
     await client.query('ALTER TABLE vendor_payments ADD COLUMN IF NOT EXISTS batch_id TEXT');
     await client.query('CREATE INDEX IF NOT EXISTS idx_vp_batch ON vendor_payments(tenant_id, batch_id)');
