@@ -181,7 +181,11 @@ export function InventoryView() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
+                        {(p.packSize ?? 1) > 1 ? (
+                          <><span className="font-semibold text-sm text-emerald-600">₹{(p.price * (p.packSize ?? 1)).toLocaleString()}</span><span className="block text-[10px] text-gray-400">₹{p.price}/pc × {p.packSize}</span></>
+                        ) : (
+                          <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
+                        )}
                       </td>
                       {inventoryTrackingEnabled && <><td className="px-4 py-3 text-center">
                         <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{p.totalInventory ?? p.stock ?? 0}</span>
@@ -227,7 +231,7 @@ export function InventoryView() {
                       <span className="font-semibold text-sm text-gray-900 truncate">{p.name}</span>
                       {isLowStock && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
                     </div>
-                    <span className="font-semibold text-sm text-emerald-600 shrink-0">₹{p.price.toLocaleString()}</span>
+                    <span className="font-semibold text-sm text-emerald-600 shrink-0">{(p.packSize ?? 1) > 1 ? `₹${(p.price * (p.packSize ?? 1)).toLocaleString()}/box` : `₹${p.price.toLocaleString()}`}</span>
                   </div>
                   {inventoryTrackingEnabled && <div className="flex items-center gap-3 text-xs text-gray-500">
                     <span>Total: <strong className={isLowStock ? "text-amber-700" : "text-gray-900"}>{p.totalInventory ?? p.stock ?? 0}</strong></span>
