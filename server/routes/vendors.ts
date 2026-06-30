@@ -41,16 +41,24 @@ router.post('/api/vendors', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { name, contactPerson, phone, email, address } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Vendor name is required' });
     if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
+
+    const duplicate = (await pool.query(
+      'SELECT id, name FROM vendors WHERE tenant_id = $1 AND (LOWER(name) = LOWER($2) OR (email IS NOT NULL AND email != \'\' AND LOWER(email) = LOWER($3)))',
+      [tenantId, name.trim(), email || '']
+    )).rows[0] as { id: string; name: string } | undefined;
+    if (duplicate) return res.status(400).json({ error: `Vendor "${duplicate.name}" already exists` });
+
     const id = `V${Date.now()}`;
     await pool.query(
       'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [id, tenantId, name ?? '', contactPerson, phone?.trim() || null, email, address]
+      [id, tenantId, name.trim(), contactPerson, phone?.trim() || null, email, address]
     );
     const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     let credentials: { email: string; password: string } | null = null;
     const vendorPortal = (await pool.query('SELECT vendor_portal_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0];
-    const portalEnabled = vendorPortal?.vendor_portal_enabled !== false;
+    const portalEnabled = vendorPortal?.vendor_portal_enabled === true;
     if (portalEnabled && email && typeof email === 'string' && email.includes('@')) {
       const existing = (await pool.query('SELECT id FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId])).rows[0];
       if (!existing) {
@@ -83,6 +91,10 @@ router.put('/api/vendors/:id', async (req, res) => {
     const { id } = req.params;
     const { name, contactPerson, phone, email, address, gstNumber } = req.body;
     if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
+    if (name) {
+      const dup = (await pool.query('SELECT id FROM vendors WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) AND id != $3', [tenantId, name.trim(), id])).rows[0];
+      if (dup) return res.status(400).json({ error: `Vendor "${name}" already exists` });
+    }
     const result = await pool.query(
       'UPDATE vendors SET name=COALESCE($1,name), contact_person=COALESCE($2,contact_person), phone=COALESCE($3,phone), email=COALESCE($4,email), address=COALESCE($5,address), gst_number=COALESCE($8,gst_number) WHERE id=$6 AND tenant_id=$7',
       [name, contactPerson, phone?.trim() || null, email, address, id, tenantId, gstNumber ?? null]
