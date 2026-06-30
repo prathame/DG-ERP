@@ -142,13 +142,17 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
     headers: { 'Content-Type': 'application/json', ...authHeaders, ...options?.headers },
   });
 
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
     const slug = session.getSlug();
     const pathSlug = window.location.pathname.match(/^\/([a-z0-9][a-z0-9-]*)/i)?.[1];
     session.clearAll();
     const redirectSlug = slug || pathSlug;
     window.location.href = redirectSlug ? `/${redirectSlug}` : '/';
     return new Promise(() => {}) as T;
+  }
+  if (res.status === 403) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || 'Access denied');
   }
 
   if (!res.ok) {
