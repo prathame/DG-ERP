@@ -11,6 +11,7 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 export function DistributionView({ user }: { user: { id: string; role?: string; vendorId?: string } | null }) {
   const { toast } = useToast();
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
+  const isVendorUser = !!vendorId;
   const [distributions, setDistributions] = useState<DistributionRecord[]>([]);
   const [batches, setBatches] = useState<DistributionBatch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -354,7 +355,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     {!selectedBatchProductId && (
                       <span className="text-xs text-gray-500">Distribution — {formatDate(selectedBatch.distributionDate)}</span>
                     )}
-                    {!selectedBatchProductId && selectedBatch.balanceRemaining > 0 && (
+                    {!isVendorUser && !selectedBatchProductId && selectedBatch.balanceRemaining > 0 && (
                       <button
                         type="button"
                         onClick={() => {
@@ -367,6 +368,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                         <IndianRupee size={16} /> Record Payment
                       </button>
                     )}
+                    {!isVendorUser && (
                     <button
                       type="button"
                       onClick={() => openEdit(selectedBatch)}
@@ -375,7 +377,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     >
                       <Pencil size={16} /> Edit
                     </button>
-                    <div className="relative">
+                    )}
+                    {!isVendorUser && <div className="relative">
                       <button type="button" onClick={() => setBatchActionsOpen(!batchActionsOpen)} className="p-2 hover:bg-gray-200 rounded-lg transition-colors" title="More actions">
                         <MoreVertical size={18} className="text-gray-600" />
                       </button>
@@ -403,7 +406,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                           </div>
                         </>
                       )}
-                    </div>
+                    </div>}
                   </div>
                   <div className="text-right">
                     {selectedProduct ? (
