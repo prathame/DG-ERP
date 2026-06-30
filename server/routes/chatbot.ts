@@ -89,8 +89,8 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
 
   if (/sales\s*(this\s*)?month/.test(q)) {
     const month = new Date().toISOString().slice(0, 7);
-    const count = ((await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { c: number }).c;
-    const revenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { t: number }).t;
+    const count = ((await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [month, tenantId])).rows[0] as { c: number }).c;
+    const revenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [month, tenantId])).rows[0] as { t: number }).t;
     return { text: `*${salesLbl} This Month*\n\n- ${count} sale${count !== 1 ? 's' : ''}\n- Revenue: ${revenue.toLocaleString()}` };
   }
 
@@ -273,10 +273,10 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
 
   if (/monthly\s*report|month\s*summary|this\s*month\s*report/.test(q)) {
     const month = new Date().toISOString().slice(0, 7);
-    const sales = ((await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { c: number }).c;
-    const revenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { t: number }).t;
-    const distributedCount = ((await pool.query("SELECT COUNT(*) as c FROM product_distribution WHERE to_char(distribution_date, 'YYYY-MM') = $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { c: number }).c;
-    const payments = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE to_char(payment_date, 'YYYY-MM') = $1 AND tenant_id = $2", [`${month}%`, tenantId])).rows[0] as { t: number }).t;
+    const sales = ((await pool.query("SELECT COUNT(*) as c FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [month, tenantId])).rows[0] as { c: number }).c;
+    const revenue = ((await pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [month, tenantId])).rows[0] as { t: number }).t;
+    const distributedCount = ((await pool.query("SELECT COUNT(*) as c FROM product_distribution WHERE to_char(distribution_date, 'YYYY-MM') = $1 AND tenant_id = $2", [month, tenantId])).rows[0] as { c: number }).c;
+    const payments = ((await pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE to_char(payment_date, 'YYYY-MM') = $1 AND tenant_id = $2", [month, tenantId])).rows[0] as { t: number }).t;
     return { text: `*Monthly Report* (${month})\n\n${salesLbl}: ${sales} units\nRevenue: ${revenue.toLocaleString()}\n${distLbl}: ${distributedCount} units\nPayments Received: ${payments.toLocaleString()}` };
   }
 

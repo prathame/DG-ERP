@@ -202,29 +202,21 @@ router.post('/api/replacements', async (req, res) => {
       ? (await pool.query('SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])).rows[0] as { name: string } | undefined
       : null;
 
-    await pool.query(
-      `INSERT INTO product_replacements (id, tenant_id, old_barcode, new_barcode, warranty_id, product_id, product_name, customer_name, customer_phone, replaced_date, reason, vendor_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [id, tenantId, oldBarcode, newBarcode, warrantyId || null, productId, prod?.name ?? null, customerName, customerPhone, date, reason || null, vendorId]
-    );
-
-    // Mark old barcode as Damaged, new barcode as Replaced (vendor stock reduced)
+    const client = await pool.connect();
     try {
-      await pool.query(
-        "UPDATE product_distribution SET status = 'Damaged' WHERE barcode = $1 AND tenant_id = $2",
-        [oldBarcode, tenantId]
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO product_replacements (id, tenant_id, old_barcode, new_barcode, warranty_id, product_id, product_name, customer_name, customer_phone, replaced_date, reason, vendor_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [id, tenantId, oldBarcode, newBarcode, warrantyId || null, productId, prod?.name ?? null, customerName, customerPhone, date, reason || null, vendorId]
       );
-      await pool.query(
-        "UPDATE product_distribution SET status = 'Replaced' WHERE barcode = $1 AND tenant_id = $2",
-        [newBarcode, tenantId]
-      );
+      await client.query("UPDATE product_distribution SET status = 'Damaged' WHERE barcode = $1 AND tenant_id = $2", [oldBarcode, tenantId]);
+      await client.query("UPDATE product_distribution SET status = 'Replaced' WHERE barcode = $1 AND tenant_id = $2", [newBarcode, tenantId]);
       if (vendorId === 'OWNER') {
-        await pool.query(
-          "UPDATE product_inventory SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2",
-          [newBarcode, tenantId]
-        );
+        await client.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2", [newBarcode, tenantId]);
       }
-    } catch (_) {}
+      await client.query('COMMIT');
+    } catch (txErr) { await client.query('ROLLBACK'); throw txErr; } finally { client.release(); }
 
     const row = (await pool.query(
       `SELECT r.*, v.name as vendor_name FROM product_replacements r

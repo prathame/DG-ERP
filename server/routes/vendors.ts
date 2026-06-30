@@ -113,9 +113,20 @@ router.delete('/api/vendors/:id', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const result = await pool.query('DELETE FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Vendor not found' });
-    res.status(204).send();
+    const hasDistributions = (await pool.query("SELECT 1 FROM product_distribution WHERE vendor_id = $1 AND tenant_id = $2 LIMIT 1", [id, tenantId])).rows[0];
+    if (hasDistributions) return res.status(400).json({ error: 'Cannot delete vendor with existing distributions. Remove distributions first.' });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM vendor_payments WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
+      await client.query('DELETE FROM rewards WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
+      await client.query('DELETE FROM users WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
+      await client.query('UPDATE customers SET vendor_id = NULL WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
+      const result = await client.query('DELETE FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
+      if (result.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Vendor not found' }); }
+      await client.query('COMMIT');
+      res.status(204).send();
+    } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }

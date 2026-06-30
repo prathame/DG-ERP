@@ -68,6 +68,9 @@ router.delete('/api/suppliers/:id', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const hasPurchases = (await pool.query("SELECT 1 FROM product_purchases WHERE supplier_id = $1 AND tenant_id = $2 LIMIT 1", [req.params.id, tenantId])).rows[0];
+    if (hasPurchases) return res.status(400).json({ error: 'Cannot delete supplier with existing purchases. Remove purchase records first.' });
+    await pool.query('DELETE FROM supplier_payments WHERE supplier_id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
     const result = await pool.query('DELETE FROM suppliers WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Supplier not found' });
     res.status(204).send();

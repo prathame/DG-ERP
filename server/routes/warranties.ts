@@ -171,29 +171,22 @@ router.put('/api/warranties/:id', async (req, res) => {
         const repId = `REP${Date.now()}-${id}`;
         const replacedDate = new Date().toISOString().slice(0, 10);
 
-        await pool.query(
-          `INSERT INTO product_replacements (id, tenant_id, old_barcode, new_barcode, warranty_id, product_id, product_name, customer_name, customer_phone, replaced_date, reason, vendor_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-          [repId, tenantId, w.barcode, replacedBarcode.trim(), id, w.product_id, prod?.name ?? null, w.customer_name, w.customer_phone, replacedDate, 'Warranty claim', repVendorId]
-        );
-
+        const wClient = await pool.connect();
         try {
-          await pool.query(
-            "UPDATE product_distribution SET status = 'Damaged' WHERE barcode = $1 AND tenant_id = $2",
-            [w.barcode, tenantId]
+          await wClient.query('BEGIN');
+          await wClient.query(
+            `INSERT INTO product_replacements (id, tenant_id, old_barcode, new_barcode, warranty_id, product_id, product_name, customer_name, customer_phone, replaced_date, reason, vendor_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            [repId, tenantId, w.barcode, replacedBarcode.trim(), id, w.product_id, prod?.name ?? null, w.customer_name, w.customer_phone, replacedDate, 'Warranty claim', repVendorId]
           );
-          await pool.query(
-            "UPDATE product_distribution SET status = 'Replaced' WHERE barcode = $1 AND tenant_id = $2",
-            [replacedBarcode.trim(), tenantId]
-          );
+          await wClient.query("UPDATE product_distribution SET status = 'Damaged' WHERE barcode = $1 AND tenant_id = $2", [w.barcode, tenantId]);
+          await wClient.query("UPDATE product_distribution SET status = 'Replaced' WHERE barcode = $1 AND tenant_id = $2", [replacedBarcode.trim(), tenantId]);
           if (repVendorId === 'OWNER') {
-            await pool.query(
-              "UPDATE product_inventory SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2",
-              [replacedBarcode.trim(), tenantId]
-            );
+            await wClient.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2", [replacedBarcode.trim(), tenantId]);
           }
-        } catch (_) {}
-      } catch (_) {}
+          await wClient.query('COMMIT');
+        } catch (txErr) { await wClient.query('ROLLBACK'); console.error('Warranty replacement failed', txErr); } finally { wClient.release(); }
+      } catch (repErr) { console.error('Warranty replacement setup failed', repErr); }
     }
 
     res.json({

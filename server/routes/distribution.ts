@@ -211,7 +211,7 @@ router.post('/api/distribution/batch', async (req, res) => {
       const gstApplied = item.withGst !== false ? 1 : 0;
       const billedPricePerUnit = gstApplied ? Math.round(netPricePerUnit * (100 + gstRate) / 100) : netPricePerUnit;
       const invRows = (await pool.query(
-        `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3`,
+        `SELECT id, barcode FROM product_inventory WHERE product_id = \$1 AND status = 'InStock' AND tenant_id = \$2 ORDER BY id LIMIT \$3 FOR UPDATE SKIP LOCKED`,
         [product.id, tenantId, qty]
       )).rows as { id: string; barcode: string }[];
       if (invRows.length < qty) {
@@ -329,7 +329,7 @@ router.post('/api/distribution', async (req, res) => {
     const paidAmount = typeof amountPaid === 'number' && amountPaid > 0 ? amountPaid : null;
     if (paidAmount && paidAmount > totalBilled) return res.status(400).json({ error: `Amount paid (₹${paidAmount}) cannot exceed billed amount (₹${totalBilled})` });
     const invRows = (await pool.query(
-      `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3`,
+      `SELECT id, barcode FROM product_inventory WHERE product_id = \$1 AND status = 'InStock' AND tenant_id = \$2 ORDER BY id LIMIT \$3 FOR UPDATE SKIP LOCKED`,
       [product.id, tenantId, qty]
     )).rows as { id: string; barcode: string }[];
     const availableStock = invRows.length;
@@ -356,6 +356,13 @@ router.post('/api/distribution', async (req, res) => {
           ['Distributed', inv.id, tenantId]
         );
       }
+      if (paidAmount) {
+        const payId = `VP${Date.now()}`;
+        await client.query(
+          'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+          [payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${baseId}`, tenantId, baseId]
+        );
+      }
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');
@@ -370,15 +377,7 @@ router.post('/api/distribution', async (req, res) => {
     )).rows[0] as { name: string } | undefined)?.name ?? vendorId;
 
     await logAudit(pool, tenantId, 'Distribution Created', 'distribution', baseId, `${qty} units to ${vendorName}, Discount: ${disc}%`);
-
-    if (paidAmount) {
-      const payId = `VP${Date.now()}`;
-      await pool.query(
-        'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-        [payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${baseId}`, tenantId, baseId]
-      );
-      await logAudit(pool, tenantId, 'Payment Recorded', 'payment', payId, `${vendorName} paid ₹${paidAmount} (with distribution)`);
-    }
+    if (paidAmount) await logAudit(pool, tenantId, 'Payment Recorded', 'payment', `VP${Date.now()}`, `${vendorName} paid ₹${paidAmount} (with distribution)`);
 
     const firstRow = (await pool.query(`
       SELECT pd.*, p.name as product_name, v.name as vendor_name, v.id as vendor_id
@@ -707,7 +706,7 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
         if (newQty > productRows.length) {
           const toAdd = newQty - productRows.length;
           const invRows = (await client.query(
-            `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3`,
+            `SELECT id, barcode FROM product_inventory WHERE product_id = \$1 AND status = 'InStock' AND tenant_id = \$2 ORDER BY id LIMIT \$3 FOR UPDATE SKIP LOCKED`,
             [item.productId, tenantId, toAdd]
           )).rows as { id: string; barcode: string }[];
           if (invRows.length < toAdd) {
