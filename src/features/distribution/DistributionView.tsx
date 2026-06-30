@@ -139,12 +139,15 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
           const rp = products.find(x => x.id === row.productId);
           const ps = rp?.packSize ?? 1;
           const qty = row.unitMode === 'pack' && ps > 1 ? row.quantity * ps : row.quantity;
+          const isBoxMode = row.unitMode === 'pack' && ps > 1;
+          const rawCustom = row.customPrice ? parseFloat(row.customPrice) : undefined;
+          const perPieceCustom = isBoxMode && rawCustom ? Math.round(rawCustom / ps) : rawCustom;
           return {
             productId: row.productId,
             quantity: qty,
             discountPercent: row.discount > 0 ? row.discount : undefined,
             withGst: row.withGst,
-            customPrice: row.customPrice ? parseFloat(row.customPrice) : undefined,
+            customPrice: perPieceCustom,
           };
         }),
       });
@@ -555,10 +558,11 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                       const p = products.find(x => x.id === row.productId);
                       const packSz = p?.packSize ?? 1;
                       const hasPack = packSz > 1;
-                      const actualPieces = row.unitMode === 'pack' && hasPack ? (row.quantity || 0) * packSz : (row.quantity || 0);
-                      const basePrice = row.customPrice ? parseFloat(row.customPrice) : (p?.price ?? 0);
-                      const priceQty = row.unitMode === 'pack' && hasPack ? (row.quantity || 0) : actualPieces;
-                      const gross = basePrice * priceQty;
+                      const isPackMode = row.unitMode === 'pack' && hasPack;
+                      const actualPieces = isPackMode ? (row.quantity || 0) * packSz : (row.quantity || 0);
+                      const boxPrice = (p?.price ?? 0) * packSz;
+                      const basePrice = row.customPrice ? parseFloat(row.customPrice) : (isPackMode ? boxPrice : (p?.price ?? 0));
+                      const gross = basePrice * (row.quantity || 0);
                       const disc = Math.round(gross * (row.discount || 0) / 100);
                       const net = gross - disc;
                       const gstOnRow = row.withGst ? Math.round(net * defaultGstRate / 100) : 0;
@@ -570,9 +574,10 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                             <select value={row.productId} onChange={(e) => updateDistRow(idx, 'productId', e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand">
                               <option value="">Select product</option>
                               {products.filter(pr => (pr.stock ?? 0) > 0).map((pr) => {
-                                const ps = pr.packSize ?? 1;
-                                const stockLabel = ps > 1 ? `${Math.floor(pr.stock / ps)} ${pr.packName}s (${pr.stock} pcs)` : `${pr.stock} avl`;
-                                return <option key={pr.id} value={pr.id}>{pr.name} (₹{pr.price.toLocaleString()}) — {stockLabel}</option>;
+                                const ps = pr.packSize || 1;
+                                const priceLabel = ps > 1 ? `₹${(pr.price * ps).toLocaleString()}/box` : `₹${pr.price.toLocaleString()}`;
+                                const stockLabel = ps > 1 ? `${Math.floor(pr.stock / ps)} ${pr.packName || 'Box'}es` : `${pr.stock} avl`;
+                                return <option key={pr.id} value={pr.id}>{pr.name} ({priceLabel}) — {stockLabel}</option>;
                               })}
                             </select>
                           </td>
@@ -583,7 +588,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                             </div>
                             {hasPack && row.unitMode === 'pack' && <span className="text-[10px] text-gray-400">= {actualPieces} pcs</span>}
                           </td>
-                          <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-3 py-2 border rounded-lg text-sm text-center focus:ring-2 focus:ring-brand", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
+                          <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? `₹${isPackMode ? boxPrice : p.price}` : '—'} className={cn("w-full px-3 py-2 border rounded-lg text-sm text-center focus:ring-2 focus:ring-brand", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
                           <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.discount || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'discount', v === '' ? 0 : parseFloat(v)); }} placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
                           <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-brand" /></td>
                           <td className="px-3 py-2 text-right text-sm font-bold">{billed > 0 ? <span>{row.withGst && <span className="text-[10px] text-gray-400 block">₹{net.toLocaleString()} +GST</span>}₹{billed.toLocaleString()}</span> : '-'}</td>
