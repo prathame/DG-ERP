@@ -316,7 +316,7 @@ export function InventoryView() {
 
                 {addForm.packSize > 1 ? (
                   <>
-                    <div><label className="text-xs font-bold text-gray-400 uppercase">Pieces per Box</label><input type="number" min={2} value={addForm.packSize} onChange={(e) => setAddForm({ ...addForm, packSize: Math.max(2, Number(e.target.value) || 2) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                    <div><label className="text-xs font-bold text-gray-400 uppercase">Pieces per Box</label><input type="text" inputMode="numeric" pattern="[0-9]*" value={addForm.packSize || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setAddForm({ ...addForm, packSize: v === '' ? 0 : parseInt(v, 10) }); }} onBlur={() => { if (addForm.packSize < 2) setAddForm({ ...addForm, packSize: 2 }); }} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" placeholder="e.g. 10, 12, 100" /></div>
                     <div>
                       <label className="text-xs font-bold text-gray-400 uppercase">Quantity</label>
                       <div className="flex gap-2 mt-1">

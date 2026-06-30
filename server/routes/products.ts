@@ -105,9 +105,9 @@ router.get('/api/products', async (req, res) => {
       const invCount = Number(r.inv_stock) || 0;
       const dbStock = Number(r.stock) || 0;
       const pSz = Number(r.pack_size) || 1;
-      const realStock = pSz > 1 && dbStock > invCount ? dbStock : invCount;
+      const realStock = pSz > 1 ? Math.max(dbStock, invCount * pSz) : Math.max(dbStock, invCount);
       const totalInv = Number(r.total_inv) || 0;
-      const realTotal = pSz > 1 && dbStock > 0 ? Math.max(totalInv, dbStock) : totalInv;
+      const realTotal = pSz > 1 ? Math.max(totalInv * pSz, realStock) : Math.max(totalInv, dbStock);
       return mapProduct({
       ...r,
       stock: realStock,
