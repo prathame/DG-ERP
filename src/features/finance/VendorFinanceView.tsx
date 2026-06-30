@@ -56,6 +56,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
   const handleRecordPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVendorId || !paymentForm.amount) return;
+    if (vendorBatches.length > 0 && !paymentForm.batchId) { toast('Select a distribution batch or "All Distributions"', 'error'); return; }
     setSubmitting(true);
     api.vendorFinance.recordPayment(selectedVendorId, {
       amount: parseFloat(paymentForm.amount),
@@ -63,7 +64,7 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
       paymentMethod: paymentForm.paymentMethod,
       referenceNumber: paymentForm.referenceNumber || undefined,
       notes: paymentForm.notes || undefined,
-      batchId: paymentForm.batchId || undefined,
+      batchId: paymentForm.batchId === '__ALL__' ? undefined : (paymentForm.batchId || undefined),
     })
       .then(() => {
         setPaymentModal(false);
@@ -197,12 +198,19 @@ export function VendorFinanceView({ user }: { user: { id: string; role?: string;
                 <form onSubmit={handleRecordPayment} className="space-y-4">
                   {vendorBatches.length > 0 && (
                     <div>
-                      <label className="text-xs font-bold text-gray-400 uppercase">Distribution Batch (optional)</label>
-                      <select value={paymentForm.batchId} onChange={(e) => {
-                        const batch = vendorBatches.find((b) => b.batchId === e.target.value);
-                        setPaymentForm({ ...paymentForm, batchId: e.target.value, amount: batch ? String(batch.balanceRemaining) : paymentForm.amount });
+                      <label className="text-xs font-bold text-gray-400 uppercase">Distribution Batch *</label>
+                      <select required value={paymentForm.batchId} onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '__ALL__') {
+                          const totalDue = vendorBatches.reduce((sum, b) => sum + b.balanceRemaining, 0);
+                          setPaymentForm({ ...paymentForm, batchId: val, amount: String(totalDue) });
+                        } else {
+                          const batch = vendorBatches.find((b) => b.batchId === val);
+                          setPaymentForm({ ...paymentForm, batchId: val, amount: batch ? String(batch.balanceRemaining) : '' });
+                        }
                       }} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand">
-                        <option value="">General (no specific batch)</option>
+                        <option value="">Select distribution</option>
+                        <option value="__ALL__">All Distributions — ₹{vendorBatches.reduce((s, b) => s + b.balanceRemaining, 0).toLocaleString()} total due</option>
                         {vendorBatches.map((b) => (
                           <option key={b.batchId} value={b.batchId}>
                             {formatDate(b.distributionDate)} — {b.productNames.join(', ')} — ₹{b.balanceRemaining.toLocaleString()} due
