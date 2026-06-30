@@ -511,7 +511,11 @@ export function InventoryView() {
             { key: 'name', label: 'Product Name', required: true },
             { key: 'price', label: 'Price', required: true },
             { key: 'barcodePrefix', label: 'Barcode Prefix', required: true },
-            { key: 'quantity', label: 'Quantity', required: true },
+            { key: 'quantity', label: 'Quantity (total pieces)', required: true },
+            { key: 'packSize', label: 'Pack Size (pieces per box, leave empty for single piece)' },
+            { key: 'packName', label: 'Pack Name (Box/Carton/Pack, leave empty for Piece)' },
+            { key: 'priceType', label: 'Price Type (box or piece, default: piece)' },
+            { key: 'barcodeOn', label: 'Barcode On (box or piece, default: piece)' },
             { key: 'description', label: 'Description' },
             { key: 'hsnCode', label: 'HSN Code' },
             { key: 'gstRate', label: 'GST Rate (%)' },
@@ -525,12 +529,21 @@ export function InventoryView() {
             for (let i = 0; i < rows.length; i++) {
               const r = rows[i];
               try {
+                const pSize = Number(r.packSize) || 1;
+                const isBox = pSize > 1;
+                const priceIsBox = (r.priceType || '').toLowerCase() === 'box';
+                const rawPrice = Number(r.price) || 0;
+                const perPiecePrice = isBox && priceIsBox ? Math.round(rawPrice / pSize) : rawPrice;
+                const barcodePerBox = isBox && (r.barcodeOn || '').toLowerCase() === 'box';
                 await api.products.create({
                   name: r.name,
-                  price: Number(r.price) || 0,
+                  price: perPiecePrice,
                   barcodePrefix: r.barcodePrefix,
                   quantity: Number(r.quantity) || 1,
                   barcodeMode: 'prefix' as const,
+                  packSize: isBox ? pSize : undefined,
+                  packName: isBox ? (r.packName || 'Box') : undefined,
+                  barcodePerBox: barcodePerBox || undefined,
                   description: r.description || undefined,
                   hsnCode: r.hsnCode || undefined,
                   gstRate: r.gstRate ? Number(r.gstRate) : undefined,
