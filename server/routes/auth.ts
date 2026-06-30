@@ -51,7 +51,15 @@ router.post('/api/auth/login', async (req, res) => {
              t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status,
              t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
              t.trial_ends_at, t.subscription_ends_at, t.tab_config,
-             COALESCE(p.name, CASE WHEN t.trial_ends_at IS NOT NULL AND t.subscription_ends_at IS NULL THEN 'Free Trial' ELSE 'Standard' END) as plan_name
+             COALESCE(p.name, CASE
+               WHEN t.plan_id = 'TRIAL' OR t.status = 'trial' THEN 'Free Trial'
+               WHEN t.plan_id = 'BASIC' THEN 'Basic'
+               WHEN t.plan_id = 'STANDARD' THEN 'Standard'
+               WHEN t.plan_id = 'PROFESSIONAL' OR t.plan_id = 'PRO' THEN 'Professional'
+               WHEN t.plan_id = 'PREMIUM' THEN 'Premium'
+               WHEN t.plan_id = 'ENTERPRISE' THEN 'Enterprise'
+               ELSE COALESCE(t.plan_id, 'Standard')
+             END) as plan_name
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
       LEFT JOIN plans p ON t.plan_id = p.id
