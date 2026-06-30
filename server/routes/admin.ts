@@ -50,6 +50,8 @@ router.post('/api/admin/users', async (req, res) => {
     const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [adminUserId, tenantId])).rows[0] as { role: string } | undefined;
     if (!admin || !isAdmin(admin.role)) return res.status(403).json({ error: 'Admin access required' });
     if (!email || !password || !name) return res.status(400).json({ error: 'Email, password and name are required' });
+    if (typeof password === 'string' && password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (role === 'Super Admin') return res.status(400).json({ error: 'Cannot create Super Admin from tenant settings' });
     if (role === 'Vendor' && !vendorId) return res.status(400).json({ error: 'Vendor role requires vendorId' });
 
     const existing = (await pool.query('SELECT id FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId])).rows[0];
@@ -92,6 +94,8 @@ router.put('/api/admin/users/:id', async (req, res) => {
 
     const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [adminUserId, tenantId])).rows[0] as { role: string } | undefined;
     if (!admin || !isAdmin(admin.role)) return res.status(403).json({ error: 'Admin access required' });
+    if (id === adminUserId) return res.status(400).json({ error: 'Cannot edit your own permissions' });
+    if (role === 'Super Admin') return res.status(400).json({ error: 'Cannot assign Super Admin role' });
 
     const updates: string[] = [];
     const params: unknown[] = [];
