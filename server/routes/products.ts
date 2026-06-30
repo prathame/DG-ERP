@@ -299,6 +299,9 @@ router.post('/api/products', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix, packSize, packName, hsnCode, gstRate, barcodePerBox } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Product name is required' });
+    const duplicate = (await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name.trim()])).rows[0];
+    if (duplicate) return res.status(400).json({ error: `Product "${name}" already exists` });
     const id = `P${Date.now()}`;
     let invStock = 0;
     const mode = barcodeMode ?? 'prefix';
@@ -455,6 +458,10 @@ router.put('/api/products/:id', async (req, res) => {
     const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, packSize, packName, hsnCode, gstRate } = req.body;
     const row = (await pool.query('SELECT * FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'Product not found' });
+    if (name) {
+      const dup = (await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) AND id != $3', [tenantId, name.trim(), id])).rows[0];
+      if (dup) return res.status(400).json({ error: `Product "${name}" already exists` });
+    }
     const newBarcode = barcode === undefined ? row.barcode : (barcode || null);
     await pool.query(`
       UPDATE products SET
