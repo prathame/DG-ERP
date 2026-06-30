@@ -51,18 +51,9 @@ router.post('/api/auth/login', async (req, res) => {
              t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status,
              t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
              t.trial_ends_at, t.subscription_ends_at, t.tab_config,
-             COALESCE(p.name, CASE
-               WHEN t.plan_id = 'TRIAL' OR t.status = 'trial' THEN 'Free Trial'
-               WHEN t.plan_id = 'BASIC' THEN 'Basic'
-               WHEN t.plan_id = 'STANDARD' THEN 'Standard'
-               WHEN t.plan_id = 'PROFESSIONAL' OR t.plan_id = 'PRO' THEN 'Professional'
-               WHEN t.plan_id = 'PREMIUM' THEN 'Premium'
-               WHEN t.plan_id = 'ENTERPRISE' THEN 'Enterprise'
-               ELSE COALESCE(t.plan_id, 'Standard')
-             END) as plan_name
+             t.plan_id
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
-      LEFT JOIN plans p ON t.plan_id = p.id
       WHERE LOWER(u.email) = LOWER($1)
     `, [email.trim()])).rows[0] as Record<string, unknown> | undefined;
 
@@ -126,7 +117,14 @@ router.post('/api/auth/login', async (req, res) => {
       barcodeSystemEnabled: row.barcode_system_enabled !== false,
       multiLanguageEnabled: row.multi_language_enabled !== false,
       inventoryTrackingEnabled: row.inventory_tracking_enabled !== false,
-      planName: row.plan_name ?? 'Standard',
+      planName: await (async () => {
+        const pid = row.plan_id as string | null;
+        if (!pid) return row.tenant_status === 'trial' ? 'Free Trial' : 'Standard';
+        const planRow = (await pool.query('SELECT name FROM plans WHERE id = $1', [pid])).rows[0] as { name: string } | undefined;
+        if (planRow) return planRow.name;
+        if (pid === 'TRIAL' || (row.tenant_status as string) === 'trial') return 'Free Trial';
+        return pid.charAt(0).toUpperCase() + pid.slice(1).toLowerCase();
+      })(),
       subscriptionEndsAt: row.subscription_ends_at ?? null,
       trialEndsAt: row.trial_ends_at ?? null,
       tabConfig: (() => {
