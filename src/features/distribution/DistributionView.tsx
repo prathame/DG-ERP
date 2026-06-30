@@ -138,14 +138,13 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
         gstRate: defaultGstRate,
         items: validRows.map((row) => {
           const rp = products.find(x => x.id === row.productId);
-          const ps = rp?.packSize ?? 1;
-          const qty = row.unitMode === 'pack' && ps > 1 ? row.quantity * ps : row.quantity;
+          const ps = rp?.packSize || 1;
           const isBoxMode = row.unitMode === 'pack' && ps > 1;
           const rawCustom = row.customPrice ? parseFloat(row.customPrice) : undefined;
           const perPieceCustom = isBoxMode && rawCustom ? Math.round(rawCustom / ps) : rawCustom;
           return {
             productId: row.productId,
-            quantity: qty,
+            quantity: row.quantity,
             discountPercent: row.discount > 0 ? row.discount : undefined,
             withGst: row.withGst,
             customPrice: perPieceCustom,
