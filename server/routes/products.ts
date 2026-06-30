@@ -291,7 +291,7 @@ router.post('/api/products', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix, packSize, packName, hsnCode, gstRate } = req.body;
+    const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix, packSize, packName, hsnCode, gstRate, barcodePerBox } = req.body;
     const id = `P${Date.now()}`;
     let invStock = 0;
     const mode = barcodeMode ?? 'prefix';
@@ -329,7 +329,9 @@ router.post('/api/products', async (req, res) => {
 
     if (mode === 'prefix') {
       const prefix = typeof barcodePrefix === 'string' ? barcodePrefix.trim() : '';
-      const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
+      const totalPcs = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
+      const pSz = Number(packSize) || 1;
+      const qty = barcodePerBox && pSz > 1 ? Math.ceil(totalPcs / pSz) : totalPcs;
       if (!prefix) return res.status(400).json({ error: 'Barcode prefix is required (e.g. SP, PUMP, etc.)' });
       const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, qty);
       await insertProductRow();
@@ -357,7 +359,9 @@ router.post('/api/products', async (req, res) => {
       'SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1',
       [tenantId, id]
     )).rows[0] as Record<string, unknown>;
-    res.status(201).json(mapProduct({ ...row, stock: invStock }));
+    const createdPSize = Number(packSize) || 1;
+    const finalStock = barcodePerBox && createdPSize > 1 ? invStock * createdPSize : invStock;
+    res.status(201).json(mapProduct({ ...row, stock: finalStock, remaining_inventory: finalStock }));
   } catch (err) {
     const errStr = String(err);
     if (errStr.includes('BARCODE_EXISTS:')) {
@@ -374,12 +378,14 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const { rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix } = req.body;
+    const { rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix, barcodePerBox, packSize: reqPackSize } = req.body;
     if (!quantity || Number(quantity) < 1) return res.status(400).json({ error: 'Quantity must be at least 1' });
-    const product = (await pool.query('SELECT id FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as { id: string } | undefined;
+    const product = (await pool.query('SELECT id, pack_size FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as { id: string; pack_size: number } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
     const mode = barcodeMode === 'auto' ? 'auto' : barcodeMode === 'range' ? 'range' : 'prefix';
-    const qty = Math.min(Math.max(1, Math.floor(Number(quantity))), 10000);
+    const totalPieces = Math.min(Math.max(1, Math.floor(Number(quantity))), 10000);
+    const pSize = Number(reqPackSize || product.pack_size) || 1;
+    const qty = barcodePerBox && pSize > 1 ? Math.ceil(totalPieces / pSize) : totalPieces;
     let barcodes: string[] = [];
 
     if (mode === 'prefix' || (mode !== 'auto' && mode !== 'range')) {
@@ -425,7 +431,8 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
       'SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1',
       [tenantId, id]
     )).rows[0] as Record<string, unknown>;
-    res.status(201).json(mapProduct({ ...row, stock: count.c }));
+    const stockCount = barcodePerBox && pSize > 1 ? Number(count.c) * pSize : Number(count.c);
+    res.status(201).json(mapProduct({ ...row, stock: stockCount, remaining_inventory: stockCount }));
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }

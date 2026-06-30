@@ -27,10 +27,10 @@ export function InventoryView() {
   const [barcodeSearch, setBarcodeSearch] = useState('');
   const debouncedBarcodeSearch = useDebounce(barcodeSearch, 250);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece' });
+  const [addForm, setAddForm] = useState({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece', pricePerBox: true, barcodePerBox: true });
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [addStockModal, setAddStockModal] = useState<Product | null>(null);
-  const [addStockForm, setAddStockForm] = useState({ quantity: 10, packs: 0, loosePieces: 0 });
+  const [addStockForm, setAddStockForm] = useState({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
   const [barcodeDetailsModal, setBarcodeDetailsModal] = useState<{ product: Product; batches: { date: string; barcodeFirst: string; barcodeLast: string; count: number }[] } | null>(null);
   useEscapeKey(() => {
     if (productToDelete) setProductToDelete(null);
@@ -201,7 +201,7 @@ export function InventoryView() {
                           <button onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-brand hover:bg-orange-50 rounded-lg" title="Barcode Details">
                             <Barcode size={16} />
                           </button>
-                          {inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
+                          {inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
                             <Plus size={16} />
                           </button>}
                           <button onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
@@ -239,7 +239,7 @@ export function InventoryView() {
                     <button onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-brand hover:bg-orange-50 rounded-lg" title="Barcode Details">
                       <Barcode size={16} />
                     </button>
-                    {inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
+                    {inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
                       <Plus size={16} />
                     </button>}
                     <button onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
@@ -276,12 +276,13 @@ export function InventoryView() {
                     rewardPointsValue: addForm.rewardPointsValue,
                     warrantyApplicable: addForm.warrantyApplicable,
                     warrantyMonths: addForm.warrantyApplicable ? addForm.warrantyMonths : 0,
-                    price: addForm.price,
+                    price: addForm.packSize > 1 && addForm.pricePerBox ? Math.round(addForm.price / addForm.packSize) : addForm.price,
                     packSize: addForm.packSize > 1 ? addForm.packSize : undefined,
                     packName: addForm.packSize > 1 ? addForm.packName : undefined,
+                    barcodePerBox: addForm.packSize > 1 ? addForm.barcodePerBox : undefined,
                   });
                   setAddModalOpen(false);
-                  setAddForm({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece' });
+                  setAddForm({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece', pricePerBox: true, barcodePerBox: true });
                   api.products.list(debouncedBarcodeSearch || undefined).then(setProducts);
                   toast('Product added successfully', 'success');
                 } catch (err) { toast((err as Error).message, 'error'); }
@@ -321,8 +322,28 @@ export function InventoryView() {
                       </div>
                       <p className="text-xs text-emerald-600 font-medium mt-1">= {(addForm.packs * addForm.packSize) + addForm.loosePieces} pieces total</p>
                     </div>
-                    {inventoryTrackingEnabled && <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">Barcodes: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}{String((addForm.packs * addForm.packSize) + addForm.loosePieces || 1).padStart(3, '0')}</span></p>}
-                    <div><label className="text-xs font-bold text-gray-400 uppercase">Price (₹ per Box)</label><input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                    {inventoryTrackingEnabled && <>
+                      <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">Barcodes: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}{String((addForm.barcodePerBox ? addForm.packs : (addForm.packs * addForm.packSize) + addForm.loosePieces) || 1).padStart(3, '0')}</span></p>
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase">Barcode on</label>
+                        <div className="flex gap-2 mt-1">
+                          <button type="button" onClick={() => setAddForm({ ...addForm, barcodePerBox: true })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold transition-all", addForm.barcodePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>📦 Each Box</button>
+                          <button type="button" onClick={() => setAddForm({ ...addForm, barcodePerBox: false })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold transition-all", !addForm.barcodePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>🔲 Each Piece</button>
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1">{addForm.barcodePerBox ? `${addForm.packs || 0} barcode labels (1 per box)` : `${(addForm.packs * addForm.packSize) + addForm.loosePieces} barcode labels (1 per piece)`}</p>
+                      </div>
+                    </>}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Price (₹)</label>
+                        <div className="flex gap-1">
+                          <button type="button" onClick={() => setAddForm({ ...addForm, pricePerBox: true })} className={cn("px-2 py-0.5 rounded-md text-[10px] font-bold", addForm.pricePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-500")}>Per Box</button>
+                          <button type="button" onClick={() => setAddForm({ ...addForm, pricePerBox: false })} className={cn("px-2 py-0.5 rounded-md text-[10px] font-bold", !addForm.pricePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-500")}>Per Piece</button>
+                        </div>
+                      </div>
+                      <input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder={addForm.pricePerBox ? 'Box price' : 'Piece price'} />
+                      {addForm.price > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{addForm.pricePerBox ? `= ₹${Math.round(addForm.price / addForm.packSize)} per piece` : `= ₹${addForm.price * addForm.packSize} per box`}</p>}
+                    </div>
                   </>
                 ) : (
                   <>
@@ -363,7 +384,7 @@ export function InventoryView() {
                 if (!stockQty || stockQty < 1) { toast('Enter quantity', 'error'); return; }
                 setAddSubmitting(true);
                 try {
-                  await api.products.addStock(addStockModal.id, { quantity: stockQty, barcodeMode: 'prefix' });
+                  await api.products.addStock(addStockModal.id, { quantity: stockQty, barcodeMode: 'prefix', barcodePerBox: hasPack && addStockForm.barcodePerBox, packSize: addStockModal.packSize });
                   setAddStockModal(null);
                   api.products.list(debouncedBarcodeSearch || undefined).then(setProducts);
                   toast('Stock added successfully', 'success');
@@ -379,6 +400,14 @@ export function InventoryView() {
                       <div className="flex-1"><input type="number" min={0} max={10000} value={addStockForm.loosePieces || ''} onChange={(e) => setAddStockForm({ ...addStockForm, loosePieces: parseInt(e.target.value) || 0 })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="0" /><p className="text-[10px] text-gray-400 mt-0.5 text-center">Loose Pieces</p></div>
                     </div>
                     <p className="text-xs text-emerald-600 font-medium mt-1">= {(addStockForm.packs * (addStockModal.packSize ?? 1)) + addStockForm.loosePieces} pieces total</p>
+                    <div className="mt-3">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Barcode on</label>
+                      <div className="flex gap-2 mt-1">
+                        <button type="button" onClick={() => setAddStockForm({ ...addStockForm, barcodePerBox: true })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold transition-all", addStockForm.barcodePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>📦 Each {addStockModal.packName ?? 'Box'}</button>
+                        <button type="button" onClick={() => setAddStockForm({ ...addStockForm, barcodePerBox: false })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold transition-all", !addStockForm.barcodePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>🔲 Each Piece</button>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1">{addStockForm.barcodePerBox ? `${addStockForm.packs || 0} barcode labels (1 per ${addStockModal.packName ?? 'box'})` : `${(addStockForm.packs * (addStockModal.packSize ?? 1)) + addStockForm.loosePieces} barcode labels (1 per piece)`}</p>
+                    </div>
                   </div>
                 ) : (
                   <div><label className="text-xs font-bold text-gray-400 uppercase">Quantity to add</label><input type="number" required min={1} max={10000} value={addStockForm.quantity || ''} onChange={(e) => setAddStockForm({ ...addStockForm, quantity: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
