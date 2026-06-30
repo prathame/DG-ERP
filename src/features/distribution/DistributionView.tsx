@@ -540,10 +540,10 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                   <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
                     <th className="px-3 py-3 w-8">#</th>
                     <th className="px-3 py-3">Product</th>
-                    <th className="px-3 py-3 w-20">Qty</th>
-                    <th className="px-3 py-3 w-24">Price</th>
-                    <th className="px-3 py-3 w-16">Disc%</th>
-                    <th className="px-3 py-3 w-12 text-center">GST</th>
+                    <th className="px-3 py-3 w-24">Qty</th>
+                    <th className="px-3 py-3 w-28">Price</th>
+                    <th className="px-3 py-3 w-24">Disc%</th>
+                    <th className="px-3 py-3 w-14 text-center">GST</th>
                     <th className="px-3 py-3 w-28 text-right">Billed</th>
                     <th className="px-3 py-3 w-10"></th>
                   </tr></thead>
@@ -575,13 +575,13 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-1">
-                              <input type="number" min={1} max={row.unitMode === 'pack' && hasPack ? Math.floor((p?.stock ?? 9999) / packSz) : (p?.stock ?? 9999)} value={row.quantity || ''} onChange={(e) => updateDistRow(idx, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
+                              <input type="text" inputMode="numeric" pattern="[0-9]*" value={row.quantity || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); updateDistRow(idx, 'quantity', v === '' ? 0 : parseInt(v, 10)); }} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
                               {hasPack && <select value={row.unitMode} onChange={(e) => updateDistRow(idx, 'unitMode', e.target.value)} className="px-1 py-1.5 border border-gray-200 rounded-lg text-[10px] font-bold text-gray-500"><option value="piece">Pc</option><option value="pack">{p?.packName}</option></select>}
                             </div>
                             {hasPack && row.unitMode === 'pack' && <span className="text-[10px] text-gray-400">= {actualPieces} pcs</span>}
                           </td>
-                          <td className="px-3 py-2"><input type="number" min={0} step={0.01} value={row.customPrice} onChange={(e) => updateDistRow(idx, 'customPrice', e.target.value)} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-2 py-1.5 border rounded-lg text-sm text-center focus:ring-2 focus:ring-brand", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
-                          <td className="px-3 py-2"><input type="number" min={0} max={100} step={0.5} value={row.discount || ''} onChange={(e) => updateDistRow(idx, 'discount', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
+                          <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-3 py-2 border rounded-lg text-sm text-center focus:ring-2 focus:ring-brand", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
+                          <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.discount || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'discount', v === '' ? 0 : parseFloat(v)); }} placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
                           <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-brand" /></td>
                           <td className="px-3 py-2 text-right text-sm font-bold">{billed > 0 ? <span>{row.withGst && <span className="text-[10px] text-gray-400 block">₹{net.toLocaleString()} +GST</span>}₹{billed.toLocaleString()}</span> : '-'}</td>
                           <td className="px-3 py-2">{distRows.length > 1 && <button type="button" onClick={() => removeDistRow(idx)} className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded">×</button>}</td>
@@ -788,9 +788,9 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                 <table className="w-full text-left">
                   <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
                     <th className="px-3 py-3">Product</th>
-                    <th className="px-3 py-3 w-20">Qty</th>
-                    <th className="px-3 py-3 w-16">Disc%</th>
-                    <th className="px-3 py-3 w-12 text-center">GST</th>
+                    <th className="px-3 py-3 w-24">Qty</th>
+                    <th className="px-3 py-3 w-24">Disc%</th>
+                    <th className="px-3 py-3 w-14 text-center">GST</th>
                     <th className="px-3 py-3 w-10"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100">
@@ -806,17 +806,17 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                         </td>
                         <td className="px-3 py-2">
                           <input
-                            type="number"
-                            min={row.isNew ? 1 : row.minQuantity}
-                            max={row.isNew ? (row.availableStock || 1) : (row.minQuantity + row.availableStock)}
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             value={row.quantity || ''}
-                            onChange={(e) => updateEditRow(idx, 'quantity', e.target.value === '' ? 0 : parseInt(e.target.value, 10))}
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
+                            onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); updateEditRow(idx, 'quantity', v === '' ? 0 : parseInt(v, 10)); }}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
                           />
                           {!row.isNew && row.minQuantity > 0 && <p className="text-[10px] text-gray-400 mt-0.5">min {row.minQuantity}</p>}
                         </td>
                         <td className="px-3 py-2">
-                          <input type="number" min={0} max={100} step={0.5} value={row.discount || ''} onChange={(e) => updateEditRow(idx, 'discount', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
+                          <input type="text" inputMode="decimal" value={row.discount || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateEditRow(idx, 'discount', v === '' ? 0 : parseFloat(v)); }} placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
                         </td>
                         <td className="px-3 py-2 text-center">
                           <input type="checkbox" checked={row.withGst} onChange={(e) => updateEditRow(idx, 'withGst', e.target.checked)} className="rounded text-brand" />
