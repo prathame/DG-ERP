@@ -43,7 +43,7 @@ export async function provisionTenant(data: {
     await client.query(
       `INSERT INTO users (id, tenant_id, email, password_hash, name, phone, address, role, company_name)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [userId, tenantId, data.adminEmail, passwordHash, data.adminName, data.phone || null, data.address || null, 'Super Admin', data.companyName]
+      [userId, tenantId, data.adminEmail, passwordHash, data.adminName, data.phone || null, data.address || null, 'Admin', data.companyName]
     );
 
     await client.query(

@@ -520,6 +520,9 @@ export async function initSchema() {
       )
     `);
 
+    // Fix: tenant users should be 'Admin' not 'Super Admin' (Super Admin is platform-level only)
+    await client.query("UPDATE users SET role = 'Admin' WHERE role = 'Super Admin' AND tenant_id IS NOT NULL");
+
     // UNIQUE constraints — prevent duplicates at DB level
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_users_tenant_email ON users(tenant_id, LOWER(email))');
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_products_tenant_name ON products(tenant_id, LOWER(name))');
