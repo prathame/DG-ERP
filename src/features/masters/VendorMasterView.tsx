@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Plus, Pencil, Trash2, ArrowLeft, CheckCircle2, AlertTriangle, MessageCircle, Mail, Download } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, ArrowLeft, CheckCircle2, AlertTriangle, MessageCircle, Mail, Download, Upload } from 'lucide-react';
 import { cn, exportToCsv, shareViaWhatsApp } from '../../lib/utils';
 import { api } from '../../api';
 import type { Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
+import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
 
@@ -20,6 +21,7 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
   const [credsModal, setCredsModal] = useState<{ vendorName: string; email: string; password: string; phone?: string } | null>(null);
   const [form, setForm] = useState({ name: '', contactPerson: '', phone: '', email: '', address: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
 
   const load = () => {
     api.vendors.list(debouncedSearch || undefined).then(setList).catch(() => setList([])).finally(() => setLoading(false));
@@ -68,6 +70,7 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
           <button type="button" onClick={() => list.length && exportToCsv(list.map((v) => ({ id: v.id, name: v.name, contactPerson: v.contactPerson ?? '', phone: v.phone ?? '', email: v.email ?? '', address: v.address ?? '', totalSales: v.totalSales ?? 0, totalRewardPoints: v.totalRewardPoints ?? 0 })), 'vendors')} disabled={!list.length} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={18} /> Export CSV
           </button>
+          <button type="button" onClick={() => setCsvImportOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"><Upload size={18} /> Import CSV</button>
           <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add Vendor</button>
         </div>
       </div>
@@ -186,6 +189,32 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
           </div>
         )}
       </AnimatePresence>
+      {csvImportOpen && (
+        <CsvImport
+          templateName="vendors"
+          columns={[
+            { key: 'name', label: 'Vendor Name', required: true },
+            { key: 'contactPerson', label: 'Contact Person' },
+            { key: 'phone', label: 'Phone' },
+            { key: 'email', label: 'Email' },
+            { key: 'address', label: 'Address' },
+            { key: 'gstNumber', label: 'GST Number' },
+          ]}
+          onClose={() => { setCsvImportOpen(false); api.vendors.list().then(setList).catch(() => {}); }}
+          onImport={async (rows) => {
+            let success = 0;
+            const errors: string[] = [];
+            for (let i = 0; i < rows.length; i++) {
+              const r = rows[i];
+              try {
+                await api.vendors.create({ name: r.name, contactPerson: r.contactPerson || undefined, phone: r.phone || undefined, email: r.email || undefined, address: r.address || undefined });
+                success++;
+              } catch (err) { errors.push(`Row ${i + 1} (${r.name}): ${(err as Error).message}`); }
+            }
+            return { success, errors };
+          }}
+        />
+      )}
     </motion.div>
   );
 }
