@@ -144,12 +144,15 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   });
 
   if (res.status === 401) {
-    const slug = session.getSlug();
-    const pathSlug = window.location.pathname.match(/^\/([a-z0-9][a-z0-9-]*)/i)?.[1];
-    session.clearAll();
-    const redirectSlug = slug || pathSlug;
-    window.location.href = redirectSlug ? `/${redirectSlug}` : '/';
-    return new Promise(() => {}) as T;
+    const isAuthEndpoint = path.startsWith('/auth/login') || path.startsWith('/auth/signup') || path.startsWith('/auth/reset') || path.startsWith('/auth/forgot') || path.startsWith('/super-admin/login');
+    if (!isAuthEndpoint && session.getToken()) {
+      const slug = session.getSlug();
+      const pathSlug = window.location.pathname.match(/^\/([a-z0-9][a-z0-9-]*)/i)?.[1];
+      session.clearAll();
+      const redirectSlug = slug || pathSlug;
+      window.location.href = redirectSlug ? `/${redirectSlug}` : '/';
+      return new Promise(() => {}) as T;
+    }
   }
   if (res.status === 403) {
     const err = await res.json().catch(() => ({}));
