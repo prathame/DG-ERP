@@ -6,7 +6,7 @@ import { api } from '../../api';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { session } from '../../lib/session';
 
-export function VendorFinanceView({ user }: { user: { id: string; role?: string; vendorId?: string | null } | null }) {
+export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: string; role?: string; vendorId?: string | null } | null; accessLevel?: 'hidden' | 'view' | 'print' | 'full' }) {
   const { toast } = useToast();
   const isAdmin = ['Admin', 'Super Admin'].includes(user?.role ?? '');
   const isVendor = user?.role === 'Vendor' && user?.vendorId;

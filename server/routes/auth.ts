@@ -108,7 +108,15 @@ router.post('/api/auth/login', async (req, res) => {
       phone: row.phone,
       address: row.address,
       role: row.role,
-      permissions: typeof row.permissions === 'string' ? JSON.parse(row.permissions) : (row.permissions ?? null),
+      permissions: (() => {
+        const raw = typeof row.permissions === 'string' ? JSON.parse(row.permissions) : row.permissions;
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
+        if (Array.isArray(raw)) {
+          const ALL = ['dashboard','sales','distribution','inventory','purchases','quotations','orders','finance','accounts','settings'];
+          return Object.fromEntries(ALL.map(m => [m, raw.includes(m) ? 'full' : 'hidden']));
+        }
+        return null;
+      })(),
       vendorId: row.vendor_id ?? null,
       autoWhatsapp: !!(row.auto_whatsapp),
       defaultGstRate: Number(row.default_gst_rate) || 18,

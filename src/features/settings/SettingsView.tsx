@@ -210,12 +210,25 @@ const PERMISSION_LABELS: { id: string; label: string }[] = [
   { id: 'sales', label: 'Sales Entry' },
   { id: 'distribution', label: 'Distribution' },
   { id: 'inventory', label: 'Inventory' },
+  { id: 'purchases', label: 'Purchases' },
+  { id: 'quotations', label: 'Quotes & Orders' },
+  { id: 'finance', label: 'Finance' },
+  { id: 'accounts', label: 'Accounts' },
   { id: 'warranty', label: 'Warranty' },
   { id: 'replacements', label: 'Replacements' },
   { id: 'rewards', label: 'Rewards' },
   { id: 'settings', label: 'Settings' },
-  { id: 'user_management', label: 'User Management' },
 ];
+
+const ROLE_PRESETS: Record<string, Record<string, string>> = {
+  Admin: Object.fromEntries(PERMISSION_LABELS.map(p => [p.id, 'full'])),
+  Manager: Object.fromEntries(PERMISSION_LABELS.map(p => [p.id, p.id === 'settings' ? 'view' : 'full'])),
+  Staff: Object.fromEntries(PERMISSION_LABELS.map(p => [p.id, 'view'])),
+  Warehouse: { dashboard: 'view', sales: 'hidden', distribution: 'print', inventory: 'view', purchases: 'hidden', quotations: 'hidden', finance: 'hidden', accounts: 'hidden', warranty: 'hidden', replacements: 'hidden', rewards: 'hidden', settings: 'hidden' },
+  Vendor: { dashboard: 'view', sales: 'hidden', distribution: 'view', inventory: 'hidden', purchases: 'hidden', quotations: 'hidden', finance: 'view', accounts: 'hidden', warranty: 'hidden', replacements: 'hidden', rewards: 'hidden', settings: 'hidden' },
+};
+
+const ACCESS_LEVELS = ['hidden', 'view', 'print', 'full'] as const;
 
 export function SettingsView({ user, onUserChange }: { user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; autoWhatsapp?: boolean } | null; onUserChange: (u: typeof user) => void }) {
   const { toast } = useToast();
@@ -231,9 +244,9 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
   const [usersLoading, setUsersLoading] = useState(false);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [editUserTarget, setEditUserTarget] = useState<{ id: string; email: string; name: string; role?: string; permissions?: string[] | null; vendorId?: string | null } | null>(null);
-  const [addUserForm, setAddUserForm] = useState({ email: '', password: '', name: '', role: 'Staff', permissions: [] as string[], vendorId: '' });
+  const [addUserForm, setAddUserForm] = useState({ email: '', password: '', name: '', role: 'Staff', permissions: { ...ROLE_PRESETS.Staff } as Record<string, string>, vendorId: '' });
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [editUserForm, setEditUserForm] = useState({ role: '', permissions: [] as string[], vendorId: '' });
+  const [editUserForm, setEditUserForm] = useState({ role: '', permissions: {} as Record<string, string>, vendorId: '' });
   const [userSubmitting, setUserSubmitting] = useState(false);
 
   useEffect(() => {
@@ -329,9 +342,9 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
     if (addUserForm.role === 'Vendor' && !addUserForm.vendorId) { toast('Select vendor for Vendor role', 'error'); return; }
     setUserSubmitting(true);
     try {
-      await api.admin.createUser(user.id, { ...addUserForm, permissions: addUserForm.permissions.length ? addUserForm.permissions : undefined, vendorId: addUserForm.role === 'Vendor' ? addUserForm.vendorId : undefined });
+      await api.admin.createUser(user.id, { ...addUserForm, permissions: addUserForm.permissions, vendorId: addUserForm.role === 'Vendor' ? addUserForm.vendorId : undefined });
       setAddUserOpen(false);
-      setAddUserForm({ email: '', password: '', name: '', role: 'Staff', permissions: [], vendorId: '' });
+      setAddUserForm({ email: '', password: '', name: '', role: 'Staff', permissions: { ...ROLE_PRESETS.Staff }, vendorId: '' });
       api.admin.listUsers(user.id).then(setUsers);
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to create user', 'error');
@@ -356,10 +369,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
     }
   };
 
-  const togglePermission = (permissions: string[], id: string) => {
-    const has = permissions.includes(id);
-    return has ? permissions.filter((p) => p !== id) : [...permissions, id];
-  };
+
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
@@ -629,7 +639,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                             <td className="px-4 py-3 text-sm text-gray-600">{u.email}</td>
                             <td className="px-4 py-3"><span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{u.role ?? 'Staff'}</span></td>
                             <td className="px-4 py-3">
-                              {u.id === user?.id ? <span className="text-xs text-gray-400">You</span> : <button type="button" onClick={() => { setEditUserTarget(u); setEditUserForm({ role: u.role ?? 'Staff', permissions: u.permissions ?? [], vendorId: (u as Record<string, unknown>).vendorId as string ?? '' }); }} className="text-sm font-bold text-brand hover:underline flex items-center gap-1"><Shield size={14} /> Permissions</button>}
+                              {u.id === user?.id ? <span className="text-xs text-gray-400">You</span> : <button type="button" onClick={() => { setEditUserTarget(u); setEditUserForm({ role: u.role ?? 'Staff', permissions: (u.permissions && typeof u.permissions === 'object' && !Array.isArray(u.permissions) ? u.permissions : ROLE_PRESETS[u.role ?? 'Staff'] || ROLE_PRESETS.Staff) as Record<string, string>, vendorId: (u as Record<string, unknown>).vendorId as string ?? '' }); }} className="text-sm font-bold text-brand hover:underline flex items-center gap-1"><Shield size={14} /> Permissions</button>}
                             </td>
                           </tr>
                         ))}
@@ -655,11 +665,36 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                   <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Name</label><input required value={addUserForm.name} onChange={(e) => setAddUserForm({ ...addUserForm, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" /></div>
                   <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" required value={addUserForm.email} onChange={(e) => setAddUserForm({ ...addUserForm, email: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" /></div>
                   <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><input type="password" required minLength={8} value={addUserForm.password} onChange={(e) => setAddUserForm({ ...addUserForm, password: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="Min 8 characters" />{addUserForm.password && addUserForm.password.length < 8 && <p className="text-[10px] text-rose-500 mt-0.5">Password must be at least 8 characters</p>}</div>
-                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Role</label><select value={addUserForm.role} onChange={(e) => setAddUserForm({ ...addUserForm, role: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option>Admin</option><option>Manager</option><option>Staff</option><option>Vendor</option></select></div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Role (preset)</label><select value={addUserForm.role} onChange={(e) => { const r = e.target.value; setAddUserForm({ ...addUserForm, role: r, permissions: { ...(ROLE_PRESETS[r] || ROLE_PRESETS.Staff) } }); }} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option>Admin</option><option>Manager</option><option>Staff</option><option>Warehouse</option><option>Vendor</option></select></div>
                   {addUserForm.role === 'Vendor' && (
                     <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vendor (required)</label><select required value={addUserForm.vendorId} onChange={(e) => setAddUserForm({ ...addUserForm, vendorId: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option value="">Select vendor</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
                   )}
-                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Permissions (optional - leave empty for role defaults)</label><div className="grid grid-cols-2 gap-2 mt-2">{PERMISSION_LABELS.map((p) => (<label key={p.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={addUserForm.permissions.includes(p.id)} onChange={() => setAddUserForm({ ...addUserForm, permissions: togglePermission(addUserForm.permissions, p.id) })} className="rounded" /><span>{p.label}</span></label>))}</div></div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-2">Tab Permissions</label>
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase">
+                          <th className="text-left px-3 py-2">Module</th>
+                          <th className="text-center px-2 py-2">Hidden</th>
+                          <th className="text-center px-2 py-2">View</th>
+                          <th className="text-center px-2 py-2">Print</th>
+                          <th className="text-center px-2 py-2">Full</th>
+                        </tr></thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {PERMISSION_LABELS.map(p => (
+                            <tr key={p.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-1.5 text-sm">{p.label}</td>
+                              {ACCESS_LEVELS.map(level => (
+                                <td key={level} className="text-center px-2 py-1.5">
+                                  <input type="radio" name={`perm-add-${p.id}`} checked={(addUserForm.permissions[p.id] || 'hidden') === level} onChange={() => setAddUserForm({ ...addUserForm, permissions: { ...addUserForm.permissions, [p.id]: level } })} className="text-brand" />
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                   <div className="flex gap-2 pt-2"><button type="button" onClick={() => setAddUserOpen(false)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={userSubmitting} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">{userSubmitting ? 'Creating...' : 'Create User'}</button></div>
                 </form>
               </div>
@@ -673,11 +708,36 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
               <div className="p-6">
                 <h3 className="text-xl font-bold mb-4">Edit Permissions: {editUserTarget.name}</h3>
                 <form onSubmit={handleEditUser} className="space-y-4">
-                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Role</label><select value={editUserForm.role} onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option>Admin</option><option>Manager</option><option>Staff</option><option>Vendor</option></select></div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Role (preset)</label><select value={editUserForm.role} onChange={(e) => { const r = e.target.value; setEditUserForm({ ...editUserForm, role: r, permissions: { ...(ROLE_PRESETS[r] || ROLE_PRESETS.Staff) } }); }} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option>Admin</option><option>Manager</option><option>Staff</option><option>Warehouse</option><option>Vendor</option></select></div>
                   {editUserForm.role === 'Vendor' && (
                     <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vendor (required)</label><select required value={editUserForm.vendorId} onChange={(e) => setEditUserForm({ ...editUserForm, vendorId: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option value="">Select vendor</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
                   )}
-                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Permissions</label><div className="grid grid-cols-2 gap-2 mt-2">{PERMISSION_LABELS.map((p) => (<label key={p.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editUserForm.permissions.includes(p.id)} onChange={() => setEditUserForm({ ...editUserForm, permissions: togglePermission(editUserForm.permissions, p.id) })} className="rounded" /><span>{p.label}</span></label>))}</div></div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-2">Tab Permissions</label>
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase">
+                          <th className="text-left px-3 py-2">Module</th>
+                          <th className="text-center px-2 py-2">Hidden</th>
+                          <th className="text-center px-2 py-2">View</th>
+                          <th className="text-center px-2 py-2">Print</th>
+                          <th className="text-center px-2 py-2">Full</th>
+                        </tr></thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {PERMISSION_LABELS.map(p => (
+                            <tr key={p.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-1.5 text-sm">{p.label}</td>
+                              {ACCESS_LEVELS.map(level => (
+                                <td key={level} className="text-center px-2 py-1.5">
+                                  <input type="radio" name={`perm-edit-${p.id}`} checked={(editUserForm.permissions[p.id] || 'hidden') === level} onChange={() => setEditUserForm({ ...editUserForm, permissions: { ...editUserForm.permissions, [p.id]: level } })} className="text-brand" />
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                   <div className="flex gap-2 pt-2"><button type="button" onClick={() => setEditUserTarget(null)} className="flex-1 py-2 border rounded-lg font-medium">Cancel</button><button type="submit" disabled={userSubmitting} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">{userSubmitting ? 'Saving...' : 'Save'}</button></div>
                 </form>
               </div>

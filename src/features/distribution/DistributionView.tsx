@@ -9,8 +9,10 @@ import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 
-export function DistributionView({ user }: { user: { id: string; role?: string; vendorId?: string } | null }) {
+export function DistributionView({ user, accessLevel = 'full' }: { user: { id: string; role?: string; vendorId?: string } | null; accessLevel?: 'hidden' | 'view' | 'print' | 'full' }) {
   const { toast } = useToast();
+  const canEdit = accessLevel === 'full';
+  const canPrint = accessLevel === 'print' || accessLevel === 'full';
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
   const isVendorUser = !!vendorId;
   const [distributions, setDistributions] = useState<DistributionRecord[]>([]);
@@ -208,7 +210,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
           <button type="button" onClick={() => distributions.length && exportToCsv(distributions.map((d) => ({ id: d.id, barcode: d.barcode, productName: d.productName, vendorName: d.vendorName, distributionDate: d.distributionDate, status: d.status })), 'distribution')} disabled={!distributions.length} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={18} /> Export CSV
           </button>
-          {!vendorId && (
+          {!vendorId && canEdit && (
             <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold">
               <Plus size={18} /> Distribute to Vendor
             </button>
@@ -351,7 +353,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     {!selectedBatchProductId && (
                       <span className="text-xs text-gray-500">Distribution — {formatDate(selectedBatch.distributionDate)}</span>
                     )}
-                    {!isVendorUser && !selectedBatchProductId && selectedBatch.balanceRemaining > 0 && (
+                    {!isVendorUser && canEdit && !selectedBatchProductId && selectedBatch.balanceRemaining > 0 && (
                       <button
                         type="button"
                         onClick={() => {
@@ -364,7 +366,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                         <IndianRupee size={16} /> Record Payment
                       </button>
                     )}
-                    {!isVendorUser && (
+                    {!isVendorUser && canEdit && (
                     <button
                       type="button"
                       onClick={() => openEdit(selectedBatch)}

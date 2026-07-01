@@ -9,7 +9,7 @@ type AccountTab = 'pnl' | 'balance' | 'cashflow' | 'ledger' | 'daybook' | 'notes
 
 function fmtCurrency(n: number) { return `₹${Math.abs(n).toLocaleString('en-IN')}${n < 0 ? ' (Cr)' : ''}`; }
 
-export function AccountsView() {
+export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const { toast } = useToast();
   const [tab, setTab] = useState<AccountTab>('pnl');
   const now = new Date();

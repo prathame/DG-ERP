@@ -961,6 +961,27 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
   }
 });
 
+// Mark batch as dispatched/delivered
+router.put('/api/distribution/batch/:batchId/dispatch', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { batchId } = req.params;
+    const { status } = req.body;
+    if (!['dispatched', 'delivered'].includes(status)) return res.status(400).json({ error: 'Status must be dispatched or delivered' });
+    const jwtUser = (req as unknown as Record<string, unknown>).user as { userId?: string; name?: string } | undefined;
+    const result = await pool.query(
+      'UPDATE product_distribution SET dispatch_status = $1, dispatched_by = $2, dispatched_at = NOW() WHERE batch_id = $3 AND tenant_id = $4',
+      [status, jwtUser?.name || jwtUser?.userId || 'Unknown', batchId, tenantId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Batch not found' });
+    await logAudit(pool, tenantId, `Batch ${status}`, 'distribution', batchId, `Marked as ${status} by ${jwtUser?.name || 'user'}`, jwtUser?.userId);
+    res.json({ ok: true, status, batchId });
+  } catch (err) {
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Delete entire distribution batch (only if nothing sold/replaced/damaged)
 router.delete('/api/distribution/batch/:batchId', async (req, res) => {
   try {

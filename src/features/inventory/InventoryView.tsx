@@ -11,7 +11,9 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
 
-export function InventoryView() {
+export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
+  const canEdit = accessLevel === 'full';
+  const canPrint = accessLevel === 'print' || accessLevel === 'full';
   const { toast } = useToast();
   const barcodeSystemEnabled = (() => { try { const u = (session.getUser() || {}); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
   const inventoryTrackingEnabled = (() => { try { const u = (session.getUser() || {}); return u.inventoryTrackingEnabled !== false; } catch { return true; } })();
@@ -103,12 +105,12 @@ export function InventoryView() {
               autoComplete="off"
             />
           </div>
-          <button type="button" onClick={() => setCsvImportOpen(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50">
+          {canEdit && <button type="button" onClick={() => setCsvImportOpen(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50">
             <Upload size={18} /> Import CSV
-          </button>
-          <button type="button" onClick={() => setAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20">
+          </button>}
+          {canEdit && <button type="button" onClick={() => setAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20">
             <Plus size={18} /> Add Product
-          </button>
+          </button>}
         </div>
       </div>
 

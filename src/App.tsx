@@ -177,19 +177,28 @@ export default function App() {
   ];
   const navItems = allNavItems.filter(item => item.show);
 
-  const canAccess = (tabId: string) => {
-    const u = user as { permissions?: string[] | null; role?: string } | null;
-    if (!u) return false;
-    if (u.permissions && Array.isArray(u.permissions)) {
-      if (tabId === 'settings') return u.permissions.includes('settings') || u.permissions.includes('user_management');
-      return u.permissions.includes(tabId);
+  type AccessLevel = 'hidden' | 'view' | 'print' | 'full';
+  const getAccess = (tabId: string): AccessLevel => {
+    const u = userConfig as Record<string, unknown> | null;
+    if (!u) return 'hidden';
+    const perms = u.permissions as Record<string, string> | string[] | null;
+    // Object format (new): { dashboard: "full", inventory: "view" }
+    if (perms && typeof perms === 'object' && !Array.isArray(perms)) {
+      const level = perms[tabId] as string;
+      if (level === 'full' || level === 'print' || level === 'view' || level === 'hidden') return level;
+      return 'hidden';
     }
-    if (['Super Admin', 'Admin'].includes(u.role ?? '')) return true;
-    if (u.role === 'Vendor') return ['dashboard', 'sales', 'distribution', 'warranty', 'replacements', 'rewards', 'finance', 'settings'].includes(tabId);
-    if (u.role === 'Manager') return ['dashboard', 'sales', 'distribution', 'inventory', 'warranty', 'replacements', 'rewards', 'settings'].includes(tabId);
-    if (u.role === 'Staff') return ['dashboard', 'sales', 'inventory', 'warranty', 'replacements'].includes(tabId);
-    return true;
+    // Array format (old): ["dashboard", "distribution"]
+    if (Array.isArray(perms)) return perms.includes(tabId) ? 'full' : 'hidden';
+    // No permissions — role defaults
+    const role = u.role as string ?? '';
+    if (['Super Admin', 'Admin'].includes(role)) return 'full';
+    if (role === 'Manager') return tabId === 'settings' ? 'view' : 'full';
+    if (role === 'Staff') return 'view';
+    if (role === 'Vendor') return ['dashboard', 'distribution', 'finance'].includes(tabId) ? 'view' : 'hidden';
+    return 'full';
   };
+  const canAccess = (tabId: string) => getAccess(tabId) !== 'hidden';
   const visibleNavItems = navItems.filter((item) => canAccess(item.id));
 
   // Static pages
@@ -409,16 +418,16 @@ export default function App() {
           <div key={tabKey}>
           {activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} />}
           {activeTab === 'sales' && <SalesEntryView user={user} />}
-          {activeTab === 'purchases' && <PurchasesView />}
-          {activeTab === 'distribution' && <DistributionView user={user} />}
+          {activeTab === 'purchases' && <PurchasesView accessLevel={getAccess('purchases')} />}
+          {activeTab === 'distribution' && <DistributionView user={user} accessLevel={getAccess('distribution')} />}
           {activeTab === 'warranty' && <WarrantyView user={user} />}
           {activeTab === 'replacements' && <ReplacementsView user={user} />}
           {activeTab === 'rewards' && <RewardsView user={user} />}
-          {activeTab === 'inventory' && <InventoryView />}
+          {activeTab === 'inventory' && <InventoryView accessLevel={getAccess('inventory')} />}
           {activeTab === 'verification' && <ProductVerificationView />}
           {activeTab === 'quotations' && <QuotationsAndOrdersView />}
-          {activeTab === 'finance' && <VendorFinanceView user={user} />}
-          {activeTab === 'accounts' && <AccountsView />}
+          {activeTab === 'finance' && <VendorFinanceView user={user} accessLevel={getAccess('finance')} />}
+          {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} />}
           </div>
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
         </div>

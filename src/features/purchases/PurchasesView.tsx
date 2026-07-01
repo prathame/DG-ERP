@@ -10,7 +10,8 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 interface Supplier { id: string; name: string; contactPerson?: string; phone?: string; email?: string; address?: string; gstNumber?: string | null }
 interface PurchaseBatch { batchId: string; supplierId: string; supplierName: string; purchaseDate: string; productNames: string[]; total: number; billValue: number; amountPaid: number; balanceRemaining: number }
 
-export function PurchasesView() {
+export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
+  const canEdit = accessLevel === 'full';
   const { toast } = useToast();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [batches, setBatches] = useState<PurchaseBatch[]>([]);

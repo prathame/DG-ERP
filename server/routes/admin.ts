@@ -11,6 +11,23 @@ function isAdmin(role: string | undefined) {
   return role && ADMIN_ROLES.includes(role);
 }
 
+type AccessLevel = 'hidden' | 'view' | 'print' | 'full';
+const ALL_MODULES = ['dashboard', 'sales', 'distribution', 'inventory', 'purchases', 'quotations', 'orders', 'finance', 'accounts', 'settings'];
+
+const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
+  Admin: Object.fromEntries(ALL_MODULES.map(m => [m, 'full'])),
+  Manager: Object.fromEntries(ALL_MODULES.map(m => [m, m === 'settings' ? 'view' : 'full'])),
+  Staff: Object.fromEntries(ALL_MODULES.map(m => [m, 'view'])),
+  Warehouse: { dashboard: 'view', sales: 'hidden', distribution: 'print', inventory: 'view', purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'hidden', accounts: 'hidden', settings: 'hidden' },
+  Vendor: { dashboard: 'view', sales: 'hidden', distribution: 'view', inventory: 'hidden', purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'view', accounts: 'hidden', settings: 'hidden' },
+};
+
+function normalizePermissions(perms: unknown, role?: string): Record<string, AccessLevel> {
+  if (perms && typeof perms === 'object' && !Array.isArray(perms)) return perms as Record<string, AccessLevel>;
+  if (Array.isArray(perms)) return Object.fromEntries(ALL_MODULES.map(m => [m, (perms as string[]).includes(m) ? 'full' : 'hidden']));
+  return ROLE_PRESETS[role || 'Staff'] || ROLE_PRESETS.Staff;
+}
+
 router.get('/api/admin/users', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -32,7 +49,7 @@ router.get('/api/admin/users', async (req, res) => {
       address: r.address,
       role: r.role,
       companyName: r.company_name,
-      permissions: r.permissions ? JSON.parse(r.permissions as string) : null,
+      permissions: normalizePermissions(r.permissions ? JSON.parse(r.permissions as string) : null, r.role as string),
       vendorId: r.vendor_id ?? null,
     })));
   } catch (err) {
@@ -61,7 +78,8 @@ router.post('/api/admin/users', async (req, res) => {
     if (existing) return res.status(400).json({ error: 'Email already registered' });
 
     const id = `U${Date.now()}`;
-    const permsJson = permissions && Array.isArray(permissions) ? JSON.stringify(permissions) : null;
+    const finalPerms = permissions ? normalizePermissions(permissions, role) : ROLE_PRESETS[role || 'Staff'] || ROLE_PRESETS.Staff;
+    const permsJson = JSON.stringify(finalPerms);
     const passwordHash = bcrypt.hashSync(password, 12);
 
     await pool.query(`
@@ -78,12 +96,16 @@ router.post('/api/admin/users', async (req, res) => {
       address: row.address,
       role: row.role,
       companyName: row.company_name,
-      permissions: row.permissions ? JSON.parse(row.permissions as string) : null,
+      permissions: normalizePermissions(row.permissions ? JSON.parse(row.permissions as string) : null, row.role as string),
       vendorId: row.vendor_id ?? null,
     });
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+router.get('/api/admin/role-presets', async (_req, res) => {
+  res.json({ presets: ROLE_PRESETS, modules: ALL_MODULES });
 });
 
 router.put('/api/admin/users/:id', async (req, res) => {
@@ -112,7 +134,8 @@ router.put('/api/admin/users/:id', async (req, res) => {
     }
     if (permissions !== undefined) {
       updates.push(`permissions = $${paramIndex++}`);
-      params.push(Array.isArray(permissions) ? JSON.stringify(permissions) : null);
+      const normalized = normalizePermissions(permissions, role);
+      params.push(JSON.stringify(normalized));
     }
     if (vendorId !== undefined) {
       updates.push(`vendor_id = $${paramIndex++}`);
@@ -135,7 +158,7 @@ router.put('/api/admin/users/:id', async (req, res) => {
       address: row.address,
       role: row.role,
       companyName: row.company_name,
-      permissions: row.permissions ? JSON.parse(row.permissions as string) : null,
+      permissions: normalizePermissions(row.permissions ? JSON.parse(row.permissions as string) : null, row.role as string),
       vendorId: row.vendor_id ?? null,
     });
   } catch (err) {

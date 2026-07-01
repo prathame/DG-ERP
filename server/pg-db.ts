@@ -526,6 +526,11 @@ export async function initSchema() {
     // Track whether each barcode represents a box or a piece
     await client.query("ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS unit_type TEXT DEFAULT 'piece'");
 
+    // Dispatch tracking on distributions
+    await client.query("ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS dispatch_status TEXT DEFAULT 'pending'");
+    await client.query("ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS dispatched_by TEXT");
+    await client.query("ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMPTZ");
+
     // Orders table
     await client.query(`
       CREATE TABLE IF NOT EXISTS orders (
