@@ -10,17 +10,21 @@ Cloud-based business management software for shops, dealers, and manufacturers. 
 
 | Module | What it does |
 |--------|-------------|
-| **Inventory** | Products with auto-barcode, pack size (box/carton), batch printing, CSV import, stock alerts |
-| **Purchases** | Buy from suppliers, track cost price, supplier payments (payables) |
-| **Distribution** | Distribute to vendors/dealers, batch-level payment tracking, custom pricing |
-| **Quotations** | Create quotes → share via WhatsApp → convert to distribution on approval |
-| **Finance** | Vendor receivables, supplier payables, payment recording (Cash/UPI/Bank/Cheque), reminders |
-| **Accounts** | Auto-generated P&L, Balance Sheet, Cash Flow, General Ledger — no manual bookkeeping |
-| **Accounts & Reports** | P&L, Balance Sheet, Cash Flow, Ledger + Sales register, distribution register, outstanding (age-wise), payment register, stock summary, GST summary — all in one tab |
-| **Vendor Portal** | Separate login for dealers to view their stock, sales, and payments |
-| **AI Chatbot** | Natural language queries — "aaj ki sale kitni hai?" |
+| **Inventory** | Products with auto-barcode, box/piece tracking, batch printing, CSV import, stock alerts |
+| **Purchases** | Supplier management, purchase batches, cost tracking, supplier payments |
+| **Distribution** | Distribute to vendors, batch-level payment, custom pricing, E-Invoice & E-Way Bill JSON |
+| **Quotes & Orders** | Create quotations → WhatsApp share → take orders → fulfill to distribution |
+| **Finance** | Vendor receivables, batch-level payments, age-wise outstanding, reminders |
+| **Accounts** | P&L, Balance Sheet, Cash Flow, Ledger, Day Book, Credit/Debit Notes — auto-generated |
+| **Reports** | Sales register, distribution register, outstanding, payment register, stock summary, GST B2B/B2C/HSN |
+| **Price List** | Vendor-wise + quantity slab pricing — auto-applied in distribution |
+| **E-Invoice** | GST E-Invoice JSON export for government portal upload |
+| **E-Way Bill** | E-Way Bill JSON with transport details (vehicle, distance, mode) |
+| **UPI QR** | Auto-generated UPI payment QR code on every printed bill |
+| **Vendor Portal** | Separate login for dealers — view-only access to stock, sales, payments |
+| **AI Chatbot** | Natural language queries in Hindi, Gujarati, English |
 | **Dashboard** | KPIs, low stock alerts, top products, revenue tracking |
-| **Settings** | Bill customization (logo, color, signatory), user management, tab configuration |
+| **Settings** | Bill customization, user management, tab config, barcode/language toggles |
 
 ## Tech Stack
 

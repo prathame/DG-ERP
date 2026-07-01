@@ -76,7 +76,7 @@ export function ChatWidget() {
         onClick={() => setOpen(!open)}
         whileTap={{ scale: 0.9 }}
         className={cn(
-          "fixed bottom-20 lg:bottom-6 right-4 lg:left-[17rem] lg:right-auto z-[150] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-colors",
+          "fixed bottom-20 lg:bottom-6 right-4 z-[150] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-colors",
           open ? "bg-gray-700" : "bg-brand"
         )}
       >
@@ -102,10 +102,10 @@ export function ChatWidget() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 10 }}
             transition={{ delay: 1, duration: 0.3 }}
-            className="fixed bottom-24 lg:bottom-10 right-[5.5rem] lg:left-[21.5rem] lg:right-auto z-[149] bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-200 text-sm font-medium text-gray-700 whitespace-nowrap"
+            className="fixed bottom-24 lg:bottom-10 right-[5.5rem] z-[149] bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-200 text-sm font-medium text-gray-700 whitespace-nowrap"
           >
             May I help you? <span className="text-brand">👋</span>
-            <div className="absolute top-1/2 -right-2 lg:-left-2 lg:right-auto -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[8px] lg:border-l-0 border-l-white lg:border-r-[8px] lg:border-r-white" />
+            <div className="absolute top-1/2 -right-2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[8px] border-l-white" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -117,7 +117,7 @@ export function ChatWidget() {
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="fixed inset-0 lg:inset-auto lg:bottom-24 lg:left-[17rem] lg:right-auto z-[150] lg:w-[380px] lg:h-[400px] lg:max-h-[calc(100vh-12rem)] bg-white lg:rounded-2xl shadow-2xl lg:border lg:border-gray-200 overflow-hidden flex flex-col"
+            className="fixed inset-0 lg:inset-auto lg:bottom-24 lg:right-4 z-[150] lg:w-[380px] lg:h-[400px] lg:max-h-[calc(100vh-12rem)] bg-white lg:rounded-2xl shadow-2xl lg:border lg:border-gray-200 overflow-hidden flex flex-col"
           >
             {/* Header */}
             <div className="bg-[#151619] text-white px-5 py-4 flex items-center gap-3">
