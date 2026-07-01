@@ -49,7 +49,7 @@ router.get('/api/admin/users', async (req, res) => {
       address: r.address,
       role: r.role,
       companyName: r.company_name,
-      permissions: normalizePermissions(r.permissions ? JSON.parse(r.permissions as string) : null, r.role as string),
+      permissions: normalizePermissions(r.permissions ?? null, r.role as string),
       vendorId: r.vendor_id ?? null,
     })));
   } catch (err) {
@@ -96,7 +96,7 @@ router.post('/api/admin/users', async (req, res) => {
       address: row.address,
       role: row.role,
       companyName: row.company_name,
-      permissions: normalizePermissions(row.permissions ? JSON.parse(row.permissions as string) : null, row.role as string),
+      permissions: normalizePermissions(row.permissions ?? null, row.role as string),
       vendorId: row.vendor_id ?? null,
     });
   } catch (err) {
@@ -158,7 +158,7 @@ router.put('/api/admin/users/:id', async (req, res) => {
       address: row.address,
       role: row.role,
       companyName: row.company_name,
-      permissions: normalizePermissions(row.permissions ? JSON.parse(row.permissions as string) : null, row.role as string),
+      permissions: normalizePermissions(row.permissions ?? null, row.role as string),
       vendorId: row.vendor_id ?? null,
     });
   } catch (err) {
