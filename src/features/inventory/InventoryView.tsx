@@ -503,13 +503,11 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           templateName="products"
           columns={[
             { key: 'name', label: 'Product Name', required: true },
-            { key: 'price', label: 'Price', required: true },
+            { key: 'price', label: 'Price (per piece or per box)', required: true },
             { key: 'barcodePrefix', label: 'Barcode Prefix', required: true },
-            { key: 'quantity', label: 'Quantity (total pieces)', required: true },
-            { key: 'packSize', label: 'Pack Size (pieces per box, leave empty for single piece)' },
-            { key: 'packName', label: 'Pack Name (Box/Carton/Pack, leave empty for Piece)' },
-            { key: 'priceType', label: 'Price is per (box or piece, default: as-is)' },
-            { key: 'barcodeOn', label: 'Barcode On (box or piece, default: piece)' },
+            { key: 'quantity', label: 'Quantity (number of pieces or boxes)', required: true },
+            { key: 'packSize', label: 'Pieces per Box (leave empty for single piece product)' },
+            { key: 'packName', label: 'Unit Name (Box/Carton/Pack, leave empty for Piece)' },
             { key: 'description', label: 'Description' },
             { key: 'hsnCode', label: 'HSN Code' },
             { key: 'gstRate', label: 'GST Rate (%)' },
@@ -525,17 +523,15 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               try {
                 const pSize = Number(r.packSize) || 1;
                 const isBox = pSize > 1;
-                const rawPrice = Number(r.price) || 0;
-                const barcodePerBox = isBox && (r.barcodeOn || '').toLowerCase() === 'box';
                 await api.products.create({
                   name: r.name,
-                  price: rawPrice,
+                  price: Number(r.price) || 0,
                   barcodePrefix: r.barcodePrefix,
                   quantity: Number(r.quantity) || 1,
                   barcodeMode: 'prefix' as const,
                   packSize: isBox ? pSize : undefined,
                   packName: isBox ? (r.packName || 'Box') : undefined,
-                  barcodePerBox: barcodePerBox || undefined,
+                  barcodePerBox: isBox || undefined,
                   description: r.description || undefined,
                   hsnCode: r.hsnCode || undefined,
                   gstRate: r.gstRate ? Number(r.gstRate) : undefined,
