@@ -29,6 +29,7 @@ import reportsRouter from './routes/reports';
 import purchasesRouter from './routes/purchases';
 import quotationsRouter from './routes/quotations';
 import ordersRouter from './routes/orders';
+import priceListsRouter from './routes/price-lists';
 import accountsRouter from './routes/accounts';
 import notificationsRouter from './routes/notifications';
 import mastersRouter from './routes/masters';
@@ -195,6 +196,7 @@ app.use(reportsRouter);
 app.use(purchasesRouter);
 app.use(quotationsRouter);
 app.use(ordersRouter);
+app.use(priceListsRouter);
 app.use(accountsRouter);
 
 // Request logging for errors

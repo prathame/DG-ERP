@@ -578,6 +578,26 @@ export async function initSchema() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_cdn_tenant ON credit_debit_notes(tenant_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_cdn_type ON credit_debit_notes(tenant_id, note_type)');
+
+    // Price Lists — customer-wise + slab pricing
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS price_lists (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        vendor_id TEXT,
+        min_qty INTEGER DEFAULT 1,
+        max_qty INTEGER,
+        price NUMERIC(12,2) NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pl_tenant ON price_lists(tenant_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pl_product ON price_lists(tenant_id, product_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pl_vendor ON price_lists(tenant_id, vendor_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(tenant_id, status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_orders_vendor ON orders(tenant_id, vendor_id)');
 

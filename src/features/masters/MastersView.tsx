@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus } from 'lucide-react';
+import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import type { Tab } from '../../types';
@@ -9,8 +9,9 @@ import { VendorMasterView } from './VendorMasterView';
 import { BankMasterView } from './BankMasterView';
 import { VendorCustomerMappingView } from './VendorCustomerMappingView';
 import { RewardRulesView } from './RewardRulesView';
+import { PriceListView } from './PriceListView';
 
-export type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules';
+export type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList';
 
 export function MastersView({ setActiveTab, user }: { setActiveTab: (tab: Tab) => void; user?: { role?: string; vendorId?: string } | null }) {
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
@@ -39,6 +40,7 @@ export function MastersView({ setActiveTab, user }: { setActiveTab: (tab: Tab) =
     { id: 'mapping' as const, name: 'Vendor-Customer Mapping', count: '', icon: Link2, color: 'text-cyan-600', bg: 'bg-cyan-50' },
     { id: 'item' as const, name: 'Item Master', count: masterCounts.item, icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },
     { id: 'bank' as const, name: 'Bank Master', count: masterCounts.bank, icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { id: 'priceList' as const, name: 'Price List', count: '', icon: Tag, color: 'text-rose-600', bg: 'bg-rose-50' },
   ];
   const masters = isVendor ? allMasters.filter((m) => m.id === 'customer') : allMasters;
 
@@ -55,6 +57,7 @@ export function MastersView({ setActiveTab, user }: { setActiveTab: (tab: Tab) =
   if (selectedMaster === 'bank') return <BankMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} />;
   if (selectedMaster === 'mapping') return <VendorCustomerMappingView onBack={() => setSelectedMaster(null)} />;
   if (selectedMaster === 'rewardRules') return <RewardRulesView onBack={() => setSelectedMaster(null)} />;
+  if (selectedMaster === 'priceList') return <PriceListView onBack={() => setSelectedMaster(null)} />;
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
