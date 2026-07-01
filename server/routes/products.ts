@@ -104,18 +104,12 @@ router.get('/api/products', async (req, res) => {
     const rows = (await pool.query(sql, params)).rows;
     res.json((rows as Record<string, unknown>[]).map((r) => {
       const invCount = Number(r.inv_stock) || 0;
-      const dbStock = Number(r.stock) || 0;
-      const pSz = Number(r.pack_size) || 1;
-      const unitType = (r.barcode_unit_type as string) || 'piece';
-      const isBoxBarcode = unitType === 'box' && pSz > 1;
-      const realStock = isBoxBarcode ? invCount * pSz : Math.max(dbStock, invCount);
       const totalInv = Number(r.total_inv) || 0;
-      const realTotal = isBoxBarcode ? totalInv * pSz : Math.max(totalInv, dbStock);
       return mapProduct({
       ...r,
-      stock: realStock,
-      totalInventory: realTotal,
-      remainingInventory: realStock,
+      stock: invCount,
+      totalInventory: totalInv,
+      remainingInventory: invCount,
       soldCount: (r.sold_count as number) ?? 0,
       withVendors: (r.with_vendors as number) ?? 0,
       barcodeRange: (r.barcode_first && r.barcode_last) ? { first: r.barcode_first as string, last: r.barcode_last as string } : null,
@@ -374,14 +368,13 @@ router.post('/api/products', async (req, res) => {
       invStock = stock ?? 0;
     }
     const createdPSize = Number(packSize) || 1;
-    const finalStock = barcodePerBox && createdPSize > 1 ? invStock * createdPSize : invStock;
-    if (finalStock > 0) await client.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [finalStock, id, tenantId]);
+    if (invStock > 0) await client.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [invStock, id, tenantId]);
     await client.query('COMMIT');
     const row = (await pool.query(
       'SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1',
       [tenantId, id]
     )).rows[0] as Record<string, unknown>;
-    res.status(201).json(mapProduct({ ...row, stock: finalStock, remaining_inventory: finalStock }));
+    res.status(201).json(mapProduct({ ...row, stock: invStock, remaining_inventory: invStock }));
     } catch (err) {
     await client.query('ROLLBACK');
     const errStr = String(err);
@@ -457,13 +450,13 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
       await pool.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type) VALUES ${values.join(',')}`, params);
     }
     const count = (await pool.query('SELECT COUNT(*) as c FROM product_inventory WHERE product_id = $1 AND status = $2 AND tenant_id = $3', [id, 'InStock', tenantId])).rows[0] as { c: number };
-    const stockCount = barcodePerBox && pSize > 1 ? Number(count.c) * pSize : Number(count.c);
+    const stockCount = Number(count.c);
     await pool.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [stockCount, id, tenantId]);
     const row = (await pool.query(
       'SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1',
       [tenantId, id]
     )).rows[0] as Record<string, unknown>;
-    res.status(201).json(mapProduct({ ...row, stock: stockCount, remaining_inventory: stockCount }));
+    res.status(201).json(mapProduct({ ...row, stock: stockCount }));
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }

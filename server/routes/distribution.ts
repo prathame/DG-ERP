@@ -205,11 +205,7 @@ router.post('/api/distribution/batch', async (req, res) => {
         [item.productId, tenantId]
       )).rows[0] as { id: string; name: string; price: number; pack_size: number; stock: number } | undefined;
       if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
-      const pSz = Number(product.pack_size) || 1;
-      const unitTypeRow = (await pool.query("SELECT unit_type FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 LIMIT 1", [product.id, tenantId])).rows[0] as { unit_type: string } | undefined;
-      const isBoxBarcode = (unitTypeRow?.unit_type === 'box') && pSz > 1;
-      const perUnitPrice = isBoxBarcode ? product.price * pSz : product.price;
-      const basePrice = item.customPrice ? Number(item.customPrice) : perUnitPrice;
+      const basePrice = item.customPrice ? Number(item.customPrice) : product.price;
       const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
       const netPricePerUnit = Math.round((basePrice * (100 - disc) / 100) * 100) / 100;
       const gstApplied = item.withGst !== false ? 1 : 0;

@@ -22,7 +22,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [modalOpen, setModalOpen] = useState(false);
   const [distVendorId, setDistVendorId] = useState('');
   const [distDate, setDistDate] = useState(new Date().toISOString().slice(0, 10));
-  const [distRows, setDistRows] = useState<{ productId: string; quantity: number; discount: number; withGst: boolean; customPrice: string; unitMode: 'piece' | 'pack' }[]>([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '', unitMode: 'piece' }]);
+  const [distRows, setDistRows] = useState<{ productId: string; quantity: number; discount: number; withGst: boolean; customPrice: string }[]>([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
   const [distAmountPaid, setDistAmountPaid] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [includeGst, setIncludeGst] = useState(true);
@@ -102,17 +102,14 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => { setLoading(true); setLoadError(null); load(); }, [vendorId]);
 
-  const addDistRow = () => setDistRows([...distRows, { productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '', unitMode: 'piece' }]);
+  const addDistRow = () => setDistRows([...distRows, { productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
   const removeDistRow = (idx: number) => setDistRows(distRows.filter((_, i) => i !== idx));
   const updateDistRow = (idx: number, field: string, value: string | number) => setDistRows(distRows.map((r, i) => i === idx ? { ...r, [field]: value } : r));
 
   const defaultGstRate = (user as Record<string, unknown>)?.defaultGstRate as number ?? 18;
   const distTotals = distRows.reduce((acc, r) => {
     const p = products.find(x => x.id === r.productId);
-    const packSz = p?.packSize || 1;
-    const isPackMode = r.unitMode === 'pack' && packSz > 1;
-    const boxPrice = (p?.price ?? 0) * packSz;
-    const basePrice = r.customPrice ? parseFloat(r.customPrice) : (isPackMode ? boxPrice : (p?.price ?? 0));
+    const basePrice = r.customPrice ? parseFloat(r.customPrice) : (p?.price ?? 0);
     const gross = basePrice * (r.quantity || 0);
     const disc = Math.round(gross * (r.discount || 0) / 100);
     const netBase = gross - disc;
@@ -123,9 +120,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
     acc.gst += gst;
     acc.billed += netBase + gst;
     acc.items += r.quantity || 0;
-    acc.hasBoxItems = acc.hasBoxItems || isPackMode;
     return acc;
-  }, { gross: 0, discount: 0, net: 0, gst: 0, billed: 0, items: 0, hasBoxItems: false });
+  }, { gross: 0, discount: 0, net: 0, gst: 0, billed: 0, items: 0 });
 
   const handleDistributeAll = async () => {
     if (!distVendorId) { toast('Select a vendor', 'error'); return; }
@@ -140,23 +136,16 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
         distributionDate: distDate,
         amountPaid: paid > 0 ? paid : undefined,
         gstRate: defaultGstRate,
-        items: validRows.map((row) => {
-          const rp = products.find(x => x.id === row.productId);
-          const ps = rp?.packSize || 1;
-          const isBoxMode = row.unitMode === 'pack' && ps > 1;
-          const rawCustom = row.customPrice ? parseFloat(row.customPrice) : undefined;
-          const perPieceCustom = isBoxMode && rawCustom ? Math.round(rawCustom / ps) : rawCustom;
-          return {
-            productId: row.productId,
-            quantity: row.quantity,
-            discountPercent: row.discount > 0 ? row.discount : undefined,
-            withGst: row.withGst,
-            customPrice: perPieceCustom,
-          };
-        }),
+        items: validRows.map((row) => ({
+          productId: row.productId,
+          quantity: row.quantity,
+          discountPercent: row.discount > 0 ? row.discount : undefined,
+          withGst: row.withGst,
+          customPrice: row.customPrice ? parseFloat(row.customPrice) : undefined,
+        })),
       });
       setModalOpen(false);
-      setDistRows([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '', unitMode: 'piece' }]);
+      setDistRows([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
       setDistVendorId('');
       setDistAmountPaid('');
       load();
@@ -567,11 +556,8 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                     {distRows.map((row, idx) => {
                       const p = products.find(x => x.id === row.productId);
                       const packSz = p?.packSize || 1;
-                      const hasPack = packSz > 1;
-                      const isPackMode = row.unitMode === 'pack' && hasPack;
-                      const actualPieces = isPackMode ? (row.quantity || 0) * packSz : (row.quantity || 0);
-                      const boxPrice = (p?.price ?? 0) * packSz;
-                      const basePrice = row.customPrice ? parseFloat(row.customPrice) : (isPackMode ? boxPrice : (p?.price ?? 0));
+                      const isBox = packSz > 1;
+                      const basePrice = row.customPrice ? parseFloat(row.customPrice) : (p?.price ?? 0);
                       const gross = basePrice * (row.quantity || 0);
                       const disc = Math.round(gross * (row.discount || 0) / 100);
                       const net = gross - disc;
@@ -586,28 +572,22 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                               placeholder="Select product"
                               options={products.filter(pr => (pr.stock ?? 0) > 0).sort((a, b) => a.name.localeCompare(b.name)).map((pr) => {
                                 const ps = pr.packSize || 1;
-                                const isBxBarcode = pr.barcodeUnitType === 'box' && ps > 1;
-                                const priceLabel = ps > 1 ? `₹${(pr.price * ps).toLocaleString()}/${pr.packName || 'box'}` : `₹${pr.price.toLocaleString()}`;
-                                const stockLabel = isBxBarcode ? `${pr.remainingInventory ?? pr.stock} ${pr.packName || 'Box'}es` : (ps > 1 ? `${pr.stock} pcs` : `${pr.stock} avl`);
-                                return { value: pr.id, label: `${pr.name} (${priceLabel})`, sublabel: stockLabel };
+                                const unitLabel = ps > 1 ? `/${pr.packName || 'Box'}` : '';
+                                const stockCount = pr.barcodeUnitType === 'box' ? (pr.remainingInventory ?? pr.stock) : (pr.remainingInventory ?? pr.stock);
+                                const stockUnit = ps > 1 ? (pr.packName || 'Box') + 'es' : 'avl';
+                                return { value: pr.id, label: `${pr.name} (₹${pr.price.toLocaleString()}${unitLabel})`, sublabel: `${stockCount} ${stockUnit}` };
                               })}
-                              onChange={(pid) => { const pr = products.find(x => x.id === pid); const prPs = pr?.packSize || 1; const prIsBox = pr?.barcodeUnitType === 'box' && prPs > 1; updateDistRow(idx, 'productId', pid); if (prIsBox) updateDistRow(idx, 'unitMode', 'pack'); if (pid && distVendorId) { fetch(`/api/price-lists/resolve?productId=${pid}&vendorId=${distVendorId}&quantity=${row.quantity || 1}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') { const plPrice = prIsBox ? d.price * prPs : d.price; updateDistRow(idx, 'customPrice', String(plPrice)); } }).catch(() => {}); } }}
+                              onChange={(pid) => { updateDistRow(idx, 'productId', pid); if (pid && distVendorId) { fetch(`/api/price-lists/resolve?productId=${pid}&vendorId=${distVendorId}&quantity=${row.quantity || 1}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') updateDistRow(idx, 'customPrice', String(d.price)); }).catch(() => {}); } }}
                             />
                           </td>
                           <td className="px-2 py-2">
                             <div className="flex items-center gap-1">
-                              <input type="text" inputMode="numeric" pattern="[0-9]*" value={row.quantity || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); const newQty = v === '' ? 0 : parseInt(v, 10); updateDistRow(idx, 'quantity', newQty); if (row.productId && distVendorId && newQty > 0) { fetch(`/api/price-lists/resolve?productId=${row.productId}&vendorId=${distVendorId}&quantity=${newQty}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') { const plPrice = isPackMode ? d.price * packSz : d.price; updateDistRow(idx, 'customPrice', String(plPrice)); } }).catch(() => {}); } }} className="w-16 min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
-                              {hasPack && (() => {
-                                const isBx = p?.barcodeUnitType === 'box';
-                                return isBx
-                                  ? <span className="px-1.5 py-1.5 bg-gray-100 rounded-lg text-[10px] font-bold text-gray-500">{p?.packName || 'Box'}</span>
-                                  : <select value={row.unitMode} onChange={(e) => updateDistRow(idx, 'unitMode', e.target.value)} className="px-1 py-1.5 border border-gray-200 rounded-lg text-[10px] font-bold text-gray-500"><option value="piece">Pc</option><option value="pack">{p?.packName}</option></select>;
-                              })()}
+                              <input type="text" inputMode="numeric" pattern="[0-9]*" value={row.quantity || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); const newQty = v === '' ? 0 : parseInt(v, 10); updateDistRow(idx, 'quantity', newQty); if (row.productId && distVendorId && newQty > 0) { fetch(`/api/price-lists/resolve?productId=${row.productId}&vendorId=${distVendorId}&quantity=${newQty}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') updateDistRow(idx, 'customPrice', String(d.price)); }).catch(() => {}); } }} className="w-16 min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
+                              {isBox && <span className="px-1.5 py-1.5 bg-gray-100 rounded-lg text-[10px] font-bold text-gray-500">{p?.packName || 'Box'}</span>}
                             </div>
-                            {hasPack && isPackMode && <span className="text-[10px] text-gray-400">= {actualPieces} pcs</span>}
-                            {hasPack && p?.barcodeUnitType === 'box' && <span className="text-[10px] text-amber-600 block">⚠ Box barcodes — distribute in full {p.packName || 'box'}es only (1 {p.packName || 'box'} = {packSz} pcs)</span>}
+                            {isBox && (row.quantity || 0) > 0 && <span className="text-[10px] text-gray-400">= {(row.quantity || 0) * packSz} pcs</span>}
                           </td>
-                          <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? `₹${isPackMode ? boxPrice : p.price}` : '—'} className={cn("w-full px-3 py-2 border rounded-lg text-sm text-center focus:ring-2 focus:ring-brand", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
+                          <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-3 py-2 border rounded-lg text-sm text-center focus:ring-2 focus:ring-brand", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
                           <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.discount || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'discount', v === '' ? 0 : parseFloat(v)); }} placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
                           <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-brand" /></td>
                           <td className="px-3 py-2 text-right text-sm font-bold">{billed > 0 ? <span>{row.withGst && <span className="text-[10px] text-gray-400 block">₹{net.toLocaleString()} +GST</span>}₹{billed.toLocaleString()}</span> : '-'}</td>
@@ -621,7 +601,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
               </div>
 
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2 mb-4">
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Total Items</span><span className="font-bold">{distTotals.items}{distTotals.hasBoxItems ? ' (as entered)' : ''}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Total Items</span><span className="font-bold">{distTotals.items}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-500">Gross Value</span><span className="font-bold">₹{distTotals.gross.toLocaleString()}</span></div>
                 {distTotals.discount > 0 && <div className="flex justify-between text-sm"><span className="text-gray-500">Discount</span><span className="font-bold text-emerald-600">-₹{distTotals.discount.toLocaleString()}</span></div>}
                 <div className="flex justify-between text-sm"><span className="text-gray-500">Subtotal (base)</span><span className="font-bold">₹{distTotals.net.toLocaleString()}</span></div>

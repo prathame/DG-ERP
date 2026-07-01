@@ -27,7 +27,7 @@ export function InventoryView() {
   const [barcodeSearch, setBarcodeSearch] = useState('');
   const debouncedBarcodeSearch = useDebounce(barcodeSearch, 250);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece', pricePerBox: true, barcodePerBox: true });
+  const [addForm, setAddForm] = useState({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece', barcodePerBox: true });
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [addStockModal, setAddStockModal] = useState<Product | null>(null);
   const [addStockForm, setAddStockForm] = useState({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
@@ -181,18 +181,15 @@ export function InventoryView() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {(p.packSize || 1) > 1 ? (
-                          <><span className="font-semibold text-sm text-emerald-600">₹{(p.price * (p.packSize || 1)).toLocaleString()}</span><span className="block text-[10px] text-gray-400">₹{Math.round(p.price)}/pc × {p.packSize}</span></>
-                        ) : (
-                          <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
-                        )}
+                        <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
+                        {(p.packSize || 1) > 1 && <span className="block text-[10px] text-gray-400">per {p.packName || 'Box'}</span>}
                       </td>
                       {inventoryTrackingEnabled && <><td className="px-4 py-3 text-center">
                         <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{p.totalInventory ?? p.stock ?? 0}</span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className="font-semibold text-sm text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</span>
-                        {(p.packSize || 1) > 1 && <span className="block text-[10px] text-gray-400">{Math.floor((p.remainingInventory ?? p.stock ?? 0) / (p.packSize || 1))} {(p.packName ?? 'Pack').endsWith('x') ? (p.packName ?? 'Pack') + 'es' : (p.packName ?? 'Pack') + 's'}</span>}
+                        <span className="font-semibold text-sm text-blue-700">{p.barcodeUnitType === 'box' && (p.packSize || 1) > 1 ? (p.remainingInventory ?? p.stock ?? 0) : (p.remainingInventory ?? p.stock ?? 0)}</span>
+                        {(p.packSize || 1) > 1 && <span className="block text-[10px] text-gray-400">{p.barcodeUnitType === 'box' ? (p.packName || 'Box') + 'es' : 'pcs'}</span>}
                       </td>
                       <td className="px-4 py-3 text-center hidden lg:table-cell">
                         <span className="font-semibold text-sm text-purple-700">{p.withVendors ?? 0}</span>
@@ -231,7 +228,7 @@ export function InventoryView() {
                       <span className="font-semibold text-sm text-gray-900 truncate">{p.name}</span>
                       {isLowStock && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
                     </div>
-                    <span className="font-semibold text-sm text-emerald-600 shrink-0">{(p.packSize || 1) > 1 ? `₹${(p.price * (p.packSize || 1)).toLocaleString()}/box` : `₹${p.price.toLocaleString()}`}</span>
+                    <span className="font-semibold text-sm text-emerald-600 shrink-0">₹{p.price.toLocaleString()}{(p.packSize || 1) > 1 ? `/${p.packName || 'Box'}` : ''}</span>
                   </div>
                   {inventoryTrackingEnabled && <div className="flex items-center gap-3 text-xs text-gray-500">
                     <span>Total: <strong className={isLowStock ? "text-amber-700" : "text-gray-900"}>{p.totalInventory ?? p.stock ?? 0}</strong></span>
@@ -280,13 +277,13 @@ export function InventoryView() {
                     rewardPointsValue: addForm.rewardPointsValue,
                     warrantyApplicable: addForm.warrantyApplicable,
                     warrantyMonths: addForm.warrantyApplicable ? addForm.warrantyMonths : 0,
-                    price: addForm.packSize > 1 && addForm.pricePerBox ? Math.round(addForm.price / (addForm.packSize || 1)) : addForm.price,
+                    price: addForm.price,
                     packSize: addForm.packSize > 1 ? addForm.packSize : undefined,
                     packName: addForm.packSize > 1 ? addForm.packName : undefined,
                     barcodePerBox: addForm.packSize > 1 ? addForm.barcodePerBox : undefined,
                   });
                   setAddModalOpen(false);
-                  setAddForm({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece', pricePerBox: true, barcodePerBox: true });
+                  setAddForm({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece', barcodePerBox: true });
                   api.products.list(debouncedBarcodeSearch || undefined).then(setProducts);
                   toast('Product added successfully', 'success');
                 } catch (err) { toast((err as Error).message, 'error'); }
@@ -338,15 +335,9 @@ export function InventoryView() {
                       </div>
                     </>}
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs font-bold text-gray-400 uppercase">Price (₹)</label>
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => setAddForm({ ...addForm, pricePerBox: true })} className={cn("px-2 py-0.5 rounded-md text-[10px] font-bold", addForm.pricePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-500")}>Per Box</button>
-                          <button type="button" onClick={() => setAddForm({ ...addForm, pricePerBox: false })} className={cn("px-2 py-0.5 rounded-md text-[10px] font-bold", !addForm.pricePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-500")}>Per Piece</button>
-                        </div>
-                      </div>
-                      <input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder={addForm.pricePerBox ? 'Box price' : 'Piece price'} />
-                      {addForm.price > 0 && addForm.packSize > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{addForm.pricePerBox ? `= ₹${Math.round(addForm.price / (addForm.packSize || 1))} per piece` : `= ₹${addForm.price * addForm.packSize} per box`}</p>}
+                      <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Price per {addForm.packName || 'Box'} (₹)</label>
+                      <input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder={`Price per ${addForm.packName || 'box'}`} />
+                      {addForm.price > 0 && addForm.packSize > 0 && <p className="text-[10px] text-gray-400 mt-0.5">= ₹{Math.round(addForm.price / (addForm.packSize || 1))} per piece</p>}
                     </div>
                   </>
                 ) : (
@@ -514,7 +505,7 @@ export function InventoryView() {
             { key: 'quantity', label: 'Quantity (total pieces)', required: true },
             { key: 'packSize', label: 'Pack Size (pieces per box, leave empty for single piece)' },
             { key: 'packName', label: 'Pack Name (Box/Carton/Pack, leave empty for Piece)' },
-            { key: 'priceType', label: 'Price Type (box or piece, default: piece)' },
+            { key: 'priceType', label: 'Price is per (box or piece, default: as-is)' },
             { key: 'barcodeOn', label: 'Barcode On (box or piece, default: piece)' },
             { key: 'description', label: 'Description' },
             { key: 'hsnCode', label: 'HSN Code' },
@@ -531,13 +522,11 @@ export function InventoryView() {
               try {
                 const pSize = Number(r.packSize) || 1;
                 const isBox = pSize > 1;
-                const priceIsBox = (r.priceType || '').toLowerCase() === 'box';
                 const rawPrice = Number(r.price) || 0;
-                const perPiecePrice = isBox && priceIsBox ? Math.round(rawPrice / pSize) : rawPrice;
                 const barcodePerBox = isBox && (r.barcodeOn || '').toLowerCase() === 'box';
                 await api.products.create({
                   name: r.name,
-                  price: perPiecePrice,
+                  price: rawPrice,
                   barcodePrefix: r.barcodePrefix,
                   quantity: Number(r.quantity) || 1,
                   barcodeMode: 'prefix' as const,
