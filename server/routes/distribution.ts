@@ -120,7 +120,10 @@ router.get('/api/distribution/batches', async (req, res) => {
         SUM(COALESCE(pd.billed_price, pd.net_price, p.price)) as bill_value,
         STRING_AGG(DISTINCT p.name, ',') as product_names,
         MAX(pd.discount_percent) as discount_percent,
-        MAX(pd.gst_applied::int) as gst_applied
+        MAX(pd.gst_applied::int) as gst_applied,
+        COALESCE(MAX(pd.dispatch_status), 'pending') as dispatch_status,
+        MAX(pd.dispatched_by) as dispatched_by,
+        MAX(pd.dispatched_at) as dispatched_at
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
@@ -165,6 +168,9 @@ router.get('/api/distribution/batches', async (req, res) => {
         gstApplied: !!(Number(r.gst_applied)),
         amountPaid: paid,
         balanceRemaining: Number(r.bill_value) - paid,
+        dispatchStatus: (r.dispatch_status as string) || 'pending',
+        dispatchedBy: r.dispatched_by as string || null,
+        dispatchedAt: r.dispatched_at as string || null,
       };
     }));
   } catch (err) {

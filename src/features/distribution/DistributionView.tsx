@@ -353,6 +353,18 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
                     {!selectedBatchProductId && (
                       <span className="text-xs text-gray-500">Distribution — {formatDate(selectedBatch.distributionDate)}</span>
                     )}
+                    {!selectedBatchProductId && (() => {
+                      const ds = (selectedBatch as Record<string, unknown>).dispatchStatus as string || 'pending';
+                      return <>
+                        <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold", ds === 'dispatched' ? 'bg-blue-100 text-blue-700' : ds === 'delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>{ds === 'dispatched' ? 'Dispatched' : ds === 'delivered' ? 'Delivered' : 'Pending Dispatch'}</span>
+                        {canPrint && ds === 'pending' && (
+                          <button type="button" onClick={() => { fetch(`/api/distribution/batch/${selectedBatch.batchId}/dispatch`, { method: 'PUT', headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '', 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'dispatched' }) }).then(r => r.json()).then(d => { if (d.ok) { toast('Marked as dispatched', 'success'); load(); } else toast(d.error, 'error'); }).catch(err => toast(err.message, 'error')); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Truck size={12} /> Mark Dispatched</button>
+                        )}
+                        {canPrint && ds === 'dispatched' && (
+                          <button type="button" onClick={() => { fetch(`/api/distribution/batch/${selectedBatch.batchId}/dispatch`, { method: 'PUT', headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '', 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'delivered' }) }).then(r => r.json()).then(d => { if (d.ok) { toast('Marked as delivered', 'success'); load(); } else toast(d.error, 'error'); }).catch(err => toast(err.message, 'error')); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg"><Package size={12} /> Mark Delivered</button>
+                        )}
+                      </>;
+                    })()}
                     {!isVendorUser && canEdit && !selectedBatchProductId && selectedBatch.balanceRemaining > 0 && (
                       <button
                         type="button"
