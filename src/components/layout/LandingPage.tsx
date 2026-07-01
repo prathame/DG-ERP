@@ -215,6 +215,40 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* Warehouse & Role Access */}
+      <section className={`py-12 sm:py-20 px-4 sm:px-6 ${sectionAlt}`}>
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold">{L('Factory to Vendor — Tracked', 'फैक्ट्री से वेंडर तक — ट्रैक्ड', 'ફેક્ટરી થી વેન્ડર સુધી — ટ્રેક્ડ')}</h2>
+            <p className={`mt-3 ${textMuted} text-lg`}>{L('Every role sees only what they need. Every dispatch is tracked.', 'हर role को सिर्फ वही दिखे जो ज़रूरी है। हर dispatch ट्रैक हो।', 'દરેક role ને ફક્ત જરૂરી જ દેખાય। દરેક dispatch ટ્રેક થાય।')}</p>
+          </div>
+          <div className={`p-6 sm:p-8 border rounded-2xl ${cardBg}`}>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 text-center">
+              {[
+                { icon: Building2, title: L('Admin', 'एडमिन', 'એડમિન'), desc: L('Creates distribution, sets prices, manages everything', 'Distribution बनाए, price सेट करे, सब manage करे', 'Distribution બનાવે, price સેટ કરે, બધું manage કરે'), badge: L('Full Access', 'पूरा एक्सेस', 'પૂરો એક્સેસ'), badgeColor: 'bg-emerald-100 text-emerald-700' },
+                { icon: Warehouse, title: L('Warehouse', 'वेयरहाउस', 'વેરહાઉસ'), desc: L('Sees pending dispatches, prints challan, marks dispatched', 'Pending dispatch देखे, challan print करे, dispatch mark करे', 'Pending dispatch જુએ, challan print કરે, dispatch mark કરે'), badge: L('View + Print', 'देखे + प्रिंट', 'જુએ + પ્રિન્ટ'), badgeColor: 'bg-blue-100 text-blue-700' },
+                { icon: Truck, title: L('Dispatch', 'डिस्पैच', 'ડિસ્પેચ'), desc: L('Goods leave factory → Status: Dispatched → Vendor notified', 'माल फैक्ट्री से निकले → Status: Dispatched → Vendor को पता चले', 'માલ ફેક્ટરીથી નીકળે → Status: Dispatched → Vendor ને ખબર પડે'), badge: L('Tracked', 'ट्रैक्ड', 'ટ્રેક્ડ'), badgeColor: 'bg-amber-100 text-amber-700' },
+                { icon: Users, title: L('Vendor', 'वेंडर', 'વેન્ડર'), desc: L('Receives goods, confirms delivery — all on their own dashboard', 'माल मिले, delivery confirm करे — अपने dashboard से', 'માલ મળે, delivery confirm કરે — પોતાના dashboard થી'), badge: L('View Only', 'सिर्फ देखे', 'ફક્ત જુએ'), badgeColor: 'bg-purple-100 text-purple-700' },
+              ].map((role, i) => (
+                <motion.div key={role.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                  className="relative">
+                  {i < 3 && <div className="hidden md:block absolute -right-3 top-1/2 -translate-y-1/2 z-10"><ArrowRight size={16} className={textFaint} /></div>}
+                  <div className={`w-14 h-14 ${i === 0 ? 'bg-emerald-500/10' : i === 1 ? 'bg-blue-500/10' : i === 2 ? 'bg-amber-500/10' : 'bg-purple-500/10'} rounded-2xl flex items-center justify-center mx-auto mb-3`}>
+                    <role.icon size={28} className={i === 0 ? 'text-emerald-500' : i === 1 ? 'text-blue-500' : i === 2 ? 'text-amber-500' : 'text-purple-500'} />
+                  </div>
+                  <h3 className="font-bold text-sm mb-1">{role.title}</h3>
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold mb-2 ${role.badgeColor}`}>{role.badge}</span>
+                  <p className={`text-xs ${textFaint} leading-relaxed`}>{role.desc}</p>
+                </motion.div>
+              ))}
+            </div>
+            <div className={`mt-6 pt-4 border-t ${navBorder} text-center`}>
+              <p className={`text-xs ${textFaint}`}>{L('4 access levels per module: Hidden → View Only → View + Print → Full Access. Admin customizes per user.', '4 access levels: Hidden → सिर्फ देखे → देखे + प्रिंट → पूरा एक्सेस। Admin हर user के लिए customize करे।', '4 access levels: Hidden → ફક્ત જુએ → જુએ + પ્રિન્ટ → પૂરો એક્સેસ. Admin દરેક user માટે customize કરે.')}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Features Grid */}
       <section id="features" className={`py-12 sm:py-20 px-4 sm:px-6 ${sectionAlt}`}>
         <div className="max-w-6xl mx-auto">
