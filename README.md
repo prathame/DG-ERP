@@ -52,40 +52,115 @@ Supplier → [Purchase] → Inventory → [Quote] → [Distribution] → Vendor
                                          Accounts (P&L, Balance Sheet)
 ```
 
-## Getting Started
+## Run Locally — Step by Step
 
 ### Prerequisites
-- Node.js 18+
-- PostgreSQL 14+
+- **Node.js 18+** — [download](https://nodejs.org/)
+- **PostgreSQL 14+** — [download](https://www.postgresql.org/download/)
 
-### Setup
+### Step 1: Clone & Install
 
 ```bash
-git clone <repo-url>
-cd splender-inventry
+git clone https://github.com/prathame/DG-ERP.git
+cd DG-ERP
 npm install
 ```
 
-### Environment
+### Step 2: Create Database
 
-Create `.env`:
+```bash
+# Mac
+brew services start postgresql
+createdb dg_business
+
+# Linux
+sudo systemctl start postgresql
+sudo -u postgres createdb dg_business
+
+# Windows — use pgAdmin or:
+psql -U postgres -c "CREATE DATABASE dg_business;"
+```
+
+### Step 3: Create `.env` file
+
+```bash
+cp .env.example .env
+```
+
+Or create `.env` manually in the project root:
+
 ```env
-DATABASE_URL=postgresql://postgres:password@localhost:5432/dg_business
-JWT_SECRET=your-secret-key-minimum-32-characters-long
-SUPER_ADMIN_EMAIL=admin@yourdomain.com
-SUPER_ADMIN_PASSWORD=your_secure_password
+DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/dg_business
+JWT_SECRET=any-random-string-minimum-32-characters
+SUPER_ADMIN_EMAIL=admin@youremail.com
+SUPER_ADMIN_PASSWORD=yourpassword123
+PORT=3001
 ALLOWED_ORIGINS=http://localhost:3000
 ```
 
-### Run
+### Step 4: Start Development Server
 
 ```bash
-npm run dev:all    # Start frontend + backend
+npm run dev
 ```
 
-- Landing: http://localhost:3000
-- Super Admin: http://localhost:3000/admin
-- Tenant: http://localhost:3000/{slug}
+This starts both frontend (Vite) and backend (Express) together.
+
+### Step 5: Open in Browser
+
+| URL | What it is |
+|-----|-----------|
+| http://localhost:3000 | Landing page |
+| http://localhost:3000/admin | Super Admin panel |
+| http://localhost:3000/{slug} | Tenant login (e.g., /test-shop) |
+
+### Step 6: First-Time Setup
+
+1. Open http://localhost:3000/admin
+2. Login with the `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` from your `.env`
+3. Click **Create Tenant** — fill company name, admin email, password
+4. Open http://localhost:3000/{slug} (slug = company name in lowercase)
+5. Login with the tenant admin email/password
+
+### Production Build
+
+```bash
+# Build frontend
+npm run build
+
+# Start production server (serves API + frontend from /dist)
+npx tsx server/index.ts
+
+# Opens at http://localhost:3001
+```
+
+### Kill Running Processes
+
+```bash
+# Kill all dev processes on ports 3000, 3001
+lsof -ti:3000,3001 | xargs kill -9
+
+# Or on Windows:
+netstat -ano | findstr :3001
+taskkill /PID <pid> /F
+```
+
+### Health Check
+
+```bash
+curl http://localhost:3001/api/health
+# Should return: {"ok":true,"message":"API is running"}
+```
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| `ECONNREFUSED` on database | Start PostgreSQL: `brew services start postgresql` (Mac) |
+| `relation does not exist` | Database exists but no tables — restart server (auto-creates schema) |
+| `Port 3001 already in use` | Kill process: `lsof -ti:3001 \| xargs kill -9` |
+| `SUPER_ADMIN_EMAIL required` | Add to `.env` file |
+| Login fails after deploy | Clear browser localStorage and try again |
 
 ## Project Structure
 
