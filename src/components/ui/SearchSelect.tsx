@@ -79,25 +79,25 @@ export function SearchSelect({ options, value, onChange, placeholder = 'Search..
             <div key={letter}>
               <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase bg-gray-50 sticky top-0">{letter}</div>
               {grouped[letter].map(o => (
-                <button
+                <div
                   key={o.value}
-                  type="button"
-                  onClick={() => { onChange(o.value); setOpen(false); setSearch(''); }}
+                  role="button"
+                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onChange(o.value); setOpen(false); setSearch(''); }}
                   className={cn(
-                    "w-full px-3 py-2.5 text-left text-sm hover:bg-brand/5 transition-colors flex items-center justify-between",
+                    "w-full px-3 py-2.5 text-left text-sm hover:bg-brand/5 transition-colors flex items-center justify-between cursor-pointer",
                     o.value === value && "bg-brand/10 font-medium"
                   )}
                 >
                   <span className="truncate">{o.label}</span>
                   {o.sublabel && <span className="text-[10px] text-gray-400 shrink-0 ml-2">{o.sublabel}</span>}
-                </button>
+                </div>
               ))}
             </div>
           ))
         )}
       </div>
       {value && (
-        <button type="button" onClick={() => { onChange(''); setOpen(false); }} className="w-full px-3 py-2 text-xs text-rose-500 hover:bg-rose-50 border-t border-gray-100 font-medium">Clear selection</button>
+        <div role="button" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onChange(''); setOpen(false); }} className="w-full px-3 py-2 text-xs text-rose-500 hover:bg-rose-50 border-t border-gray-100 font-medium cursor-pointer">Clear selection</div>
       )}
     </div>,
     document.body
