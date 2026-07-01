@@ -104,7 +104,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
 
   const addDistRow = () => setDistRows([...distRows, { productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
   const removeDistRow = (idx: number) => setDistRows(distRows.filter((_, i) => i !== idx));
-  const updateDistRow = (idx: number, field: string, value: string | number) => setDistRows(distRows.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  const updateDistRow = (idx: number, field: string, value: string | number | boolean) => setDistRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
 
   const defaultGstRate = (user as Record<string, unknown>)?.defaultGstRate as number ?? 18;
   const distTotals = distRows.reduce((acc, r) => {
