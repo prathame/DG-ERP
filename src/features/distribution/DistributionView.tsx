@@ -573,11 +573,11 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                               options={products.filter(pr => (pr.stock ?? 0) > 0).sort((a, b) => a.name.localeCompare(b.name)).map((pr) => {
                                 const ps = pr.packSize || 1;
                                 const unitLabel = ps > 1 ? `/${pr.packName || 'Box'}` : '';
-                                const stockCount = pr.barcodeUnitType === 'box' ? (pr.remainingInventory ?? pr.stock) : (pr.remainingInventory ?? pr.stock);
-                                const stockUnit = ps > 1 ? (pr.packName || 'Box') + 'es' : 'avl';
-                                return { value: pr.id, label: `${pr.name} (₹${pr.price.toLocaleString()}${unitLabel})`, sublabel: `${stockCount} ${stockUnit}` };
+                                const stockCount = pr.remainingInventory ?? pr.stock ?? 0;
+                                const stockUnit = ps > 1 ? `${pr.packName || 'Box'}s` : 'pcs';
+                                return { value: pr.id, label: `${pr.name} — ₹${pr.price.toLocaleString()}${unitLabel}`, sublabel: `${stockCount} ${stockUnit}` };
                               })}
-                              onChange={(pid) => { updateDistRow(idx, 'productId', pid); if (pid && distVendorId) { fetch(`/api/price-lists/resolve?productId=${pid}&vendorId=${distVendorId}&quantity=${row.quantity || 1}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') updateDistRow(idx, 'customPrice', String(d.price)); }).catch(() => {}); } }}
+                              onChange={(pid) => { const selPr = products.find(x => x.id === pid); updateDistRow(idx, 'productId', pid); if (selPr) updateDistRow(idx, 'customPrice', String(selPr.price)); if (pid && distVendorId) { fetch(`/api/price-lists/resolve?productId=${pid}&vendorId=${distVendorId}&quantity=${row.quantity || 1}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') updateDistRow(idx, 'customPrice', String(d.price)); }).catch(() => {}); } }}
                             />
                           </td>
                           <td className="px-2 py-2">
@@ -587,7 +587,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                             </div>
                             {isBox && (row.quantity || 0) > 0 && <span className="text-[10px] text-gray-400">= {(row.quantity || 0) * packSz} pcs</span>}
                           </td>
-                          <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? `₹${p.price}` : '—'} className={cn("w-full px-3 py-2 border rounded-lg text-sm text-center focus:ring-2 focus:ring-brand", row.customPrice ? "border-amber-300 bg-amber-50" : "border-gray-200")} /></td>
+                          <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? `₹${p.price}` : '—'} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
                           <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.discount || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'discount', v === '' ? 0 : parseFloat(v)); }} placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
                           <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-brand" /></td>
                           <td className="px-3 py-2 text-right text-sm font-bold">{billed > 0 ? <span>{row.withGst && <span className="text-[10px] text-gray-400 block">₹{net.toLocaleString()} +GST</span>}₹{billed.toLocaleString()}</span> : '-'}</td>
