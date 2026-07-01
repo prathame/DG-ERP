@@ -593,7 +593,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                           </td>
                           <td className="px-2 py-2">
                             <div className="flex items-center gap-1">
-                              <input type="text" inputMode="numeric" pattern="[0-9]*" value={row.quantity || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); updateDistRow(idx, 'quantity', v === '' ? 0 : parseInt(v, 10)); }} className="w-16 min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
+                              <input type="text" inputMode="numeric" pattern="[0-9]*" value={row.quantity || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); const newQty = v === '' ? 0 : parseInt(v, 10); updateDistRow(idx, 'quantity', newQty); if (row.productId && distVendorId && newQty > 0) { fetch(`/api/price-lists/resolve?productId=${row.productId}&vendorId=${distVendorId}&quantity=${newQty}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') updateDistRow(idx, 'customPrice', String(d.price)); }).catch(() => {}); } }} className="w-16 min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
                               {hasPack && (() => {
                                 const isBx = p?.barcodeUnitType === 'box';
                                 return isBx
