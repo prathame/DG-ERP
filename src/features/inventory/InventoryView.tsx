@@ -347,17 +347,9 @@ export function InventoryView() {
                       </div>
                       <p className="text-xs text-emerald-600 font-medium mt-1">= {(addForm.packs * addForm.packSize) + addForm.loosePieces} pieces total</p>
                     </div>
-                    {inventoryTrackingEnabled && <>
-                      <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">Barcodes: <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}{String((addForm.barcodePerBox ? addForm.packs : (addForm.packs * addForm.packSize) + addForm.loosePieces) || 1).padStart(3, '0')}</span></p>
-                      <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase">Barcode on</label>
-                        <div className="flex gap-2 mt-1">
-                          <button type="button" onClick={() => setAddForm({ ...addForm, barcodePerBox: true })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold transition-all", addForm.barcodePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>📦 Each Box</button>
-                          <button type="button" onClick={() => setAddForm({ ...addForm, barcodePerBox: false })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold transition-all", !addForm.barcodePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>🔲 Each Piece</button>
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-1">{addForm.barcodePerBox ? `${addForm.packs || 0} barcode labels (1 per box)` : `${(addForm.packs * addForm.packSize) + addForm.loosePieces} barcode labels (1 per piece)`}</p>
-                      </div>
-                    </>}
+                    {inventoryTrackingEnabled &&
+                      <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">📦 {addForm.packs || 0} barcode labels (1 per {addForm.packName || 'box'}): <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}001</span> to <span className="font-mono font-medium">{addForm.barcodePrefix || 'SP'}{String(addForm.packs || 1).padStart(3, '0')}</span></p>
+                    }
                     <div>
                       <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Price per {addForm.packName || 'Box'} (₹)</label>
                       <input type="number" required value={addForm.price || ''} onChange={(e) => setAddForm({ ...addForm, price: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder={`Price per ${addForm.packName || 'box'}`} />
@@ -403,7 +395,7 @@ export function InventoryView() {
                 if (!stockQty || stockQty < 1) { toast('Enter quantity', 'error'); return; }
                 setAddSubmitting(true);
                 try {
-                  await api.products.addStock(addStockModal.id, { quantity: stockQty, barcodeMode: 'prefix', barcodePerBox: hasPack && addStockForm.barcodePerBox, packSize: addStockModal.packSize });
+                  await api.products.addStock(addStockModal.id, { quantity: stockQty, barcodeMode: 'prefix', barcodePerBox: hasPack, packSize: addStockModal.packSize });
                   setAddStockModal(null);
                   api.products.list(debouncedBarcodeSearch || undefined).then(setProducts);
                   toast('Stock added successfully', 'success');
@@ -419,14 +411,7 @@ export function InventoryView() {
                       <div className="flex-1"><input type="number" min={0} max={10000} value={addStockForm.loosePieces || ''} onChange={(e) => setAddStockForm({ ...addStockForm, loosePieces: parseInt(e.target.value) || 0 })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="0" /><p className="text-[10px] text-gray-400 mt-0.5 text-center">Loose Pieces</p></div>
                     </div>
                     <p className="text-xs text-emerald-600 font-medium mt-1">= {(addStockForm.packs * (addStockModal.packSize || 1)) + addStockForm.loosePieces} pieces total</p>
-                    <div className="mt-3">
-                      <label className="text-xs font-bold text-gray-400 uppercase">Barcode on</label>
-                      <div className="flex gap-2 mt-1">
-                        <button type="button" onClick={() => setAddStockForm({ ...addStockForm, barcodePerBox: true })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold transition-all", addStockForm.barcodePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>📦 Each {addStockModal.packName ?? 'Box'}</button>
-                        <button type="button" onClick={() => setAddStockForm({ ...addStockForm, barcodePerBox: false })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold transition-all", !addStockForm.barcodePerBox ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>🔲 Each Piece</button>
-                      </div>
-                      <p className="text-[10px] text-gray-400 mt-1">{addStockForm.barcodePerBox ? `${addStockForm.packs || 0} barcode labels (1 per ${addStockModal.packName ?? 'box'})` : `${(addStockForm.packs * (addStockModal.packSize || 1)) + addStockForm.loosePieces} barcode labels (1 per piece)`}</p>
-                    </div>
+                    <p className="text-[10px] text-gray-500 bg-gray-50 px-3 py-2 rounded-lg mt-2">📦 {addStockForm.packs || 0} barcode labels (1 per {addStockModal.packName ?? 'box'})</p>
                   </div>
                 ) : (
                   <div><label className="text-xs font-bold text-gray-400 uppercase">Quantity to add</label><input type="number" required min={1} max={10000} value={addStockForm.quantity || ''} onChange={(e) => setAddStockForm({ ...addStockForm, quantity: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
