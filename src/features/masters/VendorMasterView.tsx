@@ -46,7 +46,7 @@ export function VendorMasterView({ onBack, onRefresh }: { onBack: () => void; on
           if (result.credentials) {
             setCredsModal({ vendorName: form.name, email: result.credentials.email, password: result.credentials.password, phone: form.phone || undefined });
           } else {
-            toast(form.email ? 'Vendor created (login account already exists for this email)' : 'Vendor created — add email to auto-create login', form.email ? 'success' : 'info');
+            toast('Vendor created', 'success');
           }
         })
         .catch((err) => toast(err.message, 'error'))
