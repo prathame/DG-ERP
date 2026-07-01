@@ -39,6 +39,19 @@ import { VendorFinanceView } from './features/finance/VendorFinanceView';
 import { PurchasesView } from './features/purchases/PurchasesView';
 import { QuotationsView } from './features/quotations/QuotationsView';
 import { OrdersView } from './features/orders/OrdersView';
+
+function QuotationsAndOrdersView() {
+  const [view, setView] = React.useState<'quotations' | 'orders'>('quotations');
+  return (
+    <div>
+      <div className="flex gap-2 mb-4">
+        <button type="button" onClick={() => setView('quotations')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${view === 'quotations' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Quotations</button>
+        <button type="button" onClick={() => setView('orders')} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${view === 'orders' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Orders</button>
+      </div>
+      {view === 'quotations' ? <QuotationsView /> : <OrdersView />}
+    </div>
+  );
+}
 import { AccountsView } from './features/accounts/AccountsView';
 import { SettingsView } from './features/settings/SettingsView';
 import { ProductVerificationView } from './features/verification/ProductVerificationView';
@@ -155,8 +168,7 @@ export default function App() {
     { id: 'inventory', label: tc('inventory', t('nav.inventory')), icon: Package, show: tv('inventory') },
     { id: 'purchases', label: tc('purchases', 'Purchases'), icon: ShoppingBag, show: tv('purchases') },
     { id: 'verification', label: tc('verification', t('nav.verification')), icon: ScanSearch, show: tv('verification') },
-    { id: 'quotations', label: 'Quotations', icon: FileText, show: true },
-    { id: 'orders', label: tc('orders', t('nav.orders')), icon: ClipboardList, show: tv('orders') },
+    { id: 'quotations', label: tc('quotations', 'Quotes & Orders'), icon: FileText, show: true },
     { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
     { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },
     { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') },
@@ -295,8 +307,15 @@ export default function App() {
           </button>
         </div>
 
-        <nav className="flex-1 px-4 py-4 space-y-2">
-          {visibleNavItems.map((item) => (
+        <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+          {visibleNavItems.map((item, idx) => (<React.Fragment key={item.id}>
+            {isSidebarOpen && idx > 0 && (
+              (item.id === 'purchases' && <div className="pt-2 pb-1"><p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest px-3">Supply Chain</p></div>) ||
+              (item.id === 'finance' && <div className="pt-2 pb-1"><p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest px-3">Finance & Reports</p></div>) ||
+              (item.id === 'warranty' && <div className="pt-2 pb-1"><p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest px-3">After Sales</p></div>) ||
+              null
+            )}
+            {/* nav item */}
             <button
               key={item.id}
               type="button"
@@ -312,7 +331,7 @@ export default function App() {
               {isSidebarOpen && <span className="font-medium">{item.label}</span>}
               {!isSidebarOpen && <span className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">{item.label}</span>}
             </button>
-          ))}
+          </React.Fragment>))}
         </nav>
 
         {canAccess('settings') && (
@@ -398,8 +417,7 @@ export default function App() {
           {activeTab === 'rewards' && <RewardsView user={user} />}
           {activeTab === 'inventory' && <InventoryView />}
           {activeTab === 'verification' && <ProductVerificationView />}
-          {activeTab === 'quotations' && <QuotationsView />}
-          {activeTab === 'orders' && <OrdersView />}
+          {activeTab === 'quotations' && <QuotationsAndOrdersView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} />}
           {activeTab === 'accounts' && <AccountsView />}
           </div>
@@ -409,7 +427,13 @@ export default function App() {
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 lg:hidden safe-bottom">
         <div className="flex items-center justify-around px-1 py-1">
-          {visibleNavItems.slice(0, 5).map((item) => (
+          {(() => {
+            const priorityIds = user?.role === 'Vendor'
+              ? ['dashboard', 'distribution', 'finance', 'inventory', 'settings']
+              : ['dashboard', 'distribution', 'inventory', 'finance', 'quotations'];
+            const mobileItems = priorityIds.map(id => visibleNavItems.find(n => n.id === id) || navItems.find(n => n.id === id)).filter(Boolean).slice(0, 5);
+            return mobileItems;
+          })().map((item) => (
             <button
               key={item.id}
               type="button"
