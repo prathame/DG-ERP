@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Trash2, Tag } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { ArrowLeft, Plus, Trash2, Tag, Printer, MessageCircle, Mail } from 'lucide-react';
+import { cn, openPrintWindow, shareViaWhatsApp, shareViaEmail } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
+import { session } from '../../lib/session';
 
 interface PriceRule {
   id: string; name: string; productId: string; productName: string;
@@ -62,6 +63,46 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     } catch (err) { toast((err as Error).message, 'error'); }
   };
 
+  const companyName = (() => { try { return session.getUser()?.companyName || 'DG Business'; } catch { return 'DG Business'; } })();
+
+  const generatePriceListText = (vendorFilter?: string) => {
+    const filtered = vendorFilter ? rules.filter(r => r.vendorId === vendorFilter || !r.vendorId) : rules;
+    const vendorName = vendorFilter ? vendors.find(v => v.id === vendorFilter)?.name || '' : 'All Products';
+    let text = `📋 *${companyName} — Price List*\n`;
+    if (vendorName !== 'All Products') text += `For: *${vendorName}*\n`;
+    text += `Date: ${new Date().toLocaleDateString('en-IN')}\n\n`;
+
+    const byProduct: Record<string, typeof filtered> = {};
+    for (const r of filtered) {
+      const key = r.productName || r.productId;
+      if (!byProduct[key]) byProduct[key] = [];
+      byProduct[key].push(r);
+    }
+
+    for (const [name, pRules] of Object.entries(byProduct)) {
+      const base = products.find(p => p.name === name);
+      text += `*${name}* (Base: ₹${base?.price?.toLocaleString() || '—'})\n`;
+      for (const r of pRules) {
+        const vendorTag = r.vendorId ? `[${r.vendorName}]` : '[All]';
+        text += `  ${vendorTag} Qty ${r.minQty}${r.maxQty ? `-${r.maxQty}` : '+'} → ₹${r.price.toLocaleString()}\n`;
+      }
+      text += '\n';
+    }
+    return text.trim();
+  };
+
+  const generatePriceListHtml = () => {
+    let html = `<html><head><title>Price List — ${companyName}</title><style>body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto}h1{font-size:20px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left;font-size:13px}th{background:#f9fafb;font-weight:600;text-transform:uppercase;font-size:11px;color:#6b7280}.vendor{background:#f3e8ff;color:#7c3aed;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700}.all{background:#fef3c7;color:#d97706;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700}.price{font-weight:700;color:#F27D26}@media print{body{padding:0}}</style></head><body>`;
+    html += `<h1>${companyName}</h1><p style="color:#6b7280;font-size:13px;">Price List — ${new Date().toLocaleDateString('en-IN')}</p>`;
+    html += `<table><thead><tr><th>Product</th><th>Base Price</th><th>Vendor</th><th>Qty Range</th><th>Special Price</th></tr></thead><tbody>`;
+    for (const r of rules) {
+      const base = products.find(p => p.id === r.productId);
+      html += `<tr><td>${r.productName}</td><td>₹${base?.price?.toLocaleString() || '—'}</td><td><span class="${r.vendorId ? 'vendor' : 'all'}">${r.vendorId ? r.vendorName : 'All Vendors'}</span></td><td>${r.minQty}${r.maxQty ? `–${r.maxQty}` : '+'}</td><td class="price">₹${r.price.toLocaleString()}</td></tr>`;
+    }
+    html += '</tbody></table></body></html>';
+    return html;
+  };
+
   if (loading) return <div className="flex items-center justify-center py-20"><LoadingSpinner /></div>;
 
   const grouped: Record<string, PriceRule[]> = products.reduce<Record<string, PriceRule[]>>((acc, p) => {
@@ -75,6 +116,11 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
       <div className="flex items-center gap-4 flex-wrap">
         <button type="button" onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
         <div className="flex-1"><h2 className="text-xl font-bold">Price List</h2><p className="text-sm text-gray-500">Set custom prices per vendor and quantity slabs</p></div>
+        {rules.length > 0 && <>
+          <button type="button" onClick={() => { const w = openPrintWindow(); if (w) { w.document.write(generatePriceListHtml()); w.document.close(); w.print(); } }} className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50"><Printer size={16} /> Print</button>
+          <button type="button" onClick={() => { const phone = prompt('Enter WhatsApp number (with country code):'); if (phone) shareViaWhatsApp(phone, generatePriceListText()); }} className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 text-green-600"><MessageCircle size={16} /> WhatsApp</button>
+          <button type="button" onClick={() => { const email = prompt('Enter email address:'); if (email) shareViaEmail(email, `Price List — ${companyName}`, generatePriceListText()); }} className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 text-blue-600"><Mail size={16} /> Email</button>
+        </>}
         <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add Price Rule</button>
       </div>
 
