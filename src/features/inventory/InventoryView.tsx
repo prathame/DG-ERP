@@ -184,23 +184,43 @@ export function InventoryView() {
                         <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
                         {(p.packSize || 1) > 1 && <span className="block text-[10px] text-gray-400">per {p.packName || 'Box'}</span>}
                       </td>
-                      {inventoryTrackingEnabled && <><td className="px-4 py-3 text-center">
-                        <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{p.totalInventory ?? p.stock ?? 0}</span>
-                        {(p.packSize || 1) > 1 ? <span className="block text-[10px] text-gray-500 font-bold">{p.packName || 'Box'}es</span> : <span className="block text-[10px] text-gray-400">pcs</span>}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="font-semibold text-sm text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</span>
-                        {(p.packSize || 1) > 1 ? <>
-                          <span className="block text-[10px] text-gray-500 font-bold">{p.packName || 'Box'}es</span>
-                          <span className="block text-[10px] text-emerald-500">({(p.remainingInventory ?? p.stock ?? 0) * (p.packSize || 1)} pcs)</span>
-                        </> : <span className="block text-[10px] text-gray-400">pcs</span>}
-                      </td>
-                      <td className="px-4 py-3 text-center hidden lg:table-cell">
-                        <span className="font-semibold text-sm text-purple-700">{p.withVendors ?? 0}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center hidden lg:table-cell">
-                        <span className="font-semibold text-sm text-emerald-700">{p.soldCount ?? 0}</span>
-                      </td></>}
+                      {inventoryTrackingEnabled && (() => {
+                        const rawStock = p.remainingInventory ?? p.stock ?? 0;
+                        const rawTotal = p.totalInventory ?? p.stock ?? 0;
+                        const ps = p.packSize || 1;
+                        const isBoxProduct = ps > 1;
+                        const isBoxBarcode = p.barcodeUnitType === 'box';
+                        const boxCount = isBoxBarcode ? rawStock : Math.floor(rawStock / ps);
+                        const totalBoxCount = isBoxBarcode ? rawTotal : Math.floor(rawTotal / ps);
+                        const pcsCount = isBoxBarcode ? rawStock * ps : rawStock;
+                        const totalPcsCount = isBoxBarcode ? rawTotal * ps : rawTotal;
+                        const loosePcs = isBoxBarcode ? 0 : rawStock % ps;
+                        return <><td className="px-4 py-3 text-center">
+                          {isBoxProduct ? <>
+                            <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{totalBoxCount}</span>
+                            <span className="block text-[10px] text-gray-500 font-bold">{p.packName || 'Box'}es</span>
+                          </> : <>
+                            <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{rawTotal}</span>
+                            <span className="block text-[10px] text-gray-400">pcs</span>
+                          </>}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {isBoxProduct ? <>
+                            <span className="font-semibold text-sm text-blue-700">{boxCount}</span>
+                            <span className="block text-[10px] text-gray-500 font-bold">{p.packName || 'Box'}es{loosePcs > 0 ? ` + ${loosePcs} pcs` : ''}</span>
+                            <span className="block text-[10px] text-emerald-500">({pcsCount} pcs)</span>
+                          </> : <>
+                            <span className="font-semibold text-sm text-blue-700">{rawStock}</span>
+                            <span className="block text-[10px] text-gray-400">pcs</span>
+                          </>}
+                        </td>
+                        <td className="px-4 py-3 text-center hidden lg:table-cell">
+                          <span className="font-semibold text-sm text-purple-700">{p.withVendors ?? 0}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center hidden lg:table-cell">
+                          <span className="font-semibold text-sm text-emerald-700">{p.soldCount ?? 0}</span>
+                        </td></>;
+                      })()}
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-brand hover:bg-orange-50 rounded-lg" title="Barcode Details">
