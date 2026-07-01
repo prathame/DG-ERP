@@ -7,6 +7,7 @@ import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
 import { useEscapeKey } from '../../lib/useEscapeKey';
+import { SearchSelect } from '../../components/ui/SearchSelect';
 
 export function DistributionView({ user }: { user: { id: string; role?: string; vendorId?: string } | null }) {
   const { toast } = useToast();
@@ -580,16 +581,18 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                         <tr key={idx} className="hover:bg-gray-50">
                           <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
                           <td className="px-3 py-2">
-                            <select value={row.productId} onChange={(e) => { const pid = e.target.value; const pr = products.find(x => x.id === pid); updateDistRow(idx, 'productId', pid); if (pr?.barcodeUnitType === 'box' && (pr.packSize || 1) > 1) updateDistRow(idx, 'unitMode', 'pack'); if (pid && distVendorId) { fetch(`/api/price-lists/resolve?productId=${pid}&vendorId=${distVendorId}&quantity=${row.quantity || 1}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') updateDistRow(idx, 'customPrice', String(d.price)); }).catch(() => {}); } }} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand">
-                              <option value="">Select product</option>
-                              {products.filter(pr => (pr.stock ?? 0) > 0).map((pr) => {
+                            <SearchSelect
+                              value={row.productId}
+                              placeholder="Select product"
+                              options={products.filter(pr => (pr.stock ?? 0) > 0).sort((a, b) => a.name.localeCompare(b.name)).map((pr) => {
                                 const ps = pr.packSize || 1;
                                 const isBxBarcode = pr.barcodeUnitType === 'box' && ps > 1;
                                 const priceLabel = ps > 1 ? `₹${(pr.price * ps).toLocaleString()}/${pr.packName || 'box'}` : `₹${pr.price.toLocaleString()}`;
-                                const stockLabel = isBxBarcode ? `${pr.remainingInventory ?? pr.stock} ${pr.packName || 'Box'}es` : (ps > 1 ? `${pr.stock} pcs (${Math.floor(pr.stock / ps)} ${pr.packName || 'Box'}es)` : `${pr.stock} avl`);
-                                return <option key={pr.id} value={pr.id}>{pr.name} ({priceLabel}) — {stockLabel}</option>;
+                                const stockLabel = isBxBarcode ? `${pr.remainingInventory ?? pr.stock} ${pr.packName || 'Box'}es` : (ps > 1 ? `${pr.stock} pcs` : `${pr.stock} avl`);
+                                return { value: pr.id, label: `${pr.name} (${priceLabel})`, sublabel: stockLabel };
                               })}
-                            </select>
+                              onChange={(pid) => { const pr = products.find(x => x.id === pid); updateDistRow(idx, 'productId', pid); if (pr?.barcodeUnitType === 'box' && (pr.packSize || 1) > 1) updateDistRow(idx, 'unitMode', 'pack'); if (pid && distVendorId) { fetch(`/api/price-lists/resolve?productId=${pid}&vendorId=${distVendorId}&quantity=${row.quantity || 1}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') updateDistRow(idx, 'customPrice', String(d.price)); }).catch(() => {}); } }}
+                            />
                           </td>
                           <td className="px-2 py-2">
                             <div className="flex items-center gap-1">
