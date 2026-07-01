@@ -572,10 +572,9 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                               placeholder="Select product"
                               options={products.filter(pr => (pr.stock ?? 0) > 0).sort((a, b) => a.name.localeCompare(b.name)).map((pr) => {
                                 const ps = pr.packSize || 1;
-                                const unitLabel = ps > 1 ? `/${pr.packName || 'Box'}` : '';
-                                const stockCount = pr.remainingInventory ?? pr.stock ?? 0;
-                                const stockUnit = ps > 1 ? `${pr.packName || 'Box'}s` : 'pcs';
-                                return { value: pr.id, label: `${pr.name} — ₹${pr.price.toLocaleString()}${unitLabel}`, sublabel: `${stockCount} ${stockUnit}` };
+                                const isBoxPr = ps > 1;
+                                const rawCount = pr.remainingInventory ?? pr.stock ?? 0;
+                                return { value: pr.id, label: `${pr.name} — ₹${pr.price.toLocaleString()}${isBoxPr ? `/${pr.packName || 'Box'}` : ''}`, sublabel: isBoxPr ? `${rawCount} ${pr.packName || 'Box'}s` : `${rawCount} pcs` };
                               })}
                               onChange={(pid) => { const selPr = products.find(x => x.id === pid); updateDistRow(idx, 'productId', pid); if (selPr) updateDistRow(idx, 'customPrice', String(selPr.price)); if (pid && distVendorId) { fetch(`/api/price-lists/resolve?productId=${pid}&vendorId=${distVendorId}&quantity=${row.quantity || 1}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') updateDistRow(idx, 'customPrice', String(d.price)); }).catch(() => {}); } }}
                             />
