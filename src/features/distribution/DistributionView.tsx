@@ -566,7 +566,7 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                   <tbody className="divide-y divide-gray-100">
                     {distRows.map((row, idx) => {
                       const p = products.find(x => x.id === row.productId);
-                      const packSz = p?.packSize ?? 1;
+                      const packSz = p?.packSize || 1;
                       const hasPack = packSz > 1;
                       const isPackMode = row.unitMode === 'pack' && hasPack;
                       const actualPieces = isPackMode ? (row.quantity || 0) * packSz : (row.quantity || 0);
@@ -591,12 +591,12 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                                 const stockLabel = isBxBarcode ? `${pr.remainingInventory ?? pr.stock} ${pr.packName || 'Box'}es` : (ps > 1 ? `${pr.stock} pcs` : `${pr.stock} avl`);
                                 return { value: pr.id, label: `${pr.name} (${priceLabel})`, sublabel: stockLabel };
                               })}
-                              onChange={(pid) => { const pr = products.find(x => x.id === pid); updateDistRow(idx, 'productId', pid); if (pr?.barcodeUnitType === 'box' && (pr.packSize || 1) > 1) updateDistRow(idx, 'unitMode', 'pack'); if (pid && distVendorId) { fetch(`/api/price-lists/resolve?productId=${pid}&vendorId=${distVendorId}&quantity=${row.quantity || 1}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') updateDistRow(idx, 'customPrice', String(d.price)); }).catch(() => {}); } }}
+                              onChange={(pid) => { const pr = products.find(x => x.id === pid); const prPs = pr?.packSize || 1; const prIsBox = pr?.barcodeUnitType === 'box' && prPs > 1; updateDistRow(idx, 'productId', pid); if (prIsBox) updateDistRow(idx, 'unitMode', 'pack'); if (pid && distVendorId) { fetch(`/api/price-lists/resolve?productId=${pid}&vendorId=${distVendorId}&quantity=${row.quantity || 1}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') { const plPrice = prIsBox ? d.price * prPs : d.price; updateDistRow(idx, 'customPrice', String(plPrice)); } }).catch(() => {}); } }}
                             />
                           </td>
                           <td className="px-2 py-2">
                             <div className="flex items-center gap-1">
-                              <input type="text" inputMode="numeric" pattern="[0-9]*" value={row.quantity || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); const newQty = v === '' ? 0 : parseInt(v, 10); updateDistRow(idx, 'quantity', newQty); if (row.productId && distVendorId && newQty > 0) { fetch(`/api/price-lists/resolve?productId=${row.productId}&vendorId=${distVendorId}&quantity=${newQty}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') updateDistRow(idx, 'customPrice', String(d.price)); }).catch(() => {}); } }} className="w-16 min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
+                              <input type="text" inputMode="numeric" pattern="[0-9]*" value={row.quantity || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); const newQty = v === '' ? 0 : parseInt(v, 10); updateDistRow(idx, 'quantity', newQty); if (row.productId && distVendorId && newQty > 0) { fetch(`/api/price-lists/resolve?productId=${row.productId}&vendorId=${distVendorId}&quantity=${newQty}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(d => { if (d.source === 'price_list') { const plPrice = isPackMode ? d.price * packSz : d.price; updateDistRow(idx, 'customPrice', String(plPrice)); } }).catch(() => {}); } }} className="w-16 min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
                               {hasPack && (() => {
                                 const isBx = p?.barcodeUnitType === 'box';
                                 return isBx
