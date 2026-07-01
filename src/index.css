@@ -174,7 +174,7 @@ button {
   cursor: pointer;
 }
 
-/* Hide number input spinners globally */
+/* Hide number input spinners and disable scroll changing values */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
@@ -182,6 +182,9 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 input[type="number"] {
   -moz-appearance: textfield;
+}
+input[type="number"] {
+  overscroll-behavior: contain;
 }
 
 /* Focus-visible for keyboard accessibility */

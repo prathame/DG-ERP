@@ -4,6 +4,13 @@ import App from './App.tsx';
 import { LanguageProvider } from './i18n';
 import './index.css';
 
+document.addEventListener('wheel', (e) => {
+  const el = document.activeElement;
+  if (el instanceof HTMLInputElement && (el.type === 'number' || el.inputMode === 'numeric' || el.inputMode === 'decimal')) {
+    el.blur();
+  }
+}, { passive: true });
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <LanguageProvider>
