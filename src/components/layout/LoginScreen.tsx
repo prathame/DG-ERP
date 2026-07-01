@@ -11,7 +11,7 @@ interface LoginResult {
   token: string;
   tenantId?: string;
   tenantSlug?: string;
-  user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean; barcodeSystemEnabled?: boolean; multiLanguageEnabled?: boolean; vendorPortalEnabled?: boolean; tabConfig?: Record<string, { label: string; visible: boolean }> | null };
+  user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean; planName?: string; barcodeSystemEnabled?: boolean; multiLanguageEnabled?: boolean; vendorPortalEnabled?: boolean; tabConfig?: Record<string, { label: string; visible: boolean }> | null };
 }
 
 interface TenantBranding {
