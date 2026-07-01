@@ -15,7 +15,7 @@ router.get('/api/notifications', async (req, res) => {
       SELECT p.id, p.name, COUNT(pi.id) as stock FROM products p
       LEFT JOIN product_inventory pi ON pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1
       WHERE p.tenant_id = $1
-      GROUP BY p.id HAVING COUNT(pi.id) < 10
+      GROUP BY p.id, p.name HAVING COUNT(pi.id) < 10
     `, [tenantId])).rows as { id: string; name: string; stock: number }[];
     for (const p of lowStock) {
       items.push({ id: `low-${p.id}`, type: 'low_stock', title: 'Low Stock', message: `${p.name} has only ${p.stock} units left`, severity: Number(p.stock) === 0 ? 'critical' : 'warning' });

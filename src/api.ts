@@ -490,7 +490,7 @@ export const api = {
       fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[] | null; vendorId?: string | null }[]>(`/admin/users?adminUserId=${encodeURIComponent(adminUserId)}`),
     createUser: (adminUserId: string, data: { email: string; password: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[]; vendorId?: string }) =>
       fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[] | null; vendorId?: string | null }>('/admin/users', { method: 'POST', body: JSON.stringify({ adminUserId, ...data }) }),
-    updateUser: (adminUserId: string, userId: string, data: { role?: string; permissions?: string[]; vendorId?: string }) =>
-      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[] | null }>(`/admin/users/${userId}`, { method: 'PUT', body: JSON.stringify({ adminUserId, ...data }) }),
+    updateUser: (adminUserId: string, userId: string, data: { role?: string; permissions?: Record<string, string> | string[]; vendorId?: string }) =>
+      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: Record<string, string> | null }>(`/admin/users/${userId}`, { method: 'PUT', body: JSON.stringify({ adminUserId, ...data }) }),
   },
 };
