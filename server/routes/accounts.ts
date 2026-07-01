@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
+import { DISTRIBUTION_BILL_UNIT_SQL, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -232,6 +232,138 @@ router.get('/api/accounts/cash-flow', async (req, res) => {
       netCashFlow: vendorPayments - supplierPayments,
       monthly,
     });
+  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+// Credit/Debit Notes
+router.get('/api/accounts/notes', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { type } = req.query;
+    let sql = 'SELECT * FROM credit_debit_notes WHERE tenant_id = $1';
+    const params: unknown[] = [tenantId];
+    if (type === 'credit' || type === 'debit') { sql += ' AND note_type = $2'; params.push(type); }
+    sql += ' ORDER BY created_at DESC';
+    const { rows } = await pool.query(sql, params);
+    res.json(rows.map((r: Record<string, unknown>) => ({
+      id: r.id, noteNumber: r.note_number, noteType: r.note_type,
+      vendorId: r.vendor_id, vendorName: r.vendor_name, customerName: r.customer_name,
+      noteDate: r.note_date, reason: r.reason,
+      items: typeof r.items === 'string' ? JSON.parse(r.items) : r.items,
+      subtotal: Number(r.subtotal) || 0, gstRate: Number(r.gst_rate) || 18,
+      gstAmount: Number(r.gst_amount) || 0, total: Number(r.total) || 0,
+      referenceInvoice: r.reference_invoice, status: r.status,
+    })));
+  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.post('/api/accounts/notes', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { noteType, vendorId, vendorName, customerName, noteDate, reason, items, gstRate, referenceInvoice } = req.body;
+    if (!noteType || !['credit', 'debit'].includes(noteType)) return res.status(400).json({ error: 'noteType must be credit or debit' });
+    if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'At least one item required' });
+
+    const id = `${noteType === 'credit' ? 'CN' : 'DN'}${Date.now()}`;
+    const prefix = noteType === 'credit' ? 'CN' : 'DN';
+    const count = (await pool.query('SELECT COUNT(*) as c FROM credit_debit_notes WHERE tenant_id = $1 AND note_type = $2', [tenantId, noteType])).rows[0] as { c: number };
+    const noteNum = `${prefix}-${String(Number(count.c) + 1).padStart(4, '0')}`;
+    const rate = Number(gstRate) || 18;
+
+    let subtotal = 0; let gstAmount = 0;
+    const resolvedItems: { description: string; quantity: number; price: number; withGst: boolean; lineNet: number; lineGst: number; lineTotal: number }[] = [];
+    for (const item of items) {
+      const qty = Number(item.quantity) || 1;
+      const price = Number(item.price) || 0;
+      const net = qty * price;
+      const gst = item.withGst !== false ? Math.round(net * rate / 100) : 0;
+      resolvedItems.push({ description: item.description || '', quantity: qty, price, withGst: item.withGst !== false, lineNet: net, lineGst: gst, lineTotal: net + gst });
+      subtotal += net; gstAmount += gst;
+    }
+    const total = subtotal + gstAmount;
+
+    let vName = vendorName || '';
+    if (vendorId && !vName) {
+      const v = (await pool.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as { name: string } | undefined;
+      vName = v?.name ?? '';
+    }
+
+    await pool.query(
+      `INSERT INTO credit_debit_notes (id, tenant_id, note_number, note_type, vendor_id, vendor_name, customer_name, note_date, reason, items, subtotal, gst_rate, gst_amount, total, reference_invoice)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [id, tenantId, noteNum, noteType, vendorId || null, vName, customerName || vName, noteDate || new Date().toISOString().slice(0, 10), reason || null, JSON.stringify(resolvedItems), subtotal, rate, gstAmount, total, referenceInvoice || null]
+    );
+
+    await logAudit(pool, tenantId, `${noteType === 'credit' ? 'Credit' : 'Debit'} Note Created`, 'note', id, `${noteNum} — ₹${total} for ${vName || customerName || 'N/A'}`);
+    res.status(201).json({ id, noteNumber: noteNum, noteType, vendorName: vName, customerName: customerName || vName, total, status: 'Active' });
+  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.delete('/api/accounts/notes/:id', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const result = await pool.query('DELETE FROM credit_debit_notes WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
+    res.status(204).send();
+  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+// Day Book — all transactions for a specific date
+router.get('/api/accounts/day-book', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const date = (req.query.date as string) || new Date().toISOString().slice(0, 10);
+
+    const [sales, distributions, purchases, vendorPayments, supplierPayments] = await Promise.all([
+      pool.query(`SELECT ps.id, ps.purchase_date as date, ps.customer_name, COALESCE(ps.sale_price, p.price) as amount, p.name as product_name, 'Sale' as type
+        FROM product_sales ps JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1
+        WHERE ps.tenant_id = $1 AND ps.purchase_date = $2`, [tenantId, date]),
+      pool.query(`SELECT pd.batch_id as id, pd.distribution_date as date, v.name as party_name,
+        ${DISTRIBUTION_BILL_UNIT_SQL} as amount, p.name as product_name, 'Distribution' as type
+        FROM product_distribution pd
+        JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+        JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+        WHERE pd.tenant_id = $1 AND pd.distribution_date = $2`, [tenantId, date]),
+      pool.query(`SELECT pp.batch_id as id, pp.purchase_date as date, s.name as party_name,
+        COALESCE(pp.billed_price, pp.cost_price) as amount, p.name as product_name, 'Purchase' as type
+        FROM product_purchases pp
+        JOIN products p ON pp.product_id = p.id AND p.tenant_id = $1
+        JOIN suppliers s ON pp.supplier_id = s.id AND s.tenant_id = $1
+        WHERE pp.tenant_id = $1 AND pp.purchase_date = $2`, [tenantId, date]),
+      pool.query(`SELECT vp.id, vp.payment_date as date, v.name as party_name, vp.amount, vp.payment_method, 'Payment Received' as type
+        FROM vendor_payments vp JOIN vendors v ON vp.vendor_id = v.id AND v.tenant_id = $1
+        WHERE vp.tenant_id = $1 AND vp.payment_date = $2`, [tenantId, date]),
+      pool.query(`SELECT sp.id, sp.payment_date as date, s.name as party_name, sp.amount, sp.payment_method, 'Payment Made' as type
+        FROM supplier_payments sp JOIN suppliers s ON sp.supplier_id = s.id AND s.tenant_id = $1
+        WHERE sp.tenant_id = $1 AND sp.payment_date = $2`, [tenantId, date]),
+    ]);
+
+    const entries: { id: string; date: string; type: string; party: string; product?: string; debit: number; credit: number; method?: string }[] = [];
+
+    for (const r of sales.rows as Record<string, unknown>[]) {
+      entries.push({ id: r.id as string, date: r.date as string, type: 'Sale', party: (r.customer_name as string) || 'Walk-in', product: r.product_name as string, debit: Number(r.amount) || 0, credit: 0 });
+    }
+    for (const r of distributions.rows as Record<string, unknown>[]) {
+      entries.push({ id: r.id as string, date: r.date as string, type: 'Distribution', party: r.party_name as string, product: r.product_name as string, debit: Number(r.amount) || 0, credit: 0 });
+    }
+    for (const r of purchases.rows as Record<string, unknown>[]) {
+      entries.push({ id: r.id as string, date: r.date as string, type: 'Purchase', party: r.party_name as string, product: r.product_name as string, debit: 0, credit: Number(r.amount) || 0 });
+    }
+    for (const r of vendorPayments.rows as Record<string, unknown>[]) {
+      entries.push({ id: r.id as string, date: r.date as string, type: 'Payment Received', party: r.party_name as string, debit: Number(r.amount) || 0, credit: 0, method: r.payment_method as string });
+    }
+    for (const r of supplierPayments.rows as Record<string, unknown>[]) {
+      entries.push({ id: r.id as string, date: r.date as string, type: 'Payment Made', party: r.party_name as string, debit: 0, credit: Number(r.amount) || 0, method: r.payment_method as string });
+    }
+
+    const totalDebit = entries.reduce((s, e) => s + e.debit, 0);
+    const totalCredit = entries.reduce((s, e) => s + e.credit, 0);
+
+    res.json({ date, entries, totalDebit, totalCredit, netFlow: totalDebit - totalCredit });
   } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
 });
 

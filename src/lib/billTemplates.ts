@@ -93,16 +93,29 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
     </div>` : '';
 
   const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
-  const bankSection = hasBankDetails ? `
+  const upiQrSection = billConfig.bankUpiId ? (() => {
+    const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
+    return `<div style="text-align:center;">
+      <img src="${qrUrl}" style="width:120px;height:120px;" />
+      <p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p>
+    </div>`;
+  })() : '';
+  const bankSection = hasBankDetails || upiQrSection ? `
     <div style="margin-top:20px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;">
-      <strong style="font-size:13px;">Bank Details</strong>
-      <table style="width:100%;margin-top:8px;font-size:12px;">
-        ${billConfig.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
-        ${billConfig.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(billConfig.bankAccountNumber)}</td></tr>` : ''}
-        ${billConfig.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(billConfig.bankName)}${billConfig.bankBranch ? `, ${esc(billConfig.bankBranch)}` : ''}</td></tr>` : ''}
-        ${billConfig.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
-        ${billConfig.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
-      </table>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+        ${hasBankDetails ? `<div style="flex:1;">
+          <strong style="font-size:13px;">Bank Details</strong>
+          <table style="width:100%;margin-top:8px;font-size:12px;">
+            ${billConfig.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
+            ${billConfig.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(billConfig.bankAccountNumber)}</td></tr>` : ''}
+            ${billConfig.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(billConfig.bankName)}${billConfig.bankBranch ? `, ${esc(billConfig.bankBranch)}` : ''}</td></tr>` : ''}
+            ${billConfig.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
+            ${billConfig.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
+          </table>
+        </div>` : ''}
+        ${upiQrSection}
+      </div>
     </div>` : '';
 
   const tcSection = billConfig.termsAndConditions ? `
@@ -236,16 +249,29 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   const footerText = (billConfig.footerText as string) || 'Powered by DG ERP Management';
 
   const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
-  const bankSection = hasBankDetails ? `
+  const upiQrSection = billConfig.bankUpiId ? (() => {
+    const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
+    return `<div style="text-align:center;">
+      <img src="${qrUrl}" style="width:120px;height:120px;" />
+      <p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p>
+    </div>`;
+  })() : '';
+  const bankSection = hasBankDetails || upiQrSection ? `
     <div style="margin-top:20px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;">
-      <strong style="font-size:13px;">Bank Details</strong>
-      <table style="width:100%;margin-top:8px;font-size:12px;">
-        ${billConfig.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
-        ${billConfig.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(billConfig.bankAccountNumber)}</td></tr>` : ''}
-        ${billConfig.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(billConfig.bankName)}${billConfig.bankBranch ? `, ${esc(billConfig.bankBranch)}` : ''}</td></tr>` : ''}
-        ${billConfig.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
-        ${billConfig.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
-      </table>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+        ${hasBankDetails ? `<div style="flex:1;">
+          <strong style="font-size:13px;">Bank Details</strong>
+          <table style="width:100%;margin-top:8px;font-size:12px;">
+            ${billConfig.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
+            ${billConfig.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(billConfig.bankAccountNumber)}</td></tr>` : ''}
+            ${billConfig.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(billConfig.bankName)}${billConfig.bankBranch ? `, ${esc(billConfig.bankBranch)}` : ''}</td></tr>` : ''}
+            ${billConfig.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
+            ${billConfig.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
+          </table>
+        </div>` : ''}
+        ${upiQrSection}
+      </div>
     </div>` : '';
 
   const tcSection = billConfig.termsAndConditions ? `

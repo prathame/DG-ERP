@@ -552,6 +552,32 @@ export async function initSchema() {
       )
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_orders_tenant ON orders(tenant_id)');
+
+    // Credit/Debit Notes
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS credit_debit_notes (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        note_number TEXT,
+        note_type TEXT NOT NULL DEFAULT 'credit',
+        vendor_id TEXT,
+        vendor_name TEXT,
+        customer_name TEXT,
+        note_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        reason TEXT,
+        items JSONB NOT NULL DEFAULT '[]',
+        subtotal NUMERIC(12,2) DEFAULT 0,
+        gst_rate NUMERIC(5,2) DEFAULT 18,
+        gst_amount NUMERIC(12,2) DEFAULT 0,
+        total NUMERIC(12,2) DEFAULT 0,
+        reference_invoice TEXT,
+        status TEXT DEFAULT 'Active',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_cdn_tenant ON credit_debit_notes(tenant_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_cdn_type ON credit_debit_notes(tenant_id, note_type)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(tenant_id, status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_orders_vendor ON orders(tenant_id, vendor_id)');
 

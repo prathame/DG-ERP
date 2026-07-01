@@ -5,7 +5,7 @@ import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { fetchApi } from '../../api';
 
-type AccountTab = 'pnl' | 'balance' | 'cashflow' | 'ledger' | 'sales' | 'distribution' | 'outstanding' | 'payments' | 'stock' | 'gst';
+type AccountTab = 'pnl' | 'balance' | 'cashflow' | 'ledger' | 'daybook' | 'notes' | 'sales' | 'distribution' | 'outstanding' | 'payments' | 'stock' | 'gst';
 
 function fmtCurrency(n: number) { return `₹${Math.abs(n).toLocaleString('en-IN')}${n < 0 ? ' (Cr)' : ''}`; }
 
@@ -30,6 +30,8 @@ export function AccountsView() {
       else if (tab === 'balance') setData(await fetchApi('/accounts/balance-sheet'));
       else if (tab === 'cashflow') setData(await fetchApi(`/accounts/cash-flow?${qs}`));
       else if (tab === 'ledger') setData(await fetchApi(`/accounts/ledger?${qs}&type=${ledgerFilter}`));
+      else if (tab === 'daybook') setData(await fetchApi(`/accounts/day-book?date=${from}`));
+      else if (tab === 'notes') setData(await fetchApi('/accounts/notes'));
       else if (tab === 'sales') setData(await fetchApi(`/reports/sales-register?${qs}`));
       else if (tab === 'distribution') setData(await fetchApi(`/reports/distribution-register?${qs}`));
       else if (tab === 'outstanding') setData(await fetchApi('/reports/outstanding'));
@@ -43,7 +45,7 @@ export function AccountsView() {
   const handlePrint = () => {
     const el = document.getElementById('accounts-content');
     if (!el) return;
-    const titles: Record<string, string> = { pnl: 'Profit & Loss Statement', balance: 'Balance Sheet', cashflow: 'Cash Flow Statement', ledger: 'General Ledger', sales: 'Sales Register', distribution: 'Distribution Register', outstanding: 'Outstanding Report', payments: 'Payment Register', stock: 'Stock Summary', gst: 'GST Summary' };
+    const titles: Record<string, string> = { pnl: 'Profit & Loss Statement', balance: 'Balance Sheet', cashflow: 'Cash Flow Statement', ledger: 'General Ledger', daybook: 'Day Book', notes: 'Credit / Debit Notes', sales: 'Sales Register', distribution: 'Distribution Register', outstanding: 'Outstanding Report', payments: 'Payment Register', stock: 'Stock Summary', gst: 'GST Summary' };
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) return;
     win.document.write(`<html><head><title>${titles[tab]}</title><style>body{font-family:sans-serif;margin:20px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#f5f5f5}.card{border:1px solid #ddd;padding:16px;margin:8px 0;border-radius:8px}.amount{text-align:right;font-weight:bold}.label{color:#666;font-size:11px;text-transform:uppercase}h2{margin-bottom:4px}p{color:#666;font-size:12px;margin-top:0}@media print{body{margin:0}}</style></head><body><h2>${titles[tab]}</h2><p>Period: ${from} to ${to}</p>${el.innerHTML}</body></html>`);
@@ -56,6 +58,8 @@ export function AccountsView() {
     { key: 'balance', label: 'Balance Sheet', shortLabel: 'Balance', icon: Scale, group: 'accounts' },
     { key: 'cashflow', label: 'Cash Flow', shortLabel: 'Cash', icon: Banknote, group: 'accounts' },
     { key: 'ledger', label: 'Ledger', shortLabel: 'Ledger', icon: BookOpen, group: 'accounts' },
+    { key: 'daybook', label: 'Day Book', shortLabel: 'DayBook', icon: BookOpen, group: 'accounts' },
+    { key: 'notes', label: 'Credit/Debit Notes', shortLabel: 'Notes', icon: Receipt, group: 'accounts' },
     { key: 'sales', label: 'Sales Register', shortLabel: 'Sales', icon: ShoppingCart, group: 'reports' },
     { key: 'distribution', label: 'Distribution Register', shortLabel: 'Dist.', icon: Truck, group: 'reports' },
     { key: 'outstanding', label: 'Outstanding', shortLabel: 'Due', icon: Clock, group: 'reports' },
@@ -133,6 +137,8 @@ export function AccountsView() {
           {tab === 'balance' && <BalanceSheet data={data} />}
           {tab === 'cashflow' && <CashFlow data={data} />}
           {tab === 'ledger' && <Ledger data={data} />}
+          {tab === 'daybook' && <DayBook data={data} />}
+          {tab === 'notes' && <NotesView data={data} onRefresh={loadData} />}
           {['sales', 'distribution', 'outstanding', 'payments', 'stock', 'gst'].includes(tab) && <ReportTable tab={tab} data={data} />}
         </div>
       )}
@@ -304,6 +310,123 @@ function Ledger({ data }: { data: Record<string, unknown> }) {
           </tr></tfoot>
         </table>
       </div>
+    </div>
+  );
+}
+
+function DayBook({ data }: { data: Record<string, unknown> }) {
+  const entries = (data.entries as { id: string; type: string; party: string; product?: string; debit: number; credit: number; method?: string }[]) || [];
+  const totalDebit = Number(data.totalDebit) || 0;
+  const totalCredit = Number(data.totalCredit) || 0;
+  const typeColors: Record<string, string> = { Sale: 'bg-emerald-50 text-emerald-600', Distribution: 'bg-blue-50 text-blue-600', Purchase: 'bg-amber-50 text-amber-600', 'Payment Received': 'bg-green-50 text-green-600', 'Payment Made': 'bg-rose-50 text-rose-600' };
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+        <span className="text-sm font-bold text-gray-600">{entries.length} transactions — {data.date as string}</span>
+        <span className="text-xs text-gray-400">In: {fmtCurrency(totalDebit)} | Out: {fmtCurrency(totalCredit)} | Net: {fmtCurrency(totalDebit - totalCredit)}</span>
+      </div>
+      {entries.length === 0 ? (
+        <div className="p-8 text-center text-gray-400"><p>No transactions on this date</p></div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-gray-200 bg-gray-50">
+              <th className="px-3 py-2.5 text-left text-xs font-bold text-gray-400 uppercase">Type</th>
+              <th className="px-3 py-2.5 text-left text-xs font-bold text-gray-400 uppercase">Party</th>
+              <th className="px-3 py-2.5 text-left text-xs font-bold text-gray-400 uppercase">Product</th>
+              <th className="px-3 py-2.5 text-left text-xs font-bold text-gray-400 uppercase">Method</th>
+              <th className="px-3 py-2.5 text-right text-xs font-bold text-gray-400 uppercase">Debit (In)</th>
+              <th className="px-3 py-2.5 text-right text-xs font-bold text-gray-400 uppercase">Credit (Out)</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-50">
+              {entries.map((e, i) => (
+                <tr key={i} className="hover:bg-gray-50/50">
+                  <td className="px-3 py-2"><span className={cn("px-2 py-0.5 rounded-full text-xs font-bold", typeColors[e.type] || 'bg-gray-100 text-gray-600')}>{e.type}</span></td>
+                  <td className="px-3 py-2 font-medium">{e.party}</td>
+                  <td className="px-3 py-2 text-gray-600">{e.product || '—'}</td>
+                  <td className="px-3 py-2 text-gray-500 text-xs">{e.method || '—'}</td>
+                  <td className="px-3 py-2 text-right font-medium text-emerald-600">{e.debit > 0 ? fmtCurrency(e.debit) : '—'}</td>
+                  <td className="px-3 py-2 text-right font-medium text-rose-600">{e.credit > 0 ? fmtCurrency(e.credit) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot><tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">
+              <td colSpan={4} className="px-3 py-2.5">Total</td>
+              <td className="px-3 py-2.5 text-right text-emerald-600">{fmtCurrency(totalDebit)}</td>
+              <td className="px-3 py-2.5 text-right text-rose-600">{fmtCurrency(totalCredit)}</td>
+            </tr></tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefresh: () => void }) {
+  const notes = (Array.isArray(data) ? data : []) as { id: string; noteNumber: string; noteType: string; vendorName?: string; customerName?: string; noteDate: string; total: number; reason?: string; status: string }[];
+  const [creating, setCreating] = React.useState(false);
+  const [noteForm, setNoteForm] = React.useState({ noteType: 'credit' as 'credit' | 'debit', vendorName: '', customerName: '', reason: '', referenceInvoice: '', items: [{ description: '', quantity: 1, price: 0, withGst: true }] });
+  const [submitting, setSubmitting] = React.useState(false);
+
+  const handleCreate = async () => {
+    if (noteForm.items.filter(i => i.description && i.price > 0).length === 0) return;
+    setSubmitting(true);
+    try {
+      await fetchApi('/accounts/notes', { method: 'POST', body: JSON.stringify({ ...noteForm, items: noteForm.items.filter(i => i.description && i.price > 0) }) });
+      setCreating(false);
+      setNoteForm({ noteType: 'credit', vendorName: '', customerName: '', reason: '', referenceInvoice: '', items: [{ description: '', quantity: 1, price: 0, withGst: true }] });
+      onRefresh();
+    } catch { } finally { setSubmitting(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end"><button type="button" onClick={() => setCreating(true)} className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold">+ New Note</button></div>
+      {notes.length === 0 && !creating && <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-gray-400">No credit/debit notes yet</div>}
+      {notes.map(n => (
+        <div key={n.id} className={cn("bg-white rounded-xl border shadow-sm p-4 flex items-center justify-between", n.noteType === 'credit' ? 'border-emerald-200' : 'border-rose-200')}>
+          <div>
+            <div className="flex items-center gap-2"><span className="font-bold text-sm">{n.noteNumber}</span><span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold", n.noteType === 'credit' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700')}>{n.noteType === 'credit' ? 'Credit Note' : 'Debit Note'}</span></div>
+            <p className="text-sm text-gray-600">{n.vendorName || n.customerName || 'N/A'} — {formatDate(n.noteDate)}</p>
+            {n.reason && <p className="text-xs text-gray-400">{n.reason}</p>}
+          </div>
+          <div className="text-right">
+            <p className={cn("font-bold text-lg", n.noteType === 'credit' ? 'text-emerald-600' : 'text-rose-600')}>₹{n.total.toLocaleString()}</p>
+          </div>
+        </div>
+      ))}
+      {creating && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+          <h3 className="font-bold text-lg">New Credit / Debit Note</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Type</label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setNoteForm({ ...noteForm, noteType: 'credit' })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold", noteForm.noteType === 'credit' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-600')}>Credit Note</button>
+                <button type="button" onClick={() => setNoteForm({ ...noteForm, noteType: 'debit' })} className={cn("flex-1 py-2 rounded-xl text-sm font-bold", noteForm.noteType === 'debit' ? 'bg-rose-500 text-white' : 'bg-gray-100 text-gray-600')}>Debit Note</button>
+              </div>
+            </div>
+            <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Party Name</label><input value={noteForm.vendorName} onChange={e => setNoteForm({ ...noteForm, vendorName: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm" placeholder="Vendor or customer name" /></div>
+            <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Reason</label><input value={noteForm.reason} onChange={e => setNoteForm({ ...noteForm, reason: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm" placeholder="Return, refund, price adjustment..." /></div>
+            <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Reference Invoice</label><input value={noteForm.referenceInvoice} onChange={e => setNoteForm({ ...noteForm, referenceInvoice: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm" placeholder="Original invoice number" /></div>
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-400 uppercase block mb-2">Items</label>
+            {noteForm.items.map((item, i) => (
+              <div key={i} className="flex gap-2 mb-2">
+                <input value={item.description} onChange={e => setNoteForm({ ...noteForm, items: noteForm.items.map((x, j) => j === i ? { ...x, description: e.target.value } : x) })} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="Description" />
+                <input type="text" inputMode="numeric" value={item.quantity || ''} onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); setNoteForm({ ...noteForm, items: noteForm.items.map((x, j) => j === i ? { ...x, quantity: v ? parseInt(v) : 0 } : x) }); }} className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center" placeholder="Qty" />
+                <input type="text" inputMode="decimal" value={item.price || ''} onChange={e => { const v = e.target.value.replace(/[^0-9.]/g, ''); setNoteForm({ ...noteForm, items: noteForm.items.map((x, j) => j === i ? { ...x, price: v ? parseFloat(v) : 0 } : x) }); }} className="w-24 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center" placeholder="₹ Price" />
+                {noteForm.items.length > 1 && <button type="button" onClick={() => setNoteForm({ ...noteForm, items: noteForm.items.filter((_, j) => j !== i) })} className="text-rose-400 hover:text-rose-600 px-1">×</button>}
+              </div>
+            ))}
+            <button type="button" onClick={() => setNoteForm({ ...noteForm, items: [...noteForm.items, { description: '', quantity: 1, price: 0, withGst: true }] })} className="text-sm font-bold text-brand">+ Add Item</button>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setCreating(false)} className="flex-1 py-2 border rounded-xl font-medium">Cancel</button>
+            <button type="button" onClick={handleCreate} disabled={submitting} className={cn("flex-1 py-2 text-white rounded-xl font-bold disabled:opacity-60", noteForm.noteType === 'credit' ? 'bg-emerald-600' : 'bg-rose-600')}>{submitting ? 'Saving...' : `Create ${noteForm.noteType === 'credit' ? 'Credit' : 'Debit'} Note`}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
