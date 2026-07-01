@@ -118,13 +118,17 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (user && session.getToken()) {
+    if (!user || !session.getToken()) return;
+    const refreshProfile = () => {
       api.settings.getProfile(user.id).then((fresh) => {
         const merged = { ...user, ...fresh };
         session.setUser(merged);
         setUser(merged);
       }).catch(() => {});
-    }
+    };
+    refreshProfile();
+    const interval = setInterval(refreshProfile, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
