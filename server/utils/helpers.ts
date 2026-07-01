@@ -88,4 +88,5 @@ export const mapProduct = (r: Record<string, unknown>) => ({
   barcodeRange: r.barcodeRange ?? null,
   packSize: Number(r.pack_size) || 1,
   packName: (r.pack_name as string) || 'Piece',
+  barcodeUnitType: (r.barcodeUnitType as string) || (r.barcode_unit_type as string) || ((Number(r.pack_size) || 1) > 1 ? 'box' : 'piece'),
 });

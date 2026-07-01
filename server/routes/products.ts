@@ -341,9 +341,7 @@ router.post('/api/products', async (req, res) => {
 
     if (mode === 'prefix') {
       const prefix = typeof barcodePrefix === 'string' ? barcodePrefix.trim() : '';
-      const totalPcs = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
-      const pSz = Number(packSize) || 1;
-      const qty = barcodePerBox && pSz > 1 ? Math.ceil(totalPcs / pSz) : totalPcs;
+      const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
       if (!prefix) return res.status(400).json({ error: 'Barcode prefix is required (e.g. SP, PUMP, etc.)' });
       const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, qty);
       await insertProductRow();
@@ -400,9 +398,8 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
     const product = (await pool.query('SELECT id, pack_size FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as { id: string; pack_size: number } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
     const mode = barcodeMode === 'auto' ? 'auto' : barcodeMode === 'range' ? 'range' : 'prefix';
-    const totalPieces = Math.min(Math.max(1, Math.floor(Number(quantity))), 10000);
-    const pSize = Number(reqPackSize || product.pack_size) || 1;
-    const qty = barcodePerBox && pSize > 1 ? Math.ceil(totalPieces / pSize) : totalPieces;
+    const rawQty = Math.min(Math.max(1, Math.floor(Number(quantity))), 10000);
+    const qty = rawQty;
     let barcodes: string[] = [];
 
     if (mode === 'prefix' || (mode !== 'auto' && mode !== 'range')) {
@@ -437,6 +434,7 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
     const base = `I${id}-${Date.now()}`;
     const existingBc = (await pool.query('SELECT barcode FROM product_inventory WHERE barcode = ANY($1) AND tenant_id = $2', [barcodes, tenantId])).rows;
     if (existingBc.length > 0) return res.status(400).json({ error: `Barcode ${(existingBc[0] as { barcode: string }).barcode} already exists` });
+    const pSize = Number(reqPackSize || product.pack_size) || 1;
     const addUnitType = barcodePerBox && pSize > 1 ? 'box' : 'piece';
     if (barcodes.length > 0) {
       const values: string[] = [];
