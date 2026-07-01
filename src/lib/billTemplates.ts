@@ -344,7 +344,6 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   const halfGst = Math.round(gstAmount / 2);
   const grandTotal = netVal + gstAmount;
   const vendorGstin = (bill.vendor as Record<string, unknown>).gstNumber as string || '';
-  const hasDiscount = bill.groupedItems.some(g => g.discountPercent > 0);
 
   const numberToWords = (n: number): string => {
     if (n === 0) return 'Zero';
@@ -358,157 +357,192 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
       if (num < 10000000) return convert(Math.floor(num / 100000)) + ' Lakh' + (num % 100000 ? ' ' + convert(num % 100000) : '');
       return convert(Math.floor(num / 10000000)) + ' Crore' + (num % 10000000 ? ' ' + convert(num % 10000000) : '');
     };
-    return convert(Math.round(n)) + ' Rupees Only';
+    return convert(Math.round(n)) + ' Rupees and ' + String(Math.round((n % 1) * 100) || '00').padStart(2, '0') + ' Paisa Only';
   };
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Challan'} - ${chPrefix}${bill.challanId}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:24px;max-width:800px;margin:0 auto;font-size:12px;}
-  .border-box{border:1px solid #333;margin-bottom:-1px;}
-  .header-row{display:flex;border-bottom:1px solid #333;}
-  .header-left{flex:1;padding:12px;border-right:1px solid #333;}
-  .header-right{width:220px;padding:12px;}
-  .title-bar{background:${color};color:white;text-align:center;padding:6px;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
-  .party-row{display:flex;border-bottom:1px solid #333;}
-  .party-box{flex:1;padding:10px;}
-  .party-box:first-child{border-right:1px solid #333;}
-  .party-box h4{font-size:10px;text-transform:uppercase;color:#666;margin-bottom:4px;letter-spacing:0.5px;}
-  .party-box p{margin:1px 0;font-size:11px;}
-  .gstin{font-family:monospace;font-weight:700;font-size:12px;color:${color};}
-  table.items{width:100%;border-collapse:collapse;}
-  table.items th{background:#f3f4f6;padding:6px 8px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;border:1px solid #333;font-weight:700;}
-  table.items td{padding:5px 8px;border:1px solid #ddd;font-size:11px;}
-  table.items tr{page-break-inside:avoid;}
-  table.items tbody tr:nth-child(even){background:#fafafa;}
-  .tax-summary{display:flex;border-top:1px solid #333;}
-  .tax-left{flex:1;padding:10px;border-right:1px solid #333;font-size:11px;}
-  .tax-right{width:280px;padding:0;}
-  .tax-right table{width:100%;border-collapse:collapse;}
-  .tax-right td{padding:4px 10px;font-size:11px;border-bottom:1px solid #eee;}
-  .tax-right .grand{background:${color};color:white;font-weight:700;font-size:13px;border:none;}
-  .sig-row{display:flex;margin-top:40px;border-top:1px solid #333;}
-  .sig-box{flex:1;padding:8px;text-align:center;min-height:70px;display:flex;flex-direction:column;justify-content:flex-end;}
-  .sig-box:first-child{border-right:1px solid #333;}
-  .sig-box p{font-size:10px;font-weight:600;color:#666;text-transform:uppercase;}
-  .footer{margin-top:12px;font-size:9px;color:#999;text-align:center;}
-  .paid-stamp{position:absolute;top:60px;right:30px;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:3px solid #059669;color:#059669;background:#ecfdf5;border-radius:8px;font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;transform:rotate(-12deg);}
-  @media print{body{padding:10px;margin:0;} .no-print{display:none;} @page{margin:10mm;}}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
+  table{border-collapse:collapse;}
+  .outer{border:2px solid ${color};width:100%;}
+  .outer td,.outer th{border:1px solid #ccc;padding:4px 8px;font-size:11px;}
+  .hdr{border-bottom:2px solid ${color};}
+  .hdr td{border:none;padding:8px 12px;vertical-align:top;}
+  .tagline{background:${color};color:white;text-align:center;padding:4px;font-size:11px;font-weight:600;letter-spacing:1px;}
+  .title-row td{padding:6px 12px;font-size:12px;border-bottom:2px solid ${color};}
+  .gstin-text{font-family:monospace;font-weight:700;font-size:13px;}
+  .title-text{font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
+  .cust-row td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px;}
+  .cust-label{font-weight:700;width:100px;color:#555;}
+  .items th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:6px 6px;text-align:center;font-weight:700;}
+  .items td{padding:5px 6px;text-align:center;}
+  .items tr{page-break-inside:avoid;}
+  .items .left{text-align:left;}
+  .items .right{text-align:right;}
+  .items .total-row{font-weight:700;background:#f0f0f0;}
+  .summary-row td{padding:4px 8px;font-size:11px;vertical-align:top;}
+  .summary-label{font-weight:700;color:#555;}
+  .grand-total{font-size:16px;font-weight:900;color:${color};}
+  .bank-section td{padding:3px 8px;font-size:11px;border:none;}
+  .bank-label{font-weight:600;color:#555;width:90px;}
+  .sig-section{margin-top:0;}
+  .sig-section td{border:none;padding:6px 12px;vertical-align:bottom;height:60px;}
+  .footer-text{font-size:9px;color:#999;text-align:center;margin-top:8px;}
+  .paid-stamp{position:absolute;top:80px;right:40px;padding:8px 14px;border:3px solid #059669;color:#059669;background:#ecfdf5;border-radius:8px;font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;transform:rotate(-12deg);}
+  @media print{body{padding:10px;} @page{margin:8mm;} .no-print{display:none;}}
 </style></head><body>
-  <div style="position:relative;">
-  ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
-  <div class="border-box">
-    <!-- Header -->
-    <div class="header-row">
-      <div class="header-left">
-        <div style="display:flex;align-items:center;gap:10px;">
-          ${logoHtml}
-          <div>
-            <div style="font-size:18px;font-weight:700;">${esc(bill.company.name)}</div>
-            ${tagline ? `<div style="font-size:10px;color:#666;">${esc(tagline)}</div>` : ''}
-          </div>
+<div style="position:relative;">
+${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
+<table class="outer">
+  <!-- Header Row: Logo+Company Left, Info Right -->
+  <tr class="hdr">
+    <td colspan="2" style="width:65%;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        ${logoHtml}
+        <div>
+          <div style="font-size:20px;font-weight:700;color:${color};">${esc(bill.company.name)}</div>
+          ${bill.company.address ? `<div style="font-size:10px;color:#555;">${esc(bill.company.address)}</div>` : ''}
+          ${bill.company.phone ? `<div style="font-size:10px;color:#555;">Ph: ${esc(bill.company.phone)}</div>` : ''}
         </div>
-        ${bill.company.address ? `<p style="margin-top:6px;">${esc(bill.company.address)}</p>` : ''}
-        ${bill.company.phone ? `<p>Phone: ${esc(bill.company.phone)}</p>` : ''}
-        ${showGst && bill.company.gstNumber ? `<p class="gstin">GSTIN: ${esc(bill.company.gstNumber)}</p>` : ''}
       </div>
-      <div class="header-right">
-        <p><strong>Invoice No:</strong></p>
-        <p style="font-family:monospace;font-size:13px;">${chPrefix}${bill.challanId}</p>
-        <p style="margin-top:8px;"><strong>Date:</strong></p>
-        <p>${fmtDate(bill.distributionDate)}</p>
-        ${showGst ? `<p style="margin-top:8px;"><strong>Place of Supply:</strong></p><p>Gujarat (24)</p>` : ''}
-      </div>
-    </div>
+    </td>
+    <td colspan="2" style="text-align:right;font-size:10px;color:#555;">
+      ${tagline ? `<div style="font-size:10px;color:#666;">${esc(tagline)}</div>` : ''}
+    </td>
+  </tr>
 
-    <!-- Title -->
-    <div class="title-bar">${showGst ? 'TAX INVOICE' : 'DISTRIBUTION CHALLAN'}</div>
+  <!-- Tagline Bar (if exists) -->
+  ${tagline ? '' : ''}
 
-    <!-- Seller / Buyer -->
-    <div class="party-row">
-      <div class="party-box">
-        <h4>Bill From (Seller)</h4>
-        <p><strong>${esc(bill.company.name)}</strong></p>
-        ${bill.company.contactName ? `<p>${esc(bill.company.contactName)}</p>` : ''}
-        ${bill.company.address ? `<p>${esc(bill.company.address)}</p>` : ''}
-        ${bill.company.phone ? `<p>Ph: ${esc(bill.company.phone)}</p>` : ''}
-        ${showGst && bill.company.gstNumber ? `<p class="gstin">GSTIN: ${esc(bill.company.gstNumber)}</p>` : ''}
-      </div>
-      <div class="party-box">
-        <h4>Bill To (Buyer)</h4>
-        <p><strong>${esc(bill.vendor.name)}</strong></p>
-        ${bill.vendor.contactPerson ? `<p>${esc(bill.vendor.contactPerson)}</p>` : ''}
-        ${bill.vendor.address ? `<p>${esc(bill.vendor.address)}</p>` : ''}
-        ${bill.vendor.phone ? `<p>Ph: ${esc(bill.vendor.phone)}</p>` : ''}
-        ${showGst && vendorGstin ? `<p class="gstin">GSTIN: ${esc(vendorGstin)}</p>` : ''}
-      </div>
-    </div>
+  <!-- GSTIN + TAX INVOICE + ORIGINAL -->
+  <tr class="title-row">
+    <td colspan="1" style="width:35%;">
+      ${showGst && bill.company.gstNumber ? `<span class="gstin-text">GSTIN : ${esc(bill.company.gstNumber)}</span>` : '&nbsp;'}
+    </td>
+    <td colspan="2" style="text-align:center;">
+      <span class="title-text">${showGst ? 'TAX INVOICE' : 'CHALLAN'}</span>
+    </td>
+    <td colspan="1" style="text-align:right;font-size:10px;font-weight:600;">
+      ORIGINAL FOR RECIPIENT
+    </td>
+  </tr>
 
-    <!-- Item Table -->
-    <table class="items">
-      <thead><tr>
-        <th style="width:30px;">S.No</th>
-        <th style="text-align:left;">Description</th>
-        ${showGst ? '<th>HSN</th>' : ''}
-        <th>Qty</th>
-        ${hasDiscount ? '<th>MRP</th><th>Disc%</th>' : ''}
-        <th>Rate</th>
-        <th>Taxable Amt</th>
-        ${showGst ? `<th>CGST<br>${gstRate/2}%</th><th>SGST<br>${gstRate/2}%</th>` : ''}
-        <th>Total</th>
-      </tr></thead>
-      <tbody>${bill.groupedItems.map((g) => {
-        const lineGst = showGst ? Math.round(g.lineTotal * gstRate / 100) : 0;
-        const lineCgst = Math.round(lineGst / 2);
-        const lineSgst = lineGst - lineCgst;
-        return `<tr>
-          <td style="text-align:center;">${g.sno}</td>
-          <td style="text-align:left;"><strong>${esc(g.productName)}</strong><br><span style="font-size:9px;color:#888;font-family:monospace;">${esc(g.barcodeRange)}</span>${(g as Record<string, unknown>).packQuantity ? `<br><span style="font-size:9px;color:#666;">${(g as Record<string, unknown>).packQuantity}</span>` : ''}</td>
-          ${showGst ? `<td style="text-align:center;font-size:10px;">${esc((g as Record<string, unknown>).hsnCode as string || '-')}</td>` : ''}
-          <td style="text-align:center;">${g.quantity}</td>
-          ${hasDiscount ? `<td style="text-align:right;">₹${g.originalPrice.toLocaleString()}</td><td style="text-align:center;">${g.discountPercent > 0 ? g.discountPercent + '%' : '-'}</td>` : ''}
-          <td style="text-align:right;">₹${g.netPrice.toLocaleString()}</td>
-          <td style="text-align:right;">₹${g.lineTotal.toLocaleString()}</td>
-          ${showGst ? `<td style="text-align:right;">₹${lineCgst.toLocaleString()}</td><td style="text-align:right;">₹${lineSgst.toLocaleString()}</td>` : ''}
-          <td style="text-align:right;font-weight:700;">₹${(g.lineTotal + lineGst).toLocaleString()}</td>
-        </tr>`;
-      }).join('')}
-      </tbody>
-    </table>
+  <!-- Customer Detail + Invoice Info -->
+  <tr>
+    <td colspan="2" style="padding:0;border-right:2px solid ${color};">
+      <table style="width:100%;">
+        <tr class="cust-row"><td colspan="2" style="background:#f5f5f5;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:${color};">Buyer Details</td></tr>
+        <tr class="cust-row"><td class="cust-label">Name</td><td><strong>${esc(bill.vendor.name)}</strong></td></tr>
+        <tr class="cust-row"><td class="cust-label">Address</td><td>${esc(bill.vendor.address || '-')}</td></tr>
+        <tr class="cust-row"><td class="cust-label">Phone</td><td>${esc(bill.vendor.phone || '-')}</td></tr>
+        ${showGst ? `<tr class="cust-row"><td class="cust-label">GSTIN</td><td class="gstin-text">${esc(vendorGstin || '-')}</td></tr>` : ''}
+        ${showGst ? `<tr class="cust-row"><td class="cust-label">Place of Supply</td><td>Gujarat (24)</td></tr>` : ''}
+      </table>
+    </td>
+    <td colspan="2" style="padding:0;vertical-align:top;">
+      <table style="width:100%;">
+        <tr class="cust-row"><td class="cust-label">Invoice No.</td><td><strong style="font-family:monospace;">${chPrefix}${bill.challanId}</strong></td></tr>
+        <tr class="cust-row"><td class="cust-label">Invoice Date</td><td><strong>${fmtDate(bill.distributionDate)}</strong></td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
 
-    <!-- Tax Summary + Total -->
-    <div class="tax-summary">
-      <div class="tax-left">
-        <p><strong>Total in Words:</strong></p>
-        <p style="font-style:italic;">${numberToWords(grandTotal)}</p>
-        ${bill.totalDiscount > 0 ? `<p style="margin-top:4px;">Gross: ₹${bill.grossValue.toLocaleString()} | Discount: -₹${bill.totalDiscount.toLocaleString()}</p>` : ''}
-      </div>
-      <div class="tax-right">
-        <table>
-          <tr><td>Subtotal</td><td style="text-align:right;font-weight:600;">₹${netVal.toLocaleString()}</td></tr>
-          ${showGst ? `<tr><td>CGST @ ${gstRate/2}%</td><td style="text-align:right;">₹${halfGst.toLocaleString()}</td></tr>
-          <tr><td>SGST @ ${gstRate/2}%</td><td style="text-align:right;">₹${(gstAmount - halfGst).toLocaleString()}</td></tr>` : ''}
-          <tr class="grand"><td>Grand Total</td><td style="text-align:right;">₹${grandTotal.toLocaleString()}</td></tr>
-        </table>
-      </div>
-    </div>
-  </div>
+<!-- Item Table -->
+<table class="outer items">
+  <thead><tr>
+    <th style="width:30px;">Sr.<br>No.</th>
+    <th class="left">Name of Product / Service</th>
+    ${showGst ? '<th>HSN / SAC</th>' : ''}
+    <th>Qty</th>
+    <th>Rate</th>
+    <th>Taxable Value</th>
+    ${showGst ? `<th colspan="2">${vendorGstin ? 'CGST' : 'IGST'}</th>` : ''}
+    <th>Total</th>
+  </tr>
+  ${showGst ? `<tr>
+    <th></th><th></th>${showGst ? '<th></th>' : ''}<th></th><th></th><th></th>
+    <th>%</th><th>Amount</th><th></th>
+  </tr>` : ''}</thead>
+  <tbody>
+  ${bill.groupedItems.map((g) => {
+    const lineGst = showGst ? Math.round(g.lineTotal * gstRate / 100) : 0;
+    return `<tr>
+      <td>${g.sno}</td>
+      <td class="left"><strong>${esc(g.productName)}</strong>${(g as Record<string, unknown>).packQuantity ? ` <span style="font-size:9px;color:#666;">${(g as Record<string, unknown>).packQuantity}</span>` : ''}</td>
+      ${showGst ? `<td>${esc((g as Record<string, unknown>).hsnCode as string || '-')}</td>` : ''}
+      <td>${g.quantity}</td>
+      <td class="right">${g.netPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+      <td class="right">${g.lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+      ${showGst ? `<td>${gstRate}.00</td><td class="right">${lineGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>` : ''}
+      <td class="right" style="font-weight:700;">${(g.lineTotal + lineGst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+    </tr>`;
+  }).join('')}
+  <tr class="total-row">
+    <td></td><td class="right"><strong>Total</strong></td>
+    ${showGst ? '<td></td>' : ''}
+    <td><strong>${bill.totalQuantity}</strong></td>
+    <td></td>
+    <td class="right"><strong>${netVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
+    ${showGst ? `<td></td><td class="right"><strong>${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>` : ''}
+    <td class="right" style="font-weight:900;">${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+  </tr>
+  </tbody>
+</table>
 
-  ${bankSection}
-  ${tcSection}
+<!-- Summary: Total in Words + Tax Breakdown -->
+<table class="outer">
+  <tr class="summary-row">
+    <td style="width:55%;border-right:2px solid ${color};">
+      <div class="summary-label">Total in words</div>
+      <div style="text-transform:uppercase;font-size:10px;margin-top:2px;">${numberToWords(grandTotal)}</div>
+    </td>
+    <td style="padding:0;">
+      <table style="width:100%;">
+        <tr><td class="summary-label" style="padding:3px 8px;">Taxable Amount</td><td class="right" style="padding:3px 8px;">${netVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
+        ${showGst ? (vendorGstin
+          ? `<tr><td style="padding:3px 8px;">Add : CGST</td><td class="right" style="padding:3px 8px;">${halfGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
+             <tr><td style="padding:3px 8px;">Add : SGST</td><td class="right" style="padding:3px 8px;">${(gstAmount - halfGst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>`
+          : `<tr><td style="padding:3px 8px;">Add : IGST</td><td class="right" style="padding:3px 8px;">${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>`
+        ) : ''}
+        <tr><td style="padding:3px 8px;">Total Tax</td><td class="right" style="padding:3px 8px;">${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
+        <tr><td style="padding:4px 8px;font-weight:700;">Total Amount After Tax</td><td class="right grand-total" style="padding:4px 8px;">₹${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
+      </table>
+    </td>
+  </tr>
+  <tr><td colspan="2" style="text-align:right;padding:2px 8px;font-size:10px;color:#666;">(E & O.E.)</td></tr>
+</table>
 
-  <div class="sig-row">
-    <div class="sig-box">
+<!-- Bank Details + Signature -->
+<table class="outer" style="margin-top:-1px;">
+  <tr>
+    <td style="width:55%;padding:8px 12px;border-right:2px solid ${color};vertical-align:top;">
+      ${hasBankDetails ? `<div style="font-weight:700;font-size:11px;margin-bottom:6px;">Bank Details</div>
+      <table class="bank-section">
+        ${billConfig.bankAccountName ? `<tr><td class="bank-label">Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
+        ${billConfig.bankName ? `<tr><td class="bank-label">Branch</td><td>${esc(billConfig.bankName)}${billConfig.bankBranch ? ', ' + esc(billConfig.bankBranch) : ''}</td></tr>` : ''}
+        ${billConfig.bankAccountNumber ? `<tr><td class="bank-label">Acc. Number</td><td style="font-family:monospace;">${esc(billConfig.bankAccountNumber)}</td></tr>` : ''}
+        ${billConfig.bankIfsc ? `<tr><td class="bank-label">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
+        ${billConfig.bankUpiId ? `<tr><td class="bank-label">UPI ID</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
+      </table>` : ''}
+      ${upiQrSection ? `<div style="margin-top:6px;">${upiQrSection}<div style="font-size:9px;color:#666;text-align:center;">Pay using UPI</div></div>` : ''}
+    </td>
+    <td style="vertical-align:top;padding:8px 12px;">
+      <div style="font-size:9px;color:#666;margin-bottom:4px;">Certified that the particulars given above are true and correct.</div>
+      <div style="font-weight:700;font-size:12px;margin-bottom:30px;">For ${esc(bill.company.name)}</div>
       ${billConfig.signatureBase64 ? `<img src="${safeImgSrc(billConfig.signatureBase64)}" style="height:40px;margin-bottom:4px;" />` : ''}
-      <p>For ${esc(bill.company.name)}</p>
-      <p style="font-size:9px;font-weight:400;">${esc(billConfig.signatoryName || 'Authorized Signatory')}</p>
-    </div>
-    <div class="sig-box"><p>Receiver's Signature</p></div>
-  </div>
-  <div class="footer">
-    <p>This is a computer-generated invoice and does not require a physical signature.</p>
-    <p style="margin-top:4px;">${esc(footerText)}</p>
-  </div>
-  </div>
+      <div style="border-top:1px solid #333;padding-top:4px;font-size:10px;font-weight:600;color:#555;">Authorised Signatory</div>
+    </td>
+  </tr>
+</table>
+
+${tcSection ? `<table class="outer" style="margin-top:-1px;"><tr><td style="padding:6px 12px;font-size:10px;">
+  <div style="font-weight:700;margin-bottom:4px;">Terms and Conditions</div>
+  <div style="color:#555;white-space:pre-line;">${esc(billConfig.termsAndConditions)}</div>
+</td></tr></table>` : ''}
+
+<div class="footer-text">${esc(footerText)}</div>
+</div>
 </body></html>`;
 }
