@@ -23,7 +23,7 @@ import { cn } from './lib/utils';
 import { Tab, USER_STORAGE_KEY } from './types';
 import { ToastProvider } from './components/ui';
 import { LanguageProvider, useTranslation } from './i18n';
-import { LoginScreen, NotificationBell } from './components/layout';
+import { LoginScreen } from './components/layout';
 import { LandingPage } from './components/layout/LandingPage';
 import { PrivacyPolicy } from './components/layout/PrivacyPolicy';
 import { TermsOfService } from './components/layout/TermsOfService';
@@ -382,7 +382,6 @@ export default function App() {
               <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
               <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">{(userConfig?.planName as string) || 'Standard'} Plan</span>
             </div>
-            <NotificationBell />
             <div className="relative flex items-center gap-2 sm:gap-3">
               <button type="button" onClick={() => setUserMenuOpen((o) => !o)} className="flex items-center gap-3 rounded-xl p-1.5 hover:bg-gray-100 transition-colors">
                 <div className="text-right hidden sm:block">
