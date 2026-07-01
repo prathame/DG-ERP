@@ -65,7 +65,7 @@ router.post('/api/vendors', async (req, res) => {
         const crypto = await import('crypto');
         const defaultPassword = crypto.randomBytes(12).toString('base64url');
         const userId = `U${Date.now()}`;
-        const perms = JSON.stringify(['dashboard', 'sales', 'distribution', 'warranty', 'replacements', 'rewards', 'settings']);
+        const perms = JSON.stringify({ dashboard: 'view', sales: 'hidden', distribution: 'view', inventory: 'hidden', purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'view', accounts: 'hidden', warranty: 'hidden', replacements: 'hidden', rewards: 'hidden', settings: 'hidden' });
         await pool.query(
           `INSERT INTO users (id, tenant_id, email, password_hash, name, phone, address, role, company_name, permissions, vendor_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, 'Vendor', $8, $9, $10)`,
