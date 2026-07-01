@@ -186,14 +186,14 @@ export function InventoryView() {
                       </td>
                       {inventoryTrackingEnabled && <><td className="px-4 py-3 text-center">
                         <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{p.totalInventory ?? p.stock ?? 0}</span>
-                        {(p.packSize || 1) > 1 && <span className="block text-[10px] text-gray-400 font-bold">{p.packName || 'Box'}s</span>}
+                        {(p.packSize || 1) > 1 ? <span className="block text-[10px] text-gray-500 font-bold">{p.packName || 'Box'}es</span> : <span className="block text-[10px] text-gray-400">pcs</span>}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="font-semibold text-sm text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</span>
-                        {(p.packSize || 1) > 1 && <>
-                          <span className="block text-[10px] text-gray-400 font-bold">{p.packName || 'Box'}s</span>
-                          <span className="block text-[10px] text-gray-400">= {(p.remainingInventory ?? p.stock ?? 0) * (p.packSize || 1)} pcs</span>
-                        </>}
+                        {(p.packSize || 1) > 1 ? <>
+                          <span className="block text-[10px] text-gray-500 font-bold">{p.packName || 'Box'}es</span>
+                          <span className="block text-[10px] text-emerald-500">({(p.remainingInventory ?? p.stock ?? 0) * (p.packSize || 1)} pcs)</span>
+                        </> : <span className="block text-[10px] text-gray-400">pcs</span>}
                       </td>
                       <td className="px-4 py-3 text-center hidden lg:table-cell">
                         <span className="font-semibold text-sm text-purple-700">{p.withVendors ?? 0}</span>
