@@ -16,6 +16,7 @@ import {
   FileText,
   ShoppingBag,
   BarChart3,
+  ClipboardList,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -37,6 +38,7 @@ import { RewardsView } from './features/rewards/RewardsView';
 import { VendorFinanceView } from './features/finance/VendorFinanceView';
 import { PurchasesView } from './features/purchases/PurchasesView';
 import { QuotationsView } from './features/quotations/QuotationsView';
+import { OrdersView } from './features/orders/OrdersView';
 import { AccountsView } from './features/accounts/AccountsView';
 import { SettingsView } from './features/settings/SettingsView';
 import { ProductVerificationView } from './features/verification/ProductVerificationView';
@@ -154,6 +156,7 @@ export default function App() {
     { id: 'purchases', label: tc('purchases', 'Purchases'), icon: ShoppingBag, show: tv('purchases') },
     { id: 'verification', label: tc('verification', t('nav.verification')), icon: ScanSearch, show: tv('verification') },
     { id: 'quotations', label: 'Quotations', icon: FileText, show: true },
+    { id: 'orders', label: tc('orders', t('nav.orders')), icon: ClipboardList, show: tv('orders') },
     { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
     { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },
     { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') },
@@ -396,6 +399,7 @@ export default function App() {
           {activeTab === 'inventory' && <InventoryView />}
           {activeTab === 'verification' && <ProductVerificationView />}
           {activeTab === 'quotations' && <QuotationsView />}
+          {activeTab === 'orders' && <OrdersView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} />}
           {activeTab === 'accounts' && <AccountsView />}
           </div>

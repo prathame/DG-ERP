@@ -1013,4 +1013,122 @@ router.delete('/api/distribution/batch/:batchId', async (req, res) => {
   }
 });
 
+// E-Invoice JSON generation
+router.get('/api/distribution/einvoice', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { batchId } = req.query;
+    if (!batchId) return res.status(400).json({ error: 'batchId required' });
+
+    // Fetch distribution items
+    const items = (await pool.query(`
+      SELECT pd.*, p.name as product_name, p.hsn_code, p.gst_rate as product_gst_rate, p.price as product_price, p.pack_size
+      FROM product_distribution pd
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      WHERE pd.batch_id = $2 AND pd.tenant_id = $1
+    `, [tenantId, batchId])).rows as Record<string, unknown>[];
+    if (items.length === 0) return res.status(404).json({ error: 'No distribution found for this batch' });
+
+    // Fetch vendor
+    const vendorId = items[0].vendor_id as string;
+    const vendor = (await pool.query('SELECT name, contact_person, phone, email, address, gst_number FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as Record<string, unknown> | undefined;
+
+    // Fetch seller (tenant) details
+    const tenant = (await pool.query('SELECT company_name, admin_email, phone, address, gst_number FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown>;
+    const user = (await pool.query("SELECT gst_number, name, phone, address FROM users WHERE tenant_id = $1 AND role = 'Admin' LIMIT 1", [tenantId])).rows[0] as Record<string, unknown> | undefined;
+
+    const sellerGstin = (tenant.gst_number || user?.gst_number || '') as string;
+    const buyerGstin = (vendor?.gst_number || '') as string;
+    const isB2B = buyerGstin.length >= 15;
+
+    // Group items by product + discount
+    const grouped: Record<string, { name: string; hsn: string; gstRate: number; qty: number; price: number; disc: number; taxable: number; cgst: number; sgst: number; total: number }> = {};
+    for (const row of items) {
+      const key = `${row.product_id}-${row.discount_percent}`;
+      const netPrice = Number(row.net_price) || Number(row.product_price) || 0;
+      const billedPrice = Number(row.billed_price) || netPrice;
+      const gstRate = Number(row.product_gst_rate) || 18;
+      const gstAmount = row.gst_applied ? billedPrice - netPrice : 0;
+      if (!grouped[key]) {
+        grouped[key] = { name: row.product_name as string, hsn: (row.hsn_code as string) || '', gstRate, qty: 0, price: netPrice, disc: Number(row.discount_percent) || 0, taxable: 0, cgst: 0, sgst: 0, total: 0 };
+      }
+      grouped[key].qty += 1;
+      grouped[key].taxable += netPrice;
+      grouped[key].cgst += Math.round(gstAmount / 2);
+      grouped[key].sgst += Math.round(gstAmount / 2);
+      grouped[key].total += billedPrice;
+    }
+
+    const itemList = Object.values(grouped).map((g, i) => ({
+      SlNo: String(i + 1),
+      IsServc: 'N',
+      PrdDesc: g.name,
+      HsnCd: g.hsn || '0000',
+      Qty: g.qty,
+      Unit: 'PCS',
+      UnitPrice: g.price,
+      Discount: g.disc,
+      GstRt: g.gstRate,
+      CgstAmt: g.cgst,
+      SgstAmt: g.sgst,
+      IgstAmt: 0,
+      CesAmt: 0,
+      TotAmt: g.taxable,
+      TotItemVal: g.total,
+    }));
+
+    const totTaxable = Object.values(grouped).reduce((s, g) => s + g.taxable, 0);
+    const totCgst = Object.values(grouped).reduce((s, g) => s + g.cgst, 0);
+    const totSgst = Object.values(grouped).reduce((s, g) => s + g.sgst, 0);
+    const totVal = Object.values(grouped).reduce((s, g) => s + g.total, 0);
+
+    const distDate = items[0].distribution_date as string;
+    const invoiceDate = new Date(distDate).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/');
+
+    const eInvoice = {
+      Version: '1.1',
+      TranDtls: { TaxSch: 'GST', SupTyp: isB2B ? 'B2B' : 'B2C', RegRev: 'N', IgstOnIntra: 'N' },
+      DocDtls: { Typ: 'INV', No: `INV-${batchId}`, Dt: invoiceDate },
+      SellerDtls: {
+        Gstin: sellerGstin,
+        LglNm: tenant.company_name as string,
+        Addr1: (tenant.address as string) || 'N/A',
+        Loc: 'Rajkot',
+        Pin: 360001,
+        Stcd: '24',
+        Ph: (tenant.phone as string) || '',
+        Em: (tenant.admin_email as string) || '',
+      },
+      BuyerDtls: {
+        Gstin: buyerGstin || 'URP',
+        LglNm: (vendor?.name as string) || 'Walk-in Customer',
+        Pos: '24',
+        Addr1: (vendor?.address as string) || 'N/A',
+        Loc: 'Gujarat',
+        Pin: 360001,
+        Stcd: '24',
+        Ph: (vendor?.phone as string) || '',
+        Em: (vendor?.email as string) || '',
+      },
+      ItemList: itemList,
+      ValDtls: {
+        AssVal: totTaxable,
+        CgstVal: totCgst,
+        SgstVal: totSgst,
+        IgstVal: 0,
+        CesVal: 0,
+        Discount: 0,
+        OthChrg: 0,
+        RndOffAmt: 0,
+        TotInvVal: totVal,
+      },
+    };
+
+    res.json(eInvoice);
+  } catch (err) {
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

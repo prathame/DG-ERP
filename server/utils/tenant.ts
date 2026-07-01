@@ -30,7 +30,7 @@ export async function provisionTenant(data: {
       sales: { label: 'Sales Entry', visible: true }, verification: { label: 'Search / Verify', visible: true },
       warranty: { label: 'Warranty', visible: true }, replacements: { label: 'Replacements', visible: true },
       rewards: { label: 'Rewards', visible: true }, finance: { label: 'Finance', visible: true },
-      quotations: { label: 'Quotations', visible: true }, accounts: { label: 'Accounts', visible: true },
+      quotations: { label: 'Quotations', visible: true }, orders: { label: 'Orders', visible: true }, accounts: { label: 'Accounts', visible: true },
       reports: { label: 'Reports', visible: true }, chatbot: { label: 'Chatbot', visible: true },
       settings: { label: 'Settings', visible: true },
     });

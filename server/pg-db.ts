@@ -526,6 +526,35 @@ export async function initSchema() {
     // Track whether each barcode represents a box or a piece
     await client.query("ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS unit_type TEXT DEFAULT 'piece'");
 
+    // Orders table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        order_number TEXT,
+        vendor_id TEXT,
+        vendor_name TEXT,
+        customer_name TEXT,
+        customer_phone TEXT,
+        customer_gst_number TEXT,
+        order_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        required_date DATE,
+        status TEXT DEFAULT 'Pending',
+        items JSONB NOT NULL DEFAULT '[]',
+        subtotal NUMERIC(12,2) DEFAULT 0,
+        gst_rate NUMERIC(5,2) DEFAULT 18,
+        gst_amount NUMERIC(12,2) DEFAULT 0,
+        total NUMERIC(12,2) DEFAULT 0,
+        notes TEXT,
+        fulfilled_batch_id TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_orders_tenant ON orders(tenant_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(tenant_id, status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_orders_vendor ON orders(tenant_id, vendor_id)');
+
     // UNIQUE constraints — prevent duplicates at DB level
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_users_tenant_email ON users(tenant_id, LOWER(email))');
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_products_tenant_name ON products(tenant_id, LOWER(name))');
