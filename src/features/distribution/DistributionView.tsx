@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search, IndianRupee, MoreVertical } from 'lucide-react';
+import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search, IndianRupee, MoreVertical, Truck } from 'lucide-react';
 import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate } from '../../lib/utils';
 import { api, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product, Vendor } from '../../types';
@@ -43,11 +43,14 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
   const [financeMap, setFinanceMap] = useState<Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }>>({});
   const [batchActionsOpen, setBatchActionsOpen] = useState(false);
   const [batchPaymentModal, setBatchPaymentModal] = useState<{ batchId: string; vendorId: string; billValue: number; balanceRemaining: number } | null>(null);
+  const [eWayBillModal, setEWayBillModal] = useState<string | null>(null);
+  const [eWayForm, setEWayForm] = useState({ vehicleNo: '', transportMode: 'Road', distance: '', transporterName: '', transporterId: '' });
   const [batchPaymentForm, setBatchPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
   const [batchPaymentSubmitting, setBatchPaymentSubmitting] = useState(false);
 
   useEscapeKey(() => {
-    if (batchPaymentModal) setBatchPaymentModal(null);
+    if (eWayBillModal) setEWayBillModal(null);
+    else if (batchPaymentModal) setBatchPaymentModal(null);
     else if (splitBillModal) setSplitBillModal(null);
     else if (editBatchModal) setEditBatchModal(null);
     else if (modalOpen) setModalOpen(false);
@@ -397,6 +400,12 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
                             </button>
                             <button type="button" onClick={() => { setBatchActionsOpen(false); api.distribution.getBill(billParams(selectedBatch.batchId)).then((bill) => { const email = bill.vendor.email || ''; if (!email) { toast('No vendor email on record — enter email manually', 'info'); } shareViaEmail(email, `Distribution Challan ${bill.challanId} — ${bill.company.name}`, formatDistributionChallanText(bill)); }).catch((err) => toast(err.message, 'error')); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-blue-600">
                               <Mail size={14} /> Email Challan
+                            </button>
+                            <button type="button" onClick={() => { setBatchActionsOpen(false); fetch(`/api/distribution/einvoice?batchId=${selectedBatch.batchId}`, { headers: { 'Authorization': `Bearer ${require('../../lib/session').session.getToken()}`, 'X-Tenant-ID': require('../../lib/session').session.getTenantId() || '' } }).then(r => r.json()).then(data => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `E-Invoice-${selectedBatch.batchId}.json`; a.click(); URL.revokeObjectURL(url); toast('E-Invoice JSON downloaded', 'success'); }).catch(err => toast(err.message, 'error')); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-indigo-600">
+                              <Download size={14} /> E-Invoice JSON
+                            </button>
+                            <button type="button" onClick={() => { setBatchActionsOpen(false); setEWayBillModal(selectedBatch.batchId); setEWayForm({ vehicleNo: '', transportMode: 'Road', distance: '', transporterName: '', transporterId: '' }); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-teal-600">
+                              <Truck size={14} /> E-Way Bill
                             </button>
                             {batchCanDelete && (
                               <>
@@ -996,6 +1005,43 @@ export function DistributionView({ user }: { user: { id: string; role?: string; 
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* E-Way Bill Modal */}
+      {eWayBillModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setEWayBillModal(null)} />
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+            <h3 className="text-lg font-bold mb-1">Generate E-Way Bill</h3>
+            <p className="text-sm text-gray-500 mb-4">Fill transport details to generate E-Way Bill JSON for upload to ewaybillgst.gov.in</p>
+            <div className="space-y-3">
+              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vehicle Number *</label><input required value={eWayForm.vehicleNo} onChange={e => setEWayForm({ ...eWayForm, vehicleNo: e.target.value.toUpperCase() })} className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm font-mono" placeholder="GJ 03 XX 1234" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Transport Mode</label><select value={eWayForm.transportMode} onChange={e => setEWayForm({ ...eWayForm, transportMode: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"><option>Road</option><option>Rail</option><option>Air</option><option>Ship</option></select></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Distance (km) *</label><input type="text" inputMode="numeric" required value={eWayForm.distance} onChange={e => setEWayForm({ ...eWayForm, distance: e.target.value.replace(/[^0-9]/g, '') })} className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm" placeholder="150" /></div>
+              </div>
+              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Transporter Name</label><input value={eWayForm.transporterName} onChange={e => setEWayForm({ ...eWayForm, transporterName: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm" placeholder="Optional" /></div>
+              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Transporter GSTIN / ID</label><input value={eWayForm.transporterId} onChange={e => setEWayForm({ ...eWayForm, transporterId: e.target.value.toUpperCase() })} className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm font-mono" placeholder="Optional" /></div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEWayBillModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
+                <button type="button" disabled={!eWayForm.vehicleNo || !eWayForm.distance} onClick={() => {
+                  const { session } = require('../../lib/session');
+                  fetch(`/api/distribution/ewaybill?batchId=${eWayBillModal}&vehicleNo=${encodeURIComponent(eWayForm.vehicleNo)}&transportMode=${eWayForm.transportMode}&distance=${eWayForm.distance}&transporterName=${encodeURIComponent(eWayForm.transporterName)}&transporterId=${encodeURIComponent(eWayForm.transporterId)}`, {
+                    headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '' },
+                  }).then(r => r.json()).then(data => {
+                    if (data.error) { toast(data.error, 'error'); return; }
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url; a.download = `E-Way-Bill-${eWayBillModal}.json`; a.click();
+                    URL.revokeObjectURL(url);
+                    setEWayBillModal(null);
+                    toast('E-Way Bill JSON downloaded', 'success');
+                  }).catch(err => toast(err.message, 'error'));
+                }} className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm disabled:opacity-60">Download E-Way Bill</button>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
     </motion.div>

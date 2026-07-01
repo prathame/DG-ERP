@@ -1131,4 +1131,100 @@ router.get('/api/distribution/einvoice', async (req, res) => {
   }
 });
 
+// E-Way Bill JSON generation
+router.get('/api/distribution/ewaybill', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { batchId, vehicleNo, transportMode, distance, transporterName, transporterId } = req.query;
+    if (!batchId) return res.status(400).json({ error: 'batchId required' });
+    if (!vehicleNo) return res.status(400).json({ error: 'Vehicle number required' });
+    if (!distance) return res.status(400).json({ error: 'Distance required' });
+
+    const items = (await pool.query(`
+      SELECT pd.*, p.name as product_name, p.hsn_code, p.gst_rate as product_gst_rate, p.price as product_price, p.pack_size
+      FROM product_distribution pd
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      WHERE pd.batch_id = $2 AND pd.tenant_id = $1
+    `, [tenantId, batchId])).rows as Record<string, unknown>[];
+    if (items.length === 0) return res.status(404).json({ error: 'No distribution found' });
+
+    const vendorId = items[0].vendor_id as string;
+    const vendor = (await pool.query('SELECT name, phone, address, gst_number FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as Record<string, unknown> | undefined;
+    const tenant = (await pool.query('SELECT company_name, phone, address, gst_number FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown>;
+    const user = (await pool.query("SELECT gst_number, address FROM users WHERE tenant_id = $1 AND role = 'Admin' LIMIT 1", [tenantId])).rows[0] as Record<string, unknown> | undefined;
+
+    const sellerGstin = (tenant.gst_number || user?.gst_number || '') as string;
+    const buyerGstin = (vendor?.gst_number || '') as string;
+
+    // Group items
+    const grouped: Record<string, { name: string; hsn: string; gstRate: number; qty: number; taxable: number; cgst: number; sgst: number; total: number }> = {};
+    for (const row of items) {
+      const key = `${row.product_id}`;
+      const netPrice = Number(row.net_price) || Number(row.product_price) || 0;
+      const billedPrice = Number(row.billed_price) || netPrice;
+      const gstRate = Number(row.product_gst_rate) || 18;
+      const gstAmt = row.gst_applied ? billedPrice - netPrice : 0;
+      if (!grouped[key]) grouped[key] = { name: row.product_name as string, hsn: (row.hsn_code as string) || '0000', gstRate, qty: 0, taxable: 0, cgst: 0, sgst: 0, total: 0 };
+      grouped[key].qty += 1;
+      grouped[key].taxable += netPrice;
+      grouped[key].cgst += Math.round(gstAmt / 2);
+      grouped[key].sgst += Math.round(gstAmt / 2);
+      grouped[key].total += billedPrice;
+    }
+
+    const itemList = Object.values(grouped).map((g, i) => ({
+      SlNo: String(i + 1), PrdDesc: g.name, HsnCd: g.hsn, Qty: g.qty, Unit: 'PCS',
+      UnitPrice: Math.round(g.taxable / g.qty), TotAmt: g.taxable, GstRt: g.gstRate,
+      CgstAmt: g.cgst, SgstAmt: g.sgst, IgstAmt: 0, CesAmt: 0, TotItemVal: g.total,
+    }));
+
+    const totTaxable = Object.values(grouped).reduce((s, g) => s + g.taxable, 0);
+    const totCgst = Object.values(grouped).reduce((s, g) => s + g.cgst, 0);
+    const totSgst = Object.values(grouped).reduce((s, g) => s + g.sgst, 0);
+    const totVal = Object.values(grouped).reduce((s, g) => s + g.total, 0);
+    const distDate = items[0].distribution_date as string;
+    const invoiceDate = new Date(distDate).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/');
+    const modeMap: Record<string, string> = { Road: '1', Rail: '2', Air: '3', Ship: '4' };
+
+    const eWayBill = {
+      Version: '1.01',
+      SupTyp: buyerGstin ? 'B2B' : 'B2C',
+      SubSupTyp: 'Supply',
+      DocTyp: 'INV',
+      DocNo: `INV-${batchId}`,
+      DocDt: invoiceDate,
+      FromGstin: sellerGstin,
+      FromTrdName: tenant.company_name as string,
+      FromAddr1: (tenant.address as string) || 'N/A',
+      FromPlace: 'Rajkot',
+      FromPincode: 360001,
+      FromStateCode: 24,
+      ToGstin: buyerGstin || 'URP',
+      ToTrdName: (vendor?.name as string) || 'Walk-in',
+      ToAddr1: (vendor?.address as string) || 'N/A',
+      ToPlace: 'Gujarat',
+      ToPincode: 360001,
+      ToStateCode: 24,
+      TotalValue: totTaxable,
+      CgstValue: totCgst,
+      SgstValue: totSgst,
+      IgstValue: 0,
+      CesValue: 0,
+      TotInvValue: totVal,
+      TransMode: modeMap[transportMode as string] || '1',
+      TransDistance: distance,
+      TransporterName: transporterName || '',
+      TransporterId: transporterId || '',
+      VehicleNo: vehicleNo,
+      VehicleType: 'R',
+      ItemList: itemList,
+    };
+
+    res.json(eWayBill);
+  } catch (err) {
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
