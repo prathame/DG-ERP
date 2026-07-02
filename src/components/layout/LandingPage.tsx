@@ -139,6 +139,13 @@ export function LandingPage() {
               <a href="#features" className={`w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 border rounded-xl font-bold text-base sm:text-lg transition-all text-center ${btnSecondary}`}>{isEn ? 'See Features' : isGu ? 'Features જુઓ' : 'Features देखें'}</a>
             </div>
             <p className={`mt-4 text-sm ${textFaint}`}>No credit card required • Setup in 5 minutes • Cancel anytime</p>
+            <div className={`mt-6 inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl border ${cardBg}`}>
+              <span className="text-3xl">🦁</span>
+              <div className="text-left">
+                <p className="font-bold text-sm">{L('Made in India', 'मेड इन इंडिया', 'મેડ ઇન ઇન્ડિયા')} 🇮🇳</p>
+                <p className={`text-[10px] ${textFaint}`}>{L('Designed & Built in Rajkot, Gujarat', 'राजकोट, गुजरात में डिज़ाइन और निर्मित', 'રાજકોટ, ગુજરાતમાં ડિઝાઇન અને નિર્મિત')}</p>
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
