@@ -412,7 +412,7 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
                             <button type="button" onClick={() => { setBatchActionsOpen(false); setEWayBillModal(selectedBatch.batchId); setEWayForm({ vehicleNo: '', transportMode: 'Road', distance: '', transporterName: '', transporterId: '' }); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-teal-600">
                               <Truck size={14} /> E-Way Bill
                             </button>
-                            {batchCanDelete && (
+                            {canEdit && batchCanDelete && (
                               <>
                                 <div className="border-t border-gray-100 my-1" />
                                 <button type="button" onClick={() => { setBatchActionsOpen(false); confirmDeleteBatch(selectedBatch.batchId); }} disabled={deleteSubmitting} className="w-full px-4 py-2 text-left text-sm hover:bg-rose-50 flex items-center gap-2 text-rose-600">
