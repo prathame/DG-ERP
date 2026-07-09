@@ -50,8 +50,8 @@ router.post('/api/quotations', async (req, res) => {
     const total = subtotal + gstAmount;
 
     const id = uid('Q');
-    const count = Number((await pool.query('SELECT COUNT(*) as c FROM quotations WHERE tenant_id = $1', [tenantId])).rows[0].c) + 1;
-    const qNum = `QT-${String(count).padStart(4, '0')}`;
+    const maxNum = (await pool.query("SELECT MAX(CAST(SUBSTRING(quotation_number FROM 4) AS INTEGER)) as m FROM quotations WHERE tenant_id = $1 AND quotation_number LIKE 'QT-%'", [tenantId])).rows[0]?.m;
+    const qNum = `QT-${String((Number(maxNum) || 0) + 1).padStart(4, '0')}`;
 
     let vendorName = customerName || null;
     if (vendorId) {

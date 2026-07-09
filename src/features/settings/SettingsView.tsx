@@ -608,7 +608,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                 <h3 className="font-bold text-lg flex items-center gap-2"><Download size={20} /> Data Management</h3>
               </div>
               <div className="p-6 flex flex-wrap gap-4">
-                <button type="button" onClick={() => { window.open('/api/backup', '_blank'); toast('Backup download started', 'success'); }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">
+                <button type="button" onClick={async () => { try { const r = await fetch('/api/backup', { headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '' } }); if (!r.ok) throw new Error('Backup failed'); const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url); toast('Backup downloaded', 'success'); } catch(e) { toast((e as Error).message, 'error'); } }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">
                   <Download size={18} /> Download Database Backup
                 </button>
                 <p className="w-full text-xs text-gray-500 mt-1">Backup downloads the full SQLite database file. Keep it safe — it contains all your data.</p>

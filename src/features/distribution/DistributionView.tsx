@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search, IndianRupee, MoreVertical, Truck } from 'lucide-react';
 import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate } from '../../lib/utils';
-import { api, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
+import { api, fetchApi, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
@@ -359,10 +359,10 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
                       return <>
                         <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold", ds === 'dispatched' ? 'bg-blue-100 text-blue-700' : ds === 'delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>{ds === 'dispatched' ? 'Dispatched' : ds === 'delivered' ? 'Delivered' : 'Pending Dispatch'}</span>
                         {canPrint && ds === 'pending' && (
-                          <button type="button" onClick={() => { fetch(`/api/distribution/batch/${selectedBatch.batchId}/dispatch`, { method: 'PUT', headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '', 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'dispatched' }) }).then(r => r.json()).then(d => { if (d.ok) { toast('Marked as dispatched', 'success'); load(); } else toast(d.error, 'error'); }).catch(err => toast(err.message, 'error')); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Truck size={12} /> Mark Dispatched</button>
+                          <button type="button" onClick={() => { fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, { method: 'PUT', body: JSON.stringify({ status: 'dispatched' }) }).then((d: Record<string, unknown>) => { if (d.ok) { toast('Marked as dispatched', 'success'); load(); } else toast(String(d.error), 'error'); }).catch(err => toast(err.message, 'error')); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Truck size={12} /> Mark Dispatched</button>
                         )}
                         {canPrint && ds === 'dispatched' && (
-                          <button type="button" onClick={() => { fetch(`/api/distribution/batch/${selectedBatch.batchId}/dispatch`, { method: 'PUT', headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '', 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'delivered' }) }).then(r => r.json()).then(d => { if (d.ok) { toast('Marked as delivered', 'success'); load(); } else toast(d.error, 'error'); }).catch(err => toast(err.message, 'error')); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg"><Package size={12} /> Mark Delivered</button>
+                          <button type="button" onClick={() => { fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, { method: 'PUT', body: JSON.stringify({ status: 'delivered' }) }).then((d: Record<string, unknown>) => { if (d.ok) { toast('Marked as delivered', 'success'); load(); } else toast(String(d.error), 'error'); }).catch(err => toast(err.message, 'error')); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg"><Package size={12} /> Mark Delivered</button>
                         )}
                       </>;
                     })()}
@@ -572,7 +572,7 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
                       const p = products.find(x => x.id === row.productId);
                       const packSz = p?.packSize || 1;
                       const isBox = packSz > 1;
-                      const basePrice = row.customPrice ? parseFloat(row.customPrice) : (p?.price ?? 0);
+                      const basePrice = row.customPrice ? (parseFloat(row.customPrice) || 0) : (p?.price ?? 0);
                       const gross = basePrice * (row.quantity || 0);
                       const disc = Math.round(gross * (row.discount || 0) / 100);
                       const net = gross - disc;

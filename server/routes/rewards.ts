@@ -65,8 +65,6 @@ router.get('/api/rewards', async (req, res) => {
       sql += ` AND vendor_id = $${paramIdx}`;
       params.push(vendorId);
       paramIdx++;
-    } else {
-      sql += ' AND vendor_id IS NULL';
     }
 
     sql += ' ORDER BY date DESC';

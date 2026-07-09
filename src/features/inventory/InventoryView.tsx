@@ -228,12 +228,12 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                           <button onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-brand hover:bg-orange-50 rounded-lg" title="Barcode Details">
                             <Barcode size={16} />
                           </button>
-                          {inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
+                          {canEdit && inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
                             <Plus size={16} />
                           </button>}
-                          <button onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
+                          {canEdit && <button onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
                             <Trash2 size={16} />
-                          </button>
+                          </button>}
                         </div>
                       </td>
                     </tr>

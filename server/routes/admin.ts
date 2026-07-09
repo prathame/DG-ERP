@@ -74,7 +74,7 @@ router.post('/api/admin/users', async (req, res) => {
     if (role === 'Super Admin') return res.status(400).json({ error: 'Cannot create Super Admin from tenant settings' });
     if (role === 'Vendor' && !vendorId) return res.status(400).json({ error: 'Vendor role requires vendorId' });
 
-    const existing = (await pool.query('SELECT id FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId])).rows[0];
+    const existing = (await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2', [email, tenantId])).rows[0];
     if (existing) return res.status(400).json({ error: 'Email already registered' });
 
     const id = uid('U');

@@ -490,7 +490,7 @@ router.put('/api/products/:id', async (req, res) => {
         hsn_code = COALESCE($14, hsn_code),
         gst_rate = COALESCE($15, gst_rate)
       WHERE id = $10 AND tenant_id = $11
-    `, [name, newBarcode, description ?? row.description, rewardPointsValue ?? row.reward_points_value, manufacturingDate ?? row.manufacturing_date, batchNumber ?? row.batch_number, status ?? row.status, warrantyMonths ?? row.warranty_months, price ?? row.price, id, tenantId, packSize ?? null, packName ?? null, hsnCode ?? null, gstRate ?? null]);
+    `, [name, newBarcode, description ?? row.description, rewardPointsValue ?? row.reward_points_value, manufacturingDate ?? row.manufacturing_date, batchNumber ?? row.batch_number, status ?? row.status, warrantyMonths ?? row.warranty_months, price ?? row.price, id, tenantId, (packSize !== undefined && Number(packSize) > 0) ? Number(packSize) : null, packName ?? null, hsnCode ?? null, gstRate ?? null]);
     const updated = (await pool.query(
       'SELECT p.*, (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = $1 AND pi.tenant_id = $2) as inv_stock FROM products p WHERE p.id = $3 AND p.tenant_id = $2',
       ['InStock', tenantId, id]

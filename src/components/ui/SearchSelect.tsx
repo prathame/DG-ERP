@@ -49,13 +49,18 @@ export function SearchSelect({ options, value, onChange, placeholder = 'Search..
   }, []);
 
   useEffect(() => {
-    if (open) {
-      if (inputRef.current) inputRef.current.focus();
+    if (!open) return;
+    const updatePos = () => {
       if (btnRef.current) {
         const rect = btnRef.current.getBoundingClientRect();
         setPos({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 280) });
       }
-    }
+    };
+    updatePos();
+    if (inputRef.current) inputRef.current.focus();
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => { window.removeEventListener('scroll', updatePos, true); window.removeEventListener('resize', updatePos); };
   }, [open]);
 
   const dropdown = open ? ReactDOM.createPortal(

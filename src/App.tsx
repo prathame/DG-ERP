@@ -236,9 +236,9 @@ export default function App() {
   }
 
   // Super admin visiting a tenant slug — clear super admin session, show tenant login
-  if (authState.isSuperAdmin && urlSlug) {
-    session.clearAll();
-  }
+  useEffect(() => {
+    if (authState.isSuperAdmin && urlSlug) session.clearAll();
+  }, [authState.isSuperAdmin, urlSlug]);
 
   // No user session — show tenant login
   if (!user) {

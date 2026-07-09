@@ -108,7 +108,7 @@ router.get('/api/customers/:id/purchases', async (req, res) => {
       SELECT ps.barcode, ps.purchase_date, p.name as product_name, p.id as product_id, v.name as vendor_name, v.id as vendor_id
       FROM product_sales ps
       JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1
-      JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $1
+      LEFT JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $1
       WHERE ps.tenant_id = $1 AND (ps.customer_id = $2 OR (ps.customer_id IS NULL AND ps.customer_phone = $3))
       ORDER BY ps.purchase_date DESC
     `, [tenantId, id, customer.phone ?? '']);
