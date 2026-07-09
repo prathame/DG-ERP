@@ -1011,7 +1011,8 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
           <div className="absolute inset-0 bg-black/40" onClick={() => setEWayBillModal(null)} />
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
             <h3 className="text-lg font-bold mb-1">Generate E-Way Bill</h3>
-            <p className="text-sm text-gray-500 mb-4">Fill transport details to generate E-Way Bill JSON for upload to ewaybillgst.gov.in</p>
+            <p className="text-sm text-gray-500 mb-2">Fill transport details to generate E-Way Bill JSON.</p>
+            <p className="text-[10px] text-gray-400 mb-4">Upload at ewaybillgst.gov.in → Login → E-Waybill → Generate Bulk → Upload JSON</p>
             <div className="space-y-3">
               <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vehicle Number *</label><input required value={eWayForm.vehicleNo} onChange={e => setEWayForm({ ...eWayForm, vehicleNo: e.target.value.toUpperCase() })} className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm font-mono" placeholder="GJ 03 XX 1234" /></div>
               <div className="grid grid-cols-2 gap-3">
