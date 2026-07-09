@@ -372,6 +372,8 @@ export const api = {
     update: (id: string, data: Partial<import('./types').Vendor>) =>
       fetchApi<import('./types').Vendor>(`/vendors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => fetchApi<void>(`/vendors/${id}`, { method: 'DELETE' }),
+    bulk: (vendors: { name: string; contactPerson?: string; phone?: string; email?: string; address?: string }[]) =>
+      fetchApi<{ success: number; errors: string[]; credentials: { name: string; email: string; password: string; url: string }[] }>('/vendors/bulk', { method: 'POST', body: JSON.stringify({ vendors }) }),
   },
   banks: {
     list: (search?: string) =>
