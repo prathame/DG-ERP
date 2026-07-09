@@ -1023,7 +1023,6 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEWayBillModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
                 <button type="button" disabled={!eWayForm.vehicleNo || !eWayForm.distance} onClick={() => {
-                  const { session } = require('../../lib/session');
                   fetch(`/api/distribution/ewaybill?batchId=${eWayBillModal}&vehicleNo=${encodeURIComponent(eWayForm.vehicleNo)}&transportMode=${eWayForm.transportMode}&distance=${eWayForm.distance}&transporterName=${encodeURIComponent(eWayForm.transporterName)}&transporterId=${encodeURIComponent(eWayForm.transporterId)}`, {
                     headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '' },
                   }).then(r => r.json()).then(data => {
