@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
+import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -70,22 +70,22 @@ router.post('/api/warranties', async (req, res) => {
     const { barcode, customerName, customerPhone } = req.body;
     if (!barcode) return res.status(400).json({ error: 'Barcode is required' });
 
-    const id = `W${Date.now()}`;
+    const id = uid('W');
     const activationDate = new Date().toISOString().slice(0, 10);
     const product = (await pool.query(
       'SELECT id, warranty_months FROM products WHERE barcode = $1 AND tenant_id = $2',
       [barcode, tenantId]
     )).rows[0] as { id: string; warranty_months: number } | undefined;
     const warrantyMonths = product?.warranty_months ?? 24;
-    const expiryDate = new Date();
-    expiryDate.setMonth(expiryDate.getMonth() + warrantyMonths);
+    const now = new Date();
+    const expiryDate = new Date(now.getFullYear(), now.getMonth() + warrantyMonths, Math.min(now.getDate(), 28));
     const expiryStr = expiryDate.toISOString().slice(0, 10);
-    const productId = product?.id ?? '1';
+    if (!product) return res.status(404).json({ error: `No product found for barcode ${barcode}` });
 
     await pool.query(
       `INSERT INTO warranties (id, tenant_id, product_id, barcode, customer_name, customer_phone, activation_date, expiry_date, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active')`,
-      [id, tenantId, productId, barcode, customerName, customerPhone, activationDate, expiryStr]
+      [id, tenantId, product.id, barcode, customerName, customerPhone, activationDate, expiryStr]
     );
 
     const row = (await pool.query(
@@ -168,7 +168,7 @@ router.put('/api/warranties/:id', async (req, res) => {
         )).rows[0] as { vendor_id: string } | undefined;
 
         const repVendorId = sale?.vendor_id ?? dist?.vendor_id ?? 'OWNER';
-        const repId = `REP${Date.now()}-${id}`;
+        const repId = uid('REP');
         const replacedDate = new Date().toISOString().slice(0, 10);
 
         const wClient = await pool.connect();

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { logAudit } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -48,7 +48,7 @@ router.post('/api/customers', async (req, res) => {
     if (!name || !name.trim()) return res.status(400).json({ error: 'Customer name is required' });
     const dup = (await pool.query('SELECT id FROM customers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) AND (phone IS NULL OR phone = $3 OR $3 IS NULL)', [tenantId, name.trim(), phone || null])).rows[0];
     if (dup) return res.status(400).json({ error: `Customer "${name}" already exists` });
-    const id = `C${Date.now()}`;
+    const id = uid('C');
     await pool.query(
       'INSERT INTO customers (id, tenant_id, name, phone, email, address, vendor_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [id, tenantId, name.trim(), phone, email, address, vendorId || null]

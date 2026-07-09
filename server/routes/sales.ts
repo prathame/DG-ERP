@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
+import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -72,7 +72,7 @@ router.post('/api/sales', async (req, res) => {
 
     const { barcode, customerName, customerPhone, customerEmail, purchaseDate, salePrice } = req.body;
     const date = purchaseDate || new Date().toISOString().slice(0, 10);
-    const id = `S${Date.now()}`;
+    const id = uid('S');
 
     // Case 1: Distributed to vendor
     const dist = (await pool.query(`
@@ -114,7 +114,7 @@ router.post('/api/sales', async (req, res) => {
         customerId = existingCustomer.id;
         await client.query('UPDATE customers SET vendor_id = COALESCE(vendor_id, $1) WHERE id = $2 AND tenant_id = $3', [vendorId, customerId, tenantId]);
       } else {
-        customerId = `C${Date.now()}`;
+        customerId = uid('C');
         await client.query('INSERT INTO customers (id, tenant_id, name, phone, email, address, vendor_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
           [customerId, tenantId, customerName, customerPhone, customerEmail || null, null, vendorId]);
       }
@@ -127,17 +127,17 @@ router.post('/api/sales', async (req, res) => {
       await client.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2", [barcode, tenantId]);
       await client.query('UPDATE vendors SET total_sales = total_sales + 1, total_reward_points = total_reward_points + $1 WHERE id = $2 AND tenant_id = $3', [points, vendorId, tenantId]);
       const productName = (await client.query('SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])).rows[0] as { name: string } | undefined;
-      const rewardId = `R${Date.now()}`;
+      const rewardId = uid('R');
       await client.query(`
         INSERT INTO rewards (id, tenant_id, user_id, points, type, description, date, vendor_id, sale_id)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `, [rewardId, tenantId, 'D1', points, 'Earned', `${productName?.name ?? 'Product'} sold`, date, vendorId, id]);
       // Auto-create warranty based on product warranty_months
       const activationDate = date;
-      const expiryDateObj = new Date(activationDate);
-      expiryDateObj.setMonth(expiryDateObj.getMonth() + warrantyMonths);
+      const actDate = new Date(activationDate);
+      const expiryDateObj = new Date(actDate.getFullYear(), actDate.getMonth() + warrantyMonths, Math.min(actDate.getDate(), 28));
       const expiryDate = expiryDateObj.toISOString().slice(0, 10);
-      const warrantyId = `W${Date.now()}`;
+      const warrantyId = uid('W');
       await client.query(`
         INSERT INTO warranties (id, tenant_id, product_id, barcode, customer_name, customer_phone, activation_date, expiry_date, status)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active')

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { mapProduct, logAudit } from '../utils/helpers';
+import { uid, mapProduct, logAudit } from '../utils/helpers';
 import { barcodeExists, expandBarcodeRange, generateBarcodesFromPrefix } from '../utils/barcode';
 
 const router = Router();
@@ -24,7 +24,7 @@ router.post('/api/categories', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { name } = req.body;
-    const id = `CAT${Date.now()}`;
+    const id = uid('CAT');
     await pool.query('INSERT INTO categories (id, name, tenant_id) VALUES ($1, $2, $3)', [id, name ?? '', tenantId]);
     const row = (await pool.query('SELECT * FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     res.status(201).json({ id: row.id, name: row.name });
@@ -300,7 +300,7 @@ router.post('/api/products', async (req, res) => {
     if (!name || !name.trim()) return res.status(400).json({ error: 'Product name is required' });
     const duplicate = (await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name.trim()])).rows[0];
     if (duplicate) return res.status(400).json({ error: `Product "${name}" already exists` });
-    const id = `P${Date.now()}`;
+    const id = uid('P');
     let invStock = 0;
     const mode = barcodeMode ?? 'prefix';
     const client = await pool.connect();
@@ -314,7 +314,7 @@ router.post('/api/products', async (req, res) => {
       );
     };
     const insertBarcodes = async (barcodes: string[]) => {
-      const batchId = `B${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const batchId = uid('B');
       // Batch check: verify no duplicates in one query
       const existing = (await client.query(
         'SELECT barcode FROM product_inventory WHERE barcode = ANY($1) AND tenant_id = $2',
@@ -348,7 +348,7 @@ router.post('/api/products', async (req, res) => {
       await insertBarcodes(barcodes);
     } else if (mode === 'auto') {
       const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
-      const batchId = `B${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const batchId = uid('B');
       const base = `AUTO-${batchId}`;
       const barcodes = Array.from({ length: qty }, (_, i) => `${base}-${String(i + 1).padStart(4, '0')}`);
       await insertProductRow();
@@ -420,7 +420,7 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
         barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, qty);
       }
     } else if (mode === 'auto') {
-      const batchId = `B${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const batchId = uid('B');
       const base = `AUTO-${batchId}`;
       barcodes = Array.from({ length: qty }, (_, i) => `${base}-${String(i + 1).padStart(4, '0')}`);
     } else if (mode === 'range' && typeof rangeStart === 'string' && typeof rangeEnd === 'string' && rangeStart.trim() && rangeEnd.trim()) {
@@ -430,8 +430,8 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
       return res.status(400).json({ error: 'Provide barcodePrefix + quantity, or barcodeMode=auto with quantity' });
     }
 
-    const batchId = `B${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const base = `I${id}-${Date.now()}`;
+    const batchId = uid('B');
+    const base = uid(`I${id}-`);
     const existingBc = (await pool.query('SELECT barcode FROM product_inventory WHERE barcode = ANY($1) AND tenant_id = $2', [barcodes, tenantId])).rows;
     if (existingBc.length > 0) return res.status(400).json({ error: `Barcode ${(existingBc[0] as { barcode: string }).barcode} already exists` });
     const pSize = Number(reqPackSize || product.pack_size) || 1;

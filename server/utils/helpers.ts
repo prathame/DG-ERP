@@ -1,5 +1,10 @@
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { Pool } from 'pg';
+
+export function uid(prefix: string): string {
+  return `${prefix}${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+}
 
 export function validateInput(value: unknown, name: string, maxLength: number): string {
   if (typeof value !== 'string') return '';

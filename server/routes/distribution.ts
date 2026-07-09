@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
+import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
 const router = Router();
 
@@ -41,9 +41,9 @@ router.get('/api/distribution/summary', async (req, res) => {
         vendorName: v.name,
         distributed: Number(v.distributed),
         sold: Number(v.sold),
-        replaced: Number(v.replaced) ?? 0,
-        damaged: Number(v.damaged) ?? 0,
-        availableWithVendor: Number(v.distributed) - Number(v.sold) - (Number(v.replaced) ?? 0) - (Number(v.damaged) ?? 0),
+        replaced: Number(v.replaced) || 0,
+        damaged: Number(v.damaged) || 0,
+        availableWithVendor: Number(v.distributed) - Number(v.sold) - (Number(v.replaced) || 0) - (Number(v.damaged) || 0),
       })),
     });
   } catch (err) {
@@ -160,11 +160,11 @@ router.get('/api/distribution/batches', async (req, res) => {
         productNames: (r.product_names as string || '').split(',').filter(Boolean),
         total: Number(r.total),
         sold: Number(r.sold),
-        replaced: Number(r.replaced) ?? 0,
-        damaged: Number(r.damaged) ?? 0,
+        replaced: Number(r.replaced) || 0,
+        damaged: Number(r.damaged) || 0,
         availableWithVendor: Number(r.available_with_vendor),
         billValue: Number(r.bill_value),
-        discountPercent: Number(r.discount_percent) ?? 0,
+        discountPercent: Number(r.discount_percent) || 0,
         gstApplied: !!(Number(r.gst_applied)),
         amountPaid: paid,
         balanceRemaining: Number(r.bill_value) - paid,
@@ -196,13 +196,14 @@ router.post('/api/distribution/batch', async (req, res) => {
 
     const gstRate = Number(reqGstRate) || 18;
     const date = distributionDate || new Date().toISOString().slice(0, 10);
-    const batchId = `D${Date.now()}`;
+    const batchId = uid('D');
     const paidAmount = typeof amountPaid === 'number' && amountPaid > 0 ? amountPaid : null;
 
     let totalBilled = 0;
     let totalQty = 0;
     const productNames: string[] = [];
     const unitRows: { distId: string; productId: string; barcode: string; invId: string; disc: number; netPrice: number; gstApplied: number; billedPrice: number }[] = [];
+    const itemsPrepped: { product: { id: string; name: string; price: number; pack_size: number; stock: number }; qty: number; disc: number; netPricePerUnit: number; gstApplied: number; billedPricePerUnit: number }[] = [];
 
     for (const item of items) {
       const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
@@ -216,38 +217,8 @@ router.post('/api/distribution/batch', async (req, res) => {
       const netPricePerUnit = Math.round((basePrice * (100 - disc) / 100) * 100) / 100;
       const gstApplied = item.withGst !== false ? 1 : 0;
       const billedPricePerUnit = gstApplied ? Math.round(netPricePerUnit * (100 + gstRate) / 100) : netPricePerUnit;
-      const invRows = (await pool.query(
-        `SELECT id, barcode FROM product_inventory WHERE product_id = \$1 AND status = 'InStock' AND tenant_id = \$2 ORDER BY id LIMIT \$3 FOR UPDATE SKIP LOCKED`,
-        [product.id, tenantId, qty]
-      )).rows as { id: string; barcode: string }[];
-      if (invRows.length < qty) {
-        return res.status(400).json({ error: `Insufficient stock for ${product.name}. Available: ${invRows.length}, requested: ${qty}` });
-      }
-      productNames.push(product.name);
-      for (const inv of invRows) {
-        unitRows.push({
-          distId: '', // assigned below
-          productId: product.id,
-          barcode: inv.barcode,
-          invId: inv.id,
-          disc,
-          netPrice: netPricePerUnit,
-          gstApplied,
-          billedPrice: billedPricePerUnit,
-        });
-        totalBilled += billedPricePerUnit;
-        totalQty++;
-      }
+      itemsPrepped.push({ product, qty, disc, netPricePerUnit, gstApplied, billedPricePerUnit });
     }
-
-    if (paidAmount && paidAmount > totalBilled) {
-      return res.status(400).json({ error: `Amount paid (₹${paidAmount}) cannot exceed billed amount (₹${totalBilled})` });
-    }
-
-    const totalUnits = unitRows.length;
-    unitRows.forEach((u, i) => {
-      u.distId = totalUnits === 1 ? batchId : `${batchId}-${i + 1}`;
-    });
 
     const vendorName = ((await pool.query(
       'SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2',
@@ -257,6 +228,34 @@ router.post('/api/distribution/batch', async (req, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      for (const item of itemsPrepped) {
+        const invRows = (await client.query(
+          `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3 FOR UPDATE SKIP LOCKED`,
+          [item.product.id, tenantId, item.qty]
+        )).rows as { id: string; barcode: string }[];
+        if (invRows.length < item.qty) {
+          await client.query('ROLLBACK');
+          client.release();
+          return res.status(400).json({ error: `Insufficient stock for ${item.product.name}. Available: ${invRows.length}, requested: ${item.qty}` });
+        }
+        productNames.push(item.product.name);
+        for (const inv of invRows) {
+          unitRows.push({ distId: '', productId: item.product.id, barcode: inv.barcode, invId: inv.id, disc: item.disc, netPrice: item.netPricePerUnit, gstApplied: item.gstApplied, billedPrice: item.billedPricePerUnit });
+          totalBilled += item.billedPricePerUnit;
+          totalQty++;
+        }
+      }
+
+      if (paidAmount && paidAmount > totalBilled) {
+        await client.query('ROLLBACK');
+        client.release();
+        return res.status(400).json({ error: `Amount paid (₹${paidAmount}) cannot exceed billed amount (₹${totalBilled})` });
+      }
+
+      const totalUnits = unitRows.length;
+      unitRows.forEach((u, i) => { u.distId = totalUnits === 1 ? batchId : `${batchId}-${i + 1}`; });
+
       for (const u of unitRows) {
         await client.query(
           'INSERT INTO product_distribution (id, batch_id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price, gst_applied, billed_price, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)',
@@ -268,7 +267,7 @@ router.post('/api/distribution/batch', async (req, res) => {
         );
       }
       if (paidAmount) {
-        const payId = `VP${Date.now()}`;
+        const payId = uid('VP');
         await client.query(
           'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
           [payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${batchId}`, tenantId, batchId]
@@ -334,25 +333,30 @@ router.post('/api/distribution', async (req, res) => {
     const totalBilled = billedPricePerUnit * qty;
     const paidAmount = typeof amountPaid === 'number' && amountPaid > 0 ? amountPaid : null;
     if (paidAmount && paidAmount > totalBilled) return res.status(400).json({ error: `Amount paid (₹${paidAmount}) cannot exceed billed amount (₹${totalBilled})` });
-    const invRows = (await pool.query(
-      `SELECT id, barcode FROM product_inventory WHERE product_id = \$1 AND status = 'InStock' AND tenant_id = \$2 ORDER BY id LIMIT \$3 FOR UPDATE SKIP LOCKED`,
-      [product.id, tenantId, qty]
-    )).rows as { id: string; barcode: string }[];
-    const availableStock = invRows.length;
-    if (availableStock < qty) return res.status(400).json({ error: `Insufficient stock. Available: ${availableStock}, requested: ${qty}` });
-    const baseId = typeof reqBatchId === 'string' && reqBatchId ? reqBatchId : `D${Date.now()}`;
+    const baseId = typeof reqBatchId === 'string' && reqBatchId ? reqBatchId : uid('D');
     const date = distributionDate || new Date().toISOString().slice(0, 10);
-    const existingInBatch = typeof reqBatchId === 'string' && reqBatchId
-      ? Number((await pool.query('SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2', [reqBatchId, tenantId])).rows[0].c)
-      : 0;
 
+    let distInvRows: { id: string; barcode: string }[] = [];
+    let distPayId: string | null = null;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      for (let i = 0; i < invRows.length; i++) {
-        const inv = invRows[i];
+      distInvRows = (await client.query(
+        `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3 FOR UPDATE SKIP LOCKED`,
+        [product.id, tenantId, qty]
+      )).rows as { id: string; barcode: string }[];
+      if (distInvRows.length < qty) {
+        await client.query('ROLLBACK');
+        client.release();
+        return res.status(400).json({ error: `Insufficient stock. Available: ${distInvRows.length}, requested: ${qty}` });
+      }
+      const existingInBatch = typeof reqBatchId === 'string' && reqBatchId
+        ? Number((await client.query('SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2', [reqBatchId, tenantId])).rows[0].c)
+        : 0;
+      for (let i = 0; i < distInvRows.length; i++) {
+        const inv = distInvRows[i];
         const seq = existingInBatch + i + 1;
-        const distId = invRows.length === 1 && existingInBatch === 0 ? baseId : `${baseId}-${seq}`;
+        const distId = distInvRows.length === 1 && existingInBatch === 0 ? baseId : `${baseId}-${seq}`;
         await client.query(
           'INSERT INTO product_distribution (id, batch_id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price, gst_applied, billed_price, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)',
           [distId, baseId, product.id, inv.barcode, vendorId, date, 'Distributed', disc, netPricePerUnit, gstApplied ? 1 : 0, billedPricePerUnit, tenantId]
@@ -363,10 +367,10 @@ router.post('/api/distribution', async (req, res) => {
         );
       }
       if (paidAmount) {
-        const payId = `VP${Date.now()}`;
+        distPayId = uid('VP');
         await client.query(
           'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-          [payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${baseId}`, tenantId, baseId]
+          [distPayId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${baseId}`, tenantId, baseId]
         );
       }
       await client.query('COMMIT');
@@ -383,7 +387,7 @@ router.post('/api/distribution', async (req, res) => {
     )).rows[0] as { name: string } | undefined)?.name ?? vendorId;
 
     await logAudit(pool, tenantId, 'Distribution Created', 'distribution', baseId, `${qty} units to ${vendorName}, Discount: ${disc}%`);
-    if (paidAmount) await logAudit(pool, tenantId, 'Payment Recorded', 'payment', `VP${Date.now()}`, `${vendorName} paid ₹${paidAmount} (with distribution)`);
+    if (paidAmount && distPayId) await logAudit(pool, tenantId, 'Payment Recorded', 'payment', distPayId, `${vendorName} paid ₹${paidAmount} (with distribution)`);
 
     const firstRow = (await pool.query(`
       SELECT pd.*, p.name as product_name, v.name as vendor_name, v.id as vendor_id
@@ -399,8 +403,8 @@ router.post('/api/distribution', async (req, res) => {
       batchId: baseId,
       productId: firstRow?.product_id ?? product.id,
       productName: firstRow?.product_name,
-      barcode: invRows[0]?.barcode ?? firstRow?.barcode,
-      quantity: invRows.length,
+      barcode: distInvRows[0]?.barcode ?? firstRow?.barcode,
+      quantity: distInvRows.length,
       vendorId: firstRow?.vendor_id ?? vendorId,
       vendorName: firstRow?.vendor_name,
       distributionDate: date,
@@ -851,13 +855,13 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
       productNames: String(batch?.product_names || '').split(',').filter(Boolean),
       total: Number(batch?.total),
       sold: Number(batch?.sold),
-      replaced: Number(batch?.replaced) ?? 0,
-      damaged: Number(batch?.damaged) ?? 0,
+      replaced: Number(batch?.replaced) || 0,
+      damaged: Number(batch?.damaged) || 0,
       availableWithVendor: Number(batch?.available_with_vendor),
       billValue: putBillValue,
       amountPaid: putBatchPaid,
       balanceRemaining: putBillValue - putBatchPaid,
-      discountPercent: Number(batch?.discount_percent) ?? 0,
+      discountPercent: Number(batch?.discount_percent) || 0,
       gstApplied: !!(Number(batch?.gst_applied)),
       canDelete: Number(batch?.sold ?? 0) + Number(batch?.replaced ?? 0) + Number(batch?.damaged ?? 0) === 0,
     });

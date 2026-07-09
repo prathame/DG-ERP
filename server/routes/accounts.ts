@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { DISTRIBUTION_BILL_UNIT_SQL, logAudit } from '../utils/helpers';
+import { uid, DISTRIBUTION_BILL_UNIT_SQL, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -266,7 +266,7 @@ router.post('/api/accounts/notes', async (req, res) => {
     if (!noteType || !['credit', 'debit'].includes(noteType)) return res.status(400).json({ error: 'noteType must be credit or debit' });
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'At least one item required' });
 
-    const id = `${noteType === 'credit' ? 'CN' : 'DN'}${Date.now()}`;
+    const id = uid(noteType === 'credit' ? 'CN' : 'DN');
     const prefix = noteType === 'credit' ? 'CN' : 'DN';
     const count = (await pool.query('SELECT COUNT(*) as c FROM credit_debit_notes WHERE tenant_id = $1 AND note_type = $2', [tenantId, noteType])).rows[0] as { c: number };
     const noteNum = `${prefix}-${String(Number(count.c) + 1).padStart(4, '0')}`;

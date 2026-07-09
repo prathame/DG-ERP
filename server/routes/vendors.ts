@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { hashPassword, logAudit } from '../utils/helpers';
+import { uid, hashPassword, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -50,7 +50,7 @@ router.post('/api/vendors', async (req, res) => {
     )).rows[0] as { id: string; name: string } | undefined;
     if (duplicate) return res.status(400).json({ error: `Vendor "${duplicate.name}" already exists` });
 
-    const id = `V${Date.now()}`;
+    const id = uid('V');
     await pool.query(
       'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [id, tenantId, name.trim(), contactPerson, phone?.trim() || null, email, address]
@@ -64,7 +64,7 @@ router.post('/api/vendors', async (req, res) => {
       if (!existing) {
         const crypto = await import('crypto');
         const defaultPassword = crypto.randomBytes(12).toString('base64url');
-        const userId = `U${Date.now()}`;
+        const userId = uid('U');
         const perms = JSON.stringify({ dashboard: 'view', sales: 'hidden', distribution: 'view', inventory: 'hidden', purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'view', accounts: 'hidden', warranty: 'hidden', replacements: 'hidden', rewards: 'hidden', settings: 'hidden' });
         await pool.query(
           `INSERT INTO users (id, tenant_id, email, password_hash, name, phone, address, role, company_name, permissions, vendor_id)

@@ -1,3 +1,4 @@
+import { uid } from '../utils/helpers';
 import { Router } from 'express';
 import { pool } from '../pg-db';
 
@@ -68,7 +69,7 @@ router.post('/api/price-lists', async (req, res) => {
     if (!productId) return res.status(400).json({ error: 'Product is required' });
     if (!price || Number(price) <= 0) return res.status(400).json({ error: 'Price must be greater than 0' });
 
-    const id = `PL${Date.now()}`;
+    const id = uid('PL');
     await pool.query(
       'INSERT INTO price_lists (id, tenant_id, name, product_id, vendor_id, min_qty, max_qty, price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
       [id, tenantId, name || 'Custom Price', productId, vendorId || null, Number(minQty) || 1, maxQty ? Number(maxQty) : null, Number(price)]

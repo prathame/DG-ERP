@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { logAudit } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -195,7 +195,7 @@ router.post('/api/replacements', async (req, res) => {
     const newValid = distNew?.vendor_id === vendorId || (vendorId === 'OWNER' && invNew);
     if (!newValid) return res.status(400).json({ error: 'New barcode is not allocated to the same vendor. Verify new barcode before saving.' });
 
-    const id = `REP${Date.now()}`;
+    const id = uid('REP');
     const date = replacedDate || new Date().toISOString().slice(0, 10);
     const productId = sale?.product_id ?? distOld?.product_id ?? null;
     const prod = productId
