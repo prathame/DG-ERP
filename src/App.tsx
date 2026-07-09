@@ -59,14 +59,6 @@ import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
 import { SuperAdminLogin } from './features/super-admin/SuperAdminLogin';
 import { session } from './lib/session';
 
-function SuperAdminLoginWrapper({ onLogin }: { onLogin: (u: Record<string, unknown>) => void }) {
-  return (
-    <SuperAdminLogin onLogin={(u) => {
-      onLogin(u as unknown as Record<string, unknown>);
-      window.location.href = '/admin';
-    }} />
-  );
-}
 
 /** Decode a JWT payload without any library. Returns null on failure. */
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -238,7 +230,7 @@ export default function App() {
     }
     return (
       <ToastProvider>
-        <SuperAdminLoginWrapper onLogin={handleLogin} />
+        <SuperAdminLogin onLogin={(u) => { handleLogin(u as Parameters<typeof handleLogin>[0]); window.location.href = '/admin'; }} />
       </ToastProvider>
     );
   }

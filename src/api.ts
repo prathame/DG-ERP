@@ -429,9 +429,6 @@ export const api = {
       return fetchApi<{ data: { id: number; userId: string; userName: string; action: string; entityType: string; entityId: string; details: string; createdAt: string }[]; total: number; page: number; totalPages: number }>(`/audit-log${qs ? `?${qs}` : ''}`);
     },
   },
-  notifications: {
-    list: () => fetchApi<{ notifications: { id: string; type: string; title: string; message: string; severity: string }[]; count: number }>('/notifications'),
-  },
   auth: {
     signup: (data: { email: string; password: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }) =>
       fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string } }>('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
