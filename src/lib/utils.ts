@@ -32,13 +32,6 @@ export function printBillInWindow(win: Window, html: string, filename?: string) 
   setTimeout(() => { win.print(); }, 400);
 }
 
-/** Convenience: open window + write + print (only works if called synchronously from click) */
-export function printBill(html: string) {
-  const win = openPrintWindow();
-  if (!win) return;
-  printBillInWindow(win, html);
-}
-
 /** Open bill HTML in a new tab for saving as PDF */
 export function saveBillAsPdf(html: string, filename?: string) {
   const win = window.open('', '_blank');
