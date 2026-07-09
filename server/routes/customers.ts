@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { logAudit } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -48,7 +48,7 @@ router.post('/api/customers', async (req, res) => {
     if (!name || !name.trim()) return res.status(400).json({ error: 'Customer name is required' });
     const dup = (await pool.query('SELECT id FROM customers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) AND (phone IS NULL OR phone = $3 OR $3 IS NULL)', [tenantId, name.trim(), phone || null])).rows[0];
     if (dup) return res.status(400).json({ error: `Customer "${name}" already exists` });
-    const id = `C${Date.now()}`;
+    const id = uid('C');
     await pool.query(
       'INSERT INTO customers (id, tenant_id, name, phone, email, address, vendor_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [id, tenantId, name.trim(), phone, email, address, vendorId || null]
@@ -108,7 +108,7 @@ router.get('/api/customers/:id/purchases', async (req, res) => {
       SELECT ps.barcode, ps.purchase_date, p.name as product_name, p.id as product_id, v.name as vendor_name, v.id as vendor_id
       FROM product_sales ps
       JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1
-      JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $1
+      LEFT JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $1
       WHERE ps.tenant_id = $1 AND (ps.customer_id = $2 OR (ps.customer_id IS NULL AND ps.customer_phone = $3))
       ORDER BY ps.purchase_date DESC
     `, [tenantId, id, customer.phone ?? '']);

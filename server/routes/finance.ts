@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
+import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
 const router = Router();
 
@@ -137,7 +137,7 @@ router.post('/api/vendor-finance/:vendorId/payments', async (req, res) => {
     const vendorName = ((await pool.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as { name: string } | undefined)?.name ?? vendorId;
 
     if (batchId) {
-      const id = `VP${Date.now()}`;
+      const id = uid('VP');
       await pool.query(
         'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
         [id, vendorId, parsedAmount, pDate, pMethod, referenceNumber || null, notes || null, tenantId, batchId]
@@ -160,7 +160,7 @@ router.post('/api/vendor-finance/:vendorId/payments', async (req, res) => {
         if (remaining <= 0) break;
         const due = Number(b.bill_value) - Number(b.paid);
         const pay = Math.min(remaining, due);
-        const id = `VP${Date.now()}-${b.batch_id.slice(-4)}`;
+        const id = uid('VP');
         await pool.query(
           'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
           [id, vendorId, pay, pDate, pMethod, referenceNumber || null, notes ? `${notes} (batch ${b.batch_id})` : `All-batch payment`, tenantId, b.batch_id]
@@ -168,17 +168,17 @@ router.post('/api/vendor-finance/:vendorId/payments', async (req, res) => {
         remaining -= pay;
       }
       if (remaining > 0) {
-        const id = `VP${Date.now()}-extra`;
+        const id = uid('VP');
         await pool.query(
           'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
           [id, vendorId, remaining, pDate, pMethod, referenceNumber || null, notes || 'Advance payment', tenantId, null]
         );
       }
-      logAudit(pool, tenantId, 'Payment Recorded', 'payment', `VP${Date.now()}`, `${vendorName} paid ₹${parsedAmount} across ${batches.length} batches`);
+      logAudit(pool, tenantId, 'Payment Recorded', 'payment', uid('VP'), `${vendorName} paid ₹${parsedAmount} across ${batches.length} batches`);
     }
 
     res.status(201).json({
-      id: `VP${Date.now()}`, amount: parsedAmount, paymentDate: pDate, paymentMethod: pMethod, referenceNumber: referenceNumber || null, notes: notes || null,
+      id: uid('VP'), amount: parsedAmount, paymentDate: pDate, paymentMethod: pMethod, referenceNumber: referenceNumber || null, notes: notes || null,
     });
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });

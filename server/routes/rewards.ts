@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { logAudit } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -65,8 +65,6 @@ router.get('/api/rewards', async (req, res) => {
       sql += ` AND vendor_id = $${paramIdx}`;
       params.push(vendorId);
       paramIdx++;
-    } else {
-      sql += ' AND vendor_id IS NULL';
     }
 
     sql += ' ORDER BY date DESC';
@@ -145,7 +143,7 @@ router.post('/api/rewards', async (req, res) => {
       if (ptsToInsert > balance) return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    const id = `R${Date.now()}`;
+    const id = uid('R');
     const date = new Date().toISOString().slice(0, 10);
 
     if (isVendorRedemption) {
@@ -260,7 +258,7 @@ router.post('/api/reward-rules', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { categoryId, productsSoldThreshold, rewardPoints, description } = req.body;
-    const id = `RR${Date.now()}`;
+    const id = uid('RR');
 
     await pool.query(
       `INSERT INTO reward_rules (id, tenant_id, category_id, products_sold_threshold, reward_points, description)

@@ -5,15 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatPackQty(qty: number, packSize?: number, packName?: string): string {
-  if (!packSize || packSize <= 1) return `${qty}`;
-  const boxes = Math.floor(qty / packSize);
-  const loose = qty % packSize;
-  if (boxes === 0) return `${loose} pcs`;
-  if (loose === 0) return `${boxes} ${packName || 'Box'}${boxes > 1 ? 's' : ''}`;
-  return `${boxes} ${packName || 'Box'}${boxes > 1 ? 's' : ''} + ${loose} pcs`;
-}
-
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
@@ -41,13 +32,6 @@ export function printBillInWindow(win: Window, html: string, filename?: string) 
   setTimeout(() => { win.print(); }, 400);
 }
 
-/** Convenience: open window + write + print (only works if called synchronously from click) */
-export function printBill(html: string) {
-  const win = openPrintWindow();
-  if (!win) return;
-  printBillInWindow(win, html);
-}
-
 /** Open bill HTML in a new tab for saving as PDF */
 export function saveBillAsPdf(html: string, filename?: string) {
   const win = window.open('', '_blank');
@@ -57,17 +41,10 @@ export function saveBillAsPdf(html: string, filename?: string) {
   win.document.close();
 }
 
-/** Normalize Indian phone number for WhatsApp (strip formatting, prepend 91 if needed) */
-function normalizePhone(phone: string): string {
+export function shareViaWhatsApp(phone: string, message: string) {
   let p = phone.replace(/[\s\-().+]/g, '');
   if (p.length === 10 && /^\d+$/.test(p)) p = '91' + p;
   if (p.startsWith('0')) p = '91' + p.slice(1);
-  return p;
-}
-
-/** Open WhatsApp Web with pre-filled message */
-export function shareViaWhatsApp(phone: string, message: string) {
-  const p = normalizePhone(phone);
   window.open(`https://wa.me/${p}?text=${encodeURIComponent(message)}`, '_blank');
 }
 
@@ -75,10 +52,6 @@ export function shareViaWhatsApp(phone: string, message: string) {
 export function shareViaEmail(email: string, subject: string, body: string) {
   const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.open(gmailUrl, '_blank');
-}
-
-export function getGmailLink(email: string, subject?: string, body?: string): string {
-  return `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(email)}${subject ? `&su=${encodeURIComponent(subject)}` : ''}${body ? `&body=${encodeURIComponent(body)}` : ''}`;
 }
 
 /** Format sales invoice as plain text for WhatsApp / Email */

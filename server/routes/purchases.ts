@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { logAudit } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 import { generateBarcodesFromPrefix, barcodeExists } from '../utils/barcode';
 
 const router = Router();
@@ -35,7 +35,7 @@ router.post('/api/suppliers', async (req, res) => {
     if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
     const dup = (await pool.query('SELECT id FROM suppliers WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name.trim()])).rows[0];
     if (dup) return res.status(400).json({ error: `Supplier "${name}" already exists` });
-    const id = `S${Date.now()}`;
+    const id = uid('S');
     await pool.query(
       'INSERT INTO suppliers (id, tenant_id, name, contact_person, phone, email, address, gst_number) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
       [id, tenantId, name, contactPerson || null, phone?.trim() || null, email || null, address || null, gstNumber || null]
@@ -96,7 +96,7 @@ router.post('/api/purchases/batch', async (req, res) => {
 
     const gstRate = Number(reqGstRate) || 18;
     const date = purchaseDate || new Date().toISOString().slice(0, 10);
-    const batchId = `PB${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const batchId = uid('PB');
     const paidAmount = amountPaid ? Math.max(0, Number(amountPaid)) : 0;
 
     let totalBilled = 0;
@@ -150,7 +150,7 @@ router.post('/api/purchases/batch', async (req, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const invBatchId = `B${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const invBatchId = uid('B');
       for (let ui = 0; ui < unitRows.length; ui++) {
         const u = unitRows[ui];
         // Add to inventory
@@ -165,7 +165,7 @@ router.post('/api/purchases/batch', async (req, res) => {
         );
       }
       if (paidAmount > 0) {
-        const payId = `SP${Date.now()}`;
+        const payId = uid('SP');
         await client.query(
           'INSERT INTO supplier_payments (id, tenant_id, supplier_id, amount, payment_date, payment_method, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
           [payId, tenantId, supplierId, paidAmount, date, 'Cash', `Payment with purchase ${batchId}`, batchId]
@@ -328,7 +328,7 @@ router.post('/api/supplier-finance/:supplierId/payments', async (req, res) => {
     if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ error: 'Amount must be a valid number greater than 0' });
     const supplier = (await pool.query('SELECT id FROM suppliers WHERE id = $1 AND tenant_id = $2', [supplierId, tenantId])).rows[0];
     if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
-    const id = `SP${Date.now()}`;
+    const id = uid('SP');
     await pool.query(
       'INSERT INTO supplier_payments (id, tenant_id, supplier_id, amount, payment_date, payment_method, reference_number, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
       [id, tenantId, supplierId, parsedAmount, paymentDate || new Date().toISOString().slice(0, 10), paymentMethod || 'Cash', referenceNumber || null, notes || null, batchId || null]

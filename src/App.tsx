@@ -61,14 +61,6 @@ function QuotationsAndOrdersView() {
 }
 import { session } from './lib/session';
 
-function SuperAdminLoginWrapper({ onLogin }: { onLogin: (u: Record<string, unknown>) => void }) {
-  return (
-    <SuperAdminLogin onLogin={(u) => {
-      onLogin(u as unknown as Record<string, unknown>);
-      window.location.href = '/admin';
-    }} />
-  );
-}
 
 /** Decode a JWT payload without any library. Returns null on failure. */
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -242,17 +234,21 @@ export default function App() {
     }
     return (
       <ToastProvider>
+<<<<<<< HEAD
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-950"><LoadingSpinner size="lg" /></div>}>
           <SuperAdminLoginWrapper onLogin={handleLogin} />
         </Suspense>
+=======
+        <SuperAdminLogin onLogin={(u) => { handleLogin(u as Parameters<typeof handleLogin>[0]); window.location.href = '/admin'; }} />
+>>>>>>> origin/main
       </ToastProvider>
     );
   }
 
   // Super admin visiting a tenant slug — clear super admin session, show tenant login
-  if (authState.isSuperAdmin && urlSlug) {
-    session.clearAll();
-  }
+  useEffect(() => {
+    if (authState.isSuperAdmin && urlSlug) session.clearAll();
+  }, [authState.isSuperAdmin, urlSlug]);
 
   // No user session — show tenant login
   if (!user) {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { logAudit } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -54,7 +54,7 @@ router.post('/api/orders', async (req, res) => {
     const { vendorId, vendorName, customerName, customerPhone, customerGstNumber, orderDate, requiredDate, items, gstRate, notes } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'At least one item is required' });
 
-    const id = `ORD${Date.now()}`;
+    const id = uid('ORD');
     const count = (await pool.query('SELECT COUNT(*) as c FROM orders WHERE tenant_id = $1', [tenantId])).rows[0] as { c: number };
     const orderNum = `ORD-${String(Number(count.c) + 1).padStart(4, '0')}`;
     const rate = Number(gstRate) || 18;
@@ -133,11 +133,12 @@ router.post('/api/orders/:id/fulfill', async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order not found' });
     if (order.status === 'Fulfilled') return res.status(400).json({ error: 'Already fulfilled' });
     if (order.status === 'Cancelled') return res.status(400).json({ error: 'Cannot fulfill cancelled order' });
+    if (order.status === 'Pending') return res.status(400).json({ error: 'Order must be confirmed before fulfilling' });
     if (!order.vendor_id) return res.status(400).json({ error: 'Order must have a vendor to fulfill' });
 
     const items = typeof order.items === 'string' ? JSON.parse(order.items as string) : order.items as { productId: string; quantity: number; discountPercent: number; withGst: boolean; price: number }[];
     const gstRate = Number(order.gst_rate) || 18;
-    const batchId = `D${Date.now()}`;
+    const batchId = uid('D');
     const date = (order.order_date as string) || new Date().toISOString().slice(0, 10);
     let totalBilled = 0;
     let totalQty = 0;

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search, IndianRupee, MoreVertical, Truck } from 'lucide-react';
 import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate } from '../../lib/utils';
-import { api, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
+import { api, fetchApi, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
@@ -332,7 +332,7 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
             const selectedProduct = selectedBatchProductId ? byProduct[selectedBatchProductId] : null;
 
             return (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
                 <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-3 flex-wrap">
                     <button
@@ -359,10 +359,10 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
                       return <>
                         <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold", ds === 'dispatched' ? 'bg-blue-100 text-blue-700' : ds === 'delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>{ds === 'dispatched' ? 'Dispatched' : ds === 'delivered' ? 'Delivered' : 'Pending Dispatch'}</span>
                         {canPrint && ds === 'pending' && (
-                          <button type="button" onClick={() => { fetch(`/api/distribution/batch/${selectedBatch.batchId}/dispatch`, { method: 'PUT', headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '', 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'dispatched' }) }).then(r => r.json()).then(d => { if (d.ok) { toast('Marked as dispatched', 'success'); load(); } else toast(d.error, 'error'); }).catch(err => toast(err.message, 'error')); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Truck size={12} /> Mark Dispatched</button>
+                          <button type="button" onClick={() => { fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, { method: 'PUT', body: JSON.stringify({ status: 'dispatched' }) }).then((d: Record<string, unknown>) => { if (d.ok) { toast('Marked as dispatched', 'success'); load(); } else toast(String(d.error), 'error'); }).catch(err => toast(err.message, 'error')); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Truck size={12} /> Mark Dispatched</button>
                         )}
                         {canPrint && ds === 'dispatched' && (
-                          <button type="button" onClick={() => { fetch(`/api/distribution/batch/${selectedBatch.batchId}/dispatch`, { method: 'PUT', headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '', 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'delivered' }) }).then(r => r.json()).then(d => { if (d.ok) { toast('Marked as delivered', 'success'); load(); } else toast(d.error, 'error'); }).catch(err => toast(err.message, 'error')); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg"><Package size={12} /> Mark Delivered</button>
+                          <button type="button" onClick={() => { fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, { method: 'PUT', body: JSON.stringify({ status: 'delivered' }) }).then((d: Record<string, unknown>) => { if (d.ok) { toast('Marked as delivered', 'success'); load(); } else toast(String(d.error), 'error'); }).catch(err => toast(err.message, 'error')); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg"><Package size={12} /> Mark Delivered</button>
                         )}
                       </>;
                     })()}
@@ -389,7 +389,7 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
                       <Pencil size={16} /> Edit
                     </button>
                     )}
-                    {!isVendorUser && <div className="relative">
+                    {!isVendorUser && !selectedBatchProductId && <div className="relative">
                       <button type="button" onClick={() => setBatchActionsOpen(!batchActionsOpen)} className="p-2 hover:bg-gray-200 rounded-lg transition-colors" title="More actions">
                         <MoreVertical size={18} className="text-gray-600" />
                       </button>
@@ -572,7 +572,7 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
                       const p = products.find(x => x.id === row.productId);
                       const packSz = p?.packSize || 1;
                       const isBox = packSz > 1;
-                      const basePrice = row.customPrice ? parseFloat(row.customPrice) : (p?.price ?? 0);
+                      const basePrice = row.customPrice ? (parseFloat(row.customPrice) || 0) : (p?.price ?? 0);
                       const gross = basePrice * (row.quantity || 0);
                       const disc = Math.round(gross * (row.discount || 0) / 100);
                       const net = gross - disc;
@@ -1011,7 +1011,8 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
           <div className="absolute inset-0 bg-black/40" onClick={() => setEWayBillModal(null)} />
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
             <h3 className="text-lg font-bold mb-1">Generate E-Way Bill</h3>
-            <p className="text-sm text-gray-500 mb-4">Fill transport details to generate E-Way Bill JSON for upload to ewaybillgst.gov.in</p>
+            <p className="text-sm text-gray-500 mb-2">Fill transport details to generate E-Way Bill JSON.</p>
+            <p className="text-[10px] text-gray-400 mb-4">Upload at ewaybillgst.gov.in → Login → E-Waybill → Generate Bulk → Upload JSON</p>
             <div className="space-y-3">
               <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vehicle Number *</label><input required value={eWayForm.vehicleNo} onChange={e => setEWayForm({ ...eWayForm, vehicleNo: e.target.value.toUpperCase() })} className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm font-mono" placeholder="GJ 03 XX 1234" /></div>
               <div className="grid grid-cols-2 gap-3">
@@ -1023,7 +1024,6 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEWayBillModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium text-sm">Cancel</button>
                 <button type="button" disabled={!eWayForm.vehicleNo || !eWayForm.distance} onClick={() => {
-                  const { session } = require('../../lib/session');
                   fetch(`/api/distribution/ewaybill?batchId=${eWayBillModal}&vehicleNo=${encodeURIComponent(eWayForm.vehicleNo)}&transportMode=${eWayForm.transportMode}&distance=${eWayForm.distance}&transporterName=${encodeURIComponent(eWayForm.transporterName)}&transporterId=${encodeURIComponent(eWayForm.transporterId)}`, {
                     headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '' },
                   }).then(r => r.json()).then(data => {

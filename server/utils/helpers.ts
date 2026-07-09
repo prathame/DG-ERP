@@ -1,17 +1,11 @@
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { Pool } from 'pg';
 
-export function validateInput(value: unknown, name: string, maxLength: number): string {
-  if (typeof value !== 'string') return '';
-  if (value.length > maxLength) throw new Error(`${name} exceeds maximum length of ${maxLength}`);
-  return value.trim();
+export function uid(prefix: string): string {
+  return `${prefix}${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
 }
 
-export function requireInput(value: unknown, name: string, maxLength: number): string {
-  if (!value || typeof value !== 'string' || !value.trim()) throw new Error(`${name} is required`);
-  if (value.length > maxLength) throw new Error(`${name} exceeds maximum length of ${maxLength}`);
-  return value.trim();
-}
 
 /** Billable amount per distributed unit (GST-inclusive when billed_price is set). */
 export const DISTRIBUTION_BILL_UNIT_SQL = 'COALESCE(pd.billed_price, pd.net_price, p.price)';

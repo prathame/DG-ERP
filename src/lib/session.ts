@@ -16,24 +16,20 @@ export const session = {
 
   getTenantId: () => localStorage.getItem(scopedKey('tenant_id')),
   setTenantId: (id: string) => localStorage.setItem(scopedKey('tenant_id'), id),
-  removeTenantId: () => localStorage.removeItem(scopedKey('tenant_id')),
-
   getSlug: () => localStorage.getItem(scopedKey('tenant_slug')),
   setSlug: (slug: string) => localStorage.setItem(scopedKey('tenant_slug'), slug),
-  removeSlug: () => localStorage.removeItem(scopedKey('tenant_slug')),
 
   getUser: () => {
     const raw = localStorage.getItem(scopedKey('dg_erp_user'));
     return raw ? JSON.parse(raw) : null;
   },
   setUser: (user: unknown) => localStorage.setItem(scopedKey('dg_erp_user'), JSON.stringify(user)),
-  removeUser: () => localStorage.removeItem(scopedKey('dg_erp_user')),
 
   clearAll: () => {
     session.removeToken();
-    session.removeTenantId();
-    session.removeSlug();
-    session.removeUser();
+    localStorage.removeItem(scopedKey('tenant_id'));
+    localStorage.removeItem(scopedKey('tenant_slug'));
+    localStorage.removeItem(scopedKey('dg_erp_user'));
     localStorage.removeItem(scopedKey('remember_me'));
   },
 };

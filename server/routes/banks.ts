@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { logAudit } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -43,7 +43,7 @@ router.post('/api/banks', async (req, res) => {
       const dup = (await pool.query('SELECT id FROM banks WHERE tenant_id = $1 AND account_number = $2', [tenantId, accountNumber])).rows[0];
       if (dup) return res.status(400).json({ error: `Account number "${accountNumber}" already exists` });
     }
-    const id = `B${Date.now()}`;
+    const id = uid('B');
     await pool.query(
       'INSERT INTO banks (id, tenant_id, name, account_number, bank_name, branch, ifsc_code) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [id, tenantId, name.trim(), accountNumber, bankName, branch, ifscCode]

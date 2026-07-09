@@ -429,9 +429,6 @@ export const api = {
       return fetchApi<{ data: { id: number; userId: string; userName: string; action: string; entityType: string; entityId: string; details: string; createdAt: string }[]; total: number; page: number; totalPages: number }>(`/audit-log${qs ? `?${qs}` : ''}`);
     },
   },
-  notifications: {
-    list: () => fetchApi<{ notifications: { id: string; type: string; title: string; message: string; severity: string }[]; count: number }>('/notifications'),
-  },
   auth: {
     signup: (data: { email: string; password: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }) =>
       fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string } }>('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
@@ -442,35 +439,6 @@ export const api = {
     resetPassword: (token: string, newPassword: string) =>
       fetchApi<{ ok: boolean; message: string }>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
   },
-  superAdmin: {
-    login: (email: string, password: string) =>
-      fetchApi<{ token: string; user: import('./types').SuperAdminUser }>('/super-admin/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-    dashboard: () =>
-      fetchApi<{ totalTenants: number; activeTenants: number; totalRevenue: number; totalUsers: number }>('/super-admin/dashboard'),
-    tenants: {
-      list: () => fetchApi<import('./types').Tenant[]>('/super-admin/tenants'),
-      create: (data: Partial<import('./types').Tenant>) =>
-        fetchApi<import('./types').Tenant>('/super-admin/tenants', { method: 'POST', body: JSON.stringify(data) }),
-      get: (id: string) => fetchApi<import('./types').Tenant>(`/super-admin/tenants/${id}`),
-      update: (id: string, data: Partial<import('./types').Tenant>) =>
-        fetchApi<import('./types').Tenant>(`/super-admin/tenants/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-      delete: (id: string) => fetchApi<void>(`/super-admin/tenants/${id}`, { method: 'DELETE' }),
-    },
-    plans: {
-      list: () => fetchApi<import('./types').Plan[]>('/super-admin/plans'),
-      create: (data: Partial<import('./types').Plan>) =>
-        fetchApi<import('./types').Plan>('/super-admin/plans', { method: 'POST', body: JSON.stringify(data) }),
-      update: (id: string, data: Partial<import('./types').Plan>) =>
-        fetchApi<import('./types').Plan>(`/super-admin/plans/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-      delete: (id: string) => fetchApi<void>(`/super-admin/plans/${id}`, { method: 'DELETE' }),
-    },
-    analytics: () =>
-      fetchApi<{ tenantGrowth: { month: string; count: number }[]; revenueByPlan: { plan: string; revenue: number }[] }>('/super-admin/analytics'),
-    impersonate: (tenantId: string) =>
-      fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; role?: string; companyName?: string } }>(`/super-admin/tenants/${tenantId}/impersonate`, { method: 'POST' }),
-  },
-  tenantRegister: (data: { companyName: string; adminEmail: string; adminName: string; password: string; phone?: string; planId?: string }) =>
-    fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; role?: string; companyName?: string } }>('/tenant/register', { method: 'POST', body: JSON.stringify(data) }),
   tenantBySlug: (slug: string) =>
     fetchApi<{ tenantId: string; companyName: string; slug: string; logoBase64: string | null; primaryColor: string; tagline: string | null }>(`/tenant/by-slug/${encodeURIComponent(slug)}`),
   settings: {

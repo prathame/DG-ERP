@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
 import bcrypt from 'bcrypt';
+import { uid } from '../utils/helpers';
 import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
 import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
 import { logAudit } from '../utils/helpers';
@@ -265,7 +266,7 @@ router.post('/api/super-admin/tenants/:id/reset-token', superAdminMiddleware, as
 
     await pool.query(
       'INSERT INTO password_reset_tokens (id, email, tenant_id, token, expires_at) VALUES ($1, $2, $3, $4, $5)',
-      [`PRT${Date.now()}`, email, id, token, expiresAt]
+      [uid('PRT'), email, id, token, expiresAt]
     );
 
     const tenant = (await pool.query('SELECT slug FROM tenants WHERE id = $1', [id])).rows[0] as { slug: string } | undefined;
@@ -412,7 +413,7 @@ router.post('/api/super-admin/billing', superAdminMiddleware, async (req, res) =
     const plan = tenant.plan_id ? (await pool.query('SELECT name FROM plans WHERE id = $1', [tenant.plan_id])).rows[0] as { name: string } | undefined : null;
     const gst = gstRate ? Math.round(Number(amount) * Number(gstRate) / 100) : 0;
     const total = Number(amount) + gst;
-    const id = `INV${Date.now()}`;
+    const id = uid('INV');
     const invNum = `DG-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
     await pool.query(
       'INSERT INTO tenant_invoices (id, tenant_id, invoice_number, period_start, period_end, plan_name, amount, gst_amount, total, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',

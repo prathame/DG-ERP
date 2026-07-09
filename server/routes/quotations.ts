@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { logAudit } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -49,9 +49,9 @@ router.post('/api/quotations', async (req, res) => {
     const gstAmount = resolvedItems.reduce((s, i) => s + i.lineGst, 0);
     const total = subtotal + gstAmount;
 
-    const id = `Q${Date.now()}`;
-    const count = Number((await pool.query('SELECT COUNT(*) as c FROM quotations WHERE tenant_id = $1', [tenantId])).rows[0].c) + 1;
-    const qNum = `QT-${String(count).padStart(4, '0')}`;
+    const id = uid('Q');
+    const maxNum = (await pool.query("SELECT MAX(CAST(SUBSTRING(quotation_number FROM 4) AS INTEGER)) as m FROM quotations WHERE tenant_id = $1 AND quotation_number LIKE 'QT-%'", [tenantId])).rows[0]?.m;
+    const qNum = `QT-${String((Number(maxNum) || 0) + 1).padStart(4, '0')}`;
 
     let vendorName = customerName || null;
     if (vendorId) {
@@ -123,6 +123,7 @@ router.post('/api/quotations/:id/convert', async (req, res) => {
     const quote = (await pool.query('SELECT * FROM quotations WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!quote) return res.status(404).json({ error: 'Quotation not found' });
     if (quote.status === 'Converted') return res.status(400).json({ error: 'Already converted' });
+    if (quote.status !== 'Accepted') return res.status(400).json({ error: 'Quotation must be accepted before converting' });
     if (!quote.vendor_id) return res.status(400).json({ error: 'Quotation must have a vendor to convert to distribution' });
 
     const items = quote.items as { productId: string; quantity: number; price: number; discountPercent: number; withGst: boolean }[];
@@ -134,7 +135,7 @@ router.post('/api/quotations/:id/convert', async (req, res) => {
     const vendorId = quote.vendor_id as string;
 
     // Inline distribution creation (mirrors POST /distribution/batch logic)
-    const batchId = `D${Date.now()}`;
+    const batchId = uid('D');
     let totalBilled = 0;
     let totalQty = 0;
     const productNames: string[] = [];

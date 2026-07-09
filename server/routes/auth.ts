@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { pool } from '../pg-db';
-import { logAudit } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -22,7 +22,7 @@ router.post('/api/auth/signup', async (req, res) => {
     const existing = (await pool.query('SELECT id FROM users WHERE LOWER(email) = $1 AND tenant_id = $2', [emailLower, tenantId])).rows[0];
     if (existing) return res.status(400).json({ error: 'Email already registered' });
 
-    const id = `U${Date.now()}`;
+    const id = uid('U');
     const passwordHash = bcrypt.hashSync(password, 12);
     await pool.query(`
       INSERT INTO users (id, email, password_hash, name, phone, address, role, company_name, tenant_id)
@@ -54,7 +54,7 @@ router.post('/api/auth/login', async (req, res) => {
              t.plan_id
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
-      WHERE LOWER(u.email) = LOWER($1)
+      WHERE LOWER(u.email) = LOWER($1) LIMIT 1
     `, [email.trim()])).rows[0] as Record<string, unknown> | undefined;
 
     if (!row) return res.status(401).json({ error: 'Invalid email or password' });
@@ -245,7 +245,7 @@ router.post('/api/auth/forgot-password', async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
-    const user = (await pool.query('SELECT u.id, u.email, u.tenant_id FROM users u WHERE u.email = $1', [email])).rows[0] as { id: string; email: string; tenant_id: string } | undefined;
+    const user = (await pool.query('SELECT u.id, u.email, u.tenant_id FROM users u WHERE LOWER(u.email) = LOWER($1)', [email])).rows[0] as { id: string; email: string; tenant_id: string } | undefined;
     // Always return success to prevent email enumeration
     if (!user) return res.json({ ok: true, message: 'If this email exists, a reset link has been generated' });
 
@@ -255,7 +255,7 @@ router.post('/api/auth/forgot-password', async (req, res) => {
 
     await pool.query(
       'INSERT INTO password_reset_tokens (id, email, tenant_id, token, expires_at) VALUES ($1, $2, $3, $4, $5)',
-      [`PRT${Date.now()}`, email, user.tenant_id, token, expiresAt]
+      [uid('PRT'), email, user.tenant_id, token, expiresAt]
     );
 
     await logAudit(pool, user.tenant_id, 'PASSWORD_RESET_REQUEST', 'user', user.id, `Password reset requested for ${email}`, user.id, email);
@@ -281,7 +281,7 @@ router.post('/api/auth/reset-password', async (req, res) => {
     if (!resetToken) return res.status(400).json({ error: 'Invalid or expired reset token' });
 
     const newHash = bcrypt.hashSync(newPassword, 12);
-    await pool.query('UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE email = $2 AND tenant_id = $3', [newHash, resetToken.email, resetToken.tenant_id]);
+    await pool.query('UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE LOWER(email) = LOWER($2) AND tenant_id = $3', [newHash, resetToken.email, resetToken.tenant_id]);
     await pool.query('UPDATE password_reset_tokens SET used = true WHERE token = $1', [token]);
 
     await logAudit(pool, resetToken.tenant_id, 'PASSWORD_RESET', 'user', null as unknown as string, `Password reset for ${resetToken.email}`, undefined, resetToken.email);

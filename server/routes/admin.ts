@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { pool } from '../pg-db';
-import { logAudit } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -74,10 +74,10 @@ router.post('/api/admin/users', async (req, res) => {
     if (role === 'Super Admin') return res.status(400).json({ error: 'Cannot create Super Admin from tenant settings' });
     if (role === 'Vendor' && !vendorId) return res.status(400).json({ error: 'Vendor role requires vendorId' });
 
-    const existing = (await pool.query('SELECT id FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId])).rows[0];
+    const existing = (await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2', [email, tenantId])).rows[0];
     if (existing) return res.status(400).json({ error: 'Email already registered' });
 
-    const id = `U${Date.now()}`;
+    const id = uid('U');
     const finalPerms = permissions ? normalizePermissions(permissions, role) : ROLE_PRESETS[role || 'Staff'] || ROLE_PRESETS.Staff;
     const permsJson = JSON.stringify(finalPerms);
     const passwordHash = bcrypt.hashSync(password, 12);
