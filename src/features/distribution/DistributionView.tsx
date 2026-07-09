@@ -389,7 +389,7 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
                       <Pencil size={16} /> Edit
                     </button>
                     )}
-                    {!isVendorUser && <div className="relative">
+                    {!isVendorUser && !selectedBatchProductId && <div className="relative">
                       <button type="button" onClick={() => setBatchActionsOpen(!batchActionsOpen)} className="p-2 hover:bg-gray-200 rounded-lg transition-colors" title="More actions">
                         <MoreVertical size={18} className="text-gray-600" />
                       </button>
