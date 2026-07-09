@@ -332,7 +332,7 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
             const selectedProduct = selectedBatchProductId ? byProduct[selectedBatchProductId] : null;
 
             return (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
                 <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-3 flex-wrap">
                     <button
