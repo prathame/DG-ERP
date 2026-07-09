@@ -24,7 +24,7 @@ router.get('/api/orders', async (req, res) => {
       gstAmount: Number(r.gst_amount) || 0, total: Number(r.total) || 0,
       notes: r.notes, fulfilledBatchId: r.fulfilled_batch_id, createdAt: r.created_at,
     })));
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Get single order
@@ -43,7 +43,7 @@ router.get('/api/orders/:id', async (req, res) => {
       gstAmount: Number(r.gst_amount) || 0, total: Number(r.total) || 0,
       notes: r.notes, fulfilledBatchId: r.fulfilled_batch_id,
     });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Create order
@@ -104,7 +104,7 @@ router.post('/api/orders', async (req, res) => {
       subtotal, gstRate: rate, gstAmount, total, orderDate: orderDate || new Date().toISOString().slice(0, 10),
       requiredDate: requiredDate || null, notes,
     });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Update order status
@@ -121,7 +121,7 @@ router.put('/api/orders/:id/status', async (req, res) => {
     await pool.query('UPDATE orders SET status = $1 WHERE id = $2 AND tenant_id = $3', [status, req.params.id, tenantId]);
     await logAudit(pool, tenantId, 'Order Status Changed', 'order', req.params.id, `${current.status} → ${status}`);
     res.json({ ok: true, status });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Fulfill order → convert to distribution
@@ -186,7 +186,7 @@ router.post('/api/orders/:id/fulfill', async (req, res) => {
 
     await logAudit(pool, tenantId, 'Order Fulfilled', 'order', req.params.id as string, `Fulfilled as distribution batch ${batchId}, ${totalQty} units`);
     res.json({ batchId, total: totalQty, billValue: totalBilled });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Delete order
@@ -197,7 +197,7 @@ router.delete('/api/orders/:id', async (req, res) => {
     const result = await pool.query("DELETE FROM orders WHERE id = $1 AND tenant_id = $2 AND status IN ('Pending', 'Cancelled')", [req.params.id, tenantId]);
     if (result.rowCount === 0) return res.status(400).json({ error: 'Can only delete Pending or Cancelled orders' });
     res.status(204).send();
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 export default router;

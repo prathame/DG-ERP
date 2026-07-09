@@ -58,7 +58,7 @@ router.get('/api/warranties', async (req, res) => {
     }));
     res.json({ data: warranties, total, page, totalPages: Math.ceil(total / limit) });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -102,7 +102,7 @@ router.post('/api/warranties', async (req, res) => {
       status: row.status,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -201,7 +201,7 @@ router.put('/api/warranties/:id', async (req, res) => {
       status: row.status,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -218,7 +218,7 @@ router.delete('/api/warranties/:id', async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Warranty not found' });
     res.status(204).send();
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

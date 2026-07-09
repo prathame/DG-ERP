@@ -31,7 +31,7 @@ router.get('/api/vendors', async (req, res) => {
     }));
     res.json(list);
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -84,7 +84,7 @@ router.post('/api/vendors/bulk', async (req, res) => {
     await logAudit(pool, tenantId, 'Vendors Bulk Import', 'vendor', undefined, `${success} created, ${errors.length} errors`);
     res.json({ success, errors, credentials });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -132,7 +132,7 @@ router.post('/api/vendors', async (req, res) => {
       credentials,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -156,7 +156,7 @@ router.put('/api/vendors/:id', async (req, res) => {
     const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.json({ id: row.id, name: row.name, contactPerson: row.contact_person, phone: row.phone, email: row.email, address: row.address, totalSales: row.total_sales ?? 0, totalRewardPoints: row.total_reward_points ?? 0, gstNumber: row.gst_number ?? null });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -181,7 +181,7 @@ router.delete('/api/vendors/:id', async (req, res) => {
       res.status(204).send();
     } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

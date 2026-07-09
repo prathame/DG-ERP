@@ -71,21 +71,22 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
-app.use(express.json({ limit: '2mb' }));
-
-// Request logger — human-readable API activity
-app.use('/api/', (req, res, next) => {
+// Request logger — logs ALL requests including failed body parsing
+app.use((req, res, next) => {
+  if (!req.originalUrl.startsWith('/api/')) return next();
   const start = Date.now();
-  const tenant = (req.headers['x-tenant-id'] as string)?.slice(0, 8) || '—';
   res.on('finish', () => {
     const ms = Date.now() - start;
     const status = res.statusCode;
+    const tenant = (req.headers['x-tenant-id'] as string)?.slice(0, 8) || '—';
     const icon = status >= 500 ? '💥' : status >= 400 ? '⚠️' : status >= 300 ? '↩️' : '✅';
-    const method = req.method.padEnd(6);
-    console.log(`${icon} ${method} ${req.originalUrl}  ${status}  ${ms}ms  [${tenant}]`);
+    const method = req.method.padEnd(7);
+    console.log(`${icon} ${method}${req.originalUrl}  →  ${status}  (${ms}ms)  tenant:${tenant}`);
   });
   next();
 });
+
+app.use(express.json({ limit: '2mb' }));
 
 // Public routes that don't need auth
 const PUBLIC_PATHS = [

@@ -37,7 +37,7 @@ router.get('/api/vendor-finance/summary', async (req, res) => {
       };
     }));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -72,7 +72,7 @@ router.get('/api/vendor-finance/reminders-due', async (req, res) => {
       reminderDays: r.reminder_days, lastSent: r.last_reminder_date,
     })));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -115,7 +115,7 @@ router.get('/api/vendor-finance/:vendorId', async (req, res) => {
       reminder: reminder ? { enabled: !!reminder.enabled, days: reminder.reminder_days, lastSent: reminder.last_reminder_date } : { enabled: false, days: 7, lastSent: null },
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -181,7 +181,7 @@ router.post('/api/vendor-finance/:vendorId/payments', async (req, res) => {
       id: uid('VP'), amount: parsedAmount, paymentDate: pDate, paymentMethod: pMethod, referenceNumber: referenceNumber || null, notes: notes || null,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -202,7 +202,7 @@ router.put('/api/vendor-finance/:vendorId/reminder', async (req, res) => {
     const row = (await pool.query('SELECT * FROM vendor_reminder_settings WHERE vendor_id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as Record<string, unknown>;
     res.json({ enabled: !!(row.enabled), days: row.reminder_days, lastSent: row.last_reminder_date });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -216,7 +216,7 @@ router.post('/api/vendor-finance/:vendorId/reminder-sent', async (req, res) => {
     await pool.query('UPDATE vendor_reminder_settings SET last_reminder_date = $1 WHERE vendor_id = $2 AND tenant_id = $3', [today, vendorId, tenantId]);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

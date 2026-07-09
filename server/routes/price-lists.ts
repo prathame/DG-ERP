@@ -27,7 +27,7 @@ router.get('/api/price-lists', async (req, res) => {
       minQty: Number(r.min_qty) || 1, maxQty: r.max_qty ? Number(r.max_qty) : null,
       price: Number(r.price) || 0, isActive: r.is_active !== false,
     })));
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Get best price for a product + vendor + quantity
@@ -57,7 +57,7 @@ router.get('/api/price-lists/resolve', async (req, res) => {
       const product = (await pool.query('SELECT price FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])).rows[0] as { price: number } | undefined;
       res.json({ price: Number(product?.price) || 0, source: 'default' });
     }
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Create price rule
@@ -75,7 +75,7 @@ router.post('/api/price-lists', async (req, res) => {
       [id, tenantId, name || 'Custom Price', productId, vendorId || null, Number(minQty) || 1, maxQty ? Number(maxQty) : null, Number(price)]
     );
     res.status(201).json({ id, name: name || 'Custom Price', productId, vendorId, minQty: Number(minQty) || 1, maxQty: maxQty ? Number(maxQty) : null, price: Number(price) });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Update price rule
@@ -100,7 +100,7 @@ router.put('/api/price-lists/:id', async (req, res) => {
     const result = await pool.query(`UPDATE price_lists SET ${updates.join(',')} WHERE id = $${idx++} AND tenant_id = $${idx}`, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Price rule not found' });
     res.json({ ok: true });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Delete price rule
@@ -111,7 +111,7 @@ router.delete('/api/price-lists/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM price_lists WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Price rule not found' });
     res.status(204).send();
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 export default router;

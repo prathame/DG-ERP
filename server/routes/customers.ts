@@ -35,7 +35,7 @@ router.get('/api/customers', async (req, res) => {
     }));
     res.json(list);
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -56,7 +56,7 @@ router.post('/api/customers', async (req, res) => {
     const row = (await pool.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.status(201).json({ id: row.id, name: row.name, phone: row.phone, email: row.email, address: row.address, vendorId: row.vendor_id ?? null });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -75,7 +75,7 @@ router.put('/api/customers/:id', async (req, res) => {
     const row = (await pool.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.json({ id: row.id, name: row.name, phone: row.phone, email: row.email, address: row.address, vendorId: row.vendor_id ?? null });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -92,7 +92,7 @@ router.delete('/api/customers/:id', async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Customer not found' });
     res.status(204).send();
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -121,7 +121,7 @@ router.get('/api/customers/:id/purchases', async (req, res) => {
       purchaseDate: r.purchase_date,
     })));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -137,7 +137,7 @@ router.put('/api/customers/:id/vendor', async (req, res) => {
     const row = (await pool.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.json({ id: row.id, name: row.name, phone: row.phone, email: row.email, address: row.address, vendorId: row.vendor_id ?? null });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

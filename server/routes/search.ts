@@ -51,7 +51,7 @@ router.get('/api/search', async (req, res) => {
       challans: challans.map((c) => ({ batchId: c.batch_id, vendorName: c.vendor_name, date: c.distribution_date, units: Number(c.total_units), type: 'challan' as const })),
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -91,7 +91,7 @@ router.get('/api/accounts/ledger', async (req, res) => {
 
     const totals = { debit: entries.reduce((s, e) => s + e.debit, 0), credit: entries.reduce((s, e) => s + e.credit, 0) };
     res.json({ entries: withBalance, totals, count: entries.length });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.get('/api/accounts/profit-loss', async (req, res) => {
@@ -130,7 +130,7 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
       grossProfit,
       profitMargin: totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 100) : 0,
     });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.get('/api/accounts/balance-sheet', async (req, res) => {
@@ -187,7 +187,7 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
       },
       netWorth,
     });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.get('/api/accounts/cash-flow', async (req, res) => {
@@ -232,7 +232,7 @@ router.get('/api/accounts/cash-flow', async (req, res) => {
       netCashFlow: vendorPayments - supplierPayments,
       monthly,
     });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Credit/Debit Notes
@@ -255,7 +255,7 @@ router.get('/api/accounts/notes', async (req, res) => {
       gstAmount: Number(r.gst_amount) || 0, total: Number(r.total) || 0,
       referenceInvoice: r.reference_invoice, status: r.status,
     })));
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.post('/api/accounts/notes', async (req, res) => {
@@ -298,7 +298,7 @@ router.post('/api/accounts/notes', async (req, res) => {
 
     await logAudit(pool, tenantId, `${noteType === 'credit' ? 'Credit' : 'Debit'} Note Created`, 'note', id, `${noteNum} — ₹${total} for ${vName || customerName || 'N/A'}`);
     res.status(201).json({ id, noteNumber: noteNum, noteType, vendorName: vName, customerName: customerName || vName, total, status: 'Active' });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.delete('/api/accounts/notes/:id', async (req, res) => {
@@ -308,7 +308,7 @@ router.delete('/api/accounts/notes/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM credit_debit_notes WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
     res.status(204).send();
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // Day Book — all transactions for a specific date
@@ -364,7 +364,7 @@ router.get('/api/accounts/day-book', async (req, res) => {
     const totalCredit = entries.reduce((s, e) => s + e.credit, 0);
 
     res.json({ date, entries, totalDebit, totalCredit, netFlow: totalDebit - totalCredit });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 export default router;

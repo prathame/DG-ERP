@@ -47,7 +47,7 @@ router.get('/api/distribution/summary', async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -96,7 +96,7 @@ router.get('/api/distribution', async (req, res) => {
       billedPrice: r.billed_price,
     })));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -174,7 +174,7 @@ router.get('/api/distribution/batches', async (req, res) => {
       };
     }));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -304,7 +304,7 @@ router.post('/api/distribution/batch', async (req, res) => {
       balanceRemaining: totalBilled - (paidAmount ?? 0),
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -417,7 +417,7 @@ router.post('/api/distribution', async (req, res) => {
       balanceRemaining: netAmount - (paidAmount ?? 0),
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -470,7 +470,7 @@ router.put('/api/distribution/apply-billing', async (req, res) => {
     await logAudit(pool, tenantId, 'Billing Applied', 'distribution', batchId || vendorId, `GST: ${gstCount} units, Non-GST: ${nonGstCount} units`);
     res.json({ ok: true, gstUnits: gstCount, nonGstUnits: nonGstCount });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -630,7 +630,7 @@ router.get('/api/distribution/bill', async (req, res) => {
       } : undefined,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -866,7 +866,7 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
       canDelete: Number(batch?.sold ?? 0) + Number(batch?.replaced ?? 0) + Number(batch?.damaged ?? 0) === 0,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -967,7 +967,7 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
       items: Object.values(groups),
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -988,7 +988,7 @@ router.put('/api/distribution/batch/:batchId/dispatch', async (req, res) => {
     await logAudit(pool, tenantId, `Batch ${status}`, 'distribution', batchId, `Marked as ${status} by ${jwtUser?.name || 'user'}`, jwtUser?.userId);
     res.json({ ok: true, status, batchId });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1036,7 +1036,7 @@ router.delete('/api/distribution/batch/:batchId', async (req, res) => {
     await logAudit(pool, tenantId, 'Distribution Deleted', 'distribution', batchId, `${rows.length} units returned to inventory`);
     res.json({ ok: true, batchId, unitsReturned: rows.length });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1154,7 +1154,7 @@ router.get('/api/distribution/einvoice', async (req, res) => {
 
     res.json(eInvoice);
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1250,7 +1250,7 @@ router.get('/api/distribution/ewaybill', async (req, res) => {
 
     res.json(eWayBill);
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

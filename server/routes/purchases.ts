@@ -23,7 +23,7 @@ router.get('/api/suppliers', async (req, res) => {
     res.json(rows.map((r: Record<string, unknown>) => ({
       id: r.id, name: r.name, contactPerson: r.contact_person, phone: r.phone, email: r.email, address: r.address, gstNumber: r.gst_number ?? null,
     })));
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.post('/api/suppliers', async (req, res) => {
@@ -42,7 +42,7 @@ router.post('/api/suppliers', async (req, res) => {
     );
     const row = (await pool.query('SELECT * FROM suppliers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.status(201).json({ id: row.id, name: row.name, contactPerson: row.contact_person, phone: row.phone, email: row.email, address: row.address, gstNumber: row.gst_number ?? null });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.put('/api/suppliers/:id', async (req, res) => {
@@ -61,7 +61,7 @@ router.put('/api/suppliers/:id', async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Supplier not found' });
     const row = (await pool.query('SELECT * FROM suppliers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.json({ id: row.id, name: row.name, contactPerson: row.contact_person, phone: row.phone, email: row.email, address: row.address, gstNumber: row.gst_number ?? null });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.delete('/api/suppliers/:id', async (req, res) => {
@@ -74,7 +74,7 @@ router.delete('/api/suppliers/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM suppliers WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Supplier not found' });
     res.status(204).send();
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // ============ PURCHASE BATCHES ============
@@ -182,7 +182,7 @@ router.post('/api/purchases/batch', async (req, res) => {
       productNames: [...new Set(productNames)], total: totalQty,
       billValue: totalBilled, amountPaid: paidAmount, balanceRemaining: totalBilled - paidAmount,
     });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.get('/api/purchases/batches', async (req, res) => {
@@ -224,7 +224,7 @@ router.get('/api/purchases/batches', async (req, res) => {
         total: Number(r.total), billValue: billVal, amountPaid: paid, balanceRemaining: billVal - paid,
       };
     }));
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.get('/api/purchases/batch/:batchId', async (req, res) => {
@@ -272,7 +272,7 @@ router.get('/api/purchases/batch/:batchId', async (req, res) => {
       total: Number(batch.total), billValue, amountPaid: batchPaid, balanceRemaining: billValue - batchPaid,
       items: Object.values(groups),
     });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // ============ SUPPLIER FINANCE ============
@@ -297,7 +297,7 @@ router.get('/api/supplier-finance/summary', async (req, res) => {
         unitsPurchased: Number(s.units_purchased) || 0,
       };
     }));
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.get('/api/supplier-finance/:supplierId', async (req, res) => {
@@ -315,7 +315,7 @@ router.get('/api/supplier-finance/:supplierId', async (req, res) => {
       totalPurchasedValue: totalValue, totalPaid, balance: totalValue - totalPaid,
       payments: payments.map((p) => ({ id: p.id, amount: Number(p.amount), paymentDate: p.payment_date, paymentMethod: p.payment_method, referenceNumber: p.reference_number, notes: p.notes })),
     });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.post('/api/supplier-finance/:supplierId/payments', async (req, res) => {
@@ -335,7 +335,7 @@ router.post('/api/supplier-finance/:supplierId/payments', async (req, res) => {
     );
     const row = (await pool.query('SELECT * FROM supplier_payments WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     res.status(201).json({ id: row.id, amount: Number(row.amount), paymentDate: row.payment_date, paymentMethod: row.payment_method });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 export default router;

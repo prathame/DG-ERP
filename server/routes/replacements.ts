@@ -56,7 +56,7 @@ router.get('/api/replacements/validate-old/:barcode', async (req, res) => {
 
     return res.json({ valid: false, error: 'Old barcode not found (not sold or distributed)' });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -102,7 +102,7 @@ router.get('/api/replacements/validate-new/:barcode', async (req, res) => {
 
     return res.json({ valid: false, error: 'New barcode not allocated to your vendor. It must be distributed to you and available (status: Distributed).' });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -151,7 +151,7 @@ router.get('/api/replacements', async (req, res) => {
     }));
     res.json(replacements);
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -241,7 +241,7 @@ router.post('/api/replacements', async (req, res) => {
       createdAt: row.created_at,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

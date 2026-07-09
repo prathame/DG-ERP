@@ -16,7 +16,7 @@ router.get('/api/redemption-settings', async (req, res) => {
     )).rows[0] as { min_balance: number; min_points: number } | undefined;
     res.json({ minBalance: row?.min_balance ?? 100, minPoints: row?.min_points ?? 50 });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -41,7 +41,7 @@ router.put('/api/redemption-settings', async (req, res) => {
     )).rows[0] as { min_balance: number; min_points: number };
     res.json({ minBalance: row.min_balance, minPoints: row.min_points });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -79,7 +79,7 @@ router.get('/api/rewards', async (req, res) => {
     }));
     res.json(rewards);
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -98,7 +98,7 @@ router.get('/api/rewards/balance', async (req, res) => {
     )).rows[0] as { total: number };
     res.json({ balance: earned.total - redeemed.total });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -171,7 +171,7 @@ router.post('/api/rewards', async (req, res) => {
       date: row.date,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -205,7 +205,7 @@ router.put('/api/rewards/:id', async (req, res) => {
       date: row.date,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -222,7 +222,7 @@ router.delete('/api/rewards/:id', async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Reward not found' });
     res.status(204).send();
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -248,7 +248,7 @@ router.get('/api/reward-rules', async (req, res) => {
       description: r.description,
     })));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -281,7 +281,7 @@ router.post('/api/reward-rules', async (req, res) => {
       description: row.description,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -318,7 +318,7 @@ router.put('/api/reward-rules/:id', async (req, res) => {
       description: row.description,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -335,7 +335,7 @@ router.delete('/api/reward-rules/:id', async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Reward rule not found' });
     res.status(204).send();
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

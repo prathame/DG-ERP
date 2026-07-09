@@ -28,7 +28,7 @@ router.get('/api/banks', async (req, res) => {
     }));
     res.json(list);
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -51,7 +51,7 @@ router.post('/api/banks', async (req, res) => {
     const row = (await pool.query('SELECT * FROM banks WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.status(201).json({ id: row.id, name: row.name, accountNumber: row.account_number, bankName: row.bank_name, branch: row.branch, ifscCode: row.ifsc_code });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -70,7 +70,7 @@ router.put('/api/banks/:id', async (req, res) => {
     const row = (await pool.query('SELECT * FROM banks WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.json({ id: row.id, name: row.name, accountNumber: row.account_number, bankName: row.bank_name, branch: row.branch, ifscCode: row.ifsc_code });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -84,7 +84,7 @@ router.delete('/api/banks/:id', async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Bank not found' });
     res.status(204).send();
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

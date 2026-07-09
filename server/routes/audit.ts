@@ -47,7 +47,7 @@ router.get('/api/audit-log', async (req, res) => {
       total, page, totalPages: Math.ceil(total / limit),
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -60,7 +60,7 @@ router.get('/api/backup', async (req, res) => {
     res.status(501).json({ error: 'Database backup via file download is not supported with PostgreSQL. Use pg_dump for backups.' });
     logAudit(pool, tenantId, 'Database Backup Attempted', 'system', undefined, 'Backup attempted but not supported in PostgreSQL mode');
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -14,7 +14,7 @@ router.get('/api/categories', async (req, res) => {
     const rows = (await pool.query('SELECT * FROM categories WHERE tenant_id = $1 ORDER BY name', [tenantId])).rows as Record<string, unknown>[];
     res.json(rows.map((r) => ({ id: r.id, name: r.name })));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -29,7 +29,7 @@ router.post('/api/categories', async (req, res) => {
     const row = (await pool.query('SELECT * FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     res.status(201).json({ id: row.id, name: row.name });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -45,7 +45,7 @@ router.put('/api/categories/:id', async (req, res) => {
     const row = (await pool.query('SELECT * FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     res.json({ id: row.id, name: row.name });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -74,7 +74,7 @@ router.delete('/api/categories/:id', async (req, res) => {
 
     res.status(204).send();
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -116,7 +116,7 @@ router.get('/api/products', async (req, res) => {
       barcodeUnitType: (r.barcode_unit_type as string) || 'piece',
     }); }));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -142,7 +142,7 @@ router.get('/api/products/:id/barcode-details', async (req, res) => {
       count: r.count,
     })));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -156,7 +156,7 @@ router.get('/api/products/:id/barcodes', async (req, res) => {
     const rows = (await pool.query('SELECT barcode, status FROM product_inventory WHERE product_id = $1 AND tenant_id = $2 ORDER BY barcode', [id, tenantId])).rows as { barcode: string; status: string }[];
     res.json({ product: { id: product.id, name: product.name, price: product.price }, barcodes: rows.map((r) => ({ barcode: r.barcode, status: r.status })) });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -260,7 +260,7 @@ router.get('/api/products/verify/:barcode', async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -287,7 +287,7 @@ router.get('/api/products/by-barcode/:barcode', async (req, res) => {
     if (!row) return res.status(404).json({ error: 'Product not found' });
     res.json(mapProduct({ ...row, stock: (row.inv_stock as number) ?? row.stock ?? 0 }));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -456,7 +456,7 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
     )).rows[0] as Record<string, unknown>;
     res.status(201).json(mapProduct({ ...row, stock: stockCount }));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -497,7 +497,7 @@ router.put('/api/products/:id', async (req, res) => {
     )).rows[0] as Record<string, unknown>;
     res.json(mapProduct({ ...updated, stock: (updated.inv_stock as number) ?? updated.stock ?? 0 }));
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -538,7 +538,7 @@ router.delete('/api/products/:id', async (req, res) => {
 
     res.status(204).send();
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

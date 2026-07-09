@@ -46,7 +46,7 @@ router.get('/api/reports/sales-register', async (req, res) => {
     }, { taxableValue: 0, cgst: 0, sgst: 0, total: 0 });
     res.json({ rows: mapped, totals, count: mapped.length });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -94,7 +94,7 @@ router.get('/api/reports/distribution-register', async (req, res) => {
     }, { taxableValue: 0, cgst: 0, sgst: 0, total: 0 });
     res.json({ rows: mapped, totals, count: mapped.length });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -170,7 +170,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
     }, { totalBilled: 0, totalPaid: 0, balance: 0, d0_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 });
     res.json({ rows, totals, count: rows.length });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -202,7 +202,7 @@ router.get('/api/reports/payment-register', async (req, res) => {
     const totals = { amount: mapped.reduce((s, r) => s + r.amount, 0) };
     res.json({ rows: mapped, totals, count: mapped.length });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -239,7 +239,7 @@ router.get('/api/reports/stock-summary', async (req, res) => {
     }, { totalInventory: 0, inStock: 0, withVendors: 0, sold: 0, closingStock: 0, stockValue: 0 });
     res.json({ rows: mapped, totals, count: mapped.length });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -298,7 +298,7 @@ router.get('/api/reports/gst-summary', async (req, res) => {
       totalValue: Object.values(b2b).reduce((s, v) => s + v.total, 0) + b2cTotal,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

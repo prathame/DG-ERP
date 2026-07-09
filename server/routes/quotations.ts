@@ -22,7 +22,7 @@ router.get('/api/quotations', async (req, res) => {
       gstAmount: Number(r.gst_amount) || 0, total: Number(r.total) || 0,
       notes: r.notes, convertedBatchId: r.converted_batch_id,
     })));
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.post('/api/quotations', async (req, res) => {
@@ -71,7 +71,7 @@ router.post('/api/quotations', async (req, res) => {
       customerPhone, customerEmail, quotationDate: quotationDate || new Date().toISOString().slice(0, 10),
       validUntil, status: 'Draft', items: resolvedItems, subtotal, gstRate: rate, gstAmount, total, notes,
     });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.get('/api/quotations/:id', async (req, res) => {
@@ -87,7 +87,7 @@ router.get('/api/quotations/:id', async (req, res) => {
       items: row.items, subtotal: Number(row.subtotal), gstRate: Number(row.gst_rate), gstAmount: Number(row.gst_amount), total: Number(row.total),
       notes: row.notes, convertedBatchId: row.converted_batch_id,
     });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.put('/api/quotations/:id/status', async (req, res) => {
@@ -103,7 +103,7 @@ router.put('/api/quotations/:id/status', async (req, res) => {
     const result = await pool.query('UPDATE quotations SET status = $1 WHERE id = $2 AND tenant_id = $3', [status, req.params.id, tenantId]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Quotation not found' });
     res.json({ ok: true, status });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.delete('/api/quotations/:id', async (req, res) => {
@@ -113,7 +113,7 @@ router.delete('/api/quotations/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM quotations WHERE id = $1 AND tenant_id = $2 AND status IN ($3, $4)', [req.params.id, tenantId, 'Draft', 'Rejected']);
     if (result.rowCount === 0) return res.status(400).json({ error: 'Can only delete Draft or Rejected quotations' });
     res.json({ ok: true });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.post('/api/quotations/:id/convert', async (req, res) => {
@@ -180,7 +180,7 @@ router.post('/api/quotations/:id/convert', async (req, res) => {
     await logAudit(pool, tenantId, 'Quotation Converted', 'quotation', req.params.id as string, `Converted to distribution ${batchId}, ${totalQty} units`);
 
     res.json({ ok: true, batchId, total: totalQty, billValue: totalBilled });
-  } catch (err) { console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 export default router;

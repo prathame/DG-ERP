@@ -34,7 +34,7 @@ router.get('/api/mapping/vendors-with-customers', async (req, res) => {
       directCustomers,
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -34,7 +34,7 @@ router.post('/api/auth/signup', async (req, res) => {
     const token = generateToken({ userId: id, tenantId, role: 'Admin', email: emailLower, name: name ?? '' });
     res.status(201).json({ token, tenantId, tenantSlug: tenant?.slug, user: { id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name } });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -154,7 +154,7 @@ router.post('/api/auth/login', async (req, res) => {
       })(),
     });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -179,7 +179,7 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
     })();
     res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, permissions: normalizedPerms, vendorId: row.vendor_id ?? null, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, vendorPortalEnabled: row.vendor_portal_enabled !== false, barcodeSystemEnabled: row.barcode_system_enabled !== false, multiLanguageEnabled: row.multi_language_enabled !== false, inventoryTrackingEnabled: row.inventory_tracking_enabled !== false, tabConfig: typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : (row.tab_config ?? null) });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -210,7 +210,7 @@ router.put('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
 
     res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, vendorPortalEnabled: row.vendor_portal_enabled !== false, barcodeSystemEnabled: row.barcode_system_enabled !== false, multiLanguageEnabled: row.multi_language_enabled !== false });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -235,7 +235,7 @@ router.put('/api/settings/change-password', authMiddleware, async (req: AuthRequ
     await logAudit(pool, tenantId!, 'PASSWORD_CHANGE', 'user', userId, 'Password changed — all sessions invalidated', userId, req.user?.name);
     res.json({ ok: true, message: 'Password changed. Please log in again.' });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -262,7 +262,7 @@ router.post('/api/auth/forgot-password', async (req, res) => {
 
     res.json({ ok: true, message: 'If this email exists, a reset link has been generated. Contact your admin for the reset token.' });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -288,7 +288,7 @@ router.post('/api/auth/reset-password', async (req, res) => {
 
     res.json({ ok: true, message: 'Password has been reset successfully' });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -315,7 +315,7 @@ router.put('/api/admin/reset-user-password', authMiddleware, async (req: AuthReq
 
     res.json({ ok: true, message: `Password reset for ${user.email}` });
   } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
