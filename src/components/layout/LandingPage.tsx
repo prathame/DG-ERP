@@ -129,7 +129,7 @@ export function LandingPage() {
             </div>
             <div className="flex items-center justify-center gap-2 mt-4">
               {['EN', 'हिं', 'ગુ'].map((l, i) => (
-                <button key={i} type="button" onClick={() => { setHeroLang(i); setHeroAutoPlay(false); }} className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${heroLang === i ? 'bg-brand text-white scale-110' : `${dark ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-500'}`}`}>{l}</button>
+                <button key={i} type="button" onClick={() => { setHeroLang(i); setLang(i === 0 ? 'en' : i === 1 ? 'hi' : 'gu'); setHeroAutoPlay(false); }} className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${heroLang === i ? 'bg-brand text-white scale-110' : `${dark ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-500'}`}`}>{l}</button>
               ))}
             </div>
             <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">

@@ -10,3 +10,4 @@ data/
 
 # Environment (secrets — never commit)
 .env*
+assets/

@@ -81,7 +81,15 @@ const PUBLIC_PATHS = [
   '/api/super-admin/login', '/manifest.json',
 ];
 
-// Tenant status — no cache, always check DB
+// Tenant status cache to avoid hammering DB on every API call
+interface TenantCacheEntry {
+  status: string;
+  subscriptionEndsAt: string | null;
+  trialEndsAt: string | null;
+  fetchedAt: number;
+}
+const tenantCache: Record<string, TenantCacheEntry> = {};
+const TENANT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache TTL
 
 // Global auth: protect all /api/ routes except public ones
 app.use('/api/', async (req, res, next) => {
@@ -92,11 +100,28 @@ app.use('/api/', async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as { tenantId?: string; userId?: string; role?: string };
     if (decoded.tenantId) {
       req.headers['x-tenant-id'] = decoded.tenantId;
-      const tenant = (await pool.query('SELECT status, subscription_ends_at, trial_ends_at FROM tenants WHERE id = $1', [decoded.tenantId])).rows[0] as { status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
-      if (tenant?.status === 'suspended') {
+      
+      const now = Date.now();
+      let tenant = tenantCache[decoded.tenantId];
+      if (!tenant || (now - tenant.fetchedAt) > TENANT_CACHE_TTL_MS) {
+        const dbResult = (await pool.query('SELECT status, subscription_ends_at, trial_ends_at FROM tenants WHERE id = $1', [decoded.tenantId])).rows[0] as { status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
+        if (dbResult) {
+          tenant = {
+            status: dbResult.status,
+            subscriptionEndsAt: dbResult.subscription_ends_at,
+            trialEndsAt: dbResult.trial_ends_at,
+            fetchedAt: now,
+          };
+          tenantCache[decoded.tenantId] = tenant;
+        } else {
+          return res.status(403).json({ error: 'Tenant not found' });
+        }
+      }
+
+      if (tenant.status === 'suspended') {
         return res.status(403).json({ error: 'Account suspended. Contact admin.' });
       }
-      const expiresAt = tenant?.subscription_ends_at || tenant?.trial_ends_at;
+      const expiresAt = tenant.subscriptionEndsAt || tenant.trialEndsAt;
       if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
         return res.status(403).json({ error: 'Subscription expired. Contact admin to renew.' });
       }

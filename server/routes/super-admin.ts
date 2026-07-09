@@ -65,10 +65,17 @@ router.get('/api/super-admin/dashboard', superAdminMiddleware, async (req, res) 
     const totalSales = (await pool.query('SELECT COUNT(*) as c FROM product_sales')).rows[0];
     const totalRevenue = (await pool.query('SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales')).rows[0];
 
-    const recentTenants = (await pool.query('SELECT id, company_name, status, plan_id, created_at, last_active_at FROM tenants ORDER BY created_at DESC LIMIT 5')).rows;
+    const recentTenants = (await pool.query(`
+      SELECT t.id, t.company_name as "companyName", t.admin_email as "adminEmail", 
+             p.name as plan, t.status, t.created_at as "createdAt"
+      FROM tenants t
+      LEFT JOIN plans p ON t.plan_id = p.id
+      ORDER BY t.created_at DESC
+      LIMIT 5
+    `)).rows;
 
     const tenantsByPlan = (await pool.query(`
-      SELECT p.name as plan_name, COUNT(t.id) as count
+      SELECT p.name as plan, COUNT(t.id)::int as count
       FROM plans p LEFT JOIN tenants t ON t.plan_id = p.id
       GROUP BY p.id, p.name ORDER BY count DESC
     `)).rows;

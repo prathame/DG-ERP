@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { api } from './api';
 import {
   LayoutDashboard,
@@ -21,24 +21,31 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { Tab, USER_STORAGE_KEY } from './types';
-import { ToastProvider } from './components/ui';
+import { ToastProvider, LoadingSpinner } from './components/ui';
 import { LanguageProvider, useTranslation } from './i18n';
 import { LoginScreen } from './components/layout';
 import { LandingPage } from './components/layout/LandingPage';
 import { PrivacyPolicy } from './components/layout/PrivacyPolicy';
 import { TermsOfService } from './components/layout/TermsOfService';
 import { ChatWidget } from './components/layout/ChatWidget';
-import { DashboardView } from './features/dashboard/DashboardView';
-import { SalesEntryView } from './features/sales/SalesEntryView';
-import { DistributionView } from './features/distribution/DistributionView';
-import { InventoryView } from './features/inventory/InventoryView';
-import { WarrantyView } from './features/warranty/WarrantyView';
-import { ReplacementsView } from './features/replacements/ReplacementsView';
-import { RewardsView } from './features/rewards/RewardsView';
-import { VendorFinanceView } from './features/finance/VendorFinanceView';
-import { PurchasesView } from './features/purchases/PurchasesView';
-import { QuotationsView } from './features/quotations/QuotationsView';
-import { OrdersView } from './features/orders/OrdersView';
+
+// Lazy load views to implement code splitting and optimize bundle sizes
+const DashboardView = lazy(() => import('./features/dashboard/DashboardView').then(m => ({ default: m.DashboardView })));
+const SalesEntryView = lazy(() => import('./features/sales/SalesEntryView').then(m => ({ default: m.SalesEntryView })));
+const PurchasesView = lazy(() => import('./features/purchases/PurchasesView').then(m => ({ default: m.PurchasesView })));
+const DistributionView = lazy(() => import('./features/distribution/DistributionView').then(m => ({ default: m.DistributionView })));
+const WarrantyView = lazy(() => import('./features/warranty/WarrantyView').then(m => ({ default: m.WarrantyView })));
+const ReplacementsView = lazy(() => import('./features/replacements/ReplacementsView').then(m => ({ default: m.ReplacementsView })));
+const RewardsView = lazy(() => import('./features/rewards/RewardsView').then(m => ({ default: m.RewardsView })));
+const InventoryView = lazy(() => import('./features/inventory/InventoryView').then(m => ({ default: m.InventoryView })));
+const ProductVerificationView = lazy(() => import('./features/verification/ProductVerificationView').then(m => ({ default: m.ProductVerificationView })));
+const QuotationsView = lazy(() => import('./features/quotations/QuotationsView').then(m => ({ default: m.QuotationsView })));
+const OrdersView = lazy(() => import('./features/orders/OrdersView').then(m => ({ default: m.OrdersView })));
+const VendorFinanceView = lazy(() => import('./features/finance/VendorFinanceView').then(m => ({ default: m.VendorFinanceView })));
+const AccountsView = lazy(() => import('./features/accounts/AccountsView').then(m => ({ default: m.AccountsView })));
+const SettingsView = lazy(() => import('./features/settings/SettingsView').then(m => ({ default: m.SettingsView })));
+const SuperAdminApp = lazy(() => import('./features/super-admin/SuperAdminApp').then(m => ({ default: m.SuperAdminApp })));
+const SuperAdminLogin = lazy(() => import('./features/super-admin/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })));
 
 function QuotationsAndOrdersView() {
   const [view, setView] = React.useState<'quotations' | 'orders'>('quotations');
@@ -52,11 +59,6 @@ function QuotationsAndOrdersView() {
     </div>
   );
 }
-import { AccountsView } from './features/accounts/AccountsView';
-import { SettingsView } from './features/settings/SettingsView';
-import { ProductVerificationView } from './features/verification/ProductVerificationView';
-import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
-import { SuperAdminLogin } from './features/super-admin/SuperAdminLogin';
 import { session } from './lib/session';
 
 function SuperAdminLoginWrapper({ onLogin }: { onLogin: (u: Record<string, unknown>) => void }) {
@@ -232,13 +234,17 @@ export default function App() {
       const superAdminUser = { id: tokenPayload.userId as string || '', email: tokenPayload.email as string || '', name: tokenPayload.name as string || '', role: 'super_admin' as const };
       return (
         <ToastProvider>
-          <SuperAdminApp user={superAdminUser} onLogout={() => { handleLogout(); window.location.href = '/admin'; }} />
+          <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-950"><LoadingSpinner size="lg" /></div>}>
+            <SuperAdminApp user={superAdminUser} onLogout={() => { handleLogout(); window.location.href = '/admin'; }} />
+          </Suspense>
         </ToastProvider>
       );
     }
     return (
       <ToastProvider>
-        <SuperAdminLoginWrapper onLogin={handleLogin} />
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-950"><LoadingSpinner size="lg" /></div>}>
+          <SuperAdminLoginWrapper onLogin={handleLogin} />
+        </Suspense>
       </ToastProvider>
     );
   }
@@ -415,21 +421,27 @@ export default function App() {
         </header>
 
         <div className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
-          <div key={tabKey}>
-          {activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} />}
-          {activeTab === 'sales' && <SalesEntryView user={user} />}
-          {activeTab === 'purchases' && <PurchasesView accessLevel={getAccess('purchases')} />}
-          {activeTab === 'distribution' && <DistributionView user={user} accessLevel={getAccess('distribution')} />}
-          {activeTab === 'warranty' && <WarrantyView user={user} />}
-          {activeTab === 'replacements' && <ReplacementsView user={user} />}
-          {activeTab === 'rewards' && <RewardsView user={user} />}
-          {activeTab === 'inventory' && <InventoryView accessLevel={getAccess('inventory')} />}
-          {activeTab === 'verification' && <ProductVerificationView />}
-          {activeTab === 'quotations' && <QuotationsAndOrdersView />}
-          {activeTab === 'finance' && <VendorFinanceView user={user} accessLevel={getAccess('finance')} />}
-          {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} />}
-          </div>
-          {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
+          <Suspense fallback={
+            <div className="flex items-center justify-center min-h-[400px]">
+              <LoadingSpinner size="lg" />
+            </div>
+          }>
+            <div key={tabKey}>
+            {activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} />}
+            {activeTab === 'sales' && <SalesEntryView user={user} />}
+            {activeTab === 'purchases' && <PurchasesView accessLevel={getAccess('purchases')} />}
+            {activeTab === 'distribution' && <DistributionView user={user} accessLevel={getAccess('distribution')} />}
+            {activeTab === 'warranty' && <WarrantyView user={user} />}
+            {activeTab === 'replacements' && <ReplacementsView user={user} />}
+            {activeTab === 'rewards' && <RewardsView user={user} />}
+            {activeTab === 'inventory' && <InventoryView accessLevel={getAccess('inventory')} />}
+            {activeTab === 'verification' && <ProductVerificationView />}
+            {activeTab === 'quotations' && <QuotationsAndOrdersView />}
+            {activeTab === 'finance' && <VendorFinanceView user={user} accessLevel={getAccess('finance')} />}
+            {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} />}
+            </div>
+            {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
+          </Suspense>
         </div>
       </main>
       {/* Mobile bottom nav */}

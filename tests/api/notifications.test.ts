@@ -35,13 +35,17 @@ describe('Notifications', () => {
        VALUES ('P-OK', $1, 'OK Stock Motor', 5000, 10)`,
       [TEST_TENANT]
     );
+    const inserts: Promise<unknown>[] = [];
     for (let i = 1; i <= 10; i++) {
-      await pool.query(
-        `INSERT INTO product_inventory (id, tenant_id, product_id, barcode, status)
-         VALUES ($1, $2, 'P-OK', $3, 'InStock')`,
-        [`I-OK-${i}`, TEST_TENANT, `OK-${String(i).padStart(3, '0')}`]
+      inserts.push(
+        pool.query(
+          `INSERT INTO product_inventory (id, tenant_id, product_id, barcode, status)
+           VALUES ($1, $2, 'P-OK', $3, 'InStock')`,
+          [`I-OK-${i}`, TEST_TENANT, `OK-${String(i).padStart(3, '0')}`]
+        )
       );
     }
+    await Promise.all(inserts);
     // Expiring warranty (expires in 5 days)
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 5);

@@ -166,47 +166,52 @@ router.get('/api/products/verify/:barcode', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { barcode } = req.params;
 
-    const tenant = (await pool.query('SELECT vendor_portal_enabled, barcode_system_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;
+    const [tenantRes, invRes, distRes, saleRes, warrantyRes, replacementsRes] = await Promise.all([
+      pool.query('SELECT vendor_portal_enabled, barcode_system_enabled FROM tenants WHERE id = $1', [tenantId]),
+      pool.query(`
+        SELECT pi.barcode, pi.status, pi.created_at as added_at,
+               p.id as product_id, p.name as product_name, p.price, p.description, p.warranty_months, p.hsn_code, p.gst_rate, p.warranty_applicable
+        FROM product_inventory pi
+        JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
+        WHERE pi.barcode = $1 AND pi.tenant_id = $2
+      `, [barcode, tenantId]),
+      pool.query(`
+        SELECT pd.vendor_id, pd.distribution_date, pd.status as dist_status, pd.discount_percent, pd.net_price, pd.gst_applied, pd.billed_price,
+               v.name as vendor_name, v.phone as vendor_phone, v.contact_person
+        FROM product_distribution pd
+        LEFT JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $2
+        WHERE pd.barcode = $1 AND pd.tenant_id = $2
+      `, [barcode, tenantId]),
+      pool.query(`
+        SELECT ps.customer_name, ps.customer_phone, ps.customer_email, ps.purchase_date, ps.sale_price, ps.reward_points_earned,
+               v.name as sold_by_vendor
+        FROM product_sales ps
+        LEFT JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $2
+        WHERE ps.barcode = $1 AND ps.tenant_id = $2
+      `, [barcode, tenantId]),
+      pool.query(
+        'SELECT status, activation_date, expiry_date FROM warranties WHERE barcode = $1 AND tenant_id = $2 ORDER BY activation_date DESC LIMIT 1',
+        [barcode, tenantId]
+      ),
+      pool.query(
+        'SELECT id, old_barcode, new_barcode, reason, replaced_date as created_at FROM product_replacements WHERE (old_barcode = $1 OR new_barcode = $1) AND tenant_id = $2 ORDER BY replaced_date DESC',
+        [barcode, tenantId]
+      )
+    ]);
+
+    const tenant = tenantRes.rows[0] as Record<string, unknown> | undefined;
     const features = {
       vendorPortal: tenant?.vendor_portal_enabled !== false,
       barcodeSystem: tenant?.barcode_system_enabled !== false,
     };
 
-    const inv = (await pool.query(`
-      SELECT pi.barcode, pi.status, pi.created_at as added_at,
-             p.id as product_id, p.name as product_name, p.price, p.description, p.warranty_months, p.hsn_code, p.gst_rate, p.warranty_applicable
-      FROM product_inventory pi
-      JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
-      WHERE pi.barcode = $1 AND pi.tenant_id = $2
-    `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
-
+    const inv = invRes.rows[0] as Record<string, unknown> | undefined;
     if (!inv) return res.status(404).json({ error: 'Barcode not found', found: false });
 
-    const dist = (await pool.query(`
-      SELECT pd.vendor_id, pd.distribution_date, pd.status as dist_status, pd.discount_percent, pd.net_price, pd.gst_applied, pd.billed_price,
-             v.name as vendor_name, v.phone as vendor_phone, v.contact_person
-      FROM product_distribution pd
-      LEFT JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $2
-      WHERE pd.barcode = $1 AND pd.tenant_id = $2
-    `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
-
-    const sale = (await pool.query(`
-      SELECT ps.customer_name, ps.customer_phone, ps.customer_email, ps.purchase_date, ps.sale_price, ps.reward_points_earned,
-             v.name as sold_by_vendor
-      FROM product_sales ps
-      LEFT JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $2
-      WHERE ps.barcode = $1 AND ps.tenant_id = $2
-    `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
-
-    const warranty = (await pool.query(
-      'SELECT status, activation_date, expiry_date FROM warranties WHERE barcode = $1 AND tenant_id = $2 ORDER BY activation_date DESC LIMIT 1',
-      [barcode, tenantId]
-    )).rows[0] as Record<string, unknown> | undefined;
-
-    const replacements = (await pool.query(
-      'SELECT id, old_barcode, new_barcode, reason, replaced_date as created_at FROM product_replacements WHERE (old_barcode = $1 OR new_barcode = $1) AND tenant_id = $2 ORDER BY replaced_date DESC',
-      [barcode, tenantId]
-    )).rows as Record<string, unknown>[];
+    const dist = distRes.rows[0] as Record<string, unknown> | undefined;
+    const sale = saleRes.rows[0] as Record<string, unknown> | undefined;
+    const warranty = warrantyRes.rows[0] as Record<string, unknown> | undefined;
+    const replacements = replacementsRes.rows as Record<string, unknown>[];
 
     const currentStatus = sale ? 'Sold' : dist ? (dist.dist_status as string) : (inv.status as string);
 

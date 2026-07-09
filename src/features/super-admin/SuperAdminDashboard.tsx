@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Pause,
+  PieChart,
 } from 'lucide-react';
 import { LoadingSpinner } from '../../components/ui';
 import { session } from '../../lib/session';
@@ -140,7 +141,7 @@ export function SuperAdminDashboard() {
         {/* Tenants by Plan */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle size={18} className="text-brand" />
+            <PieChart size={18} className="text-brand" />
             <h2 className="text-lg font-bold text-gray-900">Tenants by Plan</h2>
           </div>
           <div className="space-y-3">
@@ -148,8 +149,9 @@ export function SuperAdminDashboard() {
               <p className="text-sm text-gray-400 py-4 text-center">No plan data</p>
             )}
             {(data?.tenantsByPlan ?? []).map((p) => {
-              const total = totals.tenants || 1;
-              const pct = Math.round((p.count / total) * 100);
+              const total = Number(totals.tenants) || 1;
+              const count = Number(p.count) || 0;
+              const pct = Math.round((count / total) * 100);
               return (
                 <div key={p.plan} className="space-y-1">
                   <div className="flex items-center justify-between">

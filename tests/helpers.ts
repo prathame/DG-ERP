@@ -13,11 +13,24 @@ export function createSuperAdminToken() {
 }
 
 export async function cleanupTestData(tenantId: string) {
-  const tables = ['audit_log', 'tenant_invoices', 'password_reset_tokens', 'bill_settings', 'product_replacements', 'rewards', 'reward_rules', 'redemption_settings', 'warranties', 'product_sales', 'product_distribution', 'product_inventory', 'products', 'vendor_payments', 'vendor_reminder_settings', 'customers', 'vendors', 'users'];
-  for (const t of tables) {
-    await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]).catch(() => {});
+  const group1 = [
+    'audit_log', 'tenant_invoices', 'password_reset_tokens', 'bill_settings', 
+    'product_replacements', 'rewards', 'reward_rules', 'redemption_settings', 
+    'warranties', 'product_sales', 'product_distribution', 'product_inventory', 
+    'supplier_payments', 'vendor_payments', 'vendor_reminder_settings'
+  ];
+  const group2 = ['customers', 'vendors', 'users', 'products'];
+  
+  try {
+    // Delete child rows concurrently
+    await Promise.all(group1.map(t => pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]).catch(() => {})));
+    // Delete parent master rows concurrently
+    await Promise.all(group2.map(t => pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]).catch(() => {})));
+    // Delete the tenant root row
+    await pool.query('DELETE FROM tenants WHERE id = $1', [tenantId]).catch(() => {});
+  } catch (err) {
+    console.error('[Cleanup Error]', err);
   }
-  await pool.query('DELETE FROM tenants WHERE id = $1', [tenantId]).catch(() => {});
 }
 
 export { pool };

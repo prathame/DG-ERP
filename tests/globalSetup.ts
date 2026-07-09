@@ -7,6 +7,12 @@ if (!process.env.DATABASE_URL) {
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'test-secret-key-for-automated-tests';
 }
+if (!process.env.SUPER_ADMIN_EMAIL) {
+  process.env.SUPER_ADMIN_EMAIL = 'admin@dgerp.com';
+}
+if (!process.env.SUPER_ADMIN_PASSWORD) {
+  process.env.SUPER_ADMIN_PASSWORD = 'password123';
+}
 
 export async function setup() {
   const { initDatabase } = await import('../server/pg-db');

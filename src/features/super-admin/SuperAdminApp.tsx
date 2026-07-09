@@ -19,6 +19,7 @@ import { SuperAdminBilling } from './SuperAdminBilling';
 import { TenantListView } from './TenantListView';
 import { TenantDetailView } from './TenantDetailView';
 import { PlanManagementView } from './PlanManagementView';
+import { SuperAdminAnalytics } from './SuperAdminAnalytics';
 import { session } from '../../lib/session';
 
 type AdminTab = 'dashboard' | 'tenants' | 'plans' | 'billing' | 'audit' | 'analytics';
@@ -78,13 +79,7 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
       case 'audit':
         return <SuperAdminAuditLog />;
       case 'analytics':
-        return (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-            <BarChart3 size={48} className="mb-4 opacity-30" />
-            <p className="text-lg font-medium">Analytics Coming Soon</p>
-            <p className="text-sm mt-1">Advanced platform analytics will be available here</p>
-          </div>
-        );
+        return <SuperAdminAnalytics />;
       default:
         return <SuperAdminDashboard />;
     }

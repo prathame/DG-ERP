@@ -6,7 +6,7 @@ dotenv.config();
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: process.env.NODE_ENV === 'production' ? 10 : 20,
+  max: process.env.DATABASE_POOL_SIZE ? parseInt(process.env.DATABASE_POOL_SIZE, 10) : (process.env.NODE_ENV === 'production' ? 10 : 20),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
   ...(process.env.DATABASE_URL?.includes('render.com') || process.env.DATABASE_URL?.includes('neon.tech') || process.env.DATABASE_SSL === 'true'
@@ -57,6 +57,9 @@ export async function initSchema() {
         plan_id TEXT REFERENCES plans(id),
         status TEXT DEFAULT 'active',
         trial_ends_at TIMESTAMPTZ,
+        warranty_enabled BOOLEAN DEFAULT true,
+        replacement_enabled BOOLEAN DEFAULT true,
+        rewards_enabled BOOLEAN DEFAULT true,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         last_active_at TIMESTAMPTZ
       );
@@ -360,6 +363,9 @@ export async function initSchema() {
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS inventory_tracking_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS multi_language_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS warranty_enabled BOOLEAN DEFAULT true');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS replacement_enabled BOOLEAN DEFAULT true');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS rewards_enabled BOOLEAN DEFAULT true');
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS tab_config JSONB DEFAULT '${JSON.stringify({
       dashboard:    { label: 'Dashboard',      visible: true },
       inventory:    { label: 'Inventory',      visible: true },
