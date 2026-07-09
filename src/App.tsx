@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { api } from './api';
 import {
   LayoutDashboard,
@@ -21,24 +21,31 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { Tab, USER_STORAGE_KEY } from './types';
-import { ToastProvider } from './components/ui';
+import { ToastProvider, LoadingSpinner } from './components/ui';
 import { LanguageProvider, useTranslation } from './i18n';
 import { LoginScreen } from './components/layout';
 import { LandingPage } from './components/layout/LandingPage';
 import { PrivacyPolicy } from './components/layout/PrivacyPolicy';
 import { TermsOfService } from './components/layout/TermsOfService';
 import { ChatWidget } from './components/layout/ChatWidget';
-import { DashboardView } from './features/dashboard/DashboardView';
-import { SalesEntryView } from './features/sales/SalesEntryView';
-import { DistributionView } from './features/distribution/DistributionView';
-import { InventoryView } from './features/inventory/InventoryView';
-import { WarrantyView } from './features/warranty/WarrantyView';
-import { ReplacementsView } from './features/replacements/ReplacementsView';
-import { RewardsView } from './features/rewards/RewardsView';
-import { VendorFinanceView } from './features/finance/VendorFinanceView';
-import { PurchasesView } from './features/purchases/PurchasesView';
-import { QuotationsView } from './features/quotations/QuotationsView';
-import { OrdersView } from './features/orders/OrdersView';
+import { session } from './lib/session';
+
+const DashboardView = lazy(() => import('./features/dashboard/DashboardView').then(m => ({ default: m.DashboardView })));
+const SalesEntryView = lazy(() => import('./features/sales/SalesEntryView').then(m => ({ default: m.SalesEntryView })));
+const DistributionView = lazy(() => import('./features/distribution/DistributionView').then(m => ({ default: m.DistributionView })));
+const InventoryView = lazy(() => import('./features/inventory/InventoryView').then(m => ({ default: m.InventoryView })));
+const WarrantyView = lazy(() => import('./features/warranty/WarrantyView').then(m => ({ default: m.WarrantyView })));
+const ReplacementsView = lazy(() => import('./features/replacements/ReplacementsView').then(m => ({ default: m.ReplacementsView })));
+const RewardsView = lazy(() => import('./features/rewards/RewardsView').then(m => ({ default: m.RewardsView })));
+const VendorFinanceView = lazy(() => import('./features/finance/VendorFinanceView').then(m => ({ default: m.VendorFinanceView })));
+const PurchasesView = lazy(() => import('./features/purchases/PurchasesView').then(m => ({ default: m.PurchasesView })));
+const QuotationsView = lazy(() => import('./features/quotations/QuotationsView').then(m => ({ default: m.QuotationsView })));
+const OrdersView = lazy(() => import('./features/orders/OrdersView').then(m => ({ default: m.OrdersView })));
+const AccountsView = lazy(() => import('./features/accounts/AccountsView').then(m => ({ default: m.AccountsView })));
+const SettingsView = lazy(() => import('./features/settings/SettingsView').then(m => ({ default: m.SettingsView })));
+const ProductVerificationView = lazy(() => import('./features/verification/ProductVerificationView').then(m => ({ default: m.ProductVerificationView })));
+const SuperAdminApp = lazy(() => import('./features/super-admin/SuperAdminApp').then(m => ({ default: m.SuperAdminApp })));
+const SuperAdminLogin = lazy(() => import('./features/super-admin/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })));
 
 function QuotationsAndOrdersView() {
   const [view, setView] = React.useState<'quotations' | 'orders'>('quotations');
@@ -52,12 +59,8 @@ function QuotationsAndOrdersView() {
     </div>
   );
 }
-import { AccountsView } from './features/accounts/AccountsView';
-import { SettingsView } from './features/settings/SettingsView';
-import { ProductVerificationView } from './features/verification/ProductVerificationView';
-import { SuperAdminApp } from './features/super-admin/SuperAdminApp';
-import { SuperAdminLogin } from './features/super-admin/SuperAdminLogin';
-import { session } from './lib/session';
+
+const LazyFallback = () => <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>;
 
 
 /** Decode a JWT payload without any library. Returns null on failure. */
@@ -223,15 +226,15 @@ export default function App() {
       const tokenPayload = decodeJwtPayload(session.getToken() || '') || {};
       const superAdminUser = { id: tokenPayload.userId as string || '', email: tokenPayload.email as string || '', name: tokenPayload.name as string || '', role: 'super_admin' as const };
       return (
-        <ToastProvider>
+        <ToastProvider><Suspense fallback={<LazyFallback />}>
           <SuperAdminApp user={superAdminUser} onLogout={() => { handleLogout(); window.location.href = '/admin'; }} />
-        </ToastProvider>
+        </Suspense></ToastProvider>
       );
     }
     return (
-      <ToastProvider>
+      <ToastProvider><Suspense fallback={<LazyFallback />}>
         <SuperAdminLogin onLogin={(u) => { handleLogin(u as Parameters<typeof handleLogin>[0]); window.location.href = '/admin'; }} />
-      </ToastProvider>
+      </Suspense></ToastProvider>
     );
   }
 
@@ -407,6 +410,7 @@ export default function App() {
         </header>
 
         <div className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
+          <Suspense fallback={<LazyFallback />}>
           <div key={tabKey}>
           {activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} />}
           {activeTab === 'sales' && <SalesEntryView user={user} />}
@@ -422,6 +426,7 @@ export default function App() {
           {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} />}
           </div>
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
+          </Suspense>
         </div>
       </main>
       {/* Mobile bottom nav */}

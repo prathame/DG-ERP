@@ -138,35 +138,20 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    // Assets
-    const inventoryValue = Number((await pool.query(`
-      SELECT COALESCE(SUM(p.price), 0) as t FROM product_inventory pi
-      JOIN products p ON pi.product_id = p.id AND p.tenant_id = $1
-      WHERE pi.tenant_id = $1 AND pi.status IN ('InStock', 'Distributed')
-    `, [tenantId])).rows[0].t) || 0;
-
-    const totalDistributed = Number((await pool.query(`
-      SELECT COALESCE(SUM(${DISTRIBUTION_BILL_UNIT_SQL}), 0) as t
-      FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
-      WHERE pd.tenant_id = $1
-    `, [tenantId])).rows[0].t) || 0;
-
-    const totalVendorPayments = Number((await pool.query(
-      'SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE tenant_id = $1', [tenantId]
-    )).rows[0].t) || 0;
-
+    const [invValRes, distRes, vpRes, spRes, purchRes] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(p.price), 0) as t FROM product_inventory pi JOIN products p ON pi.product_id = p.id AND p.tenant_id = $1 WHERE pi.tenant_id = $1 AND pi.status = 'InStock'`, [tenantId]),
+      pool.query(`SELECT COALESCE(SUM(${DISTRIBUTION_BILL_UNIT_SQL}), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1 WHERE pd.tenant_id = $1`, [tenantId]),
+      pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE tenant_id = $1', [tenantId]),
+      pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM supplier_payments WHERE tenant_id = $1', [tenantId]),
+      pool.query('SELECT COALESCE(SUM(COALESCE(billed_price, cost_price, 0)), 0) as t FROM product_purchases WHERE tenant_id = $1', [tenantId]),
+    ]);
+    const inventoryValue = Number(invValRes.rows[0].t) || 0;
+    const totalDistributed = Number(distRes.rows[0].t) || 0;
+    const totalVendorPayments = Number(vpRes.rows[0].t) || 0;
     const receivables = totalDistributed - totalVendorPayments;
-
-    const totalSupplierPayments = Number((await pool.query(
-      'SELECT COALESCE(SUM(amount), 0) as t FROM supplier_payments WHERE tenant_id = $1', [tenantId]
-    )).rows[0].t) || 0;
-
+    const totalSupplierPayments = Number(spRes.rows[0].t) || 0;
     const cashBank = totalVendorPayments - totalSupplierPayments;
-
-    // Liabilities
-    const totalPurchased = Number((await pool.query(
-      'SELECT COALESCE(SUM(COALESCE(billed_price, cost_price, 0)), 0) as t FROM product_purchases WHERE tenant_id = $1', [tenantId]
-    )).rows[0].t) || 0;
+    const totalPurchased = Number(purchRes.rows[0].t) || 0;
 
     const payables = totalPurchased - totalSupplierPayments;
 
