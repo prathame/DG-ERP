@@ -73,6 +73,20 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '2mb' }));
 
+// Request logger — human-readable API activity
+app.use('/api/', (req, res, next) => {
+  const start = Date.now();
+  const tenant = (req.headers['x-tenant-id'] as string)?.slice(0, 8) || '—';
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    const status = res.statusCode;
+    const icon = status >= 500 ? '💥' : status >= 400 ? '⚠️' : status >= 300 ? '↩️' : '✅';
+    const method = req.method.padEnd(6);
+    console.log(`${icon} ${method} ${req.originalUrl}  ${status}  ${ms}ms  [${tenant}]`);
+  });
+  next();
+});
+
 // Public routes that don't need auth
 const PUBLIC_PATHS = [
   '/api/auth/login', '/api/auth/signup', '/api/auth/forgot-password', '/api/auth/reset-password',
@@ -208,9 +222,20 @@ app.get('*', (req, res, next) => {
 
 initDatabase().then(() => {
   app.listen(PORT, () => {
-    logger.info('Server started', { port: PORT, env: process.env.NODE_ENV || 'development' });
+    const env = process.env.NODE_ENV || 'development';
+    console.log('');
+    console.log('╔══════════════════════════════════════════╗');
+    console.log('║         DG Business — API Server         ║');
+    console.log('╠══════════════════════════════════════════╣');
+    console.log(`║  Port:  ${String(PORT).padEnd(32)}║`);
+    console.log(`║  Mode:  ${env.padEnd(32)}║`);
+    console.log(`║  DB:    PostgreSQL connected             ║`);
+    console.log('╚══════════════════════════════════════════╝');
+    console.log('');
+    console.log('Waiting for requests...');
+    console.log('');
   });
 }).catch((err) => {
-  logger.error('Failed to initialize database', { error: String(err) });
+  console.error('❌ Failed to start server:', String(err));
   process.exit(1);
 });

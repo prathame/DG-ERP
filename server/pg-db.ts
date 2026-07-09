@@ -624,7 +624,7 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_pd_status ON product_distribution(tenant_id, status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(tenant_id, status)');
 
-    console.log('✓ Schema created');
+    console.log('  ✓ Database schema ready');
   } finally {
     client.release();
   }
@@ -634,7 +634,7 @@ export async function seedPlatformData() {
   const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
   const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
   if (!superAdminEmail || !superAdminPassword) {
-    console.log('⚠ SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD env vars required for initial setup');
+    console.log('  ⚠ Set SUPER_ADMIN_EMAIL + SUPER_ADMIN_PASSWORD env vars to create admin');
     return;
   }
 
@@ -645,7 +645,7 @@ export async function seedPlatformData() {
       'INSERT INTO super_admins (id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5)',
       ['SA1', superAdminEmail, hash, 'Platform Owner', 'owner']
     );
-    console.log(`✓ Super admin created: ${superAdminEmail}`);
+    console.log(`  ✓ Super admin created: ${superAdminEmail}`);
   }
 
   const plans = [
@@ -662,11 +662,11 @@ export async function seedPlatformData() {
       p
     );
   }
-  console.log('✓ Plans seeded (Trial, Basic, Standard, Professional)');
+  console.log('  ✓ Plans seeded (Trial, Basic, Standard, Professional)');
 }
 
 export async function initDatabase() {
   await initSchema();
   await seedPlatformData();
-  console.log('✓ Database ready');
+  console.log('  ✓ Database ready');
 }
