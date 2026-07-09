@@ -35,54 +35,6 @@ router.get('/api/vendors', async (req, res) => {
   }
 });
 
-router.post('/api/vendors', async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-
-    const { name, contactPerson, phone, email, address } = req.body;
-    if (!name || !name.trim()) return res.status(400).json({ error: 'Vendor name is required' });
-    if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
-
-    const duplicate = (await pool.query(
-      'SELECT id, name FROM vendors WHERE tenant_id = $1 AND (LOWER(name) = LOWER($2) OR (email IS NOT NULL AND email != \'\' AND LOWER(email) = LOWER($3)))',
-      [tenantId, name.trim(), email || '']
-    )).rows[0] as { id: string; name: string } | undefined;
-    if (duplicate) return res.status(400).json({ error: `Vendor "${duplicate.name}" already exists` });
-
-    const id = uid('V');
-    await pool.query(
-      'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [id, tenantId, name.trim(), contactPerson, phone?.trim() || null, email, address]
-    );
-    const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
-    let credentials: { email: string; password: string } | null = null;
-    const vendorPortal = (await pool.query('SELECT vendor_portal_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0];
-    const portalEnabled = vendorPortal?.vendor_portal_enabled === true;
-    if (portalEnabled && email && typeof email === 'string' && email.includes('@')) {
-      const existing = (await pool.query('SELECT id FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId])).rows[0];
-      if (!existing) {
-        const crypto = await import('crypto');
-        const defaultPassword = crypto.randomBytes(12).toString('base64url');
-        const userId = uid('U');
-        const perms = JSON.stringify({ dashboard: 'view', sales: 'hidden', distribution: 'view', inventory: 'hidden', purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'view', accounts: 'hidden', warranty: 'hidden', replacements: 'hidden', rewards: 'hidden', settings: 'hidden' });
-        await pool.query(
-          `INSERT INTO users (id, tenant_id, email, password_hash, name, phone, address, role, company_name, permissions, vendor_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'Vendor', $8, $9, $10)`,
-          [userId, tenantId, email, hashPassword(defaultPassword), contactPerson || name || '', phone || null, address || null, name || null, perms, id]
-        );
-        credentials = { email, password: defaultPassword };
-      }
-    }
-    res.status(201).json({
-      id: row.id, name: row.name, contactPerson: row.contact_person, phone: row.phone, email: row.email, address: row.address, totalSales: 0, totalRewardPoints: 0, gstNumber: row.gst_number ?? null,
-      credentials,
-    });
-  } catch (err) {
-    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 router.post('/api/vendors/bulk', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -131,6 +83,54 @@ router.post('/api/vendors/bulk', async (req, res) => {
     }
     await logAudit(pool, tenantId, 'Vendors Bulk Import', 'vendor', undefined, `${success} created, ${errors.length} errors`);
     res.json({ success, errors, credentials });
+  } catch (err) {
+    console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/api/vendors', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const { name, contactPerson, phone, email, address } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Vendor name is required' });
+    if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
+
+    const duplicate = (await pool.query(
+      'SELECT id, name FROM vendors WHERE tenant_id = $1 AND (LOWER(name) = LOWER($2) OR (email IS NOT NULL AND email != \'\' AND LOWER(email) = LOWER($3)))',
+      [tenantId, name.trim(), email || '']
+    )).rows[0] as { id: string; name: string } | undefined;
+    if (duplicate) return res.status(400).json({ error: `Vendor "${duplicate.name}" already exists` });
+
+    const id = uid('V');
+    await pool.query(
+      'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [id, tenantId, name.trim(), contactPerson, phone?.trim() || null, email, address]
+    );
+    const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
+    let credentials: { email: string; password: string } | null = null;
+    const vendorPortal = (await pool.query('SELECT vendor_portal_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0];
+    const portalEnabled = vendorPortal?.vendor_portal_enabled === true;
+    if (portalEnabled && email && typeof email === 'string' && email.includes('@')) {
+      const existing = (await pool.query('SELECT id FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId])).rows[0];
+      if (!existing) {
+        const crypto = await import('crypto');
+        const defaultPassword = crypto.randomBytes(12).toString('base64url');
+        const userId = uid('U');
+        const perms = JSON.stringify({ dashboard: 'view', sales: 'hidden', distribution: 'view', inventory: 'hidden', purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'view', accounts: 'hidden', warranty: 'hidden', replacements: 'hidden', rewards: 'hidden', settings: 'hidden' });
+        await pool.query(
+          `INSERT INTO users (id, tenant_id, email, password_hash, name, phone, address, role, company_name, permissions, vendor_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'Vendor', $8, $9, $10)`,
+          [userId, tenantId, email, hashPassword(defaultPassword), contactPerson || name || '', phone || null, address || null, name || null, perms, id]
+        );
+        credentials = { email, password: defaultPassword };
+      }
+    }
+    res.status(201).json({
+      id: row.id, name: row.name, contactPerson: row.contact_person, phone: row.phone, email: row.email, address: row.address, totalSales: 0, totalRewardPoints: 0, gstNumber: row.gst_number ?? null,
+      credentials,
+    });
   } catch (err) {
     console.error('[API Error]', req.path, err); res.status(500).json({ error: 'Internal server error' });
   }
