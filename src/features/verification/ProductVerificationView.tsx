@@ -36,7 +36,7 @@ export function ProductVerificationView() {
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [searchResults, setSearchResults] = useState<{ products: { id: string; name: string; price: number; stock: number }[]; customers: { id: string; name: string; phone: string; email: string }[]; vendors: { id: string; name: string; contact: string; phone: string }[]; barcodes: { barcode: string; productName: string; productId: string; status: string }[]; challans?: { batchId: string; vendorName: string; date: string; units: number }[] } | null>(null);
+  const [searchResults, setSearchResults] = useState<{ products: { id: string; name: string; price: number; stock: number }[]; customers: { id: string; name: string; phone: string; email: string }[]; vendors: { id: string; name: string; contact: string; phone: string }[]; barcodes: { barcode: string; productName: string; productId: string; status: string }[]; challans?: { batchId: string; vendorName: string; date: string; units: number }[]; staff?: { name: string; totalPaid: number; payments: number; lastPayment: string }[] } | null>(null);
   const [vendorDetail, setVendorDetail] = useState<Record<string, unknown> | null>(null);
   const debouncedBarcode = useDebounce(barcode, 200);
   const barcodeSystem = (() => { try { return (session.getUser() || {}).barcodeSystemEnabled !== false; } catch { return true; } })();
@@ -153,6 +153,17 @@ export function ProductVerificationView() {
                 <div key={c.batchId} className="px-4 py-3 border-b border-gray-50 last:border-0">
                   <p className="font-medium text-sm">{c.batchId}</p>
                   <p className="text-xs text-gray-500">{c.vendorName} · {formatDate(c.date)} · {c.units} units</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {(searchResults.staff?.length ?? 0) > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2"><IndianRupee size={16} className="text-rose-500" /><span className="text-xs font-bold text-gray-400 uppercase">Staff ({searchResults.staff!.length})</span></div>
+              {searchResults.staff!.map((s) => (
+                <div key={s.name} className="px-4 py-3 border-b border-gray-50 last:border-0">
+                  <p className="font-medium text-sm">{s.name}</p>
+                  <p className="text-xs text-gray-500">Total Paid: ₹{s.totalPaid.toLocaleString()} · {s.payments} payments · Last: {s.lastPayment ? formatDate(s.lastPayment) : '—'}</p>
                 </div>
               ))}
             </div>

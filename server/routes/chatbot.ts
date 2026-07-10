@@ -385,6 +385,22 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     return { text: `Found ${custRows.length} customers matching "${input}":\n\n${list}` };
   }
 
+  // ============ STAFF LOOKUP (fuzzy) ============
+  const staffRows = (await pool.query("SELECT staff_name, SUM(amount) as total, COUNT(*) as payments, SUM(CASE WHEN payment_type='advance' THEN amount ELSE 0 END) - SUM(CASE WHEN payment_type='advance_repay' THEN amount ELSE 0 END) as advance_bal FROM staff_payments WHERE LOWER(staff_name) LIKE $1 AND tenant_id = $2 GROUP BY staff_name", [`%${q}%`, tenantId])).rows as { staff_name: string; total: number; payments: number; advance_bal: number }[];
+  if (staffRows.length === 1) {
+    const s = staffRows[0];
+    const member = (await pool.query("SELECT phone, role, salary FROM staff_members WHERE LOWER(name) = LOWER($1) AND tenant_id = $2", [s.staff_name, tenantId])).rows[0] as { phone?: string; role?: string; salary?: number } | undefined;
+    const recent = (await pool.query("SELECT amount, payment_date, payment_type FROM staff_payments WHERE staff_name = $1 AND tenant_id = $2 ORDER BY payment_date DESC LIMIT 5", [s.staff_name, tenantId])).rows as { amount: number; payment_date: string; payment_type: string }[];
+    const typeLabel: Record<string, string> = { salary: 'Salary', advance: 'Advance', advance_repay: 'Repaid', bonus: 'Bonus', deduction: 'Deduction' };
+    const recentList = recent.map(r => `- ₹${Number(r.amount).toLocaleString()} — ${typeLabel[r.payment_type] || r.payment_type} (${r.payment_date})`).join('\n');
+    const advBal = Math.max(0, Number(s.advance_bal));
+    return { text: `*${s.staff_name}*${member?.role ? ` (${member.role})` : ''}${member?.phone ? `\nPhone: ${member.phone}` : ''}${member?.salary ? `\nSalary: ₹${member.salary.toLocaleString()}/mo` : ''}\n\nTotal Paid: ₹${Number(s.total).toLocaleString()} (${s.payments} payments)${advBal > 0 ? `\nAdvance Due: ₹${advBal.toLocaleString()}` : ''}\n\n*Recent*\n${recentList}` };
+  }
+  if (staffRows.length > 1) {
+    const list = staffRows.map(s => `- ${s.staff_name} — ₹${Number(s.total).toLocaleString()} (${s.payments} payments)`).join('\n');
+    return { text: `Found ${staffRows.length} staff matching "${input}":\n\n${list}` };
+  }
+
   // ============ THANK YOU ============
   if (/thank|thanks|dhanyawad|shukriya/.test(q)) {
     return { text: `You're welcome! Let me know if you need anything else.` };
