@@ -13,7 +13,7 @@ router.get('/api/masters/counts', async (req, res) => {
     const products = (await pool.query('SELECT COUNT(*) as count FROM products WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
     const banks = (await pool.query('SELECT COUNT(*) as count FROM banks WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
     const categories = (await pool.query('SELECT COUNT(*) as count FROM categories WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
-    const staff = (await pool.query('SELECT COUNT(DISTINCT staff_name) as count FROM staff_payments WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
+    const staff = (await pool.query('SELECT COUNT(*) as count FROM staff_members WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
 
     res.json({
       customerMaster: customers.count,

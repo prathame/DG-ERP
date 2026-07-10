@@ -59,7 +59,7 @@ router.get('/api/backup', async (req, res) => {
     const tables = ['products', 'product_inventory', 'product_distribution', 'product_sales', 'product_purchases',
       'vendors', 'vendor_payments', 'customers', 'warranties', 'rewards', 'reward_rules',
       'quotations', 'orders', 'credit_debit_notes', 'price_lists', 'categories',
-      'suppliers', 'supplier_payments', 'banks', 'bill_settings', 'staff_payments', 'audit_log'];
+      'suppliers', 'supplier_payments', 'banks', 'bill_settings', 'staff_members', 'staff_payments', 'audit_log'];
 
     const backup: Record<string, unknown[]> = {};
     const counts: Record<string, number> = {};
@@ -125,7 +125,7 @@ router.post('/api/backup/restore', async (req, res) => {
       await client.query('BEGIN');
 
       // Clear existing data in reverse dependency order
-      const clearOrder = ['staff_payments', 'bill_settings', 'audit_log', 'credit_debit_notes', 'price_lists', 'orders', 'quotations',
+      const clearOrder = ['staff_payments', 'staff_members', 'bill_settings', 'audit_log', 'credit_debit_notes', 'price_lists', 'orders', 'quotations',
         'reward_rules', 'rewards', 'warranties', 'supplier_payments', 'product_purchases',
         'vendor_payments', 'product_sales', 'product_distribution', 'product_inventory',
         'customers', 'banks', 'suppliers', 'vendors', 'categories', 'products'];

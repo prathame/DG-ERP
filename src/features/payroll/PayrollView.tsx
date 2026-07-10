@@ -27,8 +27,8 @@ export function PayrollView({ accessLevel = 'full' }: { accessLevel?: string }) 
   };
   useEffect(load, []);
   useEffect(() => {
-    api.payroll.summary(year).then(s => {
-      setNameSuggestions((s.byStaff || []).map((x: { name: string }) => x.name).sort());
+    api.staff.list().then(members => {
+      setNameSuggestions(members.map(m => m.name).sort());
     }).catch(() => {});
   }, []);
 

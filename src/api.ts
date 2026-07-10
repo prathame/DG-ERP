@@ -476,6 +476,14 @@ export const api = {
     updateSettings: (data: { enabled: boolean; frequency: string; intervalDays?: number; email?: string }) =>
       fetchApi<{ ok: boolean; enabled: boolean; frequency: string; intervalDays: number; email: string | null }>('/backup/settings', { method: 'PUT', body: JSON.stringify(data) }),
   },
+  staff: {
+    list: (search?: string) => fetchApi<{ id: string; name: string; phone?: string; role?: string; address?: string; salary: number; joiningDate?: string; status: string; totalPaid: number; paymentCount: number; lastPayment?: string }[]>(`/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+    create: (data: { name: string; phone?: string; role?: string; address?: string; salary?: number; joiningDate?: string }) =>
+      fetchApi<{ id: string; name: string }>('/staff', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Record<string, unknown>) =>
+      fetchApi<{ ok: boolean }>(`/staff/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => fetchApi<{ ok: boolean }>(`/staff/${id}`, { method: 'DELETE' }),
+  },
   payroll: {
     staff: (search?: string) => fetchApi<{ name: string; totalPaid: number; paymentCount: number; lastPayment: string; firstPayment: string }[]>(`/payroll/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`),
     list: (filters?: { month?: string; year?: number; staffName?: string }) => {

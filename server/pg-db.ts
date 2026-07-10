@@ -491,6 +491,15 @@ export async function initSchema() {
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS purchases_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS chatbot_enabled BOOLEAN DEFAULT true');
 
+    // Staff directory
+    await client.query(`CREATE TABLE IF NOT EXISTS staff_members (
+      id TEXT NOT NULL, tenant_id TEXT NOT NULL REFERENCES tenants(id),
+      name TEXT NOT NULL, phone TEXT, role TEXT, address TEXT,
+      salary NUMERIC(12,2), joining_date DATE, status TEXT DEFAULT 'active',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(id, tenant_id)
+    )`);
+
     // Staff payroll (mini)
     await client.query(`CREATE TABLE IF NOT EXISTS staff_payments (
       id TEXT NOT NULL, tenant_id TEXT NOT NULL REFERENCES tenants(id), staff_name TEXT NOT NULL,

@@ -4,6 +4,78 @@ import { uid, logAudit } from '../utils/helpers';
 
 const router = Router();
 
+// ============ STAFF DIRECTORY ============
+router.get('/api/staff', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { search } = req.query;
+    let sql = `SELECT s.*, COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1), 0) as total_paid,
+      COALESCE((SELECT COUNT(*) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1), 0) as payment_count,
+      (SELECT MAX(payment_date) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1) as last_payment
+      FROM staff_members s WHERE s.tenant_id = $1`;
+    const params: unknown[] = [tenantId];
+    if (typeof search === 'string' && search) { sql += ` AND (s.name ILIKE $2 OR s.phone ILIKE $2 OR s.role ILIKE $2)`; params.push(`%${search}%`); }
+    sql += ' ORDER BY s.name';
+    const { rows } = await pool.query(sql, params);
+    res.json(rows.map((r: Record<string, unknown>) => ({
+      id: r.id, name: r.name, phone: r.phone, role: r.role, address: r.address,
+      salary: Number(r.salary) || 0, joiningDate: r.joining_date, status: r.status,
+      totalPaid: Number(r.total_paid), paymentCount: Number(r.payment_count), lastPayment: r.last_payment,
+    })));
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/api/staff', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { name, phone, role, address, salary, joiningDate } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'Staff name is required' });
+    const dup = (await pool.query('SELECT id FROM staff_members WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name.trim()])).rows[0];
+    if (dup) return res.status(400).json({ error: `"${name}" already exists` });
+    const id = uid('STF');
+    await pool.query(
+      'INSERT INTO staff_members (id, tenant_id, name, phone, role, address, salary, joining_date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+      [id, tenantId, name.trim(), phone || null, role || null, address || null, salary ? Number(salary) : null, joiningDate || null]
+    );
+    await logAudit(pool, tenantId, 'Staff Added', 'staff', id, `${name.trim()}${role ? ` (${role})` : ''}`);
+    res.status(201).json({ id, name: name.trim(), phone, role, address, salary: Number(salary) || 0, joiningDate, status: 'active', totalPaid: 0, paymentCount: 0, lastPayment: null });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.put('/api/staff/:id', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { name, phone, role, address, salary, status } = req.body;
+    const result = await pool.query(
+      'UPDATE staff_members SET name=COALESCE($1,name), phone=$2, role=$3, address=$4, salary=$5, status=COALESCE($6,status) WHERE id=$7 AND tenant_id=$8',
+      [name, phone || null, role || null, address || null, salary ? Number(salary) : null, status, req.params.id, tenantId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Staff not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/api/staff/:id', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const result = await pool.query('DELETE FROM staff_members WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Staff not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/api/payroll/staff', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
