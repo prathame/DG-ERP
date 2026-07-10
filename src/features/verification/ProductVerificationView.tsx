@@ -38,6 +38,7 @@ export function ProductVerificationView() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<{ products: { id: string; name: string; price: number; stock: number }[]; customers: { id: string; name: string; phone: string; email: string }[]; vendors: { id: string; name: string; contact: string; phone: string }[]; barcodes: { barcode: string; productName: string; productId: string; status: string }[]; challans?: { batchId: string; vendorName: string; date: string; units: number }[]; staff?: { name: string; totalPaid: number; payments: number; lastPayment: string }[] } | null>(null);
   const [vendorDetail, setVendorDetail] = useState<Record<string, unknown> | null>(null);
+  const [staffDetail, setStaffDetail] = useState<{ name: string; payments: { id: string; amount: number; paymentDate: string; paymentType: string; paymentMethod: string; notes?: string }[] } | null>(null);
   const debouncedBarcode = useDebounce(barcode, 200);
   const barcodeSystem = (() => { try { return (session.getUser() || {}).barcodeSystemEnabled !== false; } catch { return true; } })();
 
@@ -100,7 +101,7 @@ export function ProductVerificationView() {
       </div>
 
       {/* Search Results */}
-      {searchResults && !result && !notFound && !vendorDetail && (
+      {searchResults && !result && !notFound && !vendorDetail && !staffDetail && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {searchResults.barcodes.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -161,10 +162,10 @@ export function ProductVerificationView() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2"><IndianRupee size={16} className="text-rose-500" /><span className="text-xs font-bold text-gray-400 uppercase">Staff ({searchResults.staff!.length})</span></div>
               {searchResults.staff!.map((s) => (
-                <div key={s.name} className="px-4 py-3 border-b border-gray-50 last:border-0">
+                <button key={s.name} type="button" onClick={() => { api.payroll.list({ staffName: s.name }).then(payments => setStaffDetail({ name: s.name, payments })).catch(() => {}); }} className="w-full text-left px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
                   <p className="font-medium text-sm">{s.name}</p>
                   <p className="text-xs text-gray-500">Total Paid: ₹{s.totalPaid.toLocaleString()} · {s.payments} payments · Last: {s.lastPayment ? formatDate(s.lastPayment) : '—'}</p>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -215,6 +216,27 @@ export function ProductVerificationView() {
               </>
             );
           })()}
+        </motion.div>
+      )}
+
+      {staffDetail && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 space-y-4">
+          <button type="button" onClick={() => setStaffDetail(null)} className="text-xs font-medium text-brand hover:underline">← Back to results</button>
+          <h3 className="text-lg font-bold">{staffDetail.name} — Payment History</h3>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-emerald-50 rounded-xl p-2.5"><p className="text-[9px] font-bold text-gray-400 uppercase">Total Paid</p><p className="text-lg font-bold text-emerald-700">₹{staffDetail.payments.reduce((s, p) => s + (['salary', 'bonus'].includes(p.paymentType) ? p.amount : 0), 0).toLocaleString()}</p></div>
+            <div className="bg-amber-50 rounded-xl p-2.5"><p className="text-[9px] font-bold text-gray-400 uppercase">Advance Due</p><p className="text-lg font-bold text-amber-700">₹{Math.max(0, staffDetail.payments.reduce((s, p) => s + (p.paymentType === 'advance' ? p.amount : p.paymentType === 'advance_repay' ? -p.amount : 0), 0)).toLocaleString()}</p></div>
+          </div>
+          {staffDetail.payments.length > 0 ? staffDetail.payments.map(p => {
+            const typeLabel: Record<string, string> = { salary: 'Salary', advance: 'Advance', advance_repay: 'Repaid', bonus: 'Bonus', deduction: 'Deduction' };
+            const typeColor: Record<string, string> = { salary: 'text-emerald-600', advance: 'text-amber-600', advance_repay: 'text-blue-600', bonus: 'text-purple-600', deduction: 'text-rose-600' };
+            return (
+              <div key={p.id} className="flex flex-wrap justify-between py-1.5 border-b border-gray-50 text-sm gap-1">
+                <div><span className={`font-bold text-xs ${typeColor[p.paymentType] || ''}`}>{typeLabel[p.paymentType] || p.paymentType}</span><span className="text-gray-400 text-xs ml-2">{formatDate(p.paymentDate)} · {p.paymentMethod}</span>{p.notes && <span className="text-gray-400 text-xs ml-2">— {p.notes}</span>}</div>
+                <span className="font-bold">₹{p.amount.toLocaleString()}</span>
+              </div>
+            );
+          }) : <p className="text-gray-400 text-sm">No payments recorded</p>}
         </motion.div>
       )}
 
