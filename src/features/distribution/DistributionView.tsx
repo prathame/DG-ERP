@@ -302,9 +302,9 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
             <p className="text-sm text-gray-400">Each distribution event is listed separately with its own bill and actions</p>
           </div>
         )}
-        {!loading && selectedVendorId && (<div className="fixed inset-0 z-[80] flex items-start justify-center pt-8 pb-8">
+        {!loading && selectedVendorId && (<div className="fixed inset-0 z-[80]">
           <div className="absolute inset-0 bg-black/40" onClick={() => { setSelectedVendorId(null); setSelectedBatchId(null); }} />
-          <div className="relative bg-white w-full max-w-5xl max-h-[calc(100vh-4rem)] overflow-y-auto rounded-2xl shadow-2xl mx-4">
+          <div className="absolute inset-4 lg:inset-6 lg:left-[calc(16rem+1.5rem)] bg-white overflow-y-auto rounded-2xl shadow-2xl">
         {(() => {
           const vendorBatches = batches.filter((b) => b.vendorId === selectedVendorId);
           const vendorName = vendorBatches[0]?.vendorName ?? distributions.find((d) => d.vendorId === selectedVendorId)?.vendorName ?? 'Vendor';
