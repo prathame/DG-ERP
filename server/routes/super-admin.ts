@@ -127,6 +127,7 @@ router.get('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =>
       vendorCount: t.vendor_count,
       saleCount: t.sale_count,
       revenue: t.revenue,
+      businessType: (t.business_type as string) || 'manufacturer',
       createdAt: t.created_at,
       lastActiveAt: t.last_active_at,
     })));
@@ -185,6 +186,7 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
         barcodeSystemEnabled: tenant.barcode_system_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false, vendorPortalEnabled: tenant.vendor_portal_enabled !== false, inventoryTrackingEnabled: tenant.inventory_tracking_enabled !== false, quotationsEnabled: tenant.quotations_enabled !== false, accountsEnabled: tenant.accounts_enabled !== false, purchasesEnabled: tenant.purchases_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false,
         trialEndsAt: tenant.trial_ends_at, subscriptionEndsAt: tenant.subscription_ends_at, createdAt: tenant.created_at, lastActiveAt: tenant.last_active_at,
         tabConfig: tenant.tab_config ?? null,
+        businessType: tenant.business_type || 'manufacturer',
       },
       stats,
       users: users.map((u: Record<string, unknown>) => ({ id: u.id, email: u.email, name: u.name, role: u.role, vendorId: u.vendor_id, createdAt: u.created_at })),

@@ -47,6 +47,7 @@ interface TenantDetail {
   purchasesEnabled: boolean;
   chatbotEnabled: boolean;
   tabConfig: Record<string, { label: string; visible: boolean }> | null;
+  businessType?: string;
   createdAt: string;
   stats: {
     products: number;
@@ -282,6 +283,21 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-400 text-xs font-bold uppercase">Plan:</span>
             <span className="font-medium text-gray-700">{tenant.planName || tenant.plan || tenant.planId || 'No plan'}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-400 text-xs font-bold uppercase">Type:</span>
+            <select value={tenant.businessType || 'manufacturer'} onChange={async (e) => {
+              const bType = e.target.value;
+              try {
+                await fetch(`/api/super-admin/tenants/${tenant.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.getToken()}` }, body: JSON.stringify({ businessType: bType }) });
+                toast(`Business type updated to ${bType}`, 'success');
+                fetchTenant();
+              } catch { toast('Failed to update', 'error'); }
+            }} className="px-2 py-1 border border-gray-200 rounded-lg text-sm font-medium capitalize">
+              <option value="manufacturer">Manufacturer</option>
+              <option value="dealer">Dealer / Wholesaler</option>
+              <option value="retail">Retail Shop</option>
+            </select>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Calendar size={16} className="text-gray-400" />
