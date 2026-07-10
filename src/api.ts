@@ -477,6 +477,7 @@ export const api = {
       fetchApi<{ ok: boolean; enabled: boolean; frequency: string; intervalDays: number; email: string | null }>('/backup/settings', { method: 'PUT', body: JSON.stringify(data) }),
   },
   payroll: {
+    staff: (search?: string) => fetchApi<{ name: string; totalPaid: number; paymentCount: number; lastPayment: string; firstPayment: string }[]>(`/payroll/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`),
     list: (filters?: { month?: string; year?: number; staffName?: string }) => {
       const q = new URLSearchParams();
       if (filters?.month) q.set('month', filters.month);

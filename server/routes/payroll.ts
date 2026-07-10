@@ -4,6 +4,27 @@ import { uid, logAudit } from '../utils/helpers';
 
 const router = Router();
 
+router.get('/api/payroll/staff', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { search } = req.query;
+    let sql = `SELECT staff_name, SUM(amount) as total_paid, COUNT(*) as payment_count,
+      MAX(payment_date) as last_payment, MIN(payment_date) as first_payment
+      FROM staff_payments WHERE tenant_id = $1`;
+    const params: unknown[] = [tenantId];
+    if (typeof search === 'string' && search) { sql += ` AND staff_name ILIKE $2`; params.push(`%${search}%`); }
+    sql += ' GROUP BY staff_name ORDER BY staff_name';
+    const { rows } = await pool.query(sql, params);
+    res.json(rows.map((r: Record<string, unknown>) => ({
+      name: r.staff_name, totalPaid: Number(r.total_paid), paymentCount: Number(r.payment_count),
+      lastPayment: r.last_payment, firstPayment: r.first_payment,
+    })));
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/api/payroll', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

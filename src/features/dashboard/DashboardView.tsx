@@ -10,6 +10,7 @@ import { VendorMasterView } from '../masters/VendorMasterView';
 import { BankMasterView } from '../masters/BankMasterView';
 import { VendorCustomerMappingView } from '../masters/VendorCustomerMappingView';
 import { RewardRulesView } from '../masters/RewardRulesView';
+import { StaffMasterView } from '../masters/StaffMasterView';
 
 type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'staff';
 
@@ -80,6 +81,7 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
   if (selectedMaster === 'bank') return <BankMasterView onBack={() => { setSelectedMaster(null); refreshCounts(); }} onRefresh={refreshCounts} />;
   if (selectedMaster === 'mapping') return <VendorCustomerMappingView onBack={() => setSelectedMaster(null)} />;
   if (selectedMaster === 'rewardRules') return <RewardRulesView onBack={() => setSelectedMaster(null)} />;
+  if (selectedMaster === 'staff') return <StaffMasterView onBack={() => { setSelectedMaster(null); refreshCounts(); }} onRefresh={refreshCounts} />;
 
   const tabConfig = ((user as Record<string, unknown>)?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>;
   const tv = (key: string) => tabConfig[key]?.visible !== false;
@@ -160,7 +162,7 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
             <button
               key={m.id}
               type="button"
-              onClick={() => m.id === 'item' ? setActiveTab('inventory') : m.id === 'staff' ? setActiveTab('payroll') : setSelectedMaster(m.id)}
+              onClick={() => m.id === 'item' ? setActiveTab('inventory') : setSelectedMaster(m.id)}
               className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all text-left group"
             >
               <div className="flex items-center justify-between mb-3">
