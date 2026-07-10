@@ -21,6 +21,27 @@ export function ChatWidget() {
   const [quickActions, setQuickActions] = useState<string[]>(['daily report', 'sales today', 'low stock', 'pending payments', 'all vendors']);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragging = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0, bx: 0, by: 0 });
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    dragging.current = false;
+    dragStart.current = { x: e.clientX, y: e.clientY, bx: pos?.x ?? (window.innerWidth - 72), by: pos?.y ?? (window.innerHeight - 80) };
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - dragStart.current.x;
+      const dy = ev.clientY - dragStart.current.y;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragging.current = true;
+      if (dragging.current) {
+        const nx = Math.max(8, Math.min(window.innerWidth - 64, dragStart.current.bx + dx));
+        const ny = Math.max(8, Math.min(window.innerHeight - 64, dragStart.current.by + dy));
+        setPos({ x: nx, y: ny });
+      }
+    };
+    const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -73,10 +94,13 @@ export function ChatWidget() {
       {/* Floating button with pulse */}
       <motion.button
         type="button"
-        onClick={() => setOpen(!open)}
-        whileTap={{ scale: 0.9 }}
+        onClick={() => { if (!dragging.current) setOpen(!open); }}
+        onPointerDown={onPointerDown}
+        whileTap={dragging.current ? undefined : { scale: 0.9 }}
+        style={pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : undefined}
         className={cn(
-          "fixed bottom-20 lg:bottom-6 right-4 z-[150] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-colors",
+          "fixed z-[150] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing touch-none",
+          pos ? '' : 'bottom-20 lg:bottom-6 right-4',
           open ? "bg-gray-700" : "bg-brand"
         )}
       >
@@ -102,7 +126,8 @@ export function ChatWidget() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 10 }}
             transition={{ delay: 1, duration: 0.3 }}
-            className="fixed bottom-24 lg:bottom-10 right-[5.5rem] z-[149] bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-200 text-sm font-medium text-gray-700 whitespace-nowrap"
+            style={pos ? { left: pos.x - 160, top: pos.y + 4, right: 'auto', bottom: 'auto' } : undefined}
+            className={cn("fixed z-[149] bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-200 text-sm font-medium text-gray-700 whitespace-nowrap", pos ? '' : 'bottom-24 lg:bottom-10 right-[5.5rem]')}
           >
             May I help you? <span className="text-brand">👋</span>
             <div className="absolute top-1/2 -right-2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[8px] border-l-white" />
