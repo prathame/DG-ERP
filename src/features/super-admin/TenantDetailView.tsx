@@ -286,18 +286,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
           </div>
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-400 text-xs font-bold uppercase">Type:</span>
-            <select value={tenant.businessType || 'manufacturer'} onChange={async (e) => {
-              const bType = e.target.value;
-              try {
-                await fetch(`/api/super-admin/tenants/${tenant.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.getToken()}` }, body: JSON.stringify({ businessType: bType }) });
-                toast(`Business type updated to ${bType}`, 'success');
-                fetchTenant();
-              } catch { toast('Failed to update', 'error'); }
-            }} className="px-2 py-1 border border-gray-200 rounded-lg text-sm font-medium capitalize">
-              <option value="manufacturer">Manufacturer</option>
-              <option value="dealer">Dealer / Wholesaler</option>
-              <option value="retail">Retail Shop</option>
-            </select>
+            <span className="px-2 py-1 bg-gray-100 rounded-lg text-sm font-medium capitalize">{{ manufacturer: 'Manufacturer', dealer: 'Dealer / Wholesaler', retail: 'Retail Shop' }[tenant.businessType || 'manufacturer'] || tenant.businessType}</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Calendar size={16} className="text-gray-400" />
