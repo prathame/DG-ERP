@@ -283,7 +283,8 @@ router.post('/api/auth/reset-password', async (req, res) => {
 
     const newHash = bcrypt.hashSync(newPassword, 12);
     await pool.query('UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE LOWER(email) = LOWER($2) AND tenant_id = $3', [newHash, resetToken.email, resetToken.tenant_id]);
-    await pool.query('UPDATE password_reset_tokens SET used = true WHERE token = $1', [token]);
+    await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
+    await pool.query("DELETE FROM password_reset_tokens WHERE used = true OR expires_at < NOW()");
 
     await logAudit(pool, resetToken.tenant_id, 'PASSWORD_RESET', 'user', null as unknown as string, `Password reset for ${resetToken.email}`, undefined, resetToken.email);
 
