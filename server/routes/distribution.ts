@@ -1170,7 +1170,20 @@ router.get('/api/distribution/einvoice', async (req, res) => {
       },
     };
 
-    res.json(eInvoice);
+    // Validations
+    const warnings: string[] = [];
+    const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    if (!sellerGstin) warnings.push('Seller GSTIN is missing — add in Settings → Profile');
+    else if (!gstinRegex.test(sellerGstin)) warnings.push(`Seller GSTIN "${sellerGstin}" format is invalid`);
+    if (isB2B && !gstinRegex.test(buyerGstin)) warnings.push(`Buyer GSTIN "${buyerGstin}" format is invalid`);
+    for (const g of Object.values(grouped)) {
+      if (!g.hsn || g.hsn === '0000') warnings.push(`Product "${g.name}" has no HSN code`);
+      else if (!/^\d{4,8}$/.test(g.hsn)) warnings.push(`HSN "${g.hsn}" for "${g.name}" should be 4-8 digits`);
+    }
+    if (!(tenant.address as string)) warnings.push('Seller address is missing');
+    if (isB2B && !(vendor?.address as string)) warnings.push('Buyer address is missing');
+
+    res.json({ ...eInvoice, _validation: { valid: warnings.length === 0, warnings } });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
@@ -1266,7 +1279,24 @@ router.get('/api/distribution/ewaybill', async (req, res) => {
       ItemList: itemList,
     };
 
-    res.json(eWayBill);
+    // Validations
+    const warnings: string[] = [];
+    const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    if (!sellerGstin) warnings.push('Seller GSTIN is missing — add in Settings → Profile');
+    else if (!gstinRegex.test(sellerGstin)) warnings.push(`Seller GSTIN "${sellerGstin}" format is invalid`);
+    if (buyerGstin && !gstinRegex.test(buyerGstin)) warnings.push(`Buyer GSTIN "${buyerGstin}" format is invalid`);
+    if (totVal < 50000) warnings.push(`Invoice value ₹${totVal.toLocaleString()} is below ₹50,000 — E-Way Bill may not be required`);
+    for (const g of Object.values(grouped)) {
+      if (!g.hsn || g.hsn === '0000') warnings.push(`Product "${g.name}" has no HSN code`);
+      else if (!/^\d{4,8}$/.test(g.hsn)) warnings.push(`HSN "${g.hsn}" for "${g.name}" should be 4-8 digits`);
+    }
+    if (!(vehicleNo as string).match(/^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{4}$/i)) warnings.push(`Vehicle number "${vehicleNo}" format may be invalid (expected: GJ03AB1234)`);
+    if (Number(distance) <= 0) warnings.push('Distance must be greater than 0 km');
+    if (Number(distance) > 4000) warnings.push(`Distance ${distance} km seems unusually high`);
+    if (!(tenant.address as string) || (tenant.address as string) === 'N/A') warnings.push('Seller address is missing');
+    if (!(vendor?.address as string) || (vendor?.address as string) === 'N/A') warnings.push('Buyer address is missing');
+
+    res.json({ ...eWayBill, _validation: { valid: warnings.length === 0, warnings } });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
