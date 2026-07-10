@@ -17,6 +17,8 @@ export function PayrollView({ accessLevel = 'full' }: { accessLevel?: string }) 
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ staffName: '', amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
   const [tab, setTab] = useState<'payments' | 'summary'>('payments');
+  const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const year = new Date().getFullYear();
 
   const load = () => {
@@ -24,6 +26,11 @@ export function PayrollView({ accessLevel = 'full' }: { accessLevel?: string }) 
     Promise.all([api.payroll.list(), api.payroll.summary(year)]).then(([p, s]) => { setPayments(p); setSummary(s); }).catch(() => {}).finally(() => setLoading(false));
   };
   useEffect(load, []);
+  useEffect(() => {
+    api.payroll.summary(year).then(s => {
+      setNameSuggestions((s.byStaff || []).map((x: { name: string }) => x.name).sort());
+    }).catch(() => {});
+  }, []);
 
   const handleSubmit = async () => {
     if (!form.staffName.trim()) { toast('Staff name required', 'error'); return; }
@@ -125,7 +132,17 @@ export function PayrollView({ accessLevel = 'full' }: { accessLevel?: string }) 
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
               <h3 className="text-lg font-bold mb-4">Record Staff Payment</h3>
               <div className="space-y-3">
-                <div><label className="text-xs font-bold text-gray-400 block mb-1">Staff Name *</label><input value={form.staffName} onChange={e => setForm({ ...form, staffName: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="e.g. Raju, Suresh" /></div>
+                <div className="relative">
+                  <label className="text-xs font-bold text-gray-400 block mb-1">Staff Name *</label>
+                  <input value={form.staffName} onChange={e => { setForm({ ...form, staffName: e.target.value }); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 150)} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Type name or pick from list" />
+                  {showSuggestions && nameSuggestions.filter(n => !form.staffName || n.toLowerCase().includes(form.staffName.toLowerCase())).length > 0 && (
+                    <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                      {nameSuggestions.filter(n => !form.staffName || n.toLowerCase().includes(form.staffName.toLowerCase())).map(n => (
+                        <button key={n} type="button" onMouseDown={() => { setForm({ ...form, staffName: n }); setShowSuggestions(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-brand/10 hover:text-brand">{n}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div><label className="text-xs font-bold text-gray-400 block mb-1">Amount (₹) *</label><input type="number" min={1} value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="5000" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-xs font-bold text-gray-400 block mb-1">Date</label><input type="date" value={form.paymentDate} onChange={e => setForm({ ...form, paymentDate: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>

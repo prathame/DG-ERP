@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { TrendingUp, Package, ShoppingCart, Gift, AlertTriangle, Users, CreditCard, Link2, Plus } from 'lucide-react';
+import { TrendingUp, Package, ShoppingCart, Gift, AlertTriangle, Users, CreditCard, Link2, Plus, Wallet } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { LoadingSpinner } from '../../components/ui';
@@ -11,20 +11,20 @@ import { BankMasterView } from '../masters/BankMasterView';
 import { VendorCustomerMappingView } from '../masters/VendorCustomerMappingView';
 import { RewardRulesView } from '../masters/RewardRulesView';
 
-type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules';
+type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'staff';
 
 export function DashboardView({ user, setActiveTab }: { user: { id: string; role?: string; vendorId?: string } | null; setActiveTab: (tab: Tab) => void }) {
   const [stats, setStats] = useState<{ label: string; value: string; change: string; icon: typeof TrendingUp; color: string; bg: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [lowStockProducts, setLowStockProducts] = useState<{ id: string; name: string; stock: number }[]>([]);
   const [topProducts, setTopProducts] = useState<{ name: string; sold: number }[]>([]);
-  const [masterCounts, setMasterCounts] = useState({ customer: 0, vendor: 0, item: 0, bank: 0 });
+  const [masterCounts, setMasterCounts] = useState({ customer: 0, vendor: 0, item: 0, bank: 0, staff: 0 });
   const [selectedMaster, setSelectedMaster] = useState<MasterType | null>(null);
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
 
   const refreshCounts = () => {
     api.masters.counts().then((c) => {
-      setMasterCounts({ customer: c.customerMaster, vendor: c.vendorMaster, item: c.itemMaster, bank: c.bankMaster });
+      setMasterCounts({ customer: c.customerMaster, vendor: c.vendorMaster, item: c.itemMaster, bank: c.bankMaster, staff: (c as Record<string, number>).staffCount ?? 0 });
     }).catch(() => {});
   };
 
@@ -92,6 +92,7 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
     ...(hasCustomerTracking ? [{ id: 'mapping' as const, name: 'Vendor-Customer Map', count: null as number | null, icon: Link2, color: 'text-cyan-600', bg: 'bg-cyan-50' }] : []),
     { id: 'item' as const, name: 'Products', count: masterCounts.item, icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },
     { id: 'bank' as const, name: 'Banks', count: masterCounts.bank, icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { id: 'staff' as const, name: 'Staff', count: masterCounts.staff, icon: Wallet, color: 'text-rose-600', bg: 'bg-rose-50' },
   ];
   const masters = isVendor ? allMasters.filter((m) => m.id === 'customer') : allMasters;
 
@@ -159,7 +160,7 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
             <button
               key={m.id}
               type="button"
-              onClick={() => m.id === 'item' ? setActiveTab('inventory') : setSelectedMaster(m.id)}
+              onClick={() => m.id === 'item' ? setActiveTab('inventory') : m.id === 'staff' ? setActiveTab('payroll') : setSelectedMaster(m.id)}
               className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all text-left group"
             >
               <div className="flex items-center justify-between mb-3">
