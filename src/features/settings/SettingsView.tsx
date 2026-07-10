@@ -102,7 +102,7 @@ function BillCustomizationSection() {
                 <div className="flex flex-col gap-1">
                   <label className="px-3 py-1.5 text-xs font-bold bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200 text-center">
                     Choose File
-                    <input type="file" accept="image/*" className="hidden" onChange={handleFile('logoBase64')} />
+                    <input id="settings-field-1" type="file" accept="image/*" className="hidden" onChange={handleFile('logoBase64')} />
                   </label>
                   {form.logoBase64 && <button type="button" onClick={() => setForm((p) => ({ ...p, logoBase64: null }))} className="text-xs text-rose-500 hover:underline">Remove</button>}
                 </div>
@@ -112,13 +112,12 @@ function BillCustomizationSection() {
             <div>
               <label className="text-xs font-bold text-gray-500 block mb-1">Bill Color</label>
               <div className="flex items-center gap-2">
-                <input type="color" value={form.primaryColor} onChange={(e) => setForm((p) => ({ ...p, primaryColor: e.target.value }))} className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0" />
-                <input value={form.primaryColor} onChange={(e) => setForm((p) => ({ ...p, primaryColor: e.target.value }))} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-brand" maxLength={7} />
+                <input id="settings-field-2" type="color" value={form.primaryColor} onChange={(e) => setForm((p) => ({ ...p, primaryColor: e.target.value }))} className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0" />
+                <input id="settings-field-3" value={form.primaryColor} onChange={(e) => setForm((p) => ({ ...p, primaryColor: e.target.value }))} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-brand" maxLength={7} />
               </div>
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-500 block mb-1">Tagline / Subtitle</label>
-              <input value={form.tagline || ''} onChange={(e) => setForm((p) => ({ ...p, tagline: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="e.g. Manufacturers of Premium Pumps" />
+              <label htmlFor="settings-field-4" className="text-xs font-bold text-gray-500 block mb-1">Tagline / Subtitle</label><input id="settings-field-4" value={form.tagline || ''} onChange={(e) => setForm((p) => ({ ...p, tagline: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="e.g. Manufacturers of Premium Pumps" />
             </div>
           </div>
         </div>
@@ -128,12 +127,10 @@ function BillCustomizationSection() {
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Invoice Numbering</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-bold text-gray-500 block mb-1">Invoice Prefix</label>
-              <input value={form.invoicePrefix || ''} onChange={(e) => setForm((p) => ({ ...p, invoicePrefix: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="e.g. SPL-INV-" maxLength={20} />
+              <label htmlFor="settings-field-5" className="text-xs font-bold text-gray-500 block mb-1">Invoice Prefix</label><input id="settings-field-5" value={form.invoicePrefix || ''} onChange={(e) => setForm((p) => ({ ...p, invoicePrefix: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="e.g. SPL-INV-" maxLength={20} />
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-500 block mb-1">Challan Prefix</label>
-              <input value={form.challanPrefix || ''} onChange={(e) => setForm((p) => ({ ...p, challanPrefix: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="e.g. SPL-CH-" maxLength={20} />
+              <label htmlFor="settings-field-6" className="text-xs font-bold text-gray-500 block mb-1">Challan Prefix</label><input id="settings-field-6" value={form.challanPrefix || ''} onChange={(e) => setForm((p) => ({ ...p, challanPrefix: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="e.g. SPL-CH-" maxLength={20} />
             </div>
           </div>
         </div>
@@ -142,12 +139,12 @@ function BillCustomizationSection() {
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Bank Details (printed on bill)</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Account Name</label><input value={form.bankAccountName || ''} onChange={(e) => setForm((p) => ({ ...p, bankAccountName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Company Name" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Account Number</label><input value={form.bankAccountNumber || ''} onChange={(e) => setForm((p) => ({ ...p, bankAccountNumber: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-brand" placeholder="1234567890" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Bank Name</label><input value={form.bankName || ''} onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="State Bank of India" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Branch</label><input value={form.bankBranch || ''} onChange={(e) => setForm((p) => ({ ...p, bankBranch: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Main Branch" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">IFSC Code</label><input value={form.bankIfsc || ''} onChange={(e) => setForm((p) => ({ ...p, bankIfsc: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-brand" placeholder="SBIN0001234" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">UPI ID</label><input value={form.bankUpiId || ''} onChange={(e) => setForm((p) => ({ ...p, bankUpiId: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="company@upi" /></div>
+            <div><label htmlFor="settings-field-7" className="text-xs font-bold text-gray-500 block mb-1">Account Name</label><input id="settings-field-7" value={form.bankAccountName || ''} onChange={(e) => setForm((p) => ({ ...p, bankAccountName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Company Name" /></div>
+            <div><label htmlFor="settings-field-8" className="text-xs font-bold text-gray-500 block mb-1">Account Number</label><input id="settings-field-8" value={form.bankAccountNumber || ''} onChange={(e) => setForm((p) => ({ ...p, bankAccountNumber: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-brand" placeholder="1234567890" /></div>
+            <div><label htmlFor="settings-field-9" className="text-xs font-bold text-gray-500 block mb-1">Bank Name</label><input id="settings-field-9" value={form.bankName || ''} onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="State Bank of India" /></div>
+            <div><label htmlFor="settings-field-10" className="text-xs font-bold text-gray-500 block mb-1">Branch</label><input id="settings-field-10" value={form.bankBranch || ''} onChange={(e) => setForm((p) => ({ ...p, bankBranch: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Main Branch" /></div>
+            <div><label htmlFor="settings-field-11" className="text-xs font-bold text-gray-500 block mb-1">IFSC Code</label><input id="settings-field-11" value={form.bankIfsc || ''} onChange={(e) => setForm((p) => ({ ...p, bankIfsc: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-brand" placeholder="SBIN0001234" /></div>
+            <div><label htmlFor="settings-field-12" className="text-xs font-bold text-gray-500 block mb-1">UPI ID</label><input id="settings-field-12" value={form.bankUpiId || ''} onChange={(e) => setForm((p) => ({ ...p, bankUpiId: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="company@upi" /></div>
           </div>
         </div>
 
@@ -162,8 +159,8 @@ function BillCustomizationSection() {
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Authorized Signatory</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Name</label><input value={form.signatoryName || ''} onChange={(e) => setForm((p) => ({ ...p, signatoryName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Mr. Rajesh Kumar" /></div>
-            <div><label className="text-xs font-bold text-gray-500 block mb-1">Designation</label><input value={form.signatoryDesignation || ''} onChange={(e) => setForm((p) => ({ ...p, signatoryDesignation: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Managing Director" /></div>
+            <div><label htmlFor="settings-field-13" className="text-xs font-bold text-gray-500 block mb-1">Name</label><input id="settings-field-13" value={form.signatoryName || ''} onChange={(e) => setForm((p) => ({ ...p, signatoryName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Mr. Rajesh Kumar" /></div>
+            <div><label htmlFor="settings-field-14" className="text-xs font-bold text-gray-500 block mb-1">Designation</label><input id="settings-field-14" value={form.signatoryDesignation || ''} onChange={(e) => setForm((p) => ({ ...p, signatoryDesignation: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Managing Director" /></div>
             <div>
               <label className="text-xs font-bold text-gray-500 block mb-1">Signature Image</label>
               <div className="flex items-center gap-2">
@@ -173,7 +170,7 @@ function BillCustomizationSection() {
                   <div className="h-10 w-20 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs">No image</div>
                 )}
                 <label className="px-2 py-1 text-xs font-bold bg-gray-100 rounded cursor-pointer hover:bg-gray-200">
-                  Upload <input type="file" accept="image/*" className="hidden" onChange={handleFile('signatureBase64')} />
+                  Upload <input id="settings-field-15" type="file" accept="image/*" className="hidden" onChange={handleFile('signatureBase64')} />
                 </label>
                 {form.signatureBase64 && <button type="button" onClick={() => setForm((p) => ({ ...p, signatureBase64: null }))} className="text-xs text-rose-500">Remove</button>}
               </div>
@@ -194,7 +191,7 @@ function BillCustomizationSection() {
         {/* Footer */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Footer Text</p>
-          <input value={form.footerText} onChange={(e) => setForm((p) => ({ ...p, footerText: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Powered by DG ERP Management" />
+          <input id="settings-field-16" value={form.footerText} onChange={(e) => setForm((p) => ({ ...p, footerText: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" placeholder="Powered by DG ERP Management" />
         </div>
 
         <button type="button" onClick={handleSave} disabled={saving} className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:opacity-60">
@@ -406,12 +403,12 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
               </div>
               <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
                 {authMode === 'signup' && (
-                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Name</label><input required value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Full name" /></div>
+                  <div><label htmlFor="settings-field-17" className="text-xs font-bold text-gray-400 uppercase block mb-1">Name</label><input id="settings-field-17" required value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Full name" /></div>
                 )}
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" required value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="you@example.com" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><input type="password" required value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="••••••••" /></div>
+                <div><label htmlFor="settings-field-18" className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input id="settings-field-18" type="email" required value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="you@example.com" /></div>
+                <div><label htmlFor="settings-field-19" className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><input id="settings-field-19" type="password" required value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="••••••••" /></div>
                 {authMode === 'signup' && (
-                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm Password</label><input type="password" required value={authForm.confirmPassword} onChange={(e) => setAuthForm({ ...authForm, confirmPassword: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="••••••••" /></div>
+                  <div><label htmlFor="settings-field-20" className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm Password</label><input id="settings-field-20" type="password" required value={authForm.confirmPassword} onChange={(e) => setAuthForm({ ...authForm, confirmPassword: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="••••••••" /></div>
                 )}
                 {authError && <p className="text-sm text-rose-600">{authError}</p>}
                 <button type="submit" disabled={authSubmitting} className="w-full py-3 bg-brand text-white rounded-xl font-bold">{authSubmitting ? 'Please wait...' : authMode === 'login' ? 'Login' : 'Sign Up'}</button>
@@ -430,9 +427,9 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             </div>
             <form onSubmit={handleProfileSave} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Full Name</label><input value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" value={user.email} disabled className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Role</label><input type="text" value={profileForm.role} disabled className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600" /></div>
+                <div><label htmlFor="settings-field-21" className="text-xs font-bold text-gray-400 uppercase block mb-1">Full Name</label><input id="settings-field-21" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label htmlFor="settings-field-22" className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input id="settings-field-22" type="email" value={user.email} disabled className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500" /></div>
+                <div><label htmlFor="settings-field-23" className="text-xs font-bold text-gray-400 uppercase block mb-1">Role</label><input id="settings-field-23" type="text" value={profileForm.role} disabled className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600" /></div>
               </div>
               <button type="submit" disabled={profileSubmitting} className="px-6 py-2 bg-brand text-white rounded-xl font-bold">{profileSubmitting ? 'Saving...' : 'Save'}</button>
             </form>
@@ -444,8 +441,8 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             </div>
             <form onSubmit={handleProfileSave} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"><Phone size={12} /> Phone</label><input type="tel" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="+91 98765 43210" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"><MapPin size={12} /> Address</label><input value={profileForm.address} onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Street, City, State" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"><Phone size={12} /> Phone</label><input id="settings-field-24" type="tel" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="+91 98765 43210" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"><MapPin size={12} /> Address</label><input id="settings-field-25" value={profileForm.address} onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Street, City, State" /></div>
               </div>
               <button type="submit" disabled={profileSubmitting} className="px-6 py-2 bg-brand text-white rounded-xl font-bold">{profileSubmitting ? 'Saving...' : 'Save'}</button>
             </form>
@@ -456,15 +453,15 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
               <h3 className="font-bold text-lg flex items-center gap-2"><Building2 size={20} /> Company & Other</h3>
             </div>
             <form onSubmit={handleProfileSave} className="p-6 space-y-4">
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Company / Business Name</label><input value={profileForm.companyName} onChange={(e) => setProfileForm({ ...profileForm, companyName: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Your Company Name" /></div>
+              <div><label htmlFor="settings-field-26" className="text-xs font-bold text-gray-400 uppercase block mb-1">Company / Business Name</label><input id="settings-field-26" value={profileForm.companyName} onChange={(e) => setProfileForm({ ...profileForm, companyName: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Your Company Name" /></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">GST Number (GSTIN)</label><input value={profileForm.gstNumber ?? ''} onChange={(e) => setProfileForm({ ...profileForm, gstNumber: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono" placeholder="e.g. 27AABCU9603R1ZM" maxLength={15} /></div>
+                <div><label htmlFor="settings-field-27" className="text-xs font-bold text-gray-400 uppercase block mb-1">GST Number (GSTIN)</label><input id="settings-field-27" value={profileForm.gstNumber ?? ''} onChange={(e) => setProfileForm({ ...profileForm, gstNumber: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono" placeholder="e.g. 27AABCU9603R1ZM" maxLength={15} /></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Default GST Rate (%)</label>
                   <div className="flex gap-2 mt-1">
                     {[3, 5, 12, 18, 28].map((rate) => (
                       <button key={rate} type="button" onClick={() => setProfileForm({ ...profileForm, defaultGstRate: rate })} className={cn("px-3 py-2 rounded-lg text-sm font-bold border transition-colors", profileForm.defaultGstRate === rate ? "bg-brand text-white border-brand" : "bg-white border-gray-200 text-gray-600 hover:border-brand")}>{rate}%</button>
                     ))}
-                    <input type="number" min={0} max={100} value={profileForm.defaultGstRate || ''} onChange={(e) => setProfileForm({ ...profileForm, defaultGstRate: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
+                    <input id="settings-field-28" type="number" min={0} max={100} value={profileForm.defaultGstRate || ''} onChange={(e) => setProfileForm({ ...profileForm, defaultGstRate: e.target.value === '' ? 0 : Number(e.target.value) })} className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">CGST + SGST will split equally (e.g. 18% = 9% + 9%)</p>
                 </div>
@@ -547,9 +544,9 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
               } catch (err) { toast(err instanceof Error ? err.message : 'Failed', 'error'); }
             }} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Current Password</label><input type="password" name="currentPassword" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">New Password</label><input type="password" name="newPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm New Password</label><input type="password" name="confirmPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label htmlFor="settings-field-29" className="text-xs font-bold text-gray-400 uppercase block mb-1">Current Password</label><input id="settings-field-29" type="password" name="currentPassword" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label htmlFor="settings-field-30" className="text-xs font-bold text-gray-400 uppercase block mb-1">New Password</label><input id="settings-field-30" type="password" name="newPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label htmlFor="settings-field-31" className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm New Password</label><input id="settings-field-31" type="password" name="confirmPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
               </div>
               <button type="submit" className="px-6 py-2 bg-brand text-white rounded-xl font-bold">Update Password</button>
             </form>
@@ -662,9 +659,9 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
               <div className="p-6">
                 <h3 className="text-xl font-bold mb-4">Create New User</h3>
                 <form onSubmit={handleAddUser} className="space-y-4">
-                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Name</label><input required value={addUserForm.name} onChange={(e) => setAddUserForm({ ...addUserForm, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" /></div>
-                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" required value={addUserForm.email} onChange={(e) => setAddUserForm({ ...addUserForm, email: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" /></div>
-                  <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><input type="password" required minLength={8} value={addUserForm.password} onChange={(e) => setAddUserForm({ ...addUserForm, password: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="Min 8 characters" />{addUserForm.password && addUserForm.password.length < 8 && <p className="text-[10px] text-rose-500 mt-0.5">Password must be at least 8 characters</p>}</div>
+                  <div><label htmlFor="settings-field-32" className="text-xs font-bold text-gray-400 uppercase block mb-1">Name</label><input id="settings-field-32" required value={addUserForm.name} onChange={(e) => setAddUserForm({ ...addUserForm, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" /></div>
+                  <div><label htmlFor="settings-field-33" className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input id="settings-field-33" type="email" required value={addUserForm.email} onChange={(e) => setAddUserForm({ ...addUserForm, email: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" /></div>
+                  <div><label htmlFor="settings-field-34" className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><input id="settings-field-34" type="password" required minLength={8} value={addUserForm.password} onChange={(e) => setAddUserForm({ ...addUserForm, password: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="Min 8 characters" />{addUserForm.password && addUserForm.password.length < 8 && <p className="text-[10px] text-rose-500 mt-0.5">Password must be at least 8 characters</p>}</div>
                   <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Role (preset)</label><select value={addUserForm.role} onChange={(e) => { const r = e.target.value; setAddUserForm({ ...addUserForm, role: r, permissions: { ...(ROLE_PRESETS[r] || ROLE_PRESETS.Staff) } }); }} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option>Admin</option><option>Manager</option><option>Staff</option><option>Warehouse</option><option>Vendor</option></select></div>
                   {addUserForm.role === 'Vendor' && (
                     <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vendor (required)</label><select required value={addUserForm.vendorId} onChange={(e) => setAddUserForm({ ...addUserForm, vendorId: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option value="">Select vendor</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
@@ -686,7 +683,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                               <td className="px-3 py-1.5 text-sm">{p.label}</td>
                               {ACCESS_LEVELS.map(level => (
                                 <td key={level} className="text-center px-2 py-1.5">
-                                  <input type="radio" name={`perm-add-${p.id}`} checked={(addUserForm.permissions[p.id] || 'hidden') === level} onChange={() => setAddUserForm({ ...addUserForm, permissions: { ...addUserForm.permissions, [p.id]: level } })} className="text-brand" />
+                                  <input id="settings-field-35" type="radio" name={`perm-add-${p.id}`} checked={(addUserForm.permissions[p.id] || 'hidden') === level} onChange={() => setAddUserForm({ ...addUserForm, permissions: { ...addUserForm.permissions, [p.id]: level } })} className="text-brand" />
                                 </td>
                               ))}
                             </tr>
@@ -729,7 +726,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                               <td className="px-3 py-1.5 text-sm">{p.label}</td>
                               {ACCESS_LEVELS.map(level => (
                                 <td key={level} className="text-center px-2 py-1.5">
-                                  <input type="radio" name={`perm-edit-${p.id}`} checked={(editUserForm.permissions[p.id] || 'hidden') === level} onChange={() => setEditUserForm({ ...editUserForm, permissions: { ...editUserForm.permissions, [p.id]: level } })} className="text-brand" />
+                                  <input id="settings-field-36" type="radio" name={`perm-edit-${p.id}`} checked={(editUserForm.permissions[p.id] || 'hidden') === level} onChange={() => setEditUserForm({ ...editUserForm, permissions: { ...editUserForm.permissions, [p.id]: level } })} className="text-brand" />
                                 </td>
                               ))}
                             </tr>
