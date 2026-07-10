@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { session } from '../../lib/session';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 
 interface SuperAdminUser {
   id: string;
@@ -63,8 +64,7 @@ export function SuperAdminLogin({ onLogin }: { onLogin: (user: SuperAdminUser) =
             </div>
             <div>
               <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label>
-              <input
-                type="password"
+              <PasswordInput
                 required
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}

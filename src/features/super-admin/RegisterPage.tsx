@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { session } from '../../lib/session';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 
 export function RegisterPage({ onRegister, onSwitchToLogin }: {
   onRegister: (user: { id: string; email: string; name: string }) => void;
@@ -100,8 +101,7 @@ export function RegisterPage({ onRegister, onSwitchToLogin }: {
             </div>
             <div>
               <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label>
-              <input
-                type="password"
+              <PasswordInput
                 required
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -111,8 +111,7 @@ export function RegisterPage({ onRegister, onSwitchToLogin }: {
             </div>
             <div>
               <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm Password</label>
-              <input
-                type="password"
+              <PasswordInput
                 required
                 value={form.confirmPassword}
                 onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}

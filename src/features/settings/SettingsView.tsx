@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LogIn, LogOut, UserPlus, Phone, MapPin, Building2, UserCog, Shield, Download, MessageCircle, FileText, Settings, Upload, Palette, Eye } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import type { Vendor, BillSettings } from '../../types';
 import { useTranslation, LANGUAGES } from '../../i18n';
 import { USER_STORAGE_KEY } from '../../types';
@@ -544,9 +545,9 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
               } catch (err) { toast(err instanceof Error ? err.message : 'Failed', 'error'); }
             }} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label htmlFor="settings-field-29" className="text-xs font-bold text-gray-400 uppercase block mb-1">Current Password</label><input id="settings-field-29" type="password" name="currentPassword" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
-                <div><label htmlFor="settings-field-30" className="text-xs font-bold text-gray-400 uppercase block mb-1">New Password</label><input id="settings-field-30" type="password" name="newPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
-                <div><label htmlFor="settings-field-31" className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm New Password</label><input id="settings-field-31" type="password" name="confirmPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label htmlFor="settings-field-29" className="text-xs font-bold text-gray-400 uppercase block mb-1">Current Password</label><PasswordInput id="settings-field-29"  name="currentPassword" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label htmlFor="settings-field-30" className="text-xs font-bold text-gray-400 uppercase block mb-1">New Password</label><PasswordInput id="settings-field-30"  name="newPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label htmlFor="settings-field-31" className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm New Password</label><PasswordInput id="settings-field-31"  name="confirmPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
               </div>
               <button type="submit" className="px-6 py-2 bg-brand text-white rounded-xl font-bold">Update Password</button>
             </form>
