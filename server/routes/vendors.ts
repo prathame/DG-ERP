@@ -63,8 +63,8 @@ router.post('/api/vendors/bulk', async (req, res) => {
       }
       const id = uid('V');
       await pool.query(
-        'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [id, tenantId, v.name.trim(), v.contactPerson || null, v.phone?.trim() || null, v.email || null, v.address || null]
+        'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address, gst_number) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+        [id, tenantId, v.name.trim(), v.contactPerson || null, v.phone?.trim() || null, v.email || null, v.address || null, (v as Record<string, unknown>).gstNumber || null]
       );
       if (portalEnabled && v.email && v.email.includes('@')) {
         const existing = (await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2', [v.email, tenantId])).rows[0];
@@ -105,8 +105,8 @@ router.post('/api/vendors', async (req, res) => {
 
     const id = uid('V');
     await pool.query(
-      'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [id, tenantId, name.trim(), contactPerson, phone?.trim() || null, email, address]
+      'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address, gst_number) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [id, tenantId, name.trim(), contactPerson, phone?.trim() || null, email, address, req.body.gstNumber || null]
     );
     const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     let credentials: { email: string; password: string } | null = null;

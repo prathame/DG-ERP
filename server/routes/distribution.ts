@@ -503,7 +503,7 @@ router.get('/api/distribution/bill', async (req, res) => {
     let sql = `
       SELECT pd.id, pd.batch_id, pd.barcode, pd.distribution_date, pd.status, pd.discount_percent, pd.net_price, pd.billed_price, pd.gst_applied,
              pd.product_id, p.name as product_name, p.price, p.batch_number, p.pack_size, p.pack_name,
-             v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address
+             v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address, v.gst_number as vendor_gst_number
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
@@ -555,6 +555,7 @@ router.get('/api/distribution/bill', async (req, res) => {
         phone: first.vendor_phone ?? null,
         email: first.vendor_email ?? null,
         address: first.vendor_address ?? null,
+        gstNumber: first.vendor_gst_number ?? null,
       },
       company: {
         name: company?.company_name ?? 'DG ERP',

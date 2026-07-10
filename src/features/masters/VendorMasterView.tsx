@@ -20,7 +20,7 @@ export function VendorMasterView({ onBack, onRefresh, businessType = 'manufactur
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Vendor | null>(null);
   const [credsModal, setCredsModal] = useState<{ vendorName: string; email: string; password: string; phone?: string } | null>(null);
-  const [form, setForm] = useState({ name: '', contactPerson: '', phone: '', email: '', address: '' });
+  const [form, setForm] = useState({ name: '', contactPerson: '', phone: '', email: '', address: '', gstNumber: '' });
   const [submitting, setSubmitting] = useState(false);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
 
@@ -31,7 +31,7 @@ export function VendorMasterView({ onBack, onRefresh, businessType = 'manufactur
   useEffect(() => { setLoading(true); load(); }, [debouncedSearch]);
 
   const openAdd = () => { setEditing(null); setForm({ name: '', contactPerson: '', phone: '', email: '', address: '' }); setModalOpen(true); };
-  const openEdit = (v: Vendor) => { setEditing(v); setForm({ name: v.name, contactPerson: v.contactPerson ?? '', phone: v.phone ?? '', email: v.email ?? '', address: v.address ?? '' }); setModalOpen(true); };
+  const openEdit = (v: Vendor) => { setEditing(v); setForm({ name: v.name, contactPerson: v.contactPerson ?? '', phone: v.phone ?? '', email: v.email ?? '', address: v.address ?? '', gstNumber: (v as unknown as Record<string, string>).gstNumber ?? '' }); setModalOpen(true); };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,7 +84,7 @@ export function VendorMasterView({ onBack, onRefresh, businessType = 'manufactur
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-3 py-3 sm:px-6 sm:py-4">Name</th><th className="px-3 py-3 sm:px-6 sm:py-4">Contact</th><th className="px-3 py-3 sm:px-6 sm:py-4">Phone</th><th className="px-3 py-3 sm:px-6 sm:py-4">Email</th>{label === 'Vendor' && <><th className="px-3 py-3 sm:px-6 sm:py-4">Sales</th><th className="px-3 py-3 sm:px-6 sm:py-4">Reward Pts</th></>}<th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th></tr></thead>
+            <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-3 py-3 sm:px-6 sm:py-4">Name</th><th className="px-3 py-3 sm:px-6 sm:py-4">Contact</th><th className="px-3 py-3 sm:px-6 sm:py-4">Phone</th><th className="px-3 py-3 sm:px-6 sm:py-4">GSTIN</th>{label === 'Vendor' && <><th className="px-3 py-3 sm:px-6 sm:py-4">Sales</th><th className="px-3 py-3 sm:px-6 sm:py-4">Reward Pts</th></>}<th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th></tr></thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? <tr><td colSpan={7} className="px-6 py-12 text-center"><LoadingSpinner /></td></tr> :
                 list.map((v) => (
@@ -92,7 +92,7 @@ export function VendorMasterView({ onBack, onRefresh, businessType = 'manufactur
                     <td className="px-3 py-3 sm:px-6 sm:py-4 font-medium">{v.name}</td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.contactPerson || '-'}</td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.phone || '-'}</td>
-                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.email || '-'}</td>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600 font-mono">{(v as Record<string, unknown>).gstNumber as string || '-'}</td>
                     {label === 'Vendor' && <><td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-medium">{v.totalSales ?? 0}</td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-emerald-600">{v.totalRewardPoints ?? 0}</td></>}
                     <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2">
@@ -121,6 +121,7 @@ export function VendorMasterView({ onBack, onRefresh, businessType = 'manufactur
                 </div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Phone * <span className="text-gray-400 normal-case font-normal">(for WhatsApp)</span></label><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="+91 98765 43210" /></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Address</label><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">GSTIN (optional)</label><input value={form.gstNumber} onChange={(e) => setForm({ ...form, gstNumber: e.target.value.toUpperCase() })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono" placeholder="e.g. 24AABCD1234F1Z5" maxLength={15} />{form.gstNumber && form.gstNumber.length === 15 && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(form.gstNumber) && <p className="text-[10px] text-rose-500 mt-0.5">Invalid GSTIN format</p>}</div>
                 <div className="flex gap-2 pt-2"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-2 border border-gray-200 rounded-lg font-medium">Cancel</button><button type="submit" disabled={submitting} className="flex-1 py-2 bg-brand text-white rounded-lg font-bold">{submitting ? 'Saving...' : 'Save'}</button></div>
               </form>
             </motion.div>
