@@ -246,6 +246,8 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [editUserForm, setEditUserForm] = useState({ role: '', permissions: {} as Record<string, string>, vendorId: '' });
   const [userSubmitting, setUserSubmitting] = useState(false);
+  const [backupSettings, setBackupSettings] = useState<{ enabled: boolean; frequency: string; intervalDays: number; lastBackupAt: string | null; email: string | null } | null>(null);
+  useEffect(() => { api.backup.settings().then(setBackupSettings).catch(() => {}); }, []);
 
   useEffect(() => {
     if (user) {
@@ -605,11 +607,58 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
               <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
                 <h3 className="font-bold text-lg flex items-center gap-2"><Download size={20} /> Data Management</h3>
               </div>
-              <div className="p-6 flex flex-wrap gap-4">
-                <button type="button" onClick={async () => { try { const r = await fetch('/api/backup', { headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '' } }); if (!r.ok) throw new Error('Backup failed'); const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url); toast('Backup downloaded', 'success'); } catch(e) { toast((e as Error).message, 'error'); } }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">
-                  <Download size={18} /> Download Database Backup
-                </button>
-                <p className="w-full text-xs text-gray-500 mt-1">Backup downloads the full SQLite database file. Keep it safe — it contains all your data.</p>
+              <div className="p-6 space-y-4">
+                <div className="flex flex-wrap gap-4 items-center">
+                  <button type="button" onClick={async () => { try { const r = await fetch('/api/backup', { headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '' } }); if (!r.ok) throw new Error('Backup failed'); const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url); toast('Backup downloaded', 'success'); setBackupSettings(prev => prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev); } catch(e) { toast((e as Error).message, 'error'); } }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">
+                    <Download size={18} /> Download Backup Now
+                  </button>
+                  {backupSettings?.lastBackupAt && <span className="text-xs text-gray-400">Last backup: {new Date(backupSettings.lastBackupAt).toLocaleString('en-IN')}</span>}
+                </div>
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" checked={backupSettings?.enabled ?? false} onChange={async (e) => {
+                        const enabled = e.target.checked;
+                        const freq = backupSettings?.frequency || 'weekly';
+                        try { const r = await api.backup.updateSettings({ enabled, frequency: freq, intervalDays: backupSettings?.intervalDays, email: backupSettings?.email || undefined }); setBackupSettings(r); toast(enabled ? 'Auto backup enabled' : 'Auto backup disabled', 'success'); } catch(err) { toast((err as Error).message, 'error'); }
+                      }} className="sr-only peer" />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                    </label>
+                    <span className="text-sm font-bold">Auto Backup</span>
+                  </div>
+                  {backupSettings?.enabled && (
+                    <div className="flex flex-wrap gap-3 items-end ml-14">
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 block mb-1">Frequency</label>
+                        <select value={backupSettings.frequency} onChange={async (e) => {
+                          const freq = e.target.value;
+                          const days = freq === 'daily' ? 1 : freq === 'weekly' ? 7 : freq === 'monthly' ? 30 : backupSettings.intervalDays;
+                          try { const r = await api.backup.updateSettings({ enabled: true, frequency: freq, intervalDays: days, email: backupSettings.email || undefined }); setBackupSettings(r); toast('Backup frequency updated', 'success'); } catch(err) { toast((err as Error).message, 'error'); }
+                        }} className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                      {backupSettings.frequency === 'custom' && (
+                        <div>
+                          <label className="text-xs font-bold text-gray-400 block mb-1">Every N days</label>
+                          <input type="number" min={1} max={365} value={backupSettings.intervalDays} onBlur={async (e) => {
+                            const days = Math.max(1, parseInt(e.target.value) || 7);
+                            try { const r = await api.backup.updateSettings({ enabled: true, frequency: 'custom', intervalDays: days, email: backupSettings.email || undefined }); setBackupSettings(r); } catch {}
+                          }} onChange={(e) => setBackupSettings(prev => prev ? { ...prev, intervalDays: parseInt(e.target.value) || 7 } : prev)} className="w-20 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 block mb-1">Email backup to (optional)</label>
+                        <input type="email" value={backupSettings.email || ''} placeholder="admin@company.com" onBlur={async (e) => {
+                          try { const r = await api.backup.updateSettings({ enabled: true, frequency: backupSettings.frequency, intervalDays: backupSettings.intervalDays, email: e.target.value || undefined }); setBackupSettings(r); } catch {}
+                        }} onChange={(e) => setBackupSettings(prev => prev ? { ...prev, email: e.target.value } : prev)} className="w-60 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

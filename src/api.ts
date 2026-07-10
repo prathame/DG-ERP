@@ -471,6 +471,11 @@ export const api = {
   },
   tenantBySlug: (slug: string) =>
     fetchApi<{ tenantId: string; companyName: string; slug: string; logoBase64: string | null; primaryColor: string; tagline: string | null }>(`/tenant/by-slug/${encodeURIComponent(slug)}`),
+  backup: {
+    settings: () => fetchApi<{ enabled: boolean; frequency: string; intervalDays: number; lastBackupAt: string | null; email: string | null }>('/backup/settings'),
+    updateSettings: (data: { enabled: boolean; frequency: string; intervalDays?: number; email?: string }) =>
+      fetchApi<{ ok: boolean; enabled: boolean; frequency: string; intervalDays: number; email: string | null }>('/backup/settings', { method: 'PUT', body: JSON.stringify(data) }),
+  },
   settings: {
     getProfile: (userId: string) =>
       fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),

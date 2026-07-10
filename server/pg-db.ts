@@ -624,6 +624,13 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_pd_status ON product_distribution(tenant_id, status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(tenant_id, status)');
 
+    // Backup settings
+    await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_enabled BOOLEAN DEFAULT false");
+    await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_frequency TEXT DEFAULT 'weekly'");
+    await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_interval_days INTEGER DEFAULT 7");
+    await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_last_at TIMESTAMPTZ");
+    await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_email TEXT");
+
     console.log('  ✓ Database schema ready');
   } finally {
     client.release();

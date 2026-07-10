@@ -93,6 +93,7 @@ router.get('/api/backup', async (req, res) => {
       ...backup,
     };
 
+    await pool.query('UPDATE tenants SET backup_last_at = NOW() WHERE id = $1', [tenantId]);
     await logAudit(pool, tenantId, 'Database Backup', 'system', undefined, `Exported ${data._meta.totalRecords} records across ${tables.length} tables`);
 
     const json = JSON.stringify(data, null, 2);
@@ -100,6 +101,41 @@ router.get('/api/backup', async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(json);
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/api/backup/settings', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const row = (await pool.query('SELECT backup_enabled, backup_frequency, backup_interval_days, backup_last_at, backup_email FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;
+    res.json({
+      enabled: row?.backup_enabled ?? false,
+      frequency: (row?.backup_frequency as string) || 'weekly',
+      intervalDays: Number(row?.backup_interval_days) || 7,
+      lastBackupAt: row?.backup_last_at || null,
+      email: (row?.backup_email as string) || null,
+    });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.put('/api/backup/settings', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { enabled, frequency, intervalDays, email } = req.body;
+    const freq = ['daily', 'weekly', 'monthly', 'custom'].includes(frequency) ? frequency : 'weekly';
+    const days = freq === 'daily' ? 1 : freq === 'weekly' ? 7 : freq === 'monthly' ? 30 : Math.max(1, parseInt(String(intervalDays), 10) || 7);
+    await pool.query(
+      'UPDATE tenants SET backup_enabled = $1, backup_frequency = $2, backup_interval_days = $3, backup_email = $4 WHERE id = $5',
+      [!!enabled, freq, days, email || null, tenantId]
+    );
+    await logAudit(pool, tenantId, 'Backup Settings Updated', 'system', undefined, `${enabled ? 'Enabled' : 'Disabled'} — ${freq} (every ${days} days)`);
+    res.json({ ok: true, enabled: !!enabled, frequency: freq, intervalDays: days, email: email || null });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
