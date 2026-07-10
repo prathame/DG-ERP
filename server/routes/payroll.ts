@@ -13,7 +13,7 @@ router.get('/api/staff', async (req, res) => {
     let sql = `SELECT s.*,
       COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1 AND payment_type IN ('salary','bonus')), 0) as total_paid,
       COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1 AND payment_type = 'advance'), 0) as total_advance,
-      COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1 AND payment_type IN ('advance_repay','deduction')), 0) as total_repaid,
+      COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1 AND payment_type = 'advance_repay'), 0) as total_repaid,
       COALESCE((SELECT COUNT(*) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1), 0) as payment_count,
       (SELECT MAX(payment_date) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1) as last_payment
       FROM staff_members s WHERE s.tenant_id = $1`;
