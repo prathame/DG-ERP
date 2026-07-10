@@ -126,6 +126,18 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
             </>
           )}
           <button type="button" onClick={loadData} disabled={loading} className="flex items-center gap-1.5 px-5 py-2 bg-brand text-white rounded-lg text-sm font-bold disabled:opacity-60"><Search size={16} /> {loading ? 'Loading...' : 'Generate'}</button>
+          {tab === 'gst' && (
+            <button type="button" onClick={async () => {
+              try {
+                const gstr1 = await fetchApi(`/reports/gstr1?month=${gstMonth}&year=${gstYear}`);
+                const blob = new Blob([JSON.stringify(gstr1, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `GSTR1_${gstYear}_${String(gstMonth).padStart(2, '0')}.json`; a.click();
+                URL.revokeObjectURL(url);
+              } catch (e) { alert((e as Error).message); }
+            }} className="flex items-center gap-1.5 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700"><Download size={16} /> GSTR-1 JSON</button>
+          )}
         </div>
       </div>
 

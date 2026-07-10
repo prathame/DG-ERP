@@ -302,4 +302,112 @@ router.get('/api/reports/gst-summary', async (req, res) => {
   }
 });
 
+// GSTR-1 JSON export (GST Return format)
+router.get('/api/reports/gstr1', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { month, year } = req.query;
+    const m = parseInt(String(month), 10) || new Date().getMonth() + 1;
+    const y = parseInt(String(year), 10) || new Date().getFullYear();
+    const startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+    const endDate = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    const period = `${String(m).padStart(2, '0')}${y}`;
+
+    const tenant = (await pool.query('SELECT company_name, gst_number FROM tenants WHERE id = $1', [tenantId])).rows[0] as { company_name: string; gst_number: string | null } | undefined;
+    const user = (await pool.query("SELECT gst_number FROM users WHERE tenant_id = $1 AND role = 'Admin' LIMIT 1", [tenantId])).rows[0] as { gst_number: string | null } | undefined;
+    const sellerGstin = tenant?.gst_number || user?.gst_number || '';
+
+    const distRows = (await pool.query(`
+      SELECT pd.batch_id, pd.distribution_date, pd.net_price, pd.billed_price, pd.gst_applied, pd.discount_percent,
+             p.name as product_name, p.hsn_code, p.gst_rate, p.price as product_price,
+             v.name as vendor_name, v.gst_number as vendor_gstin, v.id as vendor_id
+      FROM product_distribution pd
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+      WHERE pd.tenant_id = $1 AND pd.distribution_date >= $2 AND pd.distribution_date < $3
+      ORDER BY pd.distribution_date, pd.batch_id
+    `, [tenantId, startDate, endDate])).rows as Record<string, unknown>[];
+
+    // Group by batch (invoice) for B2B
+    const invoiceMap: Record<string, { batchId: string; date: string; vendorName: string; gstin: string; items: { hsn: string; name: string; qty: number; rate: number; taxable: number; cgst: number; sgst: number; total: number }[] }> = {};
+    const b2cItems: { hsn: string; name: string; qty: number; taxable: number; cgst: number; sgst: number; total: number }[] = [];
+    const hsnMap: Record<string, { hsn: string; desc: string; uqc: string; qty: number; taxable: number; igst: number; cgst: number; sgst: number; rate: number }> = {};
+
+    for (const r of distRows) {
+      const net = Number(r.net_price) || Number(r.product_price) || 0;
+      const billed = Number(r.billed_price) || net;
+      const gstAmt = r.gst_applied ? billed - net : 0;
+      const halfGst = Math.round(gstAmt / 2);
+      const gstin = (r.vendor_gstin as string) || '';
+      const hsn = (r.hsn_code as string) || '';
+      const gstRate = Number(r.gst_rate) || 18;
+      const batchId = r.batch_id as string;
+
+      // HSN summary (all invoices)
+      if (hsn) {
+        if (!hsnMap[hsn]) hsnMap[hsn] = { hsn, desc: r.product_name as string, uqc: 'PCS', qty: 0, taxable: 0, igst: 0, cgst: 0, sgst: 0, rate: gstRate };
+        hsnMap[hsn].qty++; hsnMap[hsn].taxable += net; hsnMap[hsn].cgst += halfGst; hsnMap[hsn].sgst += gstAmt - halfGst;
+      }
+
+      if (gstin && gstin.length >= 15) {
+        // B2B — group by invoice (batch)
+        const key = `${gstin}:${batchId}`;
+        if (!invoiceMap[key]) invoiceMap[key] = { batchId, date: r.distribution_date as string, vendorName: r.vendor_name as string, gstin, items: [] };
+        const existing = invoiceMap[key].items.find(i => i.hsn === hsn && i.rate === gstRate);
+        if (existing) {
+          existing.qty++; existing.taxable += net; existing.cgst += halfGst; existing.sgst += gstAmt - halfGst; existing.total += billed;
+        } else {
+          invoiceMap[key].items.push({ hsn, name: r.product_name as string, qty: 1, rate: gstRate, taxable: net, cgst: halfGst, sgst: gstAmt - halfGst, total: billed });
+        }
+      } else {
+        // B2C
+        b2cItems.push({ hsn, name: r.product_name as string, qty: 1, taxable: net, cgst: halfGst, sgst: gstAmt - halfGst, total: billed });
+      }
+    }
+
+    // Format B2B invoices (GSTR-1 Table 4)
+    const b2bByGstin: Record<string, { ctin: string; cfs: string; inv: { inum: string; idt: string; val: number; pos: string; rchrg: string; inv_typ: string; itms: { num: number; itm_det: { rt: number; txval: number; camt: number; samt: number; iamt: number } }[] }[] }> = {};
+    for (const inv of Object.values(invoiceMap)) {
+      if (!b2bByGstin[inv.gstin]) b2bByGstin[inv.gstin] = { ctin: inv.gstin, cfs: 'Y', inv: [] };
+      const invTotal = inv.items.reduce((s, i) => s + i.total, 0);
+      const fmtDate = new Date(inv.date).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+      b2bByGstin[inv.gstin].inv.push({
+        inum: `INV-${inv.batchId}`, idt: fmtDate, val: invTotal, pos: inv.gstin.substring(0, 2), rchrg: 'N', inv_typ: 'R',
+        itms: inv.items.map((item, idx) => ({ num: idx + 1, itm_det: { rt: item.rate, txval: item.taxable, camt: item.cgst, samt: item.sgst, iamt: 0 } })),
+      });
+    }
+
+    // Format B2C Small (GSTR-1 Table 7)
+    const b2csGrouped: Record<string, { rt: number; txval: number; camt: number; samt: number; iamt: number }> = {};
+    for (const item of b2cItems) {
+      const rate = item.taxable > 0 ? Math.round(((item.cgst + item.sgst) / item.taxable) * 100) : 0;
+      const key = `${rate}`;
+      if (!b2csGrouped[key]) b2csGrouped[key] = { rt: rate, txval: 0, camt: 0, samt: 0, iamt: 0 };
+      b2csGrouped[key].txval += item.taxable; b2csGrouped[key].camt += item.cgst; b2csGrouped[key].samt += item.sgst;
+    }
+
+    // Format HSN Summary (GSTR-1 Table 12)
+    const hsnData = Object.values(hsnMap).map((h, i) => ({
+      num: i + 1, hsn_sc: h.hsn, desc: h.desc, uqc: h.uqc, qty: h.qty, txval: h.taxable, iamt: 0, camt: h.cgst, samt: h.sgst, rt: h.rate,
+    }));
+
+    const gstr1 = {
+      gstin: sellerGstin,
+      fp: period,
+      gt: 0,
+      cur_gt: 0,
+      b2b: Object.values(b2bByGstin),
+      b2cs: Object.values(b2csGrouped).map(g => ({ ...g, sply_ty: 'INTRA', pos: sellerGstin.substring(0, 2), typ: 'OE' })),
+      hsn: { data: hsnData },
+      nil: { inv: [{ sply_ty: 'INTRB2B', nil_amt: 0, expt_amt: 0, ngsup_amt: 0 }, { sply_ty: 'INTRB2C', nil_amt: 0, expt_amt: 0, ngsup_amt: 0 }] },
+      doc_issue: { doc_det: [{ doc_num: 1, docs: [{ num: 1, from: `INV-${distRows[0]?.batch_id || '0'}`, to: `INV-${distRows[distRows.length - 1]?.batch_id || '0'}`, totnum: Object.keys(invoiceMap).length, cancel: 0, net_issue: Object.keys(invoiceMap).length }] }] },
+    };
+
+    res.json(gstr1);
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
