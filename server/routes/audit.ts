@@ -56,9 +56,50 @@ router.get('/api/backup', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    // PostgreSQL backup is not a simple file download - return error
-    res.status(501).json({ error: 'Database backup via file download is not supported with PostgreSQL. Use pg_dump for backups.' });
-    logAudit(pool, tenantId, 'Database Backup Attempted', 'system', undefined, 'Backup attempted but not supported in PostgreSQL mode');
+    const tables = ['products', 'product_inventory', 'product_distribution', 'product_sales', 'product_purchases',
+      'vendors', 'vendor_payments', 'customers', 'warranties', 'rewards', 'reward_rules',
+      'quotations', 'orders', 'credit_debit_notes', 'price_lists', 'categories',
+      'suppliers', 'supplier_payments', 'banks', 'bill_settings', 'audit_log'];
+
+    const backup: Record<string, unknown[]> = {};
+    const counts: Record<string, number> = {};
+
+    await Promise.all(tables.map(async (table) => {
+      try {
+        const { rows } = await pool.query(`SELECT * FROM ${table} WHERE tenant_id = $1`, [tenantId]);
+        backup[table] = rows;
+        counts[table] = rows.length;
+      } catch {
+        backup[table] = [];
+        counts[table] = 0;
+      }
+    }));
+
+    const tenant = (await pool.query('SELECT company_name, slug, admin_email FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;
+    const users = (await pool.query('SELECT id, email, name, role, phone, address FROM users WHERE tenant_id = $1', [tenantId])).rows;
+
+    const data = {
+      _meta: {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        tenantId,
+        companyName: tenant?.company_name || '',
+        slug: tenant?.slug || '',
+        adminEmail: tenant?.admin_email || '',
+        tableCounts: counts,
+        totalRecords: Object.values(counts).reduce((s, c) => s + c, 0),
+      },
+      users,
+      ...backup,
+    };
+
+    await logAudit(pool, tenantId, 'Database Backup', 'system', undefined, `Exported ${data._meta.totalRecords} records across ${tables.length} tables`);
+
+    const json = JSON.stringify(data, null, 2);
+    const filename = `backup-${(tenant?.slug || tenantId)}-${new Date().toISOString().slice(0, 10)}.json`;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(json);
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
