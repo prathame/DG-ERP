@@ -131,9 +131,32 @@ export interface DistributionBillData {
   payment?: { totalDistributedValue: number; totalPaid: number; balance: number };
 }
 
+const getCache = new Map<string, { data: unknown; ts: number }>();
+const GET_CACHE_TTL = 3000;
+
+export function invalidateCache(prefix?: string) {
+  if (!prefix) { getCache.clear(); return; }
+  for (const key of getCache.keys()) { if (key.includes(prefix)) getCache.delete(key); }
+}
+
 export async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const token = session.getToken();
   const tenantId = session.getTenantId();
+  const method = options?.method?.toUpperCase() || 'GET';
+
+  // Cache GET requests for 3s to prevent duplicate calls on tab switch
+  if (method === 'GET') {
+    const cacheKey = `${tenantId}:${path}`;
+    const cached = getCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < GET_CACHE_TTL) return cached.data as T;
+  }
+
+  // Invalidate cache on mutations
+  if (method !== 'GET') {
+    const segment = path.split('/')[1] || '';
+    invalidateCache(segment);
+  }
+
   const authHeaders: Record<string, string> = {};
   if (token) authHeaders['Authorization'] = `Bearer ${token}`;
   if (tenantId) authHeaders['X-Tenant-ID'] = tenantId;
@@ -164,7 +187,12 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
     throw new Error((err as { error?: string }).error || res.statusText);
   }
   if (res.status === 204) return undefined as T;
-  return res.json();
+  const data = await res.json();
+  if (method === 'GET') {
+    const cacheKey = `${tenantId}:${path}`;
+    getCache.set(cacheKey, { data, ts: Date.now() });
+  }
+  return data;
 }
 
 export const api = {
