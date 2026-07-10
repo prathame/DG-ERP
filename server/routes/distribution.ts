@@ -123,7 +123,8 @@ router.get('/api/distribution/batches', async (req, res) => {
         MAX(pd.gst_applied::int) as gst_applied,
         COALESCE(MAX(pd.dispatch_status), 'pending') as dispatch_status,
         MAX(pd.dispatched_by) as dispatched_by,
-        MAX(pd.dispatched_at) as dispatched_at
+        MAX(pd.dispatched_at) as dispatched_at,
+        MAX(pd.ewb_number) as ewb_number
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
@@ -169,6 +170,7 @@ router.get('/api/distribution/batches', async (req, res) => {
         amountPaid: paid,
         balanceRemaining: Number(r.bill_value) - paid,
         dispatchStatus: (r.dispatch_status as string) || 'pending',
+        ewbNumber: (r.ewb_number as string) || null,
         dispatchedBy: r.dispatched_by as string || null,
         dispatchedAt: r.dispatched_at as string || null,
       };
@@ -503,7 +505,7 @@ router.get('/api/distribution/bill', async (req, res) => {
     let sql = `
       SELECT pd.id, pd.batch_id, pd.barcode, pd.distribution_date, pd.status, pd.discount_percent, pd.net_price, pd.billed_price, pd.gst_applied,
              pd.product_id, p.name as product_name, p.price, p.batch_number, p.pack_size, p.pack_name,
-             v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address, v.gst_number as vendor_gst_number
+             v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address, v.gst_number as vendor_gst_number, pd.ewb_number
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
@@ -557,6 +559,7 @@ router.get('/api/distribution/bill', async (req, res) => {
         address: first.vendor_address ?? null,
         gstNumber: first.vendor_gst_number ?? null,
       },
+      ewbNumber: first.ewb_number ?? null,
       company: {
         name: company?.company_name ?? 'DG ERP',
         contactName: company?.name ?? null,
@@ -985,6 +988,21 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
       canDelete: sold + replaced + damaged === 0,
       items: Object.values(groups),
     });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Save EWB number on batch
+router.put('/api/distribution/batch/:batchId/ewb', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { batchId } = req.params;
+    const { ewbNumber } = req.body;
+    const result = await pool.query('UPDATE product_distribution SET ewb_number = $1 WHERE batch_id = $2 AND tenant_id = $3', [ewbNumber || null, batchId, tenantId]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Batch not found' });
+    res.json({ ok: true, ewbNumber: ewbNumber || null });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }

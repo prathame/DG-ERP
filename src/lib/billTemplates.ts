@@ -443,6 +443,7 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
       <table style="width:100%;">
         <tr class="cust-row"><td class="cust-label">Invoice No.</td><td><strong style="font-family:monospace;">${chPrefix}${bill.challanId}</strong></td></tr>
         <tr class="cust-row"><td class="cust-label">Invoice Date</td><td><strong>${fmtDate(bill.distributionDate)}</strong></td></tr>
+        ${(bill as unknown as Record<string, unknown>).ewbNumber ? `<tr class="cust-row"><td class="cust-label">E-Way Bill</td><td><strong style="font-family:monospace;">${esc(String((bill as unknown as Record<string, unknown>).ewbNumber))}</strong></td></tr>` : ''}
       </table>
     </td>
   </tr>

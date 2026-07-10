@@ -368,6 +368,9 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                         {canPrint && ds === 'dispatched' && (
                           <button type="button" onClick={() => { fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, { method: 'PUT', body: JSON.stringify({ status: 'delivered' }) }).then((d: Record<string, unknown>) => { if (d.ok) { toast('Marked as delivered', 'success'); load(); } else toast(String(d.error), 'error'); }).catch(err => toast(err.message, 'error')); }} className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg"><Package size={12} /> Mark Delivered</button>
                         )}
+                        <div className="flex items-center gap-1">
+                          <input type="text" placeholder="EWB Number" defaultValue={(selectedBatch as Record<string, unknown>).ewbNumber as string || ''} onBlur={(e) => { const val = e.target.value.trim(); fetchApi(`/distribution/batch/${selectedBatch.batchId}/ewb`, { method: 'PUT', body: JSON.stringify({ ewbNumber: val || null }) }).then(() => { if (val) toast('EWB number saved', 'success'); }).catch(() => {}); }} className="w-36 px-2 py-1 text-xs border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-brand" maxLength={15} />
+                        </div>
                       </>;
                     })()}
                     {!isVendorUser && canEdit && !selectedBatchProductId && selectedBatch.balanceRemaining > 0 && (
