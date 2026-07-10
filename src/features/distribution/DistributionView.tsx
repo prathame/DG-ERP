@@ -546,7 +546,7 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
         {modalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-4xl rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-6xl rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-lg font-bold mb-1">Distribute Products to Vendor</h3>
               <p className="text-sm text-gray-500 mb-4">Add multiple products, set quantity and discount for each. Save all at once.</p>
 
@@ -558,14 +558,14 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
               <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
                 <table className="w-full text-left">
                   <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
-                    <th className="px-3 py-3 w-8">#</th>
-                    <th className="px-3 py-3">Product</th>
-                    <th className="px-3 py-3 w-28">Qty</th>
-                    <th className="px-3 py-3 w-28">Price</th>
-                    <th className="px-3 py-3 w-24">Disc%</th>
-                    <th className="px-3 py-3 w-14 text-center">GST</th>
-                    <th className="px-3 py-3 w-28 text-right">Billed</th>
-                    <th className="px-3 py-3 w-10"></th>
+                    <th className="px-2 py-3 w-8">#</th>
+                    <th className="px-2 py-3 min-w-[200px]">Product</th>
+                    <th className="px-2 py-3 w-24">Qty</th>
+                    <th className="px-2 py-3 w-32">Price (₹)</th>
+                    <th className="px-2 py-3 w-20">Disc%</th>
+                    <th className="px-2 py-3 w-12 text-center">GST</th>
+                    <th className="px-2 py-3 w-36 text-right">Billed (₹)</th>
+                    <th className="px-2 py-3 w-8"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {distRows.map((row, idx) => {
@@ -601,11 +601,16 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
                             </div>
                             {isBox && (row.quantity || 0) > 0 && <span className="text-[10px] text-gray-400">= {(row.quantity || 0) * packSz} pcs</span>}
                           </td>
-                          <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? `₹${p.price}` : '—'} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
-                          <td className="px-3 py-2"><input type="text" inputMode="decimal" value={row.discount || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'discount', v === '' ? 0 : parseFloat(v)); }} placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
-                          <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-brand" /></td>
-                          <td className="px-3 py-2 text-right text-sm font-bold">{billed > 0 ? <span>{row.withGst && <span className="text-[10px] text-gray-400 block">₹{net.toLocaleString()} +GST</span>}₹{billed.toLocaleString()}</span> : '-'}</td>
-                          <td className="px-3 py-2">{distRows.length > 1 && <button type="button" onClick={() => removeDistRow(idx)} className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded">×</button>}</td>
+                          <td className="px-2 py-2">
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">₹</span>
+                              <input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? String(p.price) : '—'} className="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+                            </div>
+                          </td>
+                          <td className="px-2 py-2"><input type="text" inputMode="decimal" value={row.discount || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'discount', v === '' ? 0 : parseFloat(v)); }} placeholder="0" className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
+                          <td className="px-2 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-brand" /></td>
+                          <td className="px-2 py-2 text-right font-bold whitespace-nowrap">{billed > 0 ? <span>{row.withGst && <span className="text-[10px] text-gray-400 block">₹{net.toLocaleString()} +GST</span>}<span className="text-base">₹{billed.toLocaleString()}</span></span> : '-'}</td>
+                          <td className="px-1 py-2">{distRows.length > 1 && <button type="button" onClick={() => removeDistRow(idx)} className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded">×</button>}</td>
                         </tr>
                       );
                     })}
