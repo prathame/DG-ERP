@@ -647,6 +647,7 @@ export async function initSchema() {
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_quotations_tenant_num ON quotations(tenant_id, quotation_number)');
 
     // Missing performance indexes
+    await client.query('ALTER TABLE product_purchases ALTER COLUMN barcode DROP NOT NULL');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_batch ON product_purchases(tenant_id, batch_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_date ON product_purchases(tenant_id, purchase_date)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_product ON product_purchases(tenant_id, product_id)');
