@@ -14,7 +14,8 @@ import { StaffMasterView } from '../masters/StaffMasterView';
 
 type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'staff';
 
-export function DashboardView({ user, setActiveTab }: { user: { id: string; role?: string; vendorId?: string } | null; setActiveTab: (tab: Tab) => void }) {
+export function DashboardView({ user, setActiveTab, businessType = 'manufacturer' }: { user: { id: string; role?: string; vendorId?: string } | null; setActiveTab: (tab: Tab) => void; businessType?: string }) {
+  const isDirectSell = businessType === 'dealer' || businessType === 'retail';
   const [stats, setStats] = useState<{ label: string; value: string; change: string; icon: typeof TrendingUp; color: string; bg: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [lowStockProducts, setLowStockProducts] = useState<{ id: string; name: string; stock: number }[]>([]);
@@ -77,7 +78,7 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
   if (loading) return <div className="flex items-center justify-center py-20"><LoadingSpinner /></div>;
 
   if (selectedMaster === 'customer') return <CustomerMasterView onBack={() => { setSelectedMaster(null); refreshCounts(); }} onRefresh={refreshCounts} user={user} />;
-  if (selectedMaster === 'vendor') return <VendorMasterView onBack={() => { setSelectedMaster(null); refreshCounts(); }} onRefresh={refreshCounts} />;
+  if (selectedMaster === 'vendor') return <VendorMasterView onBack={() => { setSelectedMaster(null); refreshCounts(); }} onRefresh={refreshCounts} businessType={businessType} />;
   if (selectedMaster === 'bank') return <BankMasterView onBack={() => { setSelectedMaster(null); refreshCounts(); }} onRefresh={refreshCounts} />;
   if (selectedMaster === 'mapping') return <VendorCustomerMappingView onBack={() => setSelectedMaster(null)} />;
   if (selectedMaster === 'rewardRules') return <RewardRulesView onBack={() => setSelectedMaster(null)} />;
@@ -89,7 +90,7 @@ export function DashboardView({ user, setActiveTab }: { user: { id: string; role
   const hasCustomerTracking = tv('sales');
   const allMasters = [
     ...(hasCustomerTracking ? [{ id: 'customer' as const, name: 'Customers', count: masterCounts.customer, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' }] : []),
-    { id: 'vendor' as const, name: 'Vendors', count: masterCounts.vendor, icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { id: 'vendor' as const, name: isDirectSell ? 'Customers' : 'Vendors', count: masterCounts.vendor, icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50' },
     ...(tv('rewards') ? [{ id: 'rewardRules' as const, name: 'Reward Rules', count: null as number | null, icon: Gift, color: 'text-amber-600', bg: 'bg-amber-50' }] : []),
     ...(hasCustomerTracking ? [{ id: 'mapping' as const, name: 'Vendor-Customer Map', count: null as number | null, icon: Link2, color: 'text-cyan-600', bg: 'bg-cyan-50' }] : []),
     { id: 'item' as const, name: 'Products', count: masterCounts.item, icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },

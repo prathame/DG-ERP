@@ -414,7 +414,7 @@ export default function App() {
         <div className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
           <Suspense fallback={<LazyFallback />}>
           <div key={tabKey}>
-          {activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} />}
+          {activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
           {activeTab === 'sales' && <SalesEntryView user={user} />}
           {activeTab === 'purchases' && <PurchasesView accessLevel={getAccess('purchases')} />}
           {activeTab === 'distribution' && <DistributionView user={user} accessLevel={getAccess('distribution')} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
