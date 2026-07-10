@@ -171,7 +171,6 @@ export default function App() {
     { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') },
     { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') },
     { id: 'accounts', label: 'Accounts', icon: BarChart3, show: true },
-    { id: 'payroll', label: 'Staff Payments', icon: Users, show: true },
   ];
   const navItems = allNavItems.filter(item => item.show);
 
@@ -427,7 +426,6 @@ export default function App() {
           {activeTab === 'quotations' && <QuotationsAndOrdersView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} accessLevel={getAccess('finance')} />}
           {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} />}
-          {activeTab === 'payroll' && <PayrollView accessLevel={getAccess('payroll')} />}
           </div>
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
           </Suspense>
