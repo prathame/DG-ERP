@@ -128,11 +128,13 @@ router.post('/api/purchases/batch', async (req, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      let seq = 0;
       for (const u of purchaseRows) {
         for (let i = 0; i < u.qty; i++) {
+          seq++;
           await client.query(
             'INSERT INTO product_purchases (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-            [`${u.id}-${i + 1}`, tenantId, batchId, u.productId, supplierId, date, u.costPrice, u.gstApplied, u.billedPrice, u.disc]
+            [`${batchId}-${seq}`, tenantId, batchId, u.productId, supplierId, date, u.costPrice, u.gstApplied, u.billedPrice, u.disc]
           );
         }
       }
