@@ -17,6 +17,7 @@ import {
   ShoppingBag,
   BarChart3,
   ClipboardList,
+  Users,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -44,6 +45,7 @@ const OrdersView = lazy(() => import('./features/orders/OrdersView').then(m => (
 const AccountsView = lazy(() => import('./features/accounts/AccountsView').then(m => ({ default: m.AccountsView })));
 const SettingsView = lazy(() => import('./features/settings/SettingsView').then(m => ({ default: m.SettingsView })));
 const ProductVerificationView = lazy(() => import('./features/verification/ProductVerificationView').then(m => ({ default: m.ProductVerificationView })));
+const PayrollView = lazy(() => import('./features/payroll/PayrollView').then(m => ({ default: m.PayrollView })));
 const SuperAdminApp = lazy(() => import('./features/super-admin/SuperAdminApp').then(m => ({ default: m.SuperAdminApp })));
 const SuperAdminLogin = lazy(() => import('./features/super-admin/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })));
 
@@ -169,6 +171,7 @@ export default function App() {
     { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') },
     { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') },
     { id: 'accounts', label: 'Accounts', icon: BarChart3, show: true },
+    { id: 'payroll', label: 'Staff Payments', icon: Users, show: true },
   ];
   const navItems = allNavItems.filter(item => item.show);
 
@@ -424,6 +427,7 @@ export default function App() {
           {activeTab === 'quotations' && <QuotationsAndOrdersView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} accessLevel={getAccess('finance')} />}
           {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} />}
+          {activeTab === 'payroll' && <PayrollView accessLevel={getAccess('payroll')} />}
           </div>
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
           </Suspense>

@@ -476,6 +476,19 @@ export const api = {
     updateSettings: (data: { enabled: boolean; frequency: string; intervalDays?: number; email?: string }) =>
       fetchApi<{ ok: boolean; enabled: boolean; frequency: string; intervalDays: number; email: string | null }>('/backup/settings', { method: 'PUT', body: JSON.stringify(data) }),
   },
+  payroll: {
+    list: (filters?: { month?: string; year?: number; staffName?: string }) => {
+      const q = new URLSearchParams();
+      if (filters?.month) q.set('month', filters.month);
+      if (filters?.year) q.set('year', String(filters.year));
+      if (filters?.staffName) q.set('staffName', filters.staffName);
+      return fetchApi<{ id: string; staffName: string; amount: number; paymentDate: string; paymentMethod: string; referenceNumber?: string; notes?: string; month: string; year: number }[]>(`/payroll?${q}`);
+    },
+    summary: (year?: number) => fetchApi<{ year: number; grandTotal: number; byStaff: { name: string; total: number; payments: number }[]; byMonth: { month: string; total: number; payments: number }[] }>(`/payroll/summary?year=${year || new Date().getFullYear()}`),
+    create: (data: { staffName: string; amount: number; paymentDate?: string; paymentMethod?: string; referenceNumber?: string; notes?: string }) =>
+      fetchApi<{ id: string; staffName: string; amount: number; paymentDate: string }>('/payroll', { method: 'POST', body: JSON.stringify(data) }),
+    delete: (id: string) => fetchApi<{ ok: boolean }>(`/payroll/${id}`, { method: 'DELETE' }),
+  },
   settings: {
     getProfile: (userId: string) =>
       fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),

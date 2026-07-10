@@ -491,6 +491,16 @@ export async function initSchema() {
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS purchases_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS chatbot_enabled BOOLEAN DEFAULT true');
 
+    // Staff payroll (mini)
+    await client.query(`CREATE TABLE IF NOT EXISTS staff_payments (
+      id TEXT NOT NULL, tenant_id TEXT NOT NULL REFERENCES tenants(id), staff_name TEXT NOT NULL,
+      amount NUMERIC(12,2) NOT NULL, payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      payment_method TEXT DEFAULT 'Cash', reference_number TEXT, notes TEXT,
+      month TEXT, year INTEGER, created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(id, tenant_id)
+    )`);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_staff_pay ON staff_payments(tenant_id, payment_date)');
+
     // Batch-level payment tracking
     await client.query('ALTER TABLE vendor_payments ADD COLUMN IF NOT EXISTS batch_id TEXT');
     await client.query('CREATE INDEX IF NOT EXISTS idx_vp_batch ON vendor_payments(tenant_id, batch_id)');
