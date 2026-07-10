@@ -114,21 +114,23 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
     )).rows[0].t) || 0;
 
     // Expenses
-    const [purchaseRes, staffRes] = await Promise.all([
+    const [purchaseRes, staffRes, expenseRes] = await Promise.all([
       pool.query('SELECT COALESCE(SUM(COALESCE(billed_price, cost_price, 0)), 0) as t FROM product_purchases WHERE tenant_id = $1 AND purchase_date >= $2 AND purchase_date <= $3', [tenantId, from, to]),
       pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM staff_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 AND payment_type IN ('salary','bonus')", [tenantId, from, to]),
+      pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3', [tenantId, from, to]),
     ]);
     const purchaseCost = Number(purchaseRes.rows[0].t) || 0;
     const staffCost = Number(staffRes.rows[0].t) || 0;
+    const expenseCost = Number(expenseRes.rows[0].t) || 0;
 
     const totalRevenue = distRevenue + salesRevenue;
-    const totalExpenses = purchaseCost + staffCost;
+    const totalExpenses = purchaseCost + staffCost + expenseCost;
     const grossProfit = totalRevenue - totalExpenses;
 
     res.json({
       period: { from, to },
       revenue: { distributionRevenue: distRevenue, salesRevenue, total: totalRevenue },
-      expenses: { purchaseCost, staffPayments: staffCost, total: totalExpenses },
+      expenses: { purchaseCost, staffPayments: staffCost, otherExpenses: expenseCost, total: totalExpenses },
       grossProfit,
       profitMargin: totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 100) : 0,
     });
@@ -140,14 +142,15 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const [invValRes, distRes, vpRes, spRes, purchRes, advRes, staffPaidRes] = await Promise.all([
+    const [invValRes, distRes, vpRes, spRes, purchRes, advRes, staffAllRes, expRes] = await Promise.all([
       pool.query(`SELECT COALESCE(SUM(p.price), 0) as t FROM product_inventory pi JOIN products p ON pi.product_id = p.id AND p.tenant_id = $1 WHERE pi.tenant_id = $1 AND pi.status = 'InStock'`, [tenantId]),
       pool.query(`SELECT COALESCE(SUM(${DISTRIBUTION_BILL_UNIT_SQL}), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1 WHERE pd.tenant_id = $1`, [tenantId]),
       pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE tenant_id = $1', [tenantId]),
       pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM supplier_payments WHERE tenant_id = $1', [tenantId]),
       pool.query('SELECT COALESCE(SUM(COALESCE(billed_price, cost_price, 0)), 0) as t FROM product_purchases WHERE tenant_id = $1', [tenantId]),
       pool.query("SELECT COALESCE(SUM(CASE WHEN payment_type='advance' THEN amount ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN payment_type='advance_repay' THEN amount ELSE 0 END), 0) as t FROM staff_payments WHERE tenant_id = $1", [tenantId]),
-      pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM staff_payments WHERE tenant_id = $1 AND payment_type IN ('salary','bonus')", [tenantId]),
+      pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM staff_payments WHERE tenant_id = $1 AND payment_type IN ('salary','bonus','advance')", [tenantId]),
+      pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE tenant_id = $1', [tenantId]),
     ]);
     const inventoryValue = Number(invValRes.rows[0].t) || 0;
     const totalDistributed = Number(distRes.rows[0].t) || 0;
@@ -155,8 +158,9 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
     const receivables = totalDistributed - totalVendorPayments;
     const totalSupplierPayments = Number(spRes.rows[0].t) || 0;
     const staffAdvanceBalance = Math.max(0, Number(advRes.rows[0].t) || 0);
-    const staffPaid = Number(staffPaidRes.rows[0].t) || 0;
-    const cashBank = totalVendorPayments - totalSupplierPayments - staffPaid;
+    const staffAllPaid = Number(staffAllRes.rows[0].t) || 0;
+    const totalExpenses = Number(expRes.rows[0].t) || 0;
+    const cashBank = totalVendorPayments - totalSupplierPayments - staffAllPaid - totalExpenses;
     const totalPurchased = Number(purchRes.rows[0].t) || 0;
 
     const payables = totalPurchased - totalSupplierPayments;
@@ -189,32 +193,38 @@ router.get('/api/accounts/cash-flow', async (req, res) => {
     const from = (req.query.from as string) || `${new Date().getFullYear()}-04-01`;
     const to = (req.query.to as string) || new Date().toISOString().slice(0, 10);
 
-    const [vpRes, spRes, staffRes, monthlyInRes, monthlyOutRes, monthlyStaffRes] = await Promise.all([
+    const [vpRes, spRes, staffRes, expCfRes, monthlyInRes, monthlyOutRes, monthlyStaffRes, monthlyExpRes] = await Promise.all([
       pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3', [tenantId, from, to]),
       pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM supplier_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3', [tenantId, from, to]),
       pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM staff_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 AND payment_type IN ('salary','bonus','advance')", [tenantId, from, to]),
+      pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3', [tenantId, from, to]),
       pool.query("SELECT to_char(payment_date, 'YYYY-MM') as month, SUM(amount) as total FROM vendor_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 GROUP BY to_char(payment_date, 'YYYY-MM') ORDER BY month", [tenantId, from, to]),
       pool.query("SELECT to_char(payment_date, 'YYYY-MM') as month, SUM(amount) as total FROM supplier_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 GROUP BY to_char(payment_date, 'YYYY-MM') ORDER BY month", [tenantId, from, to]),
       pool.query("SELECT to_char(payment_date, 'YYYY-MM') as month, SUM(amount) as total FROM staff_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 AND payment_type IN ('salary','bonus','advance') GROUP BY to_char(payment_date, 'YYYY-MM') ORDER BY month", [tenantId, from, to]),
+      pool.query("SELECT to_char(expense_date, 'YYYY-MM') as month, SUM(amount) as total FROM expenses WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3 GROUP BY to_char(expense_date, 'YYYY-MM') ORDER BY month", [tenantId, from, to]),
     ]);
     const vendorPayments = Number(vpRes.rows[0].t) || 0;
     const supplierPayments = Number(spRes.rows[0].t) || 0;
     const staffPayments = Number(staffRes.rows[0].t) || 0;
+    const expenseTotal = Number(expCfRes.rows[0].t) || 0;
     const monthlyIn = monthlyInRes.rows as { month: string; total: string }[];
     const monthlyOut = monthlyOutRes.rows as { month: string; total: string }[];
     const monthlyStaff = monthlyStaffRes.rows as { month: string; total: string }[];
+    const monthlyExp = monthlyExpRes.rows as { month: string; total: string }[];
 
-    const months = new Set([...monthlyIn.map(r => r.month), ...monthlyOut.map(r => r.month), ...monthlyStaff.map(r => r.month)]);
+    const months = new Set([...monthlyIn.map(r => r.month), ...monthlyOut.map(r => r.month), ...monthlyStaff.map(r => r.month), ...monthlyExp.map(r => r.month)]);
     const inMap: Record<string, number> = {}; for (const r of monthlyIn) inMap[r.month] = Number(r.total) || 0;
     const outMap: Record<string, number> = {}; for (const r of monthlyOut) outMap[r.month] = Number(r.total) || 0;
     const staffMap: Record<string, number> = {}; for (const r of monthlyStaff) staffMap[r.month] = Number(r.total) || 0;
-    const monthly = [...months].sort().map(m => ({ month: m, inflow: inMap[m] || 0, outflow: (outMap[m] || 0) + (staffMap[m] || 0), supplierPayments: outMap[m] || 0, staffPayments: staffMap[m] || 0, net: (inMap[m] || 0) - (outMap[m] || 0) - (staffMap[m] || 0) }));
+    const expMap: Record<string, number> = {}; for (const r of monthlyExp) expMap[r.month] = Number(r.total) || 0;
+    const totalOutflow = supplierPayments + staffPayments + expenseTotal;
+    const monthly = [...months].sort().map(m => ({ month: m, inflow: inMap[m] || 0, outflow: (outMap[m] || 0) + (staffMap[m] || 0) + (expMap[m] || 0), supplierPayments: outMap[m] || 0, staffPayments: staffMap[m] || 0, expenses: expMap[m] || 0, net: (inMap[m] || 0) - (outMap[m] || 0) - (staffMap[m] || 0) - (expMap[m] || 0) }));
 
     res.json({
       period: { from, to },
       inflows: { vendorPayments, total: vendorPayments },
-      outflows: { supplierPayments, staffPayments, total: supplierPayments + staffPayments },
-      netCashFlow: vendorPayments - supplierPayments - staffPayments,
+      outflows: { supplierPayments, staffPayments, expenses: expenseTotal, total: totalOutflow },
+      netCashFlow: vendorPayments - totalOutflow,
       monthly,
     });
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
@@ -303,7 +313,7 @@ router.get('/api/accounts/day-book', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const date = (req.query.date as string) || new Date().toISOString().slice(0, 10);
 
-    const [sales, distributions, purchases, vendorPayments, supplierPayments, staffPays] = await Promise.all([
+    const [sales, distributions, purchases, vendorPayments, supplierPayments, staffPays, expenseRows] = await Promise.all([
       pool.query(`SELECT ps.id, ps.purchase_date as date, ps.customer_name, COALESCE(ps.sale_price, p.price) as amount, p.name as product_name, 'Sale' as type
         FROM product_sales ps JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1
         WHERE ps.tenant_id = $1 AND ps.purchase_date = $2`, [tenantId, date]),
@@ -327,6 +337,8 @@ router.get('/api/accounts/day-book', async (req, res) => {
         WHERE sp.tenant_id = $1 AND sp.payment_date = $2`, [tenantId, date]),
       pool.query(`SELECT id, payment_date as date, staff_name, amount, payment_type, payment_method
         FROM staff_payments WHERE tenant_id = $1 AND payment_date = $2`, [tenantId, date]),
+      pool.query(`SELECT id, expense_date as date, category, description, amount, payment_method
+        FROM expenses WHERE tenant_id = $1 AND expense_date = $2`, [tenantId, date]),
     ]);
 
     const entries: { id: string; date: string; type: string; party: string; product?: string; debit: number; credit: number; method?: string }[] = [];
@@ -351,6 +363,10 @@ router.get('/api/accounts/day-book', async (req, res) => {
       const pType = r.payment_type as string;
       const isOutflow = ['salary', 'bonus', 'advance'].includes(pType);
       entries.push({ id: r.id as string, date: r.date as string, type: typeLabels[pType] || 'Staff Payment', party: r.staff_name as string, debit: isOutflow ? 0 : Number(r.amount) || 0, credit: isOutflow ? Number(r.amount) || 0 : 0, method: r.payment_method as string });
+    }
+
+    for (const r of expenseRows.rows as Record<string, unknown>[]) {
+      entries.push({ id: r.id as string, date: r.date as string, type: `Expense: ${r.category}`, party: (r.description as string) || (r.category as string), debit: 0, credit: Number(r.amount) || 0, method: r.payment_method as string });
     }
 
     const totalDebit = entries.reduce((s, e) => s + e.debit, 0);

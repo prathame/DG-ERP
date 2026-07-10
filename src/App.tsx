@@ -222,6 +222,10 @@ export default function App() {
 
   const authState = getAuthState();
 
+  useEffect(() => {
+    if (authState.isSuperAdmin && urlSlug) session.clearAll();
+  }, [authState.isSuperAdmin, urlSlug]);
+
   // /admin route — super admin portal
   if (isSuperAdminRoute) {
     if (authState.isSuperAdmin) {
@@ -239,11 +243,6 @@ export default function App() {
       </Suspense></ToastProvider>
     );
   }
-
-  // Super admin visiting a tenant slug — clear super admin session, show tenant login
-  useEffect(() => {
-    if (authState.isSuperAdmin && urlSlug) session.clearAll();
-  }, [authState.isSuperAdmin, urlSlug]);
 
   // No user session — show tenant login
   if (!user) {

@@ -63,8 +63,10 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
         if (confirm(`Send WhatsApp message to ${selected.name}?`)) shareViaWhatsApp(selected.phone, msg);
       }
       setPayForm({ amount: '', paymentType: 'salary', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
-      load();
-      selectStaff(selected);
+      const refreshed = await api.staff.list();
+      setList(refreshed);
+      const updated = refreshed.find(s => s.id === selected.id);
+      if (updated) selectStaff(updated);
     } catch (e) { toast((e as Error).message, 'error'); }
   };
 
@@ -99,7 +101,6 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
       {!loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {list.map(s => {
-            const due = s.salary ? Math.max(0, s.salary - s.totalPaid) : 0;
             const isSelected = selected?.id === s.id;
             return (
               <button key={s.id} type="button" onClick={() => selectStaff(s)}
@@ -117,7 +118,6 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
                   {s.salary > 0 && <span>Salary: <b>₹{s.salary.toLocaleString()}</b></span>}
                   <span>Paid: <b className="text-emerald-600">₹{s.totalPaid.toLocaleString()}</b></span>
                   {s.advanceBalance > 0 && <span>Advance: <b className="text-amber-600">₹{s.advanceBalance.toLocaleString()}</b></span>}
-                  {due > 0 && <span>Due: <b className="text-rose-600">₹{due.toLocaleString()}</b></span>}
                 </div>
                 <p className="text-[10px] text-gray-400 mt-2">Click to view payments</p>
               </button>

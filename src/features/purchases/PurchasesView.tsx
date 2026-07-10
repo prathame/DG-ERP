@@ -229,7 +229,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div><h2 className="text-xl font-bold flex items-center gap-2"><ShoppingBag size={22} /> Purchases & Expenses</h2><p className="text-sm text-gray-500">Track purchases from suppliers + business expenses</p></div>
         <div className="flex gap-2">
-          {section === 'purchases' && <>
+          {section === 'purchases' && canEdit && <>
             <button type="button" onClick={() => setSupplierModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50"><Plus size={16} /> Add Supplier</button>
             <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><ShoppingBag size={16} /> New Purchase</button>
           </>}

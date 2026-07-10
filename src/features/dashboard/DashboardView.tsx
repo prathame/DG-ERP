@@ -89,7 +89,7 @@ export function DashboardView({ user, setActiveTab, businessType = 'manufacturer
 
   const hasCustomerTracking = tv('sales');
   const allMasters = [
-    ...(hasCustomerTracking ? [{ id: 'customer' as const, name: 'Customers', count: masterCounts.customer, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' }] : []),
+    ...(hasCustomerTracking && !isDirectSell ? [{ id: 'customer' as const, name: 'Customers', count: masterCounts.customer, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' }] : []),
     { id: 'vendor' as const, name: isDirectSell ? 'Customers' : 'Vendors', count: masterCounts.vendor, icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50' },
     ...(tv('rewards') ? [{ id: 'rewardRules' as const, name: 'Reward Rules', count: null as number | null, icon: Gift, color: 'text-amber-600', bg: 'bg-amber-50' }] : []),
     ...(hasCustomerTracking ? [{ id: 'mapping' as const, name: 'Vendor-Customer Map', count: null as number | null, icon: Link2, color: 'text-cyan-600', bg: 'bg-cyan-50' }] : []),

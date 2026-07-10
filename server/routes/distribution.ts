@@ -272,9 +272,24 @@ router.post('/api/distribution/batch', async (req, res) => {
           'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
           [payId, vendorId, paidAmount, date, 'Cash', null, `Payment against distribution ${batchId}`, tenantId, batchId]
         );
+        // Auto-mark as sold for dealer/retail tenants
+        const tenantType = (await client.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]?.business_type;
+        const autoSold = tenantType === 'dealer' || tenantType === 'retail';
+        if (autoSold) {
+          await client.query("UPDATE product_distribution SET status = 'Sold' WHERE batch_id = $1 AND tenant_id = $2", [batchId, tenantId]);
+          await client.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode IN (SELECT barcode FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2) AND tenant_id = $2", [batchId, tenantId]);
+        }
+
         await client.query('COMMIT');
-        await logAudit(pool, tenantId, 'Payment Recorded', 'payment', payId, `${vendorName} paid ₹${paidAmount} (with distribution)`);
+        if (paidAmount) await logAudit(pool, tenantId, 'Payment Recorded', 'payment', payId, `${vendorName} paid ₹${paidAmount} (with distribution)`);
       } else {
+        // Auto-mark as sold for dealer/retail tenants
+        const tenantType = (await client.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]?.business_type;
+        const autoSold = tenantType === 'dealer' || tenantType === 'retail';
+        if (autoSold) {
+          await client.query("UPDATE product_distribution SET status = 'Sold' WHERE batch_id = $1 AND tenant_id = $2", [batchId, tenantId]);
+          await client.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode IN (SELECT barcode FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2) AND tenant_id = $2", [batchId, tenantId]);
+        }
         await client.query('COMMIT');
       }
     } catch (e) {
@@ -284,12 +299,8 @@ router.post('/api/distribution/batch', async (req, res) => {
       client.release();
     }
 
-    // Auto-mark as sold for dealer/retail tenants
     const tenantType = (await pool.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]?.business_type;
-    if (tenantType === 'dealer' || tenantType === 'retail') {
-      await pool.query("UPDATE product_distribution SET status = 'Sold' WHERE batch_id = $1 AND tenant_id = $2", [batchId, tenantId]);
-      await pool.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode IN (SELECT barcode FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2) AND tenant_id = $2", [batchId, tenantId]);
-    }
+    const autoSold = tenantType === 'dealer' || tenantType === 'retail';
 
     await logAudit(pool, tenantId, 'Distribution Created', 'distribution', batchId, `${totalQty} units (${productNames.join(', ')}) to ${vendorName}`);
 
@@ -300,10 +311,10 @@ router.post('/api/distribution/batch', async (req, res) => {
       distributionDate: date,
       productNames: [...new Set(productNames)],
       total: totalQty,
-      sold: 0,
+      sold: autoSold ? totalQty : 0,
       replaced: 0,
       damaged: 0,
-      availableWithVendor: totalQty,
+      availableWithVendor: autoSold ? 0 : totalQty,
       billValue: totalBilled,
       discountPercent: 0,
       gstApplied: items.some((i) => i.withGst !== false),
@@ -421,7 +432,7 @@ router.post('/api/distribution', async (req, res) => {
       discountAmount,
       netAmount,
       amountPaid: paidAmount ?? 0,
-      balanceRemaining: netAmount - (paidAmount ?? 0),
+      balanceRemaining: totalBilled - (paidAmount ?? 0),
     });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });

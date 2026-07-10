@@ -194,7 +194,7 @@ function ProfitLoss({ data, ds }: { data: Record<string, unknown>; ds: boolean }
           <h3 className="font-bold text-sm text-gray-400 uppercase mb-4">Revenue</h3>
           <div className="space-y-3">
             <div className="flex justify-between"><span className="text-sm">{ds ? 'Sales Revenue' : 'Distribution Revenue'}</span><span className="font-bold text-blue-600">{fmtCurrency(rev.distributionRevenue)}</span></div>
-            <div className="flex justify-between"><span className="text-sm">Sales Revenue</span><span className="font-bold text-blue-600">{fmtCurrency(rev.salesRevenue)}</span></div>
+            {!ds && <div className="flex justify-between"><span className="text-sm">Direct Sales Revenue</span><span className="font-bold text-blue-600">{fmtCurrency(rev.salesRevenue)}</span></div>}
             <div className="border-t pt-2 flex justify-between"><span className="font-bold">Total Revenue</span><span className="font-bold text-blue-600 text-lg">{fmtCurrency(rev.total)}</span></div>
           </div>
         </div>

@@ -557,7 +557,7 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
               <p className="text-sm text-gray-500 mb-4">Add multiple products, set quantity and discount for each. Save all at once.</p>
 
               <div className="grid grid-cols-2 gap-4 mb-4">
-                <div><label className="text-xs font-bold text-gray-400 uppercase">Vendor</label><select value={distVendorId} onChange={(e) => setDistVendorId(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"><option value="">Select vendor</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">{isDirectSell ? 'Customer' : 'Vendor'}</label><select value={distVendorId} onChange={(e) => setDistVendorId(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"><option value="">{isDirectSell ? 'Select customer' : 'Select vendor'}</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Date</label><input type="date" value={distDate} onChange={(e) => setDistDate(e.target.value)} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
               </div>
 
