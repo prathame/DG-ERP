@@ -645,6 +645,9 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_pd_status ON product_distribution(tenant_id, status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(tenant_id, status)');
 
+    // Business type
+    await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_type TEXT DEFAULT 'manufacturer'");
+
     // Backup settings
     await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_enabled BOOLEAN DEFAULT false");
     await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_frequency TEXT DEFAULT 'weekly'");

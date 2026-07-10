@@ -10,12 +10,13 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 
-export function DistributionView({ user, accessLevel = 'full' }: { user: { id: string; role?: string; vendorId?: string } | null; accessLevel?: 'hidden' | 'view' | 'print' | 'full' }) {
+export function DistributionView({ user, accessLevel = 'full', businessType = 'manufacturer' }: { user: { id: string; role?: string; vendorId?: string } | null; accessLevel?: 'hidden' | 'view' | 'print' | 'full'; businessType?: string }) {
   const { toast } = useToast();
   const canEdit = accessLevel === 'full';
   const canPrint = accessLevel === 'print' || accessLevel === 'full';
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
   const isVendorUser = !!vendorId;
+  const isDirectSell = businessType === 'dealer' || businessType === 'retail';
   const [distributions, setDistributions] = useState<DistributionRecord[]>([]);
   const [batches, setBatches] = useState<DistributionBatch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -204,8 +205,8 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-xl font-bold">Product Distribution</h2>
-          <p className="text-sm text-gray-500">{vendorId ? 'Your distributed products' : 'Assign products to vendors for sale'}</p>
+          <h2 className="text-xl font-bold">{isDirectSell ? 'Sales' : 'Product Distribution'}</h2>
+          <p className="text-sm text-gray-500">{vendorId ? 'Your distributed products' : isDirectSell ? 'Track your sales' : 'Assign products to vendors for sale'}</p>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => distributions.length && exportToCsv(distributions.map((d) => ({ id: d.id, barcode: d.barcode, productName: d.productName, vendorName: d.vendorName, distributionDate: d.distributionDate, status: d.status })), 'distribution')} disabled={!distributions.length} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -213,7 +214,7 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
           </button>
           {!vendorId && canEdit && (
             <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold">
-              <Plus size={18} /> Distribute to Vendor
+              <Plus size={18} /> {isDirectSell ? 'Record Sale' : 'Distribute to Vendor'}
             </button>
           )}
         </div>
@@ -262,11 +263,11 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
             )}
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pr-16">{v.vendorName}</p>
             <div className="mt-2 flex gap-4 text-sm flex-wrap">
-              <span><strong>{v.distributed}</strong> distributed</span>
-              <span className="text-emerald-600"><strong>{v.sold}</strong> sold</span>
+              <span><strong>{v.distributed}</strong> {isDirectSell ? 'sold' : 'distributed'}</span>
+              {!isDirectSell && <span className="text-emerald-600"><strong>{v.sold}</strong> sold</span>}
               {(v.replaced ?? 0) > 0 && <span className="text-amber-600"><strong>{v.replaced}</strong> replacement{(v.replaced ?? 0) !== 1 ? 's' : ''}</span>}
               {(v.damaged ?? 0) > 0 && <span className="text-rose-600"><strong>{v.damaged}</strong> damaged</span>}
-              <span className="text-blue-600"><strong>{v.availableWithVendor}</strong> with vendor</span>
+              {!isDirectSell && <span className="text-blue-600"><strong>{v.availableWithVendor}</strong> with vendor</span>}
             </div>
             {financeMap[v.vendorId] && (() => {
               const f = financeMap[v.vendorId];
@@ -547,7 +548,7 @@ export function DistributionView({ user, accessLevel = 'full' }: { user: { id: s
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-6xl rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg font-bold mb-1">Distribute Products to Vendor</h3>
+              <h3 className="text-lg font-bold mb-1">{isDirectSell ? 'Record Sale' : 'Distribute Products to Vendor'}</h3>
               <p className="text-sm text-gray-500 mb-4">Add multiple products, set quantity and discount for each. Save all at once.</p>
 
               <div className="grid grid-cols-2 gap-4 mb-4">

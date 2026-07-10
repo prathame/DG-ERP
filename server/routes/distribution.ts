@@ -284,6 +284,13 @@ router.post('/api/distribution/batch', async (req, res) => {
       client.release();
     }
 
+    // Auto-mark as sold for dealer/retail tenants
+    const tenantType = (await pool.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]?.business_type;
+    if (tenantType === 'dealer' || tenantType === 'retail') {
+      await pool.query("UPDATE product_distribution SET status = 'Sold' WHERE batch_id = $1 AND tenant_id = $2", [batchId, tenantId]);
+      await pool.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode IN (SELECT barcode FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2) AND tenant_id = $2", [batchId, tenantId]);
+    }
+
     await logAudit(pool, tenantId, 'Distribution Created', 'distribution', batchId, `${totalQty} units (${productNames.join(', ')}) to ${vendorName}`);
 
     res.status(201).json({

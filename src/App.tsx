@@ -417,7 +417,7 @@ export default function App() {
           {activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} />}
           {activeTab === 'sales' && <SalesEntryView user={user} />}
           {activeTab === 'purchases' && <PurchasesView accessLevel={getAccess('purchases')} />}
-          {activeTab === 'distribution' && <DistributionView user={user} accessLevel={getAccess('distribution')} />}
+          {activeTab === 'distribution' && <DistributionView user={user} accessLevel={getAccess('distribution')} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
           {activeTab === 'warranty' && <WarrantyView user={user} />}
           {activeTab === 'replacements' && <ReplacementsView user={user} />}
           {activeTab === 'rewards' && <RewardsView user={user} />}

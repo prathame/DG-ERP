@@ -160,7 +160,8 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       finance: { label: 'Finance', visible: true }, chatbot: { label: 'Chatbot', visible: true },
       settings: { label: 'Settings', visible: true },
     };
-    await pool.query('UPDATE tenants SET tab_config = $1 WHERE id = $2', [JSON.stringify(req.body.tabConfig || defaultTabConfig), result.tenantId]);
+    const bType = ['manufacturer', 'dealer', 'retail'].includes(req.body.businessType) ? req.body.businessType : 'manufacturer';
+    await pool.query('UPDATE tenants SET tab_config = $1, business_type = $2 WHERE id = $3', [JSON.stringify(req.body.tabConfig || defaultTabConfig), bType, result.tenantId]);
     await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ ...result, adminEmail, password: result.credentials.password, companyName });
   } catch (err) {
@@ -217,13 +218,14 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     if (requestBody.accountsEnabled !== undefined) { updates.push(`accounts_enabled = $${idx}`); params.push(!!requestBody.accountsEnabled); idx++; }
     if (requestBody.purchasesEnabled !== undefined) { updates.push(`purchases_enabled = $${idx}`); params.push(!!requestBody.purchasesEnabled); idx++; }
     if (requestBody.chatbotEnabled !== undefined) { updates.push(`chatbot_enabled = $${idx}`); params.push(!!requestBody.chatbotEnabled); idx++; }
+    if (requestBody.businessType !== undefined && ['manufacturer', 'dealer', 'retail'].includes(requestBody.businessType)) { updates.push(`business_type = $${idx}`); params.push(requestBody.businessType); idx++; }
     if (updates.length === 0) return res.status(400).json({ error: 'No updates provided' });
     params.push(id);
     const result = await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Tenant not found' });
     const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0] as Record<string, unknown>;
     await logAudit(pool, id, 'UPDATE', 'tenant', id, `Tenant updated: ${updates.join(', ')}`, (req as AuthRequest).user?.userId, 'Super Admin');
-    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, barcodeSystemEnabled: tenant.barcode_system_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false, vendorPortalEnabled: tenant.vendor_portal_enabled !== false, inventoryTrackingEnabled: tenant.inventory_tracking_enabled !== false, quotationsEnabled: tenant.quotations_enabled !== false, accountsEnabled: tenant.accounts_enabled !== false, purchasesEnabled: tenant.purchases_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, tabConfig: tenant.tab_config ?? null });
+    res.json({ id: tenant.id, companyName: tenant.company_name, status: tenant.status, planId: tenant.plan_id, businessType: tenant.business_type || 'manufacturer', barcodeSystemEnabled: tenant.barcode_system_enabled !== false, multiLanguageEnabled: tenant.multi_language_enabled !== false, vendorPortalEnabled: tenant.vendor_portal_enabled !== false, inventoryTrackingEnabled: tenant.inventory_tracking_enabled !== false, quotationsEnabled: tenant.quotations_enabled !== false, accountsEnabled: tenant.accounts_enabled !== false, purchasesEnabled: tenant.purchases_enabled !== false, chatbotEnabled: tenant.chatbot_enabled !== false, tabConfig: tenant.tab_config ?? null });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
