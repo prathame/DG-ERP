@@ -1131,37 +1131,46 @@ router.get('/api/distribution/einvoice', async (req, res) => {
     const distDate = items[0].distribution_date as string;
     const invoiceDate = new Date(distDate).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/');
 
+    const stateFromGstin = (gstin: string) => gstin?.length >= 2 ? gstin.substring(0, 2) : '00';
+    const pinFromAddress = (addr: string) => { const m = (addr || '').match(/\b(\d{6})\b/); return m ? parseInt(m[1], 10) : 0; };
+    const fromStcd = stateFromGstin(sellerGstin) || '24';
+    const toStcd = stateFromGstin(buyerGstin) || fromStcd;
+    const fromPin = pinFromAddress((tenant.address as string) || '') || 360001;
+    const toPin = pinFromAddress((vendor?.address as string) || '') || fromPin;
+    const isInterState = fromStcd !== toStcd;
+
     const eInvoice = {
       Version: '1.1',
-      TranDtls: { TaxSch: 'GST', SupTyp: isB2B ? 'B2B' : 'B2C', RegRev: 'N', IgstOnIntra: 'N' },
+      TranDtls: { TaxSch: 'GST', SupTyp: isB2B ? 'B2B' : 'B2C', RegRev: 'N', IgstOnIntra: isInterState ? 'Y' : 'N' },
       DocDtls: { Typ: 'INV', No: `INV-${batchId}`, Dt: invoiceDate },
       SellerDtls: {
         Gstin: sellerGstin,
         LglNm: tenant.company_name as string,
         Addr1: (tenant.address as string) || 'N/A',
-        Loc: 'Rajkot',
-        Pin: 360001,
-        Stcd: '24',
+        Loc: (tenant.address as string)?.split(',').slice(-2, -1)[0]?.trim() || 'N/A',
+        Pin: fromPin,
+        Stcd: fromStcd,
         Ph: (tenant.phone as string) || '',
         Em: (tenant.admin_email as string) || '',
       },
       BuyerDtls: {
         Gstin: buyerGstin || 'URP',
         LglNm: (vendor?.name as string) || 'Walk-in Customer',
-        Pos: '24',
+        Pos: toStcd,
         Addr1: (vendor?.address as string) || 'N/A',
-        Loc: 'Gujarat',
-        Pin: 360001,
-        Stcd: '24',
+        Loc: (vendor?.address as string)?.split(',').slice(-2, -1)[0]?.trim() || 'N/A',
+        Pin: toPin,
+        Stcd: toStcd,
         Ph: (vendor?.phone as string) || '',
         Em: (vendor?.email as string) || '',
       },
+      ...(isB2B ? { ShipDtls: { Gstin: buyerGstin, LglNm: (vendor?.name as string) || '', Addr1: (vendor?.address as string) || 'N/A', Loc: (vendor?.address as string)?.split(',').slice(-2, -1)[0]?.trim() || 'N/A', Pin: toPin, Stcd: toStcd } } : {}),
       ItemList: itemList,
       ValDtls: {
         AssVal: totTaxable,
-        CgstVal: totCgst,
-        SgstVal: totSgst,
-        IgstVal: 0,
+        CgstVal: isInterState ? 0 : totCgst,
+        SgstVal: isInterState ? 0 : totSgst,
+        IgstVal: isInterState ? totCgst + totSgst : 0,
         CesVal: 0,
         Discount: 0,
         OthChrg: 0,
@@ -1170,20 +1179,24 @@ router.get('/api/distribution/einvoice', async (req, res) => {
       },
     };
 
-    // Validations
+    // Validations (July 2026 compliant)
     const warnings: string[] = [];
+    const errors: string[] = [];
     const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-    if (!sellerGstin) warnings.push('Seller GSTIN is missing — add in Settings → Profile');
-    else if (!gstinRegex.test(sellerGstin)) warnings.push(`Seller GSTIN "${sellerGstin}" format is invalid`);
-    if (isB2B && !gstinRegex.test(buyerGstin)) warnings.push(`Buyer GSTIN "${buyerGstin}" format is invalid`);
+    if (!sellerGstin) errors.push('Seller GSTIN is missing — add in Settings → Profile');
+    else if (!gstinRegex.test(sellerGstin)) errors.push(`Seller GSTIN "${sellerGstin}" format is invalid`);
+    if (isB2B && !gstinRegex.test(buyerGstin)) errors.push(`Buyer GSTIN "${buyerGstin}" format is invalid`);
     for (const g of Object.values(grouped)) {
-      if (!g.hsn || g.hsn === '0000') warnings.push(`Product "${g.name}" has no HSN code`);
-      else if (!/^\d{4,8}$/.test(g.hsn)) warnings.push(`HSN "${g.hsn}" for "${g.name}" should be 4-8 digits`);
+      if (!g.hsn || g.hsn === '0000') errors.push(`Product "${g.name}" has no HSN code`);
+      else if (!/^\d{4,8}$/.test(g.hsn)) errors.push(`HSN "${g.hsn}" for "${g.name}" must be 4-8 digits`);
+      else if (isB2B && g.hsn.length < 6) warnings.push(`HSN "${g.hsn}" for "${g.name}" should be 6+ digits for B2B`);
     }
-    if (!(tenant.address as string)) warnings.push('Seller address is missing');
+    if (!(tenant.address as string)) errors.push('Seller address is missing');
     if (isB2B && !(vendor?.address as string)) warnings.push('Buyer address is missing');
+    if (isInterState) warnings.push(`Inter-state supply (${fromStcd} → ${toStcd}) — IGST applied`);
+    if (fromPin === 360001 && !(tenant.address as string)?.includes('360001')) warnings.push('Seller pincode defaulted — add pincode in address');
 
-    res.json({ ...eInvoice, _validation: { valid: warnings.length === 0, warnings } });
+    res.json({ ...eInvoice, _validation: { valid: errors.length === 0, errors, warnings } });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
@@ -1194,7 +1207,7 @@ router.get('/api/distribution/ewaybill', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { batchId, vehicleNo, transportMode, distance, transporterName, transporterId } = req.query;
+    const { batchId, vehicleNo, transportMode, distance, transporterName, transporterId, shipToGstin } = req.query;
     if (!batchId) return res.status(400).json({ error: 'batchId required' });
     if (!vehicleNo) return res.status(400).json({ error: 'Vehicle number required' });
     if (!distance) return res.status(400).json({ error: 'Distance required' });
@@ -1245,6 +1258,24 @@ router.get('/api/distribution/ewaybill', async (req, res) => {
     const invoiceDate = new Date(distDate).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/');
     const modeMap: Record<string, string> = { Road: '1', Rail: '2', Air: '3', Ship: '4' };
 
+    // Extract state code from GSTIN (first 2 digits) or default
+    const stateFromGstin = (gstin: string) => gstin?.length >= 2 ? parseInt(gstin.substring(0, 2), 10) : 0;
+    // Extract pincode from address (6-digit number)
+    const pinFromAddress = (addr: string) => { const m = (addr || '').match(/\b(\d{6})\b/); return m ? parseInt(m[1], 10) : 0; };
+
+    const fromStateCode = stateFromGstin(sellerGstin) || 24;
+    const toStateCode = stateFromGstin(buyerGstin) || fromStateCode;
+    const fromPincode = pinFromAddress((tenant.address as string) || '') || 360001;
+    const toPincode = pinFromAddress((vendor?.address as string) || '') || fromPincode;
+    const isInterState = fromStateCode !== toStateCode;
+
+    // 180-day document date check
+    const docDate = new Date(distDate);
+    const daysSinceDoc = Math.floor((Date.now() - docDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Ship-To GSTIN (mandatory from Aug 2026)
+    const shipTo = (shipToGstin as string) || buyerGstin || 'URP';
+
     const eWayBill = {
       Version: '1.01',
       SupTyp: buyerGstin ? 'B2B' : 'B2C',
@@ -1255,19 +1286,20 @@ router.get('/api/distribution/ewaybill', async (req, res) => {
       FromGstin: sellerGstin,
       FromTrdName: tenant.company_name as string,
       FromAddr1: (tenant.address as string) || 'N/A',
-      FromPlace: 'Rajkot',
-      FromPincode: 360001,
-      FromStateCode: 24,
+      FromPlace: (tenant.address as string)?.split(',').slice(-2, -1)[0]?.trim() || 'N/A',
+      FromPincode: fromPincode,
+      FromStateCode: fromStateCode,
       ToGstin: buyerGstin || 'URP',
       ToTrdName: (vendor?.name as string) || 'Walk-in',
       ToAddr1: (vendor?.address as string) || 'N/A',
-      ToPlace: 'Gujarat',
-      ToPincode: 360001,
-      ToStateCode: 24,
+      ToPlace: (vendor?.address as string)?.split(',').slice(-2, -1)[0]?.trim() || 'N/A',
+      ToPincode: toPincode,
+      ToStateCode: toStateCode,
+      ShipToGstin: shipTo,
       TotalValue: totTaxable,
-      CgstValue: totCgst,
-      SgstValue: totSgst,
-      IgstValue: 0,
+      CgstValue: isInterState ? 0 : totCgst,
+      SgstValue: isInterState ? 0 : totSgst,
+      IgstValue: isInterState ? totCgst + totSgst : 0,
       CesValue: 0,
       TotInvValue: totVal,
       TransMode: modeMap[transportMode as string] || '1',
@@ -1275,28 +1307,51 @@ router.get('/api/distribution/ewaybill', async (req, res) => {
       TransporterName: transporterName || '',
       TransporterId: transporterId || '',
       VehicleNo: vehicleNo,
-      VehicleType: 'R',
+      VehicleType: (transportMode as string) === 'Ship' ? 'O' : 'R',
       ItemList: itemList,
     };
 
-    // Validations
+    // Validations (July 2026 compliant)
     const warnings: string[] = [];
+    const errors: string[] = [];
     const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-    if (!sellerGstin) warnings.push('Seller GSTIN is missing — add in Settings → Profile');
-    else if (!gstinRegex.test(sellerGstin)) warnings.push(`Seller GSTIN "${sellerGstin}" format is invalid`);
-    if (buyerGstin && !gstinRegex.test(buyerGstin)) warnings.push(`Buyer GSTIN "${buyerGstin}" format is invalid`);
-    if (totVal < 50000) warnings.push(`Invoice value ₹${totVal.toLocaleString()} is below ₹50,000 — E-Way Bill may not be required`);
-    for (const g of Object.values(grouped)) {
-      if (!g.hsn || g.hsn === '0000') warnings.push(`Product "${g.name}" has no HSN code`);
-      else if (!/^\d{4,8}$/.test(g.hsn)) warnings.push(`HSN "${g.hsn}" for "${g.name}" should be 4-8 digits`);
-    }
-    if (!(vehicleNo as string).match(/^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{4}$/i)) warnings.push(`Vehicle number "${vehicleNo}" format may be invalid (expected: GJ03AB1234)`);
-    if (Number(distance) <= 0) warnings.push('Distance must be greater than 0 km');
-    if (Number(distance) > 4000) warnings.push(`Distance ${distance} km seems unusually high`);
-    if (!(tenant.address as string) || (tenant.address as string) === 'N/A') warnings.push('Seller address is missing');
-    if (!(vendor?.address as string) || (vendor?.address as string) === 'N/A') warnings.push('Buyer address is missing');
 
-    res.json({ ...eWayBill, _validation: { valid: warnings.length === 0, warnings } });
+    // GSTIN checks
+    if (!sellerGstin) errors.push('Seller GSTIN is missing — add in Settings → Profile');
+    else if (!gstinRegex.test(sellerGstin)) errors.push(`Seller GSTIN "${sellerGstin}" format is invalid`);
+    if (buyerGstin && !gstinRegex.test(buyerGstin)) errors.push(`Buyer GSTIN "${buyerGstin}" format is invalid`);
+
+    // Ship-To GSTIN (mandatory from Aug 2026)
+    if (shipTo === 'URP' && buyerGstin) warnings.push('Ship-To GSTIN defaults to buyer GSTIN — pass shipToGstin if different');
+
+    // 180-day document date limit (Jan 2025 rule)
+    if (daysSinceDoc > 180) errors.push(`Document date is ${daysSinceDoc} days old — E-Way Bill cannot be generated for invoices older than 180 days`);
+
+    // ₹50K threshold
+    if (totVal < 50000) warnings.push(`Invoice value ₹${totVal.toLocaleString()} is below ₹50,000 — E-Way Bill may not be required`);
+
+    // HSN validation (6-digit mandatory for B2B since Feb 2024)
+    for (const g of Object.values(grouped)) {
+      if (!g.hsn || g.hsn === '0000') errors.push(`Product "${g.name}" has no HSN code`);
+      else if (!/^\d{4,8}$/.test(g.hsn)) errors.push(`HSN "${g.hsn}" for "${g.name}" must be 4-8 digits`);
+      else if (buyerGstin && g.hsn.length < 6) warnings.push(`HSN "${g.hsn}" for "${g.name}" should be 6+ digits for B2B (mandatory for AATO > ₹5Cr)`);
+    }
+
+    // Vehicle & transport
+    if (!(vehicleNo as string).match(/^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{4}$/i)) warnings.push(`Vehicle number "${vehicleNo}" format may be invalid (expected: GJ03AB1234)`);
+    if (Number(distance) <= 0) errors.push('Distance must be greater than 0 km');
+    if (Number(distance) > 4000) warnings.push(`Distance ${distance} km seems unusually high`);
+
+    // Address & pincode
+    if (!(tenant.address as string) || (tenant.address as string) === 'N/A') errors.push('Seller address is missing');
+    if (!(vendor?.address as string) || (vendor?.address as string) === 'N/A') warnings.push('Buyer address is missing');
+    if (fromPincode === 360001 && !(tenant.address as string)?.includes('360001')) warnings.push('Seller pincode defaulted to 360001 — add pincode in address');
+    if (toPincode === fromPincode && vendor?.address) warnings.push('Buyer pincode same as seller — verify buyer address has correct pincode');
+
+    // Inter-state detection
+    if (isInterState) warnings.push(`Inter-state supply detected (${fromStateCode} → ${toStateCode}) — IGST applied instead of CGST/SGST`);
+
+    res.json({ ...eWayBill, _validation: { valid: errors.length === 0, errors, warnings } });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
