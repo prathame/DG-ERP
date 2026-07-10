@@ -6,8 +6,8 @@ import { api } from '../../api';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useDebounce } from '../../hooks/useDebounce';
 
-type Staff = { id: string; name: string; phone?: string; role?: string; address?: string; salary: number; joiningDate?: string; status: string; totalPaid: number; paymentCount: number; lastPayment?: string };
-type Payment = { id: string; staffName: string; amount: number; paymentDate: string; paymentMethod: string; referenceNumber?: string; notes?: string };
+type Staff = { id: string; name: string; phone?: string; role?: string; address?: string; salary: number; joiningDate?: string; status: string; totalPaid: number; totalAdvance: number; totalRepaid: number; advanceBalance: number; paymentCount: number; lastPayment?: string };
+type Payment = { id: string; staffName: string; amount: number; paymentDate: string; paymentType: string; paymentMethod: string; referenceNumber?: string; notes?: string };
 
 export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onRefresh: () => void }) {
   const { toast } = useToast();
@@ -22,7 +22,7 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
   const [selected, setSelected] = useState<Staff | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [payModalOpen, setPayModalOpen] = useState(false);
-  const [payForm, setPayForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
+  const [payForm, setPayForm] = useState({ amount: '', paymentType: 'salary', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
 
   const load = () => { api.staff.list(debouncedSearch || undefined).then(setList).catch(() => setList([])).finally(() => setLoading(false)); };
   useEffect(load, [debouncedSearch]);
@@ -54,14 +54,15 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
     if (!payForm.amount || Number(payForm.amount) <= 0) { toast('Enter valid amount', 'error'); return; }
     try {
       const amt = Number(payForm.amount);
-      await api.payroll.create({ staffName: selected.name, amount: amt, paymentDate: payForm.paymentDate, paymentMethod: payForm.paymentMethod, referenceNumber: payForm.referenceNumber || undefined, notes: payForm.notes || undefined });
-      toast(`₹${amt.toLocaleString()} paid to ${selected.name}`, 'success');
+      const typeLabel: Record<string, string> = { salary: 'Salary', advance: 'Advance', advance_repay: 'Advance Repayment', bonus: 'Bonus', deduction: 'Deduction' };
+      await api.payroll.create({ staffName: selected.name, amount: amt, paymentDate: payForm.paymentDate, paymentType: payForm.paymentType, paymentMethod: payForm.paymentMethod, referenceNumber: payForm.referenceNumber || undefined, notes: payForm.notes || undefined });
+      toast(`${typeLabel[payForm.paymentType]}: ₹${amt.toLocaleString()} — ${selected.name}`, 'success');
       setPayModalOpen(false);
-      if (selected.phone) {
-        const msg = `Hi ${selected.name},\n\nPayment of ₹${amt.toLocaleString()} has been made to you on ${payForm.paymentDate} via ${payForm.paymentMethod}.${payForm.notes ? `\nNote: ${payForm.notes}` : ''}\n\nThank you!`;
+      if (selected.phone && ['salary', 'bonus', 'advance'].includes(payForm.paymentType)) {
+        const msg = `Hi ${selected.name},\n\n${typeLabel[payForm.paymentType]} of ₹${amt.toLocaleString()} has been made on ${payForm.paymentDate} via ${payForm.paymentMethod}.${payForm.notes ? `\nNote: ${payForm.notes}` : ''}\n\nThank you!`;
         if (confirm(`Send WhatsApp message to ${selected.name}?`)) shareViaWhatsApp(selected.phone, msg);
       }
-      setPayForm({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
+      setPayForm({ amount: '', paymentType: 'salary', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
       load();
       selectStaff(selected);
     } catch (e) { toast((e as Error).message, 'error'); }
@@ -112,9 +113,10 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
                 </div>
                 {s.role && <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">{s.role}</span>}
                 {s.phone && <p className="text-xs text-gray-400 mt-1">{s.phone}</p>}
-                <div className="mt-3 flex items-center gap-3 text-sm">
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   {s.salary > 0 && <span>Salary: <b>₹{s.salary.toLocaleString()}</b></span>}
                   <span>Paid: <b className="text-emerald-600">₹{s.totalPaid.toLocaleString()}</b></span>
+                  {s.advanceBalance > 0 && <span>Advance: <b className="text-amber-600">₹{s.advanceBalance.toLocaleString()}</b></span>}
                   {due > 0 && <span>Due: <b className="text-rose-600">₹{due.toLocaleString()}</b></span>}
                 </div>
                 <p className="text-[10px] text-gray-400 mt-2">Click to view payments</p>
@@ -140,7 +142,7 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
               <p className="text-xs text-gray-400">{selected.paymentCount} payments · Total: ₹{selected.totalPaid.toLocaleString()}</p>
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => { setPayForm({ amount: selected.salary ? String(selected.salary) : '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' }); setPayModalOpen(true); }} className="flex items-center gap-1 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={14} /> Record Payment</button>
+              <button type="button" onClick={() => { setPayForm({ amount: selected.salary ? String(selected.salary) : '', paymentType: 'salary', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' }); setPayModalOpen(true); }} className="flex items-center gap-1 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={14} /> Record Payment</button>
               <button type="button" onClick={() => setSelected(null)} className="p-2 text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
           </div>
@@ -149,14 +151,14 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b"><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Reference</th><th className="px-4 py-3">Notes</th><th className="px-4 py-3 w-10"></th></tr></thead>
+                <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b"><th className="px-4 py-3">Type</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Notes</th><th className="px-4 py-3 w-10"></th></tr></thead>
                 <tbody className="divide-y divide-gray-50">
                   {payments.map(p => (
                     <tr key={p.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${p.paymentType === 'advance' ? 'bg-amber-100 text-amber-700' : p.paymentType === 'advance_repay' ? 'bg-blue-100 text-blue-700' : p.paymentType === 'bonus' ? 'bg-purple-100 text-purple-700' : p.paymentType === 'deduction' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>{{ salary: 'Salary', advance: 'Advance', advance_repay: 'Repaid', bonus: 'Bonus', deduction: 'Deduction' }[p.paymentType] || p.paymentType}</span></td>
                       <td className="px-4 py-3 text-right font-bold">₹{p.amount.toLocaleString()}</td>
                       <td className="px-4 py-3 text-gray-500">{fmtDate(p.paymentDate)}</td>
                       <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{p.paymentMethod}</span></td>
-                      <td className="px-4 py-3 text-gray-400 text-xs font-mono">{p.referenceNumber || '—'}</td>
                       <td className="px-4 py-3 text-gray-400 text-xs">{p.notes || '—'}</td>
                       <td className="px-4 py-3"><button type="button" onClick={async () => { if (!confirm('Delete this payment?')) return; try { await api.payroll.delete(p.id); toast('Deleted', 'success'); load(); selectStaff(selected); } catch(e) { toast((e as Error).message, 'error'); } }} className="p-1 text-rose-400 hover:text-rose-600"><Trash2 size={14} /></button></td>
                     </tr>
@@ -202,8 +204,23 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
             <div className="absolute inset-0 bg-black/40" onClick={() => setPayModalOpen(false)} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
               <h3 className="text-lg font-bold mb-1">Pay {selected.name}</h3>
-              <p className="text-sm text-gray-400 mb-4">{selected.role || 'Staff'}{selected.salary ? ` · Salary: ₹${selected.salary.toLocaleString()}` : ''}</p>
+              <p className="text-sm text-gray-400 mb-4">{selected.role || 'Staff'}{selected.salary ? ` · Salary: ₹${selected.salary.toLocaleString()}` : ''}{selected.advanceBalance > 0 ? ` · Advance due: ₹${selected.advanceBalance.toLocaleString()}` : ''}</p>
               <div className="space-y-3">
+                <div><label className="text-xs font-bold text-gray-400 block mb-1">Type *</label>
+                  <select value={payForm.paymentType} onChange={e => {
+                    const t = e.target.value;
+                    let amt = payForm.amount;
+                    if (t === 'salary' && selected.salary) amt = String(selected.salary);
+                    if (t === 'advance_repay' && selected.advanceBalance > 0) amt = String(selected.advanceBalance);
+                    setPayForm({ ...payForm, paymentType: t, amount: amt });
+                  }} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand">
+                    <option value="salary">Salary</option>
+                    <option value="advance">Advance (given to staff)</option>
+                    <option value="advance_repay">Advance Repay (staff pays back)</option>
+                    <option value="bonus">Bonus</option>
+                    <option value="deduction">Deduction (cut from salary)</option>
+                  </select>
+                </div>
                 <div><label className="text-xs font-bold text-gray-400 block mb-1">Amount (₹) *</label><input type="number" min={1} value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="5000" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-xs font-bold text-gray-400 block mb-1">Date</label><input type="date" value={payForm.paymentDate} onChange={e => setPayForm({ ...payForm, paymentDate: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" /></div>

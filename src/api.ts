@@ -477,7 +477,7 @@ export const api = {
       fetchApi<{ ok: boolean; enabled: boolean; frequency: string; intervalDays: number; email: string | null }>('/backup/settings', { method: 'PUT', body: JSON.stringify(data) }),
   },
   staff: {
-    list: (search?: string) => fetchApi<{ id: string; name: string; phone?: string; role?: string; address?: string; salary: number; joiningDate?: string; status: string; totalPaid: number; paymentCount: number; lastPayment?: string }[]>(`/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+    list: (search?: string) => fetchApi<{ id: string; name: string; phone?: string; role?: string; address?: string; salary: number; joiningDate?: string; status: string; totalPaid: number; totalAdvance: number; totalRepaid: number; advanceBalance: number; paymentCount: number; lastPayment?: string }[]>(`/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`),
     create: (data: { name: string; phone?: string; role?: string; address?: string; salary?: number; joiningDate?: string }) =>
       fetchApi<{ id: string; name: string }>('/staff', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Record<string, unknown>) =>
@@ -494,8 +494,8 @@ export const api = {
       return fetchApi<{ id: string; staffName: string; amount: number; paymentDate: string; paymentMethod: string; referenceNumber?: string; notes?: string; month: string; year: number }[]>(`/payroll?${q}`);
     },
     summary: (year?: number) => fetchApi<{ year: number; grandTotal: number; byStaff: { name: string; total: number; payments: number }[]; byMonth: { month: string; total: number; payments: number }[] }>(`/payroll/summary?year=${year || new Date().getFullYear()}`),
-    create: (data: { staffName: string; amount: number; paymentDate?: string; paymentMethod?: string; referenceNumber?: string; notes?: string }) =>
-      fetchApi<{ id: string; staffName: string; amount: number; paymentDate: string }>('/payroll', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data: { staffName: string; amount: number; paymentDate?: string; paymentType?: string; paymentMethod?: string; referenceNumber?: string; notes?: string }) =>
+      fetchApi<{ id: string; staffName: string; amount: number; paymentDate: string; paymentType: string }>('/payroll', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: string) => fetchApi<{ ok: boolean }>(`/payroll/${id}`, { method: 'DELETE' }),
   },
   settings: {

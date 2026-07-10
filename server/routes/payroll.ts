@@ -10,7 +10,10 @@ router.get('/api/staff', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { search } = req.query;
-    let sql = `SELECT s.*, COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1), 0) as total_paid,
+    let sql = `SELECT s.*,
+      COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1 AND payment_type IN ('salary','bonus')), 0) as total_paid,
+      COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1 AND payment_type = 'advance'), 0) as total_advance,
+      COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1 AND payment_type IN ('advance_repay','deduction')), 0) as total_repaid,
       COALESCE((SELECT COUNT(*) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1), 0) as payment_count,
       (SELECT MAX(payment_date) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1) as last_payment
       FROM staff_members s WHERE s.tenant_id = $1`;
@@ -21,7 +24,9 @@ router.get('/api/staff', async (req, res) => {
     res.json(rows.map((r: Record<string, unknown>) => ({
       id: r.id, name: r.name, phone: r.phone, role: r.role, address: r.address,
       salary: Number(r.salary) || 0, joiningDate: r.joining_date, status: r.status,
-      totalPaid: Number(r.total_paid), paymentCount: Number(r.payment_count), lastPayment: r.last_payment,
+      totalPaid: Number(r.total_paid), totalAdvance: Number(r.total_advance), totalRepaid: Number(r.total_repaid),
+      advanceBalance: Number(r.total_advance) - Number(r.total_repaid),
+      paymentCount: Number(r.payment_count), lastPayment: r.last_payment,
     })));
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
@@ -114,6 +119,7 @@ router.get('/api/payroll', async (req, res) => {
     const { rows } = await pool.query(sql, params);
     res.json(rows.map((r: Record<string, unknown>) => ({
       id: r.id, staffName: r.staff_name, amount: Number(r.amount), paymentDate: r.payment_date,
+      paymentType: (r.payment_type as string) || 'salary',
       paymentMethod: r.payment_method, referenceNumber: r.reference_number, notes: r.notes,
       month: r.month, year: r.year,
     })));
@@ -147,20 +153,23 @@ router.post('/api/payroll', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { staffName, amount, paymentDate, paymentMethod, referenceNumber, notes, month, year } = req.body;
+    const { staffName, amount, paymentDate, paymentType, paymentMethod, referenceNumber, notes, month, year } = req.body;
     if (!staffName?.trim()) return res.status(400).json({ error: 'Staff name is required' });
     if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Amount must be greater than 0' });
+    const validTypes = ['salary', 'advance', 'advance_repay', 'bonus', 'deduction'];
+    const pType = validTypes.includes(paymentType) ? paymentType : 'salary';
     const id = uid('SP');
     const date = paymentDate || new Date().toISOString().slice(0, 10);
     const d = new Date(date);
     const m = month || String(d.getMonth() + 1).padStart(2, '0');
     const y = year || d.getFullYear();
     await pool.query(
-      'INSERT INTO staff_payments (id, tenant_id, staff_name, amount, payment_date, payment_method, reference_number, notes, month, year) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-      [id, tenantId, staffName.trim(), Number(amount), date, paymentMethod || 'Cash', referenceNumber || null, notes || null, m, y]
+      'INSERT INTO staff_payments (id, tenant_id, staff_name, amount, payment_date, payment_type, payment_method, reference_number, notes, month, year) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+      [id, tenantId, staffName.trim(), Number(amount), date, pType, paymentMethod || 'Cash', referenceNumber || null, notes || null, m, y]
     );
-    await logAudit(pool, tenantId, 'Staff Payment', 'payroll', id, `₹${Number(amount).toLocaleString()} paid to ${staffName.trim()}`);
-    res.status(201).json({ id, staffName: staffName.trim(), amount: Number(amount), paymentDate: date, paymentMethod: paymentMethod || 'Cash', referenceNumber, notes, month: m, year: y });
+    const typeLabel = { salary: 'Salary', advance: 'Advance Given', advance_repay: 'Advance Repaid', bonus: 'Bonus', deduction: 'Deduction' }[pType] || pType;
+    await logAudit(pool, tenantId, 'Staff Payment', 'payroll', id, `${typeLabel}: ₹${Number(amount).toLocaleString()} — ${staffName.trim()}`);
+    res.status(201).json({ id, staffName: staffName.trim(), amount: Number(amount), paymentDate: date, paymentType: pType, paymentMethod: paymentMethod || 'Cash', referenceNumber, notes, month: m, year: y });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
