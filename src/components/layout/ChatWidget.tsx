@@ -142,7 +142,12 @@ export function ChatWidget() {
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="fixed inset-0 lg:inset-auto lg:bottom-24 lg:right-4 z-[150] lg:w-[380px] lg:h-[400px] lg:max-h-[calc(100vh-12rem)] bg-white lg:rounded-2xl shadow-2xl lg:border lg:border-gray-200 overflow-hidden flex flex-col"
+            style={pos ? (() => {
+              const isLeft = pos.x < window.innerWidth / 2;
+              const isTop = pos.y < window.innerHeight / 2;
+              return { left: isLeft ? pos.x : pos.x - 324, top: isTop ? pos.y + 64 : undefined, bottom: isTop ? undefined : window.innerHeight - pos.y + 8, right: 'auto', inset: 'auto' } as React.CSSProperties;
+            })() : undefined}
+            className={cn("fixed z-[150] lg:w-[380px] lg:h-[400px] lg:max-h-[calc(100vh-12rem)] bg-white lg:rounded-2xl shadow-2xl lg:border lg:border-gray-200 overflow-hidden flex flex-col", pos ? '' : 'inset-0 lg:inset-auto lg:bottom-24 lg:right-4')}
           >
             {/* Header */}
             <div className="bg-[#151619] text-white px-5 py-4 flex items-center gap-3">
