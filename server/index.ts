@@ -37,6 +37,7 @@ import auditRouter from './routes/audit';
 import chatbotRouter from './routes/chatbot';
 import billSettingsRouter from './routes/bill-settings';
 import payrollRouter from './routes/payroll';
+import expensesRouter from './routes/expenses';
 import { logger } from './utils/logger';
 
 const app = express();
@@ -198,6 +199,7 @@ app.use(mastersRouter);
 app.use(mappingRouter);
 app.use(auditRouter);
 app.use(payrollRouter);
+app.use(expensesRouter);
 app.use(chatbotRouter);
 app.use(billSettingsRouter);
 app.use(reportsRouter);

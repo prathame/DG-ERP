@@ -491,6 +491,16 @@ export async function initSchema() {
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS purchases_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS chatbot_enabled BOOLEAN DEFAULT true');
 
+    // Expenses
+    await client.query(`CREATE TABLE IF NOT EXISTS expenses (
+      id TEXT NOT NULL, tenant_id TEXT NOT NULL REFERENCES tenants(id),
+      category TEXT NOT NULL, description TEXT, amount NUMERIC(12,2) NOT NULL,
+      expense_date DATE NOT NULL DEFAULT CURRENT_DATE, payment_method TEXT DEFAULT 'Cash',
+      reference_number TEXT, notes TEXT, created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(id, tenant_id)
+    )`);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(tenant_id, expense_date)');
+
     // Staff directory
     await client.query(`CREATE TABLE IF NOT EXISTS staff_members (
       id TEXT NOT NULL, tenant_id TEXT NOT NULL REFERENCES tenants(id),

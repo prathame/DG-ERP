@@ -476,6 +476,19 @@ export const api = {
     updateSettings: (data: { enabled: boolean; frequency: string; intervalDays?: number; email?: string }) =>
       fetchApi<{ ok: boolean; enabled: boolean; frequency: string; intervalDays: number; email: string | null }>('/backup/settings', { method: 'PUT', body: JSON.stringify(data) }),
   },
+  expenses: {
+    list: (filters?: { category?: string; from?: string; to?: string }) => {
+      const q = new URLSearchParams();
+      if (filters?.category) q.set('category', filters.category);
+      if (filters?.from) q.set('from', filters.from);
+      if (filters?.to) q.set('to', filters.to);
+      return fetchApi<{ id: string; category: string; description?: string; amount: number; expenseDate: string; paymentMethod: string; referenceNumber?: string; notes?: string }[]>(`/expenses?${q}`);
+    },
+    summary: (year?: number) => fetchApi<{ year: number; grandTotal: number; byCategory: { category: string; total: number; count: number }[]; byMonth: { month: string; total: number }[] }>(`/expenses/summary?year=${year || new Date().getFullYear()}`),
+    create: (data: { category: string; description?: string; amount: number; expenseDate?: string; paymentMethod?: string; referenceNumber?: string; notes?: string }) =>
+      fetchApi<{ id: string; category: string; amount: number }>('/expenses', { method: 'POST', body: JSON.stringify(data) }),
+    delete: (id: string) => fetchApi<{ ok: boolean }>(`/expenses/${id}`, { method: 'DELETE' }),
+  },
   staff: {
     list: (search?: string) => fetchApi<{ id: string; name: string; phone?: string; role?: string; address?: string; salary: number; joiningDate?: string; status: string; totalPaid: number; totalAdvance: number; totalRepaid: number; advanceBalance: number; paymentCount: number; lastPayment?: string }[]>(`/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`),
     create: (data: { name: string; phone?: string; role?: string; address?: string; salary?: number; joiningDate?: string }) =>

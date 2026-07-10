@@ -163,7 +163,7 @@ export default function App() {
     { id: 'sales', label: tc('sales', t('nav.sales')), icon: ShoppingCart, show: tv('sales') },
     { id: 'distribution', label: tc('distribution', t('nav.distribution')), icon: Package, show: tv('distribution') },
     { id: 'inventory', label: tc('inventory', t('nav.inventory')), icon: Package, show: tv('inventory') },
-    { id: 'purchases', label: tc('purchases', 'Purchases'), icon: ShoppingBag, show: tv('purchases') },
+    { id: 'purchases', label: tc('purchases', 'Purchases & Expenses'), icon: ShoppingBag, show: tv('purchases') },
     { id: 'verification', label: tc('verification', t('nav.verification')), icon: ScanSearch, show: tv('verification') },
     { id: 'quotations', label: tc('quotations', 'Quotes & Orders'), icon: FileText, show: true },
     { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },

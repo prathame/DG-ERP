@@ -76,7 +76,7 @@ export async function deleteTenant(tenantId: string) {
   try {
     await client.query('BEGIN');
     const tables = [
-      'staff_payments', 'staff_members', 'bill_settings', 'audit_log',
+      'expenses', 'staff_payments', 'staff_members', 'bill_settings', 'audit_log',
       'credit_debit_notes', 'price_lists', 'orders', 'quotations',
       'reward_rules', 'rewards', 'product_replacements', 'warranties',
       'password_reset_tokens', 'transactions', 'tenant_invoices', 'tenant_stats',

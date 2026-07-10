@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShoppingBag, Plus, ArrowLeft, Search, IndianRupee } from 'lucide-react';
-import { cn, formatDate } from '../../lib/utils';
+import { ShoppingBag, Plus, ArrowLeft, Search, IndianRupee, Trash2, Receipt } from 'lucide-react';
+import { cn, formatDate, exportToCsv } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, isBillFullyPaid } from '../../components/ui';
@@ -28,6 +28,11 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const [submitting, setSubmitting] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState<'unpaid' | 'paid'>('unpaid');
   const [searchText, setSearchText] = useState('');
+  const [section, setSection] = useState<'purchases' | 'expenses'>('purchases');
+  const [expenses, setExpenses] = useState<{ id: string; category: string; description?: string; amount: number; expenseDate: string; paymentMethod: string; notes?: string }[]>([]);
+  const [expenseModal, setExpenseModal] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({ category: '', description: '', amount: '', expenseDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', notes: '' });
+  const expenseCategories = ['Electricity', 'Rent', 'Petrol / Diesel', 'Phone / Internet', 'Office Supplies', 'Repairs & Maintenance', 'Transport / Freight', 'Insurance', 'Packaging', 'Marketing', 'Legal / Professional', 'Miscellaneous'];
   const [paymentModal, setPaymentModal] = useState<{ batchId: string; supplierId: string; billValue: number; balanceRemaining: number } | null>(null);
   const [paymentForm, setPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
@@ -57,6 +62,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       .finally(() => setLoading(false));
   };
   useEffect(() => { setLoading(true); load(); }, []);
+  useEffect(() => { if (section === 'expenses') api.expenses.list().then(setExpenses).catch(() => {}); }, [section]);
 
   const defaultGstRate = 18;
   const purchaseTotals = purchaseRows.reduce((acc, r) => {
@@ -221,14 +227,50 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div><h2 className="text-xl font-bold flex items-center gap-2"><ShoppingBag size={22} /> Purchases</h2><p className="text-sm text-gray-500">Track what you buy from suppliers</p></div>
+        <div><h2 className="text-xl font-bold flex items-center gap-2"><ShoppingBag size={22} /> Purchases & Expenses</h2><p className="text-sm text-gray-500">Track purchases from suppliers + business expenses</p></div>
         <div className="flex gap-2">
-          <button type="button" onClick={() => setSupplierModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50"><Plus size={16} /> Add Supplier</button>
-          <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><ShoppingBag size={16} /> New Purchase</button>
+          {section === 'purchases' && <>
+            <button type="button" onClick={() => setSupplierModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50"><Plus size={16} /> Add Supplier</button>
+            <button type="button" onClick={() => setModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><ShoppingBag size={16} /> New Purchase</button>
+          </>}
+          {section === 'expenses' && canEdit && <button type="button" onClick={() => { setExpenseForm({ category: '', description: '', amount: '', expenseDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', notes: '' }); setExpenseModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={16} /> Add Expense</button>}
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex gap-2 mb-2">
+        <button type="button" onClick={() => setSection('purchases')} className={`px-4 py-2 rounded-xl text-sm font-bold ${section === 'purchases' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600'}`}>Purchases</button>
+        <button type="button" onClick={() => setSection('expenses')} className={`px-4 py-2 rounded-xl text-sm font-bold ${section === 'expenses' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600'}`}>Expenses</button>
+      </div>
+
+      {section === 'expenses' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {expenses.length === 0 ? (
+            <div className="py-16 text-center text-gray-400"><Receipt size={40} className="mx-auto mb-3 opacity-30" /><p className="font-medium">No expenses recorded</p></div>
+          ) : (<>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b"><th className="px-4 py-3">Category</th><th className="px-4 py-3">Description</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Notes</th>{canEdit && <th className="px-4 py-3 w-10"></th>}</tr></thead>
+                <tbody className="divide-y divide-gray-50">
+                  {expenses.map(e => (
+                    <tr key={e.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3"><span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">{e.category}</span></td>
+                      <td className="px-4 py-3 text-gray-600 text-sm">{e.description || '—'}</td>
+                      <td className="px-4 py-3 text-right font-bold">₹{e.amount.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-gray-500 text-sm">{formatDate(e.expenseDate)}</td>
+                      <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{e.paymentMethod}</span></td>
+                      <td className="px-4 py-3 text-gray-400 text-xs">{e.notes || '—'}</td>
+                      {canEdit && <td className="px-4 py-3"><button type="button" onClick={async () => { if (!confirm('Delete this expense?')) return; try { await api.expenses.delete(e.id); toast('Deleted', 'success'); api.expenses.list().then(setExpenses); } catch(err) { toast((err as Error).message, 'error'); } }} className="p-1 text-rose-400 hover:text-rose-600"><Trash2 size={14} /></button></td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-4 py-3 bg-gray-50 border-t text-right font-bold text-sm">Total: ₹{expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}</div>
+          </>)}
+        </div>
+      )}
+
+      {section === 'purchases' && <><div className="flex items-center gap-3 flex-wrap">
         {(['unpaid', 'paid'] as const).map(tab => (
           <button key={tab} type="button" onClick={() => { setPaymentFilter(tab); setSelectedSupplierId(null); }} className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", paymentFilter === tab ? (tab === 'unpaid' ? "bg-rose-500 text-white" : "bg-emerald-500 text-white") : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>{tab === 'unpaid' ? 'Unpaid' : 'Paid'}</button>
         ))}
@@ -259,6 +301,47 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           ))}
         </div>
       )}
+      </>}
+
+      {/* Expense Modal */}
+      <AnimatePresence>
+        {expenseModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setExpenseModal(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+              <h3 className="text-lg font-bold mb-4">Add Expense</h3>
+              <div className="space-y-3">
+                <div><label className="text-xs font-bold text-gray-400 block mb-1">Category *</label>
+                  <select value={expenseForm.category} onChange={e => setExpenseForm({ ...expenseForm, category: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand">
+                    <option value="">Select category</option>
+                    {expenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div><label className="text-xs font-bold text-gray-400 block mb-1">Description</label><input value={expenseForm.description} onChange={e => setExpenseForm({ ...expenseForm, description: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="e.g. July electricity bill" /></div>
+                <div><label className="text-xs font-bold text-gray-400 block mb-1">Amount (₹) *</label><input type="number" min={1} value={expenseForm.amount} onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="2500" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Date</label><input type="date" value={expenseForm.expenseDate} onChange={e => setExpenseForm({ ...expenseForm, expenseDate: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Method</label><select value={expenseForm.paymentMethod} onChange={e => setExpenseForm({ ...expenseForm, paymentMethod: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option>Cash</option><option>Bank Transfer</option><option>UPI</option><option>Cheque</option></select></div>
+                </div>
+                <div><label className="text-xs font-bold text-gray-400 block mb-1">Notes</label><input value={expenseForm.notes} onChange={e => setExpenseForm({ ...expenseForm, notes: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="Optional" /></div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button type="button" onClick={() => setExpenseModal(false)} className="flex-1 py-2 border border-gray-200 rounded-xl font-bold text-gray-500">Cancel</button>
+                <button type="button" onClick={async () => {
+                  if (!expenseForm.category) { toast('Select a category', 'error'); return; }
+                  if (!expenseForm.amount || Number(expenseForm.amount) <= 0) { toast('Enter valid amount', 'error'); return; }
+                  try {
+                    await api.expenses.create({ category: expenseForm.category, description: expenseForm.description || undefined, amount: Number(expenseForm.amount), expenseDate: expenseForm.expenseDate, paymentMethod: expenseForm.paymentMethod, notes: expenseForm.notes || undefined });
+                    toast('Expense recorded', 'success');
+                    setExpenseModal(false);
+                    api.expenses.list().then(setExpenses);
+                  } catch (e) { toast((e as Error).message, 'error'); }
+                }} className="flex-1 py-2 bg-brand text-white rounded-xl font-bold">Save Expense</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* New Purchase Modal */}
       <AnimatePresence>
