@@ -46,6 +46,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     sections.push(`*Customers*\n- Any customer name -- purchase history\n- "all customers" -- list all`);
     if (tabConfig?.finance?.visible !== false) sections.push(`*${finLabel}*\n- "total revenue" -- all-time revenue\n- "today revenue" -- today's revenue`);
     if (tabConfig?.warranty?.visible !== false) sections.push(`*${warLabel}*\n- "active warranties" -- count\n- "expiring warranties" -- expiring in 30 days`);
+    sections.push(`*Staff Payments*\n- "staff payments" -- yearly summary\n- "paid to Raju" -- payment history for a staff member\n- "salary paid" -- total payroll this year`);
     sections.push(`*Reports*\n- "daily report" -- today's summary\n- "monthly report" -- this month's summary\n- "vendor report" -- all vendors overview`);
     return { text: `Here's everything I can do:\n\n${sections.join('\n\n')}` };
   }
@@ -292,6 +293,28 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
     if (rows.length === 0) return { text: 'No vendors found.' };
     const list = rows.map((r) => `- *${r.name}*\n  ${r.distributed} distributed | ${r.total_sales} sold | ${r.with_vendor} with vendor\n  Billed: ${r.billed.toLocaleString()} | Paid: ${r.paid.toLocaleString()} | Due: ${(r.billed - r.paid).toLocaleString()}`).join('\n');
     return { text: `*Vendor Report*\n\n${list}` };
+  }
+
+  // ============ STAFF PAYMENTS ============
+  if (/staff\s*payment|salary\s*paid|payroll|staff\s*salary/.test(q)) {
+    const year = new Date().getFullYear();
+    const rows = (await pool.query('SELECT staff_name, SUM(amount) as total, COUNT(*) as payments FROM staff_payments WHERE tenant_id = $1 AND year = $2 GROUP BY staff_name ORDER BY total DESC', [tenantId, year])).rows as { staff_name: string; total: number; payments: number }[];
+    if (rows.length === 0) return { text: 'No staff payments recorded this year.' };
+    const grand = rows.reduce((s, r) => s + Number(r.total), 0);
+    const list = rows.map((r) => `- ${r.staff_name}\n  ₹${Number(r.total).toLocaleString()} (${r.payments} payments)`).join('\n');
+    return { text: `*Staff Payments — ${year}*\n\n${list}\n\nTotal: *₹${grand.toLocaleString()}*` };
+  }
+
+  if (/paid\s*to\s+(.+)|(.+)\s*salary|(.+)\s*payment\s*history/.test(q)) {
+    const nameMatch = q.match(/paid\s*to\s+(.+)|(.+)\s*salary|(.+)\s*payment\s*history/);
+    const staffName = (nameMatch?.[1] || nameMatch?.[2] || nameMatch?.[3] || '').trim();
+    if (staffName) {
+      const rows = (await pool.query('SELECT amount, payment_date, payment_method, notes FROM staff_payments WHERE staff_name ILIKE $1 AND tenant_id = $2 ORDER BY payment_date DESC LIMIT 10', [`%${staffName}%`, tenantId])).rows as { amount: number; payment_date: string; payment_method: string; notes: string }[];
+      if (rows.length === 0) return { text: `No payments found for "${staffName}".` };
+      const total = rows.reduce((s, r) => s + Number(r.amount), 0);
+      const list = rows.map((r) => `- ₹${Number(r.amount).toLocaleString()} on ${r.payment_date} (${r.payment_method})${r.notes ? ` — ${r.notes}` : ''}`).join('\n');
+      return { text: `*Payments to ${staffName}*\n\n${list}\n\nTotal shown: *₹${total.toLocaleString()}*` };
+    }
   }
 
   // ============ DISTRIBUTION SUMMARY ============

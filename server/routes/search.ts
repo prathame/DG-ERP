@@ -43,12 +43,19 @@ router.get('/api/search', async (req, res) => {
       ORDER BY MIN(pd.distribution_date) DESC LIMIT $3
     `, [tenantId, like, limit])).rows as { batch_id: string; vendor_name: string; distribution_date: string; total_units: number }[];
 
+    const staff = (await pool.query(`
+      SELECT staff_name, SUM(amount) as total_paid, COUNT(*) as payments, MAX(payment_date) as last_payment
+      FROM staff_payments WHERE staff_name ILIKE $1 AND tenant_id = $2
+      GROUP BY staff_name ORDER BY total_paid DESC LIMIT $3
+    `, [like, tenantId, limit])).rows as { staff_name: string; total_paid: number; payments: number; last_payment: string }[];
+
     res.json({
       products: products.map((p) => ({ id: p.id, name: p.name, price: p.price, stock: p.stock, type: 'product' as const })),
       customers: customers.map((c) => ({ id: c.id, name: c.name, phone: c.phone ?? '', email: c.email ?? '', type: 'customer' as const })),
       vendors: vendors.map((v) => ({ id: v.id, name: v.name, contact: v.contact_person ?? '', phone: v.phone ?? '', type: 'vendor' as const })),
       barcodes: barcodeResults.map((b) => ({ barcode: b.barcode, productName: b.product_name, productId: b.product_id, status: b.status, type: 'barcode' as const })),
       challans: challans.map((c) => ({ batchId: c.batch_id, vendorName: c.vendor_name, date: c.distribution_date, units: Number(c.total_units), type: 'challan' as const })),
+      staff: staff.map((s) => ({ name: s.staff_name, totalPaid: Number(s.total_paid), payments: Number(s.payments), lastPayment: s.last_payment, type: 'staff' as const })),
     });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
