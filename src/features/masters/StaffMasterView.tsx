@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Plus, Pencil, Trash2, ArrowLeft, Download, IndianRupee, Calendar, X } from 'lucide-react';
-import { exportToCsv } from '../../lib/utils';
+import { Search, Plus, Pencil, Trash2, ArrowLeft, Download, IndianRupee, Calendar, X, MessageCircle } from 'lucide-react';
+import { exportToCsv, shareViaWhatsApp } from '../../lib/utils';
 import { api } from '../../api';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -53,9 +53,14 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
     if (!selected) return;
     if (!payForm.amount || Number(payForm.amount) <= 0) { toast('Enter valid amount', 'error'); return; }
     try {
-      await api.payroll.create({ staffName: selected.name, amount: Number(payForm.amount), paymentDate: payForm.paymentDate, paymentMethod: payForm.paymentMethod, referenceNumber: payForm.referenceNumber || undefined, notes: payForm.notes || undefined });
-      toast(`₹${Number(payForm.amount).toLocaleString()} paid to ${selected.name}`, 'success');
+      const amt = Number(payForm.amount);
+      await api.payroll.create({ staffName: selected.name, amount: amt, paymentDate: payForm.paymentDate, paymentMethod: payForm.paymentMethod, referenceNumber: payForm.referenceNumber || undefined, notes: payForm.notes || undefined });
+      toast(`₹${amt.toLocaleString()} paid to ${selected.name}`, 'success');
       setPayModalOpen(false);
+      if (selected.phone) {
+        const msg = `Hi ${selected.name},\n\nPayment of ₹${amt.toLocaleString()} has been made to you on ${payForm.paymentDate} via ${payForm.paymentMethod}.${payForm.notes ? `\nNote: ${payForm.notes}` : ''}\n\nThank you!`;
+        if (confirm(`Send WhatsApp message to ${selected.name}?`)) shareViaWhatsApp(selected.phone, msg);
+      }
       setPayForm({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
       load();
       selectStaff(selected);
