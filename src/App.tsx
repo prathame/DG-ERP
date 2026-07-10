@@ -425,7 +425,7 @@ export default function App() {
           {activeTab === 'verification' && <ProductVerificationView />}
           {activeTab === 'quotations' && <QuotationsAndOrdersView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} accessLevel={getAccess('finance')} />}
-          {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} />}
+          {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
           </div>
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
           </Suspense>

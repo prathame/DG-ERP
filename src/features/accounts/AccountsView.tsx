@@ -9,8 +9,9 @@ type AccountTab = 'pnl' | 'balance' | 'cashflow' | 'ledger' | 'daybook' | 'notes
 
 function fmtCurrency(n: number) { return `₹${Math.abs(n).toLocaleString('en-IN')}${n < 0 ? ' (Cr)' : ''}`; }
 
-export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
+export function AccountsView({ accessLevel = 'full', businessType = 'manufacturer' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full'; businessType?: string } = {}) {
   const { toast } = useToast();
+  const ds = businessType === 'dealer' || businessType === 'retail';
   const [tab, setTab] = useState<AccountTab>('pnl');
   const now = new Date();
   const fyStart = now.getMonth() >= 3 ? `${now.getFullYear()}-04-01` : `${now.getFullYear() - 1}-04-01`;
@@ -45,7 +46,7 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
   const handlePrint = () => {
     const el = document.getElementById('accounts-content');
     if (!el) return;
-    const titles: Record<string, string> = { pnl: 'Profit & Loss Statement', balance: 'Balance Sheet', cashflow: 'Cash Flow Statement', ledger: 'General Ledger', daybook: 'Day Book', notes: 'Credit / Debit Notes', sales: 'Sales Register', distribution: 'Distribution Register', outstanding: 'Outstanding Report', payments: 'Payment Register', stock: 'Stock Summary', gst: 'GST Summary' };
+    const titles: Record<string, string> = { pnl: 'Profit & Loss Statement', balance: 'Balance Sheet', cashflow: 'Cash Flow Statement', ledger: 'General Ledger', daybook: 'Day Book', notes: 'Credit / Debit Notes', sales: 'Sales Register', distribution: ds ? 'Sales Register' : 'Distribution Register', outstanding: 'Outstanding Report', payments: 'Payment Register', stock: 'Stock Summary', gst: 'GST Summary' };
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) return;
     win.document.write(`<html><head><title>${titles[tab]}</title><style>body{font-family:sans-serif;margin:20px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#f5f5f5}.card{border:1px solid #ddd;padding:16px;margin:8px 0;border-radius:8px}.amount{text-align:right;font-weight:bold}.label{color:#666;font-size:11px;text-transform:uppercase}h2{margin-bottom:4px}p{color:#666;font-size:12px;margin-top:0}@media print{body{margin:0}}</style></head><body><h2>${titles[tab]}</h2><p>Period: ${from} to ${to}</p>${el.innerHTML}</body></html>`);
@@ -61,7 +62,7 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
     { key: 'daybook', label: 'Day Book', shortLabel: 'DayBook', icon: BookOpen, group: 'accounts' },
     { key: 'notes', label: 'Credit/Debit Notes', shortLabel: 'Notes', icon: Receipt, group: 'accounts' },
     { key: 'sales', label: 'Sales Register', shortLabel: 'Sales', icon: ShoppingCart, group: 'reports' },
-    { key: 'distribution', label: 'Distribution Register', shortLabel: 'Dist.', icon: Truck, group: 'reports' },
+    { key: 'distribution', label: ds ? 'Sales Register' : 'Distribution Register', shortLabel: ds ? 'Sales' : 'Dist.', icon: Truck, group: 'reports' },
     { key: 'outstanding', label: 'Outstanding', shortLabel: 'Due', icon: Clock, group: 'reports' },
     { key: 'payments', label: 'Payment Register', shortLabel: 'Payments', icon: IndianRupee, group: 'reports' },
     { key: 'stock', label: 'Stock Summary', shortLabel: 'Stock', icon: Package, group: 'reports' },
@@ -145,13 +146,13 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
 
       {!loading && data && (
         <div id="accounts-content">
-          {tab === 'pnl' && <ProfitLoss data={data} />}
-          {tab === 'balance' && <BalanceSheet data={data} />}
-          {tab === 'cashflow' && <CashFlow data={data} />}
+          {tab === 'pnl' && <ProfitLoss data={data} ds={ds} />}
+          {tab === 'balance' && <BalanceSheet data={data} ds={ds} />}
+          {tab === 'cashflow' && <CashFlow data={data} ds={ds} />}
           {tab === 'ledger' && <Ledger data={data} />}
-          {tab === 'daybook' && <DayBook data={data} />}
+          {tab === 'daybook' && <DayBook data={data} ds={ds} />}
           {tab === 'notes' && <NotesView data={data} onRefresh={loadData} />}
-          {['sales', 'distribution', 'outstanding', 'payments', 'stock', 'gst'].includes(tab) && <ReportTable tab={tab} data={data} />}
+          {['sales', 'distribution', 'outstanding', 'payments', 'stock', 'gst'].includes(tab) && <ReportTable tab={tab} data={data} ds={ds} />}
         </div>
       )}
 
@@ -175,7 +176,7 @@ function StatCard({ label, value, color, sub }: { label: string; value: string; 
   );
 }
 
-function ProfitLoss({ data }: { data: Record<string, unknown> }) {
+function ProfitLoss({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
   const rev = data.revenue as { distributionRevenue: number; salesRevenue: number; total: number };
   const exp = data.expenses as { purchaseCost: number; total: number };
   const profit = Number(data.grossProfit) || 0;
@@ -192,7 +193,7 @@ function ProfitLoss({ data }: { data: Record<string, unknown> }) {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h3 className="font-bold text-sm text-gray-400 uppercase mb-4">Revenue</h3>
           <div className="space-y-3">
-            <div className="flex justify-between"><span className="text-sm">Distribution Revenue</span><span className="font-bold text-blue-600">{fmtCurrency(rev.distributionRevenue)}</span></div>
+            <div className="flex justify-between"><span className="text-sm">{ds ? 'Sales Revenue' : 'Distribution Revenue'}</span><span className="font-bold text-blue-600">{fmtCurrency(rev.distributionRevenue)}</span></div>
             <div className="flex justify-between"><span className="text-sm">Sales Revenue</span><span className="font-bold text-blue-600">{fmtCurrency(rev.salesRevenue)}</span></div>
             <div className="border-t pt-2 flex justify-between"><span className="font-bold">Total Revenue</span><span className="font-bold text-blue-600 text-lg">{fmtCurrency(rev.total)}</span></div>
           </div>
@@ -214,7 +215,7 @@ function ProfitLoss({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-function BalanceSheet({ data }: { data: Record<string, unknown> }) {
+function BalanceSheet({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
   const assets = data.assets as { inventory: number; receivables: number; cashBank: number; total: number };
   const liabilities = data.liabilities as { payables: number; total: number };
   const netWorth = Number(data.netWorth) || 0;
@@ -230,7 +231,7 @@ function BalanceSheet({ data }: { data: Record<string, unknown> }) {
           <h3 className="font-bold text-sm text-blue-600 uppercase mb-4">Assets</h3>
           <div className="space-y-3">
             <div className="flex justify-between"><span className="text-sm">Inventory (at cost)</span><span className="font-bold">{fmtCurrency(assets.inventory)}</span></div>
-            <div className="flex justify-between"><span className="text-sm">Receivables (vendors owe you)</span><span className="font-bold">{fmtCurrency(assets.receivables)}</span></div>
+            <div className="flex justify-between"><span className="text-sm">{ds ? 'Receivables (customers owe you)' : 'Receivables (vendors owe you)'}</span><span className="font-bold">{fmtCurrency(assets.receivables)}</span></div>
             <div className="flex justify-between"><span className="text-sm">Cash / Bank</span><span className="font-bold">{fmtCurrency(assets.cashBank)}</span></div>
             <div className="border-t pt-2 flex justify-between"><span className="font-bold">Total Assets</span><span className="font-bold text-blue-600 text-lg">{fmtCurrency(assets.total)}</span></div>
           </div>
@@ -251,7 +252,7 @@ function BalanceSheet({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-function CashFlow({ data }: { data: Record<string, unknown> }) {
+function CashFlow({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
   const inflows = data.inflows as { vendorPayments: number; total: number };
   const outflows = data.outflows as { supplierPayments: number; total: number };
   const net = Number(data.netCashFlow) || 0;
@@ -259,7 +260,7 @@ function CashFlow({ data }: { data: Record<string, unknown> }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard label="Total Inflows" value={fmtCurrency(inflows.total)} color="text-emerald-600" sub="Received from vendors" />
+        <StatCard label="Total Inflows" value={fmtCurrency(inflows.total)} color="text-emerald-600" sub={ds ? 'Payments received' : 'Received from vendors'} />
         <StatCard label="Total Outflows" value={fmtCurrency(outflows.total)} color="text-rose-600" sub="Paid to suppliers" />
         <StatCard label="Net Cash Flow" value={fmtCurrency(net)} color={net >= 0 ? "text-emerald-600" : "text-rose-600"} />
       </div>
@@ -285,7 +286,7 @@ function CashFlow({ data }: { data: Record<string, unknown> }) {
 function Ledger({ data }: { data: Record<string, unknown> }) {
   const entries = (data.entries as { date: string; type: string; particulars: string; refId: string; debit: number; credit: number; balance: number }[]) || [];
   const totals = data.totals as { debit: number; credit: number };
-  const typeColors: Record<string, string> = { Distribution: 'bg-blue-50 text-blue-600', Sale: 'bg-emerald-50 text-emerald-600', Purchase: 'bg-amber-50 text-amber-600', 'Payment Received': 'bg-green-50 text-green-600', 'Payment Made': 'bg-rose-50 text-rose-600' };
+  const typeColors: Record<string, string> = { Distribution: 'bg-blue-50 text-blue-600', Sale: 'bg-emerald-50 text-emerald-600', Purchase: 'bg-amber-50 text-amber-600', 'Payment Received': 'bg-green-50 text-green-600', 'Payment Made': 'bg-rose-50 text-rose-600', 'Staff Salary': 'bg-purple-50 text-purple-600', 'Staff Advance': 'bg-amber-50 text-amber-600', 'Advance Repaid': 'bg-blue-50 text-blue-600', 'Staff Bonus': 'bg-purple-50 text-purple-600', 'Staff Deduction': 'bg-rose-50 text-rose-600' };
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
@@ -326,11 +327,12 @@ function Ledger({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-function DayBook({ data }: { data: Record<string, unknown> }) {
-  const entries = (data.entries as { id: string; type: string; party: string; product?: string; debit: number; credit: number; method?: string }[]) || [];
+function DayBook({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
+  const rawEntries = (data.entries as { id: string; type: string; party: string; product?: string; debit: number; credit: number; method?: string }[]) || [];
+  const entries = ds ? rawEntries.map(e => ({ ...e, type: e.type === 'Distribution' ? 'Sale' : e.type })) : rawEntries;
   const totalDebit = Number(data.totalDebit) || 0;
   const totalCredit = Number(data.totalCredit) || 0;
-  const typeColors: Record<string, string> = { Sale: 'bg-emerald-50 text-emerald-600', Distribution: 'bg-blue-50 text-blue-600', Purchase: 'bg-amber-50 text-amber-600', 'Payment Received': 'bg-green-50 text-green-600', 'Payment Made': 'bg-rose-50 text-rose-600' };
+  const typeColors: Record<string, string> = { Sale: 'bg-emerald-50 text-emerald-600', Distribution: 'bg-blue-50 text-blue-600', Purchase: 'bg-amber-50 text-amber-600', 'Payment Received': 'bg-green-50 text-green-600', 'Payment Made': 'bg-rose-50 text-rose-600', 'Staff Salary': 'bg-purple-50 text-purple-600', 'Staff Advance': 'bg-amber-50 text-amber-600', 'Advance Repaid': 'bg-blue-50 text-blue-600', 'Staff Bonus': 'bg-purple-50 text-purple-600', 'Staff Deduction': 'bg-rose-50 text-rose-600' };
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
@@ -443,7 +445,7 @@ function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefre
   );
 }
 
-function ReportTable({ tab, data }: { tab: string; data: Record<string, unknown> }) {
+function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unknown>; ds: boolean }) {
   const rows = (data.rows as Record<string, unknown>[]) || [];
   const totals = (data.totals as Record<string, number>) || {};
   const count = data.count as number || rows.length;
@@ -461,7 +463,7 @@ function ReportTable({ tab, data }: { tab: string; data: Record<string, unknown>
             <div><p className="text-xs text-gray-400 uppercase font-bold">Total</p><p className="text-lg font-bold text-emerald-600">{fmtCurrency(data.totalValue as number || 0)}</p></div>
           </div>
         </div>
-        {b2b.length > 0 && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"><div className="px-4 py-2 bg-gray-50 border-b text-sm font-bold text-gray-600">B2B (with GSTIN)</div><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-gray-50 text-xs font-bold text-gray-400 uppercase"><th className="px-3 py-2 text-left">Vendor</th><th className="px-3 py-2 text-left">GSTIN</th><th className="px-3 py-2 text-right">Taxable</th><th className="px-3 py-2 text-right">CGST</th><th className="px-3 py-2 text-right">SGST</th><th className="px-3 py-2 text-right">Total</th></tr></thead><tbody>{b2b.map((r, i) => <tr key={i} className="border-t border-gray-50"><td className="px-3 py-2">{r.vendorName as string}</td><td className="px-3 py-2 font-mono text-xs">{r.gstin as string}</td><td className="px-3 py-2 text-right">{fmtCurrency(r.taxable as number)}</td><td className="px-3 py-2 text-right">{fmtCurrency(r.cgst as number)}</td><td className="px-3 py-2 text-right">{fmtCurrency(r.sgst as number)}</td><td className="px-3 py-2 text-right font-bold">{fmtCurrency(r.total as number)}</td></tr>)}</tbody></table></div></div>}
+        {b2b.length > 0 && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"><div className="px-4 py-2 bg-gray-50 border-b text-sm font-bold text-gray-600">B2B (with GSTIN)</div><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-gray-50 text-xs font-bold text-gray-400 uppercase"><th className="px-3 py-2 text-left">{ds ? 'Customer' : 'Vendor'}</th><th className="px-3 py-2 text-left">GSTIN</th><th className="px-3 py-2 text-right">Taxable</th><th className="px-3 py-2 text-right">CGST</th><th className="px-3 py-2 text-right">SGST</th><th className="px-3 py-2 text-right">Total</th></tr></thead><tbody>{b2b.map((r, i) => <tr key={i} className="border-t border-gray-50"><td className="px-3 py-2">{r.vendorName as string}</td><td className="px-3 py-2 font-mono text-xs">{r.gstin as string}</td><td className="px-3 py-2 text-right">{fmtCurrency(r.taxable as number)}</td><td className="px-3 py-2 text-right">{fmtCurrency(r.cgst as number)}</td><td className="px-3 py-2 text-right">{fmtCurrency(r.sgst as number)}</td><td className="px-3 py-2 text-right font-bold">{fmtCurrency(r.total as number)}</td></tr>)}</tbody></table></div></div>}
         {b2c.total > 0 && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4"><p className="text-sm font-bold text-gray-600 mb-2">B2C (without GSTIN)</p><div className="grid grid-cols-4 gap-4 text-center"><div><p className="text-xs text-gray-400">Taxable</p><p className="font-bold">{fmtCurrency(b2c.taxable)}</p></div><div><p className="text-xs text-gray-400">CGST</p><p className="font-bold">{fmtCurrency(b2c.cgst)}</p></div><div><p className="text-xs text-gray-400">SGST</p><p className="font-bold">{fmtCurrency(b2c.sgst)}</p></div><div><p className="text-xs text-gray-400">Total</p><p className="font-bold">{fmtCurrency(b2c.total)}</p></div></div></div>}
         {hsn.length > 0 && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"><div className="px-4 py-2 bg-gray-50 border-b text-sm font-bold text-gray-600">HSN Summary</div><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-gray-50 text-xs font-bold text-gray-400 uppercase"><th className="px-3 py-2 text-left">HSN</th><th className="px-3 py-2 text-left">Description</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Taxable</th><th className="px-3 py-2 text-right">Total</th></tr></thead><tbody>{hsn.map((r, i) => <tr key={i} className="border-t border-gray-50"><td className="px-3 py-2 font-mono">{r.hsn as string}</td><td className="px-3 py-2">{r.description as string}</td><td className="px-3 py-2 text-right">{r.qty as number}</td><td className="px-3 py-2 text-right">{fmtCurrency(r.taxable as number)}</td><td className="px-3 py-2 text-right font-bold">{fmtCurrency(r.total as number)}</td></tr>)}</tbody></table></div></div>}
       </div>
@@ -469,14 +471,14 @@ function ReportTable({ tab, data }: { tab: string; data: Record<string, unknown>
   }
 
   const cols = tab === 'outstanding'
-    ? [{ k: 'vendorName', l: 'Vendor' }, { k: 'totalBilled', l: 'Billed', r: true }, { k: 'totalPaid', l: 'Paid', r: true }, { k: 'balance', l: 'Balance', r: true }, { k: 'd0_30', l: '0-30d', r: true }, { k: 'd31_60', l: '31-60d', r: true }, { k: 'd61_90', l: '61-90d', r: true }, { k: 'd90plus', l: '90+d', r: true }]
+    ? [{ k: 'vendorName', l: ds ? 'Customer' : 'Vendor' }, { k: 'totalBilled', l: 'Billed', r: true }, { k: 'totalPaid', l: 'Paid', r: true }, { k: 'balance', l: 'Balance', r: true }, { k: 'd0_30', l: '0-30d', r: true }, { k: 'd31_60', l: '31-60d', r: true }, { k: 'd61_90', l: '61-90d', r: true }, { k: 'd90plus', l: '90+d', r: true }]
     : tab === 'stock'
-    ? [{ k: 'name', l: 'Product' }, { k: 'hsnCode', l: 'HSN' }, { k: 'unitPrice', l: 'Price', r: true }, { k: 'inStock', l: 'InStock', r: true }, { k: 'withVendors', l: 'Vendors', r: true }, { k: 'sold', l: 'Sold', r: true }, { k: 'closingStock', l: 'Closing', r: true }, { k: 'stockValue', l: 'Value', r: true }]
+    ? [{ k: 'name', l: 'Product' }, { k: 'hsnCode', l: 'HSN' }, { k: 'unitPrice', l: 'Price', r: true }, { k: 'inStock', l: 'InStock', r: true }, ...(!ds ? [{ k: 'withVendors', l: 'Vendors', r: true }] : []), { k: 'sold', l: 'Sold', r: true }, { k: 'closingStock', l: 'Closing', r: true }, { k: 'stockValue', l: 'Value', r: true }]
     : tab === 'payments'
-    ? [{ k: 'date', l: 'Date' }, { k: 'vendorName', l: 'Vendor' }, { k: 'amount', l: 'Amount', r: true }, { k: 'method', l: 'Method' }, { k: 'reference', l: 'Ref' }]
+    ? [{ k: 'date', l: 'Date' }, { k: 'vendorName', l: ds ? 'Customer' : 'Vendor' }, { k: 'amount', l: 'Amount', r: true }, { k: 'method', l: 'Method' }, { k: 'reference', l: 'Ref' }]
     : tab === 'sales'
     ? [{ k: 'date', l: 'Date' }, { k: 'customerName', l: 'Customer' }, { k: 'productName', l: 'Product' }, { k: 'hsnCode', l: 'HSN' }, { k: 'taxableValue', l: 'Taxable', r: true }, { k: 'cgst', l: 'CGST', r: true }, { k: 'sgst', l: 'SGST', r: true }, { k: 'total', l: 'Total', r: true }]
-    : [{ k: 'date', l: 'Date' }, { k: 'vendorName', l: 'Vendor' }, { k: 'productName', l: 'Product' }, { k: 'hsnCode', l: 'HSN' }, { k: 'taxableValue', l: 'Taxable', r: true }, { k: 'cgst', l: 'CGST', r: true }, { k: 'sgst', l: 'SGST', r: true }, { k: 'total', l: 'Total', r: true }];
+    : [{ k: 'date', l: 'Date' }, { k: 'vendorName', l: ds ? 'Customer' : 'Vendor' }, { k: 'productName', l: 'Product' }, { k: 'hsnCode', l: 'HSN' }, { k: 'taxableValue', l: 'Taxable', r: true }, { k: 'cgst', l: 'CGST', r: true }, { k: 'sgst', l: 'SGST', r: true }, { k: 'total', l: 'Total', r: true }];
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
