@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
-import { generateBarcodesFromPrefix, barcodeExists } from '../utils/barcode';
 
 const router = Router();
 
@@ -102,7 +101,7 @@ router.post('/api/purchases/batch', async (req, res) => {
     let totalBilled = 0;
     let totalQty = 0;
     const productNames: string[] = [];
-    const unitRows: { purchaseId: string; productId: string; barcode: string; costPrice: number; gstApplied: number; billedPrice: number; disc: number }[] = [];
+    const purchaseRows: { id: string; productId: string; qty: number; costPrice: number; gstApplied: boolean; billedPrice: number; disc: number }[] = [];
 
     for (const item of items) {
       const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
@@ -115,34 +114,13 @@ router.post('/api/purchases/batch', async (req, res) => {
       const basePrice = item.costPrice ? Number(item.costPrice) : Number(product.price);
       const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
       const costPricePerUnit = Math.round((basePrice * (100 - disc) / 100) * 100) / 100;
-      const gstApplied = item.withGst !== false ? 1 : 0;
+      const gstApplied = item.withGst !== false;
       const billedPricePerUnit = gstApplied ? Math.round(costPricePerUnit * (100 + gstRate) / 100) : costPricePerUnit;
 
-      // Generate barcodes for new stock
-      const existing = (await pool.query('SELECT barcode FROM product_inventory WHERE product_id = $1 AND tenant_id = $2 ORDER BY barcode DESC LIMIT 1', [product.id, tenantId])).rows[0] as { barcode: string } | undefined;
-      let prefix = '';
-      if (existing) {
-        const m = existing.barcode.match(/^(.+?)(\d+)$/);
-        if (m) prefix = m[1];
-      }
-      if (!prefix) return res.status(400).json({ error: `Cannot detect barcode prefix for ${product.name}. Add stock manually first.` });
-
-      const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, qty);
       productNames.push(product.name);
-
-      for (let i = 0; i < barcodes.length; i++) {
-        unitRows.push({
-          purchaseId: `${batchId}-${totalQty + i + 1}`,
-          productId: product.id,
-          barcode: barcodes[i],
-          costPrice: costPricePerUnit,
-          gstApplied,
-          billedPrice: billedPricePerUnit,
-          disc,
-        });
-        totalBilled += billedPricePerUnit;
-        totalQty++;
-      }
+      purchaseRows.push({ id: `${batchId}-${totalQty + 1}`, productId: product.id, qty, costPrice: costPricePerUnit, gstApplied, billedPrice: billedPricePerUnit, disc });
+      totalBilled += billedPricePerUnit * qty;
+      totalQty += qty;
     }
 
     if (paidAmount > totalBilled) return res.status(400).json({ error: `Amount paid (₹${paidAmount}) cannot exceed billed amount (₹${totalBilled})` });
@@ -150,19 +128,13 @@ router.post('/api/purchases/batch', async (req, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const invBatchId = uid('B');
-      for (let ui = 0; ui < unitRows.length; ui++) {
-        const u = unitRows[ui];
-        // Add to inventory
-        await client.query(
-          'INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id) VALUES ($1, $2, $3, $4, $5, $6)',
-          [`${invBatchId}-${ui + 1}`, u.productId, u.barcode, invBatchId, 'InStock', tenantId]
-        );
-        // Record purchase
-        await client.query(
-          'INSERT INTO product_purchases (id, tenant_id, batch_id, product_id, barcode, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
-          [u.purchaseId, tenantId, batchId, u.productId, u.barcode, supplierId, date, u.costPrice, u.gstApplied === 1, u.billedPrice, u.disc]
-        );
+      for (const u of purchaseRows) {
+        for (let i = 0; i < u.qty; i++) {
+          await client.query(
+            'INSERT INTO product_purchases (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+            [`${u.id}-${i + 1}`, tenantId, batchId, u.productId, supplierId, date, u.costPrice, u.gstApplied, u.billedPrice, u.disc]
+          );
+        }
       }
       if (paidAmount > 0) {
         const payId = uid('SP');
