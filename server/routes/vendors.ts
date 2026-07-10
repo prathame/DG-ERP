@@ -171,10 +171,14 @@ router.delete('/api/vendors/:id', async (req, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query('DELETE FROM price_lists WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
+      await client.query('DELETE FROM vendor_reminder_settings WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('DELETE FROM vendor_payments WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('DELETE FROM rewards WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('DELETE FROM users WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('UPDATE customers SET vendor_id = NULL WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
+      await client.query('UPDATE quotations SET vendor_id = NULL WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
+      await client.query('UPDATE orders SET vendor_id = NULL WHERE vendor_id = $1 AND tenant_id = $2', [id, tenantId]);
       const result = await client.query('DELETE FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
       if (result.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Vendor not found' }); }
       await client.query('COMMIT');

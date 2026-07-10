@@ -523,6 +523,8 @@ router.delete('/api/products/:id', async (req, res) => {
         await client.query('DELETE FROM product_replacements WHERE warranty_id = $1 AND tenant_id = $2', [w.id, tenantId]);
       }
       await client.query('DELETE FROM product_replacements WHERE product_id = $1 AND tenant_id = $2', [id, tenantId]);
+      await client.query('DELETE FROM product_purchases WHERE product_id = $1 AND tenant_id = $2', [id, tenantId]);
+      await client.query('DELETE FROM price_lists WHERE product_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('DELETE FROM product_inventory WHERE product_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('DELETE FROM product_sales WHERE product_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('DELETE FROM product_distribution WHERE product_id = $1 AND tenant_id = $2', [id, tenantId]);
