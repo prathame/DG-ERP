@@ -72,7 +72,29 @@ export async function provisionTenant(data: {
 }
 
 export async function deleteTenant(tenantId: string) {
-  await pool.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const tables = [
+      'staff_payments', 'staff_members', 'bill_settings', 'audit_log',
+      'credit_debit_notes', 'price_lists', 'orders', 'quotations',
+      'reward_rules', 'rewards', 'warranties', 'password_reset_tokens',
+      'supplier_payments', 'product_purchases', 'vendor_payments',
+      'product_sales', 'product_distribution', 'product_inventory',
+      'customers', 'banks', 'suppliers', 'vendors', 'categories', 'products',
+      'redemption_settings', 'vendor_reminder_settings', 'users',
+    ];
+    for (const table of tables) {
+      await client.query(`DELETE FROM ${table} WHERE tenant_id = $1`, [tenantId]);
+    }
+    await client.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getTenantStats(tenantId: string) {
