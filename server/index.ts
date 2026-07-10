@@ -86,6 +86,7 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use('/api/backup/restore', express.json({ limit: '50mb' }));
 app.use(express.json({ limit: '2mb' }));
 
 // Public routes that don't need auth

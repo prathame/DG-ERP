@@ -612,6 +612,23 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                   <button type="button" onClick={async () => { try { const r = await fetch('/api/backup', { headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '' } }); if (!r.ok) throw new Error('Backup failed'); const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url); toast('Backup downloaded', 'success'); setBackupSettings(prev => prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev); } catch(e) { toast((e as Error).message, 'error'); } }} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">
                     <Download size={18} /> Download Backup Now
                   </button>
+                  <label className="flex items-center gap-2 px-5 py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 cursor-pointer">
+                    <Upload size={18} /> Restore from Backup
+                    <input type="file" accept=".json" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (!confirm('⚠️ This will REPLACE all your current data with the backup. Are you sure?')) { e.target.value = ''; return; }
+                      try {
+                        const text = await file.text();
+                        const data = JSON.parse(text);
+                        const r = await fetch('/api/backup/restore', { method: 'POST', headers: { 'Authorization': `Bearer ${session.getToken()}`, 'X-Tenant-ID': session.getTenantId() || '', 'Content-Type': 'application/json' }, body: text });
+                        const result = await r.json();
+                        if (!r.ok) throw new Error(result.error || 'Restore failed');
+                        toast(`Restored ${result.restored} records from ${data._meta?.companyName || 'backup'}`, 'success');
+                      } catch (err) { toast((err as Error).message, 'error'); }
+                      e.target.value = '';
+                    }} />
+                  </label>
                   {backupSettings?.lastBackupAt && <span className="text-xs text-gray-400">Last backup: {new Date(backupSettings.lastBackupAt).toLocaleString('en-IN')}</span>}
                 </div>
                 <div className="border-t border-gray-100 pt-4">

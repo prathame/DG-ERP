@@ -106,6 +106,65 @@ router.get('/api/backup', async (req, res) => {
   }
 });
 
+router.post('/api/backup/restore', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const data = req.body;
+    if (!data || !data._meta) return res.status(400).json({ error: 'Invalid backup file — missing _meta header' });
+    if (data._meta.version !== '1.0') return res.status(400).json({ error: `Unsupported backup version: ${data._meta.version}` });
+
+    const restoreTables = ['categories', 'products', 'product_inventory', 'product_distribution', 'product_sales', 'product_purchases',
+      'vendors', 'vendor_payments', 'customers', 'warranties', 'rewards', 'reward_rules',
+      'quotations', 'orders', 'credit_debit_notes', 'price_lists',
+      'suppliers', 'supplier_payments', 'banks', 'bill_settings'];
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Clear existing data in reverse dependency order
+      const clearOrder = ['bill_settings', 'audit_log', 'credit_debit_notes', 'price_lists', 'orders', 'quotations',
+        'reward_rules', 'rewards', 'warranties', 'supplier_payments', 'product_purchases',
+        'vendor_payments', 'product_sales', 'product_distribution', 'product_inventory',
+        'customers', 'banks', 'suppliers', 'vendors', 'categories', 'products'];
+      for (const table of clearOrder) {
+        await client.query(`DELETE FROM ${table} WHERE tenant_id = $1`, [tenantId]);
+      }
+
+      let restored = 0;
+      for (const table of restoreTables) {
+        const rows = data[table];
+        if (!Array.isArray(rows) || rows.length === 0) continue;
+        for (const row of rows) {
+          row.tenant_id = tenantId;
+          const cols = Object.keys(row);
+          const vals = cols.map((_, i) => `$${i + 1}`);
+          const onConflict = cols.includes('id') ? `ON CONFLICT (id, tenant_id) DO NOTHING` : 'ON CONFLICT DO NOTHING';
+          try {
+            await client.query(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${vals.join(',')}) ${onConflict}`, cols.map(c => row[c]));
+            restored++;
+          } catch {
+            // skip rows that fail (schema mismatch, etc)
+          }
+        }
+      }
+
+      await client.query('COMMIT');
+      await logAudit(pool, tenantId, 'Database Restored', 'system', undefined, `Restored ${restored} records from backup (${data._meta.exportedAt})`);
+      res.json({ ok: true, restored, source: { exportedAt: data._meta.exportedAt, companyName: data._meta.companyName } });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/api/backup/settings', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
