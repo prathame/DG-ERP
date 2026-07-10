@@ -25,7 +25,7 @@ router.get('/api/staff', async (req, res) => {
       id: r.id, name: r.name, phone: r.phone, role: r.role, address: r.address,
       salary: Number(r.salary) || 0, joiningDate: r.joining_date, status: r.status,
       totalPaid: Number(r.total_paid), totalAdvance: Number(r.total_advance), totalRepaid: Number(r.total_repaid),
-      advanceBalance: Number(r.total_advance) - Number(r.total_repaid),
+      advanceBalance: Math.max(0, Number(r.total_advance) - Number(r.total_repaid)),
       paymentCount: Number(r.payment_count), lastPayment: r.last_payment,
     })));
   } catch (err) {
