@@ -25,12 +25,16 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (event.request.url.includes('/api/')) return;
+  if (event.request.url.includes('manifest.json')) return;
+  if (!event.request.url.startsWith('http')) return;
 
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
         return response;
       })
       .catch(() => caches.match(event.request).then((r) => r || caches.match(OFFLINE_URL)))
