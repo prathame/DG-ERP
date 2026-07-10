@@ -68,8 +68,11 @@ router.delete('/api/staff/:id', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const result = await pool.query('DELETE FROM staff_members WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Staff not found' });
+    const staff = (await pool.query('SELECT name FROM staff_members WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId])).rows[0] as { name: string } | undefined;
+    if (!staff) return res.status(404).json({ error: 'Staff not found' });
+    await pool.query('DELETE FROM staff_payments WHERE staff_name = $1 AND tenant_id = $2', [staff.name, tenantId]);
+    await pool.query('DELETE FROM staff_members WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
+    await logAudit(pool, tenantId, 'Staff Deleted', 'staff', req.params.id, `${staff.name} removed with all payment records`);
     res.json({ ok: true });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
