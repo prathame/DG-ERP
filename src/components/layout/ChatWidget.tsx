@@ -143,11 +143,15 @@ export function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
             style={pos ? (() => {
-              const isLeft = pos.x < window.innerWidth / 2;
-              const isTop = pos.y < window.innerHeight / 2;
-              return { left: isLeft ? pos.x : pos.x - 324, top: isTop ? pos.y + 64 : undefined, bottom: isTop ? undefined : window.innerHeight - pos.y + 8, right: 'auto', inset: 'auto' } as React.CSSProperties;
+              const bx = pos.x, by = pos.y;
+              const isLeft = bx < window.innerWidth / 2;
+              const isTop = by < window.innerHeight / 2;
+              const s: React.CSSProperties = { position: 'fixed', zIndex: 150, width: 380, height: 400, maxHeight: 'calc(100vh - 6rem)' };
+              if (isLeft) s.left = bx; else s.left = Math.max(8, bx - 324);
+              if (isTop) s.top = by + 64; else s.bottom = window.innerHeight - by + 8;
+              return s;
             })() : undefined}
-            className={cn("fixed z-[150] lg:w-[380px] lg:h-[400px] lg:max-h-[calc(100vh-12rem)] bg-white lg:rounded-2xl shadow-2xl lg:border lg:border-gray-200 overflow-hidden flex flex-col", pos ? '' : 'inset-0 lg:inset-auto lg:bottom-24 lg:right-4')}
+            className={cn("bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col", pos ? '' : 'fixed inset-0 lg:inset-auto lg:bottom-24 lg:right-4 z-[150] lg:w-[380px] lg:h-[400px] lg:max-h-[calc(100vh-12rem)]')}
           >
             {/* Header */}
             <div className="bg-[#151619] text-white px-5 py-4 flex items-center gap-3">
