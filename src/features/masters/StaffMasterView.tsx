@@ -85,7 +85,7 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
       <div className="flex items-center gap-4 flex-wrap">
         <button type="button" onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
         <div className="flex-1"><h2 className="text-xl font-bold">Staff Management</h2><p className="text-sm text-gray-500">Add staff, track payments</p></div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {list.length > 0 && <button type="button" onClick={() => exportToCsv(list.map(s => ({ Name: s.name, Phone: s.phone || '', Role: s.role || '', Salary: s.salary, 'Total Paid': s.totalPaid, Payments: s.paymentCount })), 'staff')} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50"><Download size={18} /> Export CSV</button>}
           <button type="button" onClick={() => setCsvImportOpen(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"><Upload size={18} /> Import CSV</button>
           <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add Staff</button>
