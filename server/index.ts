@@ -40,6 +40,11 @@ import payrollRouter from './routes/payroll';
 import expensesRouter from './routes/expenses';
 import { logger } from './utils/logger';
 
+// ============ STARTUP CHECKS ============
+if (!process.env.DATABASE_URL) { console.error('❌ FATAL: DATABASE_URL environment variable is required'); process.exit(1); }
+if (!process.env.JWT_SECRET) { console.error('❌ FATAL: JWT_SECRET environment variable is required'); process.exit(1); }
+if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET.length < 32) { console.error('❌ FATAL: JWT_SECRET must be at least 32 characters in production'); process.exit(1); }
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -56,12 +61,13 @@ app.use(helmet({
     },
   },
   crossOriginEmbedderPolicy: false,
-  hsts: { maxAge: 31536000, includeSubDomains: true },
+  frameguard: { action: 'deny' },
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'];
 const isProduction = process.env.NODE_ENV === 'production';
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || (isProduction ? ['https://dg-erp.onrender.com'] : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002']);
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && (allowedOrigins.includes(origin) || !isProduction)) {
@@ -126,7 +132,7 @@ app.use('/api/', async (req, res, next) => {
   next();
 });
 
-const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 50, message: { error: 'Too many login attempts, try again in 15 minutes' }, standardHeaders: true, legacyHeaders: false });
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: isProduction ? 10 : 50, message: { error: 'Too many login attempts, try again in 15 minutes' }, standardHeaders: true, legacyHeaders: false });
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/super-admin/login', loginLimiter);
 app.use('/api/settings/change-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many password change attempts' } }));
@@ -209,9 +215,9 @@ app.use(ordersRouter);
 app.use(priceListsRouter);
 app.use(accountsRouter);
 
-// Request logging for errors
+// Global error handler — never leak internals to client
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error('Unhandled error', { method: req.method, path: req.path, error: err.message, stack: err.stack });
+  logger.error('Unhandled error', { method: req.method, path: req.path, error: err.message, stack: isProduction ? undefined : err.stack });
   res.status(500).json({ error: 'Internal server error' });
 });
 
