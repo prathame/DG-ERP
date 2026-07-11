@@ -539,6 +539,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                   description: r.description || undefined,
                   hsnCode: r.hsnCode || undefined,
                   gstRate: r.gstRate ? Number(r.gstRate) : undefined,
+                  priceIncludesGst: r.priceIncludesGst?.toUpperCase() === 'Y' || r.priceIncludesGst === 'true' || undefined,
                   warrantyMonths: r.warrantyMonths ? Number(r.warrantyMonths) : undefined,
                   rewardPointsValue: r.rewardPoints ? Number(r.rewardPoints) : undefined,
                 });
