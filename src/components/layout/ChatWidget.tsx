@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -134,7 +135,8 @@ export function ChatWidget() {
         )}
       </AnimatePresence>
 
-      {/* Chat window */}
+      {/* Chat window — portal to body so it escapes sidebar */}
+      {ReactDOM.createPortal(
       <AnimatePresence>
         {open && (
           <motion.div
@@ -236,7 +238,7 @@ export function ChatWidget() {
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </>
   );
 }
