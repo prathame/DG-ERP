@@ -128,6 +128,7 @@ router.post('/api/vendor-finance/:vendorId/payments', async (req, res) => {
     const { amount, paymentDate, paymentMethod, referenceNumber, notes, batchId } = req.body;
     const parsedAmount = Number(amount);
     if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ error: 'Amount must be a valid number greater than 0' });
+    if (parsedAmount > 100000000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
 
     const vendor = (await pool.query('SELECT id FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0];
     if (!vendor) return res.status(404).json({ error: 'Vendor not found' });

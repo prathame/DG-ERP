@@ -34,10 +34,9 @@ router.get('/api/admin/users', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const jwtUser = (req as unknown as Record<string, unknown>).user as { userId?: string; role?: string } | undefined;
-    const adminUserId = jwtUser?.userId || (req.query.adminUserId as string);
-    if (!adminUserId) return res.status(400).json({ error: 'Authentication required' });
+    if (!jwtUser?.userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [adminUserId, tenantId])).rows[0] as { role: string } | undefined;
+    const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [jwtUser.userId, tenantId])).rows[0] as { role: string } | undefined;
     if (!admin || !isAdmin(admin.role)) return res.status(403).json({ error: 'Admin access required' });
 
     const rows = (await pool.query('SELECT id, email, name, phone, address, role, company_name, permissions, vendor_id FROM users WHERE tenant_id = $1 ORDER BY name', [tenantId])).rows as Record<string, unknown>[];
@@ -63,15 +62,14 @@ router.post('/api/admin/users', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const jwtUser = (req as unknown as Record<string, unknown>).user as { userId?: string; role?: string } | undefined;
-    const adminUserId = jwtUser?.userId || req.body.adminUserId;
+    if (!jwtUser?.userId) return res.status(401).json({ error: 'Authentication required' });
     const { email, password, name, phone, address, role, companyName, permissions, vendorId } = req.body;
-    if (!adminUserId) return res.status(400).json({ error: 'Authentication required' });
 
-    const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [adminUserId, tenantId])).rows[0] as { role: string } | undefined;
+    const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [jwtUser.userId, tenantId])).rows[0] as { role: string } | undefined;
     if (!admin || !isAdmin(admin.role)) return res.status(403).json({ error: 'Admin access required' });
     if (!email || !password || !name) return res.status(400).json({ error: 'Email, password and name are required' });
     if (typeof password === 'string' && password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    if (role === 'Super Admin') return res.status(400).json({ error: 'Cannot create Super Admin from tenant settings' });
+    if (role && role.toLowerCase().includes('super')) return res.status(400).json({ error: 'Cannot create Super Admin from tenant settings' });
     if (role === 'Vendor' && !vendorId) return res.status(400).json({ error: 'Vendor role requires vendorId' });
 
     const existing = (await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2', [email, tenantId])).rows[0];
@@ -115,14 +113,13 @@ router.put('/api/admin/users/:id', async (req, res) => {
 
     const { id } = req.params;
     const jwtUser = (req as unknown as Record<string, unknown>).user as { userId?: string; role?: string } | undefined;
-    const adminUserId = jwtUser?.userId || req.body.adminUserId;
+    if (!jwtUser?.userId) return res.status(401).json({ error: 'Authentication required' });
     const { role, permissions, vendorId } = req.body;
-    if (!adminUserId) return res.status(400).json({ error: 'Authentication required' });
 
-    const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [adminUserId, tenantId])).rows[0] as { role: string } | undefined;
+    const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [jwtUser.userId, tenantId])).rows[0] as { role: string } | undefined;
     if (!admin || !isAdmin(admin.role)) return res.status(403).json({ error: 'Admin access required' });
-    if (id === adminUserId) return res.status(400).json({ error: 'Cannot edit your own permissions' });
-    if (role === 'Super Admin') return res.status(400).json({ error: 'Cannot assign Super Admin role' });
+    if (id === jwtUser.userId) return res.status(400).json({ error: 'Cannot edit your own permissions' });
+    if (role && role.toLowerCase().includes('super')) return res.status(400).json({ error: 'Cannot assign Super Admin role' });
 
     const updates: string[] = [];
     const params: unknown[] = [];

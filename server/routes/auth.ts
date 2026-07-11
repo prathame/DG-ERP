@@ -163,8 +163,8 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
   try {
     const tenantId = req.tenantId;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const userId = req.query.userId as string || req.user?.userId;
-    if (!userId || userId !== req.user?.userId) return res.status(403).json({ error: 'Access denied' });
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const row = (await pool.query('SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, u.gst_number, t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled, t.tab_config, t.business_type FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1 AND u.tenant_id = $2', [userId, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'User not found' });
