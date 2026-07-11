@@ -207,7 +207,7 @@ export const api = {
       fetchApi<{ product: { id: string; name: string; price: number }; barcodes: { barcode: string; status: string }[] }>(`/products/${id}/barcodes`),
     verify: (barcode: string) =>
       fetchApi<Record<string, unknown>>(`/products/verify/${encodeURIComponent(barcode)}`),
-    create: (data: Partial<Omit<import('./types').Product, 'id'>> & { name: string; rangeStart?: string; rangeEnd?: string; barcodePrefix?: string; barcodeMode?: 'prefix' | 'range' | 'auto'; quantity?: number; barcodePerBox?: boolean }) =>
+    create: (data: Partial<Omit<import('./types').Product, 'id'>> & { name: string; rangeStart?: string; rangeEnd?: string; barcodePrefix?: string; barcodeMode?: 'prefix' | 'range' | 'auto'; quantity?: number; barcodePerBox?: boolean; priceIncludesGst?: boolean }) =>
       fetchApi<import('./types').Product>('/products', { method: 'POST', body: JSON.stringify(data) }),
     addStock: (id: string, data: { barcodePrefix?: string; rangeStart?: string; rangeEnd?: string; quantity: number; barcodeMode?: 'prefix' | 'range' | 'auto'; barcodePerBox?: boolean; packSize?: number }) =>
       fetchApi<import('./types').Product>(`/products/${id}/add-stock`, { method: 'POST', body: JSON.stringify(data) }),

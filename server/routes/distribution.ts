@@ -210,15 +210,25 @@ router.post('/api/distribution/batch', async (req, res) => {
     for (const item of items) {
       const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
       const product = (await pool.query(
-        'SELECT id, name, price, pack_size, stock FROM products WHERE id = $1 AND tenant_id = $2',
+        'SELECT id, name, price, pack_size, stock, price_includes_gst, gst_rate FROM products WHERE id = $1 AND tenant_id = $2',
         [item.productId, tenantId]
-      )).rows[0] as { id: string; name: string; price: number; pack_size: number; stock: number } | undefined;
+      )).rows[0] as { id: string; name: string; price: number; pack_size: number; stock: number; price_includes_gst: boolean; gst_rate: number } | undefined;
       if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
       const basePrice = item.customPrice ? Number(item.customPrice) : product.price;
       const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
-      const netPricePerUnit = Math.round((basePrice * (100 - disc) / 100) * 100) / 100;
+      const priceAfterDisc = Math.round((basePrice * (100 - disc) / 100) * 100) / 100;
       const gstApplied = item.withGst !== false ? 1 : 0;
-      const billedPricePerUnit = gstApplied ? Math.round(netPricePerUnit * (100 + gstRate) / 100) : netPricePerUnit;
+      let netPricePerUnit: number, billedPricePerUnit: number;
+      if (gstApplied && product.price_includes_gst) {
+        billedPricePerUnit = priceAfterDisc;
+        netPricePerUnit = Math.round((priceAfterDisc / (1 + gstRate / 100)) * 100) / 100;
+      } else if (gstApplied) {
+        netPricePerUnit = priceAfterDisc;
+        billedPricePerUnit = Math.round(priceAfterDisc * (100 + gstRate) / 100);
+      } else {
+        netPricePerUnit = priceAfterDisc;
+        billedPricePerUnit = priceAfterDisc;
+      }
       itemsPrepped.push({ product, qty, disc, netPricePerUnit, gstApplied, billedPricePerUnit });
     }
 

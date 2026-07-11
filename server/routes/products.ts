@@ -296,7 +296,7 @@ router.post('/api/products', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix, packSize, packName, hsnCode, gstRate, barcodePerBox } = req.body;
+    const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix, packSize, packName, hsnCode, gstRate, barcodePerBox, priceIncludesGst } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Product name is required' });
     const duplicate = (await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name.trim()])).rows[0];
     if (duplicate) return res.status(400).json({ error: `Product "${name}" already exists` });
@@ -309,8 +309,8 @@ router.post('/api/products', async (req, res) => {
 
     const insertProductRow = async () => {
       await client.query(
-        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-        [id, name, null, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, 0, tenantId, packSize ?? 1, packName || 'Piece', hsnCode || null, gstRate ?? 18]
+        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+        [id, name, null, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, 0, tenantId, packSize ?? 1, packName || 'Piece', hsnCode || null, gstRate ?? 18, !!priceIncludesGst]
       );
     };
     const insertBarcodes = async (barcodes: string[]) => {
@@ -360,8 +360,8 @@ router.post('/api/products', async (req, res) => {
       await insertBarcodes(barcodes);
     } else {
       await client.query(
-        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-        [id, name, barcode || null, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, stock ?? 0, tenantId, packSize ?? 1, packName || 'Piece', hsnCode || null, gstRate ?? 18]
+        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+        [id, name, barcode || null, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, stock ?? 0, tenantId, packSize ?? 1, packName || 'Piece', hsnCode || null, gstRate ?? 18, !!priceIncludesGst]
       );
       invStock = stock ?? 0;
     }
@@ -466,7 +466,7 @@ router.put('/api/products/:id', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, packSize, packName, hsnCode, gstRate } = req.body;
+    const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, packSize, packName, hsnCode, gstRate, priceIncludesGst } = req.body;
     const row = (await pool.query('SELECT * FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'Product not found' });
     if (name) {
@@ -488,9 +488,10 @@ router.put('/api/products/:id', async (req, res) => {
         pack_size = COALESCE($12, pack_size),
         pack_name = COALESCE($13, pack_name),
         hsn_code = COALESCE($14, hsn_code),
-        gst_rate = COALESCE($15, gst_rate)
+        gst_rate = COALESCE($15, gst_rate),
+        price_includes_gst = COALESCE($16, price_includes_gst)
       WHERE id = $10 AND tenant_id = $11
-    `, [name, newBarcode, description ?? row.description, rewardPointsValue ?? row.reward_points_value, manufacturingDate ?? row.manufacturing_date, batchNumber ?? row.batch_number, status ?? row.status, warrantyMonths ?? row.warranty_months, price ?? row.price, id, tenantId, (packSize !== undefined && Number(packSize) > 0) ? Number(packSize) : null, packName ?? null, hsnCode ?? null, gstRate ?? null]);
+    `, [name, newBarcode, description ?? row.description, rewardPointsValue ?? row.reward_points_value, manufacturingDate ?? row.manufacturing_date, batchNumber ?? row.batch_number, status ?? row.status, warrantyMonths ?? row.warranty_months, price ?? row.price, id, tenantId, (packSize !== undefined && Number(packSize) > 0) ? Number(packSize) : null, packName ?? null, hsnCode ?? null, gstRate ?? null, priceIncludesGst !== undefined ? !!priceIncludesGst : null]);
     const updated = (await pool.query(
       'SELECT p.*, (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = $1 AND pi.tenant_id = $2) as inv_stock FROM products p WHERE p.id = $3 AND p.tenant_id = $2',
       ['InStock', tenantId, id]

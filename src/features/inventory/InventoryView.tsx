@@ -29,7 +29,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const [barcodeSearch, setBarcodeSearch] = useState('');
   const debouncedBarcodeSearch = useDebounce(barcodeSearch, 250);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece', barcodePerBox: true });
+  const [addForm, setAddForm] = useState({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece', barcodePerBox: true, priceIncludesGst: false });
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [addStockModal, setAddStockModal] = useState<Product | null>(null);
   const [addStockForm, setAddStockForm] = useState({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
@@ -307,9 +307,10 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     packSize: addForm.packSize > 1 ? addForm.packSize : undefined,
                     packName: addForm.packSize > 1 ? addForm.packName : undefined,
                     barcodePerBox: addForm.packSize > 1 ? addForm.barcodePerBox : undefined,
+                    priceIncludesGst: addForm.priceIncludesGst || undefined,
                   });
                   setAddModalOpen(false);
-                  setAddForm({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece', barcodePerBox: true });
+                  setAddForm({ name: '', barcodePrefix: '', quantity: 10, packs: 0, loosePieces: 0, description: '', rewardPointsValue: 0, warrantyApplicable: true, warrantyMonths: 24, price: 0, hsnCode: '', gstRate: 18, packSize: 1, packName: 'Piece', barcodePerBox: true, priceIncludesGst: false });
                   api.products.list(debouncedBarcodeSearch || undefined).then(setProducts);
                   toast('Product added successfully', 'success');
                 } catch (err) { toast((err as Error).message, 'error'); }
@@ -322,6 +323,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="text-xs font-bold text-gray-400 uppercase">HSN Code</label><input value={addForm.hsnCode ?? ''} onChange={(e) => setAddForm({ ...addForm, hsnCode: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono" placeholder="e.g. 8413" /></div>
                   <div><label className="text-xs font-bold text-gray-400 uppercase">GST Rate (%)</label><input type="number" min={0} max={28} value={addForm.gstRate ?? 18} onChange={(e) => setAddForm({ ...addForm, gstRate: e.target.value === '' ? 18 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                  <div className="flex items-center gap-2 mt-2"><input type="checkbox" checked={addForm.priceIncludesGst} onChange={(e) => setAddForm({ ...addForm, priceIncludesGst: e.target.checked })} className="rounded text-brand" /><label className="text-xs font-medium text-gray-500">Price includes GST</label></div>
                 </div>
 
                 {/* Unit Type: Piece or Box */}
@@ -512,6 +514,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             { key: 'description', label: 'Description' },
             { key: 'hsnCode', label: 'HSN Code' },
             { key: 'gstRate', label: 'GST Rate (%)' },
+            { key: 'priceIncludesGst', label: 'Price Incl GST (Y/N)' },
             { key: 'warrantyMonths', label: 'Warranty Months' },
             { key: 'rewardPoints', label: 'Reward Points' },
           ]}
