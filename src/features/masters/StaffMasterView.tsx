@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Plus, Pencil, Trash2, ArrowLeft, Download, IndianRupee, Calendar, X, MessageCircle } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, ArrowLeft, Download, Upload, IndianRupee, Calendar, X, MessageCircle } from 'lucide-react';
 import { exportToCsv, shareViaWhatsApp } from '../../lib/utils';
 import { api } from '../../api';
 import { useToast, LoadingSpinner } from '../../components/ui';
+import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 
 type Staff = { id: string; name: string; phone?: string; role?: string; address?: string; salary: number; joiningDate?: string; status: string; totalPaid: number; totalAdvance: number; totalRepaid: number; advanceBalance: number; paymentCount: number; lastPayment?: string };
@@ -16,6 +17,7 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
   const debouncedSearch = useDebounce(search, 250);
   const [loading, setLoading] = useState(true);
   const [addStaffOpen, setAddStaffOpen] = useState(false);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [editing, setEditing] = useState<Staff | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', role: '', address: '', salary: '', joiningDate: '' });
@@ -85,6 +87,7 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
         <div className="flex-1"><h2 className="text-xl font-bold">Staff Management</h2><p className="text-sm text-gray-500">Add staff, track payments</p></div>
         <div className="flex items-center gap-2">
           {list.length > 0 && <button type="button" onClick={() => exportToCsv(list.map(s => ({ Name: s.name, Phone: s.phone || '', Role: s.role || '', Salary: s.salary, 'Total Paid': s.totalPaid, Payments: s.paymentCount })), 'staff')} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50"><Download size={18} /> Export CSV</button>}
+          <button type="button" onClick={() => setCsvImportOpen(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"><Upload size={18} /> Import CSV</button>
           <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add Staff</button>
         </div>
       </div>
@@ -253,6 +256,34 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
           </div>
         )}
       </AnimatePresence>
+      {csvImportOpen && (
+        <CsvImport
+          templateName="staff"
+          itemLabel="staff members"
+          columns={[
+            { key: 'name', label: 'Name', required: true },
+            { key: 'phone', label: 'Phone' },
+            { key: 'role', label: 'Role' },
+            { key: 'address', label: 'Address' },
+            { key: 'salary', label: 'Monthly Salary' },
+            { key: 'joiningDate', label: 'Joining Date' },
+          ]}
+          onClose={() => setCsvImportOpen(false)}
+          onImport={async (rows) => {
+            let success = 0; const errors: string[] = [];
+            for (let i = 0; i < rows.length; i++) {
+              const r = rows[i];
+              if (!r.name?.trim()) { errors.push(`Row ${i + 2}: Name required`); continue; }
+              try {
+                await api.staff.create({ name: r.name, phone: r.phone || undefined, role: r.role || undefined, address: r.address || undefined, salary: r.salary ? Number(r.salary) : undefined, joiningDate: r.joiningDate || undefined });
+                success++;
+              } catch (e) { errors.push(`Row ${i + 2}: ${(e as Error).message}`); }
+            }
+            load();
+            return { success, errors };
+          }}
+        />
+      )}
     </motion.div>
   );
 }

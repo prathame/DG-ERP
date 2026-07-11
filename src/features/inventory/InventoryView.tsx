@@ -501,6 +501,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       {csvImportOpen && (
         <CsvImport
           templateName="products"
+          itemLabel="products"
           columns={[
             { key: 'name', label: 'Product Name', required: true },
             { key: 'price', label: 'Price (per piece or per box)', required: true },

@@ -194,6 +194,7 @@ export function VendorMasterView({ onBack, onRefresh, businessType = 'manufactur
       {csvImportOpen && (
         <CsvImport
           templateName="vendors_template"
+          itemLabel={`${label.toLowerCase()}s`}
           columns={[
             { key: 'name', label: `${label} Name`, required: true },
             { key: 'contactPerson', label: 'Contact Person' },

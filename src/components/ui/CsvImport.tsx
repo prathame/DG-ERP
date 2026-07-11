@@ -7,6 +7,7 @@ interface CsvImportProps {
   onClose: () => void;
   columns: { key: string; label: string; required?: boolean }[];
   templateName: string;
+  itemLabel?: string;
 }
 
 function parseCsv(text: string): { headers: string[]; rows: Record<string, string>[] } {
@@ -22,7 +23,7 @@ function parseCsv(text: string): { headers: string[]; rows: Record<string, strin
   return { headers, rows };
 }
 
-export function CsvImport({ onImport, onClose, columns, templateName }: CsvImportProps) {
+export function CsvImport({ onImport, onClose, columns, templateName, itemLabel = 'items' }: CsvImportProps) {
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
@@ -87,7 +88,7 @@ export function CsvImport({ onImport, onClose, columns, templateName }: CsvImpor
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
                 <Check size={24} className="text-emerald-600" />
                 <div>
-                  <p className="font-bold text-emerald-800">{result.success} products imported successfully</p>
+                  <p className="font-bold text-emerald-800">{result.success} {itemLabel} imported successfully</p>
                   {result.errors.length > 0 && <p className="text-sm text-amber-600 mt-1">{result.errors.length} rows had errors</p>}
                 </div>
               </div>
