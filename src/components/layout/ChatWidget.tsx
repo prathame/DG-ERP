@@ -99,8 +99,8 @@ export function ChatWidget() {
         whileTap={dragging.current ? undefined : { scale: 0.9 }}
         style={pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : undefined}
         className={cn(
-          "fixed z-[150] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing touch-none",
-          pos ? '' : 'bottom-24 lg:bottom-6 right-6',
+          "z-[150] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing touch-none",
+          pos ? 'fixed' : '',
           open ? "bg-gray-700" : "bg-brand"
         )}
       >
@@ -126,11 +126,10 @@ export function ChatWidget() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 10 }}
             transition={{ delay: 1, duration: 0.3 }}
-            style={pos ? { left: pos.x - 160, top: pos.y + 4, right: 'auto', bottom: 'auto' } : undefined}
-            className={cn("fixed z-[149] bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-200 text-sm font-medium text-gray-700 whitespace-nowrap", pos ? '' : 'bottom-24 lg:bottom-10 right-[5.5rem]')}
+            style={pos ? { left: pos.x - 160, top: pos.y + 4, right: 'auto', bottom: 'auto', position: 'fixed' as const } : undefined}
+            className={cn("z-[149] bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-200 text-sm font-medium text-gray-700 whitespace-nowrap", pos ? '' : 'mt-2')}
           >
             May I help you? <span className="text-brand">👋</span>
-            <div className="absolute top-1/2 -right-2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[8px] border-l-white" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -142,16 +141,7 @@ export function ChatWidget() {
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            style={pos ? (() => {
-              const bx = pos.x, by = pos.y;
-              const isLeft = bx < window.innerWidth / 2;
-              const isTop = by < window.innerHeight / 2;
-              const s: React.CSSProperties = { position: 'fixed', zIndex: 150, width: 380, height: 400, maxHeight: 'calc(100vh - 6rem)' };
-              if (isLeft) s.left = bx; else s.left = Math.max(8, bx - 324);
-              if (isTop) s.top = by + 64; else s.bottom = window.innerHeight - by + 8;
-              return s;
-            })() : undefined}
-            className={cn("bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col", pos ? '' : 'fixed inset-0 lg:inset-auto lg:bottom-24 lg:right-4 z-[150] lg:w-[380px] lg:h-[400px] lg:max-h-[calc(100vh-12rem)]')}
+            className="fixed inset-0 lg:inset-auto lg:bottom-6 lg:right-6 z-[150] lg:w-[400px] lg:h-[450px] lg:max-h-[calc(100vh-6rem)] bg-white lg:rounded-2xl shadow-2xl lg:border lg:border-gray-200 overflow-hidden flex flex-col"
           >
             {/* Header */}
             <div className="bg-[#151619] text-white px-5 py-4 flex items-center gap-3">

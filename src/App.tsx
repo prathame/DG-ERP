@@ -339,6 +339,11 @@ export default function App() {
           </React.Fragment>))}
         </nav>
 
+        {tv('chatbot') && (
+          <div className="px-4 pt-2">
+            <ChatWidget />
+          </div>
+        )}
         {canAccess('settings') && (
           <div className="p-4 border-t border-white/5">
             <button type="button" onClick={() => { setActiveTab('settings'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} className={cn("w-full flex items-center gap-3 p-3 rounded-xl transition-all", activeTab === 'settings' ? 'bg-brand text-white' : 'hover:bg-white/5 text-gray-400 hover:text-white')}>
@@ -462,7 +467,6 @@ export default function App() {
           )}
         </div>
       </nav>
-      {tv('chatbot') && <ChatWidget />}
     </div>
     </ToastProvider>
   );
