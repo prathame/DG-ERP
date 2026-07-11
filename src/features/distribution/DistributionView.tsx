@@ -113,16 +113,24 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
   const defaultGstRate = (user as Record<string, unknown>)?.defaultGstRate as number ?? 18;
   const distTotals = distRows.reduce((acc, r) => {
     const p = products.find(x => x.id === r.productId);
+    const inclGst = !!(p as Record<string, unknown> | undefined)?.priceIncludesGst;
     const basePrice = r.customPrice ? parseFloat(r.customPrice) : (p?.price ?? 0);
     const gross = basePrice * (r.quantity || 0);
     const disc = Math.round(gross * (r.discount || 0) / 100);
-    const netBase = gross - disc;
-    const gst = r.withGst ? Math.round(netBase * defaultGstRate / 100) : 0;
-    acc.gross += gross;
-    acc.discount += disc;
-    acc.net += netBase;
-    acc.gst += gst;
-    acc.billed += netBase + gst;
+    const priceAfterDisc = gross - disc;
+    let net: number, gst: number, billed: number;
+    if (r.withGst && inclGst) {
+      billed = priceAfterDisc;
+      net = Math.round(priceAfterDisc / (1 + defaultGstRate / 100));
+      gst = billed - net;
+    } else if (r.withGst) {
+      net = priceAfterDisc;
+      gst = Math.round(net * defaultGstRate / 100);
+      billed = net + gst;
+    } else {
+      net = priceAfterDisc; gst = 0; billed = priceAfterDisc;
+    }
+    acc.gross += gross; acc.discount += disc; acc.net += net; acc.gst += gst; acc.billed += billed;
     acc.items += r.quantity || 0;
     return acc;
   }, { gross: 0, discount: 0, net: 0, gst: 0, billed: 0, items: 0 });
@@ -582,11 +590,24 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                       const packSz = p?.packSize || 1;
                       const isBox = packSz > 1;
                       const basePrice = row.customPrice ? (parseFloat(row.customPrice) || 0) : (p?.price ?? 0);
+                      const inclGst = !!(p as Record<string, unknown> | undefined)?.priceIncludesGst;
                       const gross = basePrice * (row.quantity || 0);
                       const disc = Math.round(gross * (row.discount || 0) / 100);
-                      const net = gross - disc;
-                      const gstOnRow = row.withGst ? Math.round(net * defaultGstRate / 100) : 0;
-                      const billed = net + gstOnRow;
+                      const priceAfterDisc = gross - disc;
+                      let net: number, gstOnRow: number, billed: number;
+                      if (row.withGst && inclGst) {
+                        billed = priceAfterDisc;
+                        net = Math.round(priceAfterDisc / (1 + defaultGstRate / 100));
+                        gstOnRow = billed - net;
+                      } else if (row.withGst) {
+                        net = priceAfterDisc;
+                        gstOnRow = Math.round(net * defaultGstRate / 100);
+                        billed = net + gstOnRow;
+                      } else {
+                        net = priceAfterDisc;
+                        gstOnRow = 0;
+                        billed = priceAfterDisc;
+                      }
                       return (
                         <tr key={idx} className="hover:bg-gray-50">
                           <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
