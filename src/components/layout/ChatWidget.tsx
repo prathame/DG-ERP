@@ -100,7 +100,7 @@ export function ChatWidget() {
         style={pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : undefined}
         className={cn(
           "fixed z-[150] w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing touch-none",
-          pos ? '' : 'bottom-20 lg:bottom-6 right-4',
+          pos ? '' : 'bottom-24 lg:bottom-6 right-6',
           open ? "bg-gray-700" : "bg-brand"
         )}
       >
