@@ -30,7 +30,7 @@ for (const v of vendors) {
   insertVendor.run(v.id, v.name, v.contactPerson, v.phone, v.email, v.address);
   const pwd = v.name.replace(/\s+/g, '').toLowerCase().slice(0, 15) + '@123';
   insertUser.run(`U-${v.id}`, v.email, hashPassword(pwd), v.contactPerson, v.phone, v.address, 'Vendor', v.name, v.id);
-  console.log(`  Vendor: ${v.name} (login: ${v.email} / ${pwd})`);
+  console.log(`  Vendor: ${v.name} (${v.email})`);
 }
 console.log(`✓ ${vendors.length} vendors created\n`);
 
@@ -215,7 +215,7 @@ console.log('✓ 3 reward rules\n');
 console.log('═══════════════════════════════════════════════');
 console.log('  Silver Jewellery demo data seeded!');
 console.log('  Company: Radhe Krishan');
-console.log('  Admin: admin@splendor.com / admin123');
+console.log('  Admin: admin@splendor.com');
 console.log('  12 vendors, 12 products (705 units)');
 console.log('  15 customers, 12 sales, 8 payments');
 console.log('═══════════════════════════════════════════════');

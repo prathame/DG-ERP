@@ -164,7 +164,7 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
     const bType = ['manufacturer', 'dealer', 'retail'].includes(req.body.businessType) ? req.body.businessType : 'manufacturer';
     await pool.query('UPDATE tenants SET tab_config = $1, business_type = $2 WHERE id = $3', [JSON.stringify(req.body.tabConfig || defaultTabConfig), bType, result.tenantId]);
     await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
-    res.status(201).json({ ...result, adminEmail, password: result.credentials.password, companyName });
+    res.status(201).json({ ...result, adminEmail, companyName, tempPassword: result.credentials.password });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }

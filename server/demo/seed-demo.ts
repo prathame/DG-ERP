@@ -29,7 +29,7 @@ for (const v of vendors) {
   insertVendor.run(v.id, v.name, v.contactPerson, v.phone, v.email, v.address);
   const pwd = v.name.replace(/\s+/g, '').toLowerCase().slice(0, 15) + '@123';
   insertUser.run(`U-${v.id}`, v.email, hashPassword(pwd), v.contactPerson, v.phone, v.address, 'Vendor', v.name, v.id);
-  console.log(`  Vendor: ${v.name} (login: ${v.email} / ${pwd})`);
+  console.log(`  Vendor: ${v.name} (${v.email})`);
 }
 console.log(`✓ ${vendors.length} vendors created\n`);
 
@@ -240,6 +240,6 @@ console.log(`✓ ${rules.length} reward rules created\n`);
 
 console.log('═══════════════════════════════════════════');
 console.log('  Demo data seeded successfully!');
-console.log('  Admin login: admin@splendor.com / admin123');
-console.log('  Vendor logins: {vendorname}@{domain} / {name}@123');
+console.log('  Admin: admin@splendor.com');
+
 console.log('═══════════════════════════════════════════');
