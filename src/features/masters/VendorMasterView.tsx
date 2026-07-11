@@ -200,10 +200,11 @@ export function VendorMasterView({ onBack, onRefresh, businessType = 'manufactur
             { key: 'phone', label: 'Phone' },
             { key: 'email', label: 'Email' },
             { key: 'address', label: 'Address' },
+            { key: 'gstNumber', label: 'GSTIN' },
           ]}
           onClose={() => setCsvImportOpen(false)}
           onImport={async (rows) => {
-            const vendors = rows.map(r => ({ name: r.name, contactPerson: r.contactPerson || undefined, phone: r.phone || undefined, email: r.email || undefined, address: r.address || undefined }));
+            const vendors = rows.map(r => ({ name: r.name, contactPerson: r.contactPerson || undefined, phone: r.phone || undefined, email: r.email || undefined, address: r.address || undefined, gstNumber: r.gstNumber || undefined }));
             const result = await api.vendors.bulk(vendors);
             if (result.credentials && result.credentials.length > 0) {
               const slug = session.getSlug() || window.location.pathname.split('/')[1] || '';
