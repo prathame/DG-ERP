@@ -1,13 +1,51 @@
 import React, { useState, createContext, useContext, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, X, Info } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 type ToastType = 'success' | 'error' | 'info';
 type Toast = { id: number; message: string; type: ToastType };
 
+const TOAST_DURATION = 4000;
+
 export const ToastContext = createContext<{ toast: (message: string, type?: ToastType) => void }>({ toast: () => {} });
 export const useToast = () => useContext(ToastContext);
+
+function ToastItem({ t, onDismiss }: { key?: React.Key; t: Toast; onDismiss: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 60, scale: 0.95 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={{ opacity: 0, x: 60, scale: 0.95 }}
+      className={cn(
+        "relative px-4 py-3 rounded-xl shadow-lg border text-sm font-medium flex items-center gap-2 overflow-hidden pr-9",
+        t.type === 'success' && "bg-emerald-50 border-emerald-200 text-emerald-800",
+        t.type === 'error' && "bg-rose-50 border-rose-200 text-rose-800",
+        t.type === 'info' && "bg-blue-50 border-blue-200 text-blue-800"
+      )}
+    >
+      {t.type === 'success' && <CheckCircle2 size={18} className="shrink-0" />}
+      {t.type === 'error' && <AlertCircle size={18} className="shrink-0" />}
+      {t.type === 'info' && <Info size={18} className="shrink-0" />}
+      <span className="flex-1">{t.message}</span>
+      <button type="button" onClick={onDismiss} className="absolute top-2 right-2 p-1 rounded-md opacity-50 hover:opacity-100 transition-opacity">
+        <X size={14} />
+      </button>
+      {/* Progress bar */}
+      <motion.div
+        initial={{ scaleX: 1 }}
+        animate={{ scaleX: 0 }}
+        transition={{ duration: TOAST_DURATION / 1000, ease: 'linear' }}
+        className={cn(
+          "absolute bottom-0 left-0 right-0 h-[3px] origin-left",
+          t.type === 'success' && "bg-emerald-400",
+          t.type === 'error' && "bg-rose-400",
+          t.type === 'info' && "bg-blue-400"
+        )}
+      />
+    </motion.div>
+  );
+}
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -15,31 +53,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const toast = useCallback((message: string, type: ToastType = 'info') => {
     const id = ++nextId + Date.now();
     setToasts((t) => [...t, { id, message, type }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), TOAST_DURATION);
   }, []);
+  const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
       <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2 max-w-sm">
         <AnimatePresence>
           {toasts.map((t) => (
-            <motion.div
-              key={t.id}
-              initial={{ opacity: 0, x: 60, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 60, scale: 0.95 }}
-              className={cn(
-                "px-4 py-3 rounded-xl shadow-lg border text-sm font-medium flex items-center gap-2",
-                t.type === 'success' && "bg-emerald-50 border-emerald-200 text-emerald-800",
-                t.type === 'error' && "bg-rose-50 border-rose-200 text-rose-800",
-                t.type === 'info' && "bg-blue-50 border-blue-200 text-blue-800"
-              )}
-            >
-              {t.type === 'success' && <CheckCircle2 size={18} />}
-              {t.type === 'error' && <AlertCircle size={18} />}
-              {t.type === 'info' && <AlertCircle size={18} />}
-              {t.message}
-            </motion.div>
+            <ToastItem key={t.id} t={t} onDismiss={() => dismiss(t.id)} />
           ))}
         </AnimatePresence>
       </div>

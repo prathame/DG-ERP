@@ -335,7 +335,7 @@ export default function App() {
                       className={cn(
                         "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] group relative",
                         activeTab === item.id
-                          ? "bg-brand/10 text-brand font-semibold"
+                          ? "bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[9px]"
                           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                       )}
                     >
@@ -357,7 +357,7 @@ export default function App() {
         )}
         {canAccess('settings') && (
           <div className="px-3 pb-2 border-t border-gray-100 pt-2">
-            <button type="button" onClick={() => { setActiveTab('settings'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} className={cn("w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px]", activeTab === 'settings' ? 'bg-brand/10 text-brand font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900')}>
+            <button type="button" onClick={() => { setActiveTab('settings'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} className={cn("w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px]", activeTab === 'settings' ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[9px]' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900')}>
               <Settings size={18} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
               {isSidebarOpen && <span>{t('nav.settings')}</span>}
             </button>
@@ -414,11 +414,23 @@ export default function App() {
               {userMenuOpen && <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} aria-hidden="true" />}
               <AnimatePresence>
                 {userMenuOpen && (
-                  <motion.div key="user-menu" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="absolute right-0 top-full mt-2 z-50 w-48 bg-white rounded-xl border border-gray-100 shadow-lg py-1 overflow-hidden">
-                    <button type="button" onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium">
-                      <LogOut size={16} />
-                      {t('common.logout')}
-                    </button>
+                  <motion.div key="user-menu" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="absolute right-0 top-full mt-2 z-50 w-52 bg-white rounded-xl border border-gray-100 shadow-xl py-1 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{user?.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                    </div>
+                    <div className="py-1">
+                      <button type="button" onClick={() => { setActiveTab('settings'); setUserMenuOpen(false); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">
+                        <Settings size={15} className="text-gray-400" />
+                        Settings
+                      </button>
+                    </div>
+                    <div className="border-t border-gray-100 py-1">
+                      <button type="button" onClick={handleLogout} className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium">
+                        <LogOut size={15} />
+                        {t('common.logout')}
+                      </button>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
