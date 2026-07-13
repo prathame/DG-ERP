@@ -542,7 +542,7 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                         {isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <PaidBadge size="sm" />}
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {batch.productNames.join(' • ')} • {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}
+                        {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}
                         {batch.amountPaid > 0 && !isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <span className="text-emerald-600"> • ₹{batch.amountPaid.toLocaleString()} paid</span>}
                         {batch.balanceRemaining > 0 && <span className="text-rose-500"> • ₹{batch.balanceRemaining.toLocaleString()} due</span>}
                       </p>
