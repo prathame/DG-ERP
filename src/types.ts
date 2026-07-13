@@ -25,6 +25,7 @@ export interface Product {
   packSize?: number;
   packName?: string;
   barcodeUnitType?: 'box' | 'piece';
+  priceIncludesGst?: boolean;
 }
 
 export interface Warranty {

@@ -185,6 +185,15 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                       <td className="px-4 py-3 text-right">
                         <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
                         {(p.packSize || 1) > 1 && <span className="block text-[10px] text-gray-400">per {p.packName || 'Box'}</span>}
+                        {canEdit ? (
+                          <button type="button" onClick={() => { api.products.update(p.id, { priceIncludesGst: !p.priceIncludesGst } as Partial<import('../../types').Product>).then(() => { setProducts(prev => prev.map(x => x.id === p.id ? { ...x, priceIncludesGst: !x.priceIncludesGst } : x)); toast(`GST ${!p.priceIncludesGst ? 'inclusive' : 'exclusive'} for ${p.name}`, 'success'); }).catch(e => toast(e.message, 'error')); }} className={cn("inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 cursor-pointer", p.priceIncludesGst ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500")}>
+                            {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
+                          </button>
+                        ) : (
+                          <span className={cn("inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5", p.priceIncludesGst ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500")}>
+                            {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
+                          </span>
+                        )}
                       </td>
                       {inventoryTrackingEnabled && (() => {
                         const rawStock = p.remainingInventory ?? p.stock ?? 0;
@@ -254,7 +263,10 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                       <span className="font-semibold text-sm text-gray-900 truncate">{p.name}</span>
                       {isLowStock && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
                     </div>
-                    <span className="font-semibold text-sm text-emerald-600 shrink-0">₹{p.price.toLocaleString()}{(p.packSize || 1) > 1 ? `/${p.packName || 'Box'}` : ''}</span>
+                    <div className="text-right shrink-0">
+                      <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}{(p.packSize || 1) > 1 ? `/${p.packName || 'Box'}` : ''}</span>
+                      <span className={cn("block text-[9px] font-bold", p.priceIncludesGst ? "text-emerald-600" : "text-gray-400")}>{p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}</span>
+                    </div>
                   </div>
                   {inventoryTrackingEnabled && <div className="flex items-center gap-3 text-xs text-gray-500">
                     <span>Total: <strong className={isLowStock ? "text-amber-700" : "text-gray-900"}>{p.totalInventory ?? p.stock ?? 0}</strong></span>
