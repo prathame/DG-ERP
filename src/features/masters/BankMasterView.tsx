@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Plus, Pencil, Trash2, ArrowLeft, Download } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, ArrowLeft, Download, Upload } from 'lucide-react';
 import { cn, exportToCsv } from '../../lib/utils';
-import { api } from '../../api';
+import { api, fetchApi } from '../../api';
 import type { Bank } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
+import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 
 export function BankMasterView({ onBack, onRefresh }: { onBack: () => void; onRefresh: () => void }) {
@@ -16,6 +17,7 @@ export function BankMasterView({ onBack, onRefresh }: { onBack: () => void; onRe
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Bank | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Bank | null>(null);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [form, setForm] = useState({ name: '', accountNumber: '', bankName: '', branch: '', ifscCode: '' });
   const [submitting, setSubmitting] = useState(false);
 
@@ -51,6 +53,7 @@ export function BankMasterView({ onBack, onRefresh }: { onBack: () => void; onRe
           <button type="button" onClick={() => list.length && exportToCsv(list.map((b) => ({ id: b.id, name: b.name, accountNumber: b.accountNumber ?? '', bankName: b.bankName ?? '', branch: b.branch ?? '', ifscCode: b.ifscCode ?? '' })), 'banks')} disabled={!list.length} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={18} /> Export CSV
           </button>
+          <button type="button" onClick={() => setCsvImportOpen(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"><Upload size={18} /> Import CSV</button>
           <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add Bank</button>
         </div>
       </div>
@@ -110,6 +113,29 @@ export function BankMasterView({ onBack, onRefresh }: { onBack: () => void; onRe
           </div>
         )}
       </AnimatePresence>
+      {csvImportOpen && (
+        <CsvImport
+          itemLabel="banks"
+          templateName="banks"
+          columns={[
+            { key: 'name', label: 'Account Name', required: true },
+            { key: 'accountNumber', label: 'Account Number' },
+            { key: 'bankName', label: 'Bank Name' },
+            { key: 'branch', label: 'Branch' },
+            { key: 'ifscCode', label: 'IFSC Code' },
+          ]}
+          onClose={() => { setCsvImportOpen(false); load(); }}
+          onImport={async (rows) => {
+            try {
+              const items = rows.map(r => ({ name: r.name, accountNumber: r.accountNumber || undefined, bankName: r.bankName || undefined, branch: r.branch || undefined, ifscCode: r.ifscCode || undefined }));
+              const result = await fetchApi<{ success: number; errors: string[] }>('/banks/batch', { method: 'POST', body: JSON.stringify({ items }) });
+              return { success: result.success, errors: result.errors };
+            } catch (err) {
+              return { success: 0, errors: [err instanceof Error ? err.message : 'Import failed — no banks were added'] };
+            }
+          }}
+        />
+      )}
     </motion.div>
   );
 }

@@ -32,6 +32,42 @@ router.get('/api/banks', async (req, res) => {
   }
 });
 
+// Batch create — all-or-nothing (CSV import)
+router.post('/api/banks/batch', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { items } = req.body as { items: Record<string, unknown>[] };
+    if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
+
+    await client.query('BEGIN');
+    let count = 0;
+    for (const r of items) {
+      const name = String(r.name || '').trim();
+      if (!name) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Row ${count + 1}: Name is required — no banks were imported` }); }
+      const acNo = String(r.accountNumber || '').trim();
+      if (acNo) {
+        const dup = (await client.query('SELECT id FROM banks WHERE tenant_id = $1 AND account_number = $2', [tenantId, acNo])).rows[0];
+        if (dup) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Account "${acNo}" already exists — no banks were imported` }); }
+      }
+      const id = uid('B');
+      await client.query(
+        'INSERT INTO banks (id, tenant_id, name, account_number, bank_name, branch, ifsc_code) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [id, tenantId, name, acNo || null, r.bankName || null, r.branch || null, r.ifscCode || null]
+      );
+      count++;
+    }
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Banks Batch Import', 'bank', `batch-${Date.now()}`, `${count} banks imported via CSV`);
+    res.status(201).json({ success: count, errors: [] });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
+    res.status(500).json({ error: (e as Error).message || 'Import failed — no banks were added' });
+  } finally { client.release(); }
+});
+
 router.post('/api/banks', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
