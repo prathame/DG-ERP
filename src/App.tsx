@@ -18,7 +18,7 @@ import {
   BarChart3,
   Bell,
   Search,
-  Receipt,
+  ReceiptIndianRupee,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -187,7 +187,7 @@ export default function App() {
       { id: 'quotations', label: tc('quotations', 'Quotes & Orders'), icon: FileText, show: true },
     ]},
     { label: 'Finance & Reports', items: [
-      { id: 'invoices', label: 'Invoices', icon: Receipt, show: true },
+      { id: 'invoices', label: 'Invoices', icon: ReceiptIndianRupee, show: true },
       { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
       { id: 'accounts', label: 'Accounts', icon: BarChart3, show: true },
     ]},
