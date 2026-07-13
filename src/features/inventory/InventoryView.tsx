@@ -11,6 +11,7 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
 import { suggestHsnRate } from '../../lib/hsnRates';
+import { useColumnPicker, ColumnPickerButton } from '../../components/ui/ColumnPicker';
 
 export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const canEdit = accessLevel === 'full';
@@ -19,6 +20,14 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const barcodeSystemEnabled = (() => { try { const u = (session.getUser() || {}); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
   const inventoryTrackingEnabled = (() => { try { const u = (session.getUser() || {}); return u.inventoryTrackingEnabled !== false; } catch { return true; } })();
   const warrantyVisible = (() => { try { const u = (session.getUser() || {}); return u.tabConfig?.warranty?.visible !== false; } catch { return true; } })();
+  const invCols = [
+    { key: 'price', label: 'Price', default: true },
+    { key: 'total', label: 'Total Stock', default: true },
+    { key: 'admin', label: 'Admin Stock', default: true },
+    { key: 'vendors', label: 'With Vendors', default: true },
+    { key: 'sold', label: 'Sold', default: true },
+  ];
+  const { visible: colVisible, toggle: colToggle, show: colShow } = useColumnPicker('inventory', invCols);
   const [sortBy, setSortBy] = useState<keyof Product>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [products, setProducts] = useState<Product[]>([]);
@@ -95,6 +104,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           <button type="button" onClick={() => sortedProducts.length && exportToCsv(sortedProducts.map((p) => ({ id: p.id, name: p.name, price: p.price, totalInventory: p.totalInventory ?? p.stock ?? 0, remainingInventory: p.remainingInventory ?? p.stock ?? 0, soldCount: p.soldCount ?? 0 })), 'inventory')} disabled={!sortedProducts.length} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={18} /> Export CSV
           </button>
+          <ColumnPickerButton columns={invCols} visible={colVisible} onToggle={colToggle} />
           <div className="relative flex-1 min-w-[150px] sm:min-w-[200px]">
             <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
@@ -160,11 +170,13 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               <thead>
                 <tr className="bg-gray-50/80 border-b-2 border-gray-200">
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Product</th>
-                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Price</th>
-                  {inventoryTrackingEnabled && <><th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Total</th>
-                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Admin</th>
-                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center hidden lg:table-cell">Vendors</th>
-                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center hidden lg:table-cell">Sold</th></>}
+                  {colShow('price') && <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Price</th>}
+                  {inventoryTrackingEnabled && <>
+                    {colShow('total') && <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Total</th>}
+                    {colShow('admin') && <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Admin</th>}
+                    {colShow('vendors') && <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Vendors</th>}
+                    {colShow('sold') && <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Sold</th>}
+                  </>}
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
@@ -183,7 +195,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      {colShow('price') && <td className="px-4 py-3 text-right">
                         <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
                         {(p.packSize || 1) > 1 && <span className="block text-[10px] text-gray-400">per {p.packName || 'Box'}</span>}
                         {canEdit ? (
@@ -195,7 +207,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                             {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
                           </span>
                         )}
-                      </td>
+                      </td>}
                       {inventoryTrackingEnabled && (() => {
                         const rawStock = p.remainingInventory ?? p.stock ?? 0;
                         const rawTotal = p.totalInventory ?? p.stock ?? 0;
@@ -205,33 +217,34 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                         const boxCount = isBoxBarcode ? rawStock : Math.floor(rawStock / ps);
                         const totalBoxCount = isBoxBarcode ? rawTotal : Math.floor(rawTotal / ps);
                         const pcsCount = isBoxBarcode ? rawStock * ps : rawStock;
-                        const totalPcsCount = isBoxBarcode ? rawTotal * ps : rawTotal;
                         const loosePcs = isBoxBarcode ? 0 : rawStock % ps;
-                        return <><td className="px-4 py-3 text-center">
-                          {isBoxProduct ? <>
-                            <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{totalBoxCount}</span>
-                            <span className="block text-[10px] text-gray-500 font-bold">{p.packName || 'Box'}es</span>
-                          </> : <>
-                            <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{rawTotal}</span>
-                            <span className="block text-[10px] text-gray-400">pcs</span>
-                          </>}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {isBoxProduct ? <>
-                            <span className="font-semibold text-sm text-blue-700">{boxCount}</span>
-                            <span className="block text-[10px] text-gray-500 font-bold">{p.packName || 'Box'}es{loosePcs > 0 ? ` + ${loosePcs} pcs` : ''}</span>
-                            <span className="block text-[10px] text-emerald-500">({pcsCount} pcs)</span>
-                          </> : <>
-                            <span className="font-semibold text-sm text-blue-700">{rawStock}</span>
-                            <span className="block text-[10px] text-gray-400">pcs</span>
-                          </>}
-                        </td>
-                        <td className="px-4 py-3 text-center hidden lg:table-cell">
-                          <span className="font-semibold text-sm text-purple-700">{p.withVendors ?? 0}</span>
-                        </td>
-                        <td className="px-4 py-3 text-center hidden lg:table-cell">
-                          <span className="font-semibold text-sm text-emerald-700">{p.soldCount ?? 0}</span>
-                        </td></>;
+                        return <>
+                          {colShow('total') && <td className="px-4 py-3 text-center">
+                            {isBoxProduct ? <>
+                              <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{totalBoxCount}</span>
+                              <span className="block text-[10px] text-gray-500 font-bold">{p.packName || 'Box'}es</span>
+                            </> : <>
+                              <span className={cn("font-semibold text-sm", isLowStock ? "text-amber-700" : "text-gray-900")}>{rawTotal}</span>
+                              <span className="block text-[10px] text-gray-400">pcs</span>
+                            </>}
+                          </td>}
+                          {colShow('admin') && <td className="px-4 py-3 text-center">
+                            {isBoxProduct ? <>
+                              <span className="font-semibold text-sm text-blue-700">{boxCount}</span>
+                              <span className="block text-[10px] text-gray-500 font-bold">{p.packName || 'Box'}es{loosePcs > 0 ? ` + ${loosePcs} pcs` : ''}</span>
+                              <span className="block text-[10px] text-emerald-500">({pcsCount} pcs)</span>
+                            </> : <>
+                              <span className="font-semibold text-sm text-blue-700">{rawStock}</span>
+                              <span className="block text-[10px] text-gray-400">pcs</span>
+                            </>}
+                          </td>}
+                          {colShow('vendors') && <td className="px-4 py-3 text-center">
+                            <span className="font-semibold text-sm text-purple-700">{p.withVendors ?? 0}</span>
+                          </td>}
+                          {colShow('sold') && <td className="px-4 py-3 text-center">
+                            <span className="font-semibold text-sm text-emerald-700">{p.soldCount ?? 0}</span>
+                          </td>}
+                        </>;
                       })()}
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
