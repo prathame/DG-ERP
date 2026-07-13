@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { uid, logAudit } from '../utils/helpers';
+import { uid, logAudit, isValidPhone } from '../utils/helpers';
 
 const router = Router();
 
@@ -75,6 +75,7 @@ router.post('/api/staff', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { name, phone, role, address, salary, joiningDate } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Staff name is required' });
+    if (phone && !isValidPhone(phone)) return res.status(400).json({ error: 'Invalid phone — must be 10-digit Indian mobile (6-9 start)' });
     const dup = (await pool.query('SELECT id FROM staff_members WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name.trim()])).rows[0];
     if (dup) return res.status(400).json({ error: `"${name}" already exists` });
     const id = uid('STF');

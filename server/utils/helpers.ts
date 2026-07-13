@@ -6,6 +6,12 @@ export function uid(prefix: string): string {
   return `${prefix}${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
 }
 
+// Indian mobile: 10 digits starting with 6-9, optional +91 prefix
+export function isValidPhone(phone: string): boolean {
+  const clean = phone.replace(/[\s\-()]/g, '');
+  return /^(\+91)?[6-9]\d{9}$/.test(clean);
+}
+
 
 /** Billable amount per distributed unit (GST-inclusive when billed_price is set). */
 export const DISTRIBUTION_BILL_UNIT_SQL = 'COALESCE(pd.billed_price, pd.net_price, p.price)';

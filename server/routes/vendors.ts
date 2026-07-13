@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { uid, hashPassword, logAudit } from '../utils/helpers';
+import { uid, hashPassword, logAudit, isValidPhone } from '../utils/helpers';
 
 const router = Router();
 
@@ -103,7 +103,7 @@ router.post('/api/vendors', async (req, res) => {
 
     const { name, contactPerson, phone, email, address } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Vendor name is required' });
-    if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
+    if (phone && !isValidPhone(phone)) return res.status(400).json({ error: 'Invalid phone — must be 10-digit Indian mobile (6-9 start)' });
 
     const duplicate = (await pool.query(
       'SELECT id, name FROM vendors WHERE tenant_id = $1 AND (LOWER(name) = LOWER($2) OR (email IS NOT NULL AND email != \'\' AND LOWER(email) = LOWER($3)))',
@@ -151,7 +151,7 @@ router.put('/api/vendors/:id', async (req, res) => {
 
     const { id } = req.params;
     const { name, contactPerson, phone, email, address, gstNumber } = req.body;
-    if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
+    if (phone && !isValidPhone(phone)) return res.status(400).json({ error: 'Invalid phone — must be 10-digit Indian mobile (6-9 start)' });
     if (name) {
       const dup = (await pool.query('SELECT id FROM vendors WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) AND id != $3', [tenantId, name.trim(), id])).rows[0];
       if (dup) return res.status(400).json({ error: `Vendor "${name}" already exists` });
