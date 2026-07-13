@@ -7,11 +7,7 @@ Step-by-step guide to demonstrate the full platform.
 ## Prerequisites
 
 ```bash
-# Terminal 1 — API server
-npm run server
-
-# Terminal 2 — Frontend
-npm run dev
+npm run dev        # Starts frontend + backend together
 ```
 
 > App runs at http://localhost:3000
@@ -21,176 +17,196 @@ npm run dev
 ## 1. Super Admin Portal
 
 1. Open **http://localhost:3000/admin**
-2. Login: `admin@spre.ai` / `superadmin123`
-3. Show the **Dashboard** — total tenants, users, revenue across all companies
-4. Show **Plans** — 4 subscription tiers (Trial, Starter, Professional, Enterprise)
+2. Login with `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` from `.env`
+3. Show the **Dashboard** — total tenants, users, revenue
+4. Show **Plans** — subscription tiers
 
 ## 2. Onboard a Tenant
 
 1. Go to **Tenants** → Click **Create Tenant**
 2. Fill:
-   - Company Name: `Splendor Pump LLP`
-   - Admin Email: `admin@splendor.com`
-   - Admin Name: `Rajesh Kumar`
+   - Company Name: `Patel Agro Industries`
+   - Admin Email: `admin@patelagro.com`
+   - Admin Name: `Prathamesh Patel`
    - Phone: `9876543210`
-   - Plan: Professional
+   - **Address**: `Shop 12, APMC Market, Ahmedabad 380006`
+   - **GSTIN**: `24AABCA1234L1ZP`
+   - **Business Type**: Manufacturer / Dealer / Retail
+   - Plan: Trial
 3. After creation, show the **credentials screen**:
-   - Login URL: `http://localhost:3000/splendor-pump-llp` (with copy button)
-   - Email + Password (with copy buttons)
-   - Click **WhatsApp** → opens WhatsApp with credentials message
-   - Click **Email** → opens email client with credentials
-4. Show how tenant appears in the tenant list with status "Active"
+   - Login URL with copy button
+   - Email + Password with copy buttons
+   - **WhatsApp** → opens with credentials message
+   - **Email** → opens email client
+4. Show GSTIN auto-populated in tenant settings
 
 ## 3. Branded Tenant Login
 
-1. Open a **new browser tab**
-2. Go to **http://localhost:3000/splendor-pump-llp**
-3. Show the branded login page — company name, logo (letter icon initially), accent color
-4. Point out "Powered by DG Business" at the bottom
-5. Login with the tenant admin credentials from step 2
+1. Open **http://localhost:3000/patel-agro-industries**
+2. Show branded login page — company name, accent color
+3. Login with tenant admin credentials
 
-## 4. Tenant ERP Tour
+## 4. CSV Import Flow (Quick Data Setup)
 
-After login, walk through each section:
+Import test data from `test-data/valid/` folder:
 
-| Tab | What to Show |
-|---|---|
-| **Dashboard** | KPI cards, charts, company name in sidebar |
-| **Inventory** | Add a product (name, price, barcode prefix, quantity) |
-| **Sales Entry** | Scan barcode → enter customer → save sale → print invoice |
-| **Distribution** | Spreadsheet-style distribution to vendor, per-row discount + GST toggle |
-| **Masters** | Vendors (auto-creates login), Customers, Banks |
-| **Finance** | Vendor payment tracking, record payment, WhatsApp reminder |
-| **Warranty** | Auto-created warranties from sales (if enabled) |
-| **Rewards** | Vendor reward points earned per sale (if enabled) |
+| Step | File | Where |
+|------|------|-------|
+| 1 | `vendors.csv` | Dashboard → Vendors → Import CSV |
+| 2 | `staff.csv` | Dashboard → Staff → Import CSV |
+| 3 | `banks.csv` | Dashboard → Banks → Import CSV |
+| 4 | `products.csv` | Inventory → Import CSV |
 
-## 5. Bill Customization
+Then test **invalid imports** from `test-data/invalid/`:
+- Show row-level error highlighting
+- Show "no items were imported" (all-or-nothing)
+- Show specific error messages (invalid phone, duplicate name, bad HSN)
 
-1. Go to **Settings** → scroll to **Bill Customization**
-2. Upload a **company logo** (any PNG/JPG under 500KB)
-3. Change **accent color** using the color picker
-4. Add **tagline**: "Premium Pump Manufacturers Since 1995"
-5. Add **invoice prefix**: `SPL-INV-`
-6. Fill **bank details** (account name, number, bank, IFSC, UPI)
-7. Add **terms & conditions**: "Goods once sold will not be returned"
-8. Add **signatory name**: "Rajesh Kumar, Managing Director"
-9. Click **Preview** — show the fully customized sample invoice in popup
-10. Click **Save Bill Settings**
-11. Now create a sale and **print bill** — show the custom branding applied
+## 5. Inventory Management
 
-## 6. Split Billing (GST + Non-GST)
+1. Show imported products — 10 agro products with stock
+2. Point out **GST Incl/Excl badges** — click to toggle
+3. Use **Column Picker** (⫶ icon) — toggle columns on/off
+4. Use **Sort buttons** — Name / Price / Stock
+5. Add a product manually:
+   - Enter HSN code `38089190` → show **HSN auto-suggest**: "→ 18% · Insecticides"
+   - Check "Price includes GST" checkbox
+6. **Delete All** button → confirm dialog → clears inventory
 
-1. Go to **Distribution** → distribute products to a vendor
-2. Check GST toggle on some rows, leave others unchecked
-3. Click **Save & Print GST Bill** — shows only GST items with CGST/SGST breakdown
-4. Click **Save & Print Non-GST Bill** — shows only non-GST items
+## 6. Distribution / Sales
 
-## 7. Dark Mode
+1. Click **+ Record Sale** (or "+ Distribute" for manufacturers)
+2. Select a vendor/customer
+3. Add products manually OR click **Import CSV** → upload `test-data/valid/distribution.csv`
+4. Show product rows auto-populated from CSV
+5. Toggle **GST checkbox** on a GST-inclusive product — watch price update (₹155 → ₹131)
+6. Set discount on a row
+7. Click **Distribute** → show success
+8. Show batch in list with **Paid badge** (if fully paid)
 
-1. Go to **Settings** → **Appearance**
-2. Toggle **Dark Mode** on — entire UI switches to dark theme
-3. Navigate through tabs to show it works everywhere
-4. Toggle back to light mode
+## 7. Standalone Invoices
 
-## 8. Feature Toggles
+1. Go to **Invoices** tab (under Finance & Reports)
+2. Click **+ New Invoice**
+3. Fill customer details (name, GSTIN, address)
+4. Add line items with HSN/SAC auto-suggest
+5. Show real-time totals
+6. Save as **Draft** or **Create & Send**
+7. From invoice list:
+   - Change **PDF style** dropdown: Modern / Classic (Tally) / Minimal
+   - Click **Print** → show different PDF layouts
+   - Mark as **Sent** → **Paid**
+   - **WhatsApp** share
 
-1. Go to **Settings** → **Feature Toggles**
-2. Turn off **Warranty Management** → Warranty tab disappears from sidebar
-3. Turn off **Rewards & Points** → Rewards tab disappears
-4. Turn back on to restore
+## 8. Purchases & Expenses
 
-## 9. Vendor Login (Multi-Role)
+1. Go to **Purchases** tab
+2. Add a supplier → record a purchase with **Invoice No.** (for GSTR-2B matching)
+3. Switch to **Expenses** section
+4. Add expenses (Electricity, Petrol, Rent etc.)
+5. Show 12 expense categories
 
-1. Go to **Masters** → **Vendors** → Add a vendor with phone number
-2. Note the auto-generated credentials shown in the popup
-3. Open a **new browser tab** (important: new tab = separate session)
-4. Go to **http://localhost:3000/splendor-pump-llp**
-5. Login as the vendor — show limited sidebar (no Inventory, no Accounts)
-6. Vendor can see their own sales, distributions, finance
+## 9. Staff Management
 
-## 10. ERP Chatbot
+1. Go to **Dashboard** → **Staff** master
+2. Show imported staff with tiles
+3. Click a staff member → view payment history
+4. Record a **Salary** payment → WhatsApp notification prompt
+5. Record an **Advance** → show advance balance tracking
+6. **Export CSV** of staff data
 
-1. Click the **chat bubble** (bottom-right corner)
-2. Try these commands:
-   - `sales today` — today's sales count and revenue
-   - `low stock` — products with stock below 10
-   - `top vendors` — best performing vendors
-   - `search pump` — find products matching "pump"
-   - `help` — show all available commands
+## 10. Vendor Finance & Bulk Reminders
 
-## 11. Generic Login (No Slug)
+1. Go to **Dealer Payments** (or Vendor Payments)
+2. Show outstanding balances per vendor
+3. Click **Send All Reminders** → confirms count → opens WhatsApp for each vendor
+4. Click a vendor → view detail → click **PDF** → print payment history report
+5. Go to **Search/Verify** → search vendor name → click → show **Print/PDF** button
 
-1. Open **http://localhost:3000** (no slug in URL)
-2. Show the generic "DG Business" login — no company branding
-3. Login with the same tenant admin email
-4. After login, URL automatically updates to `/splendor-pump-llp`
+## 11. Accounts & Reports
 
-## 12. Invalid Company URL
+1. Go to **Accounts** tab — show 13 sub-tabs
+2. Generate **P&L** statement
+3. Generate **Balance Sheet**
+4. Show **GSTR-3B** tab:
+   - Select month → shows Output Tax, ITC, Net Payable
+   - Click **Copy to Clipboard** → paste in GST portal
+5. Show **GSTR-2B** tab:
+   - Upload a 2B JSON → shows Matched/Mismatch/Books Only/2B Only
+   - Color-coded status pills
+   - **Export CSV**
 
-1. Go to **http://localhost:3000/random-company**
-2. Show the "Company Not Found" error page
-3. Click "Go to DG Business Home" → redirects to `/`
+## 12. Bill Customization
 
-## 13. Multi-Tenant Isolation
+1. Go to **Settings** → **Bill Customization**
+2. Upload company logo
+3. Change accent color
+4. Add tagline, invoice prefix
+5. **Bank details** — select from dropdown (from Bank master)
+6. Add terms & conditions, signatory
+7. Click **Preview** → show customized invoice
 
-1. Go back to **http://localhost:3000/admin** (super admin)
-2. Create a **second tenant**: "Radhe Krishan Jewellers"
-3. Open **http://localhost:3000/radhe-krishan-jewellers** in another tab
-4. Login as the second tenant admin
-5. Show that the second tenant has **zero products, zero sales** — completely isolated data
-6. Each tenant has their own branded login, bill settings, and data
+## 13. Search / Verify
 
-## 14. WhatsApp Integration
+1. Go to **Search/Verify** tab
+2. Type a vendor name → shows vendor card with payments, distributions
+3. Click **Print/PDF** on vendor detail → professional report
+4. Type a product name → shows product info
+5. Scan a barcode (if barcode system enabled)
 
-1. Create a sale with a customer phone number
-2. Enable **WhatsApp Auto-Send** in Settings
-3. Create another sale — WhatsApp opens automatically with bill text
-4. Or manually click the WhatsApp icon on any bill to share
+## 14. Collapsible Sidebar
 
-## 15. Audit Log (Super Admin)
+1. Show section headers: **Supply Chain**, **Finance & Reports**, **After Sales**
+2. Click a section → collapses/expands
+3. Show active section highlights in brand color
+4. Collapsed state persists across page refreshes
 
-1. Go to **http://localhost:3000/admin** → **Audit Log** tab
-2. Show all actions across tenants — logins, creates, updates, deletes
-3. Use **Action filter** — select "Login" to see only login events
-4. Use **Entity filter** — select "Tenant" to see tenant management actions
-5. Use **Search** — type a user name or tenant name
-6. Show pagination — 30 entries per page
+## 15. Command Palette
 
-## 16. Feature Toggles (Super Admin)
+1. Press **Ctrl+K** (or Cmd+K on Mac)
+2. Type "inv" → filters to Inventory
+3. Arrow keys to navigate, Enter to jump
+4. Show keyboard hints at bottom
 
-1. Go to **Tenants** → Click a tenant → Scroll to **Feature Toggles**
-2. Toggle **off** "Warranty Management" → save
-3. Switch to tenant login → Warranty tab disappears
-4. Toggle **off** "AI Chatbot" → chat widget disappears
-5. Toggle **off** "Multi-Language" → language selector hidden in Settings
-6. Show all 7 toggles: Warranty, Replacement, Rewards, Finance, Chatbot, Bill Customization, Multi-Language
+## 16. Notification Bell
 
-## 17. PWA — Install as App (Mobile)
+1. Show bell icon in header with **red badge** (low stock count)
+2. Click → goes to Inventory
 
-1. Open the tenant URL on **mobile Chrome** (e.g., `https://dg-erp.onrender.com/test`)
-2. Chrome shows **"Add to Home Screen"** banner (or tap ⋮ menu → "Add to Home Screen")
-3. App icon appears on phone home screen — tap to open
-4. Show it opens **full screen** (no browser bar, no tabs)
-5. Show the **bottom navigation bar** with 5 tabs + "More"
-6. Disconnect internet → show the **offline page** with "Retry" button
+## 17. Dark Mode
 
-## 18. Database Backup
+1. Go to **Settings** → toggle dark mode
+2. Navigate through tabs to show it works everywhere
 
-1. Go to tenant **Settings** → **Data Management**
-2. Click **Download Backup** — downloads a JSON file with all tenant data
+## 18. Multi-Tenant Isolation
+
+1. Create a **second tenant** from super admin
+2. Login to second tenant → show **zero data** (completely isolated)
+3. Explain: shared database + `tenant_id` on every row + **Row Level Security (RLS)**
+
+## 19. Auto-Logout on Suspension
+
+1. From super admin, **suspend** a tenant
+2. Switch to tenant tab → next action shows "Account suspended" → auto-logout
+
+## 20. Vendor Portal (Multi-Role)
+
+1. Add a vendor with email
+2. Note auto-generated login credentials
+3. Open new tab → login as vendor
+4. Show limited sidebar — only Dashboard, Distribution, Finance
+5. Vendor can view but not edit
 
 ---
 
 ## Quick Demo (5 Minutes)
 
-If short on time, show only these:
-
-1. Super admin creates tenant at `/admin`
-2. Branded login at `/{slug}`
-3. Add product → Make sale → Print customized bill
-4. Dark mode toggle
-5. Audit log with filters
-6. Feature toggles (disable warranty → tab disappears)
+1. Super admin creates tenant with GSTIN + business type
+2. Import products via CSV (10 agro products)
+3. Distribute to vendor (with GST toggle)
+4. Show GSTR-3B computation
+5. Print invoice with Modern/Classic preset
+6. Ctrl+K command palette
 
 ---
 
@@ -198,19 +214,19 @@ If short on time, show only these:
 
 | Role | URL | Email | Password |
 |---|---|---|---|
-| Super Admin | `/admin` | `admin@spre.ai` | `superadmin123` |
+| Super Admin | `/admin` | From `.env` | From `.env` |
 | Tenant Admin | `/{slug}` | Set during creation | Auto-generated |
-| Vendor | `/{slug}` | Auto-created | `{vendorName}@123` |
+| Vendor | `/{slug}` | Auto-created with email | Auto-generated |
 
 ---
 
-## Load Demo Data (Optional)
+## Test Data
 
-To pre-populate with realistic data instead of starting empty:
+Pre-built CSV files in `test-data/` folder:
 
-```bash
-npm run demo:seed          # Pump manufacturing company
-npm run demo:jewellery     # Silver jewellery company
-```
+| Folder | Purpose |
+|--------|---------|
+| `test-data/valid/` | 5 vendors, 7 staff, 10 products, 3 banks, 6 distribution rows — all valid |
+| `test-data/invalid/` | Same entities with errors — empty names, bad phones, invalid GSTIN, duplicates, bad HSN |
 
-> Note: Demo data uses the legacy SQLite setup. For PostgreSQL multi-tenant, create tenants via super admin.
+Import valid first, then invalid to demonstrate error handling.
