@@ -574,6 +574,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                 name: r.name,
                 price: Number(r.price) || 0,
                 quantity: Number(r.quantity) || 0,
+                barcodePrefix: r.barcodePrefix || undefined,
                 description: r.description || undefined,
                 hsnCode: r.hsnCode || undefined,
                 gstRate: r.gstRate ? Number(r.gstRate) : (r.hsnCode ? suggestHsnRate(r.hsnCode)?.rate : undefined),
