@@ -1,8 +1,8 @@
 name,price,barcodePrefix,quantity,packSize,packName,description,hsnCode,gstRate,priceIncludesGst,warrantyMonths,rewardPoints
 ,480,SYN100,120,12,Box,Missing name product,38089190,18,N,0,5
 Good Product,-500,BAD001,100,10,Box,Negative price,38089190,18,N,0,3
-Another Product,340,UPL500,300,20,Box,Invalid HSN code,123,18,N,0,3
+Another Product,340,UPL500,300,20,Box,Invalid 3-digit HSN,123,18,N,0,3
 HSN 5 digits,780,DHN500,60,6,Box,HSN must be 4 or 6 or 8,38083,18,Y,0,5
-Zero Price,0,ZER001,50,1,Piece,Zero price product,38089190,18,N,0,0
-Duplicate Product,620,DUP001,100,10,Box,First one,38089190,18,Y,0,5
-Duplicate Product,340,DUP002,200,20,Box,Same name as above,38082010,18,N,0,3
+Duplicate Product,620,DUP001,100,10,Box,First one is fine,38089190,18,Y,0,5
+Duplicate Product,340,DUP002,200,20,Box,Same name as row above,38082010,18,N,0,3
+No Barcode Product,450,,50,1,Bag,No prefix so no barcodes generated,31021000,5,N,0,1
