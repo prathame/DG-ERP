@@ -691,7 +691,10 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                           const withGst = gstIdx >= 0 ? vals[gstIdx]?.toUpperCase() !== 'N' : true;
                           const disc = discIdx >= 0 ? (parseInt(vals[discIdx]) || 0) : 0;
                           if (disc < 0 || disc > 100) { errors.push(`Row ${i + 1}: "${pName}" — discount must be 0-100%`); continue; }
-                          newRows.push({ productId: match.id, quantity: qty, customPrice: price, withGst, discount: disc });
+                          const isInclGst = !!(match as Record<string, unknown>).priceIncludesGst;
+                          let finalPrice = price || String(match.price);
+                          if (isInclGst && !withGst && !price) finalPrice = String(Math.round(match.price / (1 + defaultGstRate / 100)));
+                          newRows.push({ productId: match.id, quantity: qty, customPrice: finalPrice, withGst, discount: disc });
                         }
                         if (errors.length) { toast(`Import failed — fix these errors:\n${errors.join('\n')}`, 'error'); return; }
                         if (!newRows.length) { toast('No valid rows found in CSV', 'error'); return; }
