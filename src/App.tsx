@@ -18,6 +18,7 @@ import {
   BarChart3,
   ClipboardList,
   Users,
+  Bell,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -106,6 +107,7 @@ export default function App() {
   };
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [lowStockCount, setLowStockCount] = useState(0);
   const [user, setUser] = useState<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean } | null>(() => {
     try {
       const u = session.getUser();
@@ -120,6 +122,9 @@ export default function App() {
         const merged = { ...user, ...fresh };
         session.setUser(merged);
         setUser(merged);
+      }).catch(() => {});
+      api.products.list().then((prods) => {
+        setLowStockCount(prods.filter((p) => ((p.remainingInventory ?? p.stock ?? 0)) < 10).length);
       }).catch(() => {});
     }
   }, []);
@@ -398,11 +403,17 @@ export default function App() {
             </button>
             <h1 className="text-xl sm:text-2xl font-bold">{t(`nav.${activeTab}`)}</h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full">
               <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
               <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">{(userConfig?.planName as string) || 'Standard'} Plan</span>
             </div>
+            <button type="button" onClick={() => setActiveTab('inventory')} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-700">
+              <Bell size={20} />
+              {lowStockCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">{lowStockCount > 9 ? '9+' : lowStockCount}</span>
+              )}
+            </button>
             <div className="relative flex items-center gap-2 sm:gap-3">
               <button type="button" onClick={() => setUserMenuOpen((o) => !o)} className="flex items-center gap-3 rounded-xl p-1.5 hover:bg-gray-100 transition-colors">
                 <div className="text-right hidden sm:block">

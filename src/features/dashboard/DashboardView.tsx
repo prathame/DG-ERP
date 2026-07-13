@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { TrendingUp, Package, ShoppingCart, Gift, AlertTriangle, Users, CreditCard, Link2, Plus, Wallet } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
-import { LoadingSpinner } from '../../components/ui';
+import { LoadingSpinner, DashboardSkeleton } from '../../components/ui';
 import type { Tab } from '../../types';
 import { CustomerMasterView } from '../masters/CustomerMasterView';
 import { VendorMasterView } from '../masters/VendorMasterView';
@@ -75,7 +75,7 @@ export function DashboardView({ user, setActiveTab, businessType = 'manufacturer
     refreshCounts();
   }, [isVendor, user?.vendorId]);
 
-  if (loading) return <div className="flex items-center justify-center py-20"><LoadingSpinner /></div>;
+  if (loading) return <DashboardSkeleton />;
 
   if (selectedMaster === 'customer') return <CustomerMasterView onBack={() => { setSelectedMaster(null); refreshCounts(); }} onRefresh={refreshCounts} user={user} />;
   if (selectedMaster === 'vendor') return <VendorMasterView onBack={() => { setSelectedMaster(null); refreshCounts(); }} onRefresh={refreshCounts} businessType={businessType} />;

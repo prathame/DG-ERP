@@ -4,7 +4,7 @@ import { Package, Plus, Trash2, AlertCircle, AlertTriangle, ArrowUpDown, Barcode
 import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import type { Product } from '../../types';
-import { useToast, LoadingSpinner } from '../../components/ui';
+import { useToast, TableSkeleton } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { BarcodeLabelPrinter } from '../../components/ui/BarcodeLabelPrinter';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -143,7 +143,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       </div>
 
       {loading ? (
-        <div className="py-20"><LoadingSpinner /></div>
+        <TableSkeleton rows={6} cols={5} />
       ) : sortedProducts.length === 0 ? (
         <div className="bg-white p-12 rounded-2xl border border-gray-100 text-center">
           <Package className="mx-auto mb-3 text-gray-300" size={48} />

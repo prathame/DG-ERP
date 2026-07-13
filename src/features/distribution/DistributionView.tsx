@@ -634,7 +634,7 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                           <td className="px-2 py-2">
                             <div className="relative">
                               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">₹</span>
-                              <input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? String(p.price) : '—'} className="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+                              <input type="text" inputMode="decimal" value={row.customPrice} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'customPrice', v); }} placeholder={p ? String(p.price) : '—'} className="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" />
                             </div>
                           </td>
                           <td className="px-2 py-2"><input type="text" inputMode="decimal" value={row.discount || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'discount', v === '' ? 0 : parseFloat(v)); }} placeholder="0" className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
@@ -854,7 +854,7 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                       <tr key={row.isNew ? `new-${idx}` : row.productId}>
                         <td className="px-3 py-2 text-sm font-medium">
                           {row.isNew ? (
-                            <select value={row.productId} onChange={(e) => { const p = products.find(pr => pr.id === e.target.value); setEditRows(editRows.map((r, i) => i === idx ? { ...r, productId: e.target.value, productName: p?.name || '', availableStock: p?.stock ?? 0 } : r)); }} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand">
+                            <select value={row.productId} onChange={(e) => { const p = products.find(pr => pr.id === e.target.value); setEditRows(editRows.map((r, i) => i === idx ? { ...r, productId: e.target.value, productName: p?.name || '', availableStock: p?.stock ?? 0 } : r)); }} className="w-full px-2 py-1.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand">
                               <option value="">Select product...</option>
                               {products.filter(pr => (pr.stock ?? 0) > 0 && !editRows.some((r, ri) => ri !== idx && r.productId === pr.id)).map(pr => <option key={pr.id} value={pr.id}>{pr.name} ({pr.stock} avl)</option>)}
                             </select>

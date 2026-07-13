@@ -111,7 +111,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                 placeholder="Search by Barcode or Customer Name..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand transition-all"
               />
           </div>
           <select

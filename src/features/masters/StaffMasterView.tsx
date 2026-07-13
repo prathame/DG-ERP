@@ -95,7 +95,7 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
       {/* Search */}
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-        <input type="text" placeholder="Search staff..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+        <input type="text" placeholder="Search staff..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" />
       </div>
 
       {loading && <div className="py-16 text-center"><LoadingSpinner /></div>}
@@ -184,13 +184,13 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
               <div className="space-y-3">
                 <div><label className="text-xs font-bold text-gray-400 block mb-1">Name *</label><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="Full name" /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Phone</label><input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="9876543210" /></div>
-                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Role</label><input value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="Driver, Helper..." /></div>
+                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Phone</label><input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" placeholder="9876543210" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Role</label><input value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" placeholder="Driver, Helper..." /></div>
                 </div>
-                <div><label className="text-xs font-bold text-gray-400 block mb-1">Address</label><input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="Optional" /></div>
+                <div><label className="text-xs font-bold text-gray-400 block mb-1">Address</label><input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" placeholder="Optional" /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Monthly Salary (₹)</label><input type="number" min={0} value={form.salary} onChange={e => setForm({ ...form, salary: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="Optional" /></div>
-                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Joining Date</label><input type="date" value={form.joiningDate} onChange={e => setForm({ ...form, joiningDate: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Monthly Salary (₹)</label><input type="number" min={0} value={form.salary} onChange={e => setForm({ ...form, salary: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" placeholder="Optional" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Joining Date</label><input type="date" value={form.joiningDate} onChange={e => setForm({ ...form, joiningDate: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" /></div>
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
@@ -226,11 +226,11 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
                 </div>
                 <div><label className="text-xs font-bold text-gray-400 block mb-1">Amount (₹) *</label><input type="number" min={1} value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" placeholder="5000" /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Date</label><input type="date" value={payForm.paymentDate} onChange={e => setPayForm({ ...payForm, paymentDate: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" /></div>
-                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Method</label><select value={payForm.paymentMethod} onChange={e => setPayForm({ ...payForm, paymentMethod: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg"><option>Cash</option><option>Bank Transfer</option><option>UPI</option><option>Cheque</option></select></div>
+                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Date</label><input type="date" value={payForm.paymentDate} onChange={e => setPayForm({ ...payForm, paymentDate: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" /></div>
+                  <div><label className="text-xs font-bold text-gray-400 block mb-1">Method</label><select value={payForm.paymentMethod} onChange={e => setPayForm({ ...payForm, paymentMethod: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"><option>Cash</option><option>Bank Transfer</option><option>UPI</option><option>Cheque</option></select></div>
                 </div>
-                <div><label className="text-xs font-bold text-gray-400 block mb-1">Reference / UTR</label><input value={payForm.referenceNumber} onChange={e => setPayForm({ ...payForm, referenceNumber: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="Optional" /></div>
-                <div><label className="text-xs font-bold text-gray-400 block mb-1">Notes</label><input value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-lg" placeholder="Salary, advance, bonus..." /></div>
+                <div><label className="text-xs font-bold text-gray-400 block mb-1">Reference / UTR</label><input value={payForm.referenceNumber} onChange={e => setPayForm({ ...payForm, referenceNumber: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" placeholder="Optional" /></div>
+                <div><label className="text-xs font-bold text-gray-400 block mb-1">Notes</label><input value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" placeholder="Salary, advance, bonus..." /></div>
               </div>
               <div className="flex gap-3 mt-6">
                 <button type="button" onClick={() => setPayModalOpen(false)} className="flex-1 py-2 border border-gray-200 rounded-xl font-bold text-gray-500">Cancel</button>
