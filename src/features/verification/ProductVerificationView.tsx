@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Search, Package, Truck, ShoppingCart, ShieldCheck, RefreshCw, Gift, Camera, CheckCircle2, XCircle, Clock, AlertCircle, IndianRupee, Users, FileText, Barcode } from 'lucide-react';
+import { Search, Package, Truck, ShoppingCart, ShieldCheck, RefreshCw, Gift, Camera, CheckCircle2, XCircle, Clock, AlertCircle, IndianRupee, Users, FileText, Barcode, Printer } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useToast } from '../../components/ui';
@@ -175,7 +175,37 @@ export function ProductVerificationView() {
       {/* Vendor Detail */}
       {vendorDetail && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 space-y-4">
-          <button type="button" onClick={() => setVendorDetail(null)} className="text-xs font-medium text-brand hover:underline">← Back to results</button>
+          <div className="flex items-center justify-between">
+            <button type="button" onClick={() => setVendorDetail(null)} className="text-xs font-medium text-brand hover:underline">← Back to results</button>
+            <button type="button" onClick={() => {
+              const d = vendorDetail as { vendor?: { name: string; phone?: string }; totalDistributedValue: number; totalPaid: number; balance: number; payments?: { amount: number; paymentDate: string; paymentMethod: string }[]; distributions?: { date: string; productName: string; quantity: number; total: number }[] };
+              const companyName = (() => { try { return (session.getUser() || {} as Record<string, unknown>).companyName || 'DG ERP'; } catch { return 'DG ERP'; } })();
+              const w = window.open('', '_blank'); if (!w) return;
+              w.document.write(`<!DOCTYPE html><html><head><title>${d.vendor?.name} — Report</title><style>
+                body{font-family:Inter,sans-serif;margin:0;padding:40px;color:#1a1a1a}
+                .header{border-bottom:3px solid #F27D26;padding-bottom:16px;margin-bottom:24px}
+                .company{font-size:18px;font-weight:700}.sub{font-size:13px;color:#666;margin-top:4px}
+                .stats{display:flex;gap:16px;margin-bottom:24px}.stat{flex:1;padding:12px;background:#f9fafb;border-radius:8px}
+                .stat-label{font-size:10px;text-transform:uppercase;color:#999;font-weight:700}.stat-value{font-size:18px;font-weight:700;margin-top:4px}
+                h4{font-size:12px;text-transform:uppercase;color:#666;margin:20px 0 8px;letter-spacing:0.5px}
+                table{width:100%;border-collapse:collapse}th{text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;color:#666;border-bottom:2px solid #e5e7eb;background:#f3f4f6}
+                td{padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:12px}.r{text-align:right}
+                .footer{margin-top:30px;text-align:center;font-size:10px;color:#999}
+                @media print{body{padding:20px}}
+              </style></head><body>
+              <div class="header"><div class="company">${companyName}</div><div class="sub">${d.vendor?.name}${d.vendor?.phone ? ` • ${d.vendor.phone}` : ''}</div></div>
+              <div class="stats">
+                <div class="stat"><div class="stat-label">Billed</div><div class="stat-value" style="color:#2563eb">₹${(d.totalDistributedValue ?? 0).toLocaleString()}</div></div>
+                <div class="stat"><div class="stat-label">Paid</div><div class="stat-value" style="color:#059669">₹${(d.totalPaid ?? 0).toLocaleString()}</div></div>
+                <div class="stat"><div class="stat-label">Balance</div><div class="stat-value" style="color:${(d.balance ?? 0) > 0 ? '#dc2626' : '#059669'}">₹${Math.abs(d.balance ?? 0).toLocaleString()}</div></div>
+              </div>
+              ${d.payments?.length ? `<h4>Payments</h4><table><thead><tr><th>Date</th><th>Method</th><th class="r">Amount</th></tr></thead><tbody>${d.payments.map(p => `<tr><td>${formatDate(p.paymentDate)}</td><td>${p.paymentMethod}</td><td class="r" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
+              ${d.distributions?.length ? `<h4>Distributions</h4><table><thead><tr><th>Date</th><th>Product</th><th class="r">Qty</th><th class="r">Total</th></tr></thead><tbody>${d.distributions.map(x => `<tr><td>${formatDate(x.date)}</td><td>${x.productName}</td><td class="r">${x.quantity}</td><td class="r" style="font-weight:600">₹${Number(x.total).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
+              <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${companyName}</div>
+              <script>window.print()</script></body></html>`);
+              w.document.close();
+            }} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50"><Printer size={14} /> Print / PDF</button>
+          </div>
           {(() => {
             const d = vendorDetail as { vendor?: { name: string; phone?: string; email?: string; address?: string }; totalDistributedValue: number; totalPaid: number; balance: number; payments?: { id: string; amount: number; paymentDate: string; paymentMethod: string }[]; distributions?: { date: string; productName: string; quantity: number; total: number }[] };
             return (
