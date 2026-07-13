@@ -88,7 +88,7 @@ router.get('/api/products', async (req, res) => {
     let sql = `SELECT p.*,
       COALESCE(inv.total, 0) as total_inv, COALESCE(inv.in_stock, 0) as inv_stock,
       inv.barcode_first, inv.barcode_last, COALESCE(inv.unit_type, 'piece') as barcode_unit_type,
-      COALESCE(sc.cnt, 0) as sold_count, COALESCE(dc.cnt, 0) as with_vendors
+      COALESCE(sc.cnt, 0) + COALESCE(ds.cnt, 0) as sold_count, COALESCE(dc.cnt, 0) as with_vendors
       FROM products p
       LEFT JOIN (
         SELECT product_id, COUNT(*) as total, COUNT(*) FILTER (WHERE status='InStock') as in_stock,
@@ -97,6 +97,7 @@ router.get('/api/products', async (req, res) => {
       ) inv ON inv.product_id = p.id
       LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_sales WHERE tenant_id = $1 GROUP BY product_id) sc ON sc.product_id = p.id
       LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Distributed' AND tenant_id = $1 GROUP BY product_id) dc ON dc.product_id = p.id
+      LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Sold' AND tenant_id = $1 GROUP BY product_id) ds ON ds.product_id = p.id
       WHERE p.tenant_id = $1`;
     const params: string[] = [tenantId];
     if (typeof search === 'string' && search) {
