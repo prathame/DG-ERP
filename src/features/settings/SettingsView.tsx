@@ -10,6 +10,7 @@ import { USER_STORAGE_KEY } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { session } from '../../lib/session';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
+import { useConfirm } from '../../hooks/useConfirm';
 
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
 
@@ -247,6 +248,7 @@ const ACCESS_LEVELS = ['hidden', 'view', 'print', 'full'] as const;
 
 export function SettingsView({ user, onUserChange }: { user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; autoWhatsapp?: boolean } | null; onUserChange: (u: typeof user) => void }) {
   const { toast } = useToast();
+  const { confirm, ConfirmRenderer } = useConfirm();
   const { t: st, lang, setLang } = useTranslation();
   const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -634,7 +636,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                     <input type="file" accept=".json" className="hidden" onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      if (!confirm('⚠️ This will REPLACE all your current data with the backup. Are you sure?')) { e.target.value = ''; return; }
+                      if (!await confirm({ title: 'Restore Backup', message: 'This will REPLACE all your current data with the backup. This cannot be undone.', confirmLabel: 'Restore', variant: 'danger' })) { e.target.value = ''; return; }
                       try {
                         const text = await file.text();
                         const data = JSON.parse(text);
@@ -832,6 +834,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
           <p className="text-amber-800 font-medium">Sign in to view and edit your personal information, contact details and company settings.</p>
         </div>
       )}
+      <ConfirmRenderer />
     </motion.div>
   );
 }

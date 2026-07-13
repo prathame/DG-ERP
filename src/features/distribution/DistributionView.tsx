@@ -9,9 +9,11 @@ import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
 import { SearchSelect } from '../../components/ui/SearchSelect';
+import { useConfirm } from '../../hooks/useConfirm';
 
 export function DistributionView({ user, accessLevel = 'full', businessType = 'manufacturer' }: { user: { id: string; role?: string; vendorId?: string } | null; accessLevel?: 'hidden' | 'view' | 'print' | 'full'; businessType?: string }) {
   const { toast } = useToast();
+  const { confirm, ConfirmRenderer } = useConfirm();
   const canEdit = accessLevel === 'full';
   const canPrint = accessLevel === 'print' || accessLevel === 'full';
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
@@ -767,7 +769,7 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                   type="button"
                   disabled={splitSaving || totalQty === 0}
                   onClick={async () => {
-                    if (hasUnsavedChanges && !window.confirm(`Amount was already saved as ₹${savedTotal!.toLocaleString()}. Are you sure you want to change it to ₹${combinedBillTotal.toLocaleString()}?`)) return;
+                    if (hasUnsavedChanges && !await confirm({ title: 'Change Amount', message: `Amount was already saved as ₹${savedTotal!.toLocaleString()}. Change to ₹${combinedBillTotal.toLocaleString()}?`, confirmLabel: 'Change', variant: 'warning' })) return;
                     setSplitSaving(true);
                     try {
                       await api.distribution.applyBilling({
@@ -1076,6 +1078,7 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
           </motion.div>
         </div>
       )}
+      <ConfirmRenderer />
     </motion.div>
   );
 }

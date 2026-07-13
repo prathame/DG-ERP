@@ -6,6 +6,7 @@ import { api, fetchApi } from '../../api';
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
+import { useConfirm } from '../../hooks/useConfirm';
 
 interface Quotation {
   id: string; quotationNumber: string; vendorId?: string; vendorName?: string;
@@ -17,6 +18,7 @@ interface Quotation {
 
 export function QuotationsView() {
   const { toast } = useToast();
+  const { confirm, ConfirmRenderer } = useConfirm();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -84,7 +86,7 @@ export function QuotationsView() {
   };
 
   const handleConvert = async (q: Quotation) => {
-    if (!confirm(`Convert ${q.quotationNumber} to distribution? This will deduct stock.`)) return;
+    if (!await confirm({ title: 'Convert to Distribution', message: `Convert ${q.quotationNumber}? This will deduct stock.`, confirmLabel: 'Convert', variant: 'warning' })) return;
     try {
       const result = await fetchApi<{ batchId: string; total: number; billValue: number }>(`/quotations/${q.id}/convert`, { method: 'POST' });
       toast(`Converted! Distribution ${result.batchId} created — ${result.total} items, ₹${result.billValue}`, 'success');
@@ -101,7 +103,7 @@ export function QuotationsView() {
   };
 
   const handleDelete = async (q: Quotation) => {
-    if (!confirm(`Delete ${q.quotationNumber}?`)) return;
+    if (!await confirm({ message: `Delete ${q.quotationNumber}? This cannot be undone.`, confirmLabel: 'Delete' })) return;
     try { await fetchApi(`/quotations/${q.id}`, { method: 'DELETE' }); load(); setSelectedId(null); setSelected(null); toast('Deleted', 'success'); }
     catch (err) { toast((err as Error).message, 'error'); }
   };
@@ -256,6 +258,7 @@ export function QuotationsView() {
           </div>
         )}
       </AnimatePresence>
+      <ConfirmRenderer />
     </motion.div>
   );
 }

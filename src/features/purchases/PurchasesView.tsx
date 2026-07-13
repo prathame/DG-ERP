@@ -6,6 +6,7 @@ import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, isBillFullyPaid } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
+import { useConfirm } from '../../hooks/useConfirm';
 
 interface Supplier { id: string; name: string; contactPerson?: string; phone?: string; email?: string; address?: string; gstNumber?: string | null }
 interface PurchaseBatch { batchId: string; supplierId: string; supplierName: string; purchaseDate: string; productNames: string[]; total: number; billValue: number; amountPaid: number; balanceRemaining: number }
@@ -13,6 +14,7 @@ interface PurchaseBatch { batchId: string; supplierId: string; supplierName: str
 export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const canEdit = accessLevel === 'full';
   const { toast } = useToast();
+  const { confirm, ConfirmRenderer } = useConfirm();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [batches, setBatches] = useState<PurchaseBatch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -259,7 +261,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                       <td className="px-4 py-3 text-gray-500 text-sm">{formatDate(e.expenseDate)}</td>
                       <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{e.paymentMethod}</span></td>
                       <td className="px-4 py-3 text-gray-400 text-xs">{e.notes || '—'}</td>
-                      {canEdit && <td className="px-4 py-3"><button type="button" onClick={async () => { if (!confirm('Delete this expense?')) return; try { await api.expenses.delete(e.id); toast('Deleted', 'success'); api.expenses.list().then(setExpenses); } catch(err) { toast((err as Error).message, 'error'); } }} className="p-1 text-rose-400 hover:text-rose-600"><Trash2 size={14} /></button></td>}
+                      {canEdit && <td className="px-4 py-3"><button type="button" onClick={async () => { if (!await confirm({ message: 'Delete this expense? This cannot be undone.' })) return; try { await api.expenses.delete(e.id); toast('Deleted', 'success'); api.expenses.list().then(setExpenses); } catch(err) { toast((err as Error).message, 'error'); } }} className="p-1 text-rose-400 hover:text-rose-600"><Trash2 size={14} /></button></td>}
                     </tr>
                   ))}
                 </tbody>
@@ -430,6 +432,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           </div>
         </div>
       )}
+      <ConfirmRenderer />
     </motion.div>
   );
 }

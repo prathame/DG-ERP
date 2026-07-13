@@ -6,6 +6,7 @@ import { api, fetchApi } from '../../api';
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
+import { useConfirm } from '../../hooks/useConfirm';
 
 interface Order {
   id: string; orderNumber: string; vendorId?: string; vendorName?: string;
@@ -17,6 +18,7 @@ interface Order {
 
 export function OrdersView() {
   const { toast } = useToast();
+  const { confirm, ConfirmRenderer } = useConfirm();
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -110,7 +112,7 @@ export function OrdersView() {
   };
 
   const fulfillOrder = async (id: string) => {
-    if (!confirm('Fulfill this order? This will deduct stock and create a distribution batch.')) return;
+    if (!await confirm({ title: 'Fulfill Order', message: 'This will deduct stock and create a distribution batch.', confirmLabel: 'Fulfill', variant: 'warning' })) return;
     try {
       const result = await fetchApi<{ batchId: string; total: number; billValue: number }>(`/orders/${id}/fulfill`, { method: 'POST' });
       load();
@@ -119,7 +121,7 @@ export function OrdersView() {
   };
 
   const deleteOrder = async (id: string) => {
-    if (!confirm('Delete this order?')) return;
+    if (!await confirm({ message: 'Delete this order? This cannot be undone.', confirmLabel: 'Delete' })) return;
     try {
       await fetchApi(`/orders/${id}`, { method: 'DELETE' });
       setSelectedId(null); setSelected(null); load();
@@ -310,6 +312,7 @@ export function OrdersView() {
           </div>
         )}
       </AnimatePresence>
+      <ConfirmRenderer />
     </motion.div>
   );
 }

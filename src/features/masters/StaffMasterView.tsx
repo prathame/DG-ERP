@@ -6,12 +6,14 @@ import { api, fetchApi } from '../../api';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
+import { useConfirm } from '../../hooks/useConfirm';
 
 type Staff = { id: string; name: string; phone?: string; role?: string; address?: string; salary: number; joiningDate?: string; status: string; totalPaid: number; totalAdvance: number; totalRepaid: number; advanceBalance: number; paymentCount: number; lastPayment?: string };
 type Payment = { id: string; staffName: string; amount: number; paymentDate: string; paymentType: string; paymentMethod: string; referenceNumber?: string; notes?: string };
 
 export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onRefresh: () => void }) {
   const { toast } = useToast();
+  const { confirm, ConfirmRenderer } = useConfirm();
   const [list, setList] = useState<Staff[]>([]);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 250);
@@ -62,7 +64,7 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
       setPayModalOpen(false);
       if (selected.phone && ['salary', 'bonus', 'advance'].includes(payForm.paymentType)) {
         const msg = `Hi ${selected.name},\n\n${typeLabel[payForm.paymentType]} of ₹${amt.toLocaleString()} has been made on ${payForm.paymentDate} via ${payForm.paymentMethod}.${payForm.notes ? `\nNote: ${payForm.notes}` : ''}\n\nThank you!`;
-        if (confirm(`Send WhatsApp message to ${selected.name}?`)) shareViaWhatsApp(selected.phone, msg);
+        if (await confirm({ title: 'Send WhatsApp', message: `Send payment notification to ${selected.name}?`, confirmLabel: 'Send', variant: 'info' })) shareViaWhatsApp(selected.phone, msg);
       }
       setPayForm({ amount: '', paymentType: 'salary', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' });
       const refreshed = await api.staff.list();
@@ -163,7 +165,7 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
                       <td className="px-4 py-3 text-gray-500">{fmtDate(p.paymentDate)}</td>
                       <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{p.paymentMethod}</span></td>
                       <td className="px-4 py-3 text-gray-400 text-xs">{p.notes || '—'}</td>
-                      <td className="px-4 py-3"><button type="button" onClick={async () => { if (!confirm('Delete this payment?')) return; try { await api.payroll.delete(p.id); toast('Deleted', 'success'); load(); selectStaff(selected); } catch(e) { toast((e as Error).message, 'error'); } }} className="p-1 text-rose-400 hover:text-rose-600"><Trash2 size={14} /></button></td>
+                      <td className="px-4 py-3"><button type="button" onClick={async () => { if (!await confirm({ message: 'Delete this payment? This cannot be undone.' })) return; try { await api.payroll.delete(p.id); toast('Deleted', 'success'); load(); selectStaff(selected); } catch(e) { toast((e as Error).message, 'error'); } }} className="p-1 text-rose-400 hover:text-rose-600"><Trash2 size={14} /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -281,6 +283,7 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
           }}
         />
       )}
+      <ConfirmRenderer />
     </motion.div>
   );
 }
