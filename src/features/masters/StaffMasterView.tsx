@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Plus, Pencil, Trash2, ArrowLeft, Download, Upload, IndianRupee, Calendar, X, MessageCircle } from 'lucide-react';
 import { exportToCsv, shareViaWhatsApp } from '../../lib/utils';
-import { api } from '../../api';
+import { api, fetchApi } from '../../api';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -270,17 +270,14 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
           ]}
           onClose={() => setCsvImportOpen(false)}
           onImport={async (rows) => {
-            let success = 0; const errors: string[] = [];
-            for (let i = 0; i < rows.length; i++) {
-              const r = rows[i];
-              if (!r.name?.trim()) { errors.push(`Row ${i + 2}: Name required`); continue; }
-              try {
-                await api.staff.create({ name: r.name, phone: r.phone || undefined, role: r.role || undefined, address: r.address || undefined, salary: r.salary ? Number(r.salary) : undefined, joiningDate: r.joiningDate || undefined });
-                success++;
-              } catch (e) { errors.push(`Row ${i + 2}: ${(e as Error).message}`); }
+            try {
+              const items = rows.map(r => ({ name: r.name, phone: r.phone || undefined, role: r.role || undefined, address: r.address || undefined, salary: r.salary ? Number(r.salary) : undefined, joiningDate: r.joiningDate || undefined }));
+              const result = await fetchApi<{ success: number; errors: string[] }>('/staff/batch', { method: 'POST', body: JSON.stringify({ items }) });
+              load();
+              return { success: result.success, errors: result.errors };
+            } catch (err) {
+              return { success: 0, errors: [err instanceof Error ? err.message : 'Import failed — no staff were added'] };
             }
-            load();
-            return { success, errors };
           }}
         />
       )}

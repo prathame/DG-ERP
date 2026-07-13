@@ -36,43 +36,48 @@ router.get('/api/vendors', async (req, res) => {
 });
 
 router.post('/api/vendors/bulk', async (req, res) => {
+  const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { vendors } = req.body as { vendors?: { name: string; contactPerson?: string; phone?: string; email?: string; address?: string }[] };
     if (!Array.isArray(vendors) || vendors.length === 0) return res.status(400).json({ error: 'Provide an array of vendors' });
 
-    const vendorPortal = (await pool.query('SELECT vendor_portal_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0];
+    // Validate all rows first — fail fast
+    for (let i = 0; i < vendors.length; i++) {
+      const v = vendors[i];
+      if (!v.name || !v.name.trim()) return res.status(400).json({ error: `Row ${i + 2}: Name is required — no vendors were imported` });
+    }
+
+    const vendorPortal = (await client.query('SELECT vendor_portal_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0];
     const portalEnabled = vendorPortal?.vendor_portal_enabled === true;
-    const slug = (await pool.query('SELECT slug FROM tenants WHERE id = $1', [tenantId])).rows[0]?.slug as string | undefined;
+    const slug = (await client.query('SELECT slug FROM tenants WHERE id = $1', [tenantId])).rows[0]?.slug as string | undefined;
     const crypto = await import('crypto');
 
+    await client.query('BEGIN');
     let success = 0;
-    const errors: string[] = [];
     const credentials: { name: string; email: string; password: string; url: string }[] = [];
 
     for (let i = 0; i < vendors.length; i++) {
       const v = vendors[i];
-      const rowNum = i + 2;
-      if (!v.name || !v.name.trim()) { errors.push(`Row ${rowNum}: Name is required`); continue; }
-      const dup = (await pool.query('SELECT id FROM vendors WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, v.name.trim()])).rows[0];
-      if (dup) { errors.push(`Row ${rowNum}: "${v.name}" already exists`); continue; }
+      const dup = (await client.query('SELECT id FROM vendors WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, v.name.trim()])).rows[0];
+      if (dup) { await client.query('ROLLBACK'); return res.status(400).json({ error: `"${v.name}" already exists — no vendors were imported` }); }
       if (v.email) {
-        const emailDup = (await pool.query("SELECT id FROM vendors WHERE tenant_id = $1 AND email IS NOT NULL AND email != '' AND LOWER(email) = LOWER($2)", [tenantId, v.email])).rows[0];
-        if (emailDup) { errors.push(`Row ${rowNum}: Email "${v.email}" already exists`); continue; }
+        const emailDup = (await client.query("SELECT id FROM vendors WHERE tenant_id = $1 AND email IS NOT NULL AND email != '' AND LOWER(email) = LOWER($2)", [tenantId, v.email])).rows[0];
+        if (emailDup) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Email "${v.email}" already exists — no vendors were imported` }); }
       }
       const id = uid('V');
-      await pool.query(
+      await client.query(
         'INSERT INTO vendors (id, tenant_id, name, contact_person, phone, email, address, gst_number) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
         [id, tenantId, v.name.trim(), v.contactPerson || null, v.phone?.trim() || null, v.email || null, v.address || null, (v as Record<string, unknown>).gstNumber || null]
       );
       if (portalEnabled && v.email && v.email.includes('@')) {
-        const existing = (await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2', [v.email, tenantId])).rows[0];
+        const existing = (await client.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2', [v.email, tenantId])).rows[0];
         if (!existing) {
           const pw = crypto.randomBytes(12).toString('base64url');
           const userId = uid('U');
           const perms = JSON.stringify({ dashboard: 'view', sales: 'hidden', distribution: 'view', inventory: 'hidden', purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'view', accounts: 'hidden', warranty: 'hidden', replacements: 'hidden', rewards: 'hidden', settings: 'hidden' });
-          await pool.query(
+          await client.query(
             `INSERT INTO users (id, tenant_id, email, password_hash, name, phone, address, role, company_name, permissions, vendor_id) VALUES ($1,$2,$3,$4,$5,$6,$7,'Vendor',$8,$9,$10)`,
             [userId, tenantId, v.email, hashPassword(pw), v.contactPerson || v.name, v.phone || null, v.address || null, v.name, perms, id]
           );
@@ -81,11 +86,14 @@ router.post('/api/vendors/bulk', async (req, res) => {
       }
       success++;
     }
-    await logAudit(pool, tenantId, 'Vendors Bulk Import', 'vendor', undefined, `${success} created, ${errors.length} errors`);
-    res.json({ success, errors, credentials });
-  } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
-  }
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Vendors Bulk Import', 'vendor', undefined, `${success} vendors imported`);
+    res.json({ success, errors: [], credentials });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
+    res.status(500).json({ error: (e as Error).message || 'Import failed — no vendors were added' });
+  } finally { client.release(); }
 });
 
 router.post('/api/vendors', async (req, res) => {

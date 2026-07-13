@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Plus, Trash2, AlertCircle, AlertTriangle, ArrowUpDown, Barcode, Download, Upload, Printer } from 'lucide-react';
 import { cn, exportToCsv, formatDate } from '../../lib/utils';
-import { api } from '../../api';
+import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
 import { useToast, TableSkeleton } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
@@ -561,35 +561,24 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           ]}
           onClose={() => { setCsvImportOpen(false); api.products.list().then(setProducts).catch(() => {}); }}
           onImport={async (rows) => {
-            let success = 0;
-            const errors: string[] = [];
-            for (let i = 0; i < rows.length; i++) {
-              const r = rows[i];
-              try {
-                const pSize = Number(r.packSize) || 1;
-                const isBox = pSize > 1;
-                await api.products.create({
-                  name: r.name,
-                  price: Number(r.price) || 0,
-                  barcodePrefix: r.barcodePrefix,
-                  quantity: Number(r.quantity) || 1,
-                  barcodeMode: 'prefix' as const,
-                  packSize: isBox ? pSize : undefined,
-                  packName: isBox ? (r.packName || 'Box') : undefined,
-                  barcodePerBox: isBox || undefined,
-                  description: r.description || undefined,
-                  hsnCode: r.hsnCode || undefined,
-                  gstRate: r.gstRate ? Number(r.gstRate) : (r.hsnCode ? suggestHsnRate(r.hsnCode)?.rate : undefined),
-                  priceIncludesGst: r.priceIncludesGst?.toUpperCase() === 'Y' || r.priceIncludesGst === 'true' || undefined,
-                  warrantyMonths: r.warrantyMonths ? Number(r.warrantyMonths) : undefined,
-                  rewardPointsValue: r.rewardPoints ? Number(r.rewardPoints) : undefined,
-                });
-                success++;
-              } catch (err) {
-                errors.push(`Row ${i + 1} (${r.name}): ${err instanceof Error ? err.message : 'Failed'}`);
-              }
+            try {
+              const items = rows.map(r => ({
+                name: r.name,
+                price: Number(r.price) || 0,
+                description: r.description || undefined,
+                hsnCode: r.hsnCode || undefined,
+                gstRate: r.gstRate ? Number(r.gstRate) : (r.hsnCode ? suggestHsnRate(r.hsnCode)?.rate : undefined),
+                packSize: Number(r.packSize) || 1,
+                packName: r.packName || undefined,
+                priceIncludesGst: r.priceIncludesGst?.toUpperCase() === 'Y' || r.priceIncludesGst === 'true',
+                warrantyMonths: r.warrantyMonths ? Number(r.warrantyMonths) : undefined,
+                rewardPointsValue: r.rewardPoints ? Number(r.rewardPoints) : undefined,
+              }));
+              const result = await fetchApi<{ success: number; errors: string[] }>('/products/batch', { method: 'POST', body: JSON.stringify({ items }) });
+              return { success: result.success, errors: result.errors };
+            } catch (err) {
+              return { success: 0, errors: [err instanceof Error ? err.message : 'Import failed — no products were added'] };
             }
-            return { success, errors };
           }}
         />
       )}

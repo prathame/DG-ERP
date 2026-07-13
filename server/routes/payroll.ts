@@ -33,6 +33,42 @@ router.get('/api/staff', async (req, res) => {
   }
 });
 
+// Batch create — all-or-nothing (CSV import)
+router.post('/api/staff/batch', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { items } = req.body as { items: Record<string, unknown>[] };
+    if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
+
+    for (let i = 0; i < items.length; i++) {
+      if (!items[i].name || !String(items[i].name).trim()) return res.status(400).json({ error: `Row ${i + 2}: Name is required — no staff were imported` });
+    }
+
+    await client.query('BEGIN');
+    let count = 0;
+    for (const r of items) {
+      const name = String(r.name).trim();
+      const dup = (await client.query('SELECT id FROM staff_members WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name])).rows[0];
+      if (dup) { await client.query('ROLLBACK'); return res.status(400).json({ error: `"${name}" already exists — no staff were imported` }); }
+      const id = uid('STF');
+      await client.query(
+        'INSERT INTO staff_members (id, tenant_id, name, phone, role, address, salary, joining_date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [id, tenantId, name, r.phone || null, r.role || null, r.address || null, r.salary ? Number(r.salary) : null, r.joiningDate || null]
+      );
+      count++;
+    }
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Staff Batch Import', 'staff', `batch-${Date.now()}`, `${count} staff imported via CSV`);
+    res.status(201).json({ success: count, errors: [] });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
+    res.status(500).json({ error: (e as Error).message || 'Import failed — no staff were added' });
+  } finally { client.release(); }
+});
+
 router.post('/api/staff', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

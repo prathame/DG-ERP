@@ -291,6 +291,52 @@ router.get('/api/products/by-barcode/:barcode', async (req, res) => {
   }
 });
 
+// Batch create — all-or-nothing (CSV import)
+router.post('/api/products/batch', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { items } = req.body as { items: Record<string, unknown>[] };
+    if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
+
+    // Validate all rows first — fail fast before any DB writes
+    const errors: string[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const r = items[i];
+      if (!r.name || !String(r.name).trim()) errors.push(`Row ${i + 1}: name is required`);
+      if (r.hsnCode && !/^\d{4}(\d{2})?(\d{2})?$/.test(String(r.hsnCode).replace(/\s/g, ''))) errors.push(`Row ${i + 1} (${r.name}): HSN must be 4, 6, or 8 digits`);
+    }
+    if (errors.length) return res.status(400).json({ error: errors.join('; ') });
+
+    await client.query('BEGIN');
+    let count = 0;
+    for (const r of items) {
+      const name = String(r.name).trim();
+      const dup = (await client.query('SELECT id FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name])).rows[0];
+      if (dup) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Product "${name}" already exists — no products were imported` }); }
+      const id = uid('P');
+      const ps = Number(r.packSize) || 1;
+      await client.query(
+        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+        [id, name, null, r.description || null, Number(r.rewardPointsValue) || 0, null, null, 'Active',
+         Number(r.warrantyMonths) || 12, Number(r.price) || 0, 0, tenantId,
+         ps > 1 ? ps : 1, ps > 1 ? (r.packName || 'Box') : 'Piece',
+         r.hsnCode || null, r.gstRate != null ? Number(r.gstRate) : 18, !!r.priceIncludesGst]
+      );
+      count++;
+    }
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Batch Import', 'product', `batch-${Date.now()}`, `${count} products imported via CSV`);
+    res.status(201).json({ success: count, errors: [] });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
+    res.status(500).json({ error: (e as Error).message || 'Import failed — no products were added' });
+  } finally { client.release(); }
+});
+
 router.post('/api/products', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
