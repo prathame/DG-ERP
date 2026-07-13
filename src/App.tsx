@@ -19,6 +19,7 @@ import {
   Bell,
   Search,
   ReceiptIndianRupee,
+  ChevronDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -110,6 +111,17 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    try { const s = localStorage.getItem('dg_nav_collapsed'); return s ? new Set(JSON.parse(s)) : new Set(); } catch { return new Set(); }
+  });
+  const toggleSection = (label: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      localStorage.setItem('dg_nav_collapsed', JSON.stringify([...next]));
+      return next;
+    });
+  };
   const [cmdOpen, setCmdOpen] = useState(false);
   const [user, setUser] = useState<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean } | null>(() => {
     try {
@@ -337,13 +349,18 @@ export default function App() {
           {navSections.map((section) => {
             const sectionItems = section.items.filter(i => i.show && canAccess(i.id));
             if (!sectionItems.length) return null;
+            const isCollapsed = section.label ? collapsedSections.has(section.label) : false;
+            const hasActiveChild = sectionItems.some(i => activeTab === i.id);
             return (
-              <div key={section.label || '_top'} className={section.label ? 'mt-4' : ''}>
+              <div key={section.label || '_top'} className={section.label ? 'mt-3' : ''}>
                 {isSidebarOpen && section.label && (
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 mb-1">{section.label}</p>
+                  <button type="button" onClick={() => toggleSection(section.label)} className="w-full flex items-center justify-between px-3 py-1.5 mb-0.5 rounded-lg hover:bg-gray-50 transition-colors group">
+                    <span className={cn("text-[10px] font-semibold uppercase tracking-wider", hasActiveChild ? "text-brand" : "text-gray-400")}>{section.label}</span>
+                    <ChevronDown size={14} className={cn("text-gray-300 transition-transform", isCollapsed ? "-rotate-90" : "")} />
+                  </button>
                 )}
                 {!isSidebarOpen && section.label && <div className="my-2 mx-2 border-t border-gray-100" />}
-                <div className="space-y-0.5">
+                {(!isCollapsed || !isSidebarOpen) && <div className="space-y-0.5">
                   {sectionItems.map((item) => (
                     <button
                       key={item.id}
@@ -361,7 +378,7 @@ export default function App() {
                       {!isSidebarOpen && <span className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">{item.label}</span>}
                     </button>
                   ))}
-                </div>
+                </div>}
               </div>
             );
           })}
