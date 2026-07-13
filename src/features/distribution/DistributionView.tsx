@@ -122,13 +122,19 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
     const priceAfterDisc = gross - disc;
     let net: number, gst: number, billed: number;
     if (r.withGst && inclGst) {
+      // Price includes GST — back-calculate base
       billed = priceAfterDisc;
       net = Math.round(priceAfterDisc / (1 + defaultGstRate / 100));
       gst = billed - net;
     } else if (r.withGst) {
+      // Price is base — add GST on top
       net = priceAfterDisc;
       gst = Math.round(net * defaultGstRate / 100);
       billed = net + gst;
+    } else if (inclGst) {
+      // GST unchecked but price was inclusive — strip GST, bill at base
+      net = Math.round(priceAfterDisc / (1 + defaultGstRate / 100));
+      gst = 0; billed = net;
     } else {
       net = priceAfterDisc; gst = 0; billed = priceAfterDisc;
     }
@@ -605,6 +611,9 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                         net = priceAfterDisc;
                         gstOnRow = Math.round(net * defaultGstRate / 100);
                         billed = net + gstOnRow;
+                      } else if (inclGst) {
+                        net = Math.round(priceAfterDisc / (1 + defaultGstRate / 100));
+                        gstOnRow = 0; billed = net;
                       } else {
                         net = priceAfterDisc;
                         gstOnRow = 0;
