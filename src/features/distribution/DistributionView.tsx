@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Package, Plus, Download, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search, IndianRupee, MoreVertical, Truck } from 'lucide-react';
+import { Package, Plus, Download, Upload, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search, IndianRupee, MoreVertical, Truck } from 'lucide-react';
 import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate } from '../../lib/utils';
 import { api, fetchApi, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product, Vendor } from '../../types';
@@ -648,7 +648,47 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                     })}
                   </tbody>
                 </table>
-                <button type="button" onClick={addDistRow} className="w-full py-2 text-sm font-medium text-brand hover:bg-orange-50 border-t border-gray-200 transition-colors">+ Add Product Row</button>
+                <div className="flex border-t border-gray-200">
+                  <button type="button" onClick={addDistRow} className="flex-1 py-2 text-sm font-medium text-brand hover:bg-orange-50 transition-colors">+ Add Product Row</button>
+                  <label className="flex-1 py-2 text-sm font-medium text-center text-gray-500 hover:bg-gray-50 cursor-pointer border-l border-gray-200 transition-colors flex items-center justify-center gap-1.5">
+                    <Upload size={14} /> Import CSV
+                    <input type="file" accept=".csv" className="hidden" onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const lines = (reader.result as string).split(/\r?\n/).filter(l => l.trim());
+                        if (lines.length < 2) { toast('CSV must have header + data rows', 'error'); return; }
+                        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+                        const nameIdx = headers.findIndex(h => h.includes('product') || h === 'name');
+                        const qtyIdx = headers.findIndex(h => h.includes('qty') || h.includes('quantity'));
+                        const priceIdx = headers.findIndex(h => h.includes('price') || h.includes('rate'));
+                        const gstIdx = headers.findIndex(h => h.includes('gst') || h.includes('withgst'));
+                        const discIdx = headers.findIndex(h => h.includes('disc') || h.includes('discount'));
+                        if (nameIdx < 0) { toast('CSV must have a "productName" or "name" column', 'error'); return; }
+                        const newRows: typeof distRows = [];
+                        const errors: string[] = [];
+                        for (let i = 1; i < lines.length; i++) {
+                          const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                          const pName = vals[nameIdx];
+                          if (!pName) continue;
+                          const match = products.find(p => p.name.toLowerCase() === pName.toLowerCase());
+                          if (!match) { errors.push(`Row ${i + 1}: "${pName}" not found in inventory`); continue; }
+                          const qty = qtyIdx >= 0 ? (parseInt(vals[qtyIdx]) || 1) : 1;
+                          const price = priceIdx >= 0 ? vals[priceIdx] : '';
+                          const withGst = gstIdx >= 0 ? vals[gstIdx]?.toUpperCase() !== 'N' : true;
+                          const disc = discIdx >= 0 ? (parseInt(vals[discIdx]) || 0) : 0;
+                          newRows.push({ productId: match.id, quantity: qty, customPrice: price, withGst, discount: disc });
+                        }
+                        if (errors.length) toast(errors.join('\n'), 'error');
+                        if (newRows.length) { setDistRows(newRows); toast(`${newRows.length} products loaded from CSV`, 'success'); }
+                        else if (!errors.length) toast('No valid rows found', 'error');
+                      };
+                      reader.readAsText(file);
+                      e.target.value = '';
+                    }} />
+                  </label>
+                </div>
               </div>
 
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2 mb-4">
