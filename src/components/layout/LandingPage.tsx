@@ -124,7 +124,7 @@ export function LandingPage() {
                 const h = heroData[heroLang] || heroData[0];
                 return (
                   <motion.div key={heroLang} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-snug md:leading-[1.3] mb-5">
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-relaxed mb-5">
                       {h.line1}<br />
                       <span className="bg-gradient-to-r from-brand to-amber-500 bg-clip-text text-transparent">{h.line2}</span>
                     </h1>
