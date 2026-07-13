@@ -237,7 +237,7 @@ router.get('/api/purchases/batch/:batchId', async (req, res) => {
     const batchPaid = Number((await pool.query(
       'SELECT COALESCE(SUM(amount), 0) as t FROM supplier_payments WHERE batch_id = $1 AND tenant_id = $2',
       [batchId, tenantId]
-    )).rows[0].t);
+    )).rows[0]?.t ?? 0);
     const billValue = Number(batch.bill_value);
 
     res.json({
@@ -281,8 +281,8 @@ router.get('/api/supplier-finance/:supplierId', async (req, res) => {
     const { supplierId } = req.params;
     const supplier = (await pool.query('SELECT * FROM suppliers WHERE id = $1 AND tenant_id = $2', [supplierId, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
-    const totalValue = Number((await pool.query('SELECT COALESCE(SUM(COALESCE(billed_price, cost_price)), 0) as t FROM product_purchases WHERE supplier_id = $1 AND tenant_id = $2', [supplierId, tenantId])).rows[0].t) || 0;
-    const totalPaid = Number((await pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM supplier_payments WHERE supplier_id = $1 AND tenant_id = $2', [supplierId, tenantId])).rows[0].t) || 0;
+    const totalValue = Number((await pool.query('SELECT COALESCE(SUM(COALESCE(billed_price, cost_price)), 0) as t FROM product_purchases WHERE supplier_id = $1 AND tenant_id = $2', [supplierId, tenantId])).rows[0]?.t ?? 0) || 0;
+    const totalPaid = Number((await pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM supplier_payments WHERE supplier_id = $1 AND tenant_id = $2', [supplierId, tenantId])).rows[0]?.t ?? 0) || 0;
     const payments = (await pool.query('SELECT * FROM supplier_payments WHERE supplier_id = $1 AND tenant_id = $2 ORDER BY payment_date DESC', [supplierId, tenantId])).rows as Record<string, unknown>[];
     res.json({
       supplier: { id: supplier.id, name: supplier.name, phone: supplier.phone, email: supplier.email, address: supplier.address, gstNumber: supplier.gst_number },

@@ -385,7 +385,7 @@ router.post('/api/distribution', async (req, res) => {
         return res.status(400).json({ error: `Insufficient stock. Available: ${distInvRows.length}, requested: ${qty}` });
       }
       const existingInBatch = typeof reqBatchId === 'string' && reqBatchId
-        ? Number((await client.query('SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2', [reqBatchId, tenantId])).rows[0].c)
+        ? Number((await client.query('SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2', [reqBatchId, tenantId])).rows[0]?.c ?? 0)
         : 0;
       for (let i = 0; i < distInvRows.length; i++) {
         const inv = distInvRows[i];
@@ -629,18 +629,18 @@ router.get('/api/distribution/bill', async (req, res) => {
           const batchPaid = Number((await pool.query(
             'SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE batch_id = $1 AND tenant_id = $2',
             [batchId, tenantId]
-          )).rows[0].t);
+          )).rows[0]?.t ?? 0);
           return { totalDistributedValue: totalBilled, totalPaid: batchPaid, balance: totalBilled - batchPaid };
         }
         const vid = vendorId as string;
         const totalDistValue = Number((await pool.query(
           'SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1 WHERE pd.vendor_id = $2 AND pd.tenant_id = $1',
           [tenantId, vid]
-        )).rows[0].t);
+        )).rows[0]?.t ?? 0);
         const totalPaid = Number((await pool.query(
           'SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE vendor_id = $1 AND tenant_id = $2',
           [vid, tenantId]
-        )).rows[0].t);
+        )).rows[0]?.t ?? 0);
         return { totalDistributedValue: totalDistValue, totalPaid, balance: totalDistValue - totalPaid };
       })(),
       billSettings: billSettingsRow ? {
@@ -701,7 +701,8 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
     const vendorRow = (await pool.query(
       'SELECT vendor_id, distribution_date FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2 LIMIT 1',
       [batchId, tenantId]
-    )).rows[0] as { vendor_id: string; distribution_date: string };
+    )).rows[0] as { vendor_id: string; distribution_date: string } | undefined;
+    if (!vendorRow) return res.status(404).json({ error: 'Distribution batch not found' });
     const vendorId = vendorRow.vendor_id;
     const effectiveDate = date ?? vendorRow.distribution_date;
 
@@ -765,7 +766,7 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
           let seq = Number((await client.query(
             'SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2',
             [batchId, tenantId]
-          )).rows[0].c);
+          )).rows[0]?.c ?? 0);
           for (const inv of invRows) {
             seq++;
             const distId = seq === 1 && invRows.length === 1 && productRows.length === 0 && newQty === 1 ? batchId : `${batchId}-${seq}`;
@@ -848,7 +849,7 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
     const remainingCount = Number((await pool.query(
       'SELECT COUNT(*) as c FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2',
       [batchId, tenantId]
-    )).rows[0].c);
+    )).rows[0]?.c ?? 0);
     if (remainingCount === 0) {
       return res.json({ deleted: true, batchId });
     }
@@ -880,7 +881,7 @@ router.put('/api/distribution/batch/:batchId', async (req, res) => {
     const putBatchPaid = Number((await pool.query(
       'SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE batch_id = $1 AND tenant_id = $2',
       [batchId, tenantId]
-    )).rows[0].t);
+    )).rows[0]?.t ?? 0);
     const putBillValue = Number(batch?.bill_value);
 
     res.json({
@@ -982,7 +983,7 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
     const batchPaid = Number((await pool.query(
       'SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE batch_id = $1 AND tenant_id = $2',
       [batchId, tenantId]
-    )).rows[0].t);
+    )).rows[0]?.t ?? 0);
     const billValue = Number(batch.bill_value);
 
     res.json({
@@ -1180,7 +1181,7 @@ router.get('/api/distribution/einvoice', async (req, res) => {
         Gstin: sellerGstin,
         LglNm: tenant.company_name as string,
         Addr1: (tenant.address as string) || 'N/A',
-        Loc: (tenant.address as string)?.split(',').slice(-2, -1)[0]?.trim() || 'N/A',
+        Loc: (String(tenant.address || '')).split(',').slice(-2, -1)[0]?.trim() || 'N/A',
         Pin: fromPin,
         Stcd: fromStcd,
         Ph: (tenant.phone as string) || '',
@@ -1279,7 +1280,7 @@ router.get('/api/distribution/ewaybill', async (req, res) => {
 
     const itemList = Object.values(grouped).map((g, i) => ({
       SlNo: String(i + 1), PrdDesc: g.name, HsnCd: g.hsn, Qty: g.qty, Unit: 'PCS',
-      UnitPrice: Math.round(g.taxable / g.qty), TotAmt: g.taxable, GstRt: g.gstRate,
+      UnitPrice: g.qty > 0 ? Math.round(g.taxable / g.qty) : 0, TotAmt: g.taxable, GstRt: g.gstRate,
       CgstAmt: g.cgst, SgstAmt: g.sgst, IgstAmt: 0, CesAmt: 0, TotItemVal: g.total,
     }));
 
@@ -1319,7 +1320,7 @@ router.get('/api/distribution/ewaybill', async (req, res) => {
       FromGstin: sellerGstin,
       FromTrdName: tenant.company_name as string,
       FromAddr1: (tenant.address as string) || 'N/A',
-      FromPlace: (tenant.address as string)?.split(',').slice(-2, -1)[0]?.trim() || 'N/A',
+      FromPlace: (String(tenant.address || '')).split(',').slice(-2, -1)[0]?.trim() || 'N/A',
       FromPincode: fromPincode,
       FromStateCode: fromStateCode,
       ToGstin: buyerGstin || 'URP',

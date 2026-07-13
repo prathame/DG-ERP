@@ -106,12 +106,12 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
       SELECT COALESCE(SUM(${DISTRIBUTION_BILL_UNIT_SQL}), 0) as t
       FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
       WHERE pd.tenant_id = $1 AND pd.distribution_date >= $2 AND pd.distribution_date <= $3
-    `, [tenantId, from, to])).rows[0].t) || 0;
+    `, [tenantId, from, to])).rows[0]?.t ?? 0) || 0;
 
     const salesRevenue = Number((await pool.query(
       'SELECT COALESCE(SUM(COALESCE(sale_price, 0)), 0) as t FROM product_sales WHERE tenant_id = $1 AND purchase_date >= $2 AND purchase_date <= $3',
       [tenantId, from, to]
-    )).rows[0].t) || 0;
+    )).rows[0]?.t ?? 0) || 0;
 
     // Expenses
     const [purchaseRes, staffRes, expenseRes] = await Promise.all([
@@ -119,9 +119,9 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
       pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM staff_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 AND payment_type IN ('salary','bonus')", [tenantId, from, to]),
       pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3', [tenantId, from, to]),
     ]);
-    const purchaseCost = Number(purchaseRes.rows[0].t) || 0;
-    const staffCost = Number(staffRes.rows[0].t) || 0;
-    const expenseCost = Number(expenseRes.rows[0].t) || 0;
+    const purchaseCost = Number(purchaseRes.rows[0]?.t ?? 0) || 0;
+    const staffCost = Number(staffRes.rows[0]?.t ?? 0) || 0;
+    const expenseCost = Number(expenseRes.rows[0]?.t ?? 0) || 0;
 
     const totalRevenue = distRevenue + salesRevenue;
     const totalExpenses = purchaseCost + staffCost + expenseCost;
@@ -152,16 +152,16 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
       pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM staff_payments WHERE tenant_id = $1 AND payment_type IN ('salary','bonus','advance')", [tenantId]),
       pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE tenant_id = $1', [tenantId]),
     ]);
-    const inventoryValue = Number(invValRes.rows[0].t) || 0;
-    const totalDistributed = Number(distRes.rows[0].t) || 0;
-    const totalVendorPayments = Number(vpRes.rows[0].t) || 0;
+    const inventoryValue = Number(invValRes.rows[0]?.t ?? 0) || 0;
+    const totalDistributed = Number(distRes.rows[0]?.t ?? 0) || 0;
+    const totalVendorPayments = Number(vpRes.rows[0]?.t ?? 0) || 0;
     const receivables = totalDistributed - totalVendorPayments;
-    const totalSupplierPayments = Number(spRes.rows[0].t) || 0;
-    const staffAdvanceBalance = Math.max(0, Number(advRes.rows[0].t) || 0);
-    const staffAllPaid = Number(staffAllRes.rows[0].t) || 0;
-    const totalExpenses = Number(expRes.rows[0].t) || 0;
+    const totalSupplierPayments = Number(spRes.rows[0]?.t ?? 0) || 0;
+    const staffAdvanceBalance = Math.max(0, Number(advRes.rows[0]?.t ?? 0) || 0);
+    const staffAllPaid = Number(staffAllRes.rows[0]?.t ?? 0) || 0;
+    const totalExpenses = Number(expRes.rows[0]?.t ?? 0) || 0;
     const cashBank = totalVendorPayments - totalSupplierPayments - staffAllPaid - totalExpenses;
-    const totalPurchased = Number(purchRes.rows[0].t) || 0;
+    const totalPurchased = Number(purchRes.rows[0]?.t ?? 0) || 0;
 
     const payables = totalPurchased - totalSupplierPayments;
 
@@ -203,10 +203,10 @@ router.get('/api/accounts/cash-flow', async (req, res) => {
       pool.query("SELECT to_char(payment_date, 'YYYY-MM') as month, SUM(amount) as total FROM staff_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 AND payment_type IN ('salary','bonus','advance') GROUP BY to_char(payment_date, 'YYYY-MM') ORDER BY month", [tenantId, from, to]),
       pool.query("SELECT to_char(expense_date, 'YYYY-MM') as month, SUM(amount) as total FROM expenses WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3 GROUP BY to_char(expense_date, 'YYYY-MM') ORDER BY month", [tenantId, from, to]),
     ]);
-    const vendorPayments = Number(vpRes.rows[0].t) || 0;
-    const supplierPayments = Number(spRes.rows[0].t) || 0;
-    const staffPayments = Number(staffRes.rows[0].t) || 0;
-    const expenseTotal = Number(expCfRes.rows[0].t) || 0;
+    const vendorPayments = Number(vpRes.rows[0]?.t ?? 0) || 0;
+    const supplierPayments = Number(spRes.rows[0]?.t ?? 0) || 0;
+    const staffPayments = Number(staffRes.rows[0]?.t ?? 0) || 0;
+    const expenseTotal = Number(expCfRes.rows[0]?.t ?? 0) || 0;
     const monthlyIn = monthlyInRes.rows as { month: string; total: string }[];
     const monthlyOut = monthlyOutRes.rows as { month: string; total: string }[];
     const monthlyStaff = monthlyStaffRes.rows as { month: string; total: string }[];

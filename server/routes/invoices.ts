@@ -30,7 +30,7 @@ router.get('/api/invoices/next-number', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { rows } = await pool.query('SELECT COUNT(*) as c FROM standalone_invoices WHERE tenant_id = $1', [tenantId]);
-    const count = Number(rows[0].c) + 1;
+    const count = Number(rows[0]?.c ?? 0) + 1;
     const now = new Date();
     const fy = now.getMonth() >= 3 ? `${now.getFullYear()}-${(now.getFullYear() + 1).toString().slice(2)}` : `${now.getFullYear() - 1}-${now.getFullYear().toString().slice(2)}`;
     res.json({ number: `INV/${fy}/${String(count).padStart(4, '0')}` });
