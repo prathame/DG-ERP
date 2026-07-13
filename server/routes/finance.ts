@@ -314,6 +314,7 @@ router.post('/api/vendor-finance/bank-statement/apply', async (req, res) => {
     const { payments } = req.body as { payments: { vendorId: string; amount: number; date: string; reference?: string; batchId?: string; note?: string }[] };
     if (!Array.isArray(payments) || !payments.length) return res.status(400).json({ error: 'No payments to apply' });
 
+    const importBatchId = uid('BSI');
     await client.query('BEGIN');
     let count = 0;
     for (const p of payments) {
@@ -321,13 +322,14 @@ router.post('/api/vendor-finance/bank-statement/apply', async (req, res) => {
       const id = uid('VP');
       await client.query(
         'INSERT INTO vendor_payments (id, tenant_id, vendor_id, amount, payment_date, payment_method, reference_number, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-        [id, tenantId, p.vendorId, p.amount, p.date || new Date().toISOString().slice(0, 10), 'Bank Transfer', p.reference || null, p.note || 'Auto-imported from bank statement', p.batchId || null]
+        [id, tenantId, p.vendorId, p.amount, p.date || new Date().toISOString().slice(0, 10), 'Bank Statement',
+         p.reference || null, `[${importBatchId}] ${p.note || 'Bank statement import'}`, p.batchId || null]
       );
       count++;
     }
     await client.query('COMMIT');
-    await logAudit(pool, tenantId, 'Bank Statement Import', 'payment', `batch-${Date.now()}`, `${count} payments applied from bank statement`);
-    res.json({ applied: count });
+    await logAudit(pool, tenantId, 'Bank Statement Import', 'payment', importBatchId, `${count} payments applied from bank statement`);
+    res.json({ applied: count, importBatchId });
   } catch (e) {
     await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
