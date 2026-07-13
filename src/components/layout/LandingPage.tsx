@@ -115,7 +115,7 @@ export function LandingPage() {
               <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand text-white rounded-full text-xs font-bold mb-4 shadow-lg">
                 🚀 {L('Coming Soon — Launching Shortly!', 'जल्द आ रहा है!', 'ટૂંક સમયમાં આવી રહ્યું છે!')}
               </div>
-              <div className="relative h-[180px] sm:h-[160px] md:h-[170px]">
+              <div className="relative h-[220px] sm:h-[200px] md:h-[220px]">
                 {[
                   { line1: 'From Shop to Factory', line2: 'Your Business, Simplified', sub: 'Inventory, billing, GST, vendor management, accounting — all in one place.' },
                   { line1: 'दुकान हो या फैक्ट्री', line2: 'बिज़नेस आसान बनाओ', sub: 'Inventory, billing, GST, vendor management सब एक जगह।' },
