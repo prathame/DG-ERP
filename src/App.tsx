@@ -30,6 +30,7 @@ import { LandingPage } from './components/layout/LandingPage';
 import { PrivacyPolicy } from './components/layout/PrivacyPolicy';
 import { TermsOfService } from './components/layout/TermsOfService';
 import { ChatWidget } from './components/layout/ChatWidget';
+import { SetupWizard } from './components/layout/SetupWizard';
 import { session } from './lib/session';
 import { CommandPalette } from './components/ui/CommandPalette';
 import { Search } from 'lucide-react';
@@ -111,6 +112,7 @@ export default function App() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [setupDone, setSetupDone] = useState(() => !!localStorage.getItem('dg_setup_done'));
   const [user, setUser] = useState<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean } | null>(() => {
     try {
       const u = session.getUser();
@@ -295,6 +297,23 @@ export default function App() {
 
     // Root URL (/) — show company landing page
     return <LandingPage />;
+  }
+
+  // First-run setup wizard
+  if (!setupDone && user && !user.address && user.role !== 'Vendor') {
+    return (
+      <ToastProvider>
+        <SetupWizard user={user} onComplete={() => {
+          localStorage.setItem('dg_setup_done', '1');
+          setSetupDone(true);
+          api.settings.getProfile(user.id).then((fresh) => {
+            const merged = { ...user, ...fresh };
+            session.setUser(merged);
+            setUser(merged);
+          }).catch(() => {});
+        }} />
+      </ToastProvider>
+    );
   }
 
   return (
