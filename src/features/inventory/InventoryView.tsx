@@ -204,15 +204,17 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                       {colShow('price') && <td className="px-4 py-3 text-right">
                         <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
                         {(p.packSize || 1) > 1 && <span className="block text-[10px] text-gray-400">per {p.packName || 'Box'}</span>}
-                        {canEdit ? (
-                          <button type="button" onClick={() => { api.products.update(p.id, { priceIncludesGst: !p.priceIncludesGst } as Partial<import('../../types').Product>).then(() => { setProducts(prev => prev.map(x => x.id === p.id ? { ...x, priceIncludesGst: !x.priceIncludesGst } : x)); toast(`GST ${!p.priceIncludesGst ? 'inclusive' : 'exclusive'} for ${p.name}`, 'success'); }).catch(e => toast(e.message, 'error')); }} className={cn("inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 cursor-pointer", p.priceIncludesGst ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500")}>
-                            {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
-                          </button>
-                        ) : (
-                          <span className={cn("inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5", p.priceIncludesGst ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500")}>
-                            {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
-                          </span>
-                        )}
+                        <div className="mt-0.5">
+                          {canEdit ? (
+                            <button type="button" onClick={() => { api.products.update(p.id, { priceIncludesGst: !p.priceIncludesGst } as Partial<import('../../types').Product>).then(() => { setProducts(prev => prev.map(x => x.id === p.id ? { ...x, priceIncludesGst: !x.priceIncludesGst } : x)); toast(`GST ${!p.priceIncludesGst ? 'inclusive' : 'exclusive'} for ${p.name}`, 'success'); }).catch(e => toast(e.message, 'error')); }} className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full cursor-pointer", p.priceIncludesGst ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500")}>
+                              {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
+                            </button>
+                          ) : (
+                            <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full", p.priceIncludesGst ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500")}>
+                              {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
+                            </span>
+                          )}
+                        </div>
                       </td>}
                       {inventoryTrackingEnabled && (() => {
                         const rawStock = p.remainingInventory ?? p.stock ?? 0;
