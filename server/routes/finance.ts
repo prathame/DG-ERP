@@ -221,4 +221,118 @@ router.post('/api/vendor-finance/:vendorId/reminder-sent', async (req, res) => {
   }
 });
 
+// Bank statement CSV — parse and match to vendors
+router.post('/api/vendor-finance/bank-statement/preview', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { transactions } = req.body as { transactions: { date: string; description: string; amount: number; reference?: string }[] };
+    if (!Array.isArray(transactions) || !transactions.length) return res.status(400).json({ error: 'No transactions to process' });
+
+    // Fetch all vendors with phone/name
+    const vendors = (await pool.query(
+      "SELECT v.id, v.name, v.phone, v.email FROM vendors v WHERE v.tenant_id = $1 AND v.id != 'OWNER'",
+      [tenantId]
+    )).rows as { id: string; name: string; phone: string | null; email: string | null }[];
+
+    // Fetch outstanding batches per vendor
+    const batchRows = (await pool.query(`
+      SELECT COALESCE(pd.batch_id, pd.id) as batch_id, pd.vendor_id,
+        MIN(pd.distribution_date) as date,
+        SUM(COALESCE(pd.billed_price, pd.net_price, p.price)) as bill_value
+      FROM product_distribution pd
+      JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+      WHERE pd.tenant_id = $1
+      GROUP BY COALESCE(pd.batch_id, pd.id), pd.vendor_id
+    `, [tenantId])).rows as { batch_id: string; vendor_id: string; date: string; bill_value: string }[];
+
+    const paymentRows = (await pool.query(
+      'SELECT batch_id, SUM(amount) as paid FROM vendor_payments WHERE tenant_id = $1 GROUP BY batch_id',
+      [tenantId]
+    )).rows as { batch_id: string; paid: string }[];
+    const paidMap: Record<string, number> = {};
+    for (const p of paymentRows) paidMap[p.batch_id] = Number(p.paid);
+
+    // Build outstanding batches per vendor
+    const vendorBatches: Record<string, { batchId: string; date: string; billValue: number; paid: number; balance: number }[]> = {};
+    for (const b of batchRows) {
+      const paid = paidMap[b.batch_id] || 0;
+      const balance = Number(b.bill_value) - paid;
+      if (balance <= 0) continue;
+      if (!vendorBatches[b.vendor_id]) vendorBatches[b.vendor_id] = [];
+      vendorBatches[b.vendor_id].push({ batchId: b.batch_id, date: b.date, billValue: Number(b.bill_value), paid, balance });
+    }
+    // Sort each vendor's batches by date (oldest first for auto-apply)
+    for (const vid of Object.keys(vendorBatches)) vendorBatches[vid].sort((a, b) => a.date.localeCompare(b.date));
+
+    // Match transactions to vendors
+    const matched: { txIdx: number; date: string; description: string; amount: number; reference?: string; vendorId: string; vendorName: string; matchedBy: string; suggestedBatches: { batchId: string; date: string; balance: number; applyAmount: number }[] }[] = [];
+    const unmatched: { txIdx: number; date: string; description: string; amount: number; reference?: string }[] = [];
+
+    for (let i = 0; i < transactions.length; i++) {
+      const tx = transactions[i];
+      if (!tx.amount || tx.amount <= 0) continue;
+      const desc = (tx.description || '').toLowerCase();
+
+      // Try matching by phone, name, or UPI ID
+      let matchedVendor: typeof vendors[0] | null = null;
+      let matchedBy = '';
+
+      for (const v of vendors) {
+        if (v.phone && desc.includes(v.phone.replace(/\D/g, '').slice(-10))) { matchedVendor = v; matchedBy = `phone: ${v.phone}`; break; }
+        if (v.name && desc.toLowerCase().includes(v.name.toLowerCase())) { matchedVendor = v; matchedBy = `name: ${v.name}`; break; }
+        if (v.email && desc.toLowerCase().includes(v.email.toLowerCase())) { matchedVendor = v; matchedBy = `email: ${v.email}`; break; }
+      }
+
+      if (matchedVendor) {
+        // Auto-suggest batch allocation (oldest first)
+        const batches = vendorBatches[matchedVendor.id] || [];
+        let remaining = tx.amount;
+        const suggestedBatches: { batchId: string; date: string; balance: number; applyAmount: number }[] = [];
+        for (const b of batches) {
+          if (remaining <= 0) break;
+          const apply = Math.min(remaining, b.balance);
+          suggestedBatches.push({ batchId: b.batchId, date: b.date, balance: b.balance, applyAmount: apply });
+          remaining -= apply;
+        }
+        matched.push({ txIdx: i, date: tx.date, description: tx.description, amount: tx.amount, reference: tx.reference, vendorId: matchedVendor.id, vendorName: matchedVendor.name, matchedBy, suggestedBatches });
+      } else {
+        unmatched.push({ txIdx: i, date: tx.date, description: tx.description, amount: tx.amount, reference: tx.reference });
+      }
+    }
+
+    res.json({ matched, unmatched, totalMatched: matched.length, totalUnmatched: unmatched.length, totalAmount: matched.reduce((s, m) => s + m.amount, 0) });
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+// Apply bank statement payments (after preview)
+router.post('/api/vendor-finance/bank-statement/apply', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { payments } = req.body as { payments: { vendorId: string; amount: number; date: string; reference?: string; batchId?: string; note?: string }[] };
+    if (!Array.isArray(payments) || !payments.length) return res.status(400).json({ error: 'No payments to apply' });
+
+    await client.query('BEGIN');
+    let count = 0;
+    for (const p of payments) {
+      if (!p.vendorId || !p.amount || p.amount <= 0) continue;
+      const id = uid('VP');
+      await client.query(
+        'INSERT INTO vendor_payments (id, tenant_id, vendor_id, amount, payment_date, payment_method, reference_number, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+        [id, tenantId, p.vendorId, p.amount, p.date || new Date().toISOString().slice(0, 10), 'Bank Transfer', p.reference || null, p.note || 'Auto-imported from bank statement', p.batchId || null]
+      );
+      count++;
+    }
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Bank Statement Import', 'payment', `batch-${Date.now()}`, `${count} payments applied from bank statement`);
+    res.json({ applied: count });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
+    res.status(500).json({ error: 'Failed to apply payments' });
+  } finally { client.release(); }
+});
+
 export default router;

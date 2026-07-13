@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, ArrowLeft, Clock, MessageCircle, Send, Search, Printer } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, MessageCircle, Send, Search, Printer, Upload, FileSpreadsheet, Check, X, AlertTriangle } from 'lucide-react';
 import { cn, shareViaWhatsApp, formatDate } from '../../lib/utils';
-import { api } from '../../api';
+import { api, fetchApi } from '../../api';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { session } from '../../lib/session';
 import { useConfirm } from '../../hooks/useConfirm';
@@ -28,6 +28,9 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
   const [paymentForm, setPaymentForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '', batchId: '' });
   const [submitting, setSubmitting] = useState(false);
   const [vendorBatches, setVendorBatches] = useState<{ batchId: string; distributionDate: string; billValue: number; balanceRemaining: number; productNames: string[] }[]>([]);
+  const [bankStatementOpen, setBankStatementOpen] = useState(false);
+  const [bankPreview, setBankPreview] = useState<{ matched: { txIdx: number; date: string; description: string; amount: number; reference?: string; vendorId: string; vendorName: string; matchedBy: string; suggestedBatches: { batchId: string; date: string; balance: number; applyAmount: number }[] }[]; unmatched: { txIdx: number; date: string; description: string; amount: number }[]; totalAmount: number } | null>(null);
+  const [bankApplying, setBankApplying] = useState(false);
   const [reminderModal, setReminderModal] = useState<{ vendorId: string; vendorName: string; enabled: boolean; days: number } | null>(null);
   const [remindersDue, setRemindersDue] = useState<{ vendorId: string; vendorName: string; vendorPhone: string; balance: number }[]>([]);
 
@@ -274,6 +277,34 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
           <h2 className="text-xl font-bold">Vendor Finance</h2>
           <p className="text-sm text-gray-500">Track vendor payments, balances, and send reminders</p>
         </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium cursor-pointer hover:bg-gray-50">
+            <FileSpreadsheet size={18} /> Import Bank Statement
+            <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
+              const file = e.target.files?.[0]; if (!file) return; e.target.value = '';
+              const text = await file.text();
+              const lines = text.split(/\r?\n/).filter(l => l.trim());
+              if (lines.length < 2) { toast('CSV must have header + data rows', 'error'); return; }
+              const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+              const dateIdx = headers.findIndex(h => h.includes('date') || h.includes('txn'));
+              const descIdx = headers.findIndex(h => h.includes('desc') || h.includes('narration') || h.includes('particular') || h.includes('remark') || h.includes('detail'));
+              const amtIdx = headers.findIndex(h => h.includes('credit') || h.includes('deposit') || h.includes('amount'));
+              const refIdx = headers.findIndex(h => h.includes('ref') || h.includes('utr') || h.includes('transaction'));
+              if (descIdx < 0 && amtIdx < 0) { toast('CSV must have description/narration and credit/amount columns', 'error'); return; }
+              const transactions: { date: string; description: string; amount: number; reference?: string }[] = [];
+              for (let i = 1; i < lines.length; i++) {
+                const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                const amt = amtIdx >= 0 ? parseFloat(vals[amtIdx]) : 0;
+                if (!amt || amt <= 0) continue;
+                transactions.push({ date: dateIdx >= 0 ? vals[dateIdx] : '', description: descIdx >= 0 ? vals[descIdx] : '', amount: amt, reference: refIdx >= 0 ? vals[refIdx] : undefined });
+              }
+              if (!transactions.length) { toast('No credit transactions found in CSV', 'error'); return; }
+              try {
+                const result = await fetchApi<typeof bankPreview>('/vendor-finance/bank-statement/preview', { method: 'POST', body: JSON.stringify({ transactions }) });
+                setBankPreview(result); setBankStatementOpen(true);
+              } catch (err) { toast((err as Error).message, 'error'); }
+            }} />
+          </label>
         {(() => {
           const withOutstanding = summaryData.filter(v => v.balance > 0 && v.vendorPhone);
           if (!withOutstanding.length) return null;
@@ -293,6 +324,7 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
             </button>
           );
         })()}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -420,6 +452,119 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
           </div>
         )}
       </AnimatePresence>
+      {/* Bank Statement Preview Modal */}
+      <AnimatePresence>
+        {bankStatementOpen && bankPreview && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => { setBankStatementOpen(false); setBankPreview(null); }}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold flex items-center gap-2"><FileSpreadsheet size={20} className="text-brand" /> Bank Statement Preview</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">{bankPreview.matched.length} matched · {bankPreview.unmatched.length} unmatched · ₹{bankPreview.totalAmount.toLocaleString()} total</p>
+                </div>
+                <button type="button" onClick={() => { setBankStatementOpen(false); setBankPreview(null); }} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {/* Matched transactions */}
+                {bankPreview.matched.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-bold text-emerald-700 flex items-center gap-1.5 mb-2"><Check size={16} /> Matched ({bankPreview.matched.length})</h4>
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-400 uppercase">
+                          <th className="px-3 py-2 text-left">Date</th>
+                          <th className="px-3 py-2 text-left">Description</th>
+                          <th className="px-3 py-2 text-right">Amount</th>
+                          <th className="px-3 py-2 text-left">Vendor</th>
+                          <th className="px-3 py-2 text-left">Batch</th>
+                        </tr></thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {bankPreview.matched.map((m, i) => (
+                            <tr key={i} className="hover:bg-emerald-50/30">
+                              <td className="px-3 py-2 text-gray-600">{m.date || '—'}</td>
+                              <td className="px-3 py-2 text-gray-700 text-xs max-w-[200px] truncate" title={m.description}>{m.description}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-emerald-700">₹{m.amount.toLocaleString()}</td>
+                              <td className="px-3 py-2">
+                                <p className="font-medium text-gray-900 text-xs">{m.vendorName}</p>
+                                <p className="text-[10px] text-gray-400">{m.matchedBy}</p>
+                              </td>
+                              <td className="px-3 py-2 text-xs">
+                                {m.suggestedBatches.length > 0 ? m.suggestedBatches.map((b, j) => (
+                                  <span key={j} className="inline-block bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-mono mr-1">
+                                    {b.batchId.slice(-6)} ₹{b.applyAmount.toLocaleString()}
+                                  </span>
+                                )) : <span className="text-gray-400">No outstanding batch</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Unmatched transactions */}
+                {bankPreview.unmatched.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-700 flex items-center gap-1.5 mb-2"><AlertTriangle size={16} /> Unmatched ({bankPreview.unmatched.length})</h4>
+                    <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50/30">
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-amber-50 border-b border-amber-200 text-xs font-bold text-amber-600 uppercase">
+                          <th className="px-3 py-2 text-left">Date</th>
+                          <th className="px-3 py-2 text-left">Description</th>
+                          <th className="px-3 py-2 text-right">Amount</th>
+                        </tr></thead>
+                        <tbody className="divide-y divide-amber-100">
+                          {bankPreview.unmatched.map((u, i) => (
+                            <tr key={i}>
+                              <td className="px-3 py-2 text-gray-600">{u.date || '—'}</td>
+                              <td className="px-3 py-2 text-gray-700 text-xs">{u.description}</td>
+                              <td className="px-3 py-2 text-right font-semibold">₹{u.amount.toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-[10px] text-amber-600 mt-1">Unmatched transactions won't be applied. Add vendors with matching phone/name to auto-match.</p>
+                  </div>
+                )}
+
+                {bankPreview.matched.length === 0 && (
+                  <div className="text-center py-8 text-gray-400">
+                    <AlertTriangle size={32} className="mx-auto mb-2 opacity-50" />
+                    <p className="font-medium">No transactions matched any vendor</p>
+                    <p className="text-xs mt-1">Make sure vendor phone numbers or names appear in the bank statement description</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-gray-100 flex gap-3">
+                <button type="button" onClick={() => { setBankStatementOpen(false); setBankPreview(null); }} className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium">Cancel</button>
+                {bankPreview.matched.length > 0 && (
+                  <button type="button" disabled={bankApplying} onClick={async () => {
+                    setBankApplying(true);
+                    try {
+                      const payments = bankPreview.matched.flatMap(m =>
+                        m.suggestedBatches.length > 0
+                          ? m.suggestedBatches.map(b => ({ vendorId: m.vendorId, amount: b.applyAmount, date: m.date, reference: m.reference, batchId: b.batchId, note: `Bank: ${m.description.slice(0, 50)}` }))
+                          : [{ vendorId: m.vendorId, amount: m.amount, date: m.date, reference: m.reference, note: `Bank: ${m.description.slice(0, 50)}` }]
+                      );
+                      const result = await fetchApi<{ applied: number }>('/vendor-finance/bank-statement/apply', { method: 'POST', body: JSON.stringify({ payments }) });
+                      toast(`${result.applied} payments applied from bank statement`, 'success');
+                      setBankStatementOpen(false); setBankPreview(null); loadSummary();
+                    } catch (err) { toast((err as Error).message, 'error'); }
+                    finally { setBankApplying(false); }
+                  }} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-bold disabled:opacity-60">
+                    {bankApplying ? 'Applying...' : `Apply ${bankPreview.matched.length} Payments (₹${bankPreview.totalAmount.toLocaleString()})`}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <ConfirmRenderer />
     </motion.div>
   );
