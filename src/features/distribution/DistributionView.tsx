@@ -131,10 +131,6 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
       net = priceAfterDisc;
       gst = Math.round(net * defaultGstRate / 100);
       billed = net + gst;
-    } else if (inclGst) {
-      // GST unchecked but price was inclusive — strip GST, bill at base
-      net = Math.round(priceAfterDisc / (1 + defaultGstRate / 100));
-      gst = 0; billed = net;
     } else {
       net = priceAfterDisc; gst = 0; billed = priceAfterDisc;
     }
@@ -611,9 +607,6 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                         net = priceAfterDisc;
                         gstOnRow = Math.round(net * defaultGstRate / 100);
                         billed = net + gstOnRow;
-                      } else if (inclGst) {
-                        net = Math.round(priceAfterDisc / (1 + defaultGstRate / 100));
-                        gstOnRow = 0; billed = net;
                       } else {
                         net = priceAfterDisc;
                         gstOnRow = 0;
@@ -649,7 +642,15 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                             </div>
                           </td>
                           <td className="px-2 py-2"><input type="text" inputMode="decimal" value={row.discount || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); updateDistRow(idx, 'discount', v === '' ? 0 : parseFloat(v)); }} placeholder="0" className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand" /></td>
-                          <td className="px-2 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => updateDistRow(idx, 'withGst', e.target.checked)} className="rounded text-brand" /></td>
+                          <td className="px-2 py-2 text-center"><input type="checkbox" checked={row.withGst} onChange={(e) => {
+                            const checked = e.target.checked;
+                            updateDistRow(idx, 'withGst', checked);
+                            if (inclGst && p) {
+                              const origPrice = p.price;
+                              if (!checked) updateDistRow(idx, 'customPrice', String(Math.round(origPrice / (1 + defaultGstRate / 100))));
+                              else updateDistRow(idx, 'customPrice', String(origPrice));
+                            }
+                          }} className="rounded text-brand" /></td>
                           <td className="px-2 py-2 text-right font-bold whitespace-nowrap">{billed > 0 ? <span>{row.withGst && <span className="text-[10px] text-gray-400 block">₹{net.toLocaleString()} +GST</span>}<span className="text-base">₹{billed.toLocaleString()}</span></span> : '-'}</td>
                           <td className="px-1 py-2">{distRows.length > 1 && <button type="button" onClick={() => removeDistRow(idx)} className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded">×</button>}</td>
                         </tr>
