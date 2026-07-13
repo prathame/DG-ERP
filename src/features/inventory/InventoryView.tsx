@@ -354,7 +354,14 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                       const hint = suggestHsnRate(v);
                       setAddForm(f => ({ ...f, hsnCode: v, ...(hint && (f.gstRate === 18 || f.gstRate === 0) ? { gstRate: hint.rate } : {}) }));
                     }} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand font-mono" placeholder="e.g. 8413" />
-                    {(() => { const code = addForm.hsnCode ?? ''; if (!code || code.length < 4) return null; const h = suggestHsnRate(code); return h ? <p className="text-[11px] text-emerald-600 mt-1">→ {h.rate}% · {h.label}</p> : <p className="text-[11px] text-amber-500 mt-1">HSN not in database — GST rate not auto-filled</p>; })()}
+                    {(() => {
+                      const code = (addForm.hsnCode ?? '').replace(/\s/g, '');
+                      if (!code) return null;
+                      if (!/^\d+$/.test(code)) return <p className="text-[11px] text-rose-500 mt-1">HSN must be numeric only</p>;
+                      if (![4, 6, 8].includes(code.length)) return <p className="text-[11px] text-rose-500 mt-1">HSN must be 4, 6, or 8 digits</p>;
+                      const h = suggestHsnRate(code);
+                      return h ? <p className="text-[11px] text-emerald-600 mt-1">→ {h.rate}% · {h.label}</p> : <p className="text-[11px] text-amber-500 mt-1">Valid format — not in our database, set GST rate manually</p>;
+                    })()}
                   </div>
                   <div><label className="text-xs font-bold text-gray-400 uppercase">GST Rate (%)</label><input type="number" min={0} max={28} value={addForm.gstRate ?? 18} onChange={(e) => setAddForm({ ...addForm, gstRate: e.target.value === '' ? 18 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" /></div>
                   <div className="flex items-center gap-2 mt-2"><input type="checkbox" checked={addForm.priceIncludesGst} onChange={(e) => setAddForm({ ...addForm, priceIncludesGst: e.target.checked })} className="rounded text-brand" /><label className="text-xs font-medium text-gray-500">Price includes GST</label></div>

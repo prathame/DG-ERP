@@ -298,6 +298,7 @@ router.post('/api/products', async (req, res) => {
 
     const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix, packSize, packName, hsnCode, gstRate, barcodePerBox, priceIncludesGst } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Product name is required' });
+    if (hsnCode && !/^\d{4}(\d{2})?(\d{2})?$/.test(String(hsnCode).replace(/\s/g, ''))) return res.status(400).json({ error: 'HSN code must be 4, 6, or 8 digits' });
     const duplicate = (await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name.trim()])).rows[0];
     if (duplicate) return res.status(400).json({ error: `Product "${name}" already exists` });
     const id = uid('P');
