@@ -115,22 +115,24 @@ export function LandingPage() {
               <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand text-white rounded-full text-xs font-bold mb-4 shadow-lg">
                 🚀 {L('Coming Soon — Launching Shortly!', 'जल्द आ रहा है!', 'ટૂંક સમયમાં આવી રહ્યું છે!')}
               </div>
-              <div className="relative h-[220px] sm:h-[200px] md:h-[220px]">
-                {[
+              {(() => {
+                const heroData = [
                   { line1: 'From Shop to Factory', line2: 'Your Business, Simplified', sub: 'Inventory, billing, GST, vendor management, accounting — all in one place.' },
                   { line1: 'दुकान हो या फैक्ट्री', line2: 'बिज़नेस आसान बनाओ', sub: 'Inventory, billing, GST, vendor management सब एक जगह।' },
                   { line1: 'દુકાન હોય કે ફેક્ટરી', line2: 'બિઝનેસ સરળ બનાવો', sub: 'Inventory, billing, GST, vendor management બધું એક જગ્યાએ।' },
-                ].map((h, i) => (
-                  <motion.div key={i} initial={false} animate={{ opacity: heroLang === i ? 1 : 0, y: heroLang === i ? 0 : 20 }} transition={{ duration: 0.5 }} className={`absolute inset-0 ${heroLang === i ? '' : 'pointer-events-none'}`}>
-                    <h1 className="text-2xl sm:text-3xl md:text-5xl font-bold tracking-tight leading-tight">
+                ];
+                const h = heroData[heroLang] || heroData[0];
+                return (
+                  <motion.div key={heroLang} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-tight mb-4">
                       {h.line1}<br />
                       <span className="bg-gradient-to-r from-brand to-amber-500 bg-clip-text text-transparent">{h.line2}</span>
                     </h1>
-                    <p className={`mt-3 text-sm sm:text-base md:text-lg ${textMuted} max-w-lg leading-relaxed mx-auto lg:mx-0`}>{h.sub}</p>
+                    <p className={`text-sm sm:text-base md:text-lg ${textMuted} max-w-lg leading-relaxed mx-auto lg:mx-0 mb-6`}>{h.sub}</p>
                   </motion.div>
-                ))}
-              </div>
-              <div className="flex items-center justify-center lg:justify-start gap-2 mt-2 mb-6">
+                );
+              })()}
+              <div className="flex items-center justify-center lg:justify-start gap-2 mb-6">
                 {([{ code: 'en' as const, label: 'English' }, { code: 'hi' as const, label: 'हिन्दी' }, { code: 'gu' as const, label: 'ગુજરાતી' }]).map((l, i) => (
                   <button key={l.code} type="button" onClick={() => { setLang(l.code); setHeroLang(i); setHeroAutoPlay(false); }} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white scale-105' : `${dark ? 'bg-white/10 text-gray-400 hover:bg-white/20' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`}`}>{l.label}</button>
                 ))}
