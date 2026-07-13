@@ -179,7 +179,15 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   }
   if (res.status === 403) {
     const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error || 'Access denied');
+    const msg = (err as { error?: string }).error || 'Access denied';
+    if (msg.includes('suspended') || msg.includes('deleted')) {
+      const slug = session.getSlug();
+      session.clearAll();
+      alert(msg);
+      window.location.href = slug ? `/${slug}` : '/';
+      return new Promise(() => {}) as T;
+    }
+    throw new Error(msg);
   }
 
   if (!res.ok) {
