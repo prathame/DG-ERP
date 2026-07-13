@@ -162,7 +162,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
               {rules.filter(r => !Object.values(grouped).flat().includes(r)).map(rule => (
                 <div key={rule.id} className="flex items-center justify-between py-2">
-                  <span className="text-sm">{rule.productName} — ₹{rule.price} ({rule.vendorName || 'All'})</span>
+                  <span className="text-sm">{rule.productName} — ₹{Number(rule.price).toLocaleString()} ({rule.vendorName || 'All'})</span>
                   <button type="button" onClick={() => handleDelete(rule.id)} className="p-1.5 text-rose-400 hover:text-rose-600 rounded-lg"><Trash2 size={14} /></button>
                 </div>
               ))}
@@ -181,7 +181,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                 <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Product *</label>
                   <select required value={form.productId} onChange={e => setForm({ ...form, productId: e.target.value })} className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm">
                     <option value="">Select product</option>
-                    {products.map(p => <option key={p.id} value={p.id}>{p.name} (₹{p.price})</option>)}
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name} (₹{Number(p.price).toLocaleString()})</option>)}
                   </select>
                 </div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Vendor (leave empty for all vendors)</label>

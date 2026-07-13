@@ -136,7 +136,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                   <div className="mt-2 space-y-1 text-sm text-emerald-700">
                     <p><span className="font-medium text-gray-600">Product:</span> {validation.productName}</p>
                     <p><span className="font-medium text-gray-600">Vendor:</span> {validation.vendorName}</p>
-                    <p><span className="font-medium text-gray-600">Price:</span> ₹{validation.price ?? 0}</p>
+                    <p><span className="font-medium text-gray-600">Price:</span> ₹{(validation.price ?? 0).toLocaleString()}</p>
                     <p>{validation.rewardPointsValue ?? 0} reward pts</p>
                   </div>
                 </>
