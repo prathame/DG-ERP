@@ -1,0 +1,6 @@
+name,accountNumber,bankName,branch,ifscCode
+,1234567890,SBI,Main,SBIN0001234
+Good Bank,1111222233,HDFC,Satellite,HDFC001
+,,,,,
+Duplicate Bank,9999888877,BOB,CG Road,BARB0CGROAD
+Duplicate Bank,8888777766,BOB,Paldi,BARB0PALDI

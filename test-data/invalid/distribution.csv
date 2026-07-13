@@ -1,0 +1,7 @@
+productName,quantity,price,withGst,discount
+NonExistent Product XYZ,10,480,Y,0
+Syngenta Cruiser 350 FS (100ml),0,,Y,0
+Bayer Confidor 200 SL (250ml),5,abc,Y,0
+UPL Saaf Fungicide (500g),20,,N,150
+,10,500,Y,0
+Another Fake Product,3,,Y,0

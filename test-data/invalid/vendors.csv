@@ -1,0 +1,7 @@
+name,contactPerson,phone,email,address,gstNumber
+,Anand Patel,9876543210,anand@agri.com,Ahmedabad,24AABCA1234L1ZP
+Good Vendor,Ramesh,12345,bad-email,Rajkot,INVALID_GST
+Another Vendor,Mehul,555,mehul@test.com,Surat,24DDD
+,,,,,
+Duplicate Test,Jay,9876543210,jay@test.com,Vadodara,24EEEPP7890Q1ZT
+Duplicate Test,Jay2,8765432109,jay2@test.com,Vadodara,24FFFPP1234R1ZU

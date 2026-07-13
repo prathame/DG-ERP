@@ -1,0 +1,11 @@
+name,price,barcodePrefix,quantity,packSize,packName,description,hsnCode,gstRate,priceIncludesGst,warrantyMonths,rewardPoints
+Syngenta Cruiser 350 FS (100ml),480,SYN100,120,12,Box,Thiamethoxam seed treatment insecticide,38089190,18,N,0,5
+Bayer Confidor 200 SL (250ml),620,BAY250,200,10,Box,Imidacloprid systemic insecticide,38089190,18,Y,0,5
+UPL Saaf Fungicide (500g),340,UPL500,300,20,Box,Carbendazim + Mancozeb fungicide,38082010,18,N,0,3
+Dhanuka Targa Super (500ml),780,DHN500,60,6,Box,Quizalofop ethyl herbicide,38083010,18,Y,0,5
+Mahindra ARISTO Hybrid Tomato Seeds (10g),285,MAH010,500,50,Box,High yield F1 hybrid tomato seeds,12099100,5,Y,0,3
+Nunhems Laxmi Okra Seeds (100g),210,NUN100,300,20,Box,Bhindi hybrid seeds early maturity,12099100,5,Y,0,2
+Zuari Urea 46% N (50kg),267,ZUA050,600,1,Bag,Neem coated urea granular fertilizer,31021000,5,N,0,1
+IFFCO DAP 18-46-0 (50kg),1350,IFF050,400,1,Bag,Di-ammonium phosphate granular,31053000,5,N,0,3
+Neptune Knapsack Sprayer 16L,1850,NEP016,48,1,Piece,Manual pressure pump brass nozzle,84242000,18,N,12,10
+Falcon Battery Sprayer 16L,3200,FAL016,30,1,Piece,12V rechargeable lithium battery sprayer,84248100,18,N,6,15
