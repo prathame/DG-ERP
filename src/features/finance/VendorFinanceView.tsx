@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, ArrowLeft, Clock, MessageCircle, Send, Search } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, MessageCircle, Send, Search, Printer } from 'lucide-react';
 import { cn, shareViaWhatsApp, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { session } from '../../lib/session';
+import { useConfirm } from '../../hooks/useConfirm';
 
 export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: string; role?: string; vendorId?: string | null } | null; accessLevel?: 'hidden' | 'view' | 'print' | 'full' }) {
   const { toast } = useToast();
+  const { confirm, ConfirmRenderer } = useConfirm();
   const isAdmin = ['Admin', 'Super Admin'].includes(user?.role ?? '');
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
   const [summaryData, setSummaryData] = useState<{ vendorId: string; vendorName: string; vendorPhone: string; totalDistributedValue: number; totalPaid: number; balance: number; unitsDistributed: number; reminder: { enabled: boolean; days: number; lastSent: string | null } }[]>([]);
@@ -121,6 +123,37 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
               <PaidStamp className="hidden sm:flex text-xs opacity-80" />
             )}
           </div>
+          <button type="button" onClick={() => {
+            const companyName = (() => { try { return (session.getUser() || {} as Record<string, unknown>).companyName || 'DG ERP'; } catch { return 'DG ERP'; } })();
+            const w = window.open('', '_blank');
+            if (!w) return;
+            w.document.write(`<!DOCTYPE html><html><head><title>Payment History — ${detail.vendor.name}</title><style>
+              body{font-family:Inter,sans-serif;margin:0;padding:40px;color:#1a1a1a}
+              .header{border-bottom:3px solid #F27D26;padding-bottom:16px;margin-bottom:24px}
+              .company{font-size:18px;font-weight:700}.vendor{font-size:14px;color:#666;margin-top:4px}
+              .stats{display:flex;gap:24px;margin-bottom:24px}
+              .stat{padding:12px 16px;background:#f9fafb;border-radius:8px;flex:1}
+              .stat-label{font-size:10px;text-transform:uppercase;color:#999;font-weight:700}
+              .stat-value{font-size:18px;font-weight:700;margin-top:4px}
+              table{width:100%;border-collapse:collapse}
+              th{text-align:left;padding:10px 12px;font-size:10px;text-transform:uppercase;color:#666;border-bottom:2px solid #e5e7eb;background:#f3f4f6}
+              td{padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:13px}
+              .text-right{text-align:right}
+              .footer{margin-top:30px;text-align:center;font-size:10px;color:#999}
+              @media print{body{padding:20px}}
+            </style></head><body>
+            <div class="header"><div class="company">${companyName}</div><div class="vendor">Payment History — ${detail.vendor.name}${detail.vendor.phone ? ` • ${detail.vendor.phone}` : ''}</div></div>
+            <div class="stats">
+              <div class="stat"><div class="stat-label">Total Value</div><div class="stat-value" style="color:#2563eb">₹${detail.totalDistributedValue.toLocaleString()}</div></div>
+              <div class="stat"><div class="stat-label">Total Paid</div><div class="stat-value" style="color:#059669">₹${detail.totalPaid.toLocaleString()}</div></div>
+              <div class="stat"><div class="stat-label">Balance</div><div class="stat-value" style="color:${detail.balance > 0 ? '#dc2626' : '#059669'}">₹${Math.abs(detail.balance).toLocaleString()}${detail.balance < 0 ? ' (Credit)' : ''}</div></div>
+            </div>
+            <table><thead><tr><th>Date</th><th>Method</th><th class="text-right">Amount</th><th>Reference</th><th>Notes</th></tr></thead>
+            <tbody>${detail.payments.map((p: Record<string, unknown>) => `<tr><td>${formatDate(p.paymentDate as string)}</td><td>${p.paymentMethod}</td><td class="text-right" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td><td>${p.referenceNumber || '—'}</td><td>${p.notes || '—'}</td></tr>`).join('')}</tbody></table>
+            <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${companyName}</div>
+            <script>window.print()</script></body></html>`);
+            w.document.close();
+          }} className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50"><Printer size={16} /> PDF</button>
           {isAdmin && <button type="button" onClick={openPaymentModal} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"><Plus size={18} /> Record Payment</button>}
         </div>
 
@@ -241,6 +274,25 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
           <h2 className="text-xl font-bold">Vendor Finance</h2>
           <p className="text-sm text-gray-500">Track vendor payments, balances, and send reminders</p>
         </div>
+        {(() => {
+          const withOutstanding = summaryData.filter(v => v.balance > 0 && v.vendorPhone);
+          if (!withOutstanding.length) return null;
+          return (
+            <button type="button" onClick={async () => {
+              if (!await confirm({ title: 'Send Bulk Reminders', message: `Send WhatsApp payment reminders to ${withOutstanding.length} vendor${withOutstanding.length > 1 ? 's' : ''} with outstanding balance?`, confirmLabel: `Send to ${withOutstanding.length}`, variant: 'info' })) return;
+              const companyName = (() => { try { return (session.getUser() || {} as Record<string, unknown>).companyName || 'Our Company'; } catch { return 'Our Company'; } })();
+              for (const v of withOutstanding) {
+                const msg = `🔔 *Payment Reminder*\n━━━━━━━━━━━━━━━━━\nDear ${v.vendorName},\n\nThis is a reminder that you have an outstanding balance of *₹${v.balance.toLocaleString()}*.\n\nPlease arrange the payment at your earliest convenience.\n\nThank you,\n${companyName}`;
+                shareViaWhatsApp(v.vendorPhone, msg);
+                api.vendorFinance.markReminderSent(v.vendorId).catch(() => {});
+              }
+              toast(`Opened WhatsApp for ${withOutstanding.length} vendors`, 'success');
+              loadSummary();
+            }} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700">
+              <MessageCircle size={18} /> Send All Reminders ({withOutstanding.length})
+            </button>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -368,6 +420,7 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
           </div>
         )}
       </AnimatePresence>
+      <ConfirmRenderer />
     </motion.div>
   );
 }
