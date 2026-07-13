@@ -674,15 +674,18 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                           if (!pName) continue;
                           const match = products.find(p => p.name.toLowerCase() === pName.toLowerCase());
                           if (!match) { errors.push(`Row ${i + 1}: "${pName}" not found in inventory`); continue; }
-                          const qty = qtyIdx >= 0 ? (parseInt(vals[qtyIdx]) || 1) : 1;
+                          const qty = qtyIdx >= 0 ? (parseInt(vals[qtyIdx]) || 0) : 1;
+                          if (qty <= 0) { errors.push(`Row ${i + 1}: "${pName}" — quantity must be greater than 0`); continue; }
                           const price = priceIdx >= 0 ? vals[priceIdx] : '';
+                          if (price && isNaN(Number(price))) { errors.push(`Row ${i + 1}: "${pName}" — invalid price "${price}"`); continue; }
                           const withGst = gstIdx >= 0 ? vals[gstIdx]?.toUpperCase() !== 'N' : true;
                           const disc = discIdx >= 0 ? (parseInt(vals[discIdx]) || 0) : 0;
+                          if (disc < 0 || disc > 100) { errors.push(`Row ${i + 1}: "${pName}" — discount must be 0-100%`); continue; }
                           newRows.push({ productId: match.id, quantity: qty, customPrice: price, withGst, discount: disc });
                         }
-                        if (errors.length) toast(errors.join('\n'), 'error');
-                        if (newRows.length) { setDistRows(newRows); toast(`${newRows.length} products loaded from CSV`, 'success'); }
-                        else if (!errors.length) toast('No valid rows found', 'error');
+                        if (errors.length) { toast(`Import failed — fix these errors:\n${errors.join('\n')}`, 'error'); return; }
+                        if (!newRows.length) { toast('No valid rows found in CSV', 'error'); return; }
+                        setDistRows(newRows); toast(`${newRows.length} products loaded from CSV — review and click Distribute`, 'success');
                       };
                       reader.readAsText(file);
                       e.target.value = '';
