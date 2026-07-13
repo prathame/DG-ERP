@@ -353,7 +353,7 @@ router.delete('/api/super-admin/plans/:id', superAdminMiddleware, async (req, re
 // ============ SELF-SERVICE REGISTRATION ============
 router.post('/api/tenant/register', superAdminMiddleware, async (req, res) => {
   try {
-    const { companyName, adminName, adminEmail, adminPassword, phone } = req.body;
+    const { companyName, adminName, adminEmail, adminPassword, phone, address, gstNumber, businessType } = req.body;
     if (!companyName || !adminName || !adminEmail || !adminPassword) return res.status(400).json({ error: 'All fields required' });
     if (adminPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
     if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
@@ -364,6 +364,22 @@ router.post('/api/tenant/register', superAdminMiddleware, async (req, res) => {
       companyName, adminEmail, adminName, adminPassword, phone,
       planId: 'TRIAL', status: 'trial', trialEndsAt: trialEnds.toISOString(),
     });
+
+    // Save additional fields
+    if (address || gstNumber || businessType) {
+      const updates: string[] = [];
+      const params: unknown[] = [];
+      let idx = 1;
+      if (address) { updates.push(`address = $${idx++}`); params.push(address); }
+      if (gstNumber) { updates.push(`gst_number = $${idx++}`); params.push(gstNumber); }
+      if (businessType) { updates.push(`business_type = $${idx++}`); params.push(businessType); }
+      if (updates.length) {
+        params.push(result.tenantId);
+        await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
+        if (address) await pool.query('UPDATE users SET address = $1 WHERE tenant_id = $2 AND role = $3', [address, result.tenantId, 'Admin']);
+        if (gstNumber) await pool.query('UPDATE users SET gst_number = $1 WHERE tenant_id = $2 AND role = $3', [gstNumber, result.tenantId, 'Admin']);
+      }
+    }
 
     const { generateToken } = await import('../middleware/auth');
     const token = generateToken({ userId: `U-${result.tenantId}`, email: adminEmail, name: adminName, role: 'Super Admin', tenantId: result.tenantId });

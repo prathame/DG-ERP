@@ -314,6 +314,8 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
     adminEmail: '',
     adminName: '',
     phone: '',
+    address: '',
+    gstNumber: '',
     plan: '',
     password: '',
     billingCycle: 'monthly' as 'monthly' | 'yearly',
@@ -526,6 +528,25 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="+91 XXXXX XXXXX"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Address</label>
+              <input
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent"
+                placeholder="Street, City, State — PIN"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">GSTIN</label>
+              <input
+                value={form.gstNumber}
+                onChange={(e) => setForm({ ...form, gstNumber: e.target.value.toUpperCase() })}
+                maxLength={15}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand focus:border-transparent font-mono"
+                placeholder="24AABCT1332L1ZS"
               />
             </div>
             <div>
