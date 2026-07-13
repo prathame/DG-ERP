@@ -83,8 +83,8 @@ router.post('/api/purchases/batch', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const { supplierId, purchaseDate, amountPaid, items, gstRate: reqGstRate } = req.body as {
-      supplierId?: string; purchaseDate?: string; amountPaid?: number; gstRate?: number;
+    const { supplierId, purchaseDate, amountPaid, items, gstRate: reqGstRate, invoiceNumber } = req.body as {
+      supplierId?: string; purchaseDate?: string; amountPaid?: number; gstRate?: number; invoiceNumber?: string;
       items?: { productId: string; quantity: number; costPrice?: number; discountPercent?: number; withGst?: boolean }[];
     };
     if (!supplierId) return res.status(400).json({ error: 'Supplier is required' });
@@ -133,8 +133,8 @@ router.post('/api/purchases/batch', async (req, res) => {
         for (let i = 0; i < u.qty; i++) {
           seq++;
           await client.query(
-            'INSERT INTO product_purchases (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-            [`${batchId}-${seq}`, tenantId, batchId, u.productId, supplierId, date, u.costPrice, u.gstApplied, u.billedPrice, u.disc]
+            'INSERT INTO product_purchases (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent, invoice_number) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+            [`${batchId}-${seq}`, tenantId, batchId, u.productId, supplierId, date, u.costPrice, u.gstApplied, u.billedPrice, u.disc, invoiceNumber || null]
           );
         }
       }

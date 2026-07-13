@@ -658,6 +658,9 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_pd_status ON product_distribution(tenant_id, status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(tenant_id, status)');
 
+    // Purchase invoice number for GSTR-2B reconciliation
+    await client.query("ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS invoice_number TEXT");
+
     // Business type
     await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_type TEXT DEFAULT 'manufacturer'");
 

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { BarChart3, Download, Printer, Search, BookOpen, TrendingUp, Scale, Banknote, ShoppingCart, Truck, Clock, IndianRupee, Package, Receipt } from 'lucide-react';
+import { BarChart3, Download, Printer, Search, BookOpen, TrendingUp, Scale, Banknote, ShoppingCart, Truck, Clock, IndianRupee, Package, Receipt, FileCheck, Upload } from 'lucide-react';
 import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { fetchApi } from '../../api';
 
-type AccountTab = 'pnl' | 'balance' | 'cashflow' | 'ledger' | 'daybook' | 'notes' | 'sales' | 'distribution' | 'outstanding' | 'payments' | 'stock' | 'gst';
+type AccountTab = 'pnl' | 'balance' | 'cashflow' | 'ledger' | 'daybook' | 'notes' | 'sales' | 'distribution' | 'outstanding' | 'payments' | 'stock' | 'gst' | 'gstr2b';
 
 function fmtCurrency(n: number) { return `₹${Math.abs(n).toLocaleString('en-IN')}${n < 0 ? ' (Cr)' : ''}`; }
 
@@ -67,6 +67,7 @@ export function AccountsView({ accessLevel = 'full', businessType = 'manufacture
     { key: 'payments', label: 'Payment Register', shortLabel: 'Payments', icon: IndianRupee, group: 'reports' },
     { key: 'stock', label: 'Stock Summary', shortLabel: 'Stock', icon: Package, group: 'reports' },
     { key: 'gst', label: 'GST Summary', shortLabel: 'GST', icon: Receipt, group: 'reports' },
+    { key: 'gstr2b', label: 'GSTR-2B Reconciliation', shortLabel: '2B', icon: FileCheck, group: 'reports' },
   ];
 
   return (
@@ -156,7 +157,9 @@ export function AccountsView({ accessLevel = 'full', businessType = 'manufacture
         </div>
       )}
 
-      {!loading && !data && (
+      {tab === 'gstr2b' && <Gstr2bReconciliation />}
+
+      {!loading && !data && tab !== 'gstr2b' && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
           <BarChart3 size={48} className="mx-auto mb-3 opacity-30" />
           <p className="font-medium">Select a statement and click Generate</p>
@@ -492,6 +495,145 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
           {Object.keys(totals).length > 0 && <tfoot><tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">{cols.map((c, ci) => <td key={c.k} className={cn("px-3 py-2", c.r ? "text-right" : "")}>{ci === 0 ? 'Total' : totals[c.k] !== undefined ? fmtCurrency(totals[c.k]) : ''}</td>)}</tr></tfoot>}
         </table>
       </div>
+    </div>
+  );
+}
+
+// GSTR-2B Reconciliation — upload JSON from GST portal, match against purchases
+type ReconRow = { status: string; supplier: string; ctin: string; invoiceNumber: string; date: string; twoBVal: number; bookVal: number; diff: number; itcAvailable: boolean };
+function Gstr2bReconciliation() {
+  const { toast } = useToast();
+  const [rows, setRows] = React.useState<ReconRow[]>([]);
+  const [stats, setStats] = React.useState<Record<string, number>>({});
+  const [filter, setFilter] = React.useState('all');
+  const [uploading, setUploading] = React.useState(false);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const res = await fetchApi<{ rows: ReconRow[]; stats: Record<string, number> }>('/gstr2b/reconcile', {
+        method: 'POST', body: JSON.stringify(json),
+      });
+      setRows(res.rows); setStats(res.stats);
+      toast(`Reconciled ${res.stats.total} invoices`, 'success');
+    } catch (err) { toast((err as Error).message, 'error'); }
+    finally { setUploading(false); e.target.value = ''; }
+  };
+
+  const filtered = filter === 'all' ? rows : rows.filter(r => r.status === filter);
+
+  const statusBadge = (s: string) => {
+    const m: Record<string, { cls: string; label: string }> = {
+      matched: { cls: 'bg-emerald-100 text-emerald-700', label: 'Matched' },
+      amount_mismatch: { cls: 'bg-amber-100 text-amber-700', label: 'Mismatch' },
+      book_only: { cls: 'bg-rose-100 text-rose-700', label: 'Books Only' },
+      twob_only: { cls: 'bg-purple-100 text-purple-700', label: '2B Only' },
+    };
+    const b = m[s] || { cls: 'bg-gray-100 text-gray-600', label: s };
+    return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", b.cls)}>{b.label}</span>;
+  };
+
+  const exportCsv = () => {
+    exportToCsv(filtered.map(r => ({
+      Status: r.status, Supplier: r.supplier, GSTIN: r.ctin, Invoice: r.invoiceNumber,
+      Date: r.date, '2B Value': r.twoBVal, 'Book Value': r.bookVal, Difference: r.diff,
+      'ITC Available': r.itcAvailable ? 'Yes' : 'No',
+    })), 'gstr2b-reconciliation');
+  };
+
+  const pills = [
+    { key: 'all', label: 'All', count: stats.total || 0, cls: 'bg-gray-100 text-gray-700' },
+    { key: 'matched', label: 'Matched', count: stats.matched || 0, cls: 'bg-emerald-100 text-emerald-700' },
+    { key: 'amount_mismatch', label: 'Mismatch', count: stats.amount_mismatch || 0, cls: 'bg-amber-100 text-amber-700' },
+    { key: 'book_only', label: 'Books Only', count: stats.book_only || 0, cls: 'bg-rose-100 text-rose-700' },
+    { key: 'twob_only', label: '2B Only', count: stats.twob_only || 0, cls: 'bg-purple-100 text-purple-700' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Upload bar */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold cursor-pointer hover:bg-brand-dark transition-colors">
+            <Upload size={16} />
+            {uploading ? 'Processing...' : 'Upload 2B JSON'}
+            <input type="file" accept=".json" onChange={handleUpload} className="hidden" disabled={uploading} />
+          </label>
+          <p className="text-xs text-gray-400">Download GSTR-2B JSON from gst.gov.in → Upload here</p>
+        </div>
+        {rows.length > 0 && (
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={exportCsv} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"><Download size={16} /> CSV</button>
+            <button type="button" onClick={() => { setRows([]); setStats({}); setFilter('all'); }} className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50">Clear</button>
+          </div>
+        )}
+      </div>
+
+      {/* Status pills */}
+      {rows.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {pills.map(p => (
+            <button type="button" key={p.key} onClick={() => setFilter(p.key)}
+              className={cn("px-3 py-1.5 rounded-full text-xs font-bold transition-all border", filter === p.key ? `${p.cls} border-current` : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300')}>
+              {p.label}: {p.count}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Results table */}
+      {rows.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/80 border-b-2 border-gray-200">
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Status</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-left">Supplier</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Invoice</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Date</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">2B Value</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">Book Value</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">Diff</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-center">ITC</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((r, i) => (
+                  <tr key={i} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3">{statusBadge(r.status)}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900 text-sm">{r.supplier}</p>
+                      <p className="text-[10px] text-gray-400 font-mono">{r.ctin}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm font-mono text-gray-700">{r.invoiceNumber}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{r.date ? formatDate(r.date) : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-right">{r.twoBVal ? fmtCurrency(r.twoBVal) : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-right">{r.bookVal ? fmtCurrency(r.bookVal) : '—'}</td>
+                    <td className={cn("px-4 py-3 text-sm text-right font-medium", Math.abs(r.diff) > 1 ? "text-rose-600" : "text-gray-400")}>{r.diff ? `₹${r.diff.toLocaleString()}` : '—'}</td>
+                    <td className="px-4 py-3 text-center">{r.itcAvailable ? <span className="text-emerald-600 font-bold">✓</span> : <span className="text-gray-300">✗</span>}</td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-gray-400">No entries{filter !== 'all' ? ` with status "${filter}"` : ''}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {rows.length === 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+          <FileCheck size={48} className="mx-auto mb-3 text-gray-300" />
+          <p className="text-gray-500 font-medium text-lg">GSTR-2B Reconciliation</p>
+          <p className="text-gray-400 text-sm mt-1">Upload your GSTR-2B JSON from the GST portal to reconcile with your purchase records</p>
+          <p className="text-gray-400 text-xs mt-3">Go to gst.gov.in → Returns → GSTR-2B → Download JSON</p>
+        </div>
+      )}
     </div>
   );
 }

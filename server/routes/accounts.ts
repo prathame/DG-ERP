@@ -376,4 +376,109 @@ router.get('/api/accounts/day-book', async (req, res) => {
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// GSTR-2B Reconciliation — stateless, upload JSON → match against purchases → return results
+router.post('/api/gstr2b/reconcile', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const twoBData = req.body as Record<string, unknown>;
+    if (!twoBData) return res.status(400).json({ error: 'Upload GSTR-2B JSON from GST portal' });
+
+    // Parse 2B — supports both docdata.b2b and bare b2b formats
+    const b2b = (twoBData.docdata as Record<string, unknown>)?.b2b ?? twoBData.b2b;
+    if (!Array.isArray(b2b) || !b2b.length) return res.status(400).json({ error: 'No B2B data found in uploaded JSON' });
+
+    // Fetch all purchases with supplier GSTIN
+    const { rows: purchases } = await pool.query(
+      `SELECT pp.batch_id, pp.invoice_number, pp.purchase_date, pp.cost_price, pp.billed_price, pp.gst_applied,
+              s.name as supplier_name, s.gst_number as supplier_gstin
+       FROM product_purchases pp
+       JOIN suppliers s ON pp.supplier_id = s.id AND s.tenant_id = pp.tenant_id
+       WHERE pp.tenant_id = $1 AND s.gst_number IS NOT NULL`,
+      [tenantId]
+    );
+
+    // Group purchases by supplier GSTIN + invoice number
+    const normalize = (s: string) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const bookMap = new Map<string, { supplierName: string; supplierGstin: string; invoiceNumber: string; date: string; totalBilled: number; totalCost: number; count: number }>();
+
+    for (const p of purchases) {
+      const gstin = normalize(p.supplier_gstin);
+      const invNo = normalize(p.invoice_number || p.batch_id);
+      const key = `${gstin}::${invNo}`;
+      const existing = bookMap.get(key);
+      if (existing) {
+        existing.totalBilled += Number(p.billed_price) || 0;
+        existing.totalCost += Number(p.cost_price) || 0;
+        existing.count++;
+      } else {
+        bookMap.set(key, {
+          supplierName: p.supplier_name, supplierGstin: p.supplier_gstin,
+          invoiceNumber: p.invoice_number || p.batch_id, date: p.purchase_date,
+          totalBilled: Number(p.billed_price) || 0, totalCost: Number(p.cost_price) || 0, count: 1,
+        });
+      }
+    }
+
+    const matchedKeys = new Set<string>();
+    const rows: Record<string, unknown>[] = [];
+
+    // Match 2B invoices against books
+    for (const supplier of b2b as { ctin?: string; trdnm?: string; inv?: Record<string, unknown>[] }[]) {
+      const ctin = normalize(supplier.ctin || '');
+      const supplierName = supplier.trdnm || ctin;
+      const invoices = Array.isArray(supplier.inv) ? supplier.inv : [];
+
+      for (const inv of invoices) {
+        const invNum = normalize(String(inv.inum || ''));
+        const twoBVal = Number(inv.val) || 0;
+        const items = Array.isArray(inv.items) ? inv.items as { txval?: number; igst?: number; cgst?: number; sgst?: number }[] : [];
+        const twoBTaxable = items.reduce((s, it) => s + (Number(it.txval) || 0), 0);
+        const itcAvailable = String(inv.itcavl || 'Y').toUpperCase() === 'Y';
+        const key = `${ctin}::${invNum}`;
+        const book = bookMap.get(key);
+
+        if (book) {
+          matchedKeys.add(key);
+          const diff = Math.abs(twoBVal - book.totalBilled);
+          rows.push({
+            status: diff <= 1 ? 'matched' : 'amount_mismatch',
+            supplier: supplierName, ctin: supplier.ctin, invoiceNumber: String(inv.inum),
+            date: String(inv.dt || book.date), twoBVal, bookVal: book.totalBilled,
+            diff: Math.round((twoBVal - book.totalBilled) * 100) / 100, itcAvailable,
+          });
+        } else {
+          rows.push({
+            status: 'twob_only',
+            supplier: supplierName, ctin: supplier.ctin, invoiceNumber: String(inv.inum),
+            date: String(inv.dt || ''), twoBVal, bookVal: 0, diff: twoBVal, itcAvailable,
+          });
+        }
+      }
+    }
+
+    // Book-only entries (not matched by any 2B record)
+    for (const [key, book] of bookMap) {
+      if (!matchedKeys.has(key)) {
+        rows.push({
+          status: 'book_only',
+          supplier: book.supplierName, ctin: book.supplierGstin, invoiceNumber: book.invoiceNumber,
+          date: book.date, twoBVal: 0, bookVal: book.totalBilled, diff: -book.totalBilled, itcAvailable: false,
+        });
+      }
+    }
+
+    const stats = {
+      total: rows.length,
+      matched: rows.filter(r => r.status === 'matched').length,
+      amount_mismatch: rows.filter(r => r.status === 'amount_mismatch').length,
+      book_only: rows.filter(r => r.status === 'book_only').length,
+      twob_only: rows.filter(r => r.status === 'twob_only').length,
+    };
+
+    res.json({ rows, stats });
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 export default router;

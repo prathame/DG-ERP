@@ -23,7 +23,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const [modalOpen, setModalOpen] = useState(false);
   const [supplierModal, setSupplierModal] = useState(false);
   const [supplierForm, setSupplierForm] = useState({ name: '', contactPerson: '', phone: '', email: '', address: '', gstNumber: '' });
-  const [purchaseForm, setPurchaseForm] = useState({ supplierId: '', date: new Date().toISOString().slice(0, 10), amountPaid: '' });
+  const [purchaseForm, setPurchaseForm] = useState({ supplierId: '', date: new Date().toISOString().slice(0, 10), amountPaid: '', invoiceNumber: '' });
   const [purchaseRows, setPurchaseRows] = useState<{ productId: string; quantity: number; packs: number; loosePieces: number; costPrice: string; withGst: boolean }[]>([{ productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }]);
   const [submitting, setSubmitting] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState<'unpaid' | 'paid'>('unpaid');
@@ -98,7 +98,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       await fetchApi('/purchases/batch', {
         method: 'POST',
         body: JSON.stringify({
-          supplierId: purchaseForm.supplierId, purchaseDate: purchaseForm.date, gstRate: defaultGstRate,
+          supplierId: purchaseForm.supplierId, purchaseDate: purchaseForm.date, gstRate: defaultGstRate, invoiceNumber: purchaseForm.invoiceNumber || undefined,
           amountPaid: paid > 0 ? paid : undefined,
           items: validRows.map(r => {
             const rp = products.find(x => x.id === r.productId);
@@ -107,7 +107,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           }),
         }),
       });
-      setModalOpen(false); setPurchaseRows([{ productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }]); setPurchaseForm({ supplierId: '', date: new Date().toISOString().slice(0, 10), amountPaid: '' });
+      setModalOpen(false); setPurchaseRows([{ productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }]); setPurchaseForm({ supplierId: '', date: new Date().toISOString().slice(0, 10), amountPaid: '', invoiceNumber: '' });
       load(); toast(`Purchase recorded — ${validRows.length} product(s), ${purchaseTotals.items} items`, 'success');
     } catch (err) { toast((err as Error).message, 'error'); }
     finally { setSubmitting(false); }
@@ -350,8 +350,9 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto p-6">
               <h3 className="text-lg font-bold mb-4">New Purchase from Supplier</h3>
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-3 gap-4 mb-4">
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Supplier</label><select value={purchaseForm.supplierId} onChange={e => setPurchaseForm({ ...purchaseForm, supplierId: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"><option value="">Select supplier</option>{suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                <div><label className="text-xs font-bold text-gray-400 uppercase">Invoice No.</label><input value={purchaseForm.invoiceNumber} onChange={e => setPurchaseForm({ ...purchaseForm, invoiceNumber: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand font-mono" placeholder="e.g. INV-001" /></div>
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Date</label><input type="date" value={purchaseForm.date} onChange={e => setPurchaseForm({ ...purchaseForm, date: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" /></div>
               </div>
               <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
