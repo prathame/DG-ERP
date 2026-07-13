@@ -321,8 +321,8 @@ router.post('/api/products/batch', async (req, res) => {
         `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
         [id, name, null, r.description || null, Number(r.rewardPointsValue) || 0, null, null, 'Active',
-         Number(r.warrantyMonths) || 12, Number(r.price) || 0, 0, tenantId,
-         ps > 1 ? ps : 1, ps > 1 ? (r.packName || 'Box') : 'Piece',
+         Number(r.warrantyMonths) || 12, Number(r.price) || 0, Number(r.quantity) || 0, tenantId,
+         ps > 1 ? ps : 1, r.packName || (ps > 1 ? 'Box' : 'Piece'),
          r.hsnCode || null, r.gstRate != null ? Number(r.gstRate) : 18, !!r.priceIncludesGst]
       );
       count++;

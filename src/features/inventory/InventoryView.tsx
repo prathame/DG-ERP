@@ -571,6 +571,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               const items = rows.map(r => ({
                 name: r.name,
                 price: Number(r.price) || 0,
+                quantity: Number(r.quantity) || 0,
                 description: r.description || undefined,
                 hsnCode: r.hsnCode || undefined,
                 gstRate: r.gstRate ? Number(r.gstRate) : (r.hsnCode ? suggestHsnRate(r.hsnCode)?.rate : undefined),
