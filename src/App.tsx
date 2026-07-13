@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
-import { Tab, USER_STORAGE_KEY } from './types';
+import { Tab } from './types';
 import { ToastProvider, LoadingSpinner } from './components/ui';
 import { LanguageProvider, useTranslation } from './i18n';
 import { LoginScreen } from './components/layout';

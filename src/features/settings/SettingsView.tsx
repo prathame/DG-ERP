@@ -6,7 +6,6 @@ import { api } from '../../api';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import type { Vendor, BillSettings } from '../../types';
 import { useTranslation, LANGUAGES } from '../../i18n';
-import { USER_STORAGE_KEY } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { session } from '../../lib/session';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';

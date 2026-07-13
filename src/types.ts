@@ -1,6 +1,5 @@
 export type Tab = 'dashboard' | 'warranty' | 'rewards' | 'replacements' | 'inventory' | 'purchases' | 'sales' | 'distribution' | 'quotations' | 'orders' | 'invoices' | 'finance' | 'accounts' | 'payroll' | 'verification' | 'settings';
 
-export const USER_STORAGE_KEY = 'dg_erp_user';
 
 export interface Product {
   id: string;

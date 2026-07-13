@@ -3,7 +3,6 @@ import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { PasswordInput } from '../ui/PasswordInput';
-import { USER_STORAGE_KEY } from '../../types';
 import { session } from '../../lib/session';
 
 type LoginMode = 'login' | 'signup' | 'forgot' | 'reset';
