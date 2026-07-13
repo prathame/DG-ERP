@@ -132,7 +132,7 @@ export interface DistributionBillData {
 }
 
 const getCache = new Map<string, { data: unknown; ts: number }>();
-const GET_CACHE_TTL = 3000;
+const GET_CACHE_TTL = 15000;
 
 export function invalidateCache(prefix?: string) {
   if (!prefix) { getCache.clear(); return; }

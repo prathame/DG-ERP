@@ -86,14 +86,18 @@ router.get('/api/products', async (req, res) => {
 
     const { search } = req.query;
     let sql = `SELECT p.*,
-      (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.tenant_id = $1) as total_inv,
-      (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as inv_stock,
-      (SELECT COUNT(*) FROM product_sales ps WHERE ps.product_id = p.id AND ps.tenant_id = $1) as sold_count,
-      (SELECT COUNT(*) FROM product_distribution pd WHERE pd.product_id = p.id AND pd.status = 'Distributed' AND pd.tenant_id = $1) as with_vendors,
-      (SELECT MIN(barcode) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.tenant_id = $1) as barcode_first,
-      (SELECT MAX(barcode) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.tenant_id = $1) as barcode_last,
-      (SELECT COALESCE(pi.unit_type, 'piece') FROM product_inventory pi WHERE pi.product_id = p.id AND pi.tenant_id = $1 LIMIT 1) as barcode_unit_type
-      FROM products p WHERE p.tenant_id = $1`;
+      COALESCE(inv.total, 0) as total_inv, COALESCE(inv.in_stock, 0) as inv_stock,
+      inv.barcode_first, inv.barcode_last, COALESCE(inv.unit_type, 'piece') as barcode_unit_type,
+      COALESCE(sc.cnt, 0) as sold_count, COALESCE(dc.cnt, 0) as with_vendors
+      FROM products p
+      LEFT JOIN (
+        SELECT product_id, COUNT(*) as total, COUNT(*) FILTER (WHERE status='InStock') as in_stock,
+          MIN(barcode) as barcode_first, MAX(barcode) as barcode_last, MAX(unit_type) as unit_type
+        FROM product_inventory WHERE tenant_id = $1 GROUP BY product_id
+      ) inv ON inv.product_id = p.id
+      LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_sales WHERE tenant_id = $1 GROUP BY product_id) sc ON sc.product_id = p.id
+      LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Distributed' AND tenant_id = $1 GROUP BY product_id) dc ON dc.product_id = p.id
+      WHERE p.tenant_id = $1`;
     const params: string[] = [tenantId];
     if (typeof search === 'string' && search) {
       const nextIdx = params.length + 1;

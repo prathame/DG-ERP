@@ -658,6 +658,14 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_pd_status ON product_distribution(tenant_id, status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(tenant_id, status)');
 
+    // Performance indexes
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pr_old_barcode ON product_replacements(tenant_id, old_barcode)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pi_batch ON product_inventory(tenant_id, batch_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customers_vendor ON customers(tenant_id, vendor_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_warranties_product ON warranties(tenant_id, product_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ps_customer ON product_sales(tenant_id, customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_si_date ON standalone_invoices(tenant_id, invoice_date)');
+
     // Standalone invoices (non-inventory billing)
     await client.query(`
       CREATE TABLE IF NOT EXISTS standalone_invoices (

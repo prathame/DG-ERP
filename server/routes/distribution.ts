@@ -137,10 +137,14 @@ router.get('/api/distribution/batches', async (req, res) => {
       sql += ` AND pd.vendor_id = $${paramIdx}`;
       params.push(vendorId);
     }
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const offset = Number(req.query.offset) || 0;
     sql += `
       GROUP BY COALESCE(pd.batch_id, pd.id), pd.vendor_id, v.name
       ORDER BY MIN(pd.distribution_date) DESC, batch_id DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
+    params.push(String(limit), String(offset));
     const rows = (await pool.query(sql, params)).rows as Record<string, unknown>[];
     const batchIds = rows.map(r => r.batch_id as string);
     const paymentMap: Record<string, number> = {};
