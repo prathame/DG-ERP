@@ -99,46 +99,101 @@ export function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="relative pt-24 sm:pt-28 pb-14 sm:pb-20 px-4 sm:px-6">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#FF9933]/10 via-transparent to-[#138808]/10 pointer-events-none" />
-        <div className="absolute top-20 left-1/4 w-96 h-96 bg-brand/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="max-w-5xl mx-auto text-center relative">
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand text-white rounded-full text-xs font-bold mb-3 shadow-lg">
-              🚀 {L('Coming Soon — Launching Shortly!', 'जल्द आ रहा है!', 'ટૂંક સમયમાં આવી રહ્યું છે!')}
-            </div>
-            <div className="inline-flex items-center gap-2 px-4 sm:px-5 py-1.5 sm:py-2 bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#1A1A1A] rounded-full text-xs sm:text-sm font-bold mb-4 sm:mb-6 shadow-lg">
-              🇮🇳 {L('Made in India, for Indian Businesses', 'भारत में बना, भारतीयों के लिए', 'ભારતમાં બનેલું, ભારતીયો માટે')}
-            </div>
-            <div className="relative h-[200px] sm:h-[180px] md:h-[200px] overflow-hidden">
-              {[
-                { line1: 'From Shop to Factory', line2: 'Your Business, Simplified', sub: 'From small shops to large manufacturers — inventory, billing, GST, vendor management, accounting all in one place.' },
-                { line1: 'दुकान हो या फैक्ट्री', line2: 'बिज़नेस आसान बनाओ', sub: 'छोटी दुकान से लेकर बड़े manufacturer तक — inventory, billing, GST, vendor management सब एक जगह।' },
-                { line1: 'દુકાન હોય કે ફેક્ટરી', line2: 'બિઝનેસ સરળ બનાવો', sub: 'નાની દુકાનથી લઈને મોટા manufacturer સુધી — inventory, billing, GST, vendor management બધું એક જગ્યાએ।' },
-              ].map((h, i) => (
-                <motion.div key={i} initial={false} animate={{ opacity: heroLang === i ? 1 : 0, y: heroLang === i ? 0 : 20 }} transition={{ duration: 0.5 }} className={`absolute inset-0 ${heroLang === i ? '' : 'pointer-events-none'}`}>
-                  <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold tracking-tight leading-tight">
-                    <span className="text-2xl sm:text-3xl md:text-4xl">{h.line1}</span><br />
-                    <span className="bg-gradient-to-r from-brand to-brand-light bg-clip-text text-transparent">{h.line2}</span>
-                  </h1>
-                  <p className={`mt-3 sm:mt-4 text-sm sm:text-lg md:text-xl ${textMuted} max-w-3xl mx-auto leading-relaxed px-2`}>{h.sub}</p>
-                </motion.div>
-              ))}
-            </div>
-            <div className="flex items-center justify-center gap-2 mt-4">
-              {([{ code: 'en' as const, label: 'English' }, { code: 'hi' as const, label: 'हिन्दी' }, { code: 'gu' as const, label: 'ગુજરાતી' }]).map((l, i) => (
-                <button key={l.code} type="button" onClick={() => { setLang(l.code); setHeroLang(i); setHeroAutoPlay(false); }} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white scale-105' : `${dark ? 'bg-white/10 text-gray-400 hover:bg-white/20' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`}`}>{l.label}</button>
-              ))}
-            </div>
-            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-              <a href="#contact" className="group w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 bg-brand text-white rounded-xl font-bold text-base sm:text-lg hover:bg-brand-dark transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand/20">
-                {isEn ? 'Start Free Trial' : isGu ? 'ફ્રી ટ્રાયલ શરૂ કરો' : 'फ्री ट्रायल शुरू करें'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-              </a>
-              <a href="#features" className={`w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 border rounded-xl font-bold text-base sm:text-lg transition-all text-center ${btnSecondary}`}>{isEn ? 'See Features' : isGu ? 'Features જુઓ' : 'Features देखें'}</a>
-            </div>
-            <p className={`mt-4 text-sm ${textFaint}`}>No credit card required • Setup in 5 minutes • Cancel anytime</p>
-          </motion.div>
+      {/* Hero — warm gradient + floating app preview */}
+      <section className="relative pt-24 sm:pt-28 pb-16 sm:pb-24 px-4 sm:px-6 overflow-hidden">
+        {/* Warm gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#F27D26] via-[#FF9F43] to-[#FFBE76] opacity-[0.08] pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-radial from-brand/20 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-radial from-amber-500/10 to-transparent rounded-full blur-3xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
+        {/* SVG paper grain texture */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.03]"><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#grain)"/></svg>
+
+        <div className="max-w-6xl mx-auto relative">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+            {/* Left — text content */}
+            <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand text-white rounded-full text-xs font-bold mb-4 shadow-lg">
+                🚀 {L('Coming Soon — Launching Shortly!', 'जल्द आ रहा है!', 'ટૂંક સમયમાં આવી રહ્યું છે!')}
+              </div>
+              <div className="relative h-[160px] sm:h-[140px] md:h-[160px] overflow-hidden">
+                {[
+                  { line1: 'From Shop to Factory', line2: 'Your Business, Simplified', sub: 'Inventory, billing, GST, vendor management, accounting — all in one place.' },
+                  { line1: 'दुकान हो या फैक्ट्री', line2: 'बिज़नेस आसान बनाओ', sub: 'Inventory, billing, GST, vendor management सब एक जगह।' },
+                  { line1: 'દુકાન હોય કે ફેક્ટરી', line2: 'બિઝનેસ સરળ બનાવો', sub: 'Inventory, billing, GST, vendor management બધું એક જગ્યાએ।' },
+                ].map((h, i) => (
+                  <motion.div key={i} initial={false} animate={{ opacity: heroLang === i ? 1 : 0, y: heroLang === i ? 0 : 20 }} transition={{ duration: 0.5 }} className={`absolute inset-0 ${heroLang === i ? '' : 'pointer-events-none'}`}>
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-tight">
+                      <span className="text-2xl sm:text-3xl md:text-4xl">{h.line1}</span><br />
+                      <span className="bg-gradient-to-r from-brand to-amber-500 bg-clip-text text-transparent">{h.line2}</span>
+                    </h1>
+                    <p className={`mt-3 text-sm sm:text-base md:text-lg ${textMuted} max-w-lg leading-relaxed`}>{h.sub}</p>
+                  </motion.div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 mt-2 mb-6">
+                {([{ code: 'en' as const, label: 'English' }, { code: 'hi' as const, label: 'हिन्दी' }, { code: 'gu' as const, label: 'ગુજરાતી' }]).map((l, i) => (
+                  <button key={l.code} type="button" onClick={() => { setLang(l.code); setHeroLang(i); setHeroAutoPlay(false); }} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white scale-105' : `${dark ? 'bg-white/10 text-gray-400 hover:bg-white/20' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`}`}>{l.label}</button>
+                ))}
+              </div>
+              <div className="flex flex-col sm:flex-row items-start gap-3">
+                <a href="#contact" className="group px-6 sm:px-8 py-3.5 sm:py-4 bg-brand text-white rounded-xl font-bold text-base sm:text-lg hover:bg-brand-dark transition-all flex items-center gap-2 shadow-lg shadow-brand/20">
+                  {isEn ? 'Start Free Trial' : isGu ? 'ફ્રી ટ્રાયલ શરૂ કરો' : 'फ्री ट्रायल शुरू करें'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                </a>
+                <a href="#features" className={`px-6 sm:px-8 py-3.5 sm:py-4 border rounded-xl font-bold text-base sm:text-lg transition-all text-center ${btnSecondary}`}>{isEn ? 'See Features' : isGu ? 'Features જુઓ' : 'Features देखें'}</a>
+              </div>
+              <p className={`mt-4 text-sm ${textFaint}`}>No credit card • 5 min setup • Cancel anytime</p>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#1A1A1A] rounded-full text-xs font-bold mt-4 shadow-md">
+                🇮🇳 {L('Made in India, for Indian Businesses', 'भारत में बना, भारतीयों के लिए', 'ભારતમાં બનેલું, ભારતીયો માટે')}
+              </div>
+            </motion.div>
+
+            {/* Right — floating app screenshot */}
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.7, delay: 0.2 }}
+              className="relative hidden lg:block"
+            >
+              <motion.div
+                animate={{ y: [0, -12, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                className="relative"
+              >
+                {/* App screenshot placeholder — replace src with real screenshot */}
+                <div className={`rounded-2xl shadow-2xl overflow-hidden border-4 ${dark ? 'border-white/10 bg-gray-900' : 'border-white/80 bg-white'}`}>
+                  <div className={`px-4 py-2 flex items-center gap-2 border-b ${dark ? 'border-white/5 bg-gray-800' : 'border-gray-100 bg-gray-50'}`}>
+                    <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-rose-400"/><div className="w-3 h-3 rounded-full bg-amber-400"/><div className="w-3 h-3 rounded-full bg-emerald-400"/></div>
+                    <span className={`text-[10px] font-mono ${dark ? 'text-gray-500' : 'text-gray-400'}`}>dg-erp.onrender.com</span>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center text-white font-bold text-sm">DG</div>
+                      <div><p className={`font-bold text-sm ${dark ? 'text-white' : 'text-gray-900'}`}>Dashboard</p><p className={`text-[10px] ${dark ? 'text-gray-500' : 'text-gray-400'}`}>DG Business Management</p></div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[{ l: "Today's Sales", v: '₹1.2L', c: 'text-emerald-600 bg-emerald-50' }, { l: 'Products', v: '50', c: 'text-blue-600 bg-blue-50' }, { l: 'Vendors', v: '22', c: 'text-purple-600 bg-purple-50' }].map(s => (
+                        <div key={s.l} className={`${dark ? 'bg-white/5' : 'bg-gray-50'} rounded-xl p-3`}>
+                          <p className={`text-[9px] ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{s.l}</p>
+                          <p className={`text-lg font-bold ${s.c.split(' ')[0]}`}>{s.v}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className={`${dark ? 'bg-white/5' : 'bg-gray-50'} rounded-xl p-3`}>
+                      <p className={`text-[10px] font-bold mb-2 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Recent Activity</p>
+                      {['Distribution to Anand Agri — 80 units', 'Payment ₹15,000 from Green Gold', 'Staff salary — Ramesh ₹12,000'].map((a, i) => (
+                        <div key={i} className={`flex items-center gap-2 py-1.5 ${i > 0 ? `border-t ${dark ? 'border-white/5' : 'border-gray-100'}` : ''}`}>
+                          <div className={`w-1.5 h-1.5 rounded-full ${['bg-blue-400', 'bg-emerald-400', 'bg-purple-400'][i]}`} />
+                          <span className={`text-[10px] ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{a}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {/* Glow effect behind screenshot */}
+                <div className="absolute -inset-4 bg-gradient-to-br from-brand/20 via-amber-500/10 to-transparent rounded-3xl blur-2xl -z-10" />
+              </motion.div>
+            </motion.div>
+          </div>
         </div>
       </section>
 
