@@ -10,35 +10,53 @@ Cloud-based business management software for shops, dealers, and manufacturers. 
 
 | Module | What it does |
 |--------|-------------|
-| **Inventory** | Products with auto-barcode, box/piece tracking, batch printing, CSV import, stock alerts |
-| **Purchases** | Supplier management, purchase batches, cost tracking, supplier payments |
-| **Distribution** | Distribute to vendors, batch-level payment, custom pricing, E-Invoice & E-Way Bill JSON |
+| **Inventory** | Products with auto-barcode, box/piece tracking, batch printing, CSV import/export, stock alerts, HSN auto-suggest, per-product GST inclusive/exclusive, column picker, delete all |
+| **Purchases** | Supplier management, purchase batches, cost tracking, supplier payments, invoice number for GSTR-2B matching |
+| **Distribution** | Distribute to vendors, batch-level payment, custom pricing, E-Invoice & E-Way Bill JSON, CSV import for bulk distribution |
+| **Standalone Invoices** | Non-inventory billing for services/custom jobs, 3 PDF presets (Modern/Classic/Minimal), auto-numbering, status flow (Draft→Sent→Paid) |
 | **Quotes & Orders** | Create quotations → WhatsApp share → take orders → fulfill to distribution |
-| **Finance** | Vendor receivables, batch-level payments, age-wise outstanding, reminders |
+| **Finance** | Vendor receivables, batch-level payments, age-wise outstanding, bulk WhatsApp reminders, payment history PDF |
 | **Accounts** | P&L, Balance Sheet, Cash Flow, Ledger, Day Book, Credit/Debit Notes — auto-generated |
 | **Reports** | Sales register, distribution register, outstanding, payment register, stock summary, GST B2B/B2C/HSN |
+| **GSTR-2B** | Upload 2B JSON from GST portal → auto-match against purchases → reconciliation report |
+| **GSTR-3B** | Output tax, ITC computation, net payable — copy-paste ready for GST portal |
+| **Staff Management** | Staff directory, salary/advance/bonus payments, WhatsApp notifications, CSV import |
+| **Expenses** | 12 categories, P&L integration, ITC-eligible expense tracking |
 | **Price List** | Vendor-wise + quantity slab pricing — auto-applied in distribution |
 | **E-Invoice** | GST E-Invoice JSON export for government portal upload |
-| **E-Way Bill** | E-Way Bill JSON with transport details (vehicle, distance, mode) |
+| **E-Way Bill** | E-Way Bill JSON with transport details, Ship-To GSTIN, July 2026 compliance |
 | **UPI QR** | Auto-generated UPI payment QR code on every printed bill |
 | **Vendor Portal** | Separate login for dealers — view-only access to stock, sales, payments |
 | **AI Chatbot** | Natural language queries in Hindi, Gujarati, English |
-| **Dashboard** | KPIs, low stock alerts, top products, revenue tracking |
-| **Settings** | Bill customization, user management, tab config, barcode/language toggles |
+| **Dashboard** | KPIs with skeleton loaders, low stock alerts, notification bell, top products |
+| **Settings** | Bill customization, user management, bank dropdown from master, backup/restore |
+
+## UI Features
+
+| Feature | Description |
+|---------|-------------|
+| **Ctrl+K Command Palette** | Spotlight-style search across all pages |
+| **HSN Auto-Suggest** | Type HSN code → auto-fills GST rate + description (100+ codes) |
+| **Column Picker** | Toggle table columns visibility, persists to localStorage |
+| **Skeleton Loaders** | Shimmer placeholders while data loads |
+| **Custom Confirm Dialogs** | Styled modals replace browser confirm() — danger/warning/info variants |
+| **Collapsible Sidebar** | Section groups with chevron toggle, persists state |
+| **Toast Progress Bar** | Auto-dismiss countdown on notifications |
+| **Notification Bell** | Low stock count badge in header |
 
 ## Tech Stack
 
 - **Frontend**: React 19 + TypeScript + Tailwind CSS v4 + Framer Motion
 - **Backend**: Express.js + TypeScript + PostgreSQL
 - **Auth**: JWT + bcrypt-12 + rate limiting
-- **Security**: Helmet.js, HSTS, CSP, tenant isolation, audit trail
+- **Security**: Helmet.js, HSTS, CSP, RLS tenant isolation, audit trail
 - **Build**: Vite 6
 - **Languages**: English, Hindi (हिन्दी), Gujarati (ગુજરાતી)
 
 ## Architecture
 
 ```
-Multi-Tenant SaaS
+Multi-Tenant SaaS (Shared DB + Row Level Security)
 ├── Super Admin (/admin) — manages tenants, plans, billing
 ├── Tenant 1 (/expert-electricals) — isolated data + branded URL
 ├── Tenant 2 (/radhe-krishna) — isolated data + branded URL
@@ -46,10 +64,12 @@ Multi-Tenant SaaS
 
 Data Flow:
 Supplier → [Purchase] → Inventory → [Quote] → [Distribution] → Vendor
-                                                    ↓
-                                              Payment Tracking
-                                                    ↓
-                                         Accounts (P&L, Balance Sheet)
+                                         ↓                        ↓
+                                   [Standalone Invoice]     Payment Tracking
+                                                                 ↓
+                                                    Accounts (P&L, Balance Sheet)
+                                                                 ↓
+                                                    GST Reports (GSTR-1, 2B, 3B)
 ```
 
 ## Run Locally — Step by Step
@@ -118,31 +138,16 @@ This starts both frontend (Vite) and backend (Express) together.
 
 1. Open http://localhost:3000/admin
 2. Login with the `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` from your `.env`
-3. Click **Create Tenant** — fill company name, admin email, password
+3. Click **Create Tenant** — fill company name, admin email, password, address, GSTIN, business type
 4. Open http://localhost:3000/{slug} (slug = company name in lowercase)
 5. Login with the tenant admin email/password
 
 ### Production Build
 
 ```bash
-# Build frontend
 npm run build
-
-# Start production server (serves API + frontend from /dist)
 npx tsx server/index.ts
-
 # Opens at http://localhost:3001
-```
-
-### Kill Running Processes
-
-```bash
-# Kill all dev processes on ports 3000, 3001
-lsof -ti:3000,3001 | xargs kill -9
-
-# Or on Windows:
-netstat -ano | findstr :3001
-taskkill /PID <pid> /F
 ```
 
 ### Health Check
@@ -166,77 +171,93 @@ curl http://localhost:3001/api/health
 
 ```
 server/
-├── index.ts                 # Express setup + route mounting
-├── pg-db.ts                 # PostgreSQL schema (28 tables) + migrations
+├── index.ts                 # Express setup + auth middleware + route mounting
+├── pg-db.ts                 # PostgreSQL schema (35 tables) + migrations + RLS
 ├── middleware/auth.ts        # JWT + super admin auth
 ├── utils/
-│   ├── barcode.ts           # Auto-barcode generation
-│   ├── helpers.ts           # Audit log, pagination, mapProduct
-│   └── tenant.ts            # Tenant provisioning
+│   ├── helpers.ts           # uid(), audit log, mapProduct, validators
+│   └── tenant.ts            # Tenant provisioning + cascade delete
 ├── routes/
-│   ├── products.ts          # Products + stock + barcode management
+│   ├── products.ts          # Products + stock + barcode + batch import
 │   ├── purchases.ts         # Suppliers + purchase batches + supplier finance
-│   ├── distribution.ts      # Distribution batches + batch payments + billing
+│   ├── distribution.ts      # Distribution + batch payments + E-Invoice + E-Way Bill
+│   ├── invoices.ts          # Standalone invoices (non-inventory billing)
 │   ├── quotations.ts        # Quotations CRUD + convert to distribution
-│   ├── finance.ts           # Vendor finance (receivables) + payment reminders
-│   ├── accounts.ts          # P&L, Balance Sheet, Cash Flow, Ledger
+│   ├── orders.ts            # Orders + fulfill to distribution
+│   ├── finance.ts           # Vendor finance + payment reminders
+│   ├── accounts.ts          # P&L, Balance Sheet, Cash Flow, Ledger, GSTR-2B, GSTR-3B
 │   ├── reports.ts           # 6 CA-ready reports (GST, outstanding, stock)
-│   ├── vendors.ts           # Vendor CRUD + auto-login
-│   ├── sales.ts             # Sales + warranty auto-creation
+│   ├── payroll.ts           # Staff management + payments
+│   ├── expenses.ts          # Expense tracking (12 categories)
+│   ├── vendors.ts           # Vendor CRUD + bulk import + auto-login
+│   ├── banks.ts             # Bank CRUD + batch import
 │   ├── auth.ts              # Login, signup, password reset
 │   ├── dashboard.ts         # Stats + KPIs
 │   ├── chatbot.ts           # AI assistant (30+ commands)
 │   ├── super-admin.ts       # Platform management
-│   └── ... (14 more route files)
+│   └── ... (more route files)
 
 src/
-├── App.tsx                  # Routing + sidebar + tabs
-├── api.ts                   # API client with session-scoped tokens
+├── App.tsx                  # Routing + sidebar + command palette
+├── api.ts                   # API client with 15s GET cache + session tokens
 ├── types.ts                 # Shared types
 ├── lib/
 │   ├── session.ts           # Multi-tab localStorage scoping
-│   ├── utils.ts             # CSV, print, WhatsApp, email
-│   └── billTemplates.ts     # Invoice + challan HTML generators
+│   ├── utils.ts             # CSV, print, WhatsApp, email helpers
+│   ├── billTemplates.ts     # Invoice + challan HTML generators
+│   └── hsnRates.ts          # HSN/SAC → GST rate lookup (100+ codes)
+├── hooks/
+│   ├── useConfirm.tsx       # Promise-based confirm dialog hook
+│   └── useDebounce.ts       # Debounce for search inputs
 ├── features/
-│   ├── inventory/           # Products, stock, barcode labels
-│   ├── purchases/           # Supplier purchases
-│   ├── distribution/        # Vendor distribution + Record Payment
+│   ├── inventory/           # Products, stock, barcode labels, column picker
+│   ├── purchases/           # Supplier purchases + expenses
+│   ├── distribution/        # Vendor distribution + CSV import + Record Payment
+│   ├── invoices/            # Standalone invoices + 3 PDF presets
 │   ├── quotations/          # Quote → Share → Convert
-│   ├── finance/             # Vendor payments + batch selector
-│   ├── accounts/            # P&L, Balance Sheet, Cash Flow, Ledger
-│   ├── accounts/            # Accounts + Reports (merged, 10 sub-tabs)
-│   ├── dashboard/           # KPIs, charts, masters
+│   ├── orders/              # Orders → Fulfill
+│   ├── finance/             # Vendor payments + bulk WhatsApp reminders
+│   ├── accounts/            # 13 sub-tabs (P&L, Balance Sheet, GSTR-2B, GSTR-3B, etc.)
+│   ├── dashboard/           # KPIs, skeleton loaders, masters
 │   ├── sales/               # Barcode scan + billing
-│   ├── settings/            # Profile, users, bill customization
-│   ├── super-admin/         # Platform admin (8 components)
-│   └── ... (5 more feature folders)
+│   ├── payroll/             # Staff salary + payment register
+│   ├── settings/            # Profile, users, bill customization, bank dropdown
+│   ├── super-admin/         # Platform admin (tenants, plans, billing, audit)
+│   └── verification/        # Search/verify barcodes, vendors, products + PDF
 ├── components/
-│   ├── ui/                  # Toast, Spinner, PaidBadge, BarcodePrinter
+│   ├── ui/                  # Toast, Skeleton, ConfirmDialog, CommandPalette, ColumnPicker, CsvImport
 │   └── layout/              # LoginScreen, LandingPage, ChatWidget
 └── i18n/                    # EN, HI, GU translations
 ```
 
-## Database (28 tables)
+## Database (35 tables)
 
 ### Core
-- `tenants` — multi-tenant config + tab customization
+- `tenants` — multi-tenant config + tab customization + business type
 - `users` — role-based (Super Admin, Admin, Manager, Staff, Vendor)
-- `products` — with HSN, GST rate, pack size, warranty months
+- `products` — with HSN, GST rate, pack size, warranty, price_includes_gst
 - `product_inventory` — individual barcoded units (InStock/Distributed/Sold)
 
 ### Buying (Payables)
 - `suppliers` — who you buy from
-- `product_purchases` — purchase records per barcode
+- `product_purchases` — purchase records with invoice_number for GSTR-2B
 - `supplier_payments` — payments to suppliers (batch-level)
 
 ### Selling (Receivables)
 - `vendors` — who you sell to (dealers/customers)
-- `product_distribution` — distribution records per barcode
+- `product_distribution` — distribution records with E-Way Bill number
 - `vendor_payments` — payments from vendors (batch-level)
 - `product_sales` — end-customer sales
+- `standalone_invoices` — non-inventory billing (services, custom jobs)
 
-### Quotations
+### Quotations & Orders
 - `quotations` — Draft → Sent → Accepted → Converted to distribution
+- `orders` — Pending → Confirmed → Fulfilled
+
+### Staff & Expenses
+- `staff_members` — staff directory with salary, joining date
+- `staff_payments` — salary, advance, bonus, deduction tracking
+- `expenses` — 12 categories, P&L integration
 
 ### Other
 - `warranties`, `product_replacements`, `rewards` — warranty lifecycle
@@ -245,68 +266,33 @@ src/
 - `audit_log` — all actions logged
 - `plans`, `super_admins`, `tenant_invoices` — platform management
 
-## API Endpoints
+### Security
+- **Row Level Security (RLS)** on all 31 tenant tables
+- Every table has `tenant_id` column with RLS policy
+- DB-level isolation: even if app has a bug, cross-tenant data access is blocked
 
-### Platform (Super Admin)
-```
-POST   /api/super-admin/login
-GET    /api/super-admin/tenants
-POST   /api/tenant/register
-POST   /api/super-admin/tenants/:id/reset-token
-POST   /api/super-admin/tenants/:id/impersonate
-```
+## Validations
 
-### Inventory & Products
-```
-GET    /api/products                    # List (with search)
-POST   /api/products                    # Create (with barcode + stock)
-POST   /api/products/:id/add-stock     # Add inventory
-GET    /api/products/:id/barcodes      # Barcode list
-GET    /api/products/verify/:barcode   # Verify barcode
-```
+| Field | Rule |
+|-------|------|
+| Phone | 10-digit Indian mobile starting with 6-9, optional +91 |
+| Email | Standard format validation |
+| GSTIN | 15 characters: 2-digit state + PAN + entity code |
+| HSN | Must be 4, 6, or 8 digits (per CBIC rules) |
+| Password | Minimum 8 characters |
+| CSV Import | All-or-nothing — if any row fails, nothing is imported |
 
-### Purchases
-```
-GET    /api/suppliers                   # List suppliers
-POST   /api/suppliers                   # Create supplier
-POST   /api/purchases/batch            # Purchase from supplier (adds stock)
-GET    /api/purchases/batches          # List purchase batches
-GET    /api/supplier-finance/summary   # Payables summary
-POST   /api/supplier-finance/:id/payments  # Pay supplier
-```
+## CSV Import Support
 
-### Distribution
-```
-POST   /api/distribution/batch         # Distribute to vendor
-GET    /api/distribution/batches       # List batches (with payment info)
-GET    /api/distribution/bill          # Generate challan/bill
-POST   /api/vendor-finance/:id/payments # Record vendor payment
-```
+| Entity | Template columns | All-or-nothing |
+|--------|-----------------|----------------|
+| Products | name, price, quantity, packSize, packName, hsnCode, gstRate, priceIncludesGst, etc. | Yes |
+| Vendors | name, contactPerson, phone, email, address, gstNumber | Yes |
+| Staff | name, phone, role, address, salary, joiningDate | Yes |
+| Banks | name, accountNumber, bankName, branch, ifscCode | Yes |
+| Distribution | productName, quantity, price, withGst, discount (pre-fills form) | Yes |
 
-### Quotations
-```
-POST   /api/quotations                 # Create quote
-PUT    /api/quotations/:id/status      # Draft → Sent → Accepted
-POST   /api/quotations/:id/convert     # Convert to distribution
-```
-
-### Accounts
-```
-GET    /api/accounts/profit-loss       # P&L statement
-GET    /api/accounts/balance-sheet     # Assets vs Liabilities
-GET    /api/accounts/cash-flow         # Inflows vs Outflows + monthly
-GET    /api/accounts/ledger            # All transactions chronologically
-```
-
-### Reports
-```
-GET    /api/reports/sales-register
-GET    /api/reports/distribution-register
-GET    /api/reports/outstanding         # Age-wise receivables
-GET    /api/reports/payment-register
-GET    /api/reports/stock-summary       # Closing stock valuation
-GET    /api/reports/gst-summary         # GSTR-1 format (B2B/B2C/HSN)
-```
+Test data available in `test-data/valid/` and `test-data/invalid/`.
 
 ## Scripts
 
@@ -331,17 +317,20 @@ SUPER_ADMIN_PASSWORD=...
 npm run build && npm start
 ```
 
-Schema auto-creates on first run. Migrations run on every restart (safe — uses `IF NOT EXISTS` and `ADD COLUMN IF NOT EXISTS`).
+Schema auto-creates on first run. Migrations run on every restart (safe — uses `IF NOT EXISTS` and `ADD COLUMN IF NOT EXISTS`). RLS policies applied automatically.
 
 ## Security
 
 - JWT auth with HS256 + bcrypt-12
+- **Row Level Security (RLS)** on all 31 tenant tables — DB-level isolation
 - Tenant isolation (every query scoped by `tenant_id`)
 - Rate limiting (login: 10/15min, password: 5/15min)
 - Helmet.js (HSTS, CSP, X-Frame-Options)
 - Audit trail on all critical actions
+- Auto-logout on tenant suspension/deletion
 - Session scoping (multi-tab safe)
-- Phone validation, input sanitization
+- Phone, email, GSTIN, HSN validation
+- All CSV imports: all-or-nothing with row-level error display
 
 ## License
 
