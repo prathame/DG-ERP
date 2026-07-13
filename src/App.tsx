@@ -16,9 +16,8 @@ import {
   FileText,
   ShoppingBag,
   BarChart3,
-  ClipboardList,
-  Users,
   Bell,
+  Search,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -32,7 +31,6 @@ import { TermsOfService } from './components/layout/TermsOfService';
 import { ChatWidget } from './components/layout/ChatWidget';
 import { session } from './lib/session';
 import { CommandPalette } from './components/ui/CommandPalette';
-import { Search } from 'lucide-react';
 
 const DashboardView = lazy(() => import('./features/dashboard/DashboardView').then(m => ({ default: m.DashboardView })));
 const SalesEntryView = lazy(() => import('./features/sales/SalesEntryView').then(m => ({ default: m.SalesEntryView })));

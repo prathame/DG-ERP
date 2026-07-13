@@ -111,8 +111,8 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-gray-400 uppercase">{s.name}</span>
                   <div className="flex gap-1">
-                    <button onClick={(e) => { e.stopPropagation(); openEdit(s); }} className="p-1 text-gray-400 hover:text-blue-600"><Pencil size={12} /></button>
-                    <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(s); }} className="p-1 text-gray-400 hover:text-rose-600"><Trash2 size={12} /></button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); openEdit(s); }} className="p-1 text-gray-400 hover:text-blue-600"><Pencil size={12} /></button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setDeleteTarget(s); }} className="p-1 text-gray-400 hover:text-rose-600"><Trash2 size={12} /></button>
                   </div>
                 </div>
                 {s.role && <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">{s.role}</span>}

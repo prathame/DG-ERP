@@ -92,7 +92,7 @@ ${inv.notes ? `<p style="margin-top:16px;font-size:12px;color:#666;">${esc(inv.n
           <h1 className="text-2xl font-bold text-gray-900">Billing</h1>
           <p className="text-sm text-gray-500 mt-1">{total} invoices — ₹{totalRevenue.toLocaleString()} total</p>
         </div>
-        <button onClick={() => { setCreateOpen(true); fetch('/api/super-admin/tenants', { headers }).then((r) => r.json()).then((data) => setTenants(data.map((t: Record<string, unknown>) => ({ id: t.id, companyName: t.companyName, planName: t.planName })))).catch(() => {}); }} className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-dark">
+        <button type="button" onClick={() => { setCreateOpen(true); fetch('/api/super-admin/tenants', { headers }).then((r) => r.json()).then((data) => setTenants(data.map((t: Record<string, unknown>) => ({ id: t.id, companyName: t.companyName, planName: t.planName })))).catch(() => {}); }} className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-dark">
           <Plus size={18} /> Create Invoice
         </button>
       </div>
@@ -136,9 +136,9 @@ ${inv.notes ? `<p style="margin-top:16px;font-size:12px;color:#666;">${esc(inv.n
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => printInvoice(inv)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Print"><Printer size={14} /></button>
-                      {inv.status !== 'paid' && <button onClick={() => markPaid(inv.id)} className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-lg" title="Mark Paid"><Check size={14} /></button>}
-                      <button onClick={() => deleteInvoice(inv.id)} className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg" title="Delete"><X size={14} /></button>
+                      <button type="button" onClick={() => printInvoice(inv)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Print"><Printer size={14} /></button>
+                      {inv.status !== 'paid' && <button type="button" onClick={() => markPaid(inv.id)} className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-lg" title="Mark Paid"><Check size={14} /></button>}
+                      <button type="button" onClick={() => deleteInvoice(inv.id)} className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg" title="Delete"><X size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -150,8 +150,8 @@ ${inv.notes ? `<p style="margin-top:16px;font-size:12px;color:#666;">${esc(inv.n
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
             <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
             <div className="flex gap-1">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded-lg border disabled:opacity-40 hover:bg-gray-50"><ChevronLeft size={16} /></button>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-1.5 rounded-lg border disabled:opacity-40 hover:bg-gray-50"><ChevronRight size={16} /></button>
+              <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded-lg border disabled:opacity-40 hover:bg-gray-50"><ChevronLeft size={16} /></button>
+              <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="p-1.5 rounded-lg border disabled:opacity-40 hover:bg-gray-50"><ChevronRight size={16} /></button>
             </div>
           </div>
         )}

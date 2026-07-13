@@ -248,13 +248,13 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                       })()}
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-brand hover:bg-orange-50 rounded-lg" title="Barcode Details">
+                          <button type="button" onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-brand hover:bg-orange-50 rounded-lg" title="Barcode Details">
                             <Barcode size={16} />
                           </button>
-                          {canEdit && inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
+                          {canEdit && inventoryTrackingEnabled && <button type="button" onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
                             <Plus size={16} />
                           </button>}
-                          {canEdit && <button onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
+                          {canEdit && <button type="button" onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
                             <Trash2 size={16} />
                           </button>}
                         </div>
@@ -289,13 +289,13 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     <span>Sold: <strong className="text-emerald-700">{p.soldCount ?? 0}</strong></span>
                   </div>}
                   <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-gray-100">
-                    <button onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-brand hover:bg-orange-50 rounded-lg" title="Barcode Details">
+                    <button type="button" onClick={() => api.products.barcodeDetails(p.id).then((batches) => setBarcodeDetailsModal({ product: p, batches })).catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))} className="p-1.5 text-brand hover:bg-orange-50 rounded-lg" title="Barcode Details">
                       <Barcode size={16} />
                     </button>
-                    {inventoryTrackingEnabled && <button onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
+                    {inventoryTrackingEnabled && <button type="button" onClick={() => { setAddStockModal(p); setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Add Stock">
                       <Plus size={16} />
                     </button>}
-                    <button onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
+                    <button type="button" onClick={() => setProductToDelete(p)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete">
                       <Trash2 size={16} />
                     </button>
                   </div>

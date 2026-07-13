@@ -79,7 +79,7 @@ export function CsvImport({ onImport, onClose, columns, templateName, itemLabel 
       <div className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h3 className="font-bold text-lg flex items-center gap-2"><Upload size={20} className="text-brand" /> Import from CSV</h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+          <button type="button" onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
         </div>
 
         <div className="p-6 space-y-4">
@@ -98,12 +98,12 @@ export function CsvImport({ onImport, onClose, columns, templateName, itemLabel 
                   {result.errors.map((err, i) => <p key={i} className="text-xs text-amber-600">{err}</p>)}
                 </div>
               )}
-              <button onClick={onClose} className="w-full py-3 bg-brand text-white rounded-xl font-bold">Done</button>
+              <button type="button" onClick={onClose} className="w-full py-3 bg-brand text-white rounded-xl font-bold">Done</button>
             </div>
           ) : (
             <>
               <div className="flex gap-3">
-                <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50">
+                <button type="button" onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50">
                   <Download size={16} /> Download Template
                 </button>
                 <label className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-sm font-medium cursor-pointer hover:border-brand hover:bg-brand/5 transition-colors">
@@ -147,7 +147,7 @@ export function CsvImport({ onImport, onClose, columns, templateName, itemLabel 
                     {rows.length > 10 && <p className="text-xs text-gray-400 px-3 py-2 bg-gray-50 border-t">...and {rows.length - 10} more rows</p>}
                   </div>
 
-                  <button onClick={handleImport} disabled={importing} className="w-full py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:opacity-60 flex items-center justify-center gap-2">
+                  <button type="button" onClick={handleImport} disabled={importing} className="w-full py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:opacity-60 flex items-center justify-center gap-2">
                     <Upload size={16} /> {importing ? 'Importing...' : `Import ${rows.length} Products`}
                   </button>
                 </>

@@ -208,7 +208,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
               <div className="p-8">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-2xl font-bold">Activate Warranty</h3>
-                  <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
                     <X size={20} />
                   </button>
                 </div>

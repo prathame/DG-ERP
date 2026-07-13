@@ -116,7 +116,7 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
       return `<div class="label">
         ${companyName ? `<div class="company">${companyName}</div>` : ''}
         <div class="product">${product.name}</div>
-        ${codeImg ? `<img src="${codeImg}" class="code-img" />` : ''}
+        ${codeImg ? `<img src="${codeImg}" class="code-img" alt="${b.barcode}" />` : ''}
         <div class="barcode-text">${b.barcode}</div>
         ${showPrice ? `<div class="price">₹${Number(product.price).toLocaleString()}</div>` : ''}
       </div>`;
@@ -164,7 +164,7 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
             <h3 className="font-bold text-lg">Print Barcode Labels</h3>
             <p className="text-sm text-gray-500">{product?.name} — {barcodes.length} barcodes</p>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+          <button type="button" onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
         </div>
 
         <div className="p-6 space-y-5">
@@ -184,10 +184,10 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase mb-2">Code Type</p>
             <div className="flex gap-2">
-              <button onClick={() => setCodeType('barcode')} className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors", codeType === 'barcode' ? "bg-brand text-white border-brand" : "border-gray-200 text-gray-600 hover:border-brand")}>
+              <button type="button" onClick={() => setCodeType('barcode')} className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors", codeType === 'barcode' ? "bg-brand text-white border-brand" : "border-gray-200 text-gray-600 hover:border-brand")}>
                 ||||| Barcode
               </button>
-              <button onClick={() => setCodeType('qr')} className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors", codeType === 'qr' ? "bg-brand text-white border-brand" : "border-gray-200 text-gray-600 hover:border-brand")}>
+              <button type="button" onClick={() => setCodeType('qr')} className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-2 transition-colors", codeType === 'qr' ? "bg-brand text-white border-brand" : "border-gray-200 text-gray-600 hover:border-brand")}>
                 <QrCode size={16} /> QR Code
               </button>
             </div>
@@ -196,7 +196,7 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
           {/* Options */}
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Show Price on Label</span>
-            <button onClick={() => setShowPrice(!showPrice)} className={cn("relative w-12 h-7 rounded-full transition-colors", showPrice ? "bg-green-500" : "bg-gray-300")}>
+            <button type="button" onClick={() => setShowPrice(!showPrice)} className={cn("relative w-12 h-7 rounded-full transition-colors", showPrice ? "bg-green-500" : "bg-gray-300")}>
               <span className={cn("absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform", showPrice ? "translate-x-5" : "translate-x-0.5")} />
             </button>
           </div>
@@ -206,8 +206,8 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold text-gray-400 uppercase">{selectedBarcodes.size} of {barcodes.length} selected</p>
               <div className="flex gap-2">
-                <button onClick={selectAll} className="text-xs text-brand font-medium">Select All</button>
-                <button onClick={selectNone} className="text-xs text-gray-500 font-medium">None</button>
+                <button type="button" onClick={selectAll} className="text-xs text-brand font-medium">Select All</button>
+                <button type="button" onClick={selectNone} className="text-xs text-gray-500 font-medium">None</button>
               </div>
             </div>
             <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-2 grid grid-cols-2 gap-1">
@@ -240,7 +240,7 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
           </div>
 
           {/* Print */}
-          <button onClick={handlePrint} disabled={selectedBarcodes.size === 0} className="w-full py-3.5 bg-brand text-white rounded-xl font-bold text-lg hover:bg-brand-dark disabled:opacity-40 flex items-center justify-center gap-2">
+          <button type="button" onClick={handlePrint} disabled={selectedBarcodes.size === 0} className="w-full py-3.5 bg-brand text-white rounded-xl font-bold text-lg hover:bg-brand-dark disabled:opacity-40 flex items-center justify-center gap-2">
             <Printer size={20} /> Print {selectedBarcodes.size} Labels
           </button>
         </div>

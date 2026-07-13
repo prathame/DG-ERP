@@ -406,7 +406,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
               {createdCredentials ? 'Tenant Created' : 'Create New Tenant'}
             </h2>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <X size={18} />
           </button>
         </div>

@@ -58,7 +58,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
             <h3 className="font-bold text-sm">Scan Barcode</h3>
             {scanning && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
           </div>
-          <button onClick={handleClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
+          <button type="button" onClick={handleClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
             <X size={18} />
           </button>
         </div>
@@ -68,7 +68,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
               <Camera size={40} className="text-gray-300 mx-auto mb-3" />
               <p className="text-sm text-rose-500 mb-2">{error}</p>
               <p className="text-xs text-gray-400 mb-4">Make sure camera permission is allowed in your browser settings.</p>
-              <button onClick={handleClose} className="px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200">Close</button>
+              <button type="button" onClick={handleClose} className="px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200">Close</button>
             </div>
           ) : (
             <>
