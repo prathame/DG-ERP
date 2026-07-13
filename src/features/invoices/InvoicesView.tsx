@@ -60,28 +60,52 @@ export function InvoicesView() {
     return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase", m[s] || m.draft)}>{s}</span>;
   };
 
+  const [pdfStyle, setPdfStyle] = useState<'modern' | 'classic' | 'minimal'>(() => (localStorage.getItem('dg_inv_style') as 'modern' | 'classic' | 'minimal') || 'modern');
+
   const printInvoice = (inv: Invoice) => {
     const user = session.getUser() || {};
     const w = window.open('', '_blank');
     if (!w) return;
+    const styles: Record<string, string> = {
+      modern: `body{font-family:Inter,sans-serif;margin:0;padding:40px;color:#1a1a1a}
+        .header{display:flex;justify-content:space-between;margin-bottom:30px;border-bottom:3px solid #F27D26;padding-bottom:20px}
+        .company{font-size:20px;font-weight:700}.inv-title{font-size:28px;font-weight:700;color:#F27D26}
+        .meta{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
+        .meta-box{background:#f9fafb;padding:16px;border-radius:8px}.meta-box h4{font-size:10px;text-transform:uppercase;color:#999;margin:0 0 4px}.meta-box p{margin:2px 0;font-size:13px}
+        table{width:100%;border-collapse:collapse;margin-bottom:24px}
+        th{background:#f3f4f6;text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;color:#666;border-bottom:2px solid #e5e7eb}
+        td{padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:13px}.text-right{text-align:right}
+        .totals{margin-left:auto;width:280px}.totals tr td{padding:6px 12px;font-size:13px}
+        .totals .grand{font-size:16px;font-weight:700;border-top:2px solid #1a1a1a}
+        .notes{margin-top:24px;padding:16px;background:#fffbeb;border-radius:8px;font-size:12px;color:#92400e}
+        .footer{margin-top:40px;text-align:center;font-size:10px;color:#999}`,
+      classic: `body{font-family:'Courier New',monospace;margin:0;padding:30px;color:#000}
+        .header{display:flex;justify-content:space-between;margin-bottom:20px;border-bottom:2px double #000;padding-bottom:15px}
+        .company{font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:1px}.inv-title{font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:2px}
+        .meta{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+        .meta-box{border:1px solid #000;padding:12px}.meta-box h4{font-size:10px;text-transform:uppercase;margin:0 0 4px;font-weight:700}.meta-box p{margin:2px 0;font-size:12px}
+        table{width:100%;border-collapse:collapse;margin-bottom:20px;border:1px solid #000}
+        th{background:#eee;text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;border:1px solid #000}
+        td{padding:8px 10px;border:1px solid #ccc;font-size:12px}.text-right{text-align:right}
+        .totals{margin-left:auto;width:260px;border:1px solid #000}.totals tr td{padding:5px 10px;font-size:12px;border-bottom:1px solid #ccc}
+        .totals .grand{font-size:14px;font-weight:700;border-top:2px solid #000}
+        .notes{margin-top:20px;padding:12px;border:1px dashed #666;font-size:11px}
+        .footer{margin-top:30px;text-align:center;font-size:9px;color:#666}`,
+      minimal: `body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;margin:0;padding:50px;color:#333}
+        .header{display:flex;justify-content:space-between;margin-bottom:40px;padding-bottom:20px;border-bottom:1px solid #eee}
+        .company{font-size:18px;font-weight:300;letter-spacing:0.5px}.inv-title{font-size:24px;font-weight:300;color:#666;letter-spacing:1px}
+        .meta{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:30px}
+        .meta-box{padding:0}.meta-box h4{font-size:9px;text-transform:uppercase;color:#aaa;margin:0 0 6px;letter-spacing:1px}.meta-box p{margin:2px 0;font-size:13px;color:#555}
+        table{width:100%;border-collapse:collapse;margin-bottom:30px}
+        th{text-align:left;padding:12px 0;font-size:10px;text-transform:uppercase;color:#aaa;letter-spacing:0.5px;border-bottom:1px solid #ddd}
+        td{padding:12px 0;border-bottom:1px solid #f5f5f5;font-size:13px;color:#444}.text-right{text-align:right}
+        .totals{margin-left:auto;width:260px}.totals tr td{padding:6px 0;font-size:13px}
+        .totals .grand{font-size:16px;font-weight:600;border-top:1px solid #333;color:#111}
+        .notes{margin-top:30px;font-size:11px;color:#888;border-left:2px solid #eee;padding-left:12px}
+        .footer{margin-top:50px;text-align:center;font-size:9px;color:#ccc}`,
+    };
     w.document.write(`<!DOCTYPE html><html><head><title>Invoice ${inv.invoiceNumber}</title><style>
-      body{font-family:Inter,sans-serif;margin:0;padding:40px;color:#1a1a1a}
-      .header{display:flex;justify-content:space-between;margin-bottom:30px;border-bottom:3px solid #F27D26;padding-bottom:20px}
-      .company{font-size:20px;font-weight:700}
-      .inv-title{font-size:28px;font-weight:700;color:#F27D26}
-      .meta{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
-      .meta-box{background:#f9fafb;padding:16px;border-radius:8px}
-      .meta-box h4{font-size:10px;text-transform:uppercase;color:#999;margin:0 0 4px}
-      .meta-box p{margin:2px 0;font-size:13px}
-      table{width:100%;border-collapse:collapse;margin-bottom:24px}
-      th{background:#f3f4f6;text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;color:#666;border-bottom:2px solid #e5e7eb}
-      td{padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:13px}
-      .text-right{text-align:right}
-      .totals{margin-left:auto;width:280px}
-      .totals tr td{padding:6px 12px;font-size:13px}
-      .totals .grand{font-size:16px;font-weight:700;border-top:2px solid #1a1a1a}
-      .notes{margin-top:24px;padding:16px;background:#fffbeb;border-radius:8px;font-size:12px;color:#92400e}
-      .footer{margin-top:40px;text-align:center;font-size:10px;color:#999}
+      ${styles[pdfStyle]}
       @media print{body{padding:20px}button{display:none}}
     </style></head><body>
     <div class="header">
@@ -121,9 +145,16 @@ export function InvoicesView() {
           <h2 className="text-xl font-bold flex items-center gap-2"><FileText size={22} /> Invoices</h2>
           <p className="text-sm text-gray-500">{invoices.length} invoice{invoices.length !== 1 ? 's' : ''}</p>
         </div>
-        <button type="button" onClick={() => setCreateOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20">
-          <Plus size={18} /> New Invoice
-        </button>
+        <div className="flex items-center gap-2">
+          <select value={pdfStyle} onChange={e => { const v = e.target.value as 'modern' | 'classic' | 'minimal'; setPdfStyle(v); localStorage.setItem('dg_inv_style', v); }} className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-brand">
+            <option value="modern">Modern</option>
+            <option value="classic">Classic (Tally)</option>
+            <option value="minimal">Minimal</option>
+          </select>
+          <button type="button" onClick={() => setCreateOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20">
+            <Plus size={18} /> New Invoice
+          </button>
+        </div>
       </div>
 
       {/* Invoice list */}
