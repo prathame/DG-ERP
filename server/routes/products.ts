@@ -358,7 +358,7 @@ router.post('/api/products/batch', async (req, res) => {
         let pIdx = 1;
         for (let j = 0; j < barcodes.length; j++) {
           vals.push(`($${pIdx},$${pIdx+1},$${pIdx+2},$${pIdx+3},$${pIdx+4},$${pIdx+5},$${pIdx+6})`);
-          params.push(`I${productId}-${j+1}`, productId, barcodes[j], batchId, 'InStock', tenantId, unitType);
+          params.push(uid('I'), productId, barcodes[j], batchId, 'InStock', tenantId, unitType);
           pIdx += 7;
         }
         if (vals.length) await client.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type) VALUES ${vals.join(',')}`, params);

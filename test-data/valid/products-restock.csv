@@ -1,0 +1,7 @@
+name,price,barcodePrefix,quantity,packSize,packName,description,hsnCode,gstRate,priceIncludesGst,warrantyMonths,rewardPoints
+Syngenta Cruiser 350 FS (100ml),480,SYN100,50,12,Box,Restock batch,38089190,18,N,0,5
+Bayer Confidor 200 SL (250ml),620,BAY250,80,10,Box,Restock batch,38089190,18,Y,0,5
+UPL Saaf Fungicide (500g),340,UPL500,100,20,Box,Restock batch,38082010,18,N,0,3
+Zuari Urea 46% N (50kg),267,ZUA050,200,1,Bag,Restock batch,31021000,5,N,0,1
+IFFCO DAP 18-46-0 (50kg),1350,IFF050,150,1,Bag,Restock batch,31053000,5,N,0,3
+Neptune Knapsack Sprayer 16L,1850,NEP016,10,1,Piece,Restock batch,84242000,18,N,12,10
