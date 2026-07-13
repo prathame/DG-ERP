@@ -567,6 +567,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             { key: 'warrantyMonths', label: 'Warranty Months' },
             { key: 'rewardPoints', label: 'Reward Points' },
           ]}
+          existingNames={products.map(p => p.name)}
           onClose={() => { setCsvImportOpen(false); api.products.list().then(setProducts).catch(() => {}); }}
           onImport={async (rows) => {
             try {

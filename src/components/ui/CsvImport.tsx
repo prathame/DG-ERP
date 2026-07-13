@@ -8,6 +8,7 @@ export interface CsvImportProps {
   columns: { key: string; label: string; required?: boolean }[];
   templateName: string;
   itemLabel?: string;
+  existingNames?: string[];
 }
 
 function parseCsv(text: string): { headers: string[]; rows: Record<string, string>[] } {
@@ -23,7 +24,7 @@ function parseCsv(text: string): { headers: string[]; rows: Record<string, strin
   return { headers, rows };
 }
 
-export function CsvImport({ onImport, onClose, columns, templateName, itemLabel = 'items' }: CsvImportProps) {
+export function CsvImport({ onImport, onClose, columns, templateName, itemLabel = 'items', existingNames }: CsvImportProps) {
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
@@ -188,22 +189,39 @@ export function CsvImport({ onImport, onClose, columns, templateName, itemLabel 
                 </div>
               </div>
 
-              {rows.length > 0 && (
-                <>
+              {rows.length > 0 && (() => {
+                const existingSet = new Set((existingNames || []).map(n => n.toLowerCase()));
+                const nameKey = headers.find(h => h.toLowerCase() === 'name') || headers[0];
+                const newCount = rows.filter(r => !existingSet.has((r[nameKey] || '').toLowerCase())).length;
+                const stockCount = rows.length - newCount;
+                return <>
+                  {existingNames && stockCount > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-2 text-sm">
+                      <AlertCircle size={16} className="text-blue-600 shrink-0" />
+                      <span className="text-blue-800"><strong>{stockCount}</strong> {itemLabel} already exist — stock will be added. <strong>{newCount}</strong> new will be created.</span>
+                    </div>
+                  )}
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
                     <div className="overflow-x-auto max-h-60">
                       <table className="w-full text-xs">
                         <thead><tr className="bg-gray-50 border-b border-gray-200">
                           <th className="px-3 py-2 text-left font-bold text-gray-500">#</th>
+                          {existingNames && <th className="px-3 py-2 text-left font-bold text-gray-500">Status</th>}
                           {headers.map((h) => <th key={h} className="px-3 py-2 text-left font-bold text-gray-500">{h}</th>)}
                         </tr></thead>
                         <tbody>
-                          {rows.slice(0, 10).map((row, i) => (
-                            <tr key={i} className={cn("border-b border-gray-50", errorRow === i ? "bg-rose-50" : "")}>
-                              <td className={cn("px-3 py-2", errorRow === i ? "text-rose-600 font-bold" : "text-gray-400")}>{i + 2}{errorRow === i && ' ⚠️'}</td>
-                              {headers.map((h) => <td key={h} className={cn("px-3 py-2", errorRow === i ? "text-rose-700 font-medium" : "")}>{row[h] || '-'}</td>)}
-                            </tr>
-                          ))}
+                          {rows.slice(0, 10).map((row, i) => {
+                            const isExisting = existingNames && existingSet.has((row[nameKey] || '').toLowerCase());
+                            return (
+                              <tr key={i} className={cn("border-b border-gray-50", errorRow === i ? "bg-rose-50" : isExisting ? "bg-blue-50/30" : "")}>
+                                <td className={cn("px-3 py-2", errorRow === i ? "text-rose-600 font-bold" : "text-gray-400")}>{i + 2}{errorRow === i && ' ⚠️'}</td>
+                                {existingNames && <td className="px-3 py-2">
+                                  <span className={cn("px-1.5 py-0.5 rounded-full text-[9px] font-bold", isExisting ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700")}>{isExisting ? '+STOCK' : 'NEW'}</span>
+                                </td>}
+                                {headers.map((h) => <td key={h} className={cn("px-3 py-2", errorRow === i ? "text-rose-700 font-medium" : "")}>{row[h] || '-'}</td>)}
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -211,10 +229,10 @@ export function CsvImport({ onImport, onClose, columns, templateName, itemLabel 
                   </div>
 
                   <button type="button" onClick={handleImport} disabled={importing} className="w-full py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:opacity-60 flex items-center justify-center gap-2">
-                    <Upload size={16} /> {importing ? 'Importing...' : `Import ${rows.length} ${itemLabel}`}
+                    <Upload size={16} /> {importing ? 'Importing...' : `Import ${rows.length} ${itemLabel}${stockCount > 0 ? ` (${newCount} new, ${stockCount} restock)` : ''}`}
                   </button>
-                </>
-              )}
+                </>;
+              })()}
 
               {error && (
                 <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-start gap-2">
