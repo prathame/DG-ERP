@@ -31,6 +31,8 @@ import { PrivacyPolicy } from './components/layout/PrivacyPolicy';
 import { TermsOfService } from './components/layout/TermsOfService';
 import { ChatWidget } from './components/layout/ChatWidget';
 import { session } from './lib/session';
+import { CommandPalette } from './components/ui/CommandPalette';
+import { Search } from 'lucide-react';
 
 const DashboardView = lazy(() => import('./features/dashboard/DashboardView').then(m => ({ default: m.DashboardView })));
 const SalesEntryView = lazy(() => import('./features/sales/SalesEntryView').then(m => ({ default: m.SalesEntryView })));
@@ -108,6 +110,7 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [cmdOpen, setCmdOpen] = useState(false);
   const [user, setUser] = useState<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean } | null>(() => {
     try {
       const u = session.getUser();
@@ -141,6 +144,14 @@ export default function App() {
     window.addEventListener('popstate', onPopState);
     window.history.replaceState({ tab: 'dashboard' }, '', window.location.pathname);
     return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCmdOpen(o => !o); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   const handleLogout = () => {
@@ -404,6 +415,11 @@ export default function App() {
             <h1 className="text-xl sm:text-2xl font-bold">{t(`nav.${activeTab}`)}</h1>
           </div>
           <div className="flex items-center gap-3">
+            <button type="button" onClick={() => setCmdOpen(true)} className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm text-gray-500">
+              <Search size={15} />
+              <span>Search...</span>
+              <kbd className="text-[10px] font-mono bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-400">⌘K</kbd>
+            </button>
             <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full">
               <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
               <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">{(userConfig?.planName as string) || 'Standard'} Plan</span>
@@ -502,6 +518,18 @@ export default function App() {
         </div>
       </nav>
     </div>
+    <AnimatePresence>
+      {cmdOpen && (
+        <CommandPalette
+          items={[
+            ...visibleNavItems.map(i => ({ id: i.id, label: i.label, icon: i.icon })),
+            { id: 'settings', label: 'Settings', icon: Settings },
+          ]}
+          onSelect={(id) => setActiveTab(id as Tab)}
+          onClose={() => setCmdOpen(false)}
+        />
+      )}
+    </AnimatePresence>
     </ToastProvider>
   );
 }
