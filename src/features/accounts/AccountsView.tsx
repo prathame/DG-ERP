@@ -5,7 +5,7 @@ import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { fetchApi } from '../../api';
 
-type AccountTab = 'pnl' | 'balance' | 'cashflow' | 'ledger' | 'daybook' | 'notes' | 'sales' | 'distribution' | 'outstanding' | 'payments' | 'stock' | 'gst' | 'gstr2b';
+type AccountTab = 'pnl' | 'balance' | 'cashflow' | 'ledger' | 'daybook' | 'notes' | 'sales' | 'distribution' | 'outstanding' | 'payments' | 'stock' | 'gst' | 'gstr2b' | 'gstr3b';
 
 function fmtCurrency(n: number) { return `₹${Math.abs(n).toLocaleString('en-IN')}${n < 0 ? ' (Cr)' : ''}`; }
 
@@ -39,6 +39,7 @@ export function AccountsView({ accessLevel = 'full', businessType = 'manufacture
       else if (tab === 'payments') setData(await fetchApi(`/reports/payment-register?${qs}`));
       else if (tab === 'stock') setData(await fetchApi('/reports/stock-summary'));
       else if (tab === 'gst') setData(await fetchApi(`/reports/gst-summary?month=${gstMonth}&year=${gstYear}`));
+      else if (tab === 'gstr3b') setData(await fetchApi(`/gstr3b/compute?month=${gstMonth}&year=${gstYear}`));
     } catch { toast('Failed to load', 'error'); }
     finally { setLoading(false); }
   };
@@ -68,6 +69,7 @@ export function AccountsView({ accessLevel = 'full', businessType = 'manufacture
     { key: 'stock', label: 'Stock Summary', shortLabel: 'Stock', icon: Package, group: 'reports' },
     { key: 'gst', label: 'GST Summary', shortLabel: 'GST', icon: Receipt, group: 'reports' },
     { key: 'gstr2b', label: 'GSTR-2B Reconciliation', shortLabel: '2B', icon: FileCheck, group: 'reports' },
+    { key: 'gstr3b', label: 'GSTR-3B Computation', shortLabel: '3B', icon: FileCheck, group: 'reports' },
   ];
 
   return (
@@ -158,6 +160,7 @@ export function AccountsView({ accessLevel = 'full', businessType = 'manufacture
       )}
 
       {tab === 'gstr2b' && <Gstr2bReconciliation />}
+      {tab === 'gstr3b' && !loading && data && <Gstr3bView data={data as Record<string, unknown>} />}
 
       {!loading && !data && tab !== 'gstr2b' && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
@@ -634,6 +637,78 @@ function Gstr2bReconciliation() {
           <p className="text-gray-400 text-xs mt-3">Go to gst.gov.in → Returns → GSTR-2B → Download JSON</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// GSTR-3B computation view — output tax, ITC, net payable
+function Gstr3bView({ data }: { data: Record<string, unknown> }) {
+  const period = data.period as { month: number; year: number };
+  const output = data.output as { taxableValue: number; cgst: number; sgst: number; igst: number; total: number };
+  const itc = data.itc as { cgst: number; sgst: number; igst: number; total: number; fromPurchases: number; fromExpenses: number };
+  const net = data.netPayable as { cgst: number; sgst: number; igst: number; total: number };
+  const monthName = new Date(period.year, period.month - 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 bg-gray-50 border-b border-gray-200"><h4 className="font-bold text-sm">{title}</h4></div>
+      <div className="p-5">{children}</div>
+    </div>
+  );
+
+  const Row = ({ label, cgst, sgst, igst, total, bold }: { label: string; cgst: number; sgst: number; igst: number; total: number; bold?: boolean }) => (
+    <tr className={bold ? "border-t-2 border-gray-300 font-bold bg-gray-50" : "border-b border-gray-100"}>
+      <td className="py-2.5 px-3 text-sm">{label}</td>
+      <td className="py-2.5 px-3 text-sm text-right font-mono">{fmtCurrency(cgst)}</td>
+      <td className="py-2.5 px-3 text-sm text-right font-mono">{fmtCurrency(sgst)}</td>
+      <td className="py-2.5 px-3 text-sm text-right font-mono">{fmtCurrency(igst)}</td>
+      <td className="py-2.5 px-3 text-sm text-right font-mono font-semibold">{fmtCurrency(total)}</td>
+    </tr>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-brand/10 rounded-xl px-4 py-3 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-bold text-brand">GSTR-3B Summary</p>
+          <p className="text-xs text-gray-600">{monthName} — Copy these values to GST portal</p>
+        </div>
+        <button type="button" onClick={() => {
+          const text = `GSTR-3B ${monthName}\n\nOutput Tax: ₹${output.total.toLocaleString()}\n  Taxable Value: ₹${output.taxableValue.toLocaleString()}\n  CGST: ₹${output.cgst.toLocaleString()}\n  SGST: ₹${output.sgst.toLocaleString()}\n\nITC Claimed: ₹${itc.total.toLocaleString()}\n  From Purchases: ₹${itc.fromPurchases.toLocaleString()}\n  From Expenses: ₹${itc.fromExpenses.toLocaleString()}\n\nNet Tax Payable: ₹${net.total.toLocaleString()}\n  CGST: ₹${net.cgst.toLocaleString()}\n  SGST: ₹${net.sgst.toLocaleString()}`;
+          navigator.clipboard.writeText(text);
+        }} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand text-white rounded-lg text-xs font-bold">
+          Copy to Clipboard
+        </button>
+      </div>
+
+      <Section title="3.1 — Outward Supplies (Output Tax)">
+        <table className="w-full"><thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-200">
+          <th className="py-2 px-3 text-left">Description</th><th className="py-2 px-3 text-right">CGST</th><th className="py-2 px-3 text-right">SGST</th><th className="py-2 px-3 text-right">IGST</th><th className="py-2 px-3 text-right">Total</th>
+        </tr></thead><tbody>
+          <Row label={`Taxable Value: ₹${output.taxableValue.toLocaleString()}`} cgst={output.cgst} sgst={output.sgst} igst={output.igst} total={output.total} />
+        </tbody></table>
+      </Section>
+
+      <Section title="4 — Input Tax Credit (ITC)">
+        <table className="w-full"><thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-200">
+          <th className="py-2 px-3 text-left">Source</th><th className="py-2 px-3 text-right">CGST</th><th className="py-2 px-3 text-right">SGST</th><th className="py-2 px-3 text-right">IGST</th><th className="py-2 px-3 text-right">Total</th>
+        </tr></thead><tbody>
+          <Row label="From Purchases" cgst={Math.round(itc.fromPurchases / 2 * 100) / 100} sgst={Math.round(itc.fromPurchases / 2 * 100) / 100} igst={0} total={itc.fromPurchases} />
+          <Row label="From Expenses (eligible)" cgst={Math.round(itc.fromExpenses / 2 * 100) / 100} sgst={Math.round(itc.fromExpenses / 2 * 100) / 100} igst={0} total={itc.fromExpenses} />
+          <Row label="Total ITC" cgst={itc.cgst} sgst={itc.sgst} igst={itc.igst} total={itc.total} bold />
+        </tbody></table>
+      </Section>
+
+      <Section title="6.1 — Net Tax Payable">
+        <table className="w-full"><thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-200">
+          <th className="py-2 px-3 text-left">Head</th><th className="py-2 px-3 text-right">CGST</th><th className="py-2 px-3 text-right">SGST</th><th className="py-2 px-3 text-right">IGST</th><th className="py-2 px-3 text-right">Total</th>
+        </tr></thead><tbody>
+          <Row label="Output Tax" cgst={output.cgst} sgst={output.sgst} igst={0} total={output.total} />
+          <Row label="Less: ITC" cgst={itc.cgst} sgst={itc.sgst} igst={0} total={itc.total} />
+          <Row label="Net Payable" cgst={net.cgst} sgst={net.sgst} igst={net.igst} total={net.total} bold />
+        </tbody></table>
+        <p className="text-xs text-gray-400 mt-3">* IGST shown as 0 — inter-state transactions need manual adjustment. Verify with CA before filing.</p>
+      </Section>
     </div>
   );
 }

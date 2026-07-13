@@ -376,6 +376,71 @@ router.get('/api/accounts/day-book', async (req, res) => {
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// GSTR-3B Computation — output tax, ITC, net payable
+router.get('/api/gstr3b/compute', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { month, year } = req.query;
+    const m = Number(month) || new Date().getMonth() + 1;
+    const y = Number(year) || new Date().getFullYear();
+    const startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+    const endDate = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+
+    // Output tax — from distribution (sales)
+    const distRows = (await pool.query(
+      `SELECT SUM(CASE WHEN gst_applied THEN billed_price - cost_price ELSE 0 END) as total_tax,
+              SUM(cost_price) as taxable_value,
+              SUM(billed_price) as total_value
+       FROM product_distribution WHERE tenant_id = $1 AND distribution_date >= $2 AND distribution_date < $3`,
+      [tenantId, startDate, endDate]
+    )).rows[0] as { total_tax: string; taxable_value: string; total_value: string };
+
+    // Output from standalone invoices
+    const invRows = (await pool.query(
+      `SELECT COALESCE(SUM(subtotal), 0) as taxable, COALESCE(SUM(tax_total), 0) as tax, COALESCE(SUM(grand_total), 0) as total
+       FROM standalone_invoices WHERE tenant_id = $1 AND invoice_date >= $2 AND invoice_date < $3 AND status != 'cancelled'`,
+      [tenantId, startDate, endDate]
+    )).rows[0] as { taxable: string; tax: string; total: string };
+
+    // ITC — from purchases
+    const purchaseRows = (await pool.query(
+      `SELECT SUM(CASE WHEN gst_applied THEN billed_price - cost_price ELSE 0 END) as total_itc,
+              SUM(cost_price) as taxable_value
+       FROM product_purchases WHERE tenant_id = $1 AND purchase_date >= $2 AND purchase_date < $3`,
+      [tenantId, startDate, endDate]
+    )).rows[0] as { total_itc: string; taxable_value: string };
+
+    // Expenses ITC (only GST-applicable expenses)
+    const expenseRows = (await pool.query(
+      `SELECT COALESCE(SUM(amount * 0.18 / 1.18), 0) as itc
+       FROM expenses WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date < $3
+       AND category IN ('Office Supplies', 'Vehicle / Fuel', 'Marketing / Ads', 'Software / Tools', 'Communication / Internet', 'Equipment / Machinery')`,
+      [tenantId, startDate, endDate]
+    )).rows[0] as { itc: string };
+
+    const outputTax = Number(distRows.total_tax || 0) + Number(invRows.tax || 0);
+    const outputTaxable = Number(distRows.taxable_value || 0) + Number(invRows.taxable || 0);
+    const itcPurchases = Number(purchaseRows.total_itc || 0);
+    const itcExpenses = Number(expenseRows.itc || 0);
+    const totalItc = itcPurchases + itcExpenses;
+    const netPayable = Math.max(0, outputTax - totalItc);
+
+    // Split into IGST / CGST+SGST (approximate — 50/50 for intra-state)
+    const cgst = Math.round(outputTax / 2 * 100) / 100;
+    const sgst = Math.round(outputTax / 2 * 100) / 100;
+    const itcCgst = Math.round(totalItc / 2 * 100) / 100;
+    const itcSgst = Math.round(totalItc / 2 * 100) / 100;
+
+    res.json({
+      period: { month: m, year: y },
+      output: { taxableValue: Math.round(outputTaxable), cgst, sgst, igst: 0, cess: 0, total: Math.round(outputTax * 100) / 100 },
+      itc: { cgst: itcCgst, sgst: itcSgst, igst: 0, total: Math.round(totalItc * 100) / 100, fromPurchases: Math.round(itcPurchases * 100) / 100, fromExpenses: Math.round(itcExpenses * 100) / 100 },
+      netPayable: { cgst: Math.round(Math.max(0, cgst - itcCgst) * 100) / 100, sgst: Math.round(Math.max(0, sgst - itcSgst) * 100) / 100, igst: 0, total: Math.round(netPayable * 100) / 100 },
+    });
+  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 // GSTR-2B Reconciliation — stateless, upload JSON → match against purchases → return results
 router.post('/api/gstr2b/reconcile', async (req, res) => {
   try {
