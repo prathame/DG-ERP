@@ -7,6 +7,7 @@ import { useToast, LoadingSpinner } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { session } from '../../lib/session';
+import { api } from '../../api';
 
 type Invoice = {
   id: string; invoiceNumber: string; customerName: string; customerGstin?: string;
@@ -23,6 +24,7 @@ export function InvoicesView() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [billSettings, setBillSettings] = useState<Record<string, unknown>>({});
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
 
@@ -35,7 +37,7 @@ export function InvoicesView() {
   const load = () => {
     fetchApi<Invoice[]>('/invoices').then(setInvoices).catch(() => {}).finally(() => setLoading(false));
   };
-  useEffect(load, []);
+  useEffect(() => { load(); api.settings.getBillSettings().then(s => setBillSettings(s || {})).catch(() => {}); }, []);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -64,74 +66,86 @@ export function InvoicesView() {
 
   const printInvoice = (inv: Invoice) => {
     const user = session.getUser() || {};
+    const bs = billSettings;
+    const color = (bs.primaryColor as string) || '#F27D26';
+    const logoHtml = bs.logoBase64
+      ? `<img src="${bs.logoBase64}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
+      : `<div style="width:48px;height:48px;background:${color};border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:20px;">${(user.companyName || 'C').substring(0, 1)}</div>`;
+    const tagline = (bs.tagline as string) || '';
+    const invPrefix = (bs.invoicePrefix as string) || '';
+    const footerText = (bs.footerText as string) || 'Powered by DG ERP';
+    const hasBankDetails = bs.bankAccountName || bs.bankAccountNumber || bs.bankName;
+    const upiQrHtml = bs.bankUpiId ? `<div style="text-align:center;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}" style="width:120px;height:120px;" /><p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p></div>` : '';
+    const bankHtml = hasBankDetails || upiQrHtml ? `<div style="margin-top:16px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">${hasBankDetails ? `<div style="flex:1;"><strong style="font-size:12px;">Bank Details</strong><table style="width:100%;margin-top:6px;font-size:11px;">${bs.bankAccountName ? `<tr><td style="color:#6b7280;width:100px;">Account Name</td><td>${bs.bankAccountName}</td></tr>` : ''}${bs.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${bs.bankAccountNumber}</td></tr>` : ''}${bs.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${bs.bankName}${bs.bankBranch ? `, ${bs.bankBranch}` : ''}</td></tr>` : ''}${bs.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${bs.bankIfsc}</td></tr>` : ''}</table></div>` : ''}${upiQrHtml}</div></div>` : '';
+    const sigHtml = (bs.signatoryName || bs.signatureBase64) ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;"><div style="text-align:center;">${bs.signatureBase64 ? `<img src="${bs.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}<p style="font-size:11px;border-top:1px solid #999;padding-top:4px;">${bs.signatoryName || ''}${bs.signatoryDesignation ? `<br/><span style="font-size:10px;color:#666;">${bs.signatoryDesignation}</span>` : ''}</p></div></div>` : '';
+    const termsHtml = (inv.terms || bs.termsAndConditions) ? `<div style="margin-top:16px;font-size:10px;color:#666;"><strong>Terms & Conditions:</strong><br/>${inv.terms || bs.termsAndConditions}</div>` : '';
+
     const w = window.open('', '_blank');
     if (!w) return;
-    const styles: Record<string, string> = {
-      modern: `body{font-family:Inter,sans-serif;margin:0;padding:40px;color:#1a1a1a}
-        .header{display:flex;justify-content:space-between;margin-bottom:30px;border-bottom:3px solid #F27D26;padding-bottom:20px}
-        .company{font-size:20px;font-weight:700}.inv-title{font-size:28px;font-weight:700;color:#F27D26}
-        .meta{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
-        .meta-box{background:#f9fafb;padding:16px;border-radius:8px}.meta-box h4{font-size:10px;text-transform:uppercase;color:#999;margin:0 0 4px}.meta-box p{margin:2px 0;font-size:13px}
-        table{width:100%;border-collapse:collapse;margin-bottom:24px}
-        th{background:#f3f4f6;text-align:left;padding:10px 12px;font-size:11px;text-transform:uppercase;color:#666;border-bottom:2px solid #e5e7eb}
-        td{padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:13px}.text-right{text-align:right}
-        .totals{margin-left:auto;width:280px}.totals tr td{padding:6px 12px;font-size:13px}
-        .totals .grand{font-size:16px;font-weight:700;border-top:2px solid #1a1a1a}
-        .notes{margin-top:24px;padding:16px;background:#fffbeb;border-radius:8px;font-size:12px;color:#92400e}
-        .footer{margin-top:40px;text-align:center;font-size:10px;color:#999}`,
-      classic: `body{font-family:'Courier New',monospace;margin:0;padding:30px;color:#000}
-        .header{display:flex;justify-content:space-between;margin-bottom:20px;border-bottom:2px double #000;padding-bottom:15px}
-        .company{font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:1px}.inv-title{font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:2px}
-        .meta{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
-        .meta-box{border:1px solid #000;padding:12px}.meta-box h4{font-size:10px;text-transform:uppercase;margin:0 0 4px;font-weight:700}.meta-box p{margin:2px 0;font-size:12px}
-        table{width:100%;border-collapse:collapse;margin-bottom:20px;border:1px solid #000}
-        th{background:#eee;text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;border:1px solid #000}
-        td{padding:8px 10px;border:1px solid #ccc;font-size:12px}.text-right{text-align:right}
-        .totals{margin-left:auto;width:260px;border:1px solid #000}.totals tr td{padding:5px 10px;font-size:12px;border-bottom:1px solid #ccc}
-        .totals .grand{font-size:14px;font-weight:700;border-top:2px solid #000}
-        .notes{margin-top:20px;padding:12px;border:1px dashed #666;font-size:11px}
-        .footer{margin-top:30px;text-align:center;font-size:9px;color:#666}`,
-      minimal: `body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;margin:0;padding:50px;color:#333}
-        .header{display:flex;justify-content:space-between;margin-bottom:40px;padding-bottom:20px;border-bottom:1px solid #eee}
-        .company{font-size:18px;font-weight:300;letter-spacing:0.5px}.inv-title{font-size:24px;font-weight:300;color:#666;letter-spacing:1px}
-        .meta{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:30px}
-        .meta-box{padding:0}.meta-box h4{font-size:9px;text-transform:uppercase;color:#aaa;margin:0 0 6px;letter-spacing:1px}.meta-box p{margin:2px 0;font-size:13px;color:#555}
-        table{width:100%;border-collapse:collapse;margin-bottom:30px}
-        th{text-align:left;padding:12px 0;font-size:10px;text-transform:uppercase;color:#aaa;letter-spacing:0.5px;border-bottom:1px solid #ddd}
-        td{padding:12px 0;border-bottom:1px solid #f5f5f5;font-size:13px;color:#444}.text-right{text-align:right}
-        .totals{margin-left:auto;width:260px}.totals tr td{padding:6px 0;font-size:13px}
-        .totals .grand{font-size:16px;font-weight:600;border-top:1px solid #333;color:#111}
-        .notes{margin-top:30px;font-size:11px;color:#888;border-left:2px solid #eee;padding-left:12px}
-        .footer{margin-top:50px;text-align:center;font-size:9px;color:#ccc}`,
-    };
-    w.document.write(`<!DOCTYPE html><html><head><title>Invoice ${inv.invoiceNumber}</title><style>
-      ${styles[pdfStyle]}
-      @media print{body{padding:20px}button{display:none}}
+    const hasGst = inv.taxTotal > 0;
+    const halfGst = Math.round(inv.taxTotal / 2);
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${invPrefix}${inv.invoiceNumber}</title>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
+      table{border-collapse:collapse;}.outer{border:2px solid ${color};width:100%;}.outer td,.outer th{border:1px solid #ccc;padding:4px 8px;font-size:11px;}
+      .hdr{border-bottom:2px solid ${color};}.hdr td{border:none;padding:8px 12px;vertical-align:top;}
+      .tagline{background:${color};color:white;text-align:center;padding:4px;font-size:11px;font-weight:600;letter-spacing:1px;}
+      .title-row td{padding:6px 12px;font-size:12px;border-bottom:2px solid ${color};}
+      .gstin-text{font-family:monospace;font-weight:700;font-size:13px;}
+      .title-text{font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
+      .items th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:6px;text-align:center;font-weight:700;}
+      .items td{padding:5px 6px;text-align:center;}.items .left{text-align:left;}.items .right{text-align:right;}
+      .items .total-row{font-weight:700;background:#f0f0f0;}
+      .grand-total{font-size:16px;font-weight:900;color:${color};}
+      .footer-text{font-size:9px;color:#999;text-align:center;margin-top:8px;}
+      @media print{body{padding:10px;} @page{margin:8mm;}}
     </style></head><body>
-    <div class="header">
-      <div><div class="company">${user.companyName || 'DG ERP'}</div>
-      ${user.address ? `<p style="font-size:12px;color:#666;margin:4px 0">${user.address}</p>` : ''}
-      ${user.gstNumber ? `<p style="font-size:11px;color:#666;margin:2px 0">GSTIN: ${user.gstNumber}</p>` : ''}
-      ${user.phone ? `<p style="font-size:11px;color:#666;margin:2px 0">Ph: ${user.phone}</p>` : ''}</div>
-      <div style="text-align:right"><div class="inv-title">TAX INVOICE</div>
-      <p style="font-size:13px;margin:4px 0"><strong>${inv.invoiceNumber}</strong></p>
-      <p style="font-size:12px;color:#666">Date: ${formatDate(inv.invoiceDate)}</p>
-      ${inv.dueDate ? `<p style="font-size:12px;color:#666">Due: ${formatDate(inv.dueDate)}</p>` : ''}</div>
-    </div>
-    <div class="meta"><div class="meta-box"><h4>Bill To</h4>
-      <p><strong>${inv.customerName}</strong></p>
-      ${inv.customerGstin ? `<p>GSTIN: ${inv.customerGstin}</p>` : ''}
-      ${inv.customerAddress ? `<p>${inv.customerAddress}</p>` : ''}
-      ${inv.customerPhone ? `<p>Ph: ${inv.customerPhone}</p>` : ''}
-    </div></div>
-    <table><thead><tr><th>#</th><th>Description</th><th>HSN/SAC</th><th class="text-right">Qty</th><th class="text-right">Rate</th><th class="text-right">GST%</th><th class="text-right">Tax</th><th class="text-right">Amount</th></tr></thead>
-    <tbody>${inv.items.map((it, i) => `<tr><td>${i + 1}</td><td>${it.description}</td><td>${it.hsnSac || '—'}</td><td class="text-right">${it.qty}</td><td class="text-right">₹${Number(it.rate).toLocaleString()}</td><td class="text-right">${it.gstPercent}%</td><td class="text-right">₹${Number(it.tax).toLocaleString()}</td><td class="text-right">₹${Number(it.total).toLocaleString()}</td></tr>`).join('')}</tbody></table>
-    <table class="totals"><tr><td>Subtotal</td><td class="text-right">₹${inv.subtotal.toLocaleString()}</td></tr>
-    <tr><td>Tax</td><td class="text-right">₹${inv.taxTotal.toLocaleString()}</td></tr>
-    <tr class="grand"><td>Grand Total</td><td class="text-right">₹${inv.grandTotal.toLocaleString()}</td></tr></table>
-    ${inv.notes ? `<div class="notes"><strong>Notes:</strong> ${inv.notes}</div>` : ''}
-    ${inv.terms ? `<div style="margin-top:12px;font-size:11px;color:#666"><strong>Terms:</strong> ${inv.terms}</div>` : ''}
-    <div class="footer">Generated by DG ERP</div>
+    <table class="outer">
+      <tr class="hdr">
+        <td colspan="2" style="width:65%;">
+          <div style="display:flex;align-items:center;gap:12px;">${logoHtml}<div>
+            <div style="font-size:18px;font-weight:800;color:${color};">${user.companyName || 'DG ERP'}</div>
+            ${user.address ? `<div style="font-size:10px;color:#555;margin-top:2px;">${user.address}</div>` : ''}
+            ${user.phone ? `<div style="font-size:10px;color:#555;">Ph: ${user.phone}</div>` : ''}
+          </div></div>
+        </td>
+        <td colspan="2" style="text-align:right;width:35%;">
+          <div class="title-text" style="color:${color};">${hasGst ? 'TAX INVOICE' : 'INVOICE'}</div>
+          <div style="font-size:11px;margin-top:4px;"><strong>${invPrefix}${inv.invoiceNumber}</strong></div>
+          <div style="font-size:10px;color:#555;">Date: ${formatDate(inv.invoiceDate)}</div>
+          ${inv.dueDate ? `<div style="font-size:10px;color:#555;">Due: ${formatDate(inv.dueDate)}</div>` : ''}
+        </td>
+      </tr>
+      ${tagline ? `<tr><td colspan="4" class="tagline">${tagline}</td></tr>` : ''}
+      <tr class="title-row">
+        <td colspan="2">${user.gstNumber ? `<span class="gstin-text">GSTIN: ${user.gstNumber}</span>` : ''}</td>
+        <td colspan="2" style="text-align:right;">${inv.status === 'paid' ? '<span style="color:#059669;font-weight:700;">✓ PAID</span>' : ''}</td>
+      </tr>
+      <tr><td colspan="4" style="padding:8px 12px;">
+        <table style="width:100%;"><tr>
+          <td style="border:none;width:50%;vertical-align:top;padding:4px 8px;">
+            <strong style="font-size:10px;color:#555;">BILL TO:</strong><br/>
+            <strong>${inv.customerName}</strong>
+            ${inv.customerGstin ? `<br/><span style="font-family:monospace;font-size:11px;">GSTIN: ${inv.customerGstin}</span>` : ''}
+            ${inv.customerAddress ? `<br/><span style="font-size:10px;">${inv.customerAddress}</span>` : ''}
+            ${inv.customerPhone ? `<br/><span style="font-size:10px;">Ph: ${inv.customerPhone}</span>` : ''}
+          </td>
+        </tr></table>
+      </td></tr>
+    </table>
+    <table class="outer items" style="margin-top:-2px;">
+      <thead><tr><th style="width:30px;">Sr</th><th class="left">Description</th><th>HSN/SAC</th><th>Qty</th><th class="right">Rate</th>${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr></thead>
+      <tbody>
+        ${inv.items.map((it, i) => `<tr><td>${i + 1}</td><td class="left">${it.description}</td><td>${it.hsnSac || '—'}</td><td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`).join('')}
+        <tr class="total-row"><td colspan="${hasGst ? 7 : 5}" class="right">Subtotal</td><td class="right">₹${inv.subtotal.toLocaleString()}</td></tr>
+        ${hasGst ? `<tr><td colspan="7" class="right">CGST</td><td class="right">₹${halfGst.toLocaleString()}</td></tr>
+        <tr><td colspan="7" class="right">SGST</td><td class="right">₹${(inv.taxTotal - halfGst).toLocaleString()}</td></tr>` : ''}
+        <tr class="total-row"><td colspan="${hasGst ? 7 : 5}" class="right"><span class="grand-total">Grand Total</span></td><td class="right"><span class="grand-total">₹${inv.grandTotal.toLocaleString()}</span></td></tr>
+      </tbody>
+    </table>
+    ${inv.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${inv.notes}</div>` : ''}
+    ${bankHtml}${termsHtml}${sigHtml}
+    <p class="footer-text">${footerText}</p>
     <script>window.print()</script></body></html>`);
     w.document.close();
   };
