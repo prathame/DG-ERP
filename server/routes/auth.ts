@@ -46,7 +46,7 @@ router.post('/api/auth/login', async (req, res) => {
     // Login searches across all tenants using JOIN
     const row = (await pool.query(`
       SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name,
-             u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, u.gst_number,
+             u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number,
              u.password_hash, u.tenant_id,
              t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status,
              t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
@@ -166,7 +166,7 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const row = (await pool.query('SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, u.gst_number, t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled, t.tab_config, t.business_type FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1 AND u.tenant_id = $2', [userId, tenantId])).rows[0] as Record<string, unknown> | undefined;
+    const row = (await pool.query('SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number, t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled, t.tab_config, t.business_type FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1 AND u.tenant_id = $2', [userId, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'User not found' });
 
     const rawPerms = typeof row.permissions === 'string' ? JSON.parse(row.permissions) : row.permissions;
@@ -206,7 +206,7 @@ router.put('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
       await pool.query('UPDATE users SET default_gst_rate = $1 WHERE id = $2 AND tenant_id = $3', [Number(defaultGstRate) || 18, userId, tenantId]);
     }
 
-    const row = (await pool.query('SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.auto_whatsapp, u.default_gst_rate, u.gst_number, t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1 AND u.tenant_id = $2', [userId, tenantId])).rows[0] as Record<string, unknown> | undefined;
+    const row = (await pool.query('SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number, t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1 AND u.tenant_id = $2', [userId, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'User not found' });
 
     res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, vendorPortalEnabled: row.vendor_portal_enabled !== false, barcodeSystemEnabled: row.barcode_system_enabled !== false, multiLanguageEnabled: row.multi_language_enabled !== false });
