@@ -658,6 +658,31 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_pd_status ON product_distribution(tenant_id, status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(tenant_id, status)');
 
+    // Standalone invoices (non-inventory billing)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS standalone_invoices (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+        invoice_number TEXT NOT NULL,
+        customer_name TEXT NOT NULL,
+        customer_gstin TEXT,
+        customer_address TEXT,
+        customer_phone TEXT,
+        items JSONB NOT NULL DEFAULT '[]',
+        subtotal NUMERIC(12,2) NOT NULL DEFAULT 0,
+        tax_total NUMERIC(12,2) NOT NULL DEFAULT 0,
+        grand_total NUMERIC(12,2) NOT NULL DEFAULT 0,
+        notes TEXT,
+        terms TEXT,
+        status TEXT DEFAULT 'draft',
+        invoice_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        due_date DATE,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_si_tenant ON standalone_invoices(tenant_id, created_at DESC)');
+
     // Purchase invoice number for GSTR-2B reconciliation
     await client.query("ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS invoice_number TEXT");
 

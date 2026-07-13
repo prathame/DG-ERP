@@ -18,6 +18,7 @@ import {
   BarChart3,
   Bell,
   Search,
+  Receipt,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -47,6 +48,7 @@ const AccountsView = lazy(() => import('./features/accounts/AccountsView').then(
 const SettingsView = lazy(() => import('./features/settings/SettingsView').then(m => ({ default: m.SettingsView })));
 const ProductVerificationView = lazy(() => import('./features/verification/ProductVerificationView').then(m => ({ default: m.ProductVerificationView })));
 const PayrollView = lazy(() => import('./features/payroll/PayrollView').then(m => ({ default: m.PayrollView })));
+const InvoicesView = lazy(() => import('./features/invoices/InvoicesView').then(m => ({ default: m.InvoicesView })));
 const SuperAdminApp = lazy(() => import('./features/super-admin/SuperAdminApp').then(m => ({ default: m.SuperAdminApp })));
 const SuperAdminLogin = lazy(() => import('./features/super-admin/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })));
 
@@ -185,6 +187,7 @@ export default function App() {
       { id: 'quotations', label: tc('quotations', 'Quotes & Orders'), icon: FileText, show: true },
     ]},
     { label: 'Finance & Reports', items: [
+      { id: 'invoices', label: 'Invoices', icon: Receipt, show: true },
       { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
       { id: 'accounts', label: 'Accounts', icon: BarChart3, show: true },
     ]},
@@ -476,6 +479,7 @@ export default function App() {
           {activeTab === 'inventory' && <InventoryView accessLevel={getAccess('inventory')} />}
           {activeTab === 'verification' && <ProductVerificationView />}
           {activeTab === 'quotations' && <QuotationsAndOrdersView />}
+          {activeTab === 'invoices' && <InvoicesView />}
           {activeTab === 'finance' && <VendorFinanceView user={user} accessLevel={getAccess('finance')} />}
           {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
           </div>
