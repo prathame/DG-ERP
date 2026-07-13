@@ -158,21 +158,29 @@ export default function App() {
   const tc = (key: string, fallback: string) => tabConfig[key]?.label || fallback;
   const tv = (key: string) => tabConfig[key]?.visible !== false;
 
-  const allNavItems = [
-    { id: 'dashboard', label: tc('dashboard', t('nav.dashboard')), icon: LayoutDashboard, show: true },
-    { id: 'sales', label: tc('sales', t('nav.sales')), icon: ShoppingCart, show: tv('sales') },
-    { id: 'distribution', label: tc('distribution', t('nav.distribution')), icon: Package, show: tv('distribution') },
-    { id: 'inventory', label: tc('inventory', t('nav.inventory')), icon: Package, show: tv('inventory') },
-    { id: 'purchases', label: tc('purchases', 'Purchase / Expense'), icon: ShoppingBag, show: tv('purchases') },
-    { id: 'verification', label: tc('verification', t('nav.verification')), icon: ScanSearch, show: tv('verification') },
-    { id: 'quotations', label: tc('quotations', 'Quotes & Orders'), icon: FileText, show: true },
-    { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
-    { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },
-    { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') },
-    { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') },
-    { id: 'accounts', label: 'Accounts', icon: BarChart3, show: true },
+  const navSections = [
+    { label: '', items: [
+      { id: 'dashboard', label: tc('dashboard', t('nav.dashboard')), icon: LayoutDashboard, show: true },
+      { id: 'sales', label: tc('sales', t('nav.sales')), icon: ShoppingCart, show: tv('sales') },
+      { id: 'distribution', label: tc('distribution', t('nav.distribution')), icon: Package, show: tv('distribution') },
+      { id: 'inventory', label: tc('inventory', t('nav.inventory')), icon: Package, show: tv('inventory') },
+    ]},
+    { label: 'Supply Chain', items: [
+      { id: 'purchases', label: tc('purchases', 'Purchase / Expense'), icon: ShoppingBag, show: tv('purchases') },
+      { id: 'verification', label: tc('verification', t('nav.verification')), icon: ScanSearch, show: tv('verification') },
+      { id: 'quotations', label: tc('quotations', 'Quotes & Orders'), icon: FileText, show: true },
+    ]},
+    { label: 'Finance & Reports', items: [
+      { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
+      { id: 'accounts', label: 'Accounts', icon: BarChart3, show: true },
+    ]},
+    { label: 'After Sales', items: [
+      { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },
+      { id: 'replacements', label: tc('replacements', t('nav.replacements')), icon: RefreshCw, show: tv('replacements') },
+      { id: 'rewards', label: tc('rewards', t('nav.rewards')), icon: Gift, show: tv('rewards') },
+    ]},
   ];
-  const navItems = allNavItems.filter(item => item.show);
+  const navItems = navSections.flatMap(s => s.items).filter(i => i.show);
 
   type AccessLevel = 'hidden' | 'view' | 'print' | 'full';
   const getAccess = (tabId: string): AccessLevel => {
@@ -287,74 +295,77 @@ export default function App() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "bg-[#151619] text-white transition-all duration-300 flex flex-col z-50",
+          "bg-white border-r border-gray-200 transition-all duration-300 flex flex-col z-50",
           "fixed lg:relative inset-y-0 left-0",
-          isSidebarOpen ? "w-64 translate-x-0" : "w-20 -translate-x-full lg:translate-x-0"
+          isSidebarOpen ? "w-60 translate-x-0" : "w-16 -translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="p-6 flex items-center justify-between">
+        <div className="h-16 px-4 flex items-center justify-between border-b border-gray-100">
           {isSidebarOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex items-center gap-2"
-            >
-              <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center font-bold text-xs">{(user?.companyName || 'DG').substring(0, 2).toUpperCase()}</div>
-              <span className="font-bold text-xl tracking-tight">{user?.companyName || 'DG ERP'}</span>
-            </motion.div>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0">{(user?.companyName || 'DG').substring(0, 2).toUpperCase()}</div>
+              <span className="font-semibold text-gray-900 text-sm truncate">{user?.companyName || 'DG ERP'}</span>
+            </div>
           )}
           <button
             type="button"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-1 hover:bg-white/10 rounded-md transition-colors cursor-pointer"
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500"
           >
-            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>
 
-        <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
-          {visibleNavItems.map((item, idx) => (<React.Fragment key={item.id}>
-            {isSidebarOpen && idx > 0 && (
-              (item.id === 'purchases' && <div className="pt-2 pb-1"><p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest px-3">Supply Chain</p></div>) ||
-              (item.id === 'finance' && <div className="pt-2 pb-1"><p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest px-3">Finance & Reports</p></div>) ||
-              (item.id === 'warranty' && <div className="pt-2 pb-1"><p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest px-3">After Sales</p></div>) ||
-              null
-            )}
-            {/* nav item */}
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => { setActiveTab(item.id as Tab); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
-              className={cn(
-                "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group relative",
-                activeTab === item.id
-                  ? "bg-brand text-white shadow-lg shadow-brand/20"
-                  : "hover:bg-white/5 text-gray-400 hover:text-white"
-              )}
-            >
-              <item.icon size={22} />
-              {isSidebarOpen && <span className="font-medium">{item.label}</span>}
-              {!isSidebarOpen && <span className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">{item.label}</span>}
-            </button>
-          </React.Fragment>))}
+        <nav className="flex-1 px-3 py-3 overflow-y-auto">
+          {navSections.map((section) => {
+            const sectionItems = section.items.filter(i => i.show && canAccess(i.id));
+            if (!sectionItems.length) return null;
+            return (
+              <div key={section.label || '_top'} className={section.label ? 'mt-4' : ''}>
+                {isSidebarOpen && section.label && (
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 mb-1">{section.label}</p>
+                )}
+                {!isSidebarOpen && section.label && <div className="my-2 mx-2 border-t border-gray-100" />}
+                <div className="space-y-0.5">
+                  {sectionItems.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => { setActiveTab(item.id as Tab); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
+                      className={cn(
+                        "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] group relative",
+                        activeTab === item.id
+                          ? "bg-brand/10 text-brand font-semibold"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      )}
+                    >
+                      <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} className="shrink-0" />
+                      {isSidebarOpen && <span>{item.label}</span>}
+                      {!isSidebarOpen && <span className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">{item.label}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
         {tv('chatbot') && (
-          <div className="px-4 pt-2">
+          <div className="px-3 pt-1">
             <ChatWidget />
           </div>
         )}
         {canAccess('settings') && (
-          <div className="p-4 border-t border-white/5">
-            <button type="button" onClick={() => { setActiveTab('settings'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} className={cn("w-full flex items-center gap-3 p-3 rounded-xl transition-all", activeTab === 'settings' ? 'bg-brand text-white' : 'hover:bg-white/5 text-gray-400 hover:text-white')}>
-              <Settings size={22} />
-              {isSidebarOpen && <span className="font-medium">{t('nav.settings')}</span>}
+          <div className="px-3 pb-2 border-t border-gray-100 pt-2">
+            <button type="button" onClick={() => { setActiveTab('settings'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} className={cn("w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px]", activeTab === 'settings' ? 'bg-brand/10 text-brand font-semibold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900')}>
+              <Settings size={18} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
+              {isSidebarOpen && <span>{t('nav.settings')}</span>}
             </button>
           </div>
         )}
         {isSidebarOpen && (
-          <div className="px-4 pb-3 text-center">
-            <p className="text-[10px] text-gray-600">Powered by <span className="text-gray-400 font-semibold">DG ERP</span></p>
+          <div className="px-3 pb-3 text-center">
+            <p className="text-[10px] text-gray-400">Powered by <span className="text-gray-500 font-semibold">DG ERP</span></p>
           </div>
         )}
       </aside>
