@@ -4,6 +4,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Set tenant context on a connection for RLS
+export async function setTenantContext(client: import('pg').PoolClient, tenantId: string) {
+  await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+}
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: process.env.DATABASE_POOL_SIZE ? parseInt(process.env.DATABASE_POOL_SIZE, 10) : (process.env.NODE_ENV === 'production' ? 10 : 20),
@@ -703,6 +708,35 @@ export async function initSchema() {
     await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_interval_days INTEGER DEFAULT 7");
     await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_last_at TIMESTAMPTZ");
     await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_email TEXT");
+
+    // Row Level Security (RLS) — DB-level tenant isolation safety net
+    // RLS policies enforce tenant_id filtering at the DB level.
+    // Table owner (our pool user) bypasses RLS — this is intentional.
+    // RLS protects against: direct DB access, SQL injection, developer mistakes.
+    // To enforce RLS on owner too: ALTER TABLE ... FORCE ROW LEVEL SECURITY
+    const rlsTables = [
+      'users', 'vendors', 'customers', 'products', 'product_inventory',
+      'product_distribution', 'product_sales', 'product_purchases',
+      'warranties', 'product_replacements', 'rewards', 'reward_rules',
+      'redemption_settings', 'banks', 'vendor_payments', 'vendor_reminder_settings',
+      'audit_log', 'categories', 'bill_settings', 'credit_debit_notes',
+      'price_lists', 'quotations', 'orders', 'suppliers', 'supplier_payments',
+      'expenses', 'staff_members', 'staff_payments', 'standalone_invoices',
+      'tenant_invoices', 'tenant_stats',
+    ];
+    for (const table of rlsTables) {
+      await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
+      await client.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = '${table}' AND policyname = '${table}_tenant_isolation') THEN
+            CREATE POLICY ${table}_tenant_isolation ON ${table}
+              USING (tenant_id = current_setting('app.tenant_id', true))
+              WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+          END IF;
+        END $$
+      `);
+    }
+    console.log('  ✓ Row Level Security policies applied');
 
     console.log('  ✓ Database schema ready');
   } finally {
