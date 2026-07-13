@@ -12,6 +12,15 @@ export function isValidPhone(phone: string): boolean {
   return /^(\+91)?[6-9]\d{9}$/.test(clean);
 }
 
+export function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+// GSTIN: 2-digit state + 10-char PAN + 1 entity + 1 Z + 1 checksum = 15 alphanumeric
+export function isValidGstin(gstin: string): boolean {
+  return /^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d][A-Z\d]$/.test(gstin.trim().toUpperCase());
+}
+
 
 /** Billable amount per distributed unit (GST-inclusive when billed_price is set). */
 export const DISTRIBUTION_BILL_UNIT_SQL = 'COALESCE(pd.billed_price, pd.net_price, p.price)';

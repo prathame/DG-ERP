@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { uid, hashPassword, logAudit, isValidPhone } from '../utils/helpers';
+import { uid, hashPassword, logAudit, isValidPhone, isValidEmail, isValidGstin } from '../utils/helpers';
 
 const router = Router();
 
@@ -104,6 +104,9 @@ router.post('/api/vendors', async (req, res) => {
     const { name, contactPerson, phone, email, address } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Vendor name is required' });
     if (phone && !isValidPhone(phone)) return res.status(400).json({ error: 'Invalid phone — must be 10-digit Indian mobile (6-9 start)' });
+    if (email && !isValidEmail(email)) return res.status(400).json({ error: 'Invalid email format' });
+    const gstNum = (req.body as Record<string, unknown>).gstNumber as string | undefined;
+    if (gstNum && !isValidGstin(gstNum)) return res.status(400).json({ error: 'Invalid GSTIN — must be 15 characters (e.g. 24AABCT1332L1ZS)' });
 
     const duplicate = (await pool.query(
       'SELECT id, name FROM vendors WHERE tenant_id = $1 AND (LOWER(name) = LOWER($2) OR (email IS NOT NULL AND email != \'\' AND LOWER(email) = LOWER($3)))',
