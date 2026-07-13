@@ -354,9 +354,9 @@ export default function App() {
             return (
               <div key={section.label || '_top'} className={section.label ? 'mt-3' : ''}>
                 {isSidebarOpen && section.label && (
-                  <button type="button" onClick={() => toggleSection(section.label)} className="w-full flex items-center justify-between px-3 py-1.5 mb-0.5 rounded-lg hover:bg-gray-50 transition-colors group">
-                    <span className={cn("text-[10px] font-semibold uppercase tracking-wider", hasActiveChild ? "text-brand" : "text-gray-400")}>{section.label}</span>
-                    <ChevronDown size={14} className={cn("text-gray-300 transition-transform", isCollapsed ? "-rotate-90" : "")} />
+                  <button type="button" onClick={() => toggleSection(section.label)} className="w-full flex items-center justify-between px-3 py-1.5 mb-0.5 rounded-lg hover:bg-gray-100 transition-colors group">
+                    <span className={cn("text-[11px] font-bold uppercase tracking-wider", hasActiveChild ? "text-brand" : "text-gray-600")}>{section.label}</span>
+                    <ChevronDown size={14} className={cn("text-gray-500 transition-transform", isCollapsed ? "-rotate-90" : "")} />
                   </button>
                 )}
                 {!isSidebarOpen && section.label && <div className="my-2 mx-2 border-t border-gray-100" />}
