@@ -111,9 +111,30 @@ export function CsvImport({ onImport, onClose, columns, templateName, itemLabel 
                   </div>
                 </div>
               ) : (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
-                  <Check size={24} className="text-emerald-600" />
-                  <p className="font-bold text-emerald-800">{result.success} {itemLabel} imported successfully</p>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
+                  <Check size={24} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-emerald-800">{result.success} {itemLabel} processed successfully</p>
+                    {(result as Record<string, unknown>).created != null && (
+                      <div className="text-sm text-emerald-700 mt-1 space-y-0.5">
+                        {Number((result as Record<string, unknown>).created) > 0 && <p>+ {(result as Record<string, unknown>).created} new {itemLabel} created</p>}
+                        {Number((result as Record<string, unknown>).stockAdded) > 0 && <p>+ {(result as Record<string, unknown>).stockAdded} existing {itemLabel} — stock added</p>}
+                      </div>
+                    )}
+                    {Array.isArray((result as Record<string, unknown>).details) && (
+                      <div className="mt-2 max-h-32 overflow-y-auto space-y-0.5">
+                        {((result as Record<string, unknown>).details as { name: string; action: string; quantity: number }[]).map((d, i) => (
+                          <p key={i} className="text-xs flex items-center gap-1.5">
+                            <span className={cn("px-1.5 py-0.5 rounded-full text-[9px] font-bold", d.action === 'created' ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700")}>
+                              {d.action === 'created' ? 'NEW' : '+STOCK'}
+                            </span>
+                            <span className="text-gray-700">{d.name}</span>
+                            <span className="text-gray-400">({d.quantity} units)</span>
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               {result.errors.length > 0 && (
