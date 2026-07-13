@@ -12,11 +12,13 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { useColumnPicker, ColumnPickerButton } from '../../components/ui/ColumnPicker';
+import { useConfirm } from '../../hooks/useConfirm';
 
 export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const canEdit = accessLevel === 'full';
   const canPrint = accessLevel === 'print' || accessLevel === 'full';
   const { toast } = useToast();
+  const { confirm, ConfirmRenderer } = useConfirm();
   const barcodeSystemEnabled = (() => { try { const u = (session.getUser() || {}); return u.barcodeSystemEnabled !== false; } catch { return true; } })();
   const inventoryTrackingEnabled = (() => { try { const u = (session.getUser() || {}); return u.inventoryTrackingEnabled !== false; } catch { return true; } })();
   const warrantyVisible = (() => { try { const u = (session.getUser() || {}); return u.tabConfig?.warranty?.visible !== false; } catch { return true; } })();
@@ -104,6 +106,10 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           <button type="button" onClick={() => sortedProducts.length && exportToCsv(sortedProducts.map((p) => ({ id: p.id, name: p.name, price: p.price, totalInventory: p.totalInventory ?? p.stock ?? 0, remainingInventory: p.remainingInventory ?? p.stock ?? 0, soldCount: p.soldCount ?? 0 })), 'inventory')} disabled={!sortedProducts.length} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={18} /> Export CSV
           </button>
+          {canEdit && sortedProducts.length > 0 && <button type="button" onClick={async () => {
+            if (!await confirm({ title: 'Delete All Inventory', message: `This will permanently delete all ${sortedProducts.length} products and their stock, barcodes, and distribution history. This cannot be undone.`, confirmLabel: `Delete All ${sortedProducts.length} Products`, variant: 'danger' })) return;
+            try { await fetchApi('/products/all', { method: 'DELETE' }); setProducts([]); toast('All inventory deleted', 'success'); } catch (err) { toast((err as Error).message, 'error'); }
+          }} className="hidden sm:flex items-center gap-2 px-4 py-2 border border-rose-200 text-rose-600 rounded-xl text-sm font-medium hover:bg-rose-50"><Trash2 size={16} /> Delete All</button>}
           <ColumnPickerButton columns={invCols} visible={colVisible} onToggle={colToggle} />
           <div className="relative flex-1 min-w-[150px] sm:min-w-[200px]">
             <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -582,6 +588,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           }}
         />
       )}
+      <ConfirmRenderer />
     </motion.div>
   );
 }

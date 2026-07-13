@@ -549,6 +549,26 @@ router.put('/api/products/:id', async (req, res) => {
   }
 });
 
+// Delete all products for tenant
+router.delete('/api/products/all', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    await client.query('BEGIN');
+    const tables = ['product_purchases', 'product_sales', 'product_distribution', 'product_inventory', 'price_lists', 'warranties', 'product_replacements'];
+    for (const t of tables) await client.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]);
+    const { rowCount } = await client.query('DELETE FROM products WHERE tenant_id = $1', [tenantId]);
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Delete All Products', 'product', 'all', `${rowCount} products deleted`);
+    res.json({ deleted: rowCount });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
+    res.status(500).json({ error: 'Failed to delete inventory' });
+  } finally { client.release(); }
+});
+
 router.delete('/api/products/:id', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
