@@ -171,6 +171,27 @@ router.put('/api/vendors/:id', async (req, res) => {
   }
 });
 
+// Delete all vendors for tenant
+router.delete('/api/vendors/all', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    await client.query('BEGIN');
+    const tables = ['price_lists', 'vendor_reminder_settings', 'vendor_payments', 'product_distribution', 'quotations', 'orders'];
+    for (const t of tables) await client.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]);
+    await client.query("DELETE FROM users WHERE tenant_id = $1 AND role = 'Vendor'", [tenantId]);
+    const { rowCount } = await client.query("DELETE FROM vendors WHERE tenant_id = $1 AND id != 'OWNER'", [tenantId]);
+    await client.query('COMMIT');
+    await logAudit(pool, tenantId, 'Delete All Vendors', 'vendor', 'all', `${rowCount} vendors deleted`);
+    res.json({ deleted: rowCount });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
+    res.status(500).json({ error: 'Failed to delete vendors' });
+  } finally { client.release(); }
+});
+
 router.delete('/api/vendors/:id', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

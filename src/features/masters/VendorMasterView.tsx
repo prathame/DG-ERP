@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Plus, Pencil, Trash2, ArrowLeft, CheckCircle2, AlertTriangle, MessageCircle, Mail, Download, Upload } from 'lucide-react';
 import { cn, exportToCsv, shareViaWhatsApp } from '../../lib/utils';
-import { api } from '../../api';
+import { api, fetchApi } from '../../api';
 import type { Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
+import { useConfirm } from '../../hooks/useConfirm';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
@@ -12,6 +13,7 @@ import { session } from '../../lib/session';
 export function VendorMasterView({ onBack, onRefresh, businessType = 'manufacturer' }: { onBack: () => void; onRefresh: () => void; businessType?: string }) {
   const label = businessType === 'dealer' || businessType === 'retail' ? 'Customer' : 'Vendor';
   const { toast } = useToast();
+  const { confirm, ConfirmRenderer } = useConfirm();
   const [list, setList] = useState<Vendor[]>([]);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 250);
@@ -71,6 +73,10 @@ export function VendorMasterView({ onBack, onRefresh, businessType = 'manufactur
           <button type="button" onClick={() => list.length && exportToCsv(list.map((v) => ({ id: v.id, name: v.name, contactPerson: v.contactPerson ?? '', phone: v.phone ?? '', email: v.email ?? '', address: v.address ?? '', totalSales: v.totalSales ?? 0, totalRewardPoints: v.totalRewardPoints ?? 0 })), 'vendors')} disabled={!list.length} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={18} /> Export CSV
           </button>
+          {list.length > 0 && <button type="button" onClick={async () => {
+            if (!await confirm({ title: `Delete All ${label}s`, message: `This will permanently delete all ${list.length} ${label.toLowerCase()}s and their related data (distributions, payments, price lists). This cannot be undone.`, confirmLabel: `Delete All ${list.length}`, variant: 'danger' })) return;
+            try { await fetchApi('/vendors/all', { method: 'DELETE' }); load(); toast(`All ${label.toLowerCase()}s deleted`, 'success'); } catch (err) { toast((err as Error).message, 'error'); }
+          }} className="hidden sm:flex items-center gap-2 px-4 py-2 border border-rose-200 text-rose-600 rounded-xl text-sm font-medium hover:bg-rose-50"><Trash2 size={16} /> Delete All</button>}
           <button type="button" onClick={() => setCsvImportOpen(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"><Upload size={18} /> Import CSV</button>
           <button type="button" onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={18} /> Add {label}</button>
         </div>
@@ -219,6 +225,7 @@ export function VendorMasterView({ onBack, onRefresh, businessType = 'manufactur
           }}
         />
       )}
+      <ConfirmRenderer />
     </motion.div>
   );
 }
