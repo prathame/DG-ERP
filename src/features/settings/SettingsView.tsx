@@ -696,7 +696,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Actions</th></tr></thead>
-                      <tbody className="divide-y divide-gray-50">
+                      <tbody className="divide-y divide-gray-100">
                         {users.map((u) => (
                           <tr key={u.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 font-medium">{u.name}</td>

@@ -27,7 +27,7 @@ export function AuditLogSection() {
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-6 py-3">Time</th><th className="px-6 py-3">User</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Details</th></tr></thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr><td colSpan={4} className="px-6 py-8 text-center"><LoadingSpinner /></td></tr>
             ) : logs.length === 0 ? (

@@ -79,7 +79,7 @@ export function CustomerMasterView({ onBack, onRefresh, user }: { onBack: () => 
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Phone</th><th className="px-6 py-4">Email</th>{!vendorId && <th className="px-6 py-4">Vendor</th>}<th className="px-6 py-4">Products bought</th><th className="px-6 py-4">Actions</th></tr></thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-100">
               {loading ? <tr><td colSpan={vendorId ? 5 : 6} className="px-6 py-12 text-center"><LoadingSpinner /></td></tr> :
                 list.map((c) => (
                   <tr key={c.id} className="hover:bg-gray-50">
@@ -142,7 +142,7 @@ export function CustomerMasterView({ onBack, onRefresh, user }: { onBack: () => 
                 ) : (
                   <table className="w-full text-left">
                     <thead className="bg-gray-50 sticky top-0"><tr className="text-xs font-bold text-gray-400 uppercase"><th className="px-3 py-2 sm:px-6 sm:py-3">Product</th><th className="px-3 py-2 sm:px-6 sm:py-3">Vendor</th><th className="px-3 py-2 sm:px-6 sm:py-3">Barcode</th><th className="px-3 py-2 sm:px-6 sm:py-3">Date</th></tr></thead>
-                    <tbody className="divide-y divide-gray-50">
+                    <tbody className="divide-y divide-gray-100">
                       {purchasesModal.purchases.map((p, i) => (
                         <tr key={i}><td className="px-3 py-2 sm:px-6 sm:py-3 font-medium">{p.productName}</td><td className="px-3 py-2 sm:px-6 sm:py-3 text-sm text-purple-600">{p.vendorName}</td><td className="px-3 py-2 sm:px-6 sm:py-3 text-sm font-mono text-gray-600">{p.barcode}</td><td className="px-3 py-2 sm:px-6 sm:py-3 text-sm text-gray-600">{formatDate(p.purchaseDate)}</td></tr>
                       ))}

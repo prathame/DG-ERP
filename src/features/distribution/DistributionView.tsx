@@ -464,7 +464,7 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                   </div>
                 </div>
                 {!selectedBatchProductId ? (
-                  <div className="divide-y divide-gray-50">
+                  <div className="divide-y divide-gray-100">
                     <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Products</div>
                     {productList.map((p) => (
                       <button
@@ -487,7 +487,7 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-6 py-4">#</th><th className="px-6 py-4">Barcode</th><th className="px-6 py-4">Status</th></tr></thead>
-                      <tbody className="divide-y divide-gray-50">
+                      <tbody className="divide-y divide-gray-100">
                         {selectedProduct.units.map((d, idx) => (
                           <tr key={d.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 text-sm text-gray-500">{idx + 1}</td>
@@ -521,7 +521,7 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                   </span>
                 )}
               </div>
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-100">
                 <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Distributions ({vendorBatches.length})</div>
                 {vendorBatches.length === 0 ? (
                   <div className="px-6 py-8 text-center text-gray-500">No distributions for this vendor</div>

@@ -155,7 +155,7 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
               <h3 className="font-bold">Payment History</h3>
               <span className="text-sm text-gray-500">{detail.payments.length} payment{detail.payments.length !== 1 ? 's' : ''}</span>
             </div>
-            <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
+            <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
               {detail.payments.length === 0 ? (
                 <p className="p-6 text-center text-gray-500">No payments recorded yet</p>
               ) : detail.payments.map((p) => (
@@ -174,7 +174,7 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
             <div className="px-3 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
               <h3 className="font-bold">Distributions (Money Owed)</h3>
             </div>
-            <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
+            <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
               {detail.distributions.map((d, i) => (
                 <div key={i} className="px-6 py-3 flex items-center justify-between">
                   <div>
@@ -296,7 +296,7 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
             <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50">
               <th className="px-3 py-3 sm:px-6 sm:py-4">Vendor</th><th className="px-3 py-3 sm:px-6 sm:py-4">Distributed Value</th><th className="px-3 py-3 sm:px-6 sm:py-4">Paid</th><th className="px-3 py-3 sm:px-6 sm:py-4">Balance</th><th className="px-3 py-3 sm:px-6 sm:py-4">Reminder</th><th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th>
             </tr></thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr><td colSpan={6} className="px-6 py-12 text-center"><LoadingSpinner /></td></tr>
               ) : (() => {

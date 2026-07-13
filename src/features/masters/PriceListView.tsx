@@ -139,7 +139,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                 <span className="font-bold text-sm">{productName}</span>
                 <span className="text-xs text-gray-400 ml-2">Base: ₹{products.find(p => p.name === productName)?.price?.toLocaleString()}</span>
               </div>
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-100">
                 {productRules.map(rule => (
                   <div key={rule.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
                     <div className="flex items-center gap-4 flex-wrap">

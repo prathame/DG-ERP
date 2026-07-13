@@ -134,7 +134,7 @@ export function ReplacementsView({ user }: { user: { id: string; role?: string; 
                 <th className="px-3 py-3 sm:px-6 sm:py-4">Reason</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr><td colSpan={7} className="px-6 py-12 text-center"><LoadingSpinner /></td></tr>
               ) : filtered.length === 0 ? (

@@ -270,7 +270,7 @@ function CashFlow({ data, ds }: { data: Record<string, unknown>; ds: boolean }) 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b border-gray-200 bg-gray-50"><th className="px-4 py-2 text-left text-xs font-bold text-gray-400 uppercase">Month</th><th className="px-4 py-2 text-right text-xs font-bold text-emerald-500 uppercase">Inflow</th><th className="px-4 py-2 text-right text-xs font-bold text-rose-500 uppercase">Outflow</th><th className="px-4 py-2 text-right text-xs font-bold text-gray-400 uppercase">Net</th></tr></thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-gray-100">
                 {monthly.map((m, i) => (
                   <tr key={i}><td className="px-4 py-2 font-medium">{m.month}</td><td className="px-4 py-2 text-right text-emerald-600">{fmtCurrency(m.inflow)}</td><td className="px-4 py-2 text-right text-rose-600">{fmtCurrency(m.outflow)}</td><td className={cn("px-4 py-2 text-right font-bold", m.net >= 0 ? "text-emerald-600" : "text-rose-600")}>{fmtCurrency(m.net)}</td></tr>
                 ))}
@@ -303,7 +303,7 @@ function Ledger({ data }: { data: Record<string, unknown> }) {
             <th className="px-3 py-2.5 text-right text-xs font-bold text-gray-400 uppercase">Credit</th>
             <th className="px-3 py-2.5 text-right text-xs font-bold text-gray-400 uppercase">Balance</th>
           </tr></thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-gray-100">
             {entries.map((e, i) => (
               <tr key={i} className="hover:bg-gray-50/50">
                 <td className="px-3 py-2 whitespace-nowrap">{formatDate(e.date)}</td>
@@ -352,7 +352,7 @@ function DayBook({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
               <th className="px-3 py-2.5 text-right text-xs font-bold text-gray-400 uppercase">Debit (In)</th>
               <th className="px-3 py-2.5 text-right text-xs font-bold text-gray-400 uppercase">Credit (Out)</th>
             </tr></thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-100">
               {entries.map((e, i) => (
                 <tr key={i} className="hover:bg-gray-50/50">
                   <td className="px-3 py-2"><span className={cn("px-2 py-0.5 rounded-full text-xs font-bold", typeColors[e.type] || 'bg-gray-100 text-gray-600')}>{e.type}</span></td>
@@ -486,7 +486,7 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="bg-gray-50 border-b border-gray-200">{cols.map(c => <th key={c.k} className={cn("px-3 py-2 text-xs font-bold text-gray-400 uppercase whitespace-nowrap", c.r ? "text-right" : "text-left")}>{c.l}</th>)}</tr></thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-gray-100">
             {rows.map((r, i) => <tr key={i} className="hover:bg-gray-50/50">{cols.map(c => <td key={c.k} className={cn("px-3 py-2 whitespace-nowrap", c.r ? "text-right" : "")}>{c.k === 'date' ? formatDate(r[c.k] as string) : typeof r[c.k] === 'number' ? (c.r ? fmtCurrency(r[c.k] as number) : r[c.k]) : (r[c.k] as string || '—')}</td>)}</tr>)}
           </tbody>
           {Object.keys(totals).length > 0 && <tfoot><tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">{cols.map((c, ci) => <td key={c.k} className={cn("px-3 py-2", c.r ? "text-right" : "")}>{ci === 0 ? 'Total' : totals[c.k] !== undefined ? fmtCurrency(totals[c.k]) : ''}</td>)}</tr></tfoot>}

@@ -85,7 +85,7 @@ export function VendorMasterView({ onBack, onRefresh, businessType = 'manufactur
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead><tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50"><th className="px-3 py-3 sm:px-6 sm:py-4">Name</th><th className="px-3 py-3 sm:px-6 sm:py-4">Contact</th><th className="px-3 py-3 sm:px-6 sm:py-4">Phone</th><th className="px-3 py-3 sm:px-6 sm:py-4">GSTIN</th>{label === 'Vendor' && <><th className="px-3 py-3 sm:px-6 sm:py-4">Sales</th><th className="px-3 py-3 sm:px-6 sm:py-4">Reward Pts</th></>}<th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th></tr></thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-100">
               {loading ? <tr><td colSpan={7} className="px-6 py-12 text-center"><LoadingSpinner /></td></tr> :
                 list.map((v) => (
                   <tr key={v.id} className="hover:bg-gray-50">

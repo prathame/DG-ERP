@@ -157,7 +157,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <table className="w-full text-left">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
+                <tr className="bg-gray-50/80 border-b-2 border-gray-200">
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Product</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Price</th>
                   {inventoryTrackingEnabled && <><th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Total</th>
@@ -167,11 +167,11 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                   <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-gray-100">
                 {sortedProducts.map((p) => {
                   const isLowStock = (p.remainingInventory ?? p.stock ?? 0) < 10;
                   return (
-                    <tr key={p.id} className={cn("hover:bg-gray-50/50 transition-colors", isLowStock && "bg-amber-50/40")}>
+                    <tr key={p.id} className={cn("hover:bg-gray-50 transition-colors", isLowStock ? "bg-amber-50/40" : "even:bg-gray-50/40")}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-sm text-gray-900">{p.name}</span>
@@ -434,7 +434,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                 ) : (
                   <table className="w-full text-left">
                     <thead className="bg-gray-50 sticky top-0"><tr className="text-xs font-bold text-gray-400 uppercase"><th className="px-6 py-3">Date</th><th className="px-6 py-3">Barcode range</th><th className="px-6 py-3">Qty</th><th className="px-6 py-3"></th></tr></thead>
-                    <tbody className="divide-y divide-gray-50">
+                    <tbody className="divide-y divide-gray-100">
                       {barcodeDetailsModal.batches.map((b, i) => (
                         <tr key={i}>
                           <td className="px-6 py-3 text-sm text-gray-600">{formatDate(b.date)}</td>

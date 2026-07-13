@@ -156,7 +156,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                 {Number(bd.balanceRemaining) > 0 && <span className="text-sm text-rose-500 font-medium ml-2">Due: ₹{Number(bd.balanceRemaining).toLocaleString()}</span>}
               </div>
             </div>
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-gray-100">
               <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Products</div>
               {((bd.items as Record<string, unknown>[]) || []).map((item, i) => (
                 <div key={i} className="px-6 py-3 flex items-center justify-between">
@@ -198,7 +198,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             <button type="button" onClick={() => setSelectedSupplierId(null)} className="p-2 hover:bg-gray-200 rounded-lg"><ArrowLeft size={20} className="text-gray-600" /></button>
             <h3 className="font-bold text-lg">{supplierName}</h3>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-gray-100">
             <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Purchases ({supplierBatches.length})</div>
             {supplierBatches.length === 0 ? (
               <div className="px-6 py-8 text-center text-gray-500">No purchases from this supplier</div>
@@ -250,7 +250,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b"><th className="px-4 py-3">Category</th><th className="px-4 py-3">Description</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Notes</th>{canEdit && <th className="px-4 py-3 w-10"></th>}</tr></thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-gray-100">
                   {expenses.map(e => (
                     <tr key={e.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3"><span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">{e.category}</span></td>

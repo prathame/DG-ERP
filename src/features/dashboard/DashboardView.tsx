@@ -108,7 +108,7 @@ export function DashboardView({ user, setActiveTab, businessType = 'manufacturer
     >
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-6">
         {stats.map((stat, i) => (
-          <div key={i} className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <div key={i} className={cn("bg-white p-4 sm:p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow border-l-[3px]", stat.bg.replace('bg-', 'border-l-').replace('-50', '-400'))}>
             <div className="flex items-center justify-between mb-4">
               <div className={cn("p-3 rounded-xl", stat.bg)}>
                 <stat.icon className={stat.color} size={24} />
@@ -120,7 +120,7 @@ export function DashboardView({ user, setActiveTab, businessType = 'manufacturer
               )}
             </div>
             <p className="text-gray-500 text-xs sm:text-sm font-medium">{stat.label}</p>
-            <h3 className="text-lg sm:text-2xl font-bold mt-1">{stat.value}</h3>
+            <h3 className="text-xl sm:text-3xl font-bold mt-1">{stat.value}</h3>
           </div>
         ))}
       </div>
@@ -164,7 +164,7 @@ export function DashboardView({ user, setActiveTab, businessType = 'manufacturer
               key={m.id}
               type="button"
               onClick={() => m.id === 'item' ? setActiveTab('inventory') : setSelectedMaster(m.id)}
-              className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all text-left group"
+              className={cn("bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all text-left group border-l-[3px]", m.bg.replace('bg-', 'border-l-').replace('-50', '-400'))}
             >
               <div className="flex items-center justify-between mb-3">
                 <div className={cn("p-2.5 rounded-xl transition-transform group-hover:scale-110", m.bg)}>

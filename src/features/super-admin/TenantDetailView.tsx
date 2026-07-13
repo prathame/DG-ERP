@@ -554,7 +554,7 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
               <th className="text-center px-6 py-3 text-xs font-bold text-gray-400 uppercase">Visible</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-gray-100">
             {TAB_KEYS.map((key) => (
               <tr key={key} className={cn(!config[key]?.visible && !isLocked(key) && "bg-gray-50/50 opacity-60")}>
                 <td className="px-6 py-3">

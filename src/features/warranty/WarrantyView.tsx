@@ -139,7 +139,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
                 <th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr><td colSpan={6} className="px-6 py-12 text-center"><LoadingSpinner /></td></tr>
               ) : warranties.length === 0 ? (

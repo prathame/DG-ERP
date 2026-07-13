@@ -155,7 +155,7 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b"><th className="px-4 py-3">Type</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Notes</th><th className="px-4 py-3 w-10"></th></tr></thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-gray-100">
                   {payments.map(p => (
                     <tr key={p.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${p.paymentType === 'advance' ? 'bg-amber-100 text-amber-700' : p.paymentType === 'advance_repay' ? 'bg-blue-100 text-blue-700' : p.paymentType === 'bonus' ? 'bg-purple-100 text-purple-700' : p.paymentType === 'deduction' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>{{ salary: 'Salary', advance: 'Advance', advance_repay: 'Repaid', bonus: 'Bonus', deduction: 'Deduction' }[p.paymentType] || p.paymentType}</span></td>

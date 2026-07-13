@@ -154,7 +154,7 @@ export function QuotationsView() {
             {selected.vendorName && <p className="text-sm text-gray-600 mb-4">Vendor: <strong>{selected.vendorName}</strong></p>}
             <table className="w-full text-sm mb-4">
               <thead><tr className="border-b border-gray-200 text-xs font-bold text-gray-400 uppercase"><th className="py-2 text-left">Product</th><th className="py-2 text-right">Qty</th><th className="py-2 text-right">Price</th><th className="py-2 text-right">Disc%</th><th className="py-2 text-right">Net</th><th className="py-2 text-right">GST</th><th className="py-2 text-right">Total</th></tr></thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-gray-100">
                 {selected.items.map((item, i) => (
                   <tr key={i}><td className="py-2">{item.productName}</td><td className="py-2 text-right">{item.quantity}</td><td className="py-2 text-right">₹{item.price.toLocaleString()}</td><td className="py-2 text-right">{item.discountPercent}%</td><td className="py-2 text-right">₹{item.lineNet.toLocaleString()}</td><td className="py-2 text-right">₹{item.lineGst.toLocaleString()}</td><td className="py-2 text-right font-bold">₹{item.lineTotal.toLocaleString()}</td></tr>
                 ))}
@@ -188,7 +188,7 @@ export function QuotationsView() {
           <p className="font-medium">{quotations.length === 0 ? 'No quotations yet' : 'No matching quotations'}</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-50">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-100">
           {filtered.map(q => (
             <button key={q.id} type="button" onClick={() => { setSelectedId(q.id); fetchApi<Quotation>(`/quotations/${q.id}`).then(setSelected).catch(err => toast(err.message, 'error')); }}
               className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors">

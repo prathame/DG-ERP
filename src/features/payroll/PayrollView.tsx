@@ -71,7 +71,7 @@ export function PayrollView({ accessLevel = 'full' }: { accessLevel?: string }) 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b"><th className="px-4 py-3">Staff</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Reference</th><th className="px-4 py-3">Notes</th>{canEdit && <th className="px-4 py-3 w-10"></th>}</tr></thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-gray-100">
                   {payments.map(p => (
                     <tr key={p.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium">{p.staffName}</td>
