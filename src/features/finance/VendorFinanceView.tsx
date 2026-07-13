@@ -198,7 +198,7 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
                 <div key={p.id} className="px-3 py-3 sm:px-6 sm:py-4 flex items-center justify-between">
                   <div>
                     <p className="font-bold text-emerald-600">+₹{p.amount.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">{formatDate(p.paymentDate)} &middot; {p.paymentMethod}{p.referenceNumber ? ` &middot; Ref: ${p.referenceNumber}` : ''}</p>
+                    <p className="text-xs text-gray-500 flex items-center gap-1.5 flex-wrap">{formatDate(p.paymentDate)} &middot; {p.paymentMethod === 'Bank Statement' ? <span className="bg-indigo-100 text-indigo-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full">Bank Statement</span> : p.paymentMethod}{p.referenceNumber ? ` · Ref: ${p.referenceNumber}` : ''}</p>
                     {p.notes && <p className="text-xs text-gray-400 mt-0.5">{p.notes}</p>}
                   </div>
                 </div>
