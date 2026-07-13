@@ -124,11 +124,11 @@ export function LandingPage() {
                 const h = heroData[heroLang] || heroData[0];
                 return (
                   <motion.div key={heroLang} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-tight mb-4">
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-tight mb-5">
                       {h.line1}<br />
                       <span className="bg-gradient-to-r from-brand to-amber-500 bg-clip-text text-transparent">{h.line2}</span>
                     </h1>
-                    <p className={`text-sm sm:text-base md:text-lg ${textMuted} max-w-lg leading-relaxed mx-auto lg:mx-0 mb-6`}>{h.sub}</p>
+                    <p className={`text-sm sm:text-base md:text-lg ${textMuted} max-w-lg leading-relaxed mx-auto lg:mx-0 mb-8`}>{h.sub}</p>
                   </motion.div>
                 );
               })()}
