@@ -10,6 +10,7 @@ import { BarcodeLabelPrinter } from '../../components/ui/BarcodeLabelPrinter';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
+import { suggestHsnRate } from '../../lib/hsnRates';
 
 export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const canEdit = accessLevel === 'full';
@@ -333,8 +334,16 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                 </>}
                 <div><label className="text-xs font-bold text-gray-400 uppercase">Description</label><input placeholder="Product description" value={addForm.description} onChange={(e) => setAddForm({ ...addForm, description: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-xs font-bold text-gray-400 uppercase">HSN Code</label><input value={addForm.hsnCode ?? ''} onChange={(e) => setAddForm({ ...addForm, hsnCode: e.target.value })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono" placeholder="e.g. 8413" /></div>
-                  <div><label className="text-xs font-bold text-gray-400 uppercase">GST Rate (%)</label><input type="number" min={0} max={28} value={addForm.gstRate ?? 18} onChange={(e) => setAddForm({ ...addForm, gstRate: e.target.value === '' ? 18 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">HSN Code</label>
+                    <input value={addForm.hsnCode ?? ''} onChange={(e) => {
+                      const v = e.target.value;
+                      const hint = suggestHsnRate(v);
+                      setAddForm(f => ({ ...f, hsnCode: v, ...(hint && (f.gstRate === 18 || f.gstRate === 0) ? { gstRate: hint.rate } : {}) }));
+                    }} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand font-mono" placeholder="e.g. 8413" />
+                    {(() => { const h = suggestHsnRate(addForm.hsnCode ?? ''); return h ? <p className="text-[11px] text-emerald-600 mt-1">→ {h.rate}% · {h.label}</p> : null; })()}
+                  </div>
+                  <div><label className="text-xs font-bold text-gray-400 uppercase">GST Rate (%)</label><input type="number" min={0} max={28} value={addForm.gstRate ?? 18} onChange={(e) => setAddForm({ ...addForm, gstRate: e.target.value === '' ? 18 : Number(e.target.value) })} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" /></div>
                   <div className="flex items-center gap-2 mt-2"><input type="checkbox" checked={addForm.priceIncludesGst} onChange={(e) => setAddForm({ ...addForm, priceIncludesGst: e.target.checked })} className="rounded text-brand" /><label className="text-xs font-medium text-gray-500">Price includes GST</label></div>
                 </div>
 
