@@ -111,35 +111,35 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto relative">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
             {/* Left — text content */}
-            <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
+            <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }} className="text-center lg:text-left">
               <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand text-white rounded-full text-xs font-bold mb-4 shadow-lg">
                 🚀 {L('Coming Soon — Launching Shortly!', 'जल्द आ रहा है!', 'ટૂંક સમયમાં આવી રહ્યું છે!')}
               </div>
-              <div className="relative h-[160px] sm:h-[140px] md:h-[160px] overflow-hidden">
+              <div className="relative h-[180px] sm:h-[160px] md:h-[170px]">
                 {[
                   { line1: 'From Shop to Factory', line2: 'Your Business, Simplified', sub: 'Inventory, billing, GST, vendor management, accounting — all in one place.' },
                   { line1: 'दुकान हो या फैक्ट्री', line2: 'बिज़नेस आसान बनाओ', sub: 'Inventory, billing, GST, vendor management सब एक जगह।' },
                   { line1: 'દુકાન હોય કે ફેક્ટરી', line2: 'બિઝનેસ સરળ બનાવો', sub: 'Inventory, billing, GST, vendor management બધું એક જગ્યાએ।' },
                 ].map((h, i) => (
                   <motion.div key={i} initial={false} animate={{ opacity: heroLang === i ? 1 : 0, y: heroLang === i ? 0 : 20 }} transition={{ duration: 0.5 }} className={`absolute inset-0 ${heroLang === i ? '' : 'pointer-events-none'}`}>
-                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-tight">
-                      <span className="text-2xl sm:text-3xl md:text-4xl">{h.line1}</span><br />
+                    <h1 className="text-2xl sm:text-3xl md:text-5xl font-bold tracking-tight leading-tight">
+                      {h.line1}<br />
                       <span className="bg-gradient-to-r from-brand to-amber-500 bg-clip-text text-transparent">{h.line2}</span>
                     </h1>
-                    <p className={`mt-3 text-sm sm:text-base md:text-lg ${textMuted} max-w-lg leading-relaxed`}>{h.sub}</p>
+                    <p className={`mt-3 text-sm sm:text-base md:text-lg ${textMuted} max-w-lg leading-relaxed mx-auto lg:mx-0`}>{h.sub}</p>
                   </motion.div>
                 ))}
               </div>
-              <div className="flex items-center gap-2 mt-2 mb-6">
+              <div className="flex items-center justify-center lg:justify-start gap-2 mt-2 mb-6">
                 {([{ code: 'en' as const, label: 'English' }, { code: 'hi' as const, label: 'हिन्दी' }, { code: 'gu' as const, label: 'ગુજરાતી' }]).map((l, i) => (
                   <button key={l.code} type="button" onClick={() => { setLang(l.code); setHeroLang(i); setHeroAutoPlay(false); }} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white scale-105' : `${dark ? 'bg-white/10 text-gray-400 hover:bg-white/20' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`}`}>{l.label}</button>
                 ))}
               </div>
-              <div className="flex flex-col sm:flex-row items-start gap-3">
-                <a href="#contact" className="group px-6 sm:px-8 py-3.5 sm:py-4 bg-brand text-white rounded-xl font-bold text-base sm:text-lg hover:bg-brand-dark transition-all flex items-center gap-2 shadow-lg shadow-brand/20">
+              <div className="flex flex-col sm:flex-row items-center lg:items-start justify-center lg:justify-start gap-3">
+                <a href="#contact" className="group w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 bg-brand text-white rounded-xl font-bold text-base sm:text-lg hover:bg-brand-dark transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand/20">
                   {isEn ? 'Start Free Trial' : isGu ? 'ફ્રી ટ્રાયલ શરૂ કરો' : 'फ्री ट्रायल शुरू करें'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                 </a>
-                <a href="#features" className={`px-6 sm:px-8 py-3.5 sm:py-4 border rounded-xl font-bold text-base sm:text-lg transition-all text-center ${btnSecondary}`}>{isEn ? 'See Features' : isGu ? 'Features જુઓ' : 'Features देखें'}</a>
+                <a href="#features" className={`w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 border rounded-xl font-bold text-base sm:text-lg transition-all text-center ${btnSecondary}`}>{isEn ? 'See Features' : isGu ? 'Features જુઓ' : 'Features देखें'}</a>
               </div>
               <p className={`mt-4 text-sm ${textFaint}`}>No credit card • 5 min setup • Cancel anytime</p>
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#1A1A1A] rounded-full text-xs font-bold mt-4 shadow-md">
