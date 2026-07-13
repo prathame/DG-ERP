@@ -27,9 +27,11 @@ function BillCustomizationSection() {
   const [form, setForm] = useState<BillSettings>(BILL_DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [banks, setBanks] = useState<{ id: string; name: string; accountNumber?: string; bankName?: string; branch?: string; ifscCode?: string }[]>([]);
 
   useEffect(() => {
     api.settings.getBillSettings().then((s) => setForm({ ...BILL_DEFAULTS, ...s })).catch(() => {}).finally(() => setLoading(false));
+    api.banks.list().then(setBanks).catch(() => {});
   }, []);
 
   const handleFile = (field: 'logoBase64' | 'signatureBase64') => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -139,14 +141,29 @@ function BillCustomizationSection() {
         {/* Bank Details */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Bank Details (printed on bill)</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label htmlFor="settings-field-7" className="text-xs font-bold text-gray-500 block mb-1">Account Name</label><input id="settings-field-7" value={form.bankAccountName || ''} onChange={(e) => setForm((p) => ({ ...p, bankAccountName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" placeholder="Company Name" /></div>
-            <div><label htmlFor="settings-field-8" className="text-xs font-bold text-gray-500 block mb-1">Account Number</label><input id="settings-field-8" value={form.bankAccountNumber || ''} onChange={(e) => setForm((p) => ({ ...p, bankAccountNumber: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-brand" placeholder="1234567890" /></div>
-            <div><label htmlFor="settings-field-9" className="text-xs font-bold text-gray-500 block mb-1">Bank Name</label><input id="settings-field-9" value={form.bankName || ''} onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" placeholder="State Bank of India" /></div>
-            <div><label htmlFor="settings-field-10" className="text-xs font-bold text-gray-500 block mb-1">Branch</label><input id="settings-field-10" value={form.bankBranch || ''} onChange={(e) => setForm((p) => ({ ...p, bankBranch: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" placeholder="Main Branch" /></div>
-            <div><label htmlFor="settings-field-11" className="text-xs font-bold text-gray-500 block mb-1">IFSC Code</label><input id="settings-field-11" value={form.bankIfsc || ''} onChange={(e) => setForm((p) => ({ ...p, bankIfsc: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-brand" placeholder="SBIN0001234" /></div>
-            <div><label htmlFor="settings-field-12" className="text-xs font-bold text-gray-500 block mb-1">UPI ID</label><input id="settings-field-12" value={form.bankUpiId || ''} onChange={(e) => setForm((p) => ({ ...p, bankUpiId: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" placeholder="company@upi" /></div>
-          </div>
+          {banks.length > 0 ? (
+            <div className="space-y-3">
+              <select value={form.bankAccountNumber || ''} onChange={(e) => {
+                const b = banks.find(x => x.accountNumber === e.target.value);
+                if (b) setForm(p => ({ ...p, bankAccountName: b.name, bankAccountNumber: b.accountNumber || null, bankName: b.bankName || null, bankBranch: b.branch || null, bankIfsc: b.ifscCode || null }));
+                else setForm(p => ({ ...p, bankAccountName: null, bankAccountNumber: null, bankName: null, bankBranch: null, bankIfsc: null }));
+              }} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand bg-white">
+                <option value="">Select bank account for bill</option>
+                {banks.map(b => <option key={b.id} value={b.accountNumber || b.id}>{b.name} — {b.bankName || 'N/A'} {b.accountNumber ? `(${b.accountNumber})` : ''}</option>)}
+              </select>
+              {form.bankAccountName && (
+                <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
+                  <p><span className="text-gray-500">Account:</span> <strong>{form.bankAccountName}</strong></p>
+                  {form.bankAccountNumber && <p><span className="text-gray-500">A/C No:</span> <span className="font-mono">{form.bankAccountNumber}</span></p>}
+                  {form.bankName && <p><span className="text-gray-500">Bank:</span> {form.bankName}{form.bankBranch ? `, ${form.bankBranch}` : ''}</p>}
+                  {form.bankIfsc && <p><span className="text-gray-500">IFSC:</span> <span className="font-mono">{form.bankIfsc}</span></p>}
+                </div>
+              )}
+              <div><label className="text-xs font-bold text-gray-500 block mb-1">UPI ID (optional)</label><input value={form.bankUpiId || ''} onChange={(e) => setForm((p) => ({ ...p, bankUpiId: e.target.value || null }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" placeholder="company@upi" /></div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">No banks added yet. Go to Dashboard → Banks to add bank accounts first.</p>
+          )}
         </div>
 
         {/* Terms & Conditions */}
