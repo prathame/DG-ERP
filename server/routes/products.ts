@@ -105,11 +105,14 @@ router.get('/api/products', async (req, res) => {
     res.json((rows as Record<string, unknown>[]).map((r) => {
       const invCount = Number(r.inv_stock) || 0;
       const totalInv = Number(r.total_inv) || 0;
+      const fallbackStock = Number(r.stock) || 0;
+      const effectiveStock = totalInv > 0 ? invCount : fallbackStock;
+      const effectiveTotal = totalInv > 0 ? totalInv : fallbackStock;
       return mapProduct({
       ...r,
-      stock: invCount,
-      totalInventory: totalInv,
-      remainingInventory: invCount,
+      stock: effectiveStock,
+      totalInventory: effectiveTotal,
+      remainingInventory: effectiveStock,
       soldCount: (r.sold_count as number) ?? 0,
       withVendors: (r.with_vendors as number) ?? 0,
       barcodeRange: (r.barcode_first && r.barcode_last) ? { first: r.barcode_first as string, last: r.barcode_last as string } : null,
