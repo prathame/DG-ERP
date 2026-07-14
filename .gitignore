@@ -1,12 +1,19 @@
 node_modules/
 build/
 dist/
+dist-electron/
 coverage/
 data/
 .claude/
 .DS_Store
 *.log
 *.bak
+
+# Compiled Electron + Server JS (generated — do not commit)
+electron/**/*.js
+electron/**/*.js.map
+server/**/*.js
+server/**/*.js.map
 
 # Environment (secrets — never commit)
 .env
