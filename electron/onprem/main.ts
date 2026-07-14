@@ -9,7 +9,11 @@ import os from 'os';
 import fetch from 'node-fetch';
 import { startPostgres, stopPostgres } from './pg-manager';
 import { loadLicense, saveLicense, clearLicense, getMachineId, LicenseData } from './license-store';
-import { CLOUD_API, LOCAL_API_URL, LOCAL_API_PORT, HEARTBEAT_INTERVAL_MS } from '../shared/constants';
+import { CLOUD_API, HEARTBEAT_INTERVAL_MS } from '../shared/constants';
+import { findFreePort } from '../shared/find-port';
+
+let LOCAL_API_PORT = 3001;
+let LOCAL_API_URL = 'http://localhost:3001';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let mainWin: BrowserWindow | null = null;
@@ -207,7 +211,9 @@ app.whenReady().then(async () => {
     // 1. Start embedded PostgreSQL
     const dbUrl = await startPostgres();
 
-    // 2. Start Express server with local DB
+    // 2. Find free port + start Express server
+    LOCAL_API_PORT = await findFreePort(3001);
+    LOCAL_API_URL = `http://localhost:${LOCAL_API_PORT}`;
     await startExpressServer(dbUrl);
     await waitForServer();
 
