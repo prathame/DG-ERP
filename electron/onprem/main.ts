@@ -1,0 +1,238 @@
+/**
+ * On-Prem Electron main process.
+ * Starts embedded PostgreSQL → Express server → opens app window.
+ * Shows first-run wizard if no license stored locally.
+ */
+import { app, BrowserWindow, ipcMain, shell, Menu, nativeImage } from 'electron';
+import path from 'path';
+import os from 'os';
+import fetch from 'node-fetch';
+import { startPostgres, stopPostgres } from './pg-manager';
+import { loadLicense, saveLicense, clearLicense, getMachineId, LicenseData } from './license-store';
+import { CLOUD_API, LOCAL_API_URL, LOCAL_API_PORT, HEARTBEAT_INTERVAL_MS } from '../shared/constants';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let mainWin: BrowserWindow | null = null;
+let wizardWin: BrowserWindow | null = null;
+let connectionStatus: 'online' | 'offline' | 'syncing' = 'offline';
+let lastSync: Date | null = null;
+let licenseInfo: LicenseData | null = null;
+let heartbeatTimer: NodeJS.Timeout | null = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function getIcon() {
+  return nativeImage.createFromPath(
+    path.join(__dirname, '../../public/icons/icon-192.svg')
+  );
+}
+
+async function startExpressServer(dbUrl: string): Promise<void> {
+  process.env.DATABASE_URL = dbUrl;
+  process.env.DEPLOYMENT_MODE = 'onprem';
+  process.env.PORT = String(LOCAL_API_PORT);
+  // Dynamically import the server (avoids top-level side effects)
+  await import('../../server/index');
+}
+
+async function waitForServer(maxWait = 15000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    try {
+      const r = await fetch(`${LOCAL_API_URL}/api/health`);
+      if (r.ok) return;
+    } catch {}
+    await new Promise(res => setTimeout(res, 500));
+  }
+  throw new Error('Server did not start within 15 seconds');
+}
+
+// ── Heartbeat ─────────────────────────────────────────────────────────────────
+async function sendHeartbeat(): Promise<void> {
+  if (!licenseInfo) return;
+  connectionStatus = 'syncing';
+  try {
+    const r = await fetch(`${CLOUD_API}/api/onprem/heartbeat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        licenseKey: licenseInfo.licenseKey,
+        machineId: getMachineId(),
+        version: app.getVersion(),
+        activeUsers: 1,
+        diskMB: 0,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    const data = await r.json() as Record<string, unknown>;
+
+    if (!data.licenseValid) {
+      // License revoked/suspended — show blocking message
+      mainWin?.webContents.executeJavaScript(
+        `alert('Your DG ERP license has been ${data.licenseStatus}. Please contact support.')`
+      );
+    }
+
+    if (data.forceUpdate) {
+      mainWin?.webContents.executeJavaScript(
+        `confirm('A required update is available. Click OK to download.') && window.open('https://dg-erp.in/download')`
+      );
+    } else if (data.updateAvailable) {
+      mainWin?.webContents.executeJavaScript(
+        `console.log('UPDATE_AVAILABLE:${data.latestVersion}')`
+      );
+    }
+
+    connectionStatus = 'online';
+    lastSync = new Date();
+  } catch {
+    connectionStatus = 'offline';
+  }
+}
+
+function startHeartbeat(): void {
+  sendHeartbeat();
+  heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+}
+
+// ── First-run wizard ──────────────────────────────────────────────────────────
+function showWizard(): void {
+  wizardWin = new BrowserWindow({
+    width: 520,
+    height: 620,
+    resizable: false,
+    title: 'DG ERP — Setup',
+    icon: getIcon(),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+    backgroundColor: '#f9fafb',
+  });
+  Menu.setApplicationMenu(null);
+  wizardWin.loadFile(path.join(__dirname, 'wizard/index.html'));
+}
+
+// IPC: Wizard — validate license with cloud
+ipcMain.handle('activate-license', async (_event, licenseKey: string) => {
+  try {
+    const r = await fetch(`${CLOUD_API}/api/onprem/activate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        licenseKey, machineId: getMachineId(),
+        osInfo: `${os.platform()} ${os.release()}`,
+        appVersion: app.getVersion(),
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await r.json() as Record<string, unknown>;
+    if (!r.ok) return { valid: false, error: (data.error as string) || 'Invalid license' };
+    return { valid: true, ...data };
+  } catch (e) {
+    return { valid: false, error: 'Cannot reach activation server' };
+  }
+});
+
+// IPC: Wizard — complete setup, create tenant + admin user
+ipcMain.handle('complete-setup', async (_event, data: LicenseData & { adminPassword: string }) => {
+  const slug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  licenseInfo = { ...data, slug, activatedAt: new Date().toISOString(), lastValidated: new Date().toISOString() };
+  saveLicense(licenseInfo);
+
+  // Create tenant via local Express API
+  const r = await fetch(`${LOCAL_API_URL}/api/onprem/provision`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      companyName: data.companyName,
+      businessType: data.businessType,
+      adminEmail: data.adminEmail || `admin@${slug}.local`,
+      adminPassword: data.adminPassword,
+      licenseKey: data.licenseKey,
+      maxUsers: data.maxUsers,
+    }),
+  });
+  if (!r.ok) throw new Error('Provisioning failed');
+
+  wizardWin?.close();
+  await openMainWindow(slug);
+  startHeartbeat();
+});
+
+// ── Main app window ───────────────────────────────────────────────────────────
+async function openMainWindow(slug: string): Promise<void> {
+  mainWin = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    minWidth: 1024,
+    minHeight: 600,
+    title: 'DG ERP',
+    icon: getIcon(),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+    backgroundColor: '#ffffff',
+    show: false,
+  });
+  Menu.setApplicationMenu(null);
+  mainWin.loadURL(`${LOCAL_API_URL}/${slug}`);
+  mainWin.once('ready-to-show', () => mainWin?.show());
+  mainWin.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  mainWin.on('closed', () => { mainWin = null; });
+}
+
+// IPC: UI requests connection status
+ipcMain.handle('get-connection-status', () => ({
+  status: connectionStatus,
+  lastSync: lastSync?.toISOString() || null,
+  version: app.getVersion(),
+  validUntil: licenseInfo?.validUntil || null,
+}));
+
+// IPC: Manual sync now
+ipcMain.handle('sync-now', async () => {
+  await sendHeartbeat();
+  return { status: connectionStatus, lastSync: lastSync?.toISOString() };
+});
+
+// ── App lifecycle ─────────────────────────────────────────────────────────────
+app.whenReady().then(async () => {
+  try {
+    // 1. Start embedded PostgreSQL
+    const dbUrl = await startPostgres();
+
+    // 2. Start Express server with local DB
+    await startExpressServer(dbUrl);
+    await waitForServer();
+
+    // 3. Check if already set up
+    licenseInfo = loadLicense();
+    if (!licenseInfo) {
+      showWizard();
+    } else {
+      await openMainWindow(licenseInfo.slug);
+      startHeartbeat();
+    }
+  } catch (err) {
+    console.error('Startup failed:', err);
+    app.quit();
+  }
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0 && licenseInfo) {
+      openMainWindow(licenseInfo.slug);
+    }
+  });
+});
+
+app.on('window-all-closed', async () => {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  await stopPostgres();
+  if (process.platform !== 'darwin') app.quit();
+});

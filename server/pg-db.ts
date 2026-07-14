@@ -708,6 +708,31 @@ export async function initSchema() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_inv_payments ON invoice_payments(tenant_id, invoice_id)');
 
+    // On-premises license management (platform-level, no tenant_id)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS onprem_licenses (
+        id TEXT PRIMARY KEY,
+        license_key TEXT UNIQUE NOT NULL,
+        company_name TEXT NOT NULL,
+        business_type TEXT DEFAULT 'manufacturer',
+        admin_email TEXT,
+        max_users INT DEFAULT 5,
+        valid_until DATE,
+        status TEXT DEFAULT 'active',
+        machine_id TEXT,
+        machine_os TEXT,
+        app_version TEXT,
+        last_seen TIMESTAMPTZ,
+        active_users INT DEFAULT 0,
+        disk_mb INT DEFAULT 0,
+        settings JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        created_by TEXT
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_onprem_key ON onprem_licenses(license_key)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_onprem_status ON onprem_licenses(status)');
+
     // Purchase invoice number for GSTR-2B reconciliation
     await client.query("ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS invoice_number TEXT");
 

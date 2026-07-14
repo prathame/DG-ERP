@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DG ERP — Setup</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f9fafb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: #1a1a1a;
+    }
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      width: 420px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .logo-icon {
+      width: 44px; height: 44px;
+      background: #F27D26;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 800; font-size: 20px;
+    }
+    .logo-text { font-size: 22px; font-weight: 800; }
+    h2 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    p.sub { color: #6b7280; font-size: 14px; margin-bottom: 28px; }
+    label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #9ca3af; margin-bottom: 6px; }
+    input {
+      width: 100%; padding: 12px 16px;
+      border: 1.5px solid #e5e7eb; border-radius: 10px;
+      font-size: 14px; outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 18px;
+      font-family: inherit;
+    }
+    input:focus { border-color: #F27D26; }
+    input.key { font-family: monospace; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; }
+    button {
+      width: 100%; padding: 14px;
+      background: #F27D26; color: white;
+      border: none; border-radius: 10px;
+      font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: background 0.2s;
+      margin-top: 4px;
+    }
+    button:hover { background: #e06b15; }
+    button:disabled { background: #d1d5db; cursor: not-allowed; }
+    .error {
+      background: #fef2f2; border: 1px solid #fecaca;
+      color: #dc2626; border-radius: 8px;
+      padding: 10px 14px; font-size: 13px;
+      margin-bottom: 16px; display: none;
+    }
+    .success {
+      background: #f0fdf4; border: 1px solid #bbf7d0;
+      color: #16a34a; border-radius: 8px;
+      padding: 10px 14px; font-size: 13px;
+      margin-bottom: 16px; display: none;
+    }
+    .hint { color: #9ca3af; font-size: 12px; margin-top: -12px; margin-bottom: 18px; }
+    .step { display: none; }
+    .step.active { display: block; }
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white; border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-right: 8px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">DG</div>
+      <div class="logo-text">DG ERP</div>
+    </div>
+
+    <!-- Step 1: License Key -->
+    <div id="step1" class="step active">
+      <h2>Welcome to DG ERP</h2>
+      <p class="sub">Enter your license key to get started</p>
+      <div id="error1" class="error"></div>
+      <label>License Key</label>
+      <input id="licenseKey" class="key" placeholder="DG-XXXX-XXXX-XXXX" maxlength="17" autocomplete="off" />
+      <p class="hint">You received this key from DG Business</p>
+      <button id="activateBtn" onclick="activate()">Activate License</button>
+    </div>
+
+    <!-- Step 2: Set Admin Password -->
+    <div id="step2" class="step">
+      <h2 id="welcomeTitle">Welcome!</h2>
+      <p class="sub">Set your admin password to complete setup</p>
+      <div id="error2" class="error"></div>
+      <label>Admin Password</label>
+      <input type="password" id="password" placeholder="Min 8 characters" />
+      <label>Confirm Password</label>
+      <input type="password" id="confirmPassword" placeholder="Re-enter password" />
+      <button id="setupBtn" onclick="completeSetup()">Start Using DG ERP</button>
+    </div>
+
+    <!-- Step 3: Setting up -->
+    <div id="step3" class="step">
+      <h2>Setting up your workspace...</h2>
+      <p class="sub">This takes about 15 seconds on first run</p>
+      <div style="margin-top:32px; text-align:center; color:#F27D26; font-size:14px;">
+        <span class="spinner"></span> Initialising database...
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let licenseData = null;
+
+    function showError(id, msg) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+    function hideError(id) {
+      document.getElementById(id).style.display = 'none';
+    }
+    function showStep(n) {
+      document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+      document.getElementById('step' + n).classList.add('active');
+    }
+
+    // Format license key input as user types
+    document.getElementById('licenseKey').addEventListener('input', function() {
+      let v = this.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      let parts = [];
+      if (v.length > 0) parts.push('DG');
+      if (v.length > 2) parts.push(v.slice(2, 6));
+      if (v.length > 6) parts.push(v.slice(6, 10));
+      if (v.length > 10) parts.push(v.slice(10, 14));
+      this.value = parts.join('-');
+    });
+
+    async function activate() {
+      hideError('error1');
+      const key = document.getElementById('licenseKey').value.trim();
+      if (!key || key.length < 14) { showError('error1', 'Please enter a valid license key'); return; }
+
+      const btn = document.getElementById('activateBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Validating...';
+
+      try {
+        const result = await window.electronAPI.activateLicense(key);
+        if (!result.valid) {
+          showError('error1', result.error || 'Invalid or expired license key');
+          btn.disabled = false; btn.textContent = 'Activate License';
+          return;
+        }
+        licenseData = result;
+        document.getElementById('welcomeTitle').textContent = `Welcome, ${result.companyName}!`;
+        showStep(2);
+      } catch (e) {
+        showError('error1', 'Could not connect to activation server. Check your internet connection.');
+        btn.disabled = false; btn.textContent = 'Activate License';
+      }
+    }
+
+    async function completeSetup() {
+      hideError('error2');
+      const pwd = document.getElementById('password').value;
+      const confirm = document.getElementById('confirmPassword').value;
+      if (pwd.length < 8) { showError('error2', 'Password must be at least 8 characters'); return; }
+      if (pwd !== confirm) { showError('error2', 'Passwords do not match'); return; }
+
+      document.getElementById('setupBtn').disabled = true;
+      showStep(3);
+
+      try {
+        await window.electronAPI.completeSetup({ ...licenseData, adminPassword: pwd });
+        // Main process will reload the window to the app after this
+      } catch (e) {
+        showStep(2);
+        showError('error2', 'Setup failed: ' + (e.message || 'Unknown error'));
+        document.getElementById('setupBtn').disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

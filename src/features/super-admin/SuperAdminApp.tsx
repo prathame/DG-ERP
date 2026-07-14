@@ -10,6 +10,7 @@ import {
   X,
   FileText,
   IndianRupee,
+  Monitor,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { ToastProvider } from '../../components/ui';
@@ -19,9 +20,10 @@ import { SuperAdminBilling } from './SuperAdminBilling';
 import { TenantListView } from './TenantListView';
 import { TenantDetailView } from './TenantDetailView';
 import { PlanManagementView } from './PlanManagementView';
+import { OnPremView } from './OnPremView';
 import { session } from '../../lib/session';
 
-type AdminTab = 'dashboard' | 'tenants' | 'plans' | 'billing' | 'audit' | 'analytics';
+type AdminTab = 'dashboard' | 'tenants' | 'plans' | 'billing' | 'audit' | 'analytics' | 'onprem';
 
 interface SuperAdminUser {
   id: string;
@@ -45,6 +47,7 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
     { id: 'tenants', label: 'Tenants', icon: Building2 },
     { id: 'plans', label: 'Plans', icon: CreditCard },
     { id: 'billing', label: 'Billing', icon: IndianRupee },
+    { id: 'onprem', label: 'On-Prem', icon: Monitor },
     { id: 'audit', label: 'Audit Log', icon: FileText },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   ];
@@ -77,6 +80,8 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
         return <SuperAdminBilling />;
       case 'audit':
         return <SuperAdminAuditLog />;
+      case 'onprem':
+        return <OnPremView saToken={session.getToken() || ''} />;
       case 'analytics':
         return (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">

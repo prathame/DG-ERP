@@ -34,6 +34,7 @@ import { TermsOfService } from './components/layout/TermsOfService';
 import { ChatWidget } from './components/layout/ChatWidget';
 import { session } from './lib/session';
 import { CommandPalette } from './components/ui/CommandPalette';
+import { OnlineStatus } from './components/ui/OnlineStatus';
 
 const DashboardView = lazy(() => import('./features/dashboard/DashboardView').then(m => ({ default: m.DashboardView })));
 const SalesEntryView = lazy(() => import('./features/sales/SalesEntryView').then(m => ({ default: m.SalesEntryView })));
@@ -400,6 +401,11 @@ export default function App() {
               <Settings size={18} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
               {isSidebarOpen && <span>{t('nav.settings')}</span>}
             </button>
+          </div>
+        )}
+        {(import.meta as unknown as { env: Record<string, string> }).env.VITE_DEPLOYMENT_MODE === 'onprem' && (
+          <div className="px-3 pb-2 border-t border-gray-100 pt-2">
+            <OnlineStatus collapsed={!isSidebarOpen} />
           </div>
         )}
         {isSidebarOpen && (
