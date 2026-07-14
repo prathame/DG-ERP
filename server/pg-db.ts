@@ -669,8 +669,6 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_customers_vendor ON customers(tenant_id, vendor_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_warranties_product ON warranties(tenant_id, product_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ps_customer ON product_sales(tenant_id, customer_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_si_date ON standalone_invoices(tenant_id, invoice_date)');
-
     // Standalone invoices (non-inventory billing)
     await client.query(`
       CREATE TABLE IF NOT EXISTS standalone_invoices (
@@ -694,6 +692,7 @@ export async function initSchema() {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_si_date ON standalone_invoices(tenant_id, invoice_date)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_si_tenant ON standalone_invoices(tenant_id, created_at DESC)');
 
     // Invoice payments — partial/batch payments against standalone invoices
