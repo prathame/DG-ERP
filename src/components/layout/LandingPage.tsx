@@ -4,7 +4,7 @@ import {
   Package, ShoppingCart, Truck, Receipt, IndianRupee, MessageSquare, Smartphone,
   Moon, ShieldCheck, BarChart3, Users, Languages, Building2, Shield,
   ArrowRight, Check, Star, Mail, Phone, Send, MessageCircle, Sun, Search,
-  Store, Factory, Warehouse, FileText, Zap, Heart, Globe, BookOpen,
+  Store, Factory, Warehouse, Briefcase, FileText, Zap, Heart, Globe, BookOpen,
 } from 'lucide-react';
 
 function EnquiryForm({ dark }: { dark: boolean }) {
@@ -219,13 +219,14 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold">{isEn ? 'For Every Business Type' : isGu ? 'દરેક બિઝનેસ માટે' : 'हर बिज़नेस के लिए'}</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>{isEn ? 'Whether shop, dealer, or manufacturer — software that works for you' : isGu ? 'દુકાન હોય, ડીલર હોય, કે manufacturer — તમારા કામનું software' : 'चाहे दुकान हो, डीलर हो, या manufacturer — आपके काम का software'}</p>
+            <p className={`mt-3 ${textMuted} text-lg`}>{isEn ? 'Shop, dealer, manufacturer, or service business — software built for your type' : isGu ? 'દુકાન, ડીલર, manufacturer, કે service business — તમારા type માટે software' : 'चाहे दुकान, डीलर, manufacturer, या service business — आपके type के लिए software'}</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { icon: Store, title: L('Retail Shop', 'दुकान / Retail Shop', 'દુકાન / Retail Shop'), desc: L('Electrical shop, hardware store, kirana — scan barcode, generate bill, track stock. That simple.', 'बिजली की दुकान, hardware shop — barcode scan करो, bill दो, stock track करो। इतना simple।', 'બિજલીની દુકાન, hardware shop — barcode scan કરો, bill આપો, stock track કરો।'), features: ['Barcode billing', 'Stock alerts', 'WhatsApp bills', 'GST invoice'], color: 'text-blue-500', bg: 'bg-blue-500/10' },
               { icon: Warehouse, title: L('Dealer / Distributor', 'डीलर / Distributor', 'ડીલર / Distributor'), desc: L('Buy from suppliers, distribute to retailers. Track payments — who owes how much, which batch.', 'Products लाओ supplier से, distribute करो retailers को। Payment track करो — कौन कितना देना है।', 'Products લાવો supplier પાસેથી, distribute કરો। Payment track કરો।'), features: ['Vendor portal', 'Batch-level payment', 'Outstanding reports', 'Quotation → Distribution'], color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
               { icon: Factory, title: L('Manufacturer', 'निर्माता / Manufacturer', 'નિર્માતા / Manufacturer'), desc: L('From production to dealer — purchase, inventory, distribution, billing, accounting all automated.', 'Production से लेकर dealer तक — purchase, inventory, distribution, billing, accounting सब automated।', 'Production થી dealer સુધી — purchase, inventory, distribution, billing, accounting બધું automated।'), features: ['Supplier management', 'P&L / Balance Sheet', 'GST GSTR-1 reports', 'Pack size support'], color: 'text-purple-500', bg: 'bg-purple-500/10' },
+              { icon: Briefcase, title: L('Service / Consulting', 'सर्विस / Consulting', 'Service / Consulting'), desc: L('CNC shop, contractor, consultant — raise invoices, track payments, manage expenses. No inventory needed.', 'CNC shop, contractor, consultant — invoice बनाओ, payment track करो, expenses manage करो। Inventory की ज़रूरत नहीं।', 'CNC shop, contractor, consultant — invoice બનાવો, payment track કરો, expenses manage કરો।'), features: ['Invoice finance', 'Partial payments', 'Expense tracking', 'P&L & Accounts'], color: 'text-orange-500', bg: 'bg-orange-500/10' },
             ].map((b, i) => (
               <motion.div key={b.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
                 className={`p-6 border rounded-2xl ${cardBg} ${cardHover} transition-all`}>

@@ -35,6 +35,7 @@ Complete technical reference for developers working on this codebase.
 | Barcode generation | `server/utils/barcode.ts` |
 | API client (frontend) | `src/api.ts` |
 | App routing (JWT + URL slug) | `src/App.tsx` |
+| **Business type config** | `src/lib/businessTypeConfig.ts` → `useBusinessConfig()` |
 | Landing page (company website) | `src/components/layout/LandingPage.tsx` |
 | Tenant login screen (branded) | `src/components/layout/LoginScreen.tsx` |
 | Tenant slug lookup (public) | `server/routes/super-admin.ts` → `GET /api/tenant/by-slug/:slug` |
@@ -45,6 +46,7 @@ Complete technical reference for developers working on this codebase.
 | Bill customization UI | `src/features/settings/SettingsView.tsx` → `BillCustomizationSection` |
 | Chatbot engine | `server/routes/chatbot.ts` |
 | Security middleware | `server/index.ts` → helmet, rate limiting, CORS |
+| **HTTP QUERY method shim** | `server/index.ts` → merges QUERY body into req.query, routes as GET |
 | Logger (console + Logtail) | `server/utils/logger.ts` |
 | Audit log helper | `server/utils/helpers.ts` → `logAudit()` |
 | Super admin audit UI | `src/features/super-admin/SuperAdminAuditLog.tsx` |
@@ -59,6 +61,7 @@ Complete technical reference for developers working on this codebase.
 | Language context + hook | `src/i18n/index.tsx` → `LanguageProvider`, `useTranslation` |
 | Theme types | `src/types.ts` → `BillSettings` |
 | Demo data scripts | `server/demo/` |
+| **E2E test suite** | `tests/e2e_by_type.py` → 421 checks across all 4 business types |
 
 ### Default Credentials
 
@@ -363,7 +366,7 @@ All routes import: `import { pool } from '../pg-db';`
 
 Body limit set to 2MB in `server/index.ts` for base64 image uploads (logo, signature).
 
-### Schema (28 Tables)
+### Schema (36 Tables)
 
 **Platform Tables** (no tenant_id):
 
@@ -418,6 +421,9 @@ Body limit set to 2MB in `server/index.ts` for base64 image uploads (logo, signa
 | `reward_rules` | Milestone rules | tenant_id, threshold, points |
 | `redemption_settings` | Min balance/points | tenant_id |
 | `banks` | Bank accounts | tenant_id |
+| `standalone_invoices` | Service/custom invoices (no inventory link) | tenant_id, customer_name, items (JSONB), grand_total, status |
+| `invoice_payments` | Partial payments against standalone invoices | tenant_id, invoice_id, amount, payment_date, payment_method |
+| `credit_debit_notes` | Credit/debit notes | tenant_id, note_type, vendor_name, items (JSONB) |
 | `vendor_reminder_settings` | Auto-remind config | tenant_id, vendor_id, enabled, days |
 | `bill_settings` | Per-tenant bill customization | tenant_id (PK), logo_base64, primary_color, signatory, bank details |
 | `audit_log` | Activity tracking | tenant_id, action, entity_type, details |
@@ -587,28 +593,31 @@ router.get('/api/resource', async (req, res) => {
 export default router;
 ```
 
-### Route Reference (22 files)
+### Route Reference (25 files)
 
 | File | Routes | Notes |
 |---|---|---|
-| `super-admin.ts` | `/api/super-admin/*`, `/api/tenant/register`, `/api/tenant/by-slug/:slug`, `/api/super-admin/billing` | No tenant_id; billing CRUD for subscription invoices |
+| `super-admin.ts` | `/api/super-admin/*`, `/api/tenant/register`, `/api/tenant/by-slug/:slug`, `/api/super-admin/billing` | No tenant_id; billing CRUD for subscription invoices; returns 400 on duplicate company slug |
 | `auth.ts` | `/api/auth/login`, `/api/auth/signup`, `/api/settings/*` | Login searches across tenants |
 | `bill-settings.ts` | `GET/PUT /api/settings/bill` | Per-tenant bill customization (logo, colors, bank, signatory) |
-| `products.ts` | CRUD + `/add-stock`, `/by-barcode/:barcode` | Barcode range generation |
+| `products.ts` | CRUD + `/add-stock`, `/by-barcode/:barcode` | Barcode range generation; requires `barcodePrefix` on create |
 | `sales.ts` | `/validate/:barcode`, CRUD, `/:id/bill` | Auto-creates warranty + rewards; bill includes `billSettings` |
 | `distribution.ts` | CRUD + `/summary`, `/bill`, `/apply-billing` | Spreadsheet-style; bill includes `billSettings` |
 | `warranties.ts` | CRUD with status auto-expiry | Checks `warranty_applicable` flag |
 | `replacements.ts` | CRUD + barcode validation | Old→new barcode swap |
-| `transactions.ts` | CRUD with date filters + pagination | Income/expense totals |
+| `expenses.ts` | CRUD + `/summary` | 12 categories; ITC-eligible tracking |
 | `rewards.ts` | CRUD + `/balance`, reward rules, redemption | Vendor-scoped points |
 | `customers.ts` | CRUD + purchases + vendor mapping | Linked to vendors |
 | `vendors.ts` | CRUD + auto-creates vendor login user | Password: `{name}@123` |
-| `banks.ts` | CRUD | Simple master data |
-| `finance.ts` | `/vendor-finance/summary`, payments, reminders | **Critical**: static routes before `:vendorId` param |
+| `banks.ts` | CRUD + batch import | Simple master data |
+| `finance.ts` | `/vendor-finance/summary`, payments, reminders, bank statement | **Critical**: static routes before `:vendorId` param; bank statement supports CSV/XLS/XLSX |
+| `invoice-finance.ts` | `/api/invoice-finance/summary`, `/client/:name`, `/payments` | Service tenant invoice payment tracking; auto-marks invoice paid on full payment |
+| `invoices.ts` | CRUD + `/next-number`, status update | Standalone invoices; QR pre-fetched as base64 before PDF generation |
+| `accounts.ts` | P&L, Balance Sheet, Cash Flow, Ledger, Day Book, Notes, GSTR-3B, GSTR-2B | Includes standalone invoice revenue/receivables in all reports |
+| `reports.ts` | 6 CA-ready registers | Sales, Distribution, Outstanding, Payments, Stock, GST |
+| `dashboard.ts` | `/stats`, `/rewards-summary`, `/money`, `/analytics/overview`, `/analytics/recent-activity` | `/analytics/overview` supports RFC 10008 HTTP QUERY method |
 | `admin.ts` | User management | Admin-only, role/permission CRUD |
-| `dashboard.ts` | `/stats`, `/rewards-summary` | KPIs + stats |
 | `search.ts` | `/search?q=` | Searches products, customers, vendors, barcodes |
-| `notifications.ts` | `/notifications` | Low stock, expiring warranties, pending payments |
 | `chatbot.ts` | `/chatbot`, `/chatbot/quick-actions` | 30+ queries, label-aware responses, dynamic quick actions |
 | `masters.ts` | `/masters/counts` | Aggregate counts |
 | `mapping.ts` | `/mapping/vendors-with-customers` | Vendor→customer tree |
@@ -1386,6 +1395,194 @@ Key sections: Business types → Flow diagram → 16 features → Pricing → "T
 
 ---
 
-*Last updated: June 2026*
-*Platform: DG Business (formerly DG Business)*
+---
+
+## New Modules (Added July 2026)
+
+### Navigation Overhaul
+
+The **Dashboard** tab was removed from the sidebar. New top-level tabs:
+
+| Tab | Key | Purpose |
+|---|---|---|
+| **Analytics** | `analytics` | Home page — money overview (date range), vendor leaderboard, activity feed, master counts |
+| **Masters** | `masters` | All master data management (Customers, Vendors, Banks, Staff, etc.) |
+
+**Dashboard** still exists as a route internally but is no longer linked from the nav. Analytics is now the default landing page after login.
+
+### Business Type System
+
+Four business types supported, each with its own tab config, labels, and feature flags:
+
+| Type | Finance View | Key Features |
+|---|---|---|
+| `manufacturer` | Vendor Finance | Distribution, warranty, rewards, barcodes, customer tracking |
+| `dealer` | Vendor Finance | Distribution (as Sales), no warranty/rewards |
+| `retail` | Vendor Finance | Stock management, barcode sales, no distribution chain |
+| `service` | Invoice Finance | Invoices, quotes, expenses — **no inventory** |
+
+**Central config file**: `src/lib/businessTypeConfig.ts`
+
+```typescript
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
+
+function MyComponent() {
+  const cfg = useBusinessConfig(); // reads from session, zero API calls
+  if (!cfg.features.distribution) return null;
+  return <span>{cfg.labels.vendors}</span>; // 'Vendors' or 'Customers' or 'Clients'
+}
+```
+
+Config properties:
+- `cfg.type` — `'manufacturer' | 'dealer' | 'retail' | 'service'`
+- `cfg.features.*` — boolean flags (inventory, distribution, warranty, rewards, invoiceFinance, etc.)
+- `cfg.labels.*` — display labels (vendors, distribution, finance, etc.)
+- `cfg.financeView` — `'vendor' | 'invoice'`
+- `cfg.analytics.*` — which tiles to show/hide and their labels
+- `cfg.accounts.hideTabs` — account report tabs to hide for this type
+
+**Adding a new business type**: add one entry to `CONFIGS` in `businessTypeConfig.ts`, add the preset to `BUSINESS_TYPE_CONFIGS` in `TenantListView.tsx`, and add to the allowlist in `super-admin.ts`.
+
+### Invoice Finance (Service Tenants)
+
+Service tenants use `InvoiceFinanceView` instead of `VendorFinanceView` in the Finance tab.
+
+| File | Purpose |
+|---|---|
+| `server/routes/invoice-finance.ts` | Summary, client detail, record/delete payment |
+| `src/features/finance/InvoiceFinanceView.tsx` | Client list → invoice detail → payment history |
+
+**Table**: `invoice_payments` (id, tenant_id, invoice_id, amount, payment_date, payment_method)
+
+**Flow**:
+- Client list shows total invoiced / total paid / balance per client
+- Click **View** → see all invoices for that client + payment history
+- Click **Pay** per invoice → record partial or full payment
+- When `SUM(payments) >= grand_total` → invoice auto-marked `paid`
+- Deleting a payment → invoice auto-reverted to `unpaid`
+- Overpayment → confirmation dialog (same pattern as vendor finance)
+
+### Analytics Tab
+
+**File**: `src/features/analytics/AnalyticsView.tsx`
+
+Four sections:
+1. **Money Overview** — date range picker (Today / Week / Month / Overall / Custom) → Collected, Sales Revenue, Dispatched, Expenses, Outstanding, Net In
+2. **Vendor Outstanding Leaderboard** — top 5 vendors by balance due
+3. **Recent Activity Feed** — last 15 events across sales, invoices, payments, distributions, expenses
+4. **Master Summary Cards** — Customers, Vendors, Products, Banks counts with navigation links
+
+All four sections load with **one HTTP request** (`GET /api/analytics/overview`) instead of four separate calls.
+
+Money tiles adapt per business type (e.g., service shows "Unpaid Invoices" instead of "Outstanding").
+
+### HTTP QUERY Method (RFC 10008)
+
+DG ERP implements the new QUERY HTTP method standardised in June 2026.
+
+**How it works:**
+```
+Browser → QUERY /api/analytics/overview { from, to }
+Server middleware: body merged into req.query → req.method = 'GET' → routed to GET handler
+```
+
+**Server shim** (in `server/index.ts`):
+```typescript
+app.use((req, _res, next) => {
+  if (req.method === 'QUERY') {
+    if (req.body && typeof req.body === 'object') Object.assign(req.query, req.body);
+    req.method = 'GET';
+  }
+  next();
+});
+```
+
+**Frontend call** (`src/api.ts`):
+```typescript
+api.dashboard.overview(from, to)
+// sends: QUERY /api/analytics/overview { from, to }
+```
+
+**Why**: QUERY is safe + idempotent + carries a JSON body. Proxy/CDN caches can cache responses (unlike POST). Wider browser support expected 2027–2028.
+
+### Bank Statement Import — XLS/XLSX Support
+
+File: `src/features/finance/VendorFinanceView.tsx`
+
+Accepts `.csv`, `.xls`, `.xlsx`. Uses SheetJS (`xlsx` package).
+
+**Auto-detects header row** — handles bank statements with metadata rows before the actual column headers (common in ICICI, HDFC, SBI exports).
+
+**Phone matching priority**:
+1. Scan all 10-digit numbers anywhere in the description
+2. Extract phone from UPI handle before `@` (e.g. `9764057232@axl` → `9764057232`)
+3. Match against vendor's registered phone number
+
+### Accounts — Standalone Invoice Integration
+
+All accounting reports now include standalone invoice data:
+
+| Report | What was added |
+|---|---|
+| P&L | `invoiceRevenue` field; total = dist + barcode_sales + invoices |
+| Balance Sheet | `invoiceReceivables` (unpaid invoices) + `distributionReceivables` split separately; cash includes paid invoices |
+| Cash Flow | `invoicePayments` in inflows; monthly breakdown shows both vendor payments and invoice payments |
+| Ledger | Standalone invoices appear as `Invoice` entries (violet badge) |
+| Day Book | Invoices appear with paid/unpaid status |
+| GSTR-3B | Was already correct; fixed 500 error (used wrong column `cost_price` from distribution table, should be `net_price`) |
+
+**Accounts hide tabs per business type**: Service hides Distribution Register, Stock Summary, Sales Register (items are irrelevant).
+
+### PDF QR Code Fix
+
+QR codes in PDFs were missing because `window.print()` fired before external images loaded.
+
+**Fix applied to**: standalone invoices, distribution GST bill, distribution non-GST bill, sales entry invoices.
+
+**Approach**:
+1. Pre-fetch QR from `api.qrserver.com` as base64 data URL (`fetchImageAsDataUrl()` in `utils.ts`)
+2. Embed data URL inline in HTML — no network request at print time
+3. For standalone invoices: replaced `<script>window.print()</script>` with image-load-wait script
+
+### E2E Test Suite
+
+**File**: `tests/e2e_by_type.py`
+
+Creates all 4 tenant types, runs tests, cleans up.
+
+```bash
+python3 tests/e2e_by_type.py
+# 421/421 passing across manufacturer, dealer, retail, service
+```
+
+Coverage per type:
+- Auth, CRUD for all master data
+- Accounts (P&L math, Balance Sheet integrity, Cash Flow math)
+- HTTP QUERY method (RFC 10008)
+- Vendor payments, bank statement, invoice finance
+- Security (401 on every endpoint without auth)
+- Type-specific: distribution for mfg/dealer, invoice finance for service, sales for retail
+
+**Run time**: ~60–90 seconds (creates/destroys 4 tenants).
+
+### Bug Fixes (July 2026)
+
+| Bug | Fix |
+|---|---|
+| GSTR-3B 500 error | `product_distribution` has no `cost_price` column — changed to `net_price` |
+| Tenant creation returns 500 on duplicate company name | `provisionTenant()` now checks slug uniqueness and throws 400 with helpful message |
+| P&L excluded standalone invoice revenue | Added `invoiceRevenue` query |
+| Balance Sheet missed invoice receivables/cash | Added `invoiceReceivables` + `invoiceCashReceived` |
+| Cash Flow missed invoice payments | Added `invoicePayments` to inflows |
+| Ledger/Day Book missed invoices | Added invoice entries to both queries |
+| Bank statement preview crashed on PostgreSQL Date objects | Fixed `.localeCompare()` to use `new Date().getTime()` |
+| `nav.analytics`, `nav.masters`, `nav.invoices` shown in super admin | Added missing keys to all 3 i18n files |
+| PDF QR code blank | Pre-fetch as base64; invoice print waits for images before triggering `window.print()` |
+| Analytics fired 4 HTTP requests on load | Combined into single `/api/analytics/overview` endpoint |
+| Balance Sheet ran 10 separate DB queries | Merged into 4 multi-aggregate SQL queries |
+
+---
+
+*Last updated: July 2026*
+*Platform: DG ERP*
 *Built with Claude Code (Anthropic)*

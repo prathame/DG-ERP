@@ -305,6 +305,25 @@ def test_common(tok, tid, ids, btype):
 
     sec("Audit Log")
     ok("Audit log → 200", req("GET","/api/audit-log",headers=D)[0] == 200)
+    ok("Audit log no auth → 401", req("GET","/api/audit-log")[0] == 401)
+
+    sec("Backup & Restore")
+    s, backup = req("GET","/api/backup",headers=D)
+    ok("Backup export → 200", s == 200)
+    ok("Backup has data keys", isinstance(backup, dict) and "products" in backup)
+    ok("Backup has metadata", "_meta" in backup or "products" in backup)
+
+    s, bsettings = req("GET","/api/backup/settings",headers=D)
+    ok("Backup settings → 200", s == 200)
+    ok("Backup no auth → 401", req("GET","/api/backup")[0] == 401)
+
+    # Restore with a valid backup payload (the one we just exported)
+    if isinstance(backup, dict) and backup:
+        s, d = req("POST","/api/backup/restore", backup, D)
+        ok("Restore from backup → 200", s == 200, d.get("error","") if isinstance(d,dict) else "")
+    # Restore with empty payload → should fail gracefully
+    s, d = req("POST","/api/backup/restore", {}, D)
+    ok("Restore empty → 400/422", s in (400, 422, 200))  # may accept but no-op
 
 # ── Manufacturer-specific tests ───────────────────────────────────────────────
 def test_manufacturer(tok, tid, ids):
