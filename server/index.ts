@@ -118,7 +118,9 @@ app.use((req, _res, next) => {
 const PUBLIC_PATHS = [
   '/api/auth/login', '/api/auth/signup', '/api/auth/forgot-password', '/api/auth/reset-password',
   '/api/super-admin/login', '/api/tenant/by-slug/', '/api/health',
-  '/api/super-admin/login', '/manifest.json',
+  '/manifest.json',
+  // On-prem license endpoints — validated by license key, not JWT
+  '/api/onprem/activate', '/api/onprem/heartbeat', '/api/onprem/deactivate',
 ];
 
 // Tenant status — no cache, always check DB
