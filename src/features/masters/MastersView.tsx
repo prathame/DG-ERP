@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import type { Tab } from '../../types';
 import { CustomerMasterView } from './CustomerMasterView';
@@ -15,11 +16,12 @@ import { StaffMasterView } from './StaffMasterView';
 export type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList' | 'staff';
 
 export function MastersView({ setActiveTab, user, businessType = 'manufacturer' }: { setActiveTab: (tab: Tab) => void; user?: Record<string, unknown> | null; businessType?: string }) {
+  const cfg = useBusinessConfig();
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
-  const isDirectSell = businessType === 'dealer' || businessType === 'retail';
+  const isDirectSell = cfg.type === 'dealer' || cfg.type === 'retail';
   const tabConfig = ((user?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>);
   const tv = (key: string) => tabConfig[key]?.visible !== false;
-  const hasCustomerTracking = tv('sales');
+  const hasCustomerTracking = tv('sales') && cfg.features.customerTracking;
 
   const [masterCounts, setMasterCounts] = useState({ customer: 0, vendor: 0, item: 0, bank: 0, staff: 0 });
   const [selectedMaster, setSelectedMaster] = useState<MasterType | null>(null);
@@ -34,7 +36,7 @@ export function MastersView({ setActiveTab, user, businessType = 'manufacturer' 
 
   const allMasters = [
     ...(hasCustomerTracking && !isDirectSell ? [{ id: 'customer' as const, name: 'Customers', count: masterCounts.customer as number | string, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' }] : []),
-    { id: 'vendor' as const, name: isDirectSell ? 'Customers' : 'Vendors', count: masterCounts.vendor as number | string, icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { id: 'vendor' as const, name: cfg.labels.vendors, count: masterCounts.vendor as number | string, icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50' },
     ...(tv('rewards') ? [{ id: 'rewardRules' as const, name: 'Reward Rules', count: '' as number | string, icon: Gift, color: 'text-amber-600', bg: 'bg-amber-50' }] : []),
     ...(hasCustomerTracking ? [{ id: 'mapping' as const, name: 'Vendor-Customer Map', count: '' as number | string, icon: Link2, color: 'text-cyan-600', bg: 'bg-cyan-50' }] : []),
     { id: 'item' as const, name: 'Products', count: masterCounts.item as number | string, icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },

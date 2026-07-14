@@ -507,8 +507,8 @@ export default function App() {
             ? <InvoiceFinanceView accessLevel={getAccess('finance')} />
             : <VendorFinanceView user={user} accessLevel={getAccess('finance')} />)
           }
-          {activeTab === 'analytics' && <AnalyticsView setActiveTab={setActiveTab} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
-          {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
+          {activeTab === 'analytics' && <AnalyticsView setActiveTab={setActiveTab} />}
+          {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} />}
           </div>
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
           </Suspense>

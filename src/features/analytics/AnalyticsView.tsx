@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { CreditCard, TrendingUp, ShoppingCart, IndianRupee, Users, Package, Landmark, UserRound, ArrowRight, FileText } from 'lucide-react';
-import { cn, formatDate , useTabLabel } from '../../lib/utils';
+import { cn, formatDate, useTabLabel } from '../../lib/utils';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import type { Tab } from '../../types';
 
@@ -34,8 +35,8 @@ function relativeTime(dateStr: string) {
   return formatDate(dateStr);
 }
 
-export function AnalyticsView({ setActiveTab, businessType = 'manufacturer' }: { setActiveTab: (tab: Tab) => void; businessType?: string }) {
-  const isService = businessType === 'service';
+export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => void }) {
+  const cfg = useBusinessConfig();
   const [range, setRange] = useState<RangeId>('month');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -90,15 +91,15 @@ export function AnalyticsView({ setActiveTab, businessType = 'manufacturer' }: {
         {money ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {([
-              { label: isService ? 'Received' : 'Collected', value: money.collections, color: 'text-emerald-600', bg: 'bg-emerald-50', show: true },
-              { label: isService ? 'Invoice Revenue' : 'Sales', value: money.revenue, color: 'text-blue-600', bg: 'bg-blue-50', show: true },
-              { label: 'Dispatched', value: money.distribution, color: 'text-orange-600', bg: 'bg-orange-50', show: !isService },
+              { label: cfg.analytics.collectionsLabel, value: money.collections, color: 'text-emerald-600', bg: 'bg-emerald-50', show: true },
+              { label: cfg.analytics.revenueLabel, value: money.revenue, color: 'text-blue-600', bg: 'bg-blue-50', show: true },
+              { label: 'Dispatched', value: money.distribution, color: 'text-orange-600', bg: 'bg-orange-50', show: cfg.analytics.showDispatched },
               { label: 'Expenses', value: money.expenses, color: 'text-rose-600', bg: 'bg-rose-50', show: true },
               {
-                label: isService ? 'Unpaid Invoices' : 'Outstanding',
-                value: isService ? money.invoiceOutstanding : money.outstanding,
-                color: (isService ? money.invoiceOutstanding : money.outstanding) > 0 ? 'text-rose-600' : 'text-emerald-600',
-                bg: (isService ? money.invoiceOutstanding : money.outstanding) > 0 ? 'bg-rose-50' : 'bg-emerald-50',
+                label: cfg.analytics.outstandingLabel,
+                value: money[cfg.analytics.outstandingKey],
+                color: money[cfg.analytics.outstandingKey] > 0 ? 'text-rose-600' : 'text-emerald-600',
+                bg: money[cfg.analytics.outstandingKey] > 0 ? 'bg-rose-50' : 'bg-emerald-50',
                 show: true,
               },
               { label: 'Net In', value: money.collections + money.revenue - money.expenses, color: (money.collections + money.revenue - money.expenses) >= 0 ? 'text-emerald-700' : 'text-rose-600', bg: (money.collections + money.revenue - money.expenses) >= 0 ? 'bg-emerald-50' : 'bg-rose-50', show: true },

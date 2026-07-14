@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { BarChart3, Download, Printer, Search, BookOpen, TrendingUp, Scale, Banknote, ShoppingCart, Truck, Clock, IndianRupee, Package, Receipt, FileCheck, Upload } from 'lucide-react';
-import { cn, exportToCsv, formatDate , useTabLabel } from '../../lib/utils';
+import { cn, exportToCsv, formatDate, useTabLabel } from '../../lib/utils';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { fetchApi } from '../../api';
 
@@ -9,9 +10,11 @@ type AccountTab = 'pnl' | 'balance' | 'cashflow' | 'ledger' | 'daybook' | 'notes
 
 function fmtCurrency(n: number) { return `₹${Math.abs(n).toLocaleString('en-IN')}${n < 0 ? ' (Cr)' : ''}`; }
 
-export function AccountsView({ accessLevel = 'full', businessType = 'manufacturer' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full'; businessType?: string } = {}) {
+export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const { toast } = useToast();
-  const ds = businessType === 'dealer' || businessType === 'retail';
+  const cfg = useBusinessConfig();
+  const ds = cfg.type === 'dealer' || cfg.type === 'retail';
+  const businessType = cfg.type;
   const [tab, setTab] = useState<AccountTab>('pnl');
   const now = new Date();
   const fyStart = now.getMonth() >= 3 ? `${now.getFullYear()}-04-01` : `${now.getFullYear() - 1}-04-01`;
@@ -55,7 +58,6 @@ export function AccountsView({ accessLevel = 'full', businessType = 'manufacture
     setTimeout(() => win.print(), 300);
   };
 
-  const isService = businessType === 'service';
   const ALL_TABS: { key: AccountTab; label: string; shortLabel: string; icon: React.ElementType; group: 'accounts' | 'reports'; hide?: boolean }[] = [
     { key: 'pnl', label: 'Profit & Loss', shortLabel: 'P&L', icon: TrendingUp, group: 'accounts' },
     { key: 'balance', label: 'Balance Sheet', shortLabel: 'Balance', icon: Scale, group: 'accounts' },
@@ -63,11 +65,11 @@ export function AccountsView({ accessLevel = 'full', businessType = 'manufacture
     { key: 'ledger', label: 'Ledger', shortLabel: 'Ledger', icon: BookOpen, group: 'accounts' },
     { key: 'daybook', label: 'Day Book', shortLabel: 'DayBook', icon: BookOpen, group: 'accounts' },
     { key: 'notes', label: 'Credit/Debit Notes', shortLabel: 'Notes', icon: Receipt, group: 'accounts' },
-    { key: 'sales', label: 'Sales Register', shortLabel: 'Sales', icon: ShoppingCart, group: 'reports', hide: isService },
-    { key: 'distribution', label: ds ? 'Sales Register' : 'Distribution Register', shortLabel: ds ? 'Sales' : 'Dist.', icon: Truck, group: 'reports', hide: isService },
+    { key: 'sales', label: 'Sales Register', shortLabel: 'Sales', icon: ShoppingCart, group: 'reports', hide: cfg.accounts.hideTabs.includes('sales') },
+    { key: 'distribution', label: cfg.accounts.distributionRegisterLabel, shortLabel: ds ? 'Sales' : 'Dist.', icon: Truck, group: 'reports', hide: cfg.accounts.hideTabs.includes('distribution') },
     { key: 'outstanding', label: 'Outstanding', shortLabel: 'Due', icon: Clock, group: 'reports' },
     { key: 'payments', label: 'Payment Register', shortLabel: 'Payments', icon: IndianRupee, group: 'reports' },
-    { key: 'stock', label: 'Stock Summary', shortLabel: 'Stock', icon: Package, group: 'reports', hide: isService },
+    { key: 'stock', label: 'Stock Summary', shortLabel: 'Stock', icon: Package, group: 'reports', hide: cfg.accounts.hideTabs.includes('stock') },
     { key: 'gst', label: 'GST Summary', shortLabel: 'GST', icon: Receipt, group: 'reports' },
     { key: 'gstr2b', label: 'GSTR-2B Reconciliation', shortLabel: '2B', icon: FileCheck, group: 'reports' },
     { key: 'gstr3b', label: 'GSTR-3B Computation', shortLabel: '3B', icon: FileCheck, group: 'reports' },
@@ -151,7 +153,7 @@ export function AccountsView({ accessLevel = 'full', businessType = 'manufacture
 
       {!loading && data && (
         <div id="accounts-content">
-          {tab === 'pnl' && <ProfitLoss data={data} ds={ds} businessType={businessType} />}
+          {tab === 'pnl' && <ProfitLoss data={data} ds={ds} cfg={cfg} />}
           {tab === 'balance' && <BalanceSheet data={data} ds={ds} />}
           {tab === 'cashflow' && <CashFlow data={data} ds={ds} />}
           {tab === 'ledger' && <Ledger data={data} />}
@@ -184,16 +186,15 @@ function StatCard({ label, value, color, sub }: { label: string; value: string; 
   );
 }
 
-function ProfitLoss({ data, ds, businessType }: { data: Record<string, unknown>; ds: boolean; businessType: string }) {
+function ProfitLoss({ data, ds, cfg }: { data: Record<string, unknown>; ds: boolean; cfg: ReturnType<typeof useBusinessConfig> }) {
   const rev = data.revenue as { distributionRevenue: number; salesRevenue: number; invoiceRevenue?: number; total: number };
   const exp = data.expenses as { purchaseCost: number; staffPayments?: number; otherExpenses?: number; total: number };
   const profit = Number(data.grossProfit) || 0;
   const margin = Number(data.profitMargin) || 0;
-  const isService = businessType === 'service';
   const invoiceRev = rev.invoiceRevenue || 0;
   const revenueLines = [
-    !isService && rev.distributionRevenue > 0 && { label: ds ? 'Sales Revenue' : 'Distribution Revenue', value: rev.distributionRevenue },
-    !isService && rev.salesRevenue > 0 && { label: 'Direct Sales Revenue', value: rev.salesRevenue },
+    cfg.features.distribution && rev.distributionRevenue > 0 && { label: cfg.labels.distributionRevenue, value: rev.distributionRevenue },
+    cfg.features.distribution && rev.salesRevenue > 0 && { label: 'Direct Sales Revenue', value: rev.salesRevenue },
     invoiceRev > 0 && { label: 'Invoice Revenue', value: invoiceRev },
   ].filter(Boolean) as { label: string; value: number }[];
   return (
@@ -217,7 +218,7 @@ function ProfitLoss({ data, ds, businessType }: { data: Record<string, unknown>;
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h3 className="font-bold text-sm text-gray-400 uppercase mb-4">Expenses</h3>
           <div className="space-y-3">
-            {(exp.purchaseCost > 0 || isService) && <div className="flex justify-between"><span className="text-sm">{isService ? 'Material / Purchase Cost' : 'Purchase Cost'}</span><span className="font-bold text-rose-600">{fmtCurrency(exp.purchaseCost)}</span></div>}
+            {exp.purchaseCost > 0 && <div className="flex justify-between"><span className="text-sm">{cfg.labels.purchaseCost}</span><span className="font-bold text-rose-600">{fmtCurrency(exp.purchaseCost)}</span></div>}
             {(exp.staffPayments || 0) > 0 && <div className="flex justify-between"><span className="text-sm">Staff Payments</span><span className="font-bold text-rose-600">{fmtCurrency(exp.staffPayments || 0)}</span></div>}
             {(exp.otherExpenses || 0) > 0 && <div className="flex justify-between"><span className="text-sm">Other Expenses</span><span className="font-bold text-rose-600">{fmtCurrency(exp.otherExpenses || 0)}</span></div>}
             <div className="border-t pt-2 flex justify-between"><span className="font-bold">Total Expenses</span><span className="font-bold text-rose-600 text-lg">{fmtCurrency(exp.total)}</span></div>
