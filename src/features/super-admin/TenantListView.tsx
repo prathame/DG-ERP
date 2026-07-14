@@ -165,7 +165,10 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
                   <td className="px-4 py-3 font-medium text-gray-900">{t.companyName}</td>
                   <td className="px-4 py-3 text-gray-600">{t.adminEmail}</td>
                   <td className="px-4 py-3">
-                    <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 capitalize">{t.planName || t.planId || 'N/A'}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">☁ Cloud</span>
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 capitalize">{t.planName || t.planId || 'N/A'}</span>
+                    </div>
                   </td>
                   <td className="px-4 py-3">{statusBadge(t.status)}</td>
                   <td className="px-4 py-3 text-right text-gray-600">{t.users}</td>
@@ -439,9 +442,14 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
             <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center">
               <Building2 size={20} className="text-brand" />
             </div>
-            <h2 className="text-lg font-bold text-gray-900">
-              {createdCredentials ? 'Tenant Created' : 'Create New Tenant'}
-            </h2>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">
+                {createdCredentials ? 'Tenant Created' : 'Create Cloud Tenant'}
+              </h2>
+              {!createdCredentials && (
+                <p className="text-xs text-blue-600 font-medium mt-0.5">☁ Cloud — browser access, you host everything. For on-prem → use On-Prem tab</p>
+              )}
+            </div>
           </div>
           <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <X size={18} />
