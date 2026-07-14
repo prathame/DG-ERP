@@ -171,6 +171,54 @@ export function OnPremView({ saToken }: { saToken: string }) {
           </div>
         )}
 
+        {/* Renew License */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <h3 className="font-bold mb-1">Renew / Extend License</h3>
+          <p className="text-xs text-gray-400 mb-3">
+            Current expiry: <span className="font-bold text-gray-600">
+              {selected.validUntil ? new Date(selected.validUntil).toLocaleDateString('en-IN') : 'Lifetime'}
+            </span>
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="date"
+              id="renewDate"
+              defaultValue={selected.validUntil?.slice(0, 10) || ''}
+              min={new Date().toISOString().slice(0, 10)}
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+            />
+            <button
+              onClick={() => {
+                const input = document.getElementById('renewDate') as HTMLInputElement;
+                if (!input.value) { toast('Select a new expiry date', 'error'); return; }
+                handleUpdate(selected.id, { validUntil: input.value, status: 'active' });
+                setSelected(prev => prev ? { ...prev, validUntil: input.value, status: 'active' } : prev);
+              }}
+              className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-orange-600"
+            >
+              Renew
+            </button>
+          </div>
+          <div className="flex gap-2 mt-2">
+            {[
+              { label: '+3 months', months: 3 },
+              { label: '+6 months', months: 6 },
+              { label: '+1 year', months: 12 },
+            ].map(({ label, months }) => (
+              <button key={label} onClick={() => {
+                const base = selected.validUntil ? new Date(selected.validUntil) : new Date();
+                base.setMonth(base.getMonth() + months);
+                const newDate = base.toISOString().slice(0, 10);
+                handleUpdate(selected.id, { validUntil: newDate, status: 'active' });
+                setSelected(prev => prev ? { ...prev, validUntil: newDate, status: 'active' } : prev);
+              }}
+                className="flex-1 py-1.5 border border-gray-200 rounded-lg text-xs font-bold hover:border-brand hover:text-brand transition-colors">
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Actions */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
           <h3 className="font-bold mb-1">Actions</h3>
