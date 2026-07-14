@@ -294,16 +294,16 @@ export const api = {
     recentActivity: () =>
       fetchApi<{ type: string; id: string; label: string; amount: number; date: string }[]>('/analytics/recent-activity'),
     overview: (from?: string, to?: string) => {
-      const params = new URLSearchParams();
-      if (from) params.set('from', from);
-      if (to) params.set('to', to);
-      const qs = params.toString();
+      // RFC 10008 — HTTP QUERY method: safe + idempotent + body (replaces GET ?from=&to=)
       return fetchApi<{
         money: { collections: number; revenue: number; distribution: number; expenses: number; outstanding: number; invoiceOutstanding: number };
         recentActivity: { type: string; id: string; label: string; amount: number; date: string }[];
         topVendors: { vendorId: string; vendorName: string; balance: number }[];
         counts: { customerMaster: number; vendorMaster: number; itemMaster: number; bankMaster: number; staffCount: number };
-      }>(`/analytics/overview${qs ? '?' + qs : ''}`);
+      }>('/analytics/overview', {
+        method: 'QUERY',
+        body: JSON.stringify({ ...(from ? { from } : {}), ...(to ? { to } : {}) }),
+      });
     },
     money: (from?: string, to?: string) => {
       const params = new URLSearchParams();

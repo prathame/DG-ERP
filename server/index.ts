@@ -99,6 +99,20 @@ app.use((req, res, next) => {
 app.use('/api/backup/restore', express.json({ limit: '50mb' }));
 app.use(express.json({ limit: '2mb' }));
 
+// RFC 10008 — HTTP QUERY method support
+// Express doesn't route QUERY natively; treat it as GET with a body.
+// Body is already parsed above by express.json (which runs on all methods).
+app.use((req, _res, next) => {
+  if (req.method === 'QUERY') {
+    // Merge body fields into query so existing param reads still work
+    if (req.body && typeof req.body === 'object') {
+      Object.assign(req.query, req.body);
+    }
+    req.method = 'GET'; // route to matching GET handler
+  }
+  next();
+});
+
 // Public routes that don't need auth
 const PUBLIC_PATHS = [
   '/api/auth/login', '/api/auth/signup', '/api/auth/forgot-password', '/api/auth/reset-password',
