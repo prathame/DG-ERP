@@ -9,7 +9,7 @@ const router = Router();
 // ── License key generator ─────────────────────────────────────────────────────
 function generateLicenseKey(): string {
   const seg = () => crypto.randomBytes(2).toString('hex').toUpperCase();
-  return `DG-${seg()}${seg()}-${seg()}${seg()}-${seg()}${seg()}`;
+  return `DG-${seg()}-${seg()}-${seg()}`;
 }
 
 // ── Public endpoints (validated by license key, no JWT) ───────────────────────
