@@ -263,7 +263,7 @@ router.post('/api/vendor-finance/bank-statement/preview', async (req, res) => {
       vendorBatches[b.vendor_id].push({ batchId: b.batch_id, date: b.date, billValue: Number(b.bill_value), paid, balance });
     }
     // Sort each vendor's batches by date (oldest first for auto-apply)
-    for (const vid of Object.keys(vendorBatches)) vendorBatches[vid].sort((a, b) => a.date.localeCompare(b.date));
+    for (const vid of Object.keys(vendorBatches)) vendorBatches[vid].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // Match transactions to vendors
     const matched: { txIdx: number; date: string; description: string; amount: number; reference?: string; vendorId: string; vendorName: string; matchedBy: string; suggestedBatches: { batchId: string; date: string; balance: number; applyAmount: number }[] }[] = [];
@@ -274,14 +274,20 @@ router.post('/api/vendor-finance/bank-statement/preview', async (req, res) => {
       if (!tx.amount || tx.amount <= 0) continue;
       const desc = (tx.description || '').toLowerCase();
 
-      // Try matching by phone, name, or UPI ID
+      // Extract all 10-digit numbers from description (covers raw phone, UPI phone@bank, NEFT refs)
+      const allTenDigit = new Set((tx.description.match(/\d{10}/g) || []).map(n => n.slice(-10)));
+      // Also extract phone from UPI handle before @ (e.g. 9764057232@axl)
+      const upiId = (tx.description.split('/')[2] || '');
+      const upiHandle = upiId.split('@')[0].replace(/\D/g, '');
+      if (upiHandle.length === 10) allTenDigit.add(upiHandle);
+
       let matchedVendor: typeof vendors[0] | null = null;
       let matchedBy = '';
 
       for (const v of vendors) {
-        if (v.phone && desc.includes(v.phone.replace(/\D/g, '').slice(-10))) { matchedVendor = v; matchedBy = `phone: ${v.phone}`; break; }
-        if (v.name && desc.toLowerCase().includes(v.name.toLowerCase())) { matchedVendor = v; matchedBy = `name: ${v.name}`; break; }
-        if (v.email && desc.toLowerCase().includes(v.email.toLowerCase())) { matchedVendor = v; matchedBy = `email: ${v.email}`; break; }
+        const vPhone = v.phone ? v.phone.replace(/\D/g, '').slice(-10) : '';
+        if (!vPhone) continue;
+        if (allTenDigit.has(vPhone)) { matchedVendor = v; matchedBy = `phone: ${v.phone}`; break; }
       }
 
       if (matchedVendor) {

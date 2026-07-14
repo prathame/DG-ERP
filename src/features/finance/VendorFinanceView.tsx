@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, ArrowLeft, Clock, MessageCircle, Send, Search, Printer, Upload, FileSpreadsheet, Check, X, AlertTriangle } from 'lucide-react';
 import { cn, shareViaWhatsApp, formatDate } from '../../lib/utils';
@@ -58,13 +59,44 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
     api.vendorFinance.detail(vendorId).then((d) => setDetail({ ...d, totalDistributedValue: Number(d.totalDistributedValue) || 0, totalPaid: Number(d.totalPaid) || 0, balance: Number(d.balance) || 0 })).catch(() => setDetail(null));
   };
 
-  const handleRecordPayment = (e: React.FormEvent) => {
+  const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVendorId || !paymentForm.amount) return;
     if (vendorBatches.length > 0 && !paymentForm.batchId) { toast('Select a distribution batch or "All Distributions"', 'error'); return; }
+
+    const amount = parseFloat(paymentForm.amount);
+
+    // Determine the due amount for the selected scope
+    let due = detail?.balance ?? 0;
+    if (paymentForm.batchId && paymentForm.batchId !== '__ALL__') {
+      const batch = vendorBatches.find(b => b.batchId === paymentForm.batchId);
+      due = batch?.balanceRemaining ?? due;
+    }
+
+    // Overpayment / already-in-credit confirmation
+    if (due <= 0) {
+      const credit = Math.abs(due);
+      const ok = await confirm({
+        title: 'Already in Credit',
+        message: `This vendor already has ₹${credit.toLocaleString()} in credit. Recording ₹${amount.toLocaleString()} will add ₹${(credit + amount).toLocaleString()} total credit. Continue?`,
+        confirmLabel: 'Yes, Record Payment',
+        variant: 'info',
+      });
+      if (!ok) return;
+    } else if (amount > due) {
+      const extra = amount - due;
+      const ok = await confirm({
+        title: 'Extra Payment',
+        message: `Due is ₹${due.toLocaleString()} but you're recording ₹${amount.toLocaleString()}. ₹${due.toLocaleString()} will clear the balance and ₹${extra.toLocaleString()} will be recorded as credit. Continue?`,
+        confirmLabel: `Record ₹${amount.toLocaleString()} (₹${extra.toLocaleString()} extra)`,
+        variant: 'info',
+      });
+      if (!ok) return;
+    }
+
     setSubmitting(true);
     api.vendorFinance.recordPayment(selectedVendorId, {
-      amount: parseFloat(paymentForm.amount),
+      amount,
       paymentDate: paymentForm.paymentDate,
       paymentMethod: paymentForm.paymentMethod,
       referenceNumber: paymentForm.referenceNumber || undefined,
@@ -280,25 +312,35 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
         <div className="flex items-center gap-2 flex-wrap">
           <label className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium cursor-pointer hover:bg-gray-50">
             <FileSpreadsheet size={18} /> Import Bank Statement
-            <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
+            <input type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={async (e) => {
               const file = e.target.files?.[0]; if (!file) return; e.target.value = '';
-              const text = await file.text();
-              const lines = text.split(/\r?\n/).filter(l => l.trim());
-              if (lines.length < 2) { toast('CSV must have header + data rows', 'error'); return; }
-              const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
-              const dateIdx = headers.findIndex(h => h.includes('date') || h.includes('txn'));
-              const descIdx = headers.findIndex(h => h.includes('desc') || h.includes('narration') || h.includes('particular') || h.includes('remark') || h.includes('detail'));
-              const amtIdx = headers.findIndex(h => h.includes('credit') || h.includes('deposit') || h.includes('amount'));
-              const refIdx = headers.findIndex(h => h.includes('ref') || h.includes('utr') || h.includes('transaction'));
-              if (descIdx < 0 && amtIdx < 0) { toast('CSV must have description/narration and credit/amount columns', 'error'); return; }
+              const buf = await file.arrayBuffer();
+              const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+              const ws = wb.Sheets[wb.SheetNames[0]];
+              // Bank statements often have metadata rows before actual headers — find the real header row
+              const BANK_KEYWORDS = ['date', 'amount', 'balance', 'narration', 'description', 'transaction', 'withdrawal', 'deposit', 'credit', 'debit', 'remark', 'particular'];
+              const rawRows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' });
+              const headerRowIdx = rawRows.findIndex(row =>
+                row.filter(c => { const s = String(c).toLowerCase(); return BANK_KEYWORDS.some(k => s.includes(k)); }).length >= 2
+              );
+              if (headerRowIdx < 0) { toast('Could not find column headers in file', 'error'); return; }
+              const headers = (rawRows[headerRowIdx] as string[]).map(h => String(h));
+              const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '', raw: false, header: headers, range: headerRowIdx + 1 });
+              if (!rows.length) { toast('File must have header + data rows', 'error'); return; }
+              // Try each term in priority order across all headers (avoids 'amount' matching 'Withdrawal' before 'Deposit')
+              const key = (terms: string[]) => { for (const t of terms) { const h = headers.find(h => h.toLowerCase().includes(t)); if (h) return h; } return undefined; };
+              const dateKey = key(['date', 'txn']);
+              const descKey = key(['narration', 'remark', 'description', 'particular', 'detail', 'desc']);
+              const amtKey = key(['credit', 'deposit', 'amount']);
+              const refKey = key(['utr', 'ref', 'cheque', 'chq']);
+              if (!descKey && !amtKey) { toast('File must have description/narration and credit/amount columns', 'error'); return; }
               const transactions: { date: string; description: string; amount: number; reference?: string }[] = [];
-              for (let i = 1; i < lines.length; i++) {
-                const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-                const amt = amtIdx >= 0 ? parseFloat(vals[amtIdx]) : 0;
+              for (const row of rows) {
+                const amt = amtKey ? parseFloat(row[amtKey]) : 0;
                 if (!amt || amt <= 0) continue;
-                transactions.push({ date: dateIdx >= 0 ? vals[dateIdx] : '', description: descIdx >= 0 ? vals[descIdx] : '', amount: amt, reference: refIdx >= 0 ? vals[refIdx] : undefined });
+                transactions.push({ date: dateKey ? row[dateKey] : '', description: descKey ? row[descKey] : '', amount: amt, reference: refKey ? row[refKey] : undefined });
               }
-              if (!transactions.length) { toast('No credit transactions found in CSV', 'error'); return; }
+              if (!transactions.length) { toast('No credit transactions found', 'error'); return; }
               try {
                 const result = await fetchApi<typeof bankPreview>('/vendor-finance/bank-statement/preview', { method: 'POST', body: JSON.stringify({ transactions }) });
                 setBankPreview(result); setBankStatementOpen(true);
