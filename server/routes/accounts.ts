@@ -454,8 +454,8 @@ router.get('/api/gstr3b/compute', async (req, res) => {
 
     // Output tax — from distribution (sales)
     const distRows = (await pool.query(
-      `SELECT SUM(CASE WHEN gst_applied THEN billed_price - cost_price ELSE 0 END) as total_tax,
-              SUM(cost_price) as taxable_value,
+      `SELECT SUM(CASE WHEN gst_applied THEN billed_price - net_price ELSE 0 END) as total_tax,
+              SUM(net_price) as taxable_value,
               SUM(billed_price) as total_value
        FROM product_distribution WHERE tenant_id = $1 AND distribution_date >= $2 AND distribution_date < $3`,
       [tenantId, startDate, endDate]

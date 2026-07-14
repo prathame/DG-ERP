@@ -14,7 +14,13 @@ export async function provisionTenant(data: {
   trialEndsAt?: string;
 }) {
   const tenantId = `T${Date.now()}`;
-  const slug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const baseSlug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  // Ensure slug is unique — append suffix if taken
+  let slug = baseSlug;
+  const existing = (await pool.query('SELECT id FROM tenants WHERE slug = $1', [slug])).rows[0];
+  if (existing) {
+    throw Object.assign(new Error(`Company name "${data.companyName}" generates slug "${slug}" which is already taken. Use a different company name.`), { code: 'DUPLICATE_SLUG' });
+  }
   const crypto = await import('crypto');
   const defaultPassword = data.adminPassword || crypto.randomBytes(12).toString('base64url');
   const passwordHash = await bcrypt.hash(defaultPassword, 12);

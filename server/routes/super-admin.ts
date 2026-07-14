@@ -166,7 +166,9 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
     await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ ...result, adminEmail, companyName, tempPassword: result.credentials.password });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    const e = err as Error & { code?: string };
+    if (e.code === 'DUPLICATE_SLUG') return res.status(400).json({ error: e.message });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, e.message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

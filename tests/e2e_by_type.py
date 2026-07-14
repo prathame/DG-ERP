@@ -1,0 +1,675 @@
+#!/usr/bin/env python3
+"""
+DG ERP — Business Type E2E Test Suite
+Creates one tenant per type (manufacturer, dealer, retail, service),
+runs type-specific tests, reports failures per type.
+
+Usage: python3 tests/e2e_by_type.py [--base http://localhost:3001]
+"""
+import sys, json, urllib.request, urllib.parse, urllib.error, time, argparse
+
+BASE    = "http://localhost:3001"
+SA_EMAIL = "admin@spre.ai"
+SA_PASS  = "superadmin123"
+
+RESULTS = {}   # { businessType: { pass: [...], fail: [...], skipped: [...] } }
+CURRENT_TYPE = ""
+
+# ── HTTP helper ───────────────────────────────────────────────────────────────
+def req(method, path, data=None, headers={}, timeout=12):
+    url = BASE + path
+    body = json.dumps(data).encode() if data is not None else None
+    h = {"Content-Type": "application/json", **headers}
+    r = urllib.request.Request(url, data=body, headers=h, method=method)
+    try:
+        with urllib.request.urlopen(r, timeout=timeout) as resp:
+            raw = resp.read()
+            return resp.status, json.loads(raw) if raw.strip() else {}
+    except urllib.error.HTTPError as e:
+        raw = e.read()
+        try: return e.code, json.loads(raw) if raw.strip() else {}
+        except: return e.code, {"error": str(e)}
+    except Exception as e:
+        return 0, {"error": str(e)}
+
+def ok(name, cond, detail="", skip=False):
+    bucket = RESULTS.setdefault(CURRENT_TYPE, {"pass":[], "fail":[], "skip":[]})
+    if skip:
+        bucket["skip"].append(name)
+        print(f"  ⏭  {name} (skipped — {detail})")
+    elif cond:
+        bucket["pass"].append(name)
+        print(f"  ✅ {name}")
+    else:
+        bucket["fail"].append(name)
+        d = f" — {detail}" if detail else ""
+        print(f"  ❌ {name}{d}")
+
+def sec(name): print(f"\n  ── {name}")
+def h(tok, tid): return {"Authorization": f"Bearer {tok}", "x-tenant-id": tid}
+
+# ── Shared scaffold (creates entities, returns IDs used by type tests) ────────
+def scaffold(tok, tid):
+    """Create base data: product, vendor, supplier, customer, bank, staff.
+    Returns dict of IDs — any may be empty string if creation failed."""
+    D = h(tok, tid)
+    ids = {}
+
+    # Product (barcodePrefix required)
+    s, p = req("POST", "/api/products",
+        {"name": "Test Widget", "price": 100, "warrantyMonths": 12,
+         "hsnCode": "8473", "gstRate": 18, "packSize": 10, "barcodePrefix": "E2E"}, D)
+    ids["product"] = p.get("id","") if s in (200,201) else ""
+
+    # Add stock → get barcode
+    ids["barcode"] = ""
+    if ids["product"]:
+        s, _ = req("POST", f"/api/products/{ids['product']}/add-stock",
+            {"quantity": 20, "batchNumber": "BATCH-001"}, D)
+        if s in (200,201):
+            s2, bc = req("GET", f"/api/products/{ids['product']}/barcodes", headers=D)
+            lst = bc if isinstance(bc,list) else bc.get("barcodes", bc.get("items",[]))
+            if lst: ids["barcode"] = lst[0].get("barcode","")
+
+    # Vendor
+    s, v = req("POST", "/api/vendors",
+        {"name": "Test Vendor", "phone": "9876543210"}, D)
+    ids["vendor"] = v.get("id","") if s in (200,201) else ""
+
+    # Supplier
+    s, sup = req("POST", "/api/suppliers",
+        {"name": "Test Supplier", "phone": "9800000001"}, D)
+    ids["supplier"] = sup.get("id","") if s in (200,201) else ""
+
+    # Customer
+    s, c = req("POST", "/api/customers",
+        {"name": "Test Customer", "phone": "9700000001"}, D)
+    ids["customer"] = c.get("id","") if s in (200,201) else ""
+
+    # Bank
+    s, b = req("POST", "/api/banks",
+        {"name": "Test Bank", "accountNumber": "1111111111"}, D)
+    ids["bank"] = b.get("id","") if s in (200,201) else ""
+
+    # Staff
+    s, st = req("POST", "/api/staff",
+        {"name": "Test Staff", "role": "Salesperson",
+         "phone": "9600000001", "salary": 15000, "joiningDate": "2026-07-01"}, D)
+    ids["staff"] = st.get("id","") if s in (200,201) else ""
+
+    # Expense
+    s, ex = req("POST", "/api/expenses",
+        {"category": "Office Supplies", "amount": 500,
+         "expenseDate": "2026-07-15", "description": "Test"}, D)
+    ids["expense"] = ex.get("id","") if s in (200,201) else ""
+
+    # Invoice
+    s, inv = req("POST", "/api/invoices",
+        {"customerName": "Invoice Client", "invoiceDate": "2026-07-15",
+         "items": [{"description": "Service", "hsnSac": "9983",
+                    "qty": 1, "rate": 5000, "gstPercent": 18}],
+         "status": "unpaid"}, D)
+    ids["invoice"] = inv.get("id","") if s in (200,201) else ""
+
+    # Purchase batch (if supplier + product)
+    ids["purchase_batch"] = ""
+    if ids["supplier"] and ids["product"]:
+        s, pb = req("POST", "/api/purchases/batch", {
+            "supplierId": ids["supplier"], "purchaseDate": "2026-07-15",
+            "items": [{"productId": ids["product"], "quantity": 5,
+                       "costPrice": 80, "billedPrice": 90}]
+        }, D)
+        ids["purchase_batch"] = pb.get("batchId","") if s in (200,201) else ""
+
+    # Distribution batch (if vendor + product) — uses productId + quantity
+    ids["dist_batch"] = ""
+    if ids["vendor"] and ids["product"]:
+        s, db = req("POST", "/api/distribution/batch", {
+            "vendorId": ids["vendor"], "distributionDate": "2026-07-15",
+            "items": [{"productId": ids["product"], "quantity": 2}]
+        }, D)
+        ids["dist_batch"] = db.get("batchId","") if s in (200,201) else ""
+
+    return ids
+
+# ── Common tests run for every business type ──────────────────────────────────
+def test_common(tok, tid, ids, btype):
+    D = h(tok, tid)
+    sec("Auth & Access")
+    ok("Dashboard stats → 200", req("GET","/api/dashboard/stats",headers=D)[0] == 200)
+    ok("Stats no auth → 401", req("GET","/api/dashboard/stats")[0] == 401)
+
+    sec("Products CRUD")
+    ok("List products", req("GET","/api/products",headers=D)[0] == 200)
+    ok("Product created in scaffold", bool(ids.get("product")))
+    if ids.get("product"):
+        s,d = req("PUT",f"/api/products/{ids['product']}",{"name":"Updated Widget","price":120},D)
+        ok("Update product → 200", s == 200)
+        ok("Product no auth → 401", req("GET","/api/products")[0] == 401)
+    ok("Create product no name → 400", req("POST","/api/products",{},D)[0] == 400)
+
+    sec("Vendors CRUD")
+    ok("List vendors", req("GET","/api/vendors",headers=D)[0] == 200)
+    ok("Vendor created", bool(ids.get("vendor")))
+    if ids.get("vendor"):
+        s,d = req("PUT",f"/api/vendors/{ids['vendor']}",{"name":"Updated Vendor"},D)
+        ok("Update vendor", s == 200, f"status={s} {d.get('error','')}")
+    ok("Vendor no name → 400", req("POST","/api/vendors",{},D)[0] == 400)
+    ok("Vendor no auth → 401", req("GET","/api/vendors")[0] == 401)
+
+    sec("Customers CRUD")
+    ok("List customers", req("GET","/api/customers",headers=D)[0] == 200)
+    ok("Customer created", bool(ids.get("customer")))
+    if ids.get("customer"):
+        s,d = req("PUT",f"/api/customers/{ids['customer']}",{"name":"Updated Customer"},D)
+        ok("Update customer", s == 200, f"status={s} {d.get('error','')}")
+        ok("Customer purchases", req("GET",f"/api/customers/{ids['customer']}/purchases",headers=D)[0] == 200)
+    ok("Customer no name → 400", req("POST","/api/customers",{},D)[0] == 400)
+
+    sec("Banks CRUD")
+    ok("List banks", req("GET","/api/banks",headers=D)[0] == 200)
+    ok("Bank created", bool(ids.get("bank")))
+    if ids.get("bank"):
+        s,d=req("PUT",f"/api/banks/{ids['bank']}",{"name":"Updated Bank"},D)
+        ok("Update bank", s == 200, f"status={s} {d.get('error','')}")
+    ok("Bank batch empty → 400", req("POST","/api/banks/batch",{"items":[]},D)[0] == 400)
+
+    sec("Suppliers CRUD")
+    ok("List suppliers", req("GET","/api/suppliers",headers=D)[0] == 200)
+    ok("Supplier created", bool(ids.get("supplier")))
+    if ids.get("supplier"):
+        s,d=req("PUT",f"/api/suppliers/{ids['supplier']}",{"name":"Updated Supplier"},D)
+        ok("Update supplier", s == 200, f"status={s} {d.get('error','')}")
+        s,d = req("GET","/api/supplier-finance/summary",headers=D)
+        ok("Supplier finance summary", s == 200)
+        s,d = req("POST",f"/api/supplier-finance/{ids['supplier']}/payments",
+            {"amount":100,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)
+        ok("Supplier payment → 201", s == 201, d.get("error",""))
+        ok("Supplier payment zero → 400",
+            req("POST",f"/api/supplier-finance/{ids['supplier']}/payments",
+                {"amount":0,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 400)
+
+    sec("Staff & Payroll")
+    ok("List staff", req("GET","/api/staff",headers=D)[0] == 200)
+    ok("Staff created", bool(ids.get("staff")))
+    ok("Payroll list", req("GET","/api/payroll",headers=D)[0] == 200)
+    if ids.get("staff"):
+        s,d=req("PUT",f"/api/staff/{ids['staff']}",{"name":"Updated Staff"},D)
+        ok("Update staff", s == 200, f"status={s} {d.get('error','')}")
+        s,d = req("POST","/api/payroll",
+            {"staffName":"Test Staff","amount":15000,"paymentDate":"2026-07-15",
+             "paymentType":"salary","paymentMethod":"Bank Transfer","month":7,"year":2026},D)
+        ok("Record payroll → 201", s == 201, d.get("error",""))
+    ok("Payroll summary", req("GET","/api/payroll/summary",headers=D)[0] == 200)
+
+    sec("Expenses")
+    ok("List expenses", req("GET","/api/expenses",headers=D)[0] == 200)
+    ok("Expense created", bool(ids.get("expense")))
+    ok("Expense no body → 400", req("POST","/api/expenses",{},D)[0] == 400)
+    ok("Expense summary", req("GET","/api/expenses/summary",headers=D)[0] == 200)
+
+    sec("Invoices")
+    ok("List invoices", req("GET","/api/invoices",headers=D)[0] == 200)
+    ok("Next number", req("GET","/api/invoices/next-number",headers=D)[0] == 200)
+    ok("Invoice created", bool(ids.get("invoice")))
+    if ids.get("invoice"):
+        s,d = req("PUT",f"/api/invoices/{ids['invoice']}/status",{"status":"paid"},D)
+        ok("Update invoice status paid", s == 200, f"status={s} {d.get('error','')}")
+        s,d = req("PUT",f"/api/invoices/{ids['invoice']}/status",{"status":"bad"},D)
+        ok("Invalid invoice status → 400", s == 400, f"got {s}")
+
+    sec("Purchases")
+    ok("List purchase batches", req("GET","/api/purchases/batches",headers=D)[0] == 200)
+    ok("Purchase batch created", bool(ids.get("purchase_batch")))
+    ok("Purchase batch no items → 400", req("POST","/api/purchases/batch",{},D)[0] == 400)
+    if ids.get("purchase_batch"):
+        ok("Get purchase batch",
+            req("GET",f"/api/purchases/batch/{ids['purchase_batch']}",headers=D)[0] == 200)
+
+    sec("Accounts — Core")
+    ok("P&L → 200", req("GET","/api/accounts/profit-loss?from=2026-04-01&to=2026-07-15",headers=D)[0] == 200)
+    ok("Balance sheet → 200", req("GET","/api/accounts/balance-sheet",headers=D)[0] == 200)
+    ok("Cash flow → 200", req("GET","/api/accounts/cash-flow?from=2026-04-01&to=2026-07-15",headers=D)[0] == 200)
+    ok("Ledger → 200", req("GET","/api/accounts/ledger?from=2026-04-01&to=2026-07-15",headers=D)[0] == 200)
+    ok("Day book → 200", req("GET","/api/accounts/day-book?date=2026-07-15",headers=D)[0] == 200)
+    ok("Accounts no auth → 401", req("GET","/api/accounts/profit-loss")[0] == 401)
+
+    s,d = req("GET","/api/accounts/profit-loss?from=2026-04-01&to=2026-07-15",headers=D)
+    if s == 200:
+        rev = d.get("revenue",{})
+        ok("P&L has invoiceRevenue", "invoiceRevenue" in rev)
+        ok("P&L revenue total = parts",
+           abs(rev.get("total",0)-rev.get("distributionRevenue",0)-rev.get("salesRevenue",0)-rev.get("invoiceRevenue",0)) < 1)
+    s,d = req("GET","/api/accounts/balance-sheet",headers=D)
+    if s == 200:
+        ok("Balance sheet invoiceReceivables", "invoiceReceivables" in d.get("assets",{}))
+        ok("Balance sheet netWorth = assets-liabilities",
+           abs(d.get("netWorth",0)-(d.get("assets",{}).get("total",0)-d.get("liabilities",{}).get("total",0))) < 1)
+    s,d = req("GET","/api/accounts/cash-flow?from=2026-04-01&to=2026-07-15",headers=D)
+    if s == 200:
+        ok("Cash flow invoicePayments in inflows", "invoicePayments" in d.get("inflows",{}))
+        ok("Cash flow netCashFlow math",
+           abs(d.get("netCashFlow",0)-(d.get("inflows",{}).get("total",0)-d.get("outflows",{}).get("total",0))) < 1)
+
+    sec("GSTR")
+    s, d = req("GET","/api/gstr3b/compute?month=7&year=2026",headers=D)
+    ok("GSTR-3B compute → 200", s == 200, d.get("error",""))
+    ok("GSTR-3B has output/itc", s == 200 and "output" in d and "itc" in d)
+    ok("GSTR-2B empty → 400", req("POST","/api/gstr2b/reconcile",{"b2b":[]},D)[0] == 400)
+
+    sec("Reports")
+    for ep,name in [
+        ("/api/reports/sales-register?from=2026-04-01&to=2026-07-15","Sales register"),
+        ("/api/reports/distribution-register?from=2026-04-01&to=2026-07-15","Distribution register"),
+        ("/api/reports/outstanding","Outstanding"),
+        ("/api/reports/payment-register?from=2026-04-01&to=2026-07-15","Payment register"),
+        ("/api/reports/stock-summary","Stock summary"),
+        ("/api/reports/gst-summary?from=2026-04-01&to=2026-07-15","GST summary"),
+    ]:
+        ok(f"{name} → 200", req("GET",ep,headers=D)[0] == 200)
+    ok("Reports no auth → 401", req("GET","/api/reports/sales-register")[0] == 401)
+
+    sec("Analytics — HTTP QUERY (RFC 10008)")
+    s,d = req("QUERY","/api/analytics/overview",{"from":"2026-07-01","to":"2026-07-15"},D)
+    ok("QUERY analytics → 200", s == 200, d.get("error",""))
+    ok("QUERY has money", "money" in d)
+    ok("QUERY has recentActivity", "recentActivity" in d)
+    ok("QUERY has counts", "counts" in d)
+    ok("QUERY invoiceOutstanding present", "invoiceOutstanding" in d.get("money",{}))
+    ok("QUERY no auth → 401", req("QUERY","/api/analytics/overview",{})[0] == 401)
+    ok("GET overview (fallback) → 200",
+       req("GET","/api/analytics/overview?from=2026-07-01&to=2026-07-15",headers=D)[0] == 200)
+
+    sec("Masters & Search")
+    ok("Masters counts", req("GET","/api/masters/counts",headers=D)[0] == 200)
+    ok("Search → 200", req("GET","/api/search?q=test",headers=D)[0] == 200)
+    ok("Search no auth → 401", req("GET","/api/search?q=test")[0] == 401)
+
+    sec("Settings")
+    ok("Get profile", req("GET","/api/settings/profile",headers=D)[0] == 200)
+    # Profile update requires Super Admin — tenant Admin gets 403 (correct)
+    s, _ = req("PUT","/api/settings/profile",{"companyName":"Updated Co"},D)
+    ok("Profile update: Admin gets 403 (SA only)", s == 403)
+    ok("Get bill settings", req("GET","/api/settings/bill",headers=D)[0] == 200)
+    ok("Update bill settings", req("PUT","/api/settings/bill",{"primaryColor":"#FF0000"},D)[0] == 200)
+    ok("Settings no auth → 401", req("GET","/api/settings/profile")[0] == 401)
+
+    sec("Credit/Debit Notes")
+    s,cn = req("POST","/api/accounts/notes",{
+        "noteType":"credit","vendorName":"Test Vendor",
+        "noteDate":"2026-07-15","reason":"Return",
+        "items":[{"description":"Item","quantity":1,"price":100}]
+    },D)
+    ok("Create credit note → 201", s == 201, cn.get("error",""))
+    ok("Invalid note type → 400", req("POST","/api/accounts/notes",{"noteType":"invalid"},D)[0] == 400)
+
+    sec("Audit Log")
+    ok("Audit log → 200", req("GET","/api/audit-log",headers=D)[0] == 200)
+
+# ── Manufacturer-specific tests ───────────────────────────────────────────────
+def test_manufacturer(tok, tid, ids):
+    D = h(tok, tid)
+    sec("Distribution (Manufacturer)")
+    ok("List distribution", req("GET","/api/distribution",headers=D)[0] == 200)
+    ok("Distribution summary", req("GET","/api/distribution/summary",headers=D)[0] == 200)
+    ok("Dist batch created in scaffold", bool(ids.get("dist_batch")))
+    if ids.get("dist_batch") and ids.get("vendor"):
+        ok("Get dist batch",
+           req("GET",f"/api/distribution/batch/{ids['dist_batch']}",headers=D)[0] == 200)
+        ok("Distribution bill",
+           req("GET",f"/api/distribution/bill?batchId={ids['dist_batch']}&vendorId={ids['vendor']}",headers=D)[0] == 200)
+    ok("Dist batch no items → 400",
+       req("POST","/api/distribution/batch",{},D)[0] == 400)
+
+    sec("Vendor Finance (Manufacturer)")
+    ok("Vendor finance summary", req("GET","/api/vendor-finance/summary",headers=D)[0] == 200)
+    if ids.get("vendor"):
+        ok("Vendor finance detail",
+           req("GET",f"/api/vendor-finance/{ids['vendor']}",headers=D)[0] == 200)
+        s,d = req("POST",f"/api/vendor-finance/{ids['vendor']}/payments",
+            {"amount":500,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)
+        ok("Vendor payment → 201", s == 201, d.get("error",""))
+        ok("Vendor payment zero → 400",
+           req("POST",f"/api/vendor-finance/{ids['vendor']}/payments",
+               {"amount":0,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 400)
+        ok("Vendor payment negative → 400",
+           req("POST",f"/api/vendor-finance/{ids['vendor']}/payments",
+               {"amount":-100,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 400)
+        ok("Vendor bad ID → 404",
+           req("POST","/api/vendor-finance/NONEXISTENT/payments",
+               {"amount":100,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 404)
+
+    sec("Bank Statement (Manufacturer)")
+    txns = [
+        {"date":"2026-07-01","description":"UPI/TEST/9876543210@okaxis","amount":1000},
+        {"date":"2026-07-02","description":"NEFT-No-phone","amount":500},
+    ]
+    s,d = req("POST","/api/vendor-finance/bank-statement/preview",{"transactions":txns},D)
+    ok("Bank statement preview → 200", s == 200)
+    ok("Preview has matched/unmatched", "totalMatched" in d and "totalUnmatched" in d)
+    ok("Preview empty → 400",
+       req("POST","/api/vendor-finance/bank-statement/preview",{"transactions":[]},D)[0] == 400)
+
+    sec("Warranty & Replacements (Manufacturer)")
+    ok("List warranties", req("GET","/api/warranties",headers=D)[0] == 200)
+    ok("List replacements", req("GET","/api/replacements",headers=D)[0] == 200)
+    if ids.get("barcode"):
+        ok("Validate barcode",
+           req("GET",f"/api/sales/validate/{ids['barcode']}",headers=D)[0] in (200,404))
+    # validate returns 200 with {valid:false} for bad barcodes — not 404
+    s, d = req("GET","/api/sales/validate/NONEXISTENT-XYZ",headers=D)
+    ok("Validate bad barcode → 200 valid:false", s == 200 and d.get("valid") == False)
+
+    sec("Accounts — Manufacturer-specific tabs visible")
+    ok("Distribution register visible",
+       req("GET","/api/reports/distribution-register?from=2026-04-01&to=2026-07-15",headers=D)[0] == 200)
+    ok("Stock summary visible",
+       req("GET","/api/reports/stock-summary",headers=D)[0] == 200)
+
+    sec("Rewards & Quotations (Manufacturer)")
+    ok("Reward rules", req("GET","/api/reward-rules",headers=D)[0] == 200)
+    ok("Rewards balance", req("GET","/api/rewards/balance",headers=D)[0] == 200)
+    ok("Quotations list", req("GET","/api/quotations",headers=D)[0] == 200)
+    qitems = [{"productId":ids["product"],"quantity":1,"discountPercent":0,"withGst":True}] if ids.get("product") else [{"description":"Widget","qty":1,"rate":500,"gstPercent":18}]
+    s,q = req("POST","/api/quotations",{
+        "customerName":"Quote Cust","validDays":30,
+        "gstRate":18,"items":qitems
+    },D)
+    ok("Create quotation → 201", s == 201, q.get("error",""))
+    if q.get("id"):
+        s,d = req("PUT",f"/api/quotations/{q['id']}/status",{"status":"Sent"},D)
+        ok("Quotation status update (Draft→Sent)", s == 200, d.get("error",""))
+
+    sec("Missing features for Manufacturer")
+    # Invoice finance should still work (invoices exist for all types)
+    ok("Invoice finance summary accessible",
+       req("GET","/api/invoice-finance/summary",headers=D)[0] == 200)
+
+# ── Dealer-specific tests ─────────────────────────────────────────────────────
+def test_dealer(tok, tid, ids):
+    D = h(tok, tid)
+    sec("Distribution as Sales (Dealer)")
+    ok("Distribution list (sales)", req("GET","/api/distribution",headers=D)[0] == 200)
+    ok("Dist batch created", bool(ids.get("dist_batch")))
+    if ids.get("dist_batch") and ids.get("vendor"):
+        s,d = req("GET",f"/api/distribution/bill?batchId={ids['dist_batch']}&vendorId={ids['vendor']}",headers=D)
+        ok("Distribution bill (dealer 'sales' bill)", s == 200)
+
+    sec("Vendor Finance (Dealer = Customer Payments)")
+    ok("Vendor finance summary", req("GET","/api/vendor-finance/summary",headers=D)[0] == 200)
+    if ids.get("vendor"):
+        s,d = req("POST",f"/api/vendor-finance/{ids['vendor']}/payments",
+            {"amount":200,"paymentDate":"2026-07-15","paymentMethod":"UPI"},D)
+        ok("Dealer customer payment → 201", s == 201, f"status={s} {d.get('error','')}")
+
+    sec("Bank Statement (Dealer)")
+    txns = [{"date":"2026-07-01","description":"UPI/CUST/9876543210@ok","amount":500}]
+    s,d = req("POST","/api/vendor-finance/bank-statement/preview",{"transactions":txns},D)
+    ok("Bank statement preview → 200", s == 200)
+
+    sec("No Warranty for Dealer")
+    ok("Warranties list accessible (hidden in UI but API works)",
+       req("GET","/api/warranties",headers=D)[0] == 200)
+
+    sec("Accounts — Dealer")
+    ok("P&L works", req("GET","/api/accounts/profit-loss?from=2026-04-01&to=2026-07-15",headers=D)[0] == 200)
+    ok("Stock summary accessible", req("GET","/api/reports/stock-summary",headers=D)[0] == 200)
+
+    sec("Missing / Not applicable for Dealer")
+    ok("Rewards accessible (hidden in UI)", req("GET","/api/rewards/balance",headers=D)[0] == 200)
+
+# ── Retail-specific tests ─────────────────────────────────────────────────────
+def test_retail(tok, tid, ids):
+    D = h(tok, tid)
+    sec("Sales Entry (Retail)")
+    ok("Sales list", req("GET","/api/sales",headers=D)[0] == 200)
+    if ids.get("barcode"):
+        ok("Validate barcode for sale",
+           req("GET",f"/api/sales/validate/{ids['barcode']}",headers=D)[0] in (200,404))
+    s, d = req("GET","/api/sales/validate/FAKE-RETAIL-BC",headers=D)
+    ok("Bad barcode → 200 valid:false", s == 200 and d.get("valid") == False)
+
+    sec("Stock Management (Retail)")
+    ok("Stock summary", req("GET","/api/reports/stock-summary",headers=D)[0] == 200)
+    ok("Inventory list", req("GET","/api/products",headers=D)[0] == 200)
+    if ids.get("product"):
+        s,d = req("POST",f"/api/products/{ids['product']}/add-stock",
+            {"quantity":5,"batchNumber":"RETAIL-001"},D)
+        ok("Restock product → 201", s in (200,201), d.get("error",""))
+
+    sec("Supplier Payments (Retail)")
+    ok("Supplier finance summary", req("GET","/api/supplier-finance/summary",headers=D)[0] == 200)
+    if ids.get("supplier"):
+        s,d = req("POST",f"/api/supplier-finance/{ids['supplier']}/payments",
+            {"amount":150,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)
+        ok("Retail supplier payment → 201", s == 201, d.get("error",""))
+
+    sec("Accounts — Retail")
+    ok("P&L works", req("GET","/api/accounts/profit-loss?from=2026-04-01&to=2026-07-15",headers=D)[0] == 200)
+    s,d = req("GET","/api/accounts/profit-loss?from=2026-04-01&to=2026-07-15",headers=D)
+    if s == 200:
+        ok("P&L invoiceRevenue present", "invoiceRevenue" in d.get("revenue",{}))
+
+    sec("Retail — Not applicable")
+    ok("Warranty API accessible (UI hidden)", req("GET","/api/warranties",headers=D)[0] == 200)
+    ok("Rewards API accessible (UI hidden)", req("GET","/api/rewards/balance",headers=D)[0] == 200)
+
+# ── Service-specific tests ────────────────────────────────────────────────────
+def test_service(tok, tid, ids):
+    D = h(tok, tid)
+    sec("Invoice Finance (Service — Primary)")
+    s,d = req("GET","/api/invoice-finance/summary",headers=D)
+    ok("Invoice finance summary → 200", s == 200)
+    ok("Summary is list", isinstance(d,list))
+    ok("Invoice finance no auth → 401",
+       req("GET","/api/invoice-finance/summary")[0] == 401)
+
+    # Create and pay invoice
+    s,inv = req("POST","/api/invoices",{
+        "customerName":"Service Client",
+        "invoiceDate":"2026-07-15",
+        "items":[{"description":"CNC Machining","hsnSac":"9987",
+                  "qty":2,"rate":15000,"gstPercent":18}],
+        "status":"unpaid"
+    },D)
+    ok("Create service invoice → 201", s in (200,201), inv.get("error",""))
+    INV = inv.get("id","")
+    grand = inv.get("grandTotal",35400)
+
+    if INV:
+        s,p = req("POST","/api/invoice-finance/payments",{
+            "invoiceId":INV,"amount":10000,
+            "paymentDate":"2026-07-15","paymentMethod":"UPI"
+        },D)
+        ok("Partial payment → 201", s == 201, p.get("error",""))
+        PID = p.get("id","")
+
+        s,cd = req("GET",f"/api/invoice-finance/client/{urllib.parse.quote('Service Client')}",headers=D)
+        ok("Client detail → 200", s == 200)
+        if isinstance(cd,dict) and "invoices" in cd:
+            iv = next((i for i in cd["invoices"] if i["id"]==INV),None)
+            ok("Balance reduced after partial pay", iv and iv.get("balance",0) < iv.get("grandTotal",0))
+            ok("Paid = 10000", iv and abs(iv.get("paid",0)-10000) < 1)
+            ok("Payment history exists", len(cd.get("payments",[])) > 0)
+
+        ok("Zero payment → 400",
+           req("POST","/api/invoice-finance/payments",
+               {"invoiceId":INV,"amount":0,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 400)
+        ok("Bad invoice ID → 404",
+           req("POST","/api/invoice-finance/payments",
+               {"invoiceId":"NONEXISTENT","amount":100,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 404)
+
+        # Full payment → auto-paid
+        s,_ = req("POST","/api/invoice-finance/payments",{
+            "invoiceId":INV,"amount":grand-10000,
+            "paymentDate":"2026-07-15","paymentMethod":"Bank Transfer"
+        },D)
+        ok("Full payment → 201", s == 201)
+
+        # Verify auto-paid
+        s,cd2 = req("GET",f"/api/invoice-finance/client/{urllib.parse.quote('Service Client')}",headers=D)
+        if isinstance(cd2,dict) and "invoices" in cd2:
+            iv2 = next((i for i in cd2["invoices"] if i["id"]==INV),None)
+            ok("Invoice auto-marked paid", iv2 and iv2.get("status")=="paid")
+            ok("Balance = 0", iv2 and iv2.get("balance",1) <= 0.01)
+
+        # Delete first partial payment → revert status
+        if PID:
+            s,_ = req("DELETE",f"/api/invoice-finance/payments/{PID}",headers=D)
+            ok("Delete payment → 204", s == 204)
+            ok("Bad payment delete → 404",
+               req("DELETE","/api/invoice-finance/payments/NONEXISTENT",headers=D)[0] == 404)
+
+    sec("Service Analytics via QUERY (RFC 10008)")
+    s,d = req("QUERY","/api/analytics/overview",{"from":"2026-07-01","to":"2026-07-15"},D)
+    ok("Service QUERY → 200", s == 200, d.get("error",""))
+    ok("invoiceOutstanding in money", "invoiceOutstanding" in d.get("money",{}))
+    m = d.get("money",{})
+    ok("Service QUERY money tiles present", all(k in m for k in ["collections","revenue","distribution","expenses","outstanding","invoiceOutstanding"]))
+
+    sec("Accounts — Service (no distribution/stock tabs)")
+    ok("P&L works", req("GET","/api/accounts/profit-loss?from=2026-04-01&to=2026-07-15",headers=D)[0] == 200)
+    s,d = req("GET","/api/accounts/profit-loss?from=2026-04-01&to=2026-07-15",headers=D)
+    if s == 200:
+        ok("Service P&L invoiceRevenue present", "invoiceRevenue" in d.get("revenue",{}))
+        # Note: dist may be non-zero in test due to scaffold — UI hides it for service
+        ok("Service P&L has revenue fields", all(k in d.get("revenue",{}) for k in ["distributionRevenue","salesRevenue","invoiceRevenue","total"]))
+    ok("Balance sheet works", req("GET","/api/accounts/balance-sheet",headers=D)[0] == 200)
+    s,d = req("GET","/api/accounts/balance-sheet",headers=D)
+    if s == 200:
+        # Scaffold creates products — inventory may be non-zero even for service in tests
+        ok("Service balance sheet has asset fields", all(k in d.get("assets",{}) for k in ["inventory","receivables","cashBank","total"]))
+
+    sec("Service — Not applicable")
+    ok("Distribution API accessible (hidden in UI)",
+       req("GET","/api/distribution",headers=D)[0] == 200)
+    ok("Warranties API accessible (hidden in UI)",
+       req("GET","/api/warranties",headers=D)[0] == 200)
+
+    sec("Expenses & Purchases (Service)")
+    ok("Expenses work", req("GET","/api/expenses",headers=D)[0] == 200)
+    ok("Purchases work", req("GET","/api/purchases/batches",headers=D)[0] == 200)
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+def setup_tenant(sa_h, btype, slug, email):
+    for attempt in range(3):
+        # Company name drives the slug — use slug directly as company name for uniqueness
+        suffix = f"x{attempt}" if attempt > 0 else ""
+        s,d = req("POST","/api/super-admin/tenants",{
+            "companyName": f"{slug}{suffix}",  # slug-safe name = unique slug
+            "adminName": "Admin",
+            "adminEmail": email, "adminPassword": "Test@123",
+            "businessType": btype,
+        }, sa_h)
+        if s in (200,201): break
+        if attempt < 2:
+            time.sleep(1)
+            print(f"    ↩ retry {attempt+1}: {d.get('error','')}")
+    if s not in (200,201):
+        print(f"    ✗ Tenant create failed ({s}): {d.get('error','')}")
+        return None, None
+    tid = d["tenantId"]
+    for attempt in range(3):
+        s,d = req("POST","/api/auth/login",
+            {"email":email,"password":"Test@123"},{"x-tenant-id":tid})
+        if s == 200: break
+        if attempt < 2: time.sleep(1)
+    if s != 200:
+        print(f"    ✗ Login failed ({s}): {d.get('error','')}")
+        return tid, None
+    return tid, d["token"]
+
+def cleanup(sa_h, *tids):
+    for tid in tids:
+        if tid: req("DELETE",f"/api/super-admin/tenants/{tid}",headers=sa_h)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base", default="http://localhost:3001")
+    args = parser.parse_args()
+    BASE = args.base
+
+    print("\n" + "═"*60)
+    print("  DG ERP — Business Type E2E Test Suite")
+    print("═"*60)
+
+    s,d = req("POST","/api/super-admin/login",{"email":SA_EMAIL,"password":SA_PASS})
+    if s != 200:
+        print(f"\n💥 SA login failed — is the server running at {BASE}?")
+        sys.exit(1)
+    SA = d["token"]
+    sa_h = {"Authorization": f"Bearer {SA}"}
+    import random
+    ts = f"{int(time.time())}{random.randint(100,999)}"
+
+    tenant_ids = {}
+    TYPES = [
+        ("manufacturer", f"m{ts}",  f"admin@m{ts}.com"),
+        ("dealer",       f"d{ts}",  f"admin@d{ts}.com"),
+        ("retail",       f"r{ts}",  f"admin@r{ts}.com"),
+        ("service",      f"s{ts}",  f"admin@s{ts}.com"),
+    ]
+
+    print("\n⚙  Creating tenants...")
+    for btype, slug, email in TYPES:
+        tid, tok = setup_tenant(sa_h, btype, slug, email)
+        tenant_ids[btype] = tid
+        if tid and tok:
+            print(f"  ✓ {btype:15} → {tid}")
+        else:
+            print(f"  ✗ {btype:15} → FAILED (tid={tid})")
+        time.sleep(0.5)  # avoid rate-limit on sequential logins
+
+    for btype, slug, email in TYPES:
+        tid = tenant_ids.get(btype)
+        s,d = req("POST","/api/auth/login",{"email":email,"password":"Test@123"},{"x-tenant-id":tid} if tid else {})
+        tok = d.get("token","") if s==200 else ""
+        if not tid or not tok:
+            CURRENT_TYPE = btype
+            ok(f"Tenant setup", False, "could not create or login")
+            continue
+
+        print(f"\n\n{'━'*60}")
+        print(f"  BUSINESS TYPE: {btype.upper()}")
+        print(f"{'━'*60}")
+
+        CURRENT_TYPE = btype
+        print("\n  [Scaffolding test data...]")
+        ids = scaffold(tok, tid)
+        missing = [k for k,v in ids.items() if not v]
+        if missing: print(f"  ⚠  Scaffold skipped: {', '.join(missing)}")
+
+        print(f"\n  ── COMMON TESTS ──")
+        test_common(tok, tid, ids, btype)
+
+        print(f"\n  ── {btype.upper()}-SPECIFIC TESTS ──")
+        if btype == "manufacturer": test_manufacturer(tok, tid, ids)
+        elif btype == "dealer":     test_dealer(tok, tid, ids)
+        elif btype == "retail":     test_retail(tok, tid, ids)
+        elif btype == "service":    test_service(tok, tid, ids)
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    print(f"\n\n{'═'*60}")
+    print("  RESULTS BY BUSINESS TYPE")
+    print(f"{'═'*60}")
+
+    grand_pass = grand_fail = 0
+    for btype in ["manufacturer","dealer","retail","service"]:
+        r = RESULTS.get(btype, {"pass":[],"fail":[],"skip":[]})
+        p,f,sk = len(r["pass"]),len(r["fail"]),len(r["skip"])
+        grand_pass += p; grand_fail += f
+        status = "✅" if f == 0 else "❌"
+        print(f"\n  {status} {btype.upper():15} {p}/{p+f} passed  ({sk} skipped)")
+        if r["fail"]:
+            for name in r["fail"]:
+                print(f"       • {name}")
+
+    print(f"\n{'─'*60}")
+    print(f"  TOTAL: {grand_pass}/{grand_pass+grand_fail} passed")
+    print(f"{'═'*60}\n")
+
+    print("  Cleaning up test tenants...")
+    cleanup(sa_h, *tenant_ids.values())
+    print("  Done.")
+
+    sys.exit(0 if grand_fail == 0 else 1)
