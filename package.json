@@ -17,12 +17,13 @@
     "test:watch": "vitest",
     "electron:cloud:dev": "electron electron/cloud/main.ts",
     "electron:onprem:dev": "concurrently \"npm run server\" \"electron electron/onprem/main.ts\"",
-    "build:electron:cloud": "tsc --project tsconfig.electron.json && electron-builder --config electron-cloud.config.cjs",
-    "build:electron:cloud:win": "tsc --project tsconfig.electron.json && electron-builder --config electron-cloud.config.cjs --win",
-    "build:electron:cloud:mac": "tsc --project tsconfig.electron.json && electron-builder --config electron-cloud.config.cjs --mac",
-    "build:electron:onprem": "npm run build && tsc --project tsconfig.electron.json && electron-builder --config electron-onprem.config.cjs",
-    "build:electron:onprem:win": "npm run build && tsc --project tsconfig.electron.json && electron-builder --config electron-onprem.config.cjs --win",
-    "build:electron:onprem:mac": "npm run build && tsc --project tsconfig.electron.json && electron-builder --config electron-onprem.config.cjs --mac"
+    "tsc:electron": "node_modules/.bin/tsc -p tsconfig.electron.json",
+    "build:electron:cloud": "npm run tsc:electron && electron-builder --config electron-cloud.config.cjs",
+    "build:electron:cloud:win": "npm run tsc:electron && electron-builder --config electron-cloud.config.cjs --win",
+    "build:electron:cloud:mac": "npm run tsc:electron && electron-builder --config electron-cloud.config.cjs --mac",
+    "build:electron:onprem": "npm run build && npm run tsc:electron && electron-builder --config electron-onprem.config.cjs",
+    "build:electron:onprem:win": "npm run build && npm run tsc:electron && electron-builder --config electron-onprem.config.cjs --win",
+    "build:electron:onprem:mac": "npm run build && npm run tsc:electron && electron-builder --config electron-onprem.config.cjs --mac"
   },
   "main": "electron/cloud/main.js",
   "dependencies": {
