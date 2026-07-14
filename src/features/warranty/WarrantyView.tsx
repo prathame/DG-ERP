@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, Search, Plus, X, Package, Download, Barcode } from 'lucide-react';
-import { cn, exportToCsv, formatDate } from '../../lib/utils';
+import { cn, exportToCsv, formatDate , useTabLabel } from '../../lib/utils';
 import { api } from '../../api';
 import type { Warranty } from '../../types';
 import { useToast, LoadingSpinner, DateRangeFilter, PaginationControls } from '../../components/ui';
@@ -82,7 +82,7 @@ export function WarrantyView({ user }: { user: { id: string; role?: string; vend
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold">Warranty Management</h2>
+          <h2 className="text-xl font-bold">{useTabLabel('warranty', 'Warranty')}</h2>
           <p className="text-sm text-gray-500">Track and manage product warranties and claims</p>
         </div>
         <div className="flex gap-3">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Plus, Download, CheckCircle2, AlertCircle } from 'lucide-react';
-import { cn, exportToCsv, formatDate } from '../../lib/utils';
+import { cn, exportToCsv, formatDate , useTabLabel } from '../../lib/utils';
 import { api, ReplacementRecord } from '../../api';
 import { useToast, LoadingSpinner } from '../../components/ui';
 
@@ -100,7 +100,7 @@ export function ReplacementsView({ user }: { user: { id: string; role?: string; 
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold">Product Replacements</h2>
+          <h2 className="text-xl font-bold">{useTabLabel('replacements', 'Replacements')}</h2>
           <p className="text-sm text-gray-500">Track products replaced under warranty (damaged item → new barcode)</p>
         </div>
         <div className="flex items-center gap-2">

@@ -161,7 +161,7 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       finance: { label: 'Finance', visible: true }, chatbot: { label: 'Chatbot', visible: true },
       settings: { label: 'Settings', visible: true },
     };
-    const bType = ['manufacturer', 'dealer', 'retail'].includes(req.body.businessType) ? req.body.businessType : 'manufacturer';
+    const bType = ['manufacturer', 'dealer', 'retail', 'service'].includes(req.body.businessType) ? req.body.businessType : 'manufacturer';
     await pool.query('UPDATE tenants SET tab_config = $1, business_type = $2 WHERE id = $3', [JSON.stringify(req.body.tabConfig || defaultTabConfig), bType, result.tenantId]);
     await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ ...result, adminEmail, companyName, tempPassword: result.credentials.password });
@@ -220,7 +220,7 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
     if (requestBody.accountsEnabled !== undefined) { updates.push(`accounts_enabled = $${idx}`); params.push(!!requestBody.accountsEnabled); idx++; }
     if (requestBody.purchasesEnabled !== undefined) { updates.push(`purchases_enabled = $${idx}`); params.push(!!requestBody.purchasesEnabled); idx++; }
     if (requestBody.chatbotEnabled !== undefined) { updates.push(`chatbot_enabled = $${idx}`); params.push(!!requestBody.chatbotEnabled); idx++; }
-    if (requestBody.businessType !== undefined && ['manufacturer', 'dealer', 'retail'].includes(requestBody.businessType)) { updates.push(`business_type = $${idx}`); params.push(requestBody.businessType); idx++; }
+    if (requestBody.businessType !== undefined && ['manufacturer', 'dealer', 'retail', 'service'].includes(requestBody.businessType)) { updates.push(`business_type = $${idx}`); params.push(requestBody.businessType); idx++; }
     if (updates.length === 0) return res.status(400).json({ error: 'No updates provided' });
     params.push(id);
     const result = await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);

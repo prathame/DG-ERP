@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Plus, Download, Upload, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search, IndianRupee, MoreVertical, Truck } from 'lucide-react';
-import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate } from '../../lib/utils';
+import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate, useTabLabel, fetchImageAsDataUrl } from '../../lib/utils';
 import { api, fetchApi, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
@@ -217,7 +217,7 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-xl font-bold">{isDirectSell ? 'Sales' : 'Product Distribution'}</h2>
+          <h2 className="text-xl font-bold">{useTabLabel('distribution', isDirectSell ? 'Sales' : 'Distribution')}</h2>
           <p className="text-sm text-gray-500">{vendorId ? 'Your distributed products' : isDirectSell ? 'Track your sales' : 'Assign products to vendors for sale'}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -853,11 +853,13 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                   {gstQty > 0 && (
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         const w = openPrintWindow();
                         if (!w) return;
                         const paidOpts = selectedVendorId ? challanOptions(selectedVendorId) : { showGst: true, fullyPaid: false };
-                        printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(gstItems, gstSubtotal), { showGst: true, fullyPaid: paidOpts.fullyPaid }));
+                        const bs = (splitBillModal.bill as unknown as Record<string,unknown>).billSettings as Record<string,unknown>|undefined;
+                        const qrDataUrl = bs?.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName||'Business'}&cu=INR`)}`) : undefined;
+                        printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(gstItems, gstSubtotal), { showGst: true, fullyPaid: paidOpts.fullyPaid, qrDataUrl }));
                       }}
                       className="flex-1 py-2.5 border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-xl font-bold text-sm hover:bg-emerald-100"
                     >
@@ -867,11 +869,13 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                   {nonGstQty > 0 && (
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         const w = openPrintWindow();
                         if (!w) return;
                         const paidOpts = selectedVendorId ? challanOptions(selectedVendorId) : { showGst: true, fullyPaid: false };
-                        printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(nonGstItems, nonGstSubtotal), { showGst: false, fullyPaid: paidOpts.fullyPaid }));
+                        const bs = (splitBillModal.bill as unknown as Record<string,unknown>).billSettings as Record<string,unknown>|undefined;
+                        const qrDataUrl = bs?.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName||'Business'}&cu=INR`)}`) : undefined;
+                        printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(nonGstItems, nonGstSubtotal), { showGst: false, fullyPaid: paidOpts.fullyPaid, qrDataUrl }));
                       }}
                       className="flex-1 py-2.5 border border-amber-300 text-amber-700 bg-amber-50 rounded-xl font-bold text-sm hover:bg-amber-100"
                     >

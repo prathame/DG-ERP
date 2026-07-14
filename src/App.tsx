@@ -2,6 +2,7 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { api } from './api';
 import {
   LayoutDashboard,
+  BookUser,
   ShieldCheck,
   Gift,
   Package,
@@ -42,10 +43,13 @@ const WarrantyView = lazy(() => import('./features/warranty/WarrantyView').then(
 const ReplacementsView = lazy(() => import('./features/replacements/ReplacementsView').then(m => ({ default: m.ReplacementsView })));
 const RewardsView = lazy(() => import('./features/rewards/RewardsView').then(m => ({ default: m.RewardsView })));
 const VendorFinanceView = lazy(() => import('./features/finance/VendorFinanceView').then(m => ({ default: m.VendorFinanceView })));
+const InvoiceFinanceView = lazy(() => import('./features/finance/InvoiceFinanceView').then(m => ({ default: m.InvoiceFinanceView })));
 const PurchasesView = lazy(() => import('./features/purchases/PurchasesView').then(m => ({ default: m.PurchasesView })));
 const QuotationsView = lazy(() => import('./features/quotations/QuotationsView').then(m => ({ default: m.QuotationsView })));
 const OrdersView = lazy(() => import('./features/orders/OrdersView').then(m => ({ default: m.OrdersView })));
 const AccountsView = lazy(() => import('./features/accounts/AccountsView').then(m => ({ default: m.AccountsView })));
+const AnalyticsView = lazy(() => import('./features/analytics/AnalyticsView').then(m => ({ default: m.AnalyticsView })));
+const MastersView = lazy(() => import('./features/masters/MastersView').then(m => ({ default: m.MastersView })));
 const SettingsView = lazy(() => import('./features/settings/SettingsView').then(m => ({ default: m.SettingsView })));
 const ProductVerificationView = lazy(() => import('./features/verification/ProductVerificationView').then(m => ({ default: m.ProductVerificationView })));
 const PayrollView = lazy(() => import('./features/payroll/PayrollView').then(m => ({ default: m.PayrollView })));
@@ -101,7 +105,7 @@ if (typeof window !== 'undefined') {
 }
 
 export default function App() {
-  const [activeTab, setActiveTabRaw] = useState<Tab>('dashboard');
+  const [activeTab, setActiveTabRaw] = useState<Tab>('analytics');
   const [tabKey, setTabKey] = useState(0);
   const setActiveTab = (tab: Tab) => {
     setActiveTabRaw(tab);
@@ -149,12 +153,12 @@ export default function App() {
       if (e.state?.tab) {
         setActiveTabRaw(e.state.tab);
       } else {
-        window.history.pushState({ tab: 'dashboard' }, '', window.location.pathname);
+        window.history.pushState({ tab: 'analytics' }, '', window.location.pathname);
         setActiveTabRaw('dashboard');
       }
     };
     window.addEventListener('popstate', onPopState);
-    window.history.replaceState({ tab: 'dashboard' }, '', window.location.pathname);
+    window.history.replaceState({ tab: 'analytics' }, '', window.location.pathname);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
@@ -188,7 +192,8 @@ export default function App() {
 
   const navSections = [
     { label: '', items: [
-      { id: 'dashboard', label: tc('dashboard', t('nav.dashboard')), icon: LayoutDashboard, show: true },
+      { id: 'analytics', label: 'Analytics', icon: LayoutDashboard, show: true },
+      { id: 'masters', label: 'Masters', icon: BookUser, show: true },
       { id: 'sales', label: tc('sales', t('nav.sales')), icon: ShoppingCart, show: tv('sales') },
       { id: 'distribution', label: tc('distribution', t('nav.distribution')), icon: Package, show: tv('distribution') },
       { id: 'inventory', label: tc('inventory', t('nav.inventory')), icon: Package, show: tv('inventory') },
@@ -487,6 +492,7 @@ export default function App() {
           <Suspense fallback={<LazyFallback />}>
           <div key={tabKey}>
           {activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
+          {activeTab === 'masters' && <MastersView setActiveTab={setActiveTab} user={user} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
           {activeTab === 'sales' && <SalesEntryView user={user} />}
           {activeTab === 'purchases' && <PurchasesView accessLevel={getAccess('purchases')} />}
           {activeTab === 'distribution' && <DistributionView user={user} accessLevel={getAccess('distribution')} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
@@ -497,7 +503,11 @@ export default function App() {
           {activeTab === 'verification' && <ProductVerificationView />}
           {activeTab === 'quotations' && <QuotationsAndOrdersView />}
           {activeTab === 'invoices' && <InvoicesView />}
-          {activeTab === 'finance' && <VendorFinanceView user={user} accessLevel={getAccess('finance')} />}
+          {activeTab === 'finance' && ((userConfig?.businessType as string) === 'service'
+            ? <InvoiceFinanceView accessLevel={getAccess('finance')} />
+            : <VendorFinanceView user={user} accessLevel={getAccess('finance')} />)
+          }
+          {activeTab === 'analytics' && <AnalyticsView setActiveTab={setActiveTab} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
           {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
           </div>
           {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
@@ -509,8 +519,8 @@ export default function App() {
         <div className="flex items-center justify-around px-1 py-1">
           {(() => {
             const priorityIds = user?.role === 'Vendor'
-              ? ['dashboard', 'distribution', 'finance', 'inventory', 'settings']
-              : ['dashboard', 'distribution', 'inventory', 'finance', 'quotations'];
+              ? ['analytics', 'distribution', 'finance', 'inventory', 'settings']
+              : ['analytics', 'masters', 'inventory', 'finance', 'quotations'];
             const mobileItems = priorityIds.map(id => visibleNavItems.find(n => n.id === id) || navItems.find(n => n.id === id)).filter(Boolean).slice(0, 5);
             return mobileItems;
           })().map((item) => (

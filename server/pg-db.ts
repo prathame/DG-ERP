@@ -696,6 +696,18 @@ export async function initSchema() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_si_tenant ON standalone_invoices(tenant_id, created_at DESC)');
 
+    // Invoice payments — partial/batch payments against standalone invoices
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS invoice_payments (
+        id TEXT NOT NULL, tenant_id TEXT NOT NULL REFERENCES tenants(id),
+        invoice_id TEXT NOT NULL, amount NUMERIC(12,2) NOT NULL,
+        payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        payment_method TEXT DEFAULT 'Cash', reference_number TEXT, notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(id, tenant_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_inv_payments ON invoice_payments(tenant_id, invoice_id)');
+
     // Purchase invoice number for GSTR-2B reconciliation
     await client.query("ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS invoice_number TEXT");
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, FileText, Trash2, Download, Send, Check, X, Printer } from 'lucide-react';
-import { cn, formatDate, exportToCsv } from '../../lib/utils';
+import { cn, formatDate, exportToCsv, useTabLabel, fetchImageAsDataUrl } from '../../lib/utils';
 import { fetchApi } from '../../api';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
@@ -64,7 +64,7 @@ export function InvoicesView() {
 
   const [pdfStyle, setPdfStyle] = useState<'modern' | 'classic' | 'minimal'>(() => (localStorage.getItem('dg_inv_style') as 'modern' | 'classic' | 'minimal') || 'modern');
 
-  const printInvoice = (inv: Invoice) => {
+  const printInvoice = async (inv: Invoice) => {
     const user = session.getUser() || {};
     const bs = billSettings;
     const color = (bs.primaryColor as string) || '#F27D26';
@@ -75,7 +75,8 @@ export function InvoicesView() {
     const invPrefix = (bs.invoicePrefix as string) || '';
     const footerText = (bs.footerText as string) || 'Powered by DG ERP';
     const hasBankDetails = bs.bankAccountName || bs.bankAccountNumber || bs.bankName;
-    const upiQrHtml = bs.bankUpiId ? `<div style="text-align:center;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}" style="width:120px;height:120px;" /><p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p></div>` : '';
+    const upiQrDataUrl = bs.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`) : '';
+    const upiQrHtml = upiQrDataUrl ? `<div style="text-align:center;"><img src="${upiQrDataUrl}" style="width:120px;height:120px;" /><p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p></div>` : '';
     const bankHtml = hasBankDetails || upiQrHtml ? `<div style="margin-top:16px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">${hasBankDetails ? `<div style="flex:1;"><strong style="font-size:12px;">Bank Details</strong><table style="width:100%;margin-top:6px;font-size:11px;">${bs.bankAccountName ? `<tr><td style="color:#6b7280;width:100px;">Account Name</td><td>${bs.bankAccountName}</td></tr>` : ''}${bs.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${bs.bankAccountNumber}</td></tr>` : ''}${bs.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${bs.bankName}${bs.bankBranch ? `, ${bs.bankBranch}` : ''}</td></tr>` : ''}${bs.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${bs.bankIfsc}</td></tr>` : ''}</table></div>` : ''}${upiQrHtml}</div></div>` : '';
     const sigHtml = (bs.signatoryName || bs.signatureBase64) ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;"><div style="text-align:center;">${bs.signatureBase64 ? `<img src="${bs.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}<p style="font-size:11px;border-top:1px solid #999;padding-top:4px;">${bs.signatoryName || ''}${bs.signatoryDesignation ? `<br/><span style="font-size:10px;color:#666;">${bs.signatoryDesignation}</span>` : ''}</p></div></div>` : '';
     const termsHtml = (inv.terms || bs.termsAndConditions) ? `<div style="margin-top:16px;font-size:10px;color:#666;"><strong>Terms & Conditions:</strong><br/>${inv.terms || bs.termsAndConditions}</div>` : '';
@@ -146,7 +147,7 @@ export function InvoicesView() {
     ${inv.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${inv.notes}</div>` : ''}
     ${bankHtml}${termsHtml}${sigHtml}
     <p class="footer-text">${footerText}</p>
-    <script>window.print()</script></body></html>`);
+    <script>(function(){var imgs=document.querySelectorAll('img');var n=imgs.length;if(!n){setTimeout(function(){window.print();},200);return;}var done=0;function check(){if(++done>=n)setTimeout(function(){window.print();},200);}imgs.forEach(function(img){if(img.complete)check();else{img.onload=check;img.onerror=check;}});})()</script></body></html>`);
     w.document.close();
   };
 
@@ -156,7 +157,7 @@ export function InvoicesView() {
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold flex items-center gap-2"><FileText size={22} /> Invoices</h2>
+          <h2 className="text-xl font-bold flex items-center gap-2"><FileText size={22} /> {useTabLabel('invoices', 'Invoices')}</h2>
           <p className="text-sm text-gray-500">{invoices.length} invoice{invoices.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">

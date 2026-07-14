@@ -13,7 +13,7 @@ router.get('/api/dashboard/stats', async (req, res) => {
     const lastMonthDate = new Date(); lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
     const lastMonth = lastMonthDate.toISOString().slice(0, 7);
 
-    const [revenue, warranties, pendingClaims, rewardsEarned, totalProducts, distributed, sold, vendorRewards, withAdmin, withVendors, totalInventory, availableInInventory, todaySales, thisMonthSales, lastMonthSales, thisMonthRevenue, lastMonthRevenue] = await Promise.all([
+    const [revenue, warranties, pendingClaims, rewardsEarned, totalProducts, distributed, sold, vendorRewards, withAdmin, withVendors, totalInventory, availableInInventory, todaySales, thisMonthSales, lastMonthSales, thisMonthRevenue, lastMonthRevenue, totalVendorReceived, totalVendorOutstanding, todayCollections, todayRevenue, todayDistributionValue] = await Promise.all([
       pool.query("SELECT COALESCE(SUM(sale_price), 0) as total FROM product_sales WHERE tenant_id = $1", [tenantId]).then(r => r.rows[0] as { total: number }),
       pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Active' AND tenant_id = $1", [tenantId]).then(r => r.rows[0] as { count: number }),
       pool.query("SELECT COUNT(*) as count FROM warranties WHERE status = 'Under Claim' AND tenant_id = $1", [tenantId]).then(r => r.rows[0] as { count: number }),
@@ -31,6 +31,11 @@ router.get('/api/dashboard/stats', async (req, res) => {
       pool.query("SELECT COUNT(*) as c FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [lastMonth, tenantId]).then(r => r.rows[0] as { c: number }),
       pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [thisMonth, tenantId]).then(r => r.rows[0] as { t: number }),
       pool.query("SELECT COALESCE(SUM(sale_price), 0) as t FROM product_sales WHERE to_char(purchase_date, 'YYYY-MM') = $1 AND tenant_id = $2", [lastMonth, tenantId]).then(r => r.rows[0] as { t: number }),
+      pool.query("SELECT COALESCE(SUM(amount), 0) as total FROM vendor_payments WHERE tenant_id = $1", [tenantId]).then(r => r.rows[0] as { total: number }),
+      pool.query(`SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) - COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id = $1), 0) as outstanding FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1 WHERE pd.tenant_id = $1`, [tenantId]).then(r => r.rows[0] as { outstanding: number }),
+      pool.query("SELECT COALESCE(SUM(amount), 0) as total FROM vendor_payments WHERE tenant_id = $1 AND payment_date = $2", [tenantId, today]).then(r => r.rows[0] as { total: number }),
+      pool.query("SELECT COALESCE(SUM(sale_price), 0) as total FROM product_sales WHERE tenant_id = $1 AND purchase_date = $2", [tenantId, today]).then(r => r.rows[0] as { total: number }),
+      pool.query(`SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) as total FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1 WHERE pd.tenant_id = $1 AND pd.distribution_date = $2`, [tenantId, today]).then(r => r.rows[0] as { total: number }),
     ]);
     const totalBeforeDistribution = totalInventory.count;
 
@@ -72,12 +77,75 @@ router.get('/api/dashboard/stats', async (req, res) => {
       lowStockProducts: lowStockProducts.map((p) => ({ ...p, stock: Number(p.stock) || 0 })),
       topProducts: topProducts.map((p) => ({ ...p, sold: Number(p.sold) || 0 })),
       expiringWarranties: Number(expiringWarranties.c) || 0,
+      totalVendorReceived: Number(totalVendorReceived.total) || 0,
+      totalVendorOutstanding: Number(totalVendorOutstanding.outstanding) || 0,
+      todayCollections: Number(todayCollections.total) || 0,
+      todayRevenue: Number(todayRevenue.total) || 0,
+      todayDistributionValue: Number(todayDistributionValue.total) || 0,
     });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+
+router.get('/api/dashboard/money', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { from, to } = req.query as { from?: string; to?: string };
+    const dateFilter = (col: string) => from && to ? `AND ${col} BETWEEN $2 AND $3` : from ? `AND ${col} >= $2` : '';
+    const params = (extra: unknown[]) => from && to ? [tenantId, from, to, ...extra] : from ? [tenantId, from, ...extra] : [tenantId, ...extra];
+
+    const [collections, revenue, distribution, expenses, outstanding, invoiceOutstanding] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(amount),0) as v FROM vendor_payments WHERE tenant_id=$1 ${dateFilter('payment_date')}`, params([])).then(r => Number(r.rows[0].v) || 0),
+      Promise.all([
+        pool.query(`SELECT COALESCE(SUM(sale_price),0) as v FROM product_sales WHERE tenant_id=$1 ${dateFilter('purchase_date')}`, params([])),
+        pool.query(`SELECT COALESCE(SUM(grand_total),0) as v FROM standalone_invoices WHERE tenant_id=$1 AND status != 'cancelled' ${dateFilter('invoice_date')}`, params([])),
+      ]).then(([ps, si]) => (Number(ps.rows[0].v) || 0) + (Number(si.rows[0].v) || 0)),
+      pool.query(`SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0) as v FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1 ${dateFilter('pd.distribution_date')}`, params([])).then(r => Number(r.rows[0].v) || 0),
+      pool.query(`SELECT COALESCE(SUM(amount),0) as v FROM expenses WHERE tenant_id=$1 ${dateFilter('expense_date')}`, params([])).then(r => Number(r.rows[0].v) || 0),
+      pool.query(`SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0) - COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id=$1),0) as v FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1`, [tenantId]).then(r => Number(r.rows[0].v) || 0),
+      pool.query(`SELECT COALESCE(SUM(grand_total),0) as v FROM standalone_invoices WHERE tenant_id=$1 AND status NOT IN ('paid','cancelled')`, [tenantId]).then(r => Number(r.rows[0].v) || 0),
+    ]);
+    res.json({ collections, revenue, distribution, expenses, outstanding, invoiceOutstanding });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/api/analytics/recent-activity', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const rows = (await pool.query(`
+      SELECT type, id, label, amount, date FROM (
+        SELECT 'sale' as type, id, COALESCE(customer_name, 'Customer') as label, sale_price as amount, purchase_date::text as date FROM product_sales WHERE tenant_id = $1
+        UNION ALL
+        SELECT 'invoice', id, COALESCE(customer_name, 'Customer') as label, grand_total as amount, invoice_date::text as date FROM standalone_invoices WHERE tenant_id = $1 AND status != 'cancelled'
+        UNION ALL
+        SELECT 'payment', id, vendor_id as label, amount, payment_date::text FROM vendor_payments WHERE tenant_id = $1
+        UNION ALL
+        SELECT 'distribution', COALESCE(batch_id, id), vendor_id as label, SUM(COALESCE(billed_price, net_price, 0)) as amount, MIN(distribution_date)::text as date FROM product_distribution WHERE tenant_id = $1 GROUP BY COALESCE(batch_id, id), vendor_id
+        UNION ALL
+        SELECT 'expense', id, category as label, amount, expense_date::text FROM expenses WHERE tenant_id = $1
+      ) t ORDER BY date DESC LIMIT 15
+    `, [tenantId])).rows as { type: string; id: string; label: string; amount: number; date: string }[];
+
+    // Resolve vendor IDs to names for payment + distribution rows
+    const vendorIds = [...new Set(rows.filter(r => r.type === 'payment' || r.type === 'distribution').map(r => r.label))];
+    const vendorMap: Record<string, string> = {};
+    if (vendorIds.length) {
+      const vRows = (await pool.query('SELECT id, name FROM vendors WHERE tenant_id = $1 AND id = ANY($2)', [tenantId, vendorIds])).rows as { id: string; name: string }[];
+      for (const v of vRows) vendorMap[v.id] = v.name;
+    }
+
+    res.json(rows.map(r => ({ ...r, amount: Number(r.amount) || 0, label: (r.type === 'payment' || r.type === 'distribution') ? (vendorMap[r.label] || r.label) : r.label })));
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 router.get('/api/dashboard/rewards-summary', async (req, res) => {
   try {

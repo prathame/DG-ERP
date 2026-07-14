@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Barcode, CheckCircle2, AlertCircle, Download, Printer, MessageCircle, Mail, Camera } from 'lucide-react';
-import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatSalesInvoiceText, formatDate } from '../../lib/utils';
+import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatSalesInvoiceText, formatDate, useTabLabel, fetchImageAsDataUrl } from '../../lib/utils';
 import { api } from '../../api';
 import type { SaleRecord } from '../../api';
 import { useToast, DateRangeFilter, PaginationControls } from '../../components/ui';
@@ -93,7 +93,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
       <div>
-        <h2 className="text-xl font-bold">Customer Sales Entry</h2>
+        <h2 className="text-xl font-bold">{useTabLabel('sales', 'Sales')}</h2>
         <p className="text-sm text-gray-500">Scan barcode, verify product, enter customer details to complete sale</p>
         <p className="text-xs text-amber-600 mt-1 bg-amber-50 px-3 py-2 rounded-lg inline-block">
           {vendorId ? 'Scan or enter barcode assigned to your vendor.' : 'Scan or enter barcode. Products in inventory (Owner) or distributed to vendors can be sold.'}
@@ -184,7 +184,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                     <button
                       type="button"
-                      onClick={() => { const w = openPrintWindow(); if (!w) return; api.sales.getBill(s.id).then((bill) => printBillInWindow(w, generateSalesInvoiceHtml(bill, { showGst: includeGst }))).catch((err) => { w.close(); toast(err.message, 'error'); }); }}
+                      onClick={async () => { const w = openPrintWindow(); if (!w) return; try { const bill = await api.sales.getBill(s.id); const bs = (bill as unknown as Record<string,unknown>).billSettings as Record<string,unknown>|undefined; const qrDataUrl = bs?.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName||'Business'}&cu=INR`)}`) : undefined; printBillInWindow(w, generateSalesInvoiceHtml(bill, { showGst: includeGst, qrDataUrl })); } catch(err) { w.close(); toast((err as Error).message, 'error'); } }}
                       className="p-1.5 text-gray-400 hover:text-brand hover:bg-orange-50 rounded-lg"
                       title="Print Invoice"
                     >
@@ -192,7 +192,7 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                     </button>
                     <button
                       type="button"
-                      onClick={() => api.sales.getBill(s.id).then((bill) => saveBillAsPdf(generateSalesInvoiceHtml(bill, { showGst: includeGst }), `Invoice-${s.customerName}-${s.id}`)).catch((err) => toast(err.message, 'error'))}
+                      onClick={async () => { try { const bill = await api.sales.getBill(s.id); const bs = (bill as unknown as Record<string,unknown>).billSettings as Record<string,unknown>|undefined; const qrDataUrl = bs?.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName||'Business'}&cu=INR`)}`) : undefined; saveBillAsPdf(generateSalesInvoiceHtml(bill, { showGst: includeGst, qrDataUrl }), `Invoice-${s.customerName}-${s.id}`); } catch(err) { toast((err as Error).message, 'error'); } }}
                       className="p-1.5 text-gray-400 hover:text-brand hover:bg-orange-50 rounded-lg"
                       title="Save as PDF"
                     >

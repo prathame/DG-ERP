@@ -1,4 +1,4 @@
-export type Tab = 'dashboard' | 'warranty' | 'rewards' | 'replacements' | 'inventory' | 'purchases' | 'sales' | 'distribution' | 'quotations' | 'orders' | 'invoices' | 'finance' | 'accounts' | 'payroll' | 'verification' | 'settings';
+export type Tab = 'dashboard' | 'masters' | 'warranty' | 'rewards' | 'replacements' | 'inventory' | 'purchases' | 'sales' | 'distribution' | 'quotations' | 'orders' | 'invoices' | 'finance' | 'accounts' | 'analytics' | 'payroll' | 'verification' | 'settings';
 
 
 export interface Product {

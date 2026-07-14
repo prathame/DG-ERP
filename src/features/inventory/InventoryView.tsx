@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Plus, Trash2, AlertCircle, AlertTriangle, ArrowUpDown, Barcode, Download, Upload, Printer } from 'lucide-react';
-import { cn, exportToCsv, formatDate } from '../../lib/utils';
+import { cn, exportToCsv, formatDate , useTabLabel } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
 import { useToast, TableSkeleton } from '../../components/ui';
@@ -101,7 +101,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       className="space-y-6"
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-xl font-bold">Inventory Management</h2>
+        <h2 className="text-xl font-bold">{useTabLabel('inventory', 'Inventory')}</h2>
         <div className="flex flex-wrap gap-3">
           <button type="button" onClick={() => sortedProducts.length && exportToCsv(sortedProducts.map((p) => ({ id: p.id, name: p.name, price: p.price, totalInventory: p.totalInventory ?? p.stock ?? 0, remainingInventory: p.remainingInventory ?? p.stock ?? 0, soldCount: p.soldCount ?? 0 })), 'inventory')} disabled={!sortedProducts.length} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Download size={18} /> Export CSV

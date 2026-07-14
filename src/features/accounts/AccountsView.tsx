@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { BarChart3, Download, Printer, Search, BookOpen, TrendingUp, Scale, Banknote, ShoppingCart, Truck, Clock, IndianRupee, Package, Receipt, FileCheck, Upload } from 'lucide-react';
-import { cn, exportToCsv, formatDate } from '../../lib/utils';
+import { cn, exportToCsv, formatDate , useTabLabel } from '../../lib/utils';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { fetchApi } from '../../api';
 
@@ -55,28 +55,30 @@ export function AccountsView({ accessLevel = 'full', businessType = 'manufacture
     setTimeout(() => win.print(), 300);
   };
 
-  const TABS: { key: AccountTab; label: string; shortLabel: string; icon: React.ElementType; group: 'accounts' | 'reports' }[] = [
+  const isService = businessType === 'service';
+  const ALL_TABS: { key: AccountTab; label: string; shortLabel: string; icon: React.ElementType; group: 'accounts' | 'reports'; hide?: boolean }[] = [
     { key: 'pnl', label: 'Profit & Loss', shortLabel: 'P&L', icon: TrendingUp, group: 'accounts' },
     { key: 'balance', label: 'Balance Sheet', shortLabel: 'Balance', icon: Scale, group: 'accounts' },
     { key: 'cashflow', label: 'Cash Flow', shortLabel: 'Cash', icon: Banknote, group: 'accounts' },
     { key: 'ledger', label: 'Ledger', shortLabel: 'Ledger', icon: BookOpen, group: 'accounts' },
     { key: 'daybook', label: 'Day Book', shortLabel: 'DayBook', icon: BookOpen, group: 'accounts' },
     { key: 'notes', label: 'Credit/Debit Notes', shortLabel: 'Notes', icon: Receipt, group: 'accounts' },
-    { key: 'sales', label: 'Sales Register', shortLabel: 'Sales', icon: ShoppingCart, group: 'reports' },
-    { key: 'distribution', label: ds ? 'Sales Register' : 'Distribution Register', shortLabel: ds ? 'Sales' : 'Dist.', icon: Truck, group: 'reports' },
+    { key: 'sales', label: 'Sales Register', shortLabel: 'Sales', icon: ShoppingCart, group: 'reports', hide: isService },
+    { key: 'distribution', label: ds ? 'Sales Register' : 'Distribution Register', shortLabel: ds ? 'Sales' : 'Dist.', icon: Truck, group: 'reports', hide: isService },
     { key: 'outstanding', label: 'Outstanding', shortLabel: 'Due', icon: Clock, group: 'reports' },
     { key: 'payments', label: 'Payment Register', shortLabel: 'Payments', icon: IndianRupee, group: 'reports' },
-    { key: 'stock', label: 'Stock Summary', shortLabel: 'Stock', icon: Package, group: 'reports' },
+    { key: 'stock', label: 'Stock Summary', shortLabel: 'Stock', icon: Package, group: 'reports', hide: isService },
     { key: 'gst', label: 'GST Summary', shortLabel: 'GST', icon: Receipt, group: 'reports' },
     { key: 'gstr2b', label: 'GSTR-2B Reconciliation', shortLabel: '2B', icon: FileCheck, group: 'reports' },
     { key: 'gstr3b', label: 'GSTR-3B Computation', shortLabel: '3B', icon: FileCheck, group: 'reports' },
   ];
+  const TABS = ALL_TABS.filter(t => !t.hide);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-xl font-bold flex items-center gap-2"><BarChart3 size={22} /> Accounts & Reports</h2>
+          <h2 className="text-xl font-bold flex items-center gap-2"><BarChart3 size={22} /> {useTabLabel('accounts', 'Accounts & Reports')}</h2>
           <p className="text-sm text-gray-500">Financial statements, GST reports, registers — all in one place</p>
         </div>
         {data && (
@@ -149,7 +151,7 @@ export function AccountsView({ accessLevel = 'full', businessType = 'manufacture
 
       {!loading && data && (
         <div id="accounts-content">
-          {tab === 'pnl' && <ProfitLoss data={data} ds={ds} />}
+          {tab === 'pnl' && <ProfitLoss data={data} ds={ds} businessType={businessType} />}
           {tab === 'balance' && <BalanceSheet data={data} ds={ds} />}
           {tab === 'cashflow' && <CashFlow data={data} ds={ds} />}
           {tab === 'ledger' && <Ledger data={data} />}
@@ -182,11 +184,18 @@ function StatCard({ label, value, color, sub }: { label: string; value: string; 
   );
 }
 
-function ProfitLoss({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
-  const rev = data.revenue as { distributionRevenue: number; salesRevenue: number; total: number };
-  const exp = data.expenses as { purchaseCost: number; total: number };
+function ProfitLoss({ data, ds, businessType }: { data: Record<string, unknown>; ds: boolean; businessType: string }) {
+  const rev = data.revenue as { distributionRevenue: number; salesRevenue: number; invoiceRevenue?: number; total: number };
+  const exp = data.expenses as { purchaseCost: number; staffPayments?: number; otherExpenses?: number; total: number };
   const profit = Number(data.grossProfit) || 0;
   const margin = Number(data.profitMargin) || 0;
+  const isService = businessType === 'service';
+  const invoiceRev = rev.invoiceRevenue || 0;
+  const revenueLines = [
+    !isService && rev.distributionRevenue > 0 && { label: ds ? 'Sales Revenue' : 'Distribution Revenue', value: rev.distributionRevenue },
+    !isService && rev.salesRevenue > 0 && { label: 'Direct Sales Revenue', value: rev.salesRevenue },
+    invoiceRev > 0 && { label: 'Invoice Revenue', value: invoiceRev },
+  ].filter(Boolean) as { label: string; value: number }[];
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -199,15 +208,18 @@ function ProfitLoss({ data, ds }: { data: Record<string, unknown>; ds: boolean }
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h3 className="font-bold text-sm text-gray-400 uppercase mb-4">Revenue</h3>
           <div className="space-y-3">
-            <div className="flex justify-between"><span className="text-sm">{ds ? 'Sales Revenue' : 'Distribution Revenue'}</span><span className="font-bold text-blue-600">{fmtCurrency(rev.distributionRevenue)}</span></div>
-            {!ds && <div className="flex justify-between"><span className="text-sm">Direct Sales Revenue</span><span className="font-bold text-blue-600">{fmtCurrency(rev.salesRevenue)}</span></div>}
+            {revenueLines.map(r => (
+              <div key={r.label} className="flex justify-between"><span className="text-sm">{r.label}</span><span className="font-bold text-blue-600">{fmtCurrency(r.value)}</span></div>
+            ))}
             <div className="border-t pt-2 flex justify-between"><span className="font-bold">Total Revenue</span><span className="font-bold text-blue-600 text-lg">{fmtCurrency(rev.total)}</span></div>
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
           <h3 className="font-bold text-sm text-gray-400 uppercase mb-4">Expenses</h3>
           <div className="space-y-3">
-            <div className="flex justify-between"><span className="text-sm">Purchase Cost</span><span className="font-bold text-rose-600">{fmtCurrency(exp.purchaseCost)}</span></div>
+            {(exp.purchaseCost > 0 || isService) && <div className="flex justify-between"><span className="text-sm">{isService ? 'Material / Purchase Cost' : 'Purchase Cost'}</span><span className="font-bold text-rose-600">{fmtCurrency(exp.purchaseCost)}</span></div>}
+            {(exp.staffPayments || 0) > 0 && <div className="flex justify-between"><span className="text-sm">Staff Payments</span><span className="font-bold text-rose-600">{fmtCurrency(exp.staffPayments || 0)}</span></div>}
+            {(exp.otherExpenses || 0) > 0 && <div className="flex justify-between"><span className="text-sm">Other Expenses</span><span className="font-bold text-rose-600">{fmtCurrency(exp.otherExpenses || 0)}</span></div>}
             <div className="border-t pt-2 flex justify-between"><span className="font-bold">Total Expenses</span><span className="font-bold text-rose-600 text-lg">{fmtCurrency(exp.total)}</span></div>
           </div>
         </div>
@@ -222,7 +234,7 @@ function ProfitLoss({ data, ds }: { data: Record<string, unknown>; ds: boolean }
 }
 
 function BalanceSheet({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
-  const assets = data.assets as { inventory: number; receivables: number; cashBank: number; total: number };
+  const assets = data.assets as { inventory: number; receivables: number; distributionReceivables?: number; invoiceReceivables?: number; staffAdvances?: number; cashBank: number; total: number };
   const liabilities = data.liabilities as { payables: number; total: number };
   const netWorth = Number(data.netWorth) || 0;
   return (
@@ -236,8 +248,10 @@ function BalanceSheet({ data, ds }: { data: Record<string, unknown>; ds: boolean
         <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-6">
           <h3 className="font-bold text-sm text-blue-600 uppercase mb-4">Assets</h3>
           <div className="space-y-3">
-            <div className="flex justify-between"><span className="text-sm">Inventory (at cost)</span><span className="font-bold">{fmtCurrency(assets.inventory)}</span></div>
-            <div className="flex justify-between"><span className="text-sm">{ds ? 'Receivables (customers owe you)' : 'Receivables (vendors owe you)'}</span><span className="font-bold">{fmtCurrency(assets.receivables)}</span></div>
+            {assets.inventory > 0 && <div className="flex justify-between"><span className="text-sm">Inventory (at cost)</span><span className="font-bold">{fmtCurrency(assets.inventory)}</span></div>}
+            {(assets.distributionReceivables || 0) > 0 && <div className="flex justify-between"><span className="text-sm">{ds ? 'Customer Receivables' : 'Vendor Receivables'}</span><span className="font-bold">{fmtCurrency(assets.distributionReceivables || 0)}</span></div>}
+            {(assets.invoiceReceivables || 0) > 0 && <div className="flex justify-between"><span className="text-sm">Invoice Receivables</span><span className="font-bold">{fmtCurrency(assets.invoiceReceivables || 0)}</span></div>}
+            {(assets.staffAdvances || 0) > 0 && <div className="flex justify-between"><span className="text-sm">Staff Advances</span><span className="font-bold">{fmtCurrency(assets.staffAdvances || 0)}</span></div>}
             <div className="flex justify-between"><span className="text-sm">Cash / Bank</span><span className="font-bold">{fmtCurrency(assets.cashBank)}</span></div>
             <div className="border-t pt-2 flex justify-between"><span className="font-bold">Total Assets</span><span className="font-bold text-blue-600 text-lg">{fmtCurrency(assets.total)}</span></div>
           </div>
@@ -259,17 +273,38 @@ function BalanceSheet({ data, ds }: { data: Record<string, unknown>; ds: boolean
 }
 
 function CashFlow({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
-  const inflows = data.inflows as { vendorPayments: number; total: number };
-  const outflows = data.outflows as { supplierPayments: number; total: number };
+  const inflows = data.inflows as { vendorPayments: number; invoicePayments?: number; total: number };
+  const outflows = data.outflows as { supplierPayments: number; staffPayments?: number; expenses?: number; total: number };
   const net = Number(data.netCashFlow) || 0;
   const monthly = (data.monthly as { month: string; inflow: number; outflow: number; net: number }[]) || [];
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard label="Total Inflows" value={fmtCurrency(inflows.total)} color="text-emerald-600" sub={ds ? 'Payments received' : 'Received from vendors'} />
-        <StatCard label="Total Outflows" value={fmtCurrency(outflows.total)} color="text-rose-600" sub="Paid to suppliers" />
+        <StatCard label="Total Inflows" value={fmtCurrency(inflows.total)} color="text-emerald-600" sub={ds ? 'Payments received' : 'Received from vendors & invoices'} />
+        <StatCard label="Total Outflows" value={fmtCurrency(outflows.total)} color="text-rose-600" sub="Suppliers, staff & expenses" />
         <StatCard label="Net Cash Flow" value={fmtCurrency(net)} color={net >= 0 ? "text-emerald-600" : "text-rose-600"} />
       </div>
+      {(inflows.vendorPayments > 0 || (inflows.invoicePayments || 0) > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h3 className="font-bold text-sm text-gray-400 uppercase mb-3">Inflows</h3>
+            <div className="space-y-2">
+              {inflows.vendorPayments > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600">{ds ? 'Customer Payments' : 'Vendor Payments'}</span><span className="font-bold text-emerald-600">{fmtCurrency(inflows.vendorPayments)}</span></div>}
+              {(inflows.invoicePayments || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600">Invoice Payments</span><span className="font-bold text-emerald-600">{fmtCurrency(inflows.invoicePayments || 0)}</span></div>}
+              <div className="border-t pt-2 flex justify-between font-bold"><span>Total</span><span className="text-emerald-600">{fmtCurrency(inflows.total)}</span></div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h3 className="font-bold text-sm text-gray-400 uppercase mb-3">Outflows</h3>
+            <div className="space-y-2">
+              {(outflows.supplierPayments > 0) && <div className="flex justify-between text-sm"><span className="text-gray-600">Supplier Payments</span><span className="font-bold text-rose-600">{fmtCurrency(outflows.supplierPayments)}</span></div>}
+              {(outflows.staffPayments || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600">Staff Payments</span><span className="font-bold text-rose-600">{fmtCurrency(outflows.staffPayments || 0)}</span></div>}
+              {(outflows.expenses || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600">Expenses</span><span className="font-bold text-rose-600">{fmtCurrency(outflows.expenses || 0)}</span></div>}
+              <div className="border-t pt-2 flex justify-between font-bold"><span>Total</span><span className="text-rose-600">{fmtCurrency(outflows.total)}</span></div>
+            </div>
+          </div>
+        </div>
+      )}
       {monthly.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-100"><span className="text-sm font-bold text-gray-600">Monthly Breakdown</span></div>
@@ -292,7 +327,7 @@ function CashFlow({ data, ds }: { data: Record<string, unknown>; ds: boolean }) 
 function Ledger({ data }: { data: Record<string, unknown> }) {
   const entries = (data.entries as { date: string; type: string; particulars: string; refId: string; debit: number; credit: number; balance: number }[]) || [];
   const totals = data.totals as { debit: number; credit: number };
-  const typeColors: Record<string, string> = { Distribution: 'bg-blue-50 text-blue-600', Sale: 'bg-emerald-50 text-emerald-600', Purchase: 'bg-amber-50 text-amber-600', 'Payment Received': 'bg-green-50 text-green-600', 'Payment Made': 'bg-rose-50 text-rose-600', 'Staff Salary': 'bg-purple-50 text-purple-600', 'Staff Advance': 'bg-amber-50 text-amber-600', 'Advance Repaid': 'bg-blue-50 text-blue-600', 'Staff Bonus': 'bg-purple-50 text-purple-600', 'Staff Deduction': 'bg-rose-50 text-rose-600' };
+  const typeColors: Record<string, string> = { Distribution: 'bg-blue-50 text-blue-600', Sale: 'bg-emerald-50 text-emerald-600', Invoice: 'bg-violet-50 text-violet-600', Purchase: 'bg-amber-50 text-amber-600', 'Payment Received': 'bg-green-50 text-green-600', 'Payment Made': 'bg-rose-50 text-rose-600', 'Staff Salary': 'bg-purple-50 text-purple-600', 'Staff Advance': 'bg-amber-50 text-amber-600', 'Advance Repaid': 'bg-blue-50 text-blue-600', 'Staff Bonus': 'bg-purple-50 text-purple-600', 'Staff Deduction': 'bg-rose-50 text-rose-600' };
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">

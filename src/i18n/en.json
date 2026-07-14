@@ -13,7 +13,10 @@
     "quotations": "Quotations",
     "orders": "Orders",
     "accounts": "Accounts",
-    "settings": "Settings"
+    "settings": "Settings",
+    "analytics": "Analytics",
+    "masters": "Masters",
+    "invoices": "Invoices"
   },
   "common": {
     "save": "Save",

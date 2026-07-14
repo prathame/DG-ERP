@@ -67,7 +67,7 @@ export function buildDistributionBillSlice(
   };
 }
 
-export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst?: boolean }): string {
+export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst?: boolean; qrDataUrl?: string }): string {
   const showGst = options?.showGst ?? true;
   const billConfig = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
   const color = safeColor(billConfig.primaryColor as string);
@@ -95,7 +95,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
   const upiQrSection = billConfig.bankUpiId ? (() => {
     const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
+    const qrUrl = options?.qrDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
     return `<div style="text-align:center;">
       <img src="${qrUrl}" style="width:120px;height:120px;" />
       <p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p>
@@ -293,7 +293,7 @@ ${tcSection ? `<table class="outer" style="margin-top:-1px;"><tr><td style="padd
 </body></html>`;
 }
 
-export function generateDistributionChallanHtml(bill: DistributionBillData, options?: { showGst?: boolean; fullyPaid?: boolean }): string {
+export function generateDistributionChallanHtml(bill: DistributionBillData, options?: { showGst?: boolean; fullyPaid?: boolean; qrDataUrl?: string }): string {
   const showGst = options?.showGst ?? true;
   const fullyPaid = options?.fullyPaid ?? false;
   const billConfig = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
@@ -308,7 +308,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
   const upiQrSection = billConfig.bankUpiId ? (() => {
     const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
+    const qrUrl = options?.qrDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
     return `<div style="text-align:center;">
       <img src="${qrUrl}" style="width:120px;height:120px;" />
       <p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p>

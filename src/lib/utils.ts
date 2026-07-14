@@ -1,6 +1,31 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import { session } from './session';
+
+/** Fetch an image URL and return a base64 data URL — ensures it's embedded inline in PDFs */
+export async function fetchImageAsDataUrl(url: string): Promise<string> {
+  try {
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch { return url; }
+}
+
+/** Returns the super-admin-renamed label for a tab, falling back to the provided default. */
+export function useTabLabel(tabId: string, defaultLabel: string): string {
+  try {
+    const user = session.getUser() as Record<string, unknown> | null;
+    const tabConfig = user?.tabConfig as Record<string, { label?: string }> | undefined;
+    return tabConfig?.[tabId]?.label || defaultLabel;
+  } catch { return defaultLabel; }
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }

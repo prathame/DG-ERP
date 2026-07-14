@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShoppingBag, Plus, ArrowLeft, Search, IndianRupee, Trash2, Receipt } from 'lucide-react';
-import { cn, formatDate, exportToCsv } from '../../lib/utils';
+import { cn, formatDate, exportToCsv , useTabLabel } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, isBillFullyPaid } from '../../components/ui';
@@ -229,7 +229,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div><h2 className="text-xl font-bold flex items-center gap-2"><ShoppingBag size={22} /> Purchases & Expenses</h2><p className="text-sm text-gray-500">Track purchases from suppliers + business expenses</p></div>
+        <div><h2 className="text-xl font-bold flex items-center gap-2"><ShoppingBag size={22} /> {useTabLabel('purchases', 'Purchases & Expenses')}</h2><p className="text-sm text-gray-500">Track purchases from suppliers + business expenses</p></div>
         <div className="flex gap-2">
           {section === 'purchases' && canEdit && <>
             <button type="button" onClick={() => setSupplierModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50"><Plus size={16} /> Add Supplier</button>

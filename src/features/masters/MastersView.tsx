@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag } from 'lucide-react';
+import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import type { Tab } from '../../types';
@@ -10,37 +10,37 @@ import { BankMasterView } from './BankMasterView';
 import { VendorCustomerMappingView } from './VendorCustomerMappingView';
 import { RewardRulesView } from './RewardRulesView';
 import { PriceListView } from './PriceListView';
+import { StaffMasterView } from './StaffMasterView';
 
-export type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList';
+export type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList' | 'staff';
 
-export function MastersView({ setActiveTab, user }: { setActiveTab: (tab: Tab) => void; user?: { role?: string; vendorId?: string } | null }) {
+export function MastersView({ setActiveTab, user, businessType = 'manufacturer' }: { setActiveTab: (tab: Tab) => void; user?: Record<string, unknown> | null; businessType?: string }) {
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
-  const [masterCounts, setMasterCounts] = useState({ customer: 0, vendor: 0, item: 0, bank: 0 });
+  const isDirectSell = businessType === 'dealer' || businessType === 'retail';
+  const tabConfig = ((user?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>);
+  const tv = (key: string) => tabConfig[key]?.visible !== false;
+  const hasCustomerTracking = tv('sales');
+
+  const [masterCounts, setMasterCounts] = useState({ customer: 0, vendor: 0, item: 0, bank: 0, staff: 0 });
   const [selectedMaster, setSelectedMaster] = useState<MasterType | null>(null);
 
   const refreshCounts = () => {
     api.masters.counts().then((c) => {
-      setMasterCounts({
-        customer: c.customerMaster,
-        vendor: c.vendorMaster,
-        item: c.itemMaster,
-        bank: c.bankMaster,
-      });
+      setMasterCounts({ customer: c.customerMaster, vendor: c.vendorMaster, item: c.itemMaster, bank: c.bankMaster, staff: (c as Record<string, number>).staffCount ?? 0 });
     }).catch(() => {});
   };
 
-  useEffect(() => {
-    refreshCounts();
-  }, [selectedMaster]);
+  useEffect(() => { refreshCounts(); }, [selectedMaster]);
 
   const allMasters = [
-    { id: 'customer' as const, name: 'Customer Master', count: masterCounts.customer, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { id: 'vendor' as const, name: 'Vendor Master', count: masterCounts.vendor, icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { id: 'rewardRules' as const, name: 'Reward Rules', count: '', icon: Gift, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { id: 'mapping' as const, name: 'Vendor-Customer Mapping', count: '', icon: Link2, color: 'text-cyan-600', bg: 'bg-cyan-50' },
-    { id: 'item' as const, name: 'Item Master', count: masterCounts.item, icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { id: 'bank' as const, name: 'Bank Master', count: masterCounts.bank, icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { id: 'priceList' as const, name: 'Price List', count: '', icon: Tag, color: 'text-rose-600', bg: 'bg-rose-50' },
+    ...(hasCustomerTracking && !isDirectSell ? [{ id: 'customer' as const, name: 'Customers', count: masterCounts.customer as number | string, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' }] : []),
+    { id: 'vendor' as const, name: isDirectSell ? 'Customers' : 'Vendors', count: masterCounts.vendor as number | string, icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50' },
+    ...(tv('rewards') ? [{ id: 'rewardRules' as const, name: 'Reward Rules', count: '' as number | string, icon: Gift, color: 'text-amber-600', bg: 'bg-amber-50' }] : []),
+    ...(hasCustomerTracking ? [{ id: 'mapping' as const, name: 'Vendor-Customer Map', count: '' as number | string, icon: Link2, color: 'text-cyan-600', bg: 'bg-cyan-50' }] : []),
+    { id: 'item' as const, name: 'Products', count: masterCounts.item as number | string, icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { id: 'bank' as const, name: 'Banks', count: masterCounts.bank as number | string, icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { id: 'staff' as const, name: 'Staff', count: masterCounts.staff as number | string, icon: Wallet, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { id: 'priceList' as const, name: 'Price List', count: '' as number | string, icon: Tag, color: 'text-rose-600', bg: 'bg-rose-50' },
   ];
   const masters = isVendor ? allMasters.filter((m) => m.id === 'customer') : allMasters;
 
@@ -58,6 +58,7 @@ export function MastersView({ setActiveTab, user }: { setActiveTab: (tab: Tab) =
   if (selectedMaster === 'mapping') return <VendorCustomerMappingView onBack={() => setSelectedMaster(null)} />;
   if (selectedMaster === 'rewardRules') return <RewardRulesView onBack={() => setSelectedMaster(null)} />;
   if (selectedMaster === 'priceList') return <PriceListView onBack={() => setSelectedMaster(null)} />;
+  if (selectedMaster === 'staff') return <StaffMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} />;
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">

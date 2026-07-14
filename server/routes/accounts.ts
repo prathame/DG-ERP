@@ -15,6 +15,16 @@ router.get('/api/accounts/ledger', async (req, res) => {
     const entries: { date: string; type: string; particulars: string; refId: string; debit: number; credit: number }[] = [];
 
     if (!type || type === 'all' || type === 'sales') {
+      // Standalone invoice revenue
+      const invLedgerRows = (await pool.query(`
+        SELECT id as ref_id, invoice_date as dt, customer_name, grand_total as amount, invoice_number
+        FROM standalone_invoices WHERE tenant_id = $1 AND invoice_date >= $2 AND invoice_date <= $3 AND status != 'cancelled'
+        ORDER BY invoice_date
+      `, [tenantId, dateFrom, dateTo])).rows as Record<string, unknown>[];
+      for (const r of invLedgerRows) {
+        entries.push({ date: r.dt as string, type: 'Invoice', particulars: `Invoice ${r.invoice_number} — ${r.customer_name}`, refId: r.ref_id as string, debit: Number(r.amount) || 0, credit: 0 });
+      }
+
       // Distribution revenue (debit — receivable created)
       const distRows = (await pool.query(`
         SELECT COALESCE(pd.batch_id, pd.id) as ref_id, MIN(pd.distribution_date) as dt, v.name as vendor_name,
@@ -113,6 +123,11 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
       [tenantId, from, to]
     )).rows[0]?.t ?? 0) || 0;
 
+    const invoiceRevenue = Number((await pool.query(
+      "SELECT COALESCE(SUM(grand_total), 0) as t FROM standalone_invoices WHERE tenant_id = $1 AND invoice_date >= $2 AND invoice_date <= $3 AND status != 'cancelled'",
+      [tenantId, from, to]
+    )).rows[0]?.t ?? 0) || 0;
+
     // Expenses
     const [purchaseRes, staffRes, expenseRes] = await Promise.all([
       pool.query('SELECT COALESCE(SUM(COALESCE(billed_price, cost_price, 0)), 0) as t FROM product_purchases WHERE tenant_id = $1 AND purchase_date >= $2 AND purchase_date <= $3', [tenantId, from, to]),
@@ -123,13 +138,13 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
     const staffCost = Number(staffRes.rows[0]?.t ?? 0) || 0;
     const expenseCost = Number(expenseRes.rows[0]?.t ?? 0) || 0;
 
-    const totalRevenue = distRevenue + salesRevenue;
+    const totalRevenue = distRevenue + salesRevenue + invoiceRevenue;
     const totalExpenses = purchaseCost + staffCost + expenseCost;
     const grossProfit = totalRevenue - totalExpenses;
 
     res.json({
       period: { from, to },
-      revenue: { distributionRevenue: distRevenue, salesRevenue, total: totalRevenue },
+      revenue: { distributionRevenue: distRevenue, salesRevenue, invoiceRevenue, total: totalRevenue },
       expenses: { purchaseCost, staffPayments: staffCost, otherExpenses: expenseCost, total: totalExpenses },
       grossProfit,
       profitMargin: totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 100) : 0,
@@ -142,7 +157,7 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const [invValRes, distRes, vpRes, spRes, purchRes, advRes, staffAllRes, expRes] = await Promise.all([
+    const [invValRes, distRes, vpRes, spRes, purchRes, advRes, staffAllRes, expRes, invUnpaidRes, invPaidRes] = await Promise.all([
       pool.query(`SELECT COALESCE(SUM(p.price), 0) as t FROM product_inventory pi JOIN products p ON pi.product_id = p.id AND p.tenant_id = $1 WHERE pi.tenant_id = $1 AND pi.status = 'InStock'`, [tenantId]),
       pool.query(`SELECT COALESCE(SUM(${DISTRIBUTION_BILL_UNIT_SQL}), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1 WHERE pd.tenant_id = $1`, [tenantId]),
       pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE tenant_id = $1', [tenantId]),
@@ -151,28 +166,34 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
       pool.query("SELECT COALESCE(SUM(CASE WHEN payment_type='advance' THEN amount ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN payment_type='advance_repay' THEN amount ELSE 0 END), 0) as t FROM staff_payments WHERE tenant_id = $1", [tenantId]),
       pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM staff_payments WHERE tenant_id = $1 AND payment_type IN ('salary','bonus','advance')", [tenantId]),
       pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE tenant_id = $1', [tenantId]),
+      pool.query("SELECT COALESCE(SUM(grand_total), 0) as t FROM standalone_invoices WHERE tenant_id = $1 AND status NOT IN ('paid','cancelled')", [tenantId]),
+      pool.query("SELECT COALESCE(SUM(grand_total), 0) as t FROM standalone_invoices WHERE tenant_id = $1 AND status = 'paid'", [tenantId]),
     ]);
     const inventoryValue = Number(invValRes.rows[0]?.t ?? 0) || 0;
     const totalDistributed = Number(distRes.rows[0]?.t ?? 0) || 0;
     const totalVendorPayments = Number(vpRes.rows[0]?.t ?? 0) || 0;
-    const receivables = totalDistributed - totalVendorPayments;
+    const distributionReceivables = totalDistributed - totalVendorPayments;
+    const invoiceReceivables = Number(invUnpaidRes.rows[0]?.t ?? 0) || 0;
+    const invoiceCashReceived = Number(invPaidRes.rows[0]?.t ?? 0) || 0;
     const totalSupplierPayments = Number(spRes.rows[0]?.t ?? 0) || 0;
     const staffAdvanceBalance = Math.max(0, Number(advRes.rows[0]?.t ?? 0) || 0);
     const staffAllPaid = Number(staffAllRes.rows[0]?.t ?? 0) || 0;
     const totalExpenses = Number(expRes.rows[0]?.t ?? 0) || 0;
-    const cashBank = totalVendorPayments - totalSupplierPayments - staffAllPaid - totalExpenses;
     const totalPurchased = Number(purchRes.rows[0]?.t ?? 0) || 0;
-
+    const cashBank = totalVendorPayments + invoiceCashReceived - totalSupplierPayments - staffAllPaid - totalExpenses;
+    const receivables = Math.max(0, distributionReceivables) + invoiceReceivables;
     const payables = totalPurchased - totalSupplierPayments;
 
-    const totalAssets = inventoryValue + Math.max(0, receivables) + Math.max(0, cashBank) + staffAdvanceBalance;
+    const totalAssets = inventoryValue + receivables + Math.max(0, cashBank) + staffAdvanceBalance;
     const totalLiabilities = Math.max(0, payables);
     const netWorth = totalAssets - totalLiabilities;
 
     res.json({
       assets: {
         inventory: inventoryValue,
-        receivables: Math.max(0, receivables),
+        receivables,
+        distributionReceivables: Math.max(0, distributionReceivables),
+        invoiceReceivables,
         staffAdvances: staffAdvanceBalance,
         cashBank: Math.max(0, cashBank),
         total: totalAssets,
@@ -193,38 +214,54 @@ router.get('/api/accounts/cash-flow', async (req, res) => {
     const from = (req.query.from as string) || `${new Date().getFullYear()}-04-01`;
     const to = (req.query.to as string) || new Date().toISOString().slice(0, 10);
 
-    const [vpRes, spRes, staffRes, expCfRes, monthlyInRes, monthlyOutRes, monthlyStaffRes, monthlyExpRes] = await Promise.all([
+    const [vpRes, spRes, staffRes, expCfRes, monthlyInRes, monthlyInvRes, monthlyOutRes, monthlyStaffRes, monthlyExpRes, invPaidCfRes] = await Promise.all([
       pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3', [tenantId, from, to]),
       pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM supplier_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3', [tenantId, from, to]),
       pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM staff_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 AND payment_type IN ('salary','bonus','advance')", [tenantId, from, to]),
       pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3', [tenantId, from, to]),
       pool.query("SELECT to_char(payment_date, 'YYYY-MM') as month, SUM(amount) as total FROM vendor_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 GROUP BY to_char(payment_date, 'YYYY-MM') ORDER BY month", [tenantId, from, to]),
+      pool.query("SELECT to_char(invoice_date, 'YYYY-MM') as month, SUM(grand_total) as total FROM standalone_invoices WHERE tenant_id = $1 AND status = 'paid' AND invoice_date >= $2 AND invoice_date <= $3 GROUP BY to_char(invoice_date, 'YYYY-MM') ORDER BY month", [tenantId, from, to]),
       pool.query("SELECT to_char(payment_date, 'YYYY-MM') as month, SUM(amount) as total FROM supplier_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 GROUP BY to_char(payment_date, 'YYYY-MM') ORDER BY month", [tenantId, from, to]),
       pool.query("SELECT to_char(payment_date, 'YYYY-MM') as month, SUM(amount) as total FROM staff_payments WHERE tenant_id = $1 AND payment_date >= $2 AND payment_date <= $3 AND payment_type IN ('salary','bonus','advance') GROUP BY to_char(payment_date, 'YYYY-MM') ORDER BY month", [tenantId, from, to]),
       pool.query("SELECT to_char(expense_date, 'YYYY-MM') as month, SUM(amount) as total FROM expenses WHERE tenant_id = $1 AND expense_date >= $2 AND expense_date <= $3 GROUP BY to_char(expense_date, 'YYYY-MM') ORDER BY month", [tenantId, from, to]),
+      pool.query("SELECT COALESCE(SUM(grand_total), 0) as t FROM standalone_invoices WHERE tenant_id = $1 AND status = 'paid' AND invoice_date >= $2 AND invoice_date <= $3", [tenantId, from, to]),
     ]);
     const vendorPayments = Number(vpRes.rows[0]?.t ?? 0) || 0;
+    const invoicePaid = Number(invPaidCfRes.rows[0]?.t ?? 0) || 0;
     const supplierPayments = Number(spRes.rows[0]?.t ?? 0) || 0;
     const staffPayments = Number(staffRes.rows[0]?.t ?? 0) || 0;
     const expenseTotal = Number(expCfRes.rows[0]?.t ?? 0) || 0;
     const monthlyIn = monthlyInRes.rows as { month: string; total: string }[];
+    const monthlyInv = monthlyInvRes.rows as { month: string; total: string }[];
     const monthlyOut = monthlyOutRes.rows as { month: string; total: string }[];
     const monthlyStaff = monthlyStaffRes.rows as { month: string; total: string }[];
     const monthlyExp = monthlyExpRes.rows as { month: string; total: string }[];
 
-    const months = new Set([...monthlyIn.map(r => r.month), ...monthlyOut.map(r => r.month), ...monthlyStaff.map(r => r.month), ...monthlyExp.map(r => r.month)]);
+    const months = new Set([...monthlyIn.map(r => r.month), ...monthlyInv.map(r => r.month), ...monthlyOut.map(r => r.month), ...monthlyStaff.map(r => r.month), ...monthlyExp.map(r => r.month)]);
     const inMap: Record<string, number> = {}; for (const r of monthlyIn) inMap[r.month] = Number(r.total) || 0;
+    const invMap: Record<string, number> = {}; for (const r of monthlyInv) invMap[r.month] = Number(r.total) || 0;
     const outMap: Record<string, number> = {}; for (const r of monthlyOut) outMap[r.month] = Number(r.total) || 0;
     const staffMap: Record<string, number> = {}; for (const r of monthlyStaff) staffMap[r.month] = Number(r.total) || 0;
     const expMap: Record<string, number> = {}; for (const r of monthlyExp) expMap[r.month] = Number(r.total) || 0;
+    const totalInflow = vendorPayments + invoicePaid;
     const totalOutflow = supplierPayments + staffPayments + expenseTotal;
-    const monthly = [...months].sort().map(m => ({ month: m, inflow: inMap[m] || 0, outflow: (outMap[m] || 0) + (staffMap[m] || 0) + (expMap[m] || 0), supplierPayments: outMap[m] || 0, staffPayments: staffMap[m] || 0, expenses: expMap[m] || 0, net: (inMap[m] || 0) - (outMap[m] || 0) - (staffMap[m] || 0) - (expMap[m] || 0) }));
+    const monthly = [...months].sort().map(m => ({
+      month: m,
+      inflow: (inMap[m] || 0) + (invMap[m] || 0),
+      vendorPayments: inMap[m] || 0,
+      invoicePayments: invMap[m] || 0,
+      outflow: (outMap[m] || 0) + (staffMap[m] || 0) + (expMap[m] || 0),
+      supplierPayments: outMap[m] || 0,
+      staffPayments: staffMap[m] || 0,
+      expenses: expMap[m] || 0,
+      net: (inMap[m] || 0) + (invMap[m] || 0) - (outMap[m] || 0) - (staffMap[m] || 0) - (expMap[m] || 0),
+    }));
 
     res.json({
       period: { from, to },
-      inflows: { vendorPayments, total: vendorPayments },
+      inflows: { vendorPayments, invoicePayments: invoicePaid, total: totalInflow },
       outflows: { supplierPayments, staffPayments, expenses: expenseTotal, total: totalOutflow },
-      netCashFlow: vendorPayments - totalOutflow,
+      netCashFlow: totalInflow - totalOutflow,
       monthly,
     });
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
@@ -313,10 +350,11 @@ router.get('/api/accounts/day-book', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const date = (req.query.date as string) || new Date().toISOString().slice(0, 10);
 
-    const [sales, distributions, purchases, vendorPayments, supplierPayments, staffPays, expenseRows] = await Promise.all([
+    const [sales, invoices, distributions, purchases, vendorPayments, supplierPayments, staffPays, expenseRows] = await Promise.all([
       pool.query(`SELECT ps.id, ps.purchase_date as date, ps.customer_name, COALESCE(ps.sale_price, p.price) as amount, p.name as product_name, 'Sale' as type
         FROM product_sales ps JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1
         WHERE ps.tenant_id = $1 AND ps.purchase_date = $2`, [tenantId, date]),
+      pool.query(`SELECT id, invoice_date as date, customer_name, grand_total as amount, invoice_number, status FROM standalone_invoices WHERE tenant_id = $1 AND invoice_date = $2 AND status != 'cancelled'`, [tenantId, date]),
       pool.query(`SELECT pd.batch_id as id, pd.distribution_date as date, v.name as party_name,
         ${DISTRIBUTION_BILL_UNIT_SQL} as amount, p.name as product_name, 'Distribution' as type
         FROM product_distribution pd
@@ -345,6 +383,9 @@ router.get('/api/accounts/day-book', async (req, res) => {
 
     for (const r of sales.rows as Record<string, unknown>[]) {
       entries.push({ id: r.id as string, date: r.date as string, type: 'Sale', party: (r.customer_name as string) || 'Walk-in', product: r.product_name as string, debit: Number(r.amount) || 0, credit: 0 });
+    }
+    for (const r of invoices.rows as Record<string, unknown>[]) {
+      entries.push({ id: r.id as string, date: r.date as string, type: `Invoice${r.status === 'paid' ? ' (Paid)' : ''}`, party: (r.customer_name as string) || 'Customer', product: r.invoice_number as string, debit: Number(r.amount) || 0, credit: 0 });
     }
     for (const r of distributions.rows as Record<string, unknown>[]) {
       entries.push({ id: r.id as string, date: r.date as string, type: 'Distribution', party: r.party_name as string, product: r.product_name as string, debit: Number(r.amount) || 0, credit: 0 });

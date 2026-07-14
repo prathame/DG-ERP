@@ -471,20 +471,25 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
 }
 
 const DEFAULT_TAB_CONFIG: Record<string, { label: string; visible: boolean }> = {
-  dashboard: { label: 'Dashboard', visible: true },
+  analytics: { label: 'Analytics', visible: true },
+  masters: { label: 'Masters', visible: true },
   inventory: { label: 'Inventory', visible: true },
   distribution: { label: 'Distribution', visible: true },
   sales: { label: 'Sales Entry', visible: true },
+  purchases: { label: 'Purchases', visible: true },
   verification: { label: 'Search / Verify', visible: true },
+  quotations: { label: 'Quotes & Orders', visible: true },
+  invoices: { label: 'Invoices', visible: true },
+  finance: { label: 'Finance', visible: true },
+  accounts: { label: 'Accounts', visible: true },
   warranty: { label: 'Warranty', visible: true },
   replacements: { label: 'Replacements', visible: true },
   rewards: { label: 'Rewards', visible: true },
-  finance: { label: 'Finance', visible: true },
   chatbot: { label: 'Chatbot', visible: true },
   settings: { label: 'Settings', visible: true },
 };
 
-const TAB_KEYS = ['dashboard', 'inventory', 'distribution', 'sales', 'verification', 'warranty', 'replacements', 'rewards', 'finance', 'chatbot', 'settings'] as const;
+const TAB_KEYS = ['analytics', 'masters', 'inventory', 'distribution', 'sales', 'purchases', 'verification', 'quotations', 'invoices', 'finance', 'accounts', 'warranty', 'replacements', 'rewards', 'chatbot', 'settings'] as const;
 
 function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: string; tabConfig: Record<string, { label: string; visible: boolean }> | null; tenant: Record<string, unknown>; onSaved: () => void }) {
   const { toast } = useToast();

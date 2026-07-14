@@ -291,6 +291,15 @@ export const api = {
       fetchApi<{
         vendorSummaries: { vendorId: string; vendorName: string; productsSold: number; totalRewardPoints: number }[];
       }>('/dashboard/rewards-summary'),
+    recentActivity: () =>
+      fetchApi<{ type: string; id: string; label: string; amount: number; date: string }[]>('/analytics/recent-activity'),
+    money: (from?: string, to?: string) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      const qs = params.toString();
+      return fetchApi<{ collections: number; revenue: number; distribution: number; expenses: number; outstanding: number; invoiceOutstanding: number }>(`/dashboard/money${qs ? '?' + qs : ''}`);
+    },
     vendor: (vendorId: string) =>
       fetchApi<{
         vendor: { id: string; name: string; totalSales: number; totalRewardPoints: number };
@@ -419,6 +428,17 @@ export const api = {
     update: (id: string, data: Partial<import('./types').Bank>) =>
       fetchApi<import('./types').Bank>(`/banks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => fetchApi<void>(`/banks/${id}`, { method: 'DELETE' }),
+  },
+  invoiceFinance: {
+    summary: () => fetchApi<{ clientName: string; clientPhone: string | null; invoiceCount: number; totalInvoiced: number; totalPaid: number; balance: number }[]>('/invoice-finance/summary'),
+    client: (clientName: string) => fetchApi<{
+      clientName: string; totalInvoiced: number; totalPaid: number; balance: number;
+      invoices: { id: string; invoiceNumber: string; invoiceDate: string; dueDate?: string; grandTotal: number; paid: number; balance: number; status: string; notes?: string }[];
+      payments: { id: string; invoiceId: string; invoiceNumber: string; amount: number; paymentDate: string; paymentMethod: string; referenceNumber?: string; notes?: string }[];
+    }>(`/invoice-finance/client/${encodeURIComponent(clientName)}`),
+    recordPayment: (data: { invoiceId: string; amount: number; paymentDate: string; paymentMethod: string; referenceNumber?: string; notes?: string }) =>
+      fetchApi<{ id: string }>('/invoice-finance/payments', { method: 'POST', body: JSON.stringify(data) }),
+    deletePayment: (id: string) => fetchApi<void>(`/invoice-finance/payments/${id}`, { method: 'DELETE' }),
   },
   vendorFinance: {
     summary: () =>

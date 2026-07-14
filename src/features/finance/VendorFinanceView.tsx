@@ -459,8 +459,11 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
                       {v.reminder.enabled ? `Every ${v.reminder.days}d` : 'Off'}
                     </button>
                   </td>
-                  <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2">
+                  <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2 items-center flex-wrap">
                     <button type="button" onClick={() => { setSelectedVendorId(v.vendorId); loadDetail(v.vendorId); }} className="text-sm font-bold text-brand hover:underline">View</button>
+                    {isAdmin && (
+                      <button type="button" onClick={() => { setSelectedVendorId(v.vendorId); loadDetail(v.vendorId); setTimeout(openPaymentModal, 300); }} className="text-xs font-bold px-2.5 py-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">+ Pay</button>
+                    )}
                     {v.balance > 0 && v.vendorPhone && (
                       <button type="button" onClick={() => handleSendReminder(v)} className="text-sm font-bold text-green-600 hover:underline flex items-center gap-1"><MessageCircle size={14} /> Remind</button>
                     )}

@@ -13,7 +13,10 @@
     "quotations": "कोटेशन",
     "orders": "ऑर्डर",
     "accounts": "हिसाब",
-    "settings": "सेटिंग्स"
+    "settings": "सेटिंग्स",
+    "analytics": "विश्लेषण",
+    "masters": "मास्टर्स",
+    "invoices": "चालान"
   },
   "common": {
     "save": "सेव करें",
