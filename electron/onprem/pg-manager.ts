@@ -4,10 +4,11 @@
  */
 import { app } from 'electron';
 import path from 'path';
-import EmbeddedPostgres from 'embedded-postgres';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const EmbeddedPostgres = require('embedded-postgres').default ?? require('embedded-postgres');
 import { LOCAL_PG_PORT } from '../shared/constants';
 
-let pg: EmbeddedPostgres | null = null;
+let pg: InstanceType<typeof EmbeddedPostgres> | null = null;
 
 export async function startPostgres(): Promise<string> {
   const dataDir = path.join(app.getPath('userData'), 'postgres-data');
