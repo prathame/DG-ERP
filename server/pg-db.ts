@@ -19,6 +19,12 @@ export const pool = new Pool({
     : {}),
 });
 
+// Swallow pool-level connection errors (e.g. PG shutting down while connections are open)
+pool.on('error', (err) => {
+  if (process.env.DEPLOYMENT_MODE === 'onprem') return; // expected on app close
+  console.error('Unexpected pool error:', err.message);
+});
+
 export async function initSchema() {
   const client = await pool.connect();
   try {

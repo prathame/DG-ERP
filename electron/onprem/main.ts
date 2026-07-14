@@ -239,6 +239,11 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', async () => {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
+  // End pool connections before stopping PG to avoid "terminating connection" errors
+  try {
+    const { pool } = await import('../../server/pg-db');
+    await pool.end();
+  } catch {}
   await stopPostgres();
   if (process.platform !== 'darwin') app.quit();
 });
