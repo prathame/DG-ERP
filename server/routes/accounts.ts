@@ -157,18 +157,42 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const [invValRes, distRes, vpRes, spRes, purchRes, advRes, staffAllRes, expRes, invUnpaidRes, invPaidRes] = await Promise.all([
-      pool.query(`SELECT COALESCE(SUM(p.price), 0) as t FROM product_inventory pi JOIN products p ON pi.product_id = p.id AND p.tenant_id = $1 WHERE pi.tenant_id = $1 AND pi.status = 'InStock'`, [tenantId]),
-      pool.query(`SELECT COALESCE(SUM(${DISTRIBUTION_BILL_UNIT_SQL}), 0) as t FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1 WHERE pd.tenant_id = $1`, [tenantId]),
-      pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM vendor_payments WHERE tenant_id = $1', [tenantId]),
-      pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM supplier_payments WHERE tenant_id = $1', [tenantId]),
-      pool.query('SELECT COALESCE(SUM(COALESCE(billed_price, cost_price, 0)), 0) as t FROM product_purchases WHERE tenant_id = $1', [tenantId]),
-      pool.query("SELECT COALESCE(SUM(CASE WHEN payment_type='advance' THEN amount ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN payment_type='advance_repay' THEN amount ELSE 0 END), 0) as t FROM staff_payments WHERE tenant_id = $1", [tenantId]),
-      pool.query("SELECT COALESCE(SUM(amount), 0) as t FROM staff_payments WHERE tenant_id = $1 AND payment_type IN ('salary','bonus','advance')", [tenantId]),
-      pool.query('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE tenant_id = $1', [tenantId]),
-      pool.query("SELECT COALESCE(SUM(grand_total), 0) as t FROM standalone_invoices WHERE tenant_id = $1 AND status NOT IN ('paid','cancelled')", [tenantId]),
-      pool.query("SELECT COALESCE(SUM(grand_total), 0) as t FROM standalone_invoices WHERE tenant_id = $1 AND status = 'paid'", [tenantId]),
+    // 10 queries → 4 by merging into single SQL with multiple aggregates
+    const [assetRes, liabilityRes, staffRes, invoiceRes] = await Promise.all([
+      pool.query(`SELECT
+        COALESCE((SELECT SUM(p.price) FROM product_inventory pi JOIN products p ON pi.product_id=p.id AND p.tenant_id=$1 WHERE pi.tenant_id=$1 AND pi.status='InStock'),0) as inventory,
+        COALESCE((SELECT SUM(${DISTRIBUTION_BILL_UNIT_SQL}) FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1),0) as distributed,
+        COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id=$1),0) as vendor_paid,
+        COALESCE((SELECT SUM(amount) FROM expenses WHERE tenant_id=$1),0) as expenses`, [tenantId]),
+      pool.query(`SELECT
+        COALESCE((SELECT SUM(COALESCE(billed_price,cost_price,0)) FROM product_purchases WHERE tenant_id=$1),0) as purchased,
+        COALESCE((SELECT SUM(amount) FROM supplier_payments WHERE tenant_id=$1),0) as supplier_paid`, [tenantId]),
+      pool.query(`SELECT
+        COALESCE(SUM(CASE WHEN payment_type='advance' THEN amount ELSE 0 END),0)-COALESCE(SUM(CASE WHEN payment_type='advance_repay' THEN amount ELSE 0 END),0) as advance_balance,
+        COALESCE(SUM(CASE WHEN payment_type IN ('salary','bonus','advance') THEN amount ELSE 0 END),0) as all_paid
+        FROM staff_payments WHERE tenant_id=$1`, [tenantId]),
+      pool.query(`SELECT
+        COALESCE(SUM(CASE WHEN status NOT IN ('paid','cancelled') THEN grand_total ELSE 0 END),0) as unpaid,
+        COALESCE(SUM(CASE WHEN status='paid' THEN grand_total ELSE 0 END),0) as paid
+        FROM standalone_invoices WHERE tenant_id=$1`, [tenantId]),
     ]);
+
+    const a = assetRes.rows[0] as Record<string,string>;
+    const l = liabilityRes.rows[0] as Record<string,string>;
+    const st = staffRes.rows[0] as Record<string,string>;
+    const inv = invoiceRes.rows[0] as Record<string,string>;
+
+    // Map to original variable names
+    const invValRes = { rows: [{ t: a.inventory }] };
+    const distRes = { rows: [{ t: a.distributed }] };
+    const vpRes = { rows: [{ t: a.vendor_paid }] };
+    const spRes = { rows: [{ t: l.supplier_paid }] };
+    const purchRes = { rows: [{ t: l.purchased }] };
+    const advRes = { rows: [{ t: st.advance_balance }] };
+    const staffAllRes = { rows: [{ t: st.all_paid }] };
+    const expRes = { rows: [{ t: a.expenses }] };
+    const invUnpaidRes = { rows: [{ t: inv.unpaid }] };
+    const invPaidRes = { rows: [{ t: inv.paid }] };
     const inventoryValue = Number(invValRes.rows[0]?.t ?? 0) || 0;
     const totalDistributed = Number(distRes.rows[0]?.t ?? 0) || 0;
     const totalVendorPayments = Number(vpRes.rows[0]?.t ?? 0) || 0;

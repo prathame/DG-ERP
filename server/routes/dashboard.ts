@@ -147,6 +147,69 @@ router.get('/api/analytics/recent-activity', async (req, res) => {
   }
 });
 
+// Combined analytics overview — replaces 4 separate frontend calls with 1
+router.get('/api/analytics/overview', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { from, to } = req.query as { from?: string; to?: string };
+    const dateFilter = (col: string) => from && to ? `AND ${col} BETWEEN $2 AND $3` : from ? `AND ${col} >= $2` : '';
+    const params = (extra: unknown[]) => from && to ? [tenantId, from, to, ...extra] : from ? [tenantId, from, ...extra] : [tenantId, ...extra];
+
+    const [collections, salesRev, invoiceRev, distribution, expenses, outstanding, invoiceOutstanding,
+           activityRows, vendorSummary, counts] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(amount),0) as v FROM vendor_payments WHERE tenant_id=$1 ${dateFilter('payment_date')}`, params([])).then(r => Number(r.rows[0].v) || 0),
+      pool.query(`SELECT COALESCE(SUM(sale_price),0) as v FROM product_sales WHERE tenant_id=$1 ${dateFilter('purchase_date')}`, params([])).then(r => Number(r.rows[0].v) || 0),
+      pool.query(`SELECT COALESCE(SUM(grand_total),0) as v FROM standalone_invoices WHERE tenant_id=$1 AND status!='cancelled' ${dateFilter('invoice_date')}`, params([])).then(r => Number(r.rows[0].v) || 0),
+      pool.query(`SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0) as v FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1 ${dateFilter('pd.distribution_date')}`, params([])).then(r => Number(r.rows[0].v) || 0),
+      pool.query(`SELECT COALESCE(SUM(amount),0) as v FROM expenses WHERE tenant_id=$1 ${dateFilter('expense_date')}`, params([])).then(r => Number(r.rows[0].v) || 0),
+      pool.query(`SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0)-COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id=$1),0) as v FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1`, [tenantId]).then(r => Number(r.rows[0].v) || 0),
+      pool.query(`SELECT COALESCE(SUM(grand_total),0) as v FROM standalone_invoices WHERE tenant_id=$1 AND status NOT IN ('paid','cancelled')`, [tenantId]).then(r => Number(r.rows[0].v) || 0),
+      pool.query(`SELECT type,id,label,amount,date FROM (
+        SELECT 'sale' as type,id,COALESCE(customer_name,'Customer') as label,sale_price as amount,purchase_date::text as date FROM product_sales WHERE tenant_id=$1
+        UNION ALL SELECT 'invoice',id,COALESCE(customer_name,'Customer'),grand_total,invoice_date::text FROM standalone_invoices WHERE tenant_id=$1 AND status!='cancelled'
+        UNION ALL SELECT 'payment',id,vendor_id,amount,payment_date::text FROM vendor_payments WHERE tenant_id=$1
+        UNION ALL SELECT 'distribution',COALESCE(batch_id,id),vendor_id,SUM(COALESCE(billed_price,net_price,0)),MIN(distribution_date)::text FROM product_distribution WHERE tenant_id=$1 GROUP BY COALESCE(batch_id,id),vendor_id
+        UNION ALL SELECT 'expense',id,category,amount,expense_date::text FROM expenses WHERE tenant_id=$1
+      ) t ORDER BY date DESC LIMIT 15`, [tenantId]),
+      pool.query(`SELECT v.id,v.name,v.phone,SUM(COALESCE(pd.billed_price,pd.net_price,p.price)) as distributed,COALESCE(SUM(vp.amount),0) as paid
+        FROM vendors v
+        LEFT JOIN product_distribution pd ON pd.vendor_id=v.id AND pd.tenant_id=$1
+        LEFT JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1
+        LEFT JOIN vendor_payments vp ON vp.vendor_id=v.id AND vp.tenant_id=$1
+        WHERE v.tenant_id=$1 AND v.id!='OWNER'
+        GROUP BY v.id,v.name,v.phone
+        HAVING SUM(COALESCE(pd.billed_price,pd.net_price,p.price))-COALESCE(SUM(vp.amount),0)>0
+        ORDER BY (SUM(COALESCE(pd.billed_price,pd.net_price,p.price))-COALESCE(SUM(vp.amount),0)) DESC
+        LIMIT 5`, [tenantId]),
+      pool.query(`SELECT
+        (SELECT COUNT(*) FROM customers WHERE tenant_id=$1) as customers,
+        (SELECT COUNT(*) FROM vendors WHERE tenant_id=$1 AND id!='OWNER') as vendors,
+        (SELECT COUNT(*) FROM products WHERE tenant_id=$1) as items,
+        (SELECT COUNT(*) FROM banks WHERE tenant_id=$1) as banks,
+        (SELECT COUNT(*) FROM staff_members WHERE tenant_id=$1) as staff`, [tenantId]),
+    ]);
+
+    // Resolve vendor names for activity
+    const vendorIds = [...new Set(activityRows.rows.filter((r: Record<string,unknown>) => r.type === 'payment' || r.type === 'distribution').map((r: Record<string,unknown>) => r.label as string))];
+    const vendorMap: Record<string,string> = {};
+    if (vendorIds.length) {
+      const vr = await pool.query('SELECT id,name FROM vendors WHERE tenant_id=$1 AND id=ANY($2)', [tenantId, vendorIds]);
+      for (const v of vr.rows as {id:string;name:string}[]) vendorMap[v.id] = v.name;
+    }
+
+    const c = counts.rows[0] as Record<string,string>;
+    res.json({
+      money: { collections, revenue: salesRev + invoiceRev, distribution, expenses, outstanding, invoiceOutstanding },
+      recentActivity: activityRows.rows.map((r: Record<string,unknown>) => ({ ...r, amount: Number(r.amount)||0, label: (r.type==='payment'||r.type==='distribution') ? (vendorMap[r.label as string]||r.label) : r.label })),
+      topVendors: vendorSummary.rows.map((r: Record<string,unknown>) => ({ vendorId: r.id, vendorName: r.name, balance: Number(r.distributed)||0 - Number(r.paid)||0 })),
+      counts: { customerMaster: Number(c.customers)||0, vendorMaster: Number(c.vendors)||0, itemMaster: Number(c.items)||0, bankMaster: Number(c.banks)||0, staffCount: Number(c.staff)||0 },
+    });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/api/dashboard/rewards-summary', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

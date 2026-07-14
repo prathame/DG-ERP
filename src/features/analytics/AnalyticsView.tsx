@@ -51,16 +51,14 @@ export function AnalyticsView({ setActiveTab, businessType = 'manufacturer' }: {
     else if (range === 'week') { const d = new Date(); d.setDate(d.getDate() - 6); from = d.toISOString().slice(0, 10); to = today; }
     else if (range === 'month') { from = today.slice(0, 7) + '-01'; to = today; }
     else if (range === 'custom') { from = fromDate || undefined; to = toDate || undefined; }
-    api.dashboard.money(from, to).then(setMoney).catch(() => {});
+    // Single call replaces 4 separate requests
+    api.dashboard.overview(from, to).then(data => {
+      setMoney(data.money);
+      setActivity(data.recentActivity);
+      setVendors(data.topVendors);
+      setCounts(data.counts);
+    }).catch(() => {});
   }, [range, fromDate, toDate]);
-
-  useEffect(() => {
-    api.vendorFinance.summary()
-      .then(s => setVendors(s.filter(v => v.balance > 0).sort((a, b) => b.balance - a.balance).slice(0, 5).map(v => ({ vendorId: v.vendorId, vendorName: v.vendorName, balance: v.balance }))))
-      .catch(() => {});
-    api.dashboard.recentActivity().then(setActivity).catch(() => {});
-    api.masters.counts().then(c => setCounts(c as typeof counts)).catch(() => {});
-  }, []);
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">

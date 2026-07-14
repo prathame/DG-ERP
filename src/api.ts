@@ -293,6 +293,18 @@ export const api = {
       }>('/dashboard/rewards-summary'),
     recentActivity: () =>
       fetchApi<{ type: string; id: string; label: string; amount: number; date: string }[]>('/analytics/recent-activity'),
+    overview: (from?: string, to?: string) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      const qs = params.toString();
+      return fetchApi<{
+        money: { collections: number; revenue: number; distribution: number; expenses: number; outstanding: number; invoiceOutstanding: number };
+        recentActivity: { type: string; id: string; label: string; amount: number; date: string }[];
+        topVendors: { vendorId: string; vendorName: string; balance: number }[];
+        counts: { customerMaster: number; vendorMaster: number; itemMaster: number; bankMaster: number; staffCount: number };
+      }>(`/analytics/overview${qs ? '?' + qs : ''}`);
+    },
     money: (from?: string, to?: string) => {
       const params = new URLSearchParams();
       if (from) params.set('from', from);
