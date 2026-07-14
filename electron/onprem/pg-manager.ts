@@ -4,6 +4,7 @@
  */
 import { app } from 'electron';
 import path from 'path';
+import fs from 'fs';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const EmbeddedPostgres = require('embedded-postgres').default ?? require('embedded-postgres');
 import { LOCAL_PG_PORT } from '../shared/constants';
@@ -21,7 +22,11 @@ export async function startPostgres(): Promise<string> {
     persistent: true,
   });
 
-  await pg.initialise();
+  // Only initialise on first run — skip if data directory already exists
+  const isFirstRun = !fs.existsSync(dataDir) || fs.readdirSync(dataDir).length === 0;
+  if (isFirstRun) {
+    await pg.initialise();
+  }
   await pg.start();
 
   // Ensure the database exists
