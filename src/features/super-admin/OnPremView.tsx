@@ -48,6 +48,8 @@ export function OnPremView({ saToken }: { saToken: string }) {
   const [savingSettings, setSavingSettings] = useState(false);
   const [latestVersion, setLatestVersion] = useState('');
   const [minVersion, setMinVersion] = useState('');
+  const [githubReleases, setGithubReleases] = useState<{ tag: string; name: string; published: string }[]>([]);
+  const [releasesLoading, setReleasesLoading] = useState(false);
 
   const [form, setForm] = useState({
     companyName: '', businessType: 'manufacturer' as typeof BUSINESS_TYPES[number],
@@ -266,26 +268,89 @@ export function OnPremView({ saToken }: { saToken: string }) {
 
           {settingsTab === 'updates' && (
             <div className="space-y-4">
-              <p className="text-xs text-gray-400">Control which version this installation runs. Applied on next heartbeat.</p>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">Latest Version (optional update notification)</label>
-                <input value={latestVersion} onChange={e => setLatestVersion(e.target.value)} placeholder="e.g. 2.2.0"
-                  className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+              {/* Current version prominently shown */}
+              <div className={cn("rounded-xl p-4 border", selected?.appVersion ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200")}>
+                <p className="text-xs text-gray-500 font-medium mb-1">This installation</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-blue-700">v{selected?.appVersion || 'Not yet synced'}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Last sync: {timeAgo(selected?.lastSeen || null)}</p>
+                  </div>
+                  {selected?.appVersion && latestVersion && selected.appVersion !== latestVersion && (
+                    <span className="text-xs bg-amber-100 text-amber-700 font-bold px-2.5 py-1 rounded-full">
+                      Update available: v{latestVersion}
+                    </span>
+                  )}
+                  {selected?.appVersion && latestVersion && selected.appVersion === latestVersion && (
+                    <span className="text-xs bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-full">
+                      ✓ Up to date
+                    </span>
+                  )}
+                </div>
               </div>
+
+              <p className="text-xs text-gray-400">Control which version this installation runs. Applied on next heartbeat (up to 60 min).</p>
+
+              {/* Latest version dropdown */}
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">Minimum Version (force update below this)</label>
-                <input value={minVersion} onChange={e => setMinVersion(e.target.value)} placeholder="e.g. 2.1.0"
-                  className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Latest Version (shows update notification)</label>
+                  <button onClick={async () => {
+                    if (githubReleases.length) return;
+                    setReleasesLoading(true);
+                    try {
+                      const r = await fetch('https://api.github.com/repos/prathame/DG-ERP/releases');
+                      if (r.ok) {
+                        const releases = await r.json() as { tag_name: string; name: string; published_at: string }[];
+                        setGithubReleases(releases.map(rel => ({
+                          tag: rel.tag_name.replace(/^v/, ''),
+                          name: rel.name || rel.tag_name,
+                          published: rel.published_at.slice(0, 10),
+                        })));
+                      }
+                    } catch {}
+                    setReleasesLoading(false);
+                  }} className="text-xs text-brand hover:underline font-medium">
+                    {releasesLoading ? 'Loading...' : githubReleases.length ? `${githubReleases.length} releases loaded` : 'Load from GitHub'}
+                  </button>
+                </div>
+                {githubReleases.length > 0 ? (
+                  <select value={latestVersion} onChange={e => setLatestVersion(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand bg-white">
+                    <option value="">— Select version —</option>
+                    {githubReleases.map(r => (
+                      <option key={r.tag} value={r.tag}>v{r.tag} · {r.published}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input value={latestVersion} onChange={e => setLatestVersion(e.target.value)} placeholder="e.g. 2.2.0"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+                )}
               </div>
+
+              {/* Min version dropdown */}
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Minimum Version (force update — blocks old)</label>
+                {githubReleases.length > 0 ? (
+                  <select value={minVersion} onChange={e => setMinVersion(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand bg-white">
+                    <option value="">— No minimum (optional update) —</option>
+                    {githubReleases.map(r => (
+                      <option key={r.tag} value={r.tag}>v{r.tag} · {r.published}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input value={minVersion} onChange={e => setMinVersion(e.target.value)} placeholder="e.g. 2.1.0"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+                )}
+              </div>
+
               <button onClick={() => {
                 setLocalSettings(prev => ({ ...prev, latestVersion: latestVersion || null, minVersion: minVersion || null }));
-                toast('Version settings staged — click Save to push', 'info');
-              }} className="w-full py-2 border border-brand text-brand rounded-xl text-sm font-bold hover:bg-orange-50">
-                <Zap size={14} className="inline mr-1" /> Stage Version Update
+                toast('Version staged — click Save & Push to apply', 'success');
+              }} className="w-full py-2 border border-brand text-brand rounded-xl text-sm font-bold hover:bg-orange-50 flex items-center justify-center gap-1.5">
+                <Zap size={14} /> Stage Update
               </button>
-              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
-                Current: <strong>{selected?.appVersion || 'unknown'}</strong> · Last sync: <strong>{timeAgo(selected?.lastSeen || null)}</strong>
-              </div>
             </div>
           )}
 
