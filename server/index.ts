@@ -119,8 +119,8 @@ const PUBLIC_PATHS = [
   '/api/auth/login', '/api/auth/signup', '/api/auth/forgot-password', '/api/auth/reset-password',
   '/api/super-admin/login', '/api/tenant/by-slug/', '/api/health',
   '/manifest.json',
-  // On-prem license endpoints — validated by license key, not JWT
-  '/api/onprem/activate', '/api/onprem/heartbeat', '/api/onprem/deactivate',
+  // On-prem license endpoints — validated by license key / localhost, not JWT
+  '/api/onprem/activate', '/api/onprem/heartbeat', '/api/onprem/deactivate', '/api/onprem/provision',
 ];
 
 // Tenant status — no cache, always check DB

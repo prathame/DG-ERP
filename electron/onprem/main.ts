@@ -155,7 +155,10 @@ ipcMain.handle('complete-setup', async (_event, data: LicenseData & { adminPassw
       maxUsers: data.maxUsers,
     }),
   });
-  if (!r.ok) throw new Error('Provisioning failed');
+  if (!r.ok) {
+    const errBody = await r.json().catch(() => ({})) as Record<string, unknown>;
+    throw new Error(`Provisioning failed (${r.status}): ${errBody.error || 'unknown'}`);
+  }
 
   // Save license only after successful provisioning
   licenseInfo = { ...data, slug, activatedAt: new Date().toISOString(), lastValidated: new Date().toISOString() };
