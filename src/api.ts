@@ -161,10 +161,33 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   if (token) authHeaders['Authorization'] = `Bearer ${token}`;
   if (tenantId) authHeaders['X-Tenant-ID'] = tenantId;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...authHeaders, ...options?.headers },
-  });
+  // Retry up to 3 times on network errors (handles 1-2 second internet blips).
+  // Only retries on TypeError (no connection) — never on 4xx/5xx server errors.
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = [800, 1600, 3000]; // backoff: 0.8s → 1.6s → 3s
+  let lastError: unknown;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...authHeaders, ...options?.headers },
+      });
+
+      // Server responded (even 4xx/5xx) — don't retry, fall through to handle below
+      return await handleResponse<T>(res, path, method, tenantId);
+    } catch (err) {
+      // Only retry on network failures (TypeError: Failed to fetch)
+      if (!(err instanceof TypeError)) throw err;
+      lastError = err;
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS[attempt]));
+      }
+    }
+  }
+  throw new Error('Connection lost. Please check your internet and try again.');
+}
+
+async function handleResponse<T>(res: Response, path: string, method: string, tenantId: string | null): Promise<T> {
 
   if (res.status === 401) {
     const isAuthEndpoint = path.startsWith('/auth/login') || path.startsWith('/auth/signup') || path.startsWith('/auth/reset') || path.startsWith('/auth/forgot') || path.startsWith('/super-admin/login');
