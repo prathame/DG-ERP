@@ -5,6 +5,9 @@ import { uid, DISTRIBUTION_BILL_UNIT_SQL, logAudit } from '../utils/helpers';
 
 const router = Router();
 
+// Tenant ledgers/registers are staff-only — Vendors must not see full-tenant accounts
+router.use(blockVendors);
+
 router.get('/api/accounts/ledger', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

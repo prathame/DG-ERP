@@ -30,10 +30,13 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
 });
 
 // Get next invoice number
-router.get('/api/invoices/next-number', async (req, res) => {
+router.get('/api/invoices/next-number', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    if (vendorScopeId(req) || req.user?.role === 'Vendor') {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
     const { rows } = await pool.query('SELECT COUNT(*) as c FROM standalone_invoices WHERE tenant_id = $1', [tenantId]);
     const count = Number(rows[0]?.c ?? 0) + 1;
     const now = new Date();

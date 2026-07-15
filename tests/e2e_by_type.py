@@ -346,7 +346,7 @@ def test_manufacturer(tok, tid, ids):
         ok("Vendor finance detail",
            req("GET",f"/api/vendor-finance/{ids['vendor']}",headers=D)[0] == 200)
         s,d = req("POST",f"/api/vendor-finance/{ids['vendor']}/payments",
-            {"amount":500,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)
+            {"amount":100,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)
         ok("Vendor payment → 201", s == 201, d.get("error",""))
         ok("Vendor payment zero → 400",
            req("POST",f"/api/vendor-finance/{ids['vendor']}/payments",

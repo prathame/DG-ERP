@@ -75,6 +75,13 @@ router.post('/api/admin/users', async (req, res) => {
     if (typeof password === 'string' && password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
     if (role && role.toLowerCase().includes('super')) return res.status(400).json({ error: 'Cannot create Super Admin from tenant settings' });
     if (role === 'Vendor' && !vendorId) return res.status(400).json({ error: 'Vendor role requires vendorId' });
+    if (vendorId) {
+      const vendorExists = (await pool.query(
+        'SELECT 1 FROM vendors WHERE id = $1 AND tenant_id = $2',
+        [vendorId, tenantId]
+      )).rows[0];
+      if (!vendorExists) return res.status(400).json({ error: 'Linked vendor not found' });
+    }
 
     const existing = (await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2', [email, tenantId])).rows[0];
     if (existing) return res.status(400).json({ error: 'Email already registered' });

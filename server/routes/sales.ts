@@ -6,13 +6,18 @@ import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helper
 const router = Router();
 
 // ============ SALES ENTRY (validate barcode: distributed to vendor OR in inventory = Owner sale) ============
-router.get('/api/sales/validate/:barcode', async (req, res) => {
+router.get('/api/sales/validate/:barcode', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const unlinked = assertVendorLinked(req);
+    if (unlinked) return res.status(403).json({ error: unlinked });
+
     const { barcode } = req.params;
-    const restrictToVendorId = typeof req.query.vendorId === 'string' ? req.query.vendorId : null;
+    const jwtVendorId = vendorScopeId(req);
+    const restrictToVendorId = jwtVendorId
+      || (typeof req.query.vendorId === 'string' ? req.query.vendorId : null);
     // 1. Check if distributed to vendor (available for sale)
     const dist = (await pool.query(`
       SELECT pd.*, p.name as product_name, p.reward_points_value, p.price, v.name as vendor_name

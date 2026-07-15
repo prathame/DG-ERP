@@ -91,29 +91,52 @@ router.get('/api/products', async (req: AuthRequest, res) => {
     const { search } = req.query;
     const jwtVendorId = req.user?.role === 'Vendor' ? (req.user.vendorId ?? null) : null;
     // Vendors only see products distributed to them (no full stock catalog IDOR)
-    let sql = `SELECT p.*,
-      COALESCE(inv.total, 0) as total_inv, COALESCE(inv.in_stock, 0) as inv_stock,
-      inv.barcode_first, inv.barcode_last, COALESCE(inv.unit_type, 'piece') as barcode_unit_type,
-      COALESCE(sc.cnt, 0) + COALESCE(ds.cnt, 0) as sold_count, COALESCE(dc.cnt, 0) as with_vendors
-      FROM products p
-      LEFT JOIN (
-        SELECT product_id, COUNT(*) as total, COUNT(*) FILTER (WHERE status='InStock') as in_stock,
-          MIN(barcode) as barcode_first, MAX(barcode) as barcode_last, MAX(unit_type) as unit_type
-        FROM product_inventory WHERE tenant_id = $1 GROUP BY product_id
-      ) inv ON inv.product_id = p.id
-      LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_sales WHERE tenant_id = $1 GROUP BY product_id) sc ON sc.product_id = p.id
-      LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Distributed' AND tenant_id = $1 GROUP BY product_id) dc ON dc.product_id = p.id
-      LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Sold' AND tenant_id = $1 GROUP BY product_id) ds ON ds.product_id = p.id
-      WHERE p.tenant_id = $1`;
+    // Aggregate counts are vendor-scoped when jwtVendorId is set
+    let sql: string;
     const params: string[] = [tenantId];
     if (jwtVendorId) {
       params.push(jwtVendorId);
-      sql += ` AND EXISTS (
-        SELECT 1 FROM product_distribution pd
-        WHERE pd.product_id = p.id AND pd.tenant_id = $1 AND pd.vendor_id = $${params.length}
-      )`;
+      sql = `SELECT p.*,
+        COALESCE(inv.in_stock, 0) as inv_stock,
+        COALESCE(inv.total, 0) as total_inv,
+        inv.barcode_first, inv.barcode_last, COALESCE(inv.unit_type, 'piece') as barcode_unit_type,
+        COALESCE(sc.cnt, 0) as sold_count, COALESCE(dc.cnt, 0) as with_vendors
+        FROM products p
+        LEFT JOIN (
+          SELECT product_id, COUNT(*) as total, COUNT(*) FILTER (WHERE status='Distributed') as in_stock,
+            MIN(barcode) as barcode_first, MAX(barcode) as barcode_last, MAX('piece') as unit_type
+          FROM product_distribution WHERE tenant_id = $1 AND vendor_id = $2
+          GROUP BY product_id
+        ) inv ON inv.product_id = p.id
+        LEFT JOIN (
+          SELECT product_id, COUNT(*) as cnt FROM product_sales
+          WHERE tenant_id = $1 AND vendor_id = $2 GROUP BY product_id
+        ) sc ON sc.product_id = p.id
+        LEFT JOIN (
+          SELECT product_id, COUNT(*) as cnt FROM product_distribution
+          WHERE status='Distributed' AND tenant_id = $1 AND vendor_id = $2 GROUP BY product_id
+        ) dc ON dc.product_id = p.id
+        WHERE p.tenant_id = $1 AND EXISTS (
+          SELECT 1 FROM product_distribution pd
+          WHERE pd.product_id = p.id AND pd.tenant_id = $1 AND pd.vendor_id = $2
+        )`;
     } else if (req.user?.role === 'Vendor') {
       return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    } else {
+      sql = `SELECT p.*,
+        COALESCE(inv.total, 0) as total_inv, COALESCE(inv.in_stock, 0) as inv_stock,
+        inv.barcode_first, inv.barcode_last, COALESCE(inv.unit_type, 'piece') as barcode_unit_type,
+        COALESCE(sc.cnt, 0) + COALESCE(ds.cnt, 0) as sold_count, COALESCE(dc.cnt, 0) as with_vendors
+        FROM products p
+        LEFT JOIN (
+          SELECT product_id, COUNT(*) as total, COUNT(*) FILTER (WHERE status='InStock') as in_stock,
+            MIN(barcode) as barcode_first, MAX(barcode) as barcode_last, MAX(unit_type) as unit_type
+          FROM product_inventory WHERE tenant_id = $1 GROUP BY product_id
+        ) inv ON inv.product_id = p.id
+        LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_sales WHERE tenant_id = $1 GROUP BY product_id) sc ON sc.product_id = p.id
+        LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Distributed' AND tenant_id = $1 GROUP BY product_id) dc ON dc.product_id = p.id
+        LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Sold' AND tenant_id = $1 GROUP BY product_id) ds ON ds.product_id = p.id
+        WHERE p.tenant_id = $1`;
     }
     if (typeof search === 'string' && search) {
       const nextIdx = params.length + 1;
@@ -333,12 +356,23 @@ router.get('/api/products/verify/:barcode', async (req: AuthRequest, res) => {
   }
 });
 
-router.get('/api/products/by-barcode/:barcode', async (req, res) => {
+router.get('/api/products/by-barcode/:barcode', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const unlinked = assertVendorLinked(req);
+    if (unlinked) return res.status(403).json({ error: unlinked });
 
     const { barcode } = req.params;
+    const jwtVendorId = vendorScopeId(req);
+    if (jwtVendorId) {
+      const owned = (await pool.query(
+        'SELECT 1 FROM product_distribution WHERE barcode = $1 AND vendor_id = $2 AND tenant_id = $3 LIMIT 1',
+        [barcode, jwtVendorId, tenantId]
+      )).rows[0];
+      if (!owned) return res.status(403).json({ error: 'Access denied for this barcode.' });
+    }
+
     let row = (await pool.query(`
       SELECT p.*,
       (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as inv_stock
@@ -354,6 +388,11 @@ router.get('/api/products/by-barcode/:barcode', async (req, res) => {
       `, [tenantId, barcode])).rows[0] as Record<string, unknown> | undefined;
     }
     if (!row) return res.status(404).json({ error: 'Product not found' });
+    // Vendors must not see warehouse stock totals
+    if (jwtVendorId) {
+      res.json(mapProduct({ ...row, stock: null, inv_stock: null }));
+      return;
+    }
     res.json(mapProduct({ ...row, stock: (row.inv_stock as number) ?? row.stock ?? 0 }));
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });

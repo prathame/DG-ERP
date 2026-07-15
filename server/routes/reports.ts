@@ -1,8 +1,12 @@
 import { Router } from 'express';
+import { blockVendors } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
 const router = Router();
+
+// Reports are staff-only — Vendors must not see full-tenant registers
+router.use(blockVendors);
 
 router.get('/api/reports/sales-register', async (req, res) => {
   try {
