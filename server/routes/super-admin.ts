@@ -517,6 +517,104 @@ router.get('/api/super-admin/analytics', superAdminMiddleware, async (req, res) 
   }
 });
 
+// ── Cloud-specific analytics ──────────────────────────────────────────────────
+router.get('/api/super-admin/cloud-analytics', superAdminMiddleware, async (req, res) => {
+  try {
+    const [planDist, tenantGrowth, featureAdoption, topTenants, statusBreakdown, recentLogins] = await Promise.all([
+      // Plan distribution
+      pool.query(`SELECT p.name, COUNT(t.id) as count FROM tenants t LEFT JOIN plans p ON t.plan_id = p.id GROUP BY p.name ORDER BY count DESC`),
+      // Tenant growth — new tenants per month (last 12 months)
+      pool.query(`SELECT to_char(created_at,'YYYY-MM') as month, COUNT(*) as count FROM tenants WHERE created_at > NOW()-INTERVAL '12 months' GROUP BY month ORDER BY month`),
+      // Feature adoption — how many tenants have each feature enabled
+      pool.query(`SELECT
+        COUNT(*) FILTER (WHERE barcode_system_enabled = true) as barcode,
+        COUNT(*) FILTER (WHERE multi_language_enabled = true) as multilang,
+        COUNT(*) FILTER (WHERE vendor_portal_enabled = true) as vendor_portal,
+        COUNT(*) FILTER (WHERE inventory_tracking_enabled = true) as inventory,
+        COUNT(*) FILTER (WHERE quotations_enabled = true) as quotations,
+        COUNT(*) FILTER (WHERE accounts_enabled = true) as accounts,
+        COUNT(*) FILTER (WHERE purchases_enabled = true) as purchases,
+        COUNT(*) FILTER (WHERE chatbot_enabled = true) as chatbot,
+        COUNT(*) as total
+        FROM tenants WHERE status != 'deleted'`),
+      // Top 5 tenants by revenue
+      pool.query(`SELECT t.company_name, t.plan_id, t.status, t.business_type,
+        COALESCE((SELECT SUM(sale_price) FROM product_sales WHERE tenant_id=t.id),0) as revenue,
+        COALESCE((SELECT COUNT(*) FROM users WHERE tenant_id=t.id),0) as users,
+        t.created_at
+        FROM tenants t ORDER BY revenue DESC LIMIT 10`),
+      // Status breakdown
+      pool.query(`SELECT status, COUNT(*) as count FROM tenants GROUP BY status ORDER BY count DESC`),
+      // Active tenants (logged in last 7 days)
+      pool.query(`SELECT COUNT(DISTINCT tenant_id) as count FROM audit_log WHERE action='LOGIN' AND created_at > NOW()-INTERVAL '7 days'`),
+    ]);
+
+    // MRR calculation (plan price * active tenant count per plan)
+    const plans = (await pool.query(`SELECT p.id, p.name, p.price_monthly, COUNT(t.id) as active_count FROM plans p LEFT JOIN tenants t ON t.plan_id=p.id AND t.status='active' GROUP BY p.id,p.name,p.price_monthly`)).rows as Record<string,unknown>[];
+    const mrr = plans.reduce((s, p) => s + (Number(p.price_monthly) * Number(p.active_count)), 0);
+
+    // Churn: suspended in last 30 days
+    const churn = Number((await pool.query(`SELECT COUNT(*) as c FROM audit_log WHERE action='UPDATE' AND details LIKE '%suspended%' AND created_at > NOW()-INTERVAL '30 days'`)).rows[0].c) || 0;
+
+    res.json({
+      mrr,
+      churn30d: churn,
+      planDistribution: planDist.rows,
+      tenantGrowth: tenantGrowth.rows,
+      featureAdoption: featureAdoption.rows[0],
+      topTenants: topTenants.rows,
+      statusBreakdown: statusBreakdown.rows,
+      activeThisWeek: Number(recentLogins.rows[0]?.count) || 0,
+    });
+  } catch (err) {
+    console.error(`💥 cloud-analytics failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── On-Prem-specific analytics ────────────────────────────────────────────────
+router.get('/api/super-admin/onprem-analytics', superAdminMiddleware, async (req, res) => {
+  try {
+    const [versions, businessTypes, expiryTimeline, statusBreakdown, licenses] = await Promise.all([
+      // Version distribution
+      pool.query(`SELECT COALESCE(app_version,'Unknown') as version, COUNT(*) as count FROM onprem_licenses GROUP BY app_version ORDER BY count DESC`),
+      // Business type distribution
+      pool.query(`SELECT COALESCE(business_type,'manufacturer') as type, COUNT(*) as count FROM onprem_licenses GROUP BY business_type ORDER BY count DESC`),
+      // Expiry timeline: expiring in 0-30, 31-90, 91-365, never
+      pool.query(`SELECT
+        COUNT(*) FILTER (WHERE valid_until IS NULL) as lifetime,
+        COUNT(*) FILTER (WHERE valid_until >= CURRENT_DATE AND valid_until <= CURRENT_DATE + 30) as expiring_30d,
+        COUNT(*) FILTER (WHERE valid_until > CURRENT_DATE + 30 AND valid_until <= CURRENT_DATE + 90) as expiring_90d,
+        COUNT(*) FILTER (WHERE valid_until > CURRENT_DATE + 90) as expiring_later,
+        COUNT(*) FILTER (WHERE valid_until < CURRENT_DATE) as expired
+        FROM onprem_licenses WHERE status='active'`),
+      // Status breakdown
+      pool.query(`SELECT status, COUNT(*) as count FROM onprem_licenses GROUP BY status`),
+      // All licenses for online/offline calc
+      pool.query(`SELECT status, last_seen, valid_until, business_type, app_version FROM onprem_licenses`),
+    ]);
+
+    const now = Date.now();
+    const lics = licenses.rows as Record<string, unknown>[];
+    const online = lics.filter(l => l.last_seen && (now - new Date(l.last_seen as string).getTime()) < 70 * 60 * 1000).length;
+    const expiringSoon = lics.filter(l => l.valid_until && new Date(l.valid_until as string) <= new Date(Date.now() + 30 * 86400000) && new Date(l.valid_until as string) >= new Date()).length;
+
+    res.json({
+      total: lics.length,
+      online,
+      offline: lics.length - online,
+      expiringSoon,
+      versionDistribution: versions.rows,
+      businessTypeDistribution: businessTypes.rows,
+      expiryTimeline: expiryTimeline.rows[0],
+      statusBreakdown: statusBreakdown.rows,
+    });
+  } catch (err) {
+    console.error(`💥 onprem-analytics failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Real-time active users (active in last 15 min)
 router.get('/api/super-admin/tenants/:id/active-users', superAdminMiddleware, async (req, res) => {
   try {
