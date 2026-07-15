@@ -83,12 +83,14 @@ router.delete('/api/categories/:id', requireAdmin, async (req: AuthRequest, res)
 });
 
 // ============ PRODUCTS ============
-router.get('/api/products', async (req, res) => {
+router.get('/api/products', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { search } = req.query;
+    const jwtVendorId = req.user?.role === 'Vendor' ? (req.user.vendorId ?? null) : null;
+    // Vendors only see products distributed to them (no full stock catalog IDOR)
     let sql = `SELECT p.*,
       COALESCE(inv.total, 0) as total_inv, COALESCE(inv.in_stock, 0) as inv_stock,
       inv.barcode_first, inv.barcode_last, COALESCE(inv.unit_type, 'piece') as barcode_unit_type,
@@ -104,6 +106,15 @@ router.get('/api/products', async (req, res) => {
       LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Sold' AND tenant_id = $1 GROUP BY product_id) ds ON ds.product_id = p.id
       WHERE p.tenant_id = $1`;
     const params: string[] = [tenantId];
+    if (jwtVendorId) {
+      params.push(jwtVendorId);
+      sql += ` AND EXISTS (
+        SELECT 1 FROM product_distribution pd
+        WHERE pd.product_id = p.id AND pd.tenant_id = $1 AND pd.vendor_id = $${params.length}
+      )`;
+    } else if (req.user?.role === 'Vendor') {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    }
     if (typeof search === 'string' && search) {
       const nextIdx = params.length + 1;
       sql += ` AND (p.name ILIKE $${nextIdx} OR p.barcode ILIKE $${nextIdx + 1} OR EXISTS (SELECT 1 FROM product_inventory pi2 WHERE pi2.product_id = p.id AND pi2.tenant_id = $1 AND pi2.barcode ILIKE $${nextIdx + 2}))`;
@@ -487,7 +498,7 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
       const bc = errStr.includes('BARCODE_EXISTS:') ? errStr.split('BARCODE_EXISTS:')[1] : null;
       return res.status(400).json({ error: bc ? `Barcode ${bc} already exists` : `Product "${name}" already exists` });
     }
-    res.status(500).json({ error: errStr });
+    res.status(500).json({ error: 'Internal server error' });
   } finally { client.release(); }
   } catch (outerErr) {
     console.error('[API Error]', req.path, outerErr); res.status(500).json({ error: 'Internal server error' });

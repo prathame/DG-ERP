@@ -148,6 +148,10 @@ ipcMain.handle('activate-license', async (_event, licenseKey: string) => {
 
 // IPC: Wizard — complete setup, create tenant + admin user
 ipcMain.handle('complete-setup', async (_event, data: LicenseData & { adminPassword: string }) => {
+  // Refuse re-provision from the main-window preload after setup
+  if (loadLicense()) {
+    throw new Error('Already provisioned. Re-run the setup wizard only after clearing the license.');
+  }
   const slug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
   // Create tenant via local Express API FIRST — save license only on success
@@ -198,7 +202,12 @@ async function openMainWindow(slug: string): Promise<void> {
   mainWin.loadURL(`${LOCAL_API_URL}/${slug}`);
   mainWin.once('ready-to-show', () => mainWin?.show());
   mainWin.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    try {
+      const u = new URL(url);
+      if (u.protocol === 'https:' || u.protocol === 'http:') {
+        shell.openExternal(url);
+      }
+    } catch { /* ignore invalid URLs */ }
     return { action: 'deny' };
   });
   mainWin.on('closed', () => { mainWin = null; });

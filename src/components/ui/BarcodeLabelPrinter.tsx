@@ -5,6 +5,7 @@ import { api } from '../../api';
 import { LoadingSpinner } from './index';
 import { cn } from '../../lib/utils';
 import { session } from '../../lib/session';
+import { esc } from '../../lib/billTemplates';
 
 interface BarcodeLabelPrinterProps {
   productId: string;
@@ -113,16 +114,17 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
 
     const labels = selected.map((b) => {
       const codeImg = codeType === 'barcode' ? generateBarcodeDataUrl(b.barcode) : generateQrDataUrl(b.barcode);
+      const safeSrc = codeImg.startsWith('data:image/') ? codeImg : '';
       return `<div class="label">
-        ${companyName ? `<div class="company">${companyName}</div>` : ''}
-        <div class="product">${product.name}</div>
-        ${codeImg ? `<img src="${codeImg}" class="code-img" alt="${b.barcode}" />` : ''}
-        <div class="barcode-text">${b.barcode}</div>
-        ${showPrice ? `<div class="price">₹${Number(product.price).toLocaleString()}</div>` : ''}
+        ${companyName ? `<div class="company">${esc(companyName)}</div>` : ''}
+        <div class="product">${esc(product.name)}</div>
+        ${safeSrc ? `<img src="${safeSrc}" class="code-img" alt="${esc(b.barcode)}" />` : ''}
+        <div class="barcode-text">${esc(b.barcode)}</div>
+        ${showPrice ? `<div class="price">₹${esc(Number(product.price).toLocaleString())}</div>` : ''}
       </div>`;
     }).join('');
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Barcode Labels — ${product.name}</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Barcode Labels — ${esc(product.name)}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   @page{margin:5mm;}

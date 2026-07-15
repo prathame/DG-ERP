@@ -131,21 +131,25 @@ app.use('/api/', async (req, res, next) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Authentication required' });
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as { tenantId?: string; userId?: string; role?: string; iat?: number };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as { tenantId?: string; userId?: string; role?: string; vendorId?: string | null; iat?: number };
     if (decoded.tenantId && decoded.userId) {
       req.headers['x-tenant-id'] = decoded.tenantId;
 
       // Check tenant status AND password_changed_at in one query
       const userRow = await pool.query(
-        `SELECT u.password_changed_at, t.status, t.subscription_ends_at, t.trial_ends_at
+        `SELECT u.password_changed_at, u.role, u.vendor_id, t.status, t.subscription_ends_at, t.trial_ends_at
          FROM users u JOIN tenants t ON t.id = u.tenant_id
          WHERE u.id = $1 AND u.tenant_id = $2`,
         [decoded.userId, decoded.tenantId]
       );
-      const row = userRow.rows[0] as { password_changed_at: Date | null; status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
+      const row = userRow.rows[0] as { password_changed_at: Date | null; role: string; vendor_id: string | null; status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
 
       // C1: deleted/missing users must not keep API access until JWT expiry
       if (!row) return res.status(401).json({ error: 'User no longer exists. Please log in again.' });
+
+      // H1: re-read live role/vendorId from DB so demotions take effect immediately
+      decoded.role = row.role;
+      decoded.vendorId = row.vendor_id ?? undefined;
 
       if (row.status === 'suspended') return res.status(403).json({ error: 'Account suspended. Contact admin.' });
       // #12 fix: only check the date that applies to this tenant's status

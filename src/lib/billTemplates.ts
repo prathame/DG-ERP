@@ -1,15 +1,15 @@
 import type { SaleBillData, DistributionBillData } from '../api';
 
-function esc(text: unknown): string {
+export function esc(text: unknown): string {
   return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function safeColor(c: string | null | undefined): string {
+export function safeColor(c: string | null | undefined): string {
   if (!c) return '#F27D26';
   return /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : '#F27D26';
 }
 
-function safeImgSrc(src: unknown): string {
+export function safeImgSrc(src: unknown): string {
   if (!src || typeof src !== 'string') return '';
   if (src.startsWith('data:image/')) return src;
   return '';

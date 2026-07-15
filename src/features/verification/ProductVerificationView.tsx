@@ -186,7 +186,7 @@ export function ProductVerificationView() {
               const d = vendorDetail as { vendor?: { name: string; phone?: string }; totalDistributedValue: number; totalPaid: number; balance: number; payments?: { amount: number; paymentDate: string; paymentMethod: string }[]; distributions?: { date: string; productName: string; quantity: number; total: number }[] };
               const companyName = (() => { try { return (session.getUser() || {} as Record<string, unknown>).companyName || 'Dhandho'; } catch { return 'Dhandho'; } })();
               const w = window.open('', '_blank'); if (!w) return;
-              w.document.write(`<!DOCTYPE html><html><head><title>${d.vendor?.name} — Report</title><style>
+              w.document.write(`<!DOCTYPE html><html><head><title>${esc(d.vendor?.name)} — Report</title><style>
                 body{font-family:Inter,sans-serif;margin:0;padding:40px;color:#1a1a1a}
                 .header{border-bottom:3px solid #F27D26;padding-bottom:16px;margin-bottom:24px}
                 .company{font-size:18px;font-weight:700}.sub{font-size:13px;color:#666;margin-top:4px}
@@ -198,15 +198,15 @@ export function ProductVerificationView() {
                 .footer{margin-top:30px;text-align:center;font-size:10px;color:#999}
                 @media print{body{padding:20px}}
               </style></head><body>
-              <div class="header"><div class="company">${companyName}</div><div class="sub">${esc(d.vendor?.name || '')}${d.vendor?.phone ? ` • ${d.vendor.phone}` : ''}</div></div>
+              <div class="header"><div class="company">${esc(companyName)}</div><div class="sub">${esc(d.vendor?.name || '')}${d.vendor?.phone ? ` • ${esc(d.vendor.phone)}` : ''}</div></div>
               <div class="stats">
                 <div class="stat"><div class="stat-label">Billed</div><div class="stat-value" style="color:#2563eb">₹${(d.totalDistributedValue ?? 0).toLocaleString()}</div></div>
                 <div class="stat"><div class="stat-label">Paid</div><div class="stat-value" style="color:#059669">₹${(d.totalPaid ?? 0).toLocaleString()}</div></div>
                 <div class="stat"><div class="stat-label">Balance</div><div class="stat-value" style="color:${(d.balance ?? 0) > 0 ? '#dc2626' : '#059669'}">₹${Math.abs(d.balance ?? 0).toLocaleString()}</div></div>
               </div>
-              ${d.payments?.length ? `<h4>Payments</h4><table><thead><tr><th>Date</th><th>Method</th><th class="r">Amount</th></tr></thead><tbody>${d.payments.map(p => `<tr><td>${formatDate(p.paymentDate)}</td><td>${p.paymentMethod}</td><td class="r" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
-              ${d.distributions?.length ? `<h4>Distributions</h4><table><thead><tr><th>Date</th><th>Product</th><th class="r">Qty</th><th class="r">Total</th></tr></thead><tbody>${d.distributions.map(x => `<tr><td>${formatDate(x.date)}</td><td>${esc(x.productName)}</td><td class="r">${x.quantity}</td><td class="r" style="font-weight:600">₹${Number(x.total).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
-              <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${companyName}</div>
+              ${d.payments?.length ? `<h4>Payments</h4><table><thead><tr><th>Date</th><th>Method</th><th class="r">Amount</th></tr></thead><tbody>${d.payments.map(p => `<tr><td>${esc(formatDate(p.paymentDate))}</td><td>${esc(p.paymentMethod)}</td><td class="r" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
+              ${d.distributions?.length ? `<h4>Distributions</h4><table><thead><tr><th>Date</th><th>Product</th><th class="r">Qty</th><th class="r">Total</th></tr></thead><tbody>${d.distributions.map(x => `<tr><td>${esc(formatDate(x.date))}</td><td>${esc(x.productName)}</td><td class="r">${x.quantity}</td><td class="r" style="font-weight:600">₹${Number(x.total).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
+              <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${esc(companyName)}</div>
               <script>window.print()</script></body></html>`);
               w.document.close();
             }} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50"><Printer size={14} /> Print / PDF</button>

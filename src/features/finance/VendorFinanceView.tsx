@@ -182,15 +182,15 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
               .footer{margin-top:30px;text-align:center;font-size:10px;color:#999}
               @media print{body{padding:20px}}
             </style></head><body>
-            <div class="header"><div class="company">${companyName}</div><div class="vendor">Payment History — ${detail.vendor.name}${detail.vendor.phone ? ` • ${detail.vendor.phone}` : ''}</div></div>
+            <div class="header"><div class="company">${esc(companyName)}</div><div class="vendor">Payment History — ${esc(detail.vendor.name)}${detail.vendor.phone ? ` • ${esc(detail.vendor.phone)}` : ''}</div></div>
             <div class="stats">
               <div class="stat"><div class="stat-label">Total Value</div><div class="stat-value" style="color:#2563eb">₹${detail.totalDistributedValue.toLocaleString()}</div></div>
               <div class="stat"><div class="stat-label">Total Paid</div><div class="stat-value" style="color:#059669">₹${detail.totalPaid.toLocaleString()}</div></div>
               <div class="stat"><div class="stat-label">Balance</div><div class="stat-value" style="color:${detail.balance > 0 ? '#dc2626' : '#059669'}">₹${Math.abs(detail.balance).toLocaleString()}${detail.balance < 0 ? ' (Credit)' : ''}</div></div>
             </div>
             <table><thead><tr><th>Date</th><th>Method</th><th class="text-right">Amount</th><th>Reference</th><th>Notes</th></tr></thead>
-            <tbody>${detail.payments.map((p: Record<string, unknown>) => `<tr><td>${formatDate(p.paymentDate as string)}</td><td>${p.paymentMethod}</td><td class="text-right" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td><td>${p.referenceNumber || '—'}</td><td>${p.notes || '—'}</td></tr>`).join('')}</tbody></table>
-            <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${companyName}</div>
+            <tbody>${detail.payments.map((p: Record<string, unknown>) => `<tr><td>${esc(formatDate(p.paymentDate as string))}</td><td>${esc(p.paymentMethod)}</td><td class="text-right" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td><td>${esc(p.referenceNumber || '—')}</td><td>${esc(p.notes || '—')}</td></tr>`).join('')}</tbody></table>
+            <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${esc(companyName)}</div>
             <script>window.print()</script></body></html>`);
             w.document.close();
           }} className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50"><Printer size={16} /> PDF</button>

@@ -5,6 +5,7 @@ import { cn, exportToCsv, formatDate, useTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { fetchApi } from '../../api';
+import { esc } from '../../lib/billTemplates';
 
 type AccountTab = 'pnl' | 'balance' | 'cashflow' | 'ledger' | 'daybook' | 'notes' | 'sales' | 'distribution' | 'outstanding' | 'payments' | 'stock' | 'gst' | 'gstr2b' | 'gstr3b';
 
@@ -53,8 +54,17 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
     const titles: Record<string, string> = { pnl: 'Profit & Loss Statement', balance: 'Balance Sheet', cashflow: 'Cash Flow Statement', ledger: 'General Ledger', daybook: 'Day Book', notes: 'Credit / Debit Notes', sales: 'Sales Register', distribution: ds ? 'Sales Register' : 'Distribution Register', outstanding: 'Outstanding Report', payments: 'Payment Register', stock: 'Stock Summary', gst: 'GST Summary' };
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) return;
-    win.document.write(`<html><head><title>${titles[tab]}</title><style>body{font-family:sans-serif;margin:20px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#f5f5f5}.card{border:1px solid #ddd;padding:16px;margin:8px 0;border-radius:8px}.amount{text-align:right;font-weight:bold}.label{color:#666;font-size:11px;text-transform:uppercase}h2{margin-bottom:4px}p{color:#666;font-size:12px;margin-top:0}@media print{body{margin:0}}</style></head><body><h2>${titles[tab]}</h2><p>Period: ${from} to ${to}</p>${el.innerHTML}</body></html>`);
+    // Prefer DOM clone over string concat so React-escaped text stays text (no re-parse XSS).
+    win.document.open();
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titles[tab] || 'Accounts')}</title><style>body{font-family:sans-serif;margin:20px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#f5f5f5}.card{border:1px solid #ddd;padding:16px;margin:8px 0;border-radius:8px}.amount{text-align:right;font-weight:bold}.label{color:#666;font-size:11px;text-transform:uppercase}h2{margin-bottom:4px}p{color:#666;font-size:12px;margin-top:0}@media print{body{margin:0}}</style></head><body></body></html>`);
     win.document.close();
+    const h2 = win.document.createElement('h2');
+    h2.textContent = titles[tab] || 'Accounts';
+    const period = win.document.createElement('p');
+    period.textContent = `Period: ${from} to ${to}`;
+    win.document.body.appendChild(h2);
+    win.document.body.appendChild(period);
+    win.document.body.appendChild(win.document.importNode(el, true));
     setTimeout(() => win.print(), 300);
   };
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { blockVendors, AuthRequest } from '../middleware/auth';
+import { blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 
@@ -47,12 +47,14 @@ router.put('/api/redemption-settings', blockVendors, async (req: AuthRequest, re
 });
 
 // ============ REWARDS ============
-router.get('/api/rewards', async (req, res) => {
+router.get('/api/rewards', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { type, vendorId } = req.query;
+    const jwtVendorId = vendorScopeId(req);
+    const effectiveVendorId = jwtVendorId || (typeof vendorId === 'string' ? vendorId : undefined);
     let sql = 'SELECT * FROM rewards WHERE tenant_id = $1';
     const params: (string | number)[] = [tenantId];
     let paramIdx = 2;
@@ -62,10 +64,12 @@ router.get('/api/rewards', async (req, res) => {
       params.push(type);
       paramIdx++;
     }
-    if (typeof vendorId === 'string' && vendorId) {
+    if (typeof effectiveVendorId === 'string' && effectiveVendorId) {
       sql += ` AND vendor_id = $${paramIdx}`;
-      params.push(vendorId);
+      params.push(effectiveVendorId);
       paramIdx++;
+    } else if (jwtVendorId === null && req.user?.role === 'Vendor') {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
     }
 
     sql += ' ORDER BY date DESC';
@@ -163,11 +167,18 @@ router.post('/api/rewards', blockVendors, async (req: AuthRequest, res) => {
         client.release();
       }
     } else {
-      // Non-redemption (Earned): simple insert
+      // Non-redemption (Earned): insert + sync vendor counter when vendorId provided
+      const earnVendorId = typeof vendorId === 'string' && vendorId ? vendorId : null;
       await pool.query(
         `INSERT INTO rewards (id,tenant_id,user_id,points,type,description,date,vendor_id,sale_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [id, tenantId, userId ?? 'D1', ptsToInsert, type ?? 'Earned', description ?? '', date, null, null]
+        [id, tenantId, userId ?? 'D1', ptsToInsert, type ?? 'Earned', description ?? '', date, earnVendorId, null]
       );
+      if (earnVendorId && (type ?? 'Earned') === 'Earned') {
+        await pool.query(
+          'UPDATE vendors SET total_reward_points = total_reward_points + $1 WHERE id = $2 AND tenant_id = $3',
+          [ptsToInsert, earnVendorId, tenantId]
+        );
+      }
     }
 
     const row = (await pool.query(

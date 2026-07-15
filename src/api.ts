@@ -497,7 +497,7 @@ vendor: (vendorId: string) =>
     signup: (data: { email: string; password: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }) =>
       fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string } }>('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
     login: (email: string, password: string, slug?: string) =>
-      fetchApi<{ token: string; tenantId: string; tenantSlug?: string; id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[] | null; vendorId?: string | null; autoWhatsapp?: boolean; defaultGstRate?: number; gstNumber?: string | null; warrantyEnabled?: boolean; replacementEnabled?: boolean; rewardsEnabled?: boolean; financeEnabled?: boolean; chatbotEnabled?: boolean; billCustomizationEnabled?: boolean; multiLanguageEnabled?: boolean; vendorPortalEnabled?: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, ...(slug ? { slug } : {}) }) }),
+      fetchApi<{ token: string; tenantId: string; tenantSlug?: string; id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: Record<string, string> | string[] | null; vendorId?: string | null; autoWhatsapp?: boolean; defaultGstRate?: number; gstNumber?: string | null; warrantyEnabled?: boolean; replacementEnabled?: boolean; rewardsEnabled?: boolean; financeEnabled?: boolean; chatbotEnabled?: boolean; billCustomizationEnabled?: boolean; multiLanguageEnabled?: boolean; vendorPortalEnabled?: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, ...(slug ? { slug } : {}) }) }),
     forgotPassword: (email: string) =>
       fetchApi<{ ok: boolean; message: string; token?: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
     resetPassword: (token: string, newPassword: string) =>
@@ -547,7 +547,7 @@ vendor: (vendorId: string) =>
   },
   settings: {
     getProfile: (userId: string) =>
-      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),
+      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: Record<string, string> | string[] | null; vendorId?: string | null }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),
     changePassword: (userId: string, currentPassword: string, newPassword: string) =>
       fetchApi<{ ok: boolean }>('/settings/change-password', { method: 'PUT', body: JSON.stringify({ userId, currentPassword, newPassword }) }),
     updateProfile: (userId: string, data: Record<string, unknown>) =>

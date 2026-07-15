@@ -97,12 +97,12 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   };
 
   const generatePriceListHtml = () => {
-    let html = `<html><head><title>Price List — ${companyName}</title><style>body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto}h1{font-size:20px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left;font-size:13px}th{background:#f9fafb;font-weight:600;text-transform:uppercase;font-size:11px;color:#6b7280}.vendor{background:#f3e8ff;color:#7c3aed;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700}.all{background:#fef3c7;color:#d97706;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700}.price{font-weight:700;color:#F27D26}@media print{body{padding:0}}</style></head><body>`;
-    html += `<h1>${companyName}</h1><p style="color:#6b7280;font-size:13px;">Price List — ${new Date().toLocaleDateString('en-IN')}</p>`;
+    let html = `<html><head><title>Price List — ${esc(companyName)}</title><style>body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto}h1{font-size:20px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #e5e7eb;padding:8px 12px;text-align:left;font-size:13px}th{background:#f9fafb;font-weight:600;text-transform:uppercase;font-size:11px;color:#6b7280}.vendor{background:#f3e8ff;color:#7c3aed;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700}.all{background:#fef3c7;color:#d97706;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700}.price{font-weight:700;color:#F27D26}@media print{body{padding:0}}</style></head><body>`;
+    html += `<h1>${esc(companyName)}</h1><p style="color:#6b7280;font-size:13px;">Price List — ${new Date().toLocaleDateString('en-IN')}</p>`;
     html += `<table><thead><tr><th>Product</th><th>Base Price</th><th>Vendor</th><th>Qty Range</th><th>Special Price</th></tr></thead><tbody>`;
     for (const r of rules) {
       const base = products.find(p => p.id === r.productId);
-      html += `<tr><td>${r.productName}</td><td>₹${base?.price?.toLocaleString() || '—'}</td><td><span class="${r.vendorId ? 'vendor' : 'all'}">${r.vendorId ? r.vendorName : 'All Vendors'}</span></td><td>${r.minQty}${r.maxQty ? `–${r.maxQty}` : '+'}</td><td class="price">₹${r.price.toLocaleString()}</td></tr>`;
+      html += `<tr><td>${esc(r.productName)}</td><td>₹${base?.price?.toLocaleString() || '—'}</td><td><span class="${r.vendorId ? 'vendor' : 'all'}">${esc(r.vendorId ? r.vendorName : 'All Vendors')}</span></td><td>${r.minQty}${r.maxQty ? `–${r.maxQty}` : '+'}</td><td class="price">₹${r.price.toLocaleString()}</td></tr>`;
     }
     html += '</tbody></table></body></html>';
     return html;

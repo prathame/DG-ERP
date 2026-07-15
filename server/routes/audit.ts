@@ -5,7 +5,7 @@ import { parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 
 const router = Router();
 
-router.get('/api/audit-log', async (req, res) => {
+router.get('/api/audit-log', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

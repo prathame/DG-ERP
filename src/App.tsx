@@ -242,6 +242,15 @@ export default function App() {
     return 'hidden';
   };
   const canAccess = (tabId: string) => getAccess(tabId) !== 'hidden';
+
+  useEffect(() => {
+    if (!user) return;
+    if (!canAccess(activeTab)) {
+      const fallback = (['analytics', 'dashboard', 'distribution', 'finance', 'inventory'] as Tab[])
+        .find((t) => canAccess(t)) ?? 'dashboard';
+      setActiveTabRaw(fallback);
+    }
+  }, [activeTab, user]);
   const visibleNavItems = navItems.filter((item) => canAccess(item.id));
 
   // C9 fix: all hooks must come before any conditional return.
@@ -457,7 +466,7 @@ export default function App() {
               <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
               <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">{(userConfig?.planName as string) || 'Standard'} Plan</span>
             </div>
-            <button type="button" onClick={() => setActiveTab('inventory')} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-700">
+            <button type="button" onClick={() => canAccess('inventory') && setActiveTab('inventory')} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-700">
               <Bell size={20} />
               {lowStockCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">{lowStockCount > 9 ? '9+' : lowStockCount}</span>
@@ -480,10 +489,12 @@ export default function App() {
                       <p className="text-xs text-gray-500 truncate">{user?.email}</p>
                     </div>
                     <div className="py-1">
+                      {canAccess('settings') && (
                       <button type="button" onClick={() => { setActiveTab('settings'); setUserMenuOpen(false); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">
                         <Settings size={15} className="text-gray-400" />
                         Settings
                       </button>
+                      )}
                     </div>
                     <div className="border-t border-gray-100 py-1">
                       <button type="button" onClick={handleLogout} className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium">
@@ -501,26 +512,26 @@ export default function App() {
         <div className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
           <Suspense fallback={<LazyFallback />}>
           <div key={tabKey}>
-          {activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
-          {activeTab === 'masters' && <MastersView setActiveTab={setActiveTab} user={user} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
-          {activeTab === 'sales' && <SalesEntryView user={user} />}
-          {activeTab === 'purchases' && <PurchasesView accessLevel={getAccess('purchases')} />}
-          {activeTab === 'distribution' && <DistributionView user={user} accessLevel={getAccess('distribution')} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
-          {activeTab === 'warranty' && <WarrantyView user={user} />}
-          {activeTab === 'replacements' && <ReplacementsView user={user} />}
-          {activeTab === 'rewards' && <RewardsView user={user} />}
-          {activeTab === 'inventory' && <InventoryView accessLevel={getAccess('inventory')} />}
-          {activeTab === 'verification' && <ProductVerificationView />}
-          {activeTab === 'quotations' && <QuotationsAndOrdersView />}
-          {activeTab === 'invoices' && <InvoicesView />}
-          {activeTab === 'finance' && ((userConfig?.businessType as string) === 'service'
+          {canAccess(activeTab) && activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
+          {canAccess(activeTab) && activeTab === 'masters' && <MastersView setActiveTab={setActiveTab} user={user} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
+          {canAccess(activeTab) && activeTab === 'sales' && <SalesEntryView user={user} />}
+          {canAccess(activeTab) && activeTab === 'purchases' && <PurchasesView accessLevel={getAccess('purchases')} />}
+          {canAccess(activeTab) && activeTab === 'distribution' && <DistributionView user={user} accessLevel={getAccess('distribution')} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
+          {canAccess(activeTab) && activeTab === 'warranty' && <WarrantyView user={user} />}
+          {canAccess(activeTab) && activeTab === 'replacements' && <ReplacementsView user={user} />}
+          {canAccess(activeTab) && activeTab === 'rewards' && <RewardsView user={user} />}
+          {canAccess(activeTab) && activeTab === 'inventory' && <InventoryView accessLevel={getAccess('inventory')} />}
+          {canAccess(activeTab) && activeTab === 'verification' && <ProductVerificationView />}
+          {canAccess(activeTab) && activeTab === 'quotations' && <QuotationsAndOrdersView />}
+          {canAccess(activeTab) && activeTab === 'invoices' && <InvoicesView />}
+          {canAccess(activeTab) && activeTab === 'finance' && ((userConfig?.businessType as string) === 'service'
             ? <InvoiceFinanceView accessLevel={getAccess('finance')} />
             : <VendorFinanceView user={user} accessLevel={getAccess('finance')} />)
           }
-          {activeTab === 'analytics' && <AnalyticsView setActiveTab={setActiveTab} />}
-          {activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} />}
+          {canAccess(activeTab) && activeTab === 'analytics' && <AnalyticsView setActiveTab={setActiveTab} />}
+          {canAccess(activeTab) && activeTab === 'accounts' && <AccountsView accessLevel={getAccess('accounts')} />}
           </div>
-          {activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
+          {canAccess('settings') && activeTab === 'settings' && <SettingsView user={user} onUserChange={setUser} />}
           </Suspense>
         </div>
       </main>
@@ -531,7 +542,7 @@ export default function App() {
             const priorityIds = user?.role === 'Vendor'
               ? ['analytics', 'distribution', 'finance', 'inventory', 'settings']
               : ['analytics', 'masters', 'inventory', 'finance', 'quotations'];
-            const mobileItems = priorityIds.map(id => visibleNavItems.find(n => n.id === id) || navItems.find(n => n.id === id)).filter(Boolean).slice(0, 5);
+            const mobileItems = priorityIds.map(id => visibleNavItems.find(n => n.id === id)).filter(Boolean).slice(0, 5);
             return mobileItems;
           })().map((item) => (
             <button
@@ -562,7 +573,7 @@ export default function App() {
         <CommandPalette
           items={[
             ...visibleNavItems.map(i => ({ id: i.id, label: i.label, icon: i.icon })),
-            { id: 'settings', label: 'Settings', icon: Settings },
+            ...(canAccess('settings') ? [{ id: 'settings', label: 'Settings', icon: Settings }] : []),
           ]}
           onSelect={(id) => setActiveTab(id as Tab)}
           onClose={() => setCmdOpen(false)}

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest, vendorScopeId, assertVendorAccess } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
@@ -17,9 +17,9 @@ router.get('/api/vendor-finance/summary', async (req: AuthRequest, res) => {
         COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE vendor_id = v.id AND tenant_id = $1), 0) as total_paid,
         (SELECT COUNT(*) FROM product_distribution WHERE vendor_id = v.id AND tenant_id = $1) as units_distributed
       FROM vendors v WHERE v.id != 'OWNER' AND v.tenant_id = $1
-      ${req.user?.role === 'Vendor' && req.user?.vendorId ? `AND v.id = '${req.user.vendorId}'` : ''}
+      ${vendorScopeId(req) ? `AND v.id = $2` : ''}
       ORDER BY v.name
-    `, [tenantId])).rows as { id: string; name: string; phone: string | null; total_distributed_value: number; total_paid: number; units_distributed: number }[];
+    `, vendorScopeId(req) ? [tenantId, vendorScopeId(req)] : [tenantId])).rows as { id: string; name: string; phone: string | null; total_distributed_value: number; total_paid: number; units_distributed: number }[];
 
     const reminders = (await pool.query('SELECT vendor_id, enabled, reminder_days, last_reminder_date FROM vendor_reminder_settings WHERE tenant_id = $1', [tenantId])).rows as { vendor_id: string; enabled: boolean; reminder_days: number; last_reminder_date: string | null }[];
     const reminderMap = Object.fromEntries(reminders.map((r) => [r.vendor_id, r]));
@@ -44,7 +44,7 @@ router.get('/api/vendor-finance/summary', async (req: AuthRequest, res) => {
   }
 });
 
-router.get('/api/vendor-finance/reminders-due', async (req, res) => {
+router.get('/api/vendor-finance/reminders-due', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -85,6 +85,8 @@ router.get('/api/vendor-finance/:vendorId', async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { vendorId } = req.params;
+    const denied = assertVendorAccess(req, vendorId);
+    if (denied) return res.status(403).json({ error: denied });
     const vendor = (await pool.query('SELECT id, name, phone, email, address, contact_person FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
 

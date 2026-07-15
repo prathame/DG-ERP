@@ -110,6 +110,21 @@ export function blockVendors(req: AuthRequest, res: Response, next: NextFunction
   next();
 }
 
+/** JWT vendor id when role is Vendor; otherwise null (no forced scope). */
+export function vendorScopeId(req: AuthRequest): string | null {
+  if (req.user?.role !== 'Vendor') return null;
+  return req.user.vendorId ?? null;
+}
+
+/** Reject if Vendor JWT tries to access another vendor's resource. */
+export function assertVendorAccess(req: AuthRequest, vendorId: string): string | null {
+  const scoped = vendorScopeId(req);
+  if (scoped == null) return null;
+  if (!scoped) return 'Vendor account is not linked to a vendor profile.';
+  if (scoped !== vendorId) return 'Access denied for this vendor.';
+  return null;
+}
+
 export function superAdminMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Authentication required' });

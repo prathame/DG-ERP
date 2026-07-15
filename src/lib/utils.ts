@@ -61,7 +61,10 @@ export function openPrintWindow(): Window | null {
 
 /** Write bill HTML to an already-opened print window and trigger print */
 export function printBillInWindow(win: Window, html: string, filename?: string) {
-  const titled = filename ? html.replace(/<title>[^<]*<\/title>/, `<title>${String(filename).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</title>`) : html;
+  const safeTitle = filename
+    ? String(filename).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    : '';
+  const titled = filename ? html.replace(/<title>[^<]*<\/title>/, `<title>${safeTitle}</title>`) : html;
   win.document.open();
   win.document.write(titled);
   win.document.close();
@@ -73,7 +76,10 @@ export function printBillInWindow(win: Window, html: string, filename?: string) 
 export function saveBillAsPdf(html: string, filename?: string) {
   const win = window.open('', '_blank');
   if (!win) return;
-  const titled = filename ? html.replace(/<title>[^<]*<\/title>/, `<title>${String(filename).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</title>`) : html;
+  const safeTitle = filename
+    ? String(filename).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    : '';
+  const titled = filename ? html.replace(/<title>[^<]*<\/title>/, `<title>${safeTitle}</title>`) : html;
   win.document.write(titled);
   win.document.close();
 }

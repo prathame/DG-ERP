@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
@@ -110,6 +110,8 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { vendorId } = req.query;
+    const jwtVendorId = vendorScopeId(req);
+    const effectiveVendorId = jwtVendorId || (typeof vendorId === 'string' ? vendorId : undefined);
     let sql = `
       SELECT
         COALESCE(pd.batch_id, pd.id) as batch_id,
@@ -136,10 +138,10 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
     `;
     const params: (string | number)[] = [tenantId];
     let paramIdx = 1;
-    if (typeof vendorId === 'string' && vendorId) {
+    if (typeof effectiveVendorId === 'string' && effectiveVendorId) {
       paramIdx++;
       sql += ` AND pd.vendor_id = $${paramIdx}`;
-      params.push(vendorId);
+      params.push(effectiveVendorId);
     }
     const limit = Math.min(Number(req.query.limit) || 100, 500);
     const offset = Number(req.query.offset) || 0;
@@ -504,20 +506,30 @@ router.put('/api/distribution/apply-billing', blockVendors, async (req: AuthRequ
     const gstCount = Math.min(gstUnits ?? 0, totalUnits);
     const nonGstCount = Math.min(nonGstUnits ?? 0, totalUnits - gstCount);
     let idx = 0;
-    for (let i = 0; i < gstCount && idx < units.length; i++, idx++) {
-      const u = units[idx];
-      const billedPrice = Math.round(u.unit_price * (100 + rate) / 100);
-      await pool.query(
-        'UPDATE product_distribution SET gst_applied = true, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
-        [billedPrice, u.id, tenantId]
-      );
-    }
-    for (let i = 0; i < nonGstCount && idx < units.length; i++, idx++) {
-      const u = units[idx];
-      await pool.query(
-        'UPDATE product_distribution SET gst_applied = false, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
-        [u.unit_price, u.id, tenantId]
-      );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (let i = 0; i < gstCount && idx < units.length; i++, idx++) {
+        const u = units[idx];
+        const billedPrice = Math.round(u.unit_price * (100 + rate) / 100);
+        await client.query(
+          'UPDATE product_distribution SET gst_applied = true, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
+          [billedPrice, u.id, tenantId]
+        );
+      }
+      for (let i = 0; i < nonGstCount && idx < units.length; i++, idx++) {
+        const u = units[idx];
+        await client.query(
+          'UPDATE product_distribution SET gst_applied = false, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
+          [u.unit_price, u.id, tenantId]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
     await logAudit(pool, tenantId, 'Billing Applied', 'distribution', batchId || vendorId, `GST: ${gstCount} units, Non-GST: ${nonGstCount} units`);
     res.json({ ok: true, gstUnits: gstCount, nonGstUnits: nonGstCount });
@@ -1095,6 +1107,10 @@ router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: Auth
           [row.id, tenantId]
         );
       }
+      await client.query(
+        'DELETE FROM vendor_payments WHERE batch_id = $1 AND tenant_id = $2',
+        [batchId, tenantId]
+      );
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');

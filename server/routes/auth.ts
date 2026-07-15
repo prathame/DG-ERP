@@ -24,6 +24,17 @@ router.post('/api/auth/login', async (req, res) => {
       ? (loginParams.push(slug.toLowerCase()), `AND t.slug = $${loginParams.length}`)
       : '';
 
+    // M2: without slug, refuse ambiguous multi-tenant email matches
+    if (!slugClause) {
+      const cnt = Number((await pool.query(
+        `SELECT COUNT(*) AS c FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE LOWER(u.email) = LOWER($1)`,
+        [email.trim()]
+      )).rows[0]?.c ?? 0);
+      if (cnt > 1) {
+        return res.status(400).json({ error: 'Multiple accounts found for this email. Open your company login link (slug) and try again.' });
+      }
+    }
+
     const row = (await pool.query(`
       SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name,
              u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number,

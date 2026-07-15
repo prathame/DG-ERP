@@ -111,27 +111,34 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
     )).rows[0];
     if (!inv) return res.status(404).json({ error: 'Invoice not found' });
 
+    const alreadyPaid = Number((await pool.query(
+      'SELECT COALESCE(SUM(amount),0) as t FROM invoice_payments WHERE invoice_id = $1 AND tenant_id = $2',
+      [invoiceId, tenantId]
+    )).rows[0].t);
+    const payAmt = Number(amount);
+    const remaining = Number(inv.grand_total) - alreadyPaid;
+    if (payAmt > remaining + 0.001) {
+      return res.status(400).json({ error: `Payment exceeds remaining balance (₹${Math.max(0, remaining).toFixed(2)})` });
+    }
+
     const id = uid('IP');
     const pDate = paymentDate || new Date().toISOString().slice(0, 10);
 
     await client.query('BEGIN');
     await client.query(
       'INSERT INTO invoice_payments (id, tenant_id, invoice_id, amount, payment_date, payment_method, reference_number, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-      [id, tenantId, invoiceId, Number(amount), pDate, paymentMethod || 'Cash', referenceNumber || null, notes || null]
+      [id, tenantId, invoiceId, payAmt, pDate, paymentMethod || 'Cash', referenceNumber || null, notes || null]
     );
 
     // Auto-mark invoice as paid if fully paid
-    const totalPaid = Number((await client.query(
-      'SELECT COALESCE(SUM(amount),0) as t FROM invoice_payments WHERE invoice_id = $1 AND tenant_id = $2',
-      [invoiceId, tenantId]
-    )).rows[0].t);
+    const totalPaid = alreadyPaid + payAmt;
     if (totalPaid >= Number(inv.grand_total)) {
       await client.query("UPDATE standalone_invoices SET status = 'paid' WHERE id = $1 AND tenant_id = $2", [invoiceId, tenantId]);
     }
 
     await client.query('COMMIT');
-    await logAudit(pool, tenantId, 'Invoice Payment', 'invoice_payment', id, `₹${Number(amount).toLocaleString()} for ${inv.customer_name}`);
-    res.status(201).json({ id, invoiceId, amount: Number(amount), paymentDate: pDate, paymentMethod: paymentMethod || 'Cash' });
+    await logAudit(pool, tenantId, 'Invoice Payment', 'invoice_payment', id, `₹${payAmt.toLocaleString()} for ${inv.customer_name}`);
+    res.status(201).json({ id, invoiceId, amount: payAmt, paymentDate: pDate, paymentMethod: paymentMethod || 'Cash' });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);

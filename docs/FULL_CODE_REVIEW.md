@@ -1,67 +1,45 @@
-# Dhandho — code review (v3)
+# Dhandho — full code review (v5)
 
-**Baseline:** current disk (P0 fixes uncommitted) · **Date:** 2026-07-15  
-**Open:** 18 findings — 1 critical · 7 high · 9 medium · 1 low  
-**E2E:** `e2e_by_type` 493/493
+**Baseline:** fixes on top of `main` @ `46ccf0d`  
+**Date:** 2026-07-15  
+**Open:** 3 findings deferred — 0 critical · 0 high · 2 medium · 1 low
 
-## Closed this session (P0)
+---
+
+## Closed in this pass (verified then fixed)
 
 | ID | Fix |
 |----|-----|
-| C1 | Deleted-user JWT → 401 |
-| C2 / H13 | `requireAdmin` on backup export + settings write |
-| C3 | Distribution no premature `client.release()` |
-| H5 | Product create `ROLLBACK` before early return |
-| H3 | Restore clears only allowlisted tables |
-| H4 | `deleteTenant` dropped nonexistent `transactions` |
+| C1 | Vendor finance detail `assertVendorAccess`; reminders `blockVendors`; parameterized vendor filter |
+| C2 | Distribution batches forced to JWT vendor scope; delete also clears `vendor_payments` |
+| C3 | Rewards list scoped; products GET limited to distributed products for Vendors |
+| H1 | Auth middleware re-reads live `role` / `vendor_id` from DB |
+| H2 | Login persists `permissions`; App gates tabs/nav/Settings/Cmd+K by `canAccess` |
+| H3 | Print XSS: invoices, vendor finance, verification, price list, barcode labels, accounts print clone |
+| H4 | `tsc:electron` rebuild; random PG password on first run + credentials file; complete-setup refuses if licensed |
+| H5 | Invoice payment rejects overpay |
+| H6 | `openExternal` http/https only |
+| M1 | Finance vendor filter parameterized |
+| M2 | Login without slug rejects ambiguous multi-tenant email |
+| M3 | Plan limits fail-closed |
+| M5 | Batch delete orphans payments; apply-billing in transaction |
+| M6 | Rewards earned bumps vendor counter (day-book cash vs sales conflation left as accounting design) |
+| M7 | CLOUD_URL `.js` synced via `tsc:electron` (weak license key unchanged — needs product decision) |
+| M8 | Products 500 no longer returns raw `errStr` |
+| L2 | Audit log `requireAdmin` |
 
----
+## Still deferred
 
-## Open findings
+| ID | Why |
+|----|-----|
+| M4 | FORCE RLS needs `withTenantClient` everywhere — large cutover |
+| M7 partial | Weak on-prem license key format — product/crypto decision |
+| L1 | Move tokens to httpOnly cookies — frontend+auth architecture |
 
-### Critical / High
+## Prior closed (already on main)
 
-| ID | Sev | Location | Finding |
-|----|-----|----------|---------|
-| H1 | critical | vendors / finance / distribution / sales GET | **Vendor horizontal IDOR** — only `GET /api/sales` scopes JWT `vendorId` |
-| H2 | high | server + `App.tsx` | **Module permissions UI-only**; tab content not gated by `canAccess` |
-| H6 | high | invoice-finance / replacements / accounts notes | **Missing `blockVendors`** |
-| H8 | high | `accounts.ts` P&L | **Double-counts distribution + sales revenue** |
-| H9 | high | `quotations.ts` convert | **TOCTOU stock race** (no `FOR UPDATE`) |
-| H10 | high | print views + `utils.ts` | **Print/PDF XSS** outside `billTemplates` |
-| H11 | high | LoginScreen + App mobile/menu | **Login drops permissions**; nav/Settings bypasses |
-| H12 | high | Electron onprem | **Hardcoded PG password**; wizard IPC on main preload; **stale `main.js` still has executeJavaScript** |
-
-### Medium
-
-| ID | Location | Finding |
-|----|----------|---------|
-| H7 | invoice-finance / finance | Invoice overpay; payment response invents new ID |
-| M1 | `requireRole` | Trusts JWT role, not live DB role |
-| M2 | login | Slug optional → cross-tenant email collision |
-| M3 | `planLimits` | Fail-open on DB error |
-| M4 | RLS | Advisory only (no FORCE) |
-| M5 | onprem deactivate | Unrate-limited |
-| M6 | distribution | Delete orphans payments; apply-billing non-txn |
-| M7 | Electron | `openExternal` no allowlist; weak license crypto; CLOUD_URL drift |
-| M8 | rewards / day-book | Ledger drift; vendor payment sign flip |
-
-### Low
-
-| ID | Finding |
-|----|---------|
-| L1 | Tokens in `localStorage` (XSS → session theft) |
-
----
-
-## Recommended next
-
-1. Central vendor-scope helper on all Vendor-visible GETs (**H1**)
-2. `blockVendors` on invoice-finance / replacements / notes (**H6**)
-3. Reuse `billTemplates` `esc()` on all print paths + PDF title (**H10**)
-4. Rebuild `electron/onprem/main.js` from TS (**H12**)
-5. Fix P&L double-count; quotation convert locking (**H8/H9**)
+Deleted-user JWT · Backup `requireAdmin` · Distribution double-release · Product create `ROLLBACK` · Restore allowlist-only clear · `deleteTenant` no `transactions` · Forgot-password no token · Platform JWT isolation · P&L OWNER filter · Quotation `FOR UPDATE` · `blockVendors` on invoice-finance / replacements / notes
 
 ## Solid
 
-HS256 JWT, deleted-user reject, platform-token isolation, backup Admin+allowlist, sales `FOR UPDATE`, distribution `SKIP LOCKED`, `billTemplates` escaping, `contextIsolation`, CORS allowlist.
+HS256 JWT, deleted-user reject, platform-token isolation, backup Admin+allowlist, sales `FOR UPDATE`, distribution `SKIP LOCKED`, quotation convert lock, `billTemplates` escaping, `contextIsolation`, CORS allowlist, live role revalidation, vendor scope helpers.

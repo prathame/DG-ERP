@@ -72,25 +72,27 @@ export function InvoicesView() {
   const printInvoice = async (inv: Invoice) => {
     const user = session.getUser() || {};
     const bs = billSettings;
-    const color = (bs.primaryColor as string) || '#F27D26';
-    const logoHtml = bs.logoBase64
-      ? `<img src="${bs.logoBase64}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
-      : `<div style="width:48px;height:48px;background:${color};border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:20px;">${(user.companyName || 'C').substring(0, 1)}</div>`;
-    const tagline = (bs.tagline as string) || '';
-    const invPrefix = (bs.invoicePrefix as string) || '';
-    const footerText = (bs.footerText as string) || 'Powered by Dhandho';
+    const color = /^#[0-9a-fA-F]{3,8}$/.test(String(bs.primaryColor || '')) ? String(bs.primaryColor) : '#F27D26';
+    const logoSrc = typeof bs.logoBase64 === 'string' && bs.logoBase64.startsWith('data:image/') ? bs.logoBase64 : '';
+    const sigSrc = typeof bs.signatureBase64 === 'string' && bs.signatureBase64.startsWith('data:image/') ? bs.signatureBase64 : '';
+    const logoHtml = logoSrc
+      ? `<img src="${logoSrc}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
+      : `<div style="width:48px;height:48px;background:${color};border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:20px;">${esc((user.companyName || 'C').substring(0, 1))}</div>`;
+    const tagline = esc((bs.tagline as string) || '');
+    const invPrefix = esc((bs.invoicePrefix as string) || '');
+    const footerText = esc((bs.footerText as string) || 'Powered by Dhandho');
     const hasBankDetails = bs.bankAccountName || bs.bankAccountNumber || bs.bankName;
     const upiQrDataUrl = bs.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`) : '';
     const upiQrHtml = upiQrDataUrl ? `<div style="text-align:center;"><img src="${upiQrDataUrl}" style="width:120px;height:120px;" /><p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p></div>` : '';
-    const bankHtml = hasBankDetails || upiQrHtml ? `<div style="margin-top:16px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">${hasBankDetails ? `<div style="flex:1;"><strong style="font-size:12px;">Bank Details</strong><table style="width:100%;margin-top:6px;font-size:11px;">${bs.bankAccountName ? `<tr><td style="color:#6b7280;width:100px;">Account Name</td><td>${bs.bankAccountName}</td></tr>` : ''}${bs.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${bs.bankAccountNumber}</td></tr>` : ''}${bs.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${bs.bankName}${bs.bankBranch ? `, ${bs.bankBranch}` : ''}</td></tr>` : ''}${bs.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${bs.bankIfsc}</td></tr>` : ''}</table></div>` : ''}${upiQrHtml}</div></div>` : '';
-    const sigHtml = (bs.signatoryName || bs.signatureBase64) ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;"><div style="text-align:center;">${bs.signatureBase64 ? `<img src="${bs.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}<p style="font-size:11px;border-top:1px solid #999;padding-top:4px;">${bs.signatoryName || ''}${bs.signatoryDesignation ? `<br/><span style="font-size:10px;color:#666;">${esc(bs.signatoryDesignation)}</span>` : ''}</p></div></div>` : '';
+    const bankHtml = hasBankDetails || upiQrHtml ? `<div style="margin-top:16px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">${hasBankDetails ? `<div style="flex:1;"><strong style="font-size:12px;">Bank Details</strong><table style="width:100%;margin-top:6px;font-size:11px;">${bs.bankAccountName ? `<tr><td style="color:#6b7280;width:100px;">Account Name</td><td>${esc(bs.bankAccountName)}</td></tr>` : ''}${bs.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(bs.bankAccountNumber)}</td></tr>` : ''}${bs.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(bs.bankName)}${bs.bankBranch ? `, ${esc(bs.bankBranch)}` : ''}</td></tr>` : ''}${bs.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(bs.bankIfsc)}</td></tr>` : ''}</table></div>` : ''}${upiQrHtml}</div></div>` : '';
+    const sigHtml = (bs.signatoryName || sigSrc) ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;"><div style="text-align:center;">${sigSrc ? `<img src="${sigSrc}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}<p style="font-size:11px;border-top:1px solid #999;padding-top:4px;">${esc(bs.signatoryName || '')}${bs.signatoryDesignation ? `<br/><span style="font-size:10px;color:#666;">${esc(bs.signatoryDesignation)}</span>` : ''}</p></div></div>` : '';
     const termsHtml = (inv.terms || bs.termsAndConditions) ? `<div style="margin-top:16px;font-size:10px;color:#666;"><strong>Terms & Conditions:</strong><br/>${esc(inv.terms || bs.termsAndConditions)}</div>` : '';
 
     const w = window.open('', '_blank');
     if (!w) return;
     const hasGst = inv.taxTotal > 0;
     const halfGst = Math.round(inv.taxTotal / 2);
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${invPrefix}${inv.invoiceNumber}</title>
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${invPrefix}${esc(inv.invoiceNumber)}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
       table{border-collapse:collapse;}.outer{border:2px solid ${color};width:100%;}.outer td,.outer th{border:1px solid #ccc;padding:4px 8px;font-size:11px;}
@@ -110,21 +112,21 @@ export function InvoicesView() {
       <tr class="hdr">
         <td colspan="2" style="width:65%;">
           <div style="display:flex;align-items:center;gap:12px;">${logoHtml}<div>
-            <div style="font-size:18px;font-weight:800;color:${color};">${user.companyName || 'Dhandho'}</div>
-            ${user.address ? `<div style="font-size:10px;color:#555;margin-top:2px;">${user.address}</div>` : ''}
-            ${user.phone ? `<div style="font-size:10px;color:#555;">Ph: ${user.phone}</div>` : ''}
+            <div style="font-size:18px;font-weight:800;color:${color};">${esc(user.companyName || 'Dhandho')}</div>
+            ${user.address ? `<div style="font-size:10px;color:#555;margin-top:2px;">${esc(user.address)}</div>` : ''}
+            ${user.phone ? `<div style="font-size:10px;color:#555;">Ph: ${esc(user.phone)}</div>` : ''}
           </div></div>
         </td>
         <td colspan="2" style="text-align:right;width:35%;">
           <div class="title-text" style="color:${color};">${hasGst ? 'TAX INVOICE' : 'INVOICE'}</div>
-          <div style="font-size:11px;margin-top:4px;"><strong>${invPrefix}${inv.invoiceNumber}</strong></div>
+          <div style="font-size:11px;margin-top:4px;"><strong>${invPrefix}${esc(inv.invoiceNumber)}</strong></div>
           <div style="font-size:10px;color:#555;">Date: ${formatDate(inv.invoiceDate)}</div>
           ${inv.dueDate ? `<div style="font-size:10px;color:#555;">Due: ${formatDate(inv.dueDate)}</div>` : ''}
         </td>
       </tr>
       ${tagline ? `<tr><td colspan="4" class="tagline">${tagline}</td></tr>` : ''}
       <tr class="title-row">
-        <td colspan="2">${user.gstNumber ? `<span class="gstin-text">GSTIN: ${user.gstNumber}</span>` : ''}</td>
+        <td colspan="2">${user.gstNumber ? `<span class="gstin-text">GSTIN: ${esc(user.gstNumber)}</span>` : ''}</td>
         <td colspan="2" style="text-align:right;">${inv.status === 'paid' ? '<span style="color:#059669;font-weight:700;">✓ PAID</span>' : ''}</td>
       </tr>
       <tr><td colspan="4" style="padding:8px 12px;">
@@ -134,7 +136,7 @@ export function InvoicesView() {
             <strong>${esc(inv.customerName)}</strong>
             ${inv.customerGstin ? `<br/><span style="font-family:monospace;font-size:11px;">GSTIN: ${inv.customerGstin}</span>` : ''}
             ${inv.customerAddress ? `<br/><span style="font-size:10px;">${esc(inv.customerAddress)}</span>` : ''}
-            ${inv.customerPhone ? `<br/><span style="font-size:10px;">Ph: ${inv.customerPhone}</span>` : ''}
+            ${inv.customerPhone ? `<br/><span style="font-size:10px;">Ph: ${esc(inv.customerPhone)}</span>` : ''}
           </td>
         </tr></table>
       </td></tr>
@@ -142,14 +144,14 @@ export function InvoicesView() {
     <table class="outer items" style="margin-top:-2px;">
       <thead><tr><th style="width:30px;">Sr</th><th class="left">Description</th><th>HSN/SAC</th><th>Qty</th><th class="right">Rate</th>${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr></thead>
       <tbody>
-        ${inv.items.map((it, i) => `<tr><td>${i + 1}</td><td class="left">${it.description}</td><td>${it.hsnSac || '—'}</td><td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`).join('')}
+        ${inv.items.map((it, i) => `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td><td>${esc(it.hsnSac || '—')}</td><td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`).join('')}
         <tr class="total-row"><td colspan="${hasGst ? 7 : 5}" class="right">Subtotal</td><td class="right">₹${inv.subtotal.toLocaleString()}</td></tr>
         ${hasGst ? `<tr><td colspan="7" class="right">CGST</td><td class="right">₹${halfGst.toLocaleString()}</td></tr>
         <tr><td colspan="7" class="right">SGST</td><td class="right">₹${(inv.taxTotal - halfGst).toLocaleString()}</td></tr>` : ''}
         <tr class="total-row"><td colspan="${hasGst ? 7 : 5}" class="right"><span class="grand-total">Grand Total</span></td><td class="right"><span class="grand-total">₹${inv.grandTotal.toLocaleString()}</span></td></tr>
       </tbody>
     </table>
-    ${inv.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${inv.notes}</div>` : ''}
+    ${inv.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${esc(inv.notes)}</div>` : ''}
     ${bankHtml}${termsHtml}${sigHtml}
     <p class="footer-text">${footerText}</p>
     <script>(function(){var imgs=document.querySelectorAll('img');var n=imgs.length;if(!n){setTimeout(function(){window.print();},200);return;}var done=0;function check(){if(++done>=n)setTimeout(function(){window.print();},200);}imgs.forEach(function(img){if(img.complete)check();else{img.onload=check;img.onerror=check;}});})()</script></body></html>`);

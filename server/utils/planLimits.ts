@@ -46,6 +46,7 @@ export async function checkPlanLimit(
     }
     return null;
   } catch {
-    return null; // fail open on DB error — don't block the request
+    // Fail closed — do not allow creates past plan caps when limits cannot be checked
+    return { error: 'Unable to verify plan limits. Please try again.' };
   }
 }

@@ -11,7 +11,7 @@ interface LoginResult {
   token: string;
   tenantId?: string;
   tenantSlug?: string;
-  user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean; planName?: string; barcodeSystemEnabled?: boolean; multiLanguageEnabled?: boolean; vendorPortalEnabled?: boolean; tabConfig?: Record<string, { label: string; visible: boolean }> | null };
+  user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: Record<string, string> | string[] | null; vendorId?: string | null; autoWhatsapp?: boolean; planName?: string; barcodeSystemEnabled?: boolean; multiLanguageEnabled?: boolean; vendorPortalEnabled?: boolean; tabConfig?: Record<string, { label: string; visible: boolean }> | null };
 }
 
 interface TenantBranding {
@@ -75,7 +75,7 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
           token: r.token,
           tenantId: r.tenantId,
           tenantSlug: r.tenantSlug,
-          user: { id: r.id, email: r.email, name: r.name, phone: r.phone, address: r.address, role: r.role, companyName: r.companyName, vendorId: r.vendorId, autoWhatsapp: r.autoWhatsapp, planName: (r as Record<string, unknown>).planName as string, barcodeSystemEnabled: (r as Record<string, unknown>).barcodeSystemEnabled as boolean, multiLanguageEnabled: (r as Record<string, unknown>).multiLanguageEnabled as boolean, vendorPortalEnabled: (r as Record<string, unknown>).vendorPortalEnabled as boolean, tabConfig: (r as Record<string, unknown>).tabConfig as Record<string, { label: string; visible: boolean }> | null },
+          user: { id: r.id, email: r.email, name: r.name, phone: r.phone, address: r.address, role: r.role, companyName: r.companyName, permissions: r.permissions, vendorId: r.vendorId, autoWhatsapp: r.autoWhatsapp, planName: (r as Record<string, unknown>).planName as string, barcodeSystemEnabled: (r as Record<string, unknown>).barcodeSystemEnabled as boolean, multiLanguageEnabled: (r as Record<string, unknown>).multiLanguageEnabled as boolean, vendorPortalEnabled: (r as Record<string, unknown>).vendorPortalEnabled as boolean, tabConfig: (r as Record<string, unknown>).tabConfig as Record<string, { label: string; visible: boolean }> | null },
         });
       }
     } catch (err) {
