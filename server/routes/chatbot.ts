@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
+import { blockVendors, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -410,7 +411,7 @@ async function query(input: string, tenantId: string, tabConfig: TabConfig | nul
   return { text: `I couldn't find anything for "${input}".\n\nTry:\n- A vendor or customer name\n- A barcode (e.g. SUB1H001)\n- "sales today"\n- "low stock"\n- "pending payments"\n- "daily report"\n- "help" for all commands` };
 }
 
-router.get('/api/chatbot/quick-actions', async (req, res) => {
+router.get('/api/chatbot/quick-actions', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -430,7 +431,7 @@ router.get('/api/chatbot/quick-actions', async (req, res) => {
   }
 });
 
-router.post('/api/chatbot', async (req, res) => {
+router.post('/api/chatbot', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -442,7 +443,8 @@ router.post('/api/chatbot', async (req, res) => {
     const response = await query(message, tenantId, tabConfig);
     res.json(response);
   } catch (err) {
-    res.status(500).json({ text: 'Something went wrong. Please try again.', error: String(err) });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ text: 'Something went wrong. Please try again.' });
   }
 });
 

@@ -1,6 +1,7 @@
 import { uid } from '../utils/helpers';
 import { Router } from 'express';
 import { pool } from '../pg-db';
+import { blockVendors, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -61,7 +62,7 @@ router.get('/api/price-lists/resolve', async (req, res) => {
 });
 
 // Create price rule
-router.post('/api/price-lists', async (req, res) => {
+router.post('/api/price-lists', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -79,7 +80,7 @@ router.post('/api/price-lists', async (req, res) => {
 });
 
 // Update price rule
-router.put('/api/price-lists/:id', async (req, res) => {
+router.put('/api/price-lists/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -104,7 +105,7 @@ router.put('/api/price-lists/:id', async (req, res) => {
 });
 
 // Delete price rule
-router.delete('/api/price-lists/:id', async (req, res) => {
+router.delete('/api/price-lists/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

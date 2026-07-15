@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool } from '../pg-db';
 import { uid, mapProduct, logAudit } from '../utils/helpers';
 import { barcodeExists, expandBarcodeRange, generateBarcodesFromPrefix } from '../utils/barcode';
-import { requireAdmin, blockVendors, AuthRequest } from '../middleware/auth';
+import { requireAdmin, blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { checkPlanLimit } from '../utils/planLimits';
 import { withTenantClient } from '../pg-db';
 
@@ -143,21 +143,41 @@ router.get('/api/products', async (req: AuthRequest, res) => {
   }
 });
 
-router.get('/api/products/:id/barcode-details', async (req, res) => {
+router.get('/api/products/:id/barcode-details', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
+    const jwtVendorId = vendorScopeId(req);
+    if (req.user?.role === 'Vendor') {
+      if (!jwtVendorId) return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+      const allowed = (await pool.query(
+        'SELECT 1 FROM product_distribution WHERE product_id = $1 AND vendor_id = $2 AND tenant_id = $3 LIMIT 1',
+        [id, jwtVendorId, tenantId]
+      )).rows[0];
+      if (!allowed) return res.status(403).json({ error: 'Access denied for this product.' });
+    }
     const product = (await pool.query('SELECT id, name FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as { id: string; name: string } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
-    const rows = (await pool.query(`
-      SELECT COALESCE(batch_id, created_at::date::text) as batch_key, MIN(created_at::date)::text as add_date, MIN(barcode) as barcode_first, MAX(barcode) as barcode_last, COUNT(*) as count
-      FROM product_inventory
-      WHERE product_id = $1 AND tenant_id = $2
-      GROUP BY COALESCE(batch_id, created_at::date::text)
-      ORDER BY add_date DESC
-    `, [id, tenantId])).rows as { add_date: string; barcode_first: string; barcode_last: string; count: number }[];
+    // Vendors only see barcodes distributed to them
+    const rows = jwtVendorId
+      ? ((await pool.query(`
+          SELECT COALESCE(pd.batch_id, pd.distribution_date::text) as batch_key,
+                 MIN(pd.distribution_date)::text as add_date,
+                 MIN(pd.barcode) as barcode_first, MAX(pd.barcode) as barcode_last, COUNT(*) as count
+          FROM product_distribution pd
+          WHERE pd.product_id = $1 AND pd.vendor_id = $2 AND pd.tenant_id = $3
+          GROUP BY COALESCE(pd.batch_id, pd.distribution_date::text)
+          ORDER BY add_date DESC
+        `, [id, jwtVendorId, tenantId])).rows as { add_date: string; barcode_first: string; barcode_last: string; count: number }[])
+      : ((await pool.query(`
+          SELECT COALESCE(batch_id, created_at::date::text) as batch_key, MIN(created_at::date)::text as add_date, MIN(barcode) as barcode_first, MAX(barcode) as barcode_last, COUNT(*) as count
+          FROM product_inventory
+          WHERE product_id = $1 AND tenant_id = $2
+          GROUP BY COALESCE(batch_id, created_at::date::text)
+          ORDER BY add_date DESC
+        `, [id, tenantId])).rows as { add_date: string; barcode_first: string; barcode_last: string; count: number }[]);
     res.json(rows.map((r) => ({
       date: r.add_date,
       barcodeFirst: r.barcode_first,
@@ -169,25 +189,43 @@ router.get('/api/products/:id/barcode-details', async (req, res) => {
   }
 });
 
-router.get('/api/products/:id/barcodes', async (req, res) => {
+router.get('/api/products/:id/barcodes', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { id } = req.params;
+    const jwtVendorId = vendorScopeId(req);
+    if (req.user?.role === 'Vendor') {
+      if (!jwtVendorId) return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+      const allowed = (await pool.query(
+        'SELECT 1 FROM product_distribution WHERE product_id = $1 AND vendor_id = $2 AND tenant_id = $3 LIMIT 1',
+        [id, jwtVendorId, tenantId]
+      )).rows[0];
+      if (!allowed) return res.status(403).json({ error: 'Access denied for this product.' });
+    }
     const product = (await pool.query('SELECT id, name, price FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as { id: string; name: string; price: number } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
-    const rows = (await pool.query('SELECT barcode, status FROM product_inventory WHERE product_id = $1 AND tenant_id = $2 ORDER BY barcode', [id, tenantId])).rows as { barcode: string; status: string }[];
+    const rows = jwtVendorId
+      ? ((await pool.query(
+          'SELECT barcode, status FROM product_distribution WHERE product_id = $1 AND vendor_id = $2 AND tenant_id = $3 ORDER BY barcode',
+          [id, jwtVendorId, tenantId]
+        )).rows as { barcode: string; status: string }[])
+      : ((await pool.query(
+          'SELECT barcode, status FROM product_inventory WHERE product_id = $1 AND tenant_id = $2 ORDER BY barcode',
+          [id, tenantId]
+        )).rows as { barcode: string; status: string }[]);
     res.json({ product: { id: product.id, name: product.name, price: product.price }, barcodes: rows.map((r) => ({ barcode: r.barcode, status: r.status })) });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/api/products/verify/:barcode', async (req, res) => {
+router.get('/api/products/verify/:barcode', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { barcode } = req.params;
+    const jwtVendorId = vendorScopeId(req);
 
     const tenant = (await pool.query('SELECT vendor_portal_enabled, barcode_system_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;
     const features = {
@@ -212,6 +250,12 @@ router.get('/api/products/verify/:barcode', async (req, res) => {
       LEFT JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $2
       WHERE pd.barcode = $1 AND pd.tenant_id = $2
     `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
+
+    if (jwtVendorId) {
+      if (!dist || dist.vendor_id !== jwtVendorId) {
+        return res.status(403).json({ error: 'Access denied for this barcode.' });
+      }
+    }
 
     const sale = (await pool.query(`
       SELECT ps.customer_name, ps.customer_phone, ps.customer_email, ps.purchase_date, ps.sale_price, ps.reward_points_earned,

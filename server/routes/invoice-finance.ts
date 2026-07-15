@@ -6,7 +6,7 @@ import { uid, logAudit } from '../utils/helpers';
 const router = Router();
 
 // Client-wise summary: total invoiced, paid, outstanding
-router.get('/api/invoice-finance/summary', async (req, res) => {
+router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -42,7 +42,7 @@ router.get('/api/invoice-finance/summary', async (req, res) => {
 });
 
 // Invoices for a specific client + payment history per invoice
-router.get('/api/invoice-finance/client/:clientName', async (req, res) => {
+router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -104,27 +104,30 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
     const { invoiceId, amount, paymentDate, paymentMethod, referenceNumber, notes, clientName } = req.body;
     if (!invoiceId || !amount || Number(amount) <= 0) return res.status(400).json({ error: 'Invoice ID and positive amount required' });
 
-    // Verify invoice belongs to tenant
-    const inv = (await pool.query(
-      'SELECT id, grand_total, customer_name FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 AND status != $3',
-      [invoiceId, tenantId, 'cancelled']
-    )).rows[0];
-    if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+    const payAmt = Number(amount);
+    const pDate = paymentDate || new Date().toISOString().slice(0, 10);
+    const id = uid('IP');
 
-    const alreadyPaid = Number((await pool.query(
+    await client.query('BEGIN');
+    const inv = (await client.query(
+      'SELECT id, grand_total, customer_name FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 AND status != $3 FOR UPDATE',
+      [invoiceId, tenantId, 'cancelled']
+    )).rows[0] as { id: string; grand_total: number; customer_name: string } | undefined;
+    if (!inv) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const alreadyPaid = Number((await client.query(
       'SELECT COALESCE(SUM(amount),0) as t FROM invoice_payments WHERE invoice_id = $1 AND tenant_id = $2',
       [invoiceId, tenantId]
     )).rows[0].t);
-    const payAmt = Number(amount);
     const remaining = Number(inv.grand_total) - alreadyPaid;
     if (payAmt > remaining + 0.001) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: `Payment exceeds remaining balance (₹${Math.max(0, remaining).toFixed(2)})` });
     }
 
-    const id = uid('IP');
-    const pDate = paymentDate || new Date().toISOString().slice(0, 10);
-
-    await client.query('BEGIN');
     await client.query(
       'INSERT INTO invoice_payments (id, tenant_id, invoice_id, amount, payment_date, payment_method, reference_number, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
       [id, tenantId, invoiceId, payAmt, pDate, paymentMethod || 'Cash', referenceNumber || null, notes || null]

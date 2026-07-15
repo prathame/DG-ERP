@@ -1,23 +1,30 @@
 import { Router } from 'express';
-import { blockVendors, requireAdmin, AuthRequest, vendorScopeId } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest, vendorScopeId, assertVendorAccess } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
 const router = Router();
 
-router.get('/api/distribution/summary', async (req, res) => {
+router.get('/api/distribution/summary', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const availableInInventory = (await pool.query(
-      'SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE tenant_id = $1',
-      [tenantId]
-    )).rows[0] as { total: number };
+    const jwtVendorId = vendorScopeId(req);
+    if (req.user?.role === 'Vendor' && !jwtVendorId) {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    }
+
+    const availableInInventory = jwtVendorId
+      ? { total: 0 }
+      : ((await pool.query(
+          'SELECT COALESCE(SUM(stock), 0) as total FROM products WHERE tenant_id = $1',
+          [tenantId]
+        )).rows[0] as { total: number });
 
     const totalDistributed = (await pool.query(
-      'SELECT COUNT(*) as count FROM product_distribution WHERE tenant_id = $1',
-      [tenantId]
+      `SELECT COUNT(*) as count FROM product_distribution WHERE tenant_id = $1 ${jwtVendorId ? 'AND vendor_id = $2' : ''}`,
+      jwtVendorId ? [tenantId, jwtVendorId] : [tenantId]
     )).rows[0] as { count: number };
 
     const vendorStats = (await pool.query(`
@@ -28,9 +35,9 @@ router.get('/api/distribution/summary', async (req, res) => {
         SUM(CASE WHEN pd.status = 'Damaged' THEN 1 ELSE 0 END) as damaged
       FROM vendors v
       LEFT JOIN product_distribution pd ON pd.vendor_id = v.id AND pd.tenant_id = $1
-      WHERE v.tenant_id = $1
+      WHERE v.tenant_id = $1 ${jwtVendorId ? 'AND v.id = $2' : ''}
       GROUP BY v.id, v.name
-    `, [tenantId])).rows as { id: string; name: string; distributed: number; sold: number; replaced: number; damaged: number }[];
+    `, jwtVendorId ? [tenantId, jwtVendorId] : [tenantId])).rows as { id: string; name: string; distributed: number; sold: number; replaced: number; damaged: number }[];
 
     const totalBeforeDistribution = Number(availableInInventory.total) + Number(totalDistributed.count);
     res.json({
@@ -58,8 +65,10 @@ router.get('/api/distribution', async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { batchId } = req.query;
-    // H1 fix: Vendor JWT can only see their own distributions
-    const jwtVendorId = req.user?.role === 'Vendor' ? req.user?.vendorId : null;
+    const jwtVendorId = vendorScopeId(req);
+    if (req.user?.role === 'Vendor' && !jwtVendorId) {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    }
     const vendorId = jwtVendorId || (req.query.vendorId as string | undefined);
     let sql = `
       SELECT pd.id, pd.batch_id, pd.product_id, pd.barcode, pd.vendor_id, pd.distribution_date, pd.status,
@@ -539,13 +548,25 @@ router.put('/api/distribution/apply-billing', blockVendors, async (req: AuthRequ
 });
 
 // ============ DISTRIBUTION BILL (CHALLAN) ============
-router.get('/api/distribution/bill', async (req, res) => {
+router.get('/api/distribution/bill', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { vendorId, productId, distributionDate, batchId } = req.query;
     if (!vendorId && !batchId) return res.status(400).json({ error: 'vendorId or batchId is required' });
+
+    const scoped = vendorScopeId(req);
+    if (req.user?.role === 'Vendor' && !scoped) {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    }
+    if (typeof vendorId === 'string' && vendorId) {
+      const denied = assertVendorAccess(req, vendorId);
+      if (denied) return res.status(403).json({ error: denied });
+    }
+    // Force vendor filter for Vendor JWTs even when only batchId is supplied
+    const forcedVendor = scoped || (typeof vendorId === 'string' ? vendorId : undefined);
+
     let sql = `
       SELECT pd.id, pd.batch_id, pd.barcode, pd.distribution_date, pd.status, pd.discount_percent, pd.net_price, pd.billed_price, pd.gst_applied,
              pd.product_id, p.name as product_name, p.price, p.batch_number, p.pack_size, p.pack_name,
@@ -561,10 +582,15 @@ router.get('/api/distribution/bill', async (req, res) => {
       paramIdx++;
       sql += ` AND pd.batch_id = $${paramIdx}`;
       params.push(batchId);
-    } else {
+    }
+    if (forcedVendor) {
       paramIdx++;
       sql += ` AND pd.vendor_id = $${paramIdx}`;
-      params.push(vendorId as string);
+      params.push(forcedVendor);
+    } else if (typeof vendorId === 'string' && vendorId) {
+      paramIdx++;
+      sql += ` AND pd.vendor_id = $${paramIdx}`;
+      params.push(vendorId);
     }
     if (typeof productId === 'string' && productId) {
       paramIdx++;
@@ -938,12 +964,26 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
 });
 
 // Get batch detail for edit
-router.get('/api/distribution/batch/:batchId', async (req, res) => {
+router.get('/api/distribution/batch/:batchId', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { batchId } = req.params;
+    const jwtVendorId = vendorScopeId(req);
+    if (req.user?.role === 'Vendor' && !jwtVendorId) {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    }
+
+    const ownerCheck = (await pool.query(
+      `SELECT vendor_id FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2 LIMIT 1`,
+      [batchId, tenantId]
+    )).rows[0] as { vendor_id: string } | undefined;
+    if (!ownerCheck) return res.status(404).json({ error: 'Distribution batch not found' });
+    if (jwtVendorId && ownerCheck.vendor_id !== jwtVendorId) {
+      return res.status(403).json({ error: 'Access denied for this batch.' });
+    }
+
     const rows = (await pool.query(`
       SELECT pd.product_id, pd.status, pd.discount_percent, pd.gst_applied,
              p.name as product_name, p.price, p.pack_size, p.pack_name,
@@ -993,7 +1033,7 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
           damaged: 0,
           discountPercent: Number(r.discount_percent) || 0,
           withGst: !!r.gst_applied,
-          availableStock: Number(r.available_stock) || 0,
+          availableStock: jwtVendorId ? 0 : (Number(r.available_stock) || 0),
           packSize: Number(r.pack_size) || 1,
           packName: (r.pack_name as string) || 'Piece',
         };
@@ -1127,12 +1167,17 @@ router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: Auth
 });
 
 // E-Invoice JSON generation
-router.get('/api/distribution/einvoice', async (req, res) => {
+router.get('/api/distribution/einvoice', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { batchId } = req.query;
     if (!batchId) return res.status(400).json({ error: 'batchId required' });
+
+    const scoped = vendorScopeId(req);
+    if (req.user?.role === 'Vendor' && !scoped) {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    }
 
     // Fetch distribution items
     const items = (await pool.query(`
@@ -1145,6 +1190,8 @@ router.get('/api/distribution/einvoice', async (req, res) => {
 
     // Fetch vendor
     const vendorId = items[0].vendor_id as string;
+    const denied = assertVendorAccess(req, vendorId);
+    if (denied) return res.status(403).json({ error: denied });
     const vendor = (await pool.query('SELECT name, contact_person, phone, email, address, gst_number FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as Record<string, unknown> | undefined;
 
     // Fetch seller (tenant) details
@@ -1271,7 +1318,7 @@ router.get('/api/distribution/einvoice', async (req, res) => {
 });
 
 // E-Way Bill JSON generation
-router.get('/api/distribution/ewaybill', async (req, res) => {
+router.get('/api/distribution/ewaybill', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -1279,6 +1326,11 @@ router.get('/api/distribution/ewaybill', async (req, res) => {
     if (!batchId) return res.status(400).json({ error: 'batchId required' });
     if (!vehicleNo) return res.status(400).json({ error: 'Vehicle number required' });
     if (!distance) return res.status(400).json({ error: 'Distance required' });
+
+    const scoped = vendorScopeId(req);
+    if (req.user?.role === 'Vendor' && !scoped) {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    }
 
     const items = (await pool.query(`
       SELECT pd.*, p.name as product_name, p.hsn_code, p.gst_rate as product_gst_rate, p.price as product_price, p.pack_size
@@ -1289,6 +1341,8 @@ router.get('/api/distribution/ewaybill', async (req, res) => {
     if (items.length === 0) return res.status(404).json({ error: 'No distribution found' });
 
     const vendorId = items[0].vendor_id as string;
+    const denied = assertVendorAccess(req, vendorId);
+    if (denied) return res.status(403).json({ error: denied });
     const vendor = (await pool.query('SELECT name, phone, address, gst_number FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as Record<string, unknown> | undefined;
     const tenant = (await pool.query('SELECT company_name, phone, address, gst_number FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown>;
     const user = (await pool.query("SELECT gst_number, address FROM users WHERE tenant_id = $1 AND role = 'Admin' LIMIT 1", [tenantId])).rows[0] as Record<string, unknown> | undefined;

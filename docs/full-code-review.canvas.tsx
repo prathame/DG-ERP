@@ -29,48 +29,105 @@ type Finding = {
   detail: string;
 };
 
-const CLOSED_THIS_PASS = [
-  "C1–C3 Vendor IDOR (finance / batches / rewards / products)",
-  "H1 Live role+vendorId from DB",
-  "H2 Permissions persist + canAccess gates",
-  "H3 Print XSS (invoices, finance, verification, price list, barcodes, accounts)",
-  "H4 Electron rebuild + random PG pass + setup guard",
-  "H5 Invoice overpay guard",
-  "H6 openExternal http(s) only",
-  "M1–M3, M5, M8 + L2 (SQL param, login slug, plan fail-closed, batch orphans/txn, errStr, audit admin)",
-  "M6 rewards counter bump; M7 CLOUD_URL sync",
+const SKIPPED = [
+  "FORCE RLS",
+  "Weak on-prem license key",
+  "Tokens in localStorage",
 ];
 
+const STILL_SOLID = [
+  "v6/v7 vendor scopes on finance/batches/products/dashboard-stats/sale-bill/CRM",
+  "Live role refresh + authMiddleware no-clobber",
+  "enforceModulePermissions (partial — gaps below)",
+  "Print esc · openExternal http(s) · invoice FOR UPDATE",
+  "Price-lists blockVendors · reward counters · backup admin",
+];
+
+/** Fresh pass after v7 fixes — deferred excluded. */
 const FINDINGS: Finding[] = [
   {
-    id: "M4",
-    sev: "medium",
-    area: "RLS",
-    location: "pg-db.ts",
-    title: "RLS advisory only",
+    id: "H1",
+    sev: "high",
+    area: "IDOR",
+    location: "distribution.ts bill / einvoice / ewaybill",
+    title: "Vendor IDOR on dist bill + e-docs",
     detail:
-      "ENABLE without FORCE; pool owner bypasses. Needs withTenantClient cutover.",
+      "GET /distribution/bill, /einvoice, /ewaybill accept any vendorId/batchId. Vendor has distribution:view but no assertVendorAccess — leaks barcodes, prices, GST, challan of other vendors. Batch detail is scoped; these three were missed.",
   },
   {
-    id: "M7",
-    sev: "medium",
-    area: "Electron",
-    location: "license-store",
-    title: "Weak on-prem license key",
+    id: "H2",
+    sev: "high",
+    area: "Authz",
+    location: "permissions.ts PATH_MODULE gaps",
+    title: "Unmapped APIs skip module gate",
     detail:
-      "AES key derived from hostname/user — product/crypto decision still open. CLOUD_URL drift fixed.",
+      "/banks, /staff, /suppliers, /chatbot (and masters/categories) are not in PATH_MODULE → next(). Vendor/Warehouse can read bank accounts, staff salaries, suppliers, and run chatbot over tenant-wide data. /payroll is gated; /staff is not.",
+  },
+  {
+    id: "H3",
+    sev: "high",
+    area: "IDOR",
+    location: "dashboard.ts analytics + rewards-summary",
+    title: "Vendor sees tenant-wide analytics",
+    detail:
+      "/analytics/* and /dashboard/rewards-summary map to dashboard (Vendor view) but query all sales/invoices/payments/expenses/vendors. /dashboard/stats is scoped; these are not.",
+  },
+  {
+    id: "H4",
+    sev: "high",
+    area: "IDOR",
+    location: "invoice-finance.ts:9,45",
+    title: "Vendor can read B2B invoice finance",
+    detail:
+      "/invoice-finance → finance (Vendor view). Summary + client GETs return all clients, invoice totals, payment history. Mutations correctly blockVendors — GETs do not.",
+  },
+  {
+    id: "M1",
+    sev: "medium",
+    area: "IDOR",
+    location: "distribution.ts:62-70",
+    title: "Unlinked Vendor lists all distributions",
+    detail:
+      "jwtVendorId || query.vendorId — if role=Vendor but vendorId null, filter omitted (or client-supplied). Other routes 403 unlinked Vendors.",
+  },
+  {
+    id: "M2",
+    sev: "medium",
+    area: "Money",
+    location: "finance.ts vendor payments",
+    title: "Vendor payment allocation race",
+    detail:
+      "Multi-batch payment reads dues then inserts without FOR UPDATE. Concurrent posts can over-allocate. Invoice finance locks; this path does not.",
   },
   {
     id: "L1",
     sev: "low",
-    area: "Session",
-    location: "session.ts",
-    title: "Tokens in localStorage",
-    detail: "XSS → session theft. Needs httpOnly cookie architecture.",
+    area: "Errors",
+    location: "chatbot.ts:445",
+    title: "Chatbot 500 returns String(err)",
+    detail: "Leaks internal exception text in JSON error field.",
+  },
+  {
+    id: "L2",
+    sev: "low",
+    area: "Authz",
+    location: "masters.ts + products categories",
+    title: "Minor ungated GETs",
+    detail:
+      "/api/masters/counts and /api/categories also absent from PATH_MODULE (low sensitivity vs H2).",
+  },
+  {
+    id: "L3",
+    sev: "low",
+    area: "XSS",
+    location: "SuperAdminBilling.tsx",
+    title: "Print title missing esc",
+    detail:
+      "invoiceNumber interpolated unescaped in print HTML; tenantName/notes already use esc. Admin-only.",
   },
 ];
 
-export default function SplenderCodeReviewV5() {
+export default function SplenderCodeReviewV8() {
   const theme = useHostTheme();
   const [filter, setFilter] = useCanvasState<"all" | Sev>("filter", "all");
 
@@ -87,15 +144,19 @@ export default function SplenderCodeReviewV5() {
   return (
     <Stack gap={24} style={{ padding: 24, maxWidth: 1100 }}>
       <Stack gap={8}>
-        <H1>Dhandho — full code review (v5)</H1>
+        <H1>Dhandho — full code review (v8)</H1>
         <Text tone="secondary" size="small">
-          Post-fix pass · verified then fixed on top of 46ccf0d ·{" "}
-          {FINDINGS.length} deferred · 0 critical / 0 high open
+          Fresh pass after v7 fixes · dirty tree on 7ee283f ·{" "}
+          {FINDINGS.length} open · deferred excluded
         </Text>
       </Stack>
 
-      <Callout tone="success" title="Closed this pass">
-        {CLOSED_THIS_PASS.join(" · ")}
+      <Callout tone="neutral" title="Skipped (deferred)">
+        {SKIPPED.join(" · ")}
+      </Callout>
+
+      <Callout tone="success" title="Prior fixes still hold">
+        {STILL_SOLID.join(" · ")}
       </Callout>
 
       <Grid columns={4} gap={12}>
@@ -107,29 +168,34 @@ export default function SplenderCodeReviewV5() {
 
       <Grid columns={2} gap={16}>
         <Card>
-          <CardHeader>Deferred on purpose</CardHeader>
+          <CardHeader>Fix order</CardHeader>
           <CardBody>
             <Stack gap={6}>
               <Text size="small">
-                M4 FORCE RLS — large withTenantClient migration
+                1. assertVendorAccess on dist bill / einvoice / ewaybill (H1)
               </Text>
               <Text size="small">
-                M7 weak license key — product/crypto decision
+                2. Extend PATH_MODULE: banks, staff, suppliers, chatbot (H2)
               </Text>
               <Text size="small">
-                L1 httpOnly cookies — auth architecture change
+                3. Vendor-scope analytics + rewards-summary (H3)
+              </Text>
+              <Text size="small">
+                4. blockVendors on invoice-finance GETs (H4)
+              </Text>
+              <Text size="small">
+                5. Unlinked Vendor 403 + payment FOR UPDATE (M1–M2)
               </Text>
             </Stack>
           </CardBody>
         </Card>
         <Card>
-          <CardHeader>Solid</CardHeader>
+          <CardHeader>Theme</CardHeader>
           <CardBody>
             <Text size="small">
-              HS256 JWT, live role revalidation, vendorScope helpers, backup
-              Admin+allowlist, sales FOR UPDATE, distribution SKIP LOCKED,
-              quotation convert lock, billTemplates esc(), contextIsolation,
-              CORS allowlist, plan limits fail-closed.
+              Remaining risk is incomplete Vendor scoping on secondary
+              distribution/finance reads, plus PATH_MODULE coverage holes —
+              not a regression of the core v6/v7 fixes.
             </Text>
           </CardBody>
         </Card>
@@ -139,10 +205,13 @@ export default function SplenderCodeReviewV5() {
 
       <Stack gap={12}>
         <Row gap={8} align="center" style={{ flexWrap: "wrap" }}>
-          <H2>Still open</H2>
+          <H2>Open findings</H2>
           <Spacer />
           <Pill active={filter === "all"} onClick={() => setFilter("all")}>
             All
+          </Pill>
+          <Pill active={filter === "high"} onClick={() => setFilter("high")}>
+            High
           </Pill>
           <Pill
             active={filter === "medium"}
@@ -165,14 +234,13 @@ export default function SplenderCodeReviewV5() {
             `${f.title} — ${f.detail}`,
           ])}
           rowTone={shown.map((f) =>
-            f.sev === "medium" ? "warning" : undefined
+            f.sev === "high" ? "warning" : undefined
           )}
         />
       </Stack>
 
       <Text size="small" style={{ color: theme.text.secondary }}>
-        Source: verified against disk before each fix · e2e_by_type after
-        restart.
+        Verified on disk · e2e not re-run this pass · deferred items not listed.
       </Text>
     </Stack>
   );

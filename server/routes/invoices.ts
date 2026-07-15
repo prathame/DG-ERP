@@ -1,15 +1,19 @@
 import { Router } from 'express';
-import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 
 const router = Router();
 
 // List invoices
-router.get('/api/invoices', async (req, res) => {
+router.get('/api/invoices', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    // Vendors have no standalone-invoice access (sales module is hidden; block IDOR if called)
+    if (vendorScopeId(req) || req.user?.role === 'Vendor') {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
     const { rows } = await pool.query(
       'SELECT * FROM standalone_invoices WHERE tenant_id = $1 ORDER BY created_at DESC',
       [tenantId]

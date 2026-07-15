@@ -1,45 +1,50 @@
-# Dhandho — full code review (v5)
+# Dhandho — full code review (v8)
 
-**Baseline:** fixes on top of `main` @ `46ccf0d`  
+**Baseline:** dirty tree on `main` @ `7ee283f` (v7 fixes applied, uncommitted)  
 **Date:** 2026-07-15  
-**Open:** 3 findings deferred — 0 critical · 0 high · 2 medium · 1 low
+**Open:** 9 findings — 0 critical · 4 high · 2 medium · 3 low  
+
+**Skipped (deferred):** FORCE RLS · weak on-prem license key · tokens in localStorage
 
 ---
 
-## Closed in this pass (verified then fixed)
+## Prior fixes still hold
 
-| ID | Fix |
-|----|-----|
-| C1 | Vendor finance detail `assertVendorAccess`; reminders `blockVendors`; parameterized vendor filter |
-| C2 | Distribution batches forced to JWT vendor scope; delete also clears `vendor_payments` |
-| C3 | Rewards list scoped; products GET limited to distributed products for Vendors |
-| H1 | Auth middleware re-reads live `role` / `vendor_id` from DB |
-| H2 | Login persists `permissions`; App gates tabs/nav/Settings/Cmd+K by `canAccess` |
-| H3 | Print XSS: invoices, vendor finance, verification, price list, barcode labels, accounts print clone |
-| H4 | `tsc:electron` rebuild; random PG password on first run + credentials file; complete-setup refuses if licensed |
-| H5 | Invoice payment rejects overpay |
-| H6 | `openExternal` http/https only |
-| M1 | Finance vendor filter parameterized |
-| M2 | Login without slug rejects ambiguous multi-tenant email |
-| M3 | Plan limits fail-closed |
-| M5 | Batch delete orphans payments; apply-billing in transaction |
-| M6 | Rewards earned bumps vendor counter (day-book cash vs sales conflation left as accounting design) |
-| M7 | CLOUD_URL `.js` synced via `tsc:electron` (weak license key unchanged — needs product decision) |
-| M8 | Products 500 no longer returns raw `errStr` |
-| L2 | Audit log `requireAdmin` |
+Live role refresh · module permission gate · vendor scopes on finance/batches/products/dashboard-stats/sale-bill/CRM · print esc · openExternal http(s) · invoice FOR UPDATE · price-lists / reward counters / backup admin
 
-## Still deferred
+---
 
-| ID | Why |
-|----|-----|
-| M4 | FORCE RLS needs `withTenantClient` everywhere — large cutover |
-| M7 partial | Weak on-prem license key format — product/crypto decision |
-| L1 | Move tokens to httpOnly cookies — frontend+auth architecture |
+## Open findings
 
-## Prior closed (already on main)
+### High
 
-Deleted-user JWT · Backup `requireAdmin` · Distribution double-release · Product create `ROLLBACK` · Restore allowlist-only clear · `deleteTenant` no `transactions` · Forgot-password no token · Platform JWT isolation · P&L OWNER filter · Quotation `FOR UPDATE` · `blockVendors` on invoice-finance / replacements / notes
+| ID | Location | Finding |
+|----|----------|---------|
+| H1 | `distribution.ts` bill / einvoice / ewaybill | Vendor IDOR — any `vendorId`/`batchId`; batch detail is scoped, these three are not |
+| H2 | `permissions.ts` PATH_MODULE | Unmapped `/banks`, `/staff`, `/suppliers`, `/chatbot` skip the module gate |
+| H3 | `dashboard.ts` analytics + rewards-summary | Vendor sees tenant-wide analytics (stats endpoint is scoped) |
+| H4 | `invoice-finance.ts` GETs | Vendor can read all B2B invoice finance (mutations already `blockVendors`) |
 
-## Solid
+### Medium
 
-HS256 JWT, deleted-user reject, platform-token isolation, backup Admin+allowlist, sales `FOR UPDATE`, distribution `SKIP LOCKED`, quotation convert lock, `billTemplates` escaping, `contextIsolation`, CORS allowlist, live role revalidation, vendor scope helpers.
+| ID | Location | Finding |
+|----|----------|---------|
+| M1 | `distribution.ts` list | Unlinked Vendor (`vendorId` null) can list all distributions |
+| M2 | `finance.ts` payments | Multi-batch payment allocation race (no `FOR UPDATE`) |
+
+### Low
+
+| ID | Finding |
+|----|---------|
+| L1 | Chatbot 500 returns `String(err)` |
+| L2 | `/masters/counts`, `/categories` also ungated (low sensitivity) |
+| L3 | SuperAdminBilling print title missing `esc` (admin-only) |
+
+---
+
+## Recommended next
+
+1. `assertVendorAccess` on dist bill / einvoice / ewaybill  
+2. Extend `PATH_MODULE` for banks → settings/accounts, staff → accounts, suppliers → purchases, chatbot → dashboard (or deny Vendor)  
+3. Vendor-scope analytics + rewards-summary; `blockVendors` on invoice-finance GETs  
+4. 403 unlinked Vendor on distribution list; lock vendor payment allocation  

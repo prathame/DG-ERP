@@ -41,11 +41,16 @@ function createWindow() {
 
   // Open external links in system browser, not inside the app
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (!url.startsWith(CLOUD_URL)) {
-      shell.openExternal(url);
-      return { action: 'deny' };
-    }
-    return { action: 'allow' };
+    try {
+      const u = new URL(url);
+      if (url.startsWith(CLOUD_URL)) {
+        return { action: 'allow' };
+      }
+      if (u.protocol === 'https:' || u.protocol === 'http:') {
+        shell.openExternal(url);
+      }
+    } catch { /* ignore invalid URLs */ }
+    return { action: 'deny' };
   });
 
   win.on('closed', () => { win = null; });

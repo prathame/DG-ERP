@@ -1,23 +1,27 @@
 import { Router } from 'express';
-import { blockVendors, AuthRequest } from '../middleware/auth';
+import { blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, isValidPhone, isValidEmail } from '../utils/helpers';
 
 const router = Router();
 
-router.get('/api/customers', async (req, res) => {
+router.get('/api/customers', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { search, vendorId } = req.query;
+    const scoped = vendorScopeId(req);
     let sql = 'SELECT * FROM customers WHERE tenant_id = $1';
     const params: unknown[] = [tenantId];
     let idx = 2;
-    if (typeof vendorId === 'string' && vendorId) {
+    const forcedVendor = scoped || (typeof vendorId === 'string' ? vendorId : '');
+    if (forcedVendor) {
       sql += ` AND vendor_id = $${idx}`;
-      params.push(vendorId);
+      params.push(forcedVendor);
       idx++;
+    } else if (req.user?.role === 'Vendor') {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
     }
     if (typeof search === 'string' && search) {
       sql += ` AND (name ILIKE $${idx} OR phone ILIKE $${idx + 1} OR email ILIKE $${idx + 2})`;

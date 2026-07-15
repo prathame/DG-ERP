@@ -188,7 +188,7 @@ router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) =
   }
 });
 
-router.get('/api/backup/settings', async (req, res) => {
+router.get('/api/backup/settings', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

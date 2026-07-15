@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest, assertVendorAccess, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 
@@ -234,7 +234,7 @@ router.get('/api/sales', async (req, res) => {
 });
 
 // ============ SALES BILL ============
-router.get('/api/sales/:id/bill', async (req, res) => {
+router.get('/api/sales/:id/bill', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -250,6 +250,13 @@ router.get('/api/sales/:id/bill', async (req, res) => {
       WHERE ps.id = $1 AND ps.tenant_id = $2
     `, [id, tenantId])).rows[0] as Record<string, unknown> | undefined;
     if (!sale) return res.status(404).json({ error: 'Sale not found' });
+
+    const denied = assertVendorAccess(req, (sale.vendor_id as string) || '');
+    if (denied) return res.status(403).json({ error: denied });
+    // Vendors without a matching vendor on the sale cannot read bank/bill details
+    if (vendorScopeId(req) && !sale.vendor_id) {
+      return res.status(403).json({ error: 'Access denied for this sale.' });
+    }
     const warranty = (await pool.query('SELECT activation_date, expiry_date, status FROM warranties WHERE barcode = $1 AND tenant_id = $2 ORDER BY activation_date DESC LIMIT 1', [sale.barcode, tenantId])).rows[0] as { activation_date: string; expiry_date: string; status: string } | undefined;
     const company = (await pool.query("SELECT name, company_name, phone, address, gst_number, default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') AND tenant_id = $1 ORDER BY id LIMIT 1", [tenantId])).rows[0] as { name: string; company_name: string | null; phone: string | null; address: string | null; gst_number: string | null; default_gst_rate: number | null } | undefined;
     const billSettingsRow = (await pool.query('SELECT * FROM bill_settings WHERE tenant_id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;

@@ -1,21 +1,102 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
+import { AuthRequest, vendorScopeId } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/api/dashboard/stats', async (req, res) => {
+router.get('/api/dashboard/stats', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const today = new Date().toISOString().slice(0, 10);
-
-    // Build month-start/end for indexed range queries (2.2× faster than to_char)
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
     const thisMonthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
     const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
+
+    const vid = vendorScopeId(req);
+    if (vid) {
+      // H3: Vendor JWT — only their own figures
+      const [scalar, outstanding, todayDist, topProducts] = await Promise.all([
+        pool.query(`
+          SELECT
+            (SELECT COALESCE(SUM(sale_price),0) FROM product_sales WHERE tenant_id=$1 AND vendor_id=$2) AS total_revenue,
+            (SELECT COUNT(*) FROM warranties w WHERE w.status='Active' AND w.tenant_id=$1
+              AND w.barcode IN (SELECT barcode FROM product_sales WHERE vendor_id=$2 AND tenant_id=$1)) AS active_warranties,
+            (SELECT COUNT(*) FROM warranties w WHERE w.status='Under Claim' AND w.tenant_id=$1
+              AND w.barcode IN (SELECT barcode FROM product_sales WHERE vendor_id=$2 AND tenant_id=$1)) AS pending_claims,
+            (SELECT COALESCE(SUM(points),0) FROM rewards WHERE type='Earned' AND tenant_id=$1 AND user_id=$2) AS rewards_earned,
+            (SELECT COUNT(DISTINCT product_id) FROM product_distribution WHERE tenant_id=$1 AND vendor_id=$2) AS total_products,
+            (SELECT COUNT(*) FROM product_distribution WHERE status='Distributed' AND tenant_id=$1 AND vendor_id=$2) AS with_vendors,
+            (SELECT COUNT(*) FROM product_distribution WHERE status='Sold' AND tenant_id=$1 AND vendor_id=$2) AS products_sold,
+            (SELECT COALESCE(total_reward_points,0) FROM vendors WHERE tenant_id=$1 AND id=$2) AS vendor_rewards,
+            0 AS with_admin,
+            (SELECT COUNT(*) FROM product_distribution WHERE tenant_id=$1 AND vendor_id=$2) AS total_inventory,
+            0 AS available_in_inventory,
+            (SELECT COUNT(*) FROM product_sales WHERE purchase_date=$3 AND tenant_id=$1 AND vendor_id=$2) AS today_sales,
+            (SELECT COUNT(*) FROM product_sales WHERE purchase_date BETWEEN $4 AND $5 AND tenant_id=$1 AND vendor_id=$2) AS this_month_sales,
+            (SELECT COUNT(*) FROM product_sales WHERE purchase_date BETWEEN $6 AND $7 AND tenant_id=$1 AND vendor_id=$2) AS last_month_sales,
+            (SELECT COALESCE(SUM(sale_price),0) FROM product_sales WHERE purchase_date BETWEEN $4 AND $5 AND tenant_id=$1 AND vendor_id=$2) AS this_month_revenue,
+            (SELECT COALESCE(SUM(sale_price),0) FROM product_sales WHERE purchase_date BETWEEN $6 AND $7 AND tenant_id=$1 AND vendor_id=$2) AS last_month_revenue,
+            (SELECT COALESCE(SUM(amount),0) FROM vendor_payments WHERE tenant_id=$1 AND vendor_id=$2) AS total_vendor_received,
+            (SELECT COALESCE(SUM(amount),0) FROM vendor_payments WHERE payment_date=$3 AND tenant_id=$1 AND vendor_id=$2) AS today_collections,
+            (SELECT COALESCE(SUM(sale_price),0) FROM product_sales WHERE purchase_date=$3 AND tenant_id=$1 AND vendor_id=$2) AS today_revenue,
+            (SELECT COUNT(*) FROM warranties w WHERE w.status='Active' AND w.expiry_date BETWEEN $3 AND ($3::date + INTERVAL '30 days') AND w.tenant_id=$1
+              AND w.barcode IN (SELECT barcode FROM product_sales WHERE vendor_id=$2 AND tenant_id=$1)) AS expiring_warranties
+        `, [tenantId, vid, today, thisMonthStart, thisMonthEnd, prevMonthStart, prevMonthEnd]),
+        pool.query(`
+          SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0)
+            - COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id=$1 AND vendor_id=$2), 0) AS outstanding
+          FROM product_distribution pd
+          JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+          WHERE pd.tenant_id = $1 AND pd.vendor_id = $2
+        `, [tenantId, vid]),
+        pool.query(`
+          SELECT COALESCE(SUM(COALESCE(pd.billed_price, pd.net_price, p.price)), 0) AS total
+          FROM product_distribution pd
+          JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+          WHERE pd.tenant_id = $1 AND pd.vendor_id = $2 AND pd.distribution_date = $3
+        `, [tenantId, vid, today]),
+        pool.query(`
+          SELECT p.name, COUNT(ps.id) AS sold
+          FROM product_sales ps
+          JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1
+          WHERE ps.tenant_id = $1 AND ps.vendor_id = $2
+          GROUP BY p.name ORDER BY sold DESC LIMIT 5
+        `, [tenantId, vid]),
+      ]);
+      const s = scalar.rows[0] as Record<string, string>;
+      return res.json({
+        totalRevenue: Number(s.total_revenue) || 0,
+        activeWarranties: Number(s.active_warranties) || 0,
+        pendingClaims: Number(s.pending_claims) || 0,
+        rewardPointsIssued: Number(s.rewards_earned) || 0,
+        totalProducts: Number(s.total_products) || 0,
+        productsDistributed: Number(s.with_vendors) || 0,
+        productsSold: Number(s.products_sold) || 0,
+        vendorRewardPoints: Number(s.vendor_rewards) || 0,
+        availableInInventory: 0,
+        withAdmin: 0,
+        withVendors: Number(s.with_vendors) || 0,
+        totalBeforeDistribution: Number(s.total_inventory) || 0,
+        todaySales: Number(s.today_sales) || 0,
+        thisMonthSales: Number(s.this_month_sales) || 0,
+        lastMonthSales: Number(s.last_month_sales) || 0,
+        thisMonthRevenue: Number(s.this_month_revenue) || 0,
+        lastMonthRevenue: Number(s.last_month_revenue) || 0,
+        totalVendorReceived: Number(s.total_vendor_received) || 0,
+        totalVendorOutstanding: Number(outstanding.rows[0]?.outstanding) || 0,
+        todayCollections: Number(s.today_collections) || 0,
+        todayRevenue: Number(s.today_revenue) || 0,
+        todayDistributionValue: Number(todayDist.rows[0]?.total) || 0,
+        expiringWarranties: Number(s.expiring_warranties) || 0,
+        lowStockProducts: [],
+        topProducts: (topProducts.rows as { name: string; sold: number }[])
+          .map(p => ({ ...p, sold: Number(p.sold) || 0 })),
+      });
+    }
 
     // ── 1: All scalar counts in ONE query ─────────────────────────────────────
     const scalarQ = pool.query(`
@@ -41,6 +122,7 @@ router.get('/api/dashboard/stats', async (req, res) => {
         (SELECT COALESCE(SUM(sale_price),0)    FROM product_sales         WHERE purchase_date=$2      AND tenant_id=$1)                AS today_revenue,
         (SELECT COUNT(*)                       FROM warranties             WHERE status='Active' AND expiry_date BETWEEN $2 AND ($2::date + INTERVAL '30 days') AND tenant_id=$1) AS expiring_warranties
     `, [tenantId, today, thisMonthStart, thisMonthEnd, prevMonthStart, prevMonthEnd]);
+
 
     // ── 2: Outstanding — kept separate (complex subquery) ────────────────────
     const outstandingQ = pool.query(`
@@ -123,24 +205,44 @@ router.get('/api/dashboard/stats', async (req, res) => {
   }
 });
 
-router.get('/api/analytics/recent-activity', async (req, res) => {
+router.get('/api/analytics/recent-activity', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const rows = (await pool.query(`
-      SELECT type, id, label, amount, date FROM (
-        SELECT 'sale' as type, id, COALESCE(customer_name, 'Customer') as label, sale_price as amount, purchase_date::text as date FROM product_sales WHERE tenant_id = $1
-        UNION ALL
-        SELECT 'invoice', id, COALESCE(customer_name, 'Customer') as label, grand_total as amount, invoice_date::text as date FROM standalone_invoices WHERE tenant_id = $1 AND status != 'cancelled'
-        UNION ALL
-        SELECT 'payment', id, vendor_id as label, amount, payment_date::text FROM vendor_payments WHERE tenant_id = $1
-        UNION ALL
-        SELECT 'distribution', COALESCE(batch_id, id), vendor_id as label, SUM(COALESCE(billed_price, net_price, 0)) as amount, MIN(distribution_date)::text as date FROM product_distribution WHERE tenant_id = $1 GROUP BY COALESCE(batch_id, id), vendor_id
-        UNION ALL
-        SELECT 'expense', id, category as label, amount, expense_date::text FROM expenses WHERE tenant_id = $1
-      ) t ORDER BY date DESC LIMIT 15
-    `, [tenantId])).rows as { type: string; id: string; label: string; amount: number; date: string }[];
+    const vid = vendorScopeId(req);
+    if (req.user?.role === 'Vendor' && !vid) {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    }
+
+    const rows = vid
+      ? ((await pool.query(`
+          SELECT type, id, label, amount, date FROM (
+            SELECT 'sale' as type, id, COALESCE(customer_name, 'Customer') as label, sale_price as amount, purchase_date::text as date
+              FROM product_sales WHERE tenant_id = $1 AND vendor_id = $2
+            UNION ALL
+            SELECT 'payment', id, vendor_id as label, amount, payment_date::text
+              FROM vendor_payments WHERE tenant_id = $1 AND vendor_id = $2
+            UNION ALL
+            SELECT 'distribution', COALESCE(batch_id, id), vendor_id as label,
+              SUM(COALESCE(billed_price, net_price, 0)) as amount, MIN(distribution_date)::text as date
+              FROM product_distribution WHERE tenant_id = $1 AND vendor_id = $2
+              GROUP BY COALESCE(batch_id, id), vendor_id
+          ) t ORDER BY date DESC LIMIT 15
+        `, [tenantId, vid])).rows as { type: string; id: string; label: string; amount: number; date: string }[])
+      : ((await pool.query(`
+          SELECT type, id, label, amount, date FROM (
+            SELECT 'sale' as type, id, COALESCE(customer_name, 'Customer') as label, sale_price as amount, purchase_date::text as date FROM product_sales WHERE tenant_id = $1
+            UNION ALL
+            SELECT 'invoice', id, COALESCE(customer_name, 'Customer') as label, grand_total as amount, invoice_date::text as date FROM standalone_invoices WHERE tenant_id = $1 AND status != 'cancelled'
+            UNION ALL
+            SELECT 'payment', id, vendor_id as label, amount, payment_date::text FROM vendor_payments WHERE tenant_id = $1
+            UNION ALL
+            SELECT 'distribution', COALESCE(batch_id, id), vendor_id as label, SUM(COALESCE(billed_price, net_price, 0)) as amount, MIN(distribution_date)::text as date FROM product_distribution WHERE tenant_id = $1 GROUP BY COALESCE(batch_id, id), vendor_id
+            UNION ALL
+            SELECT 'expense', id, category as label, amount, expense_date::text FROM expenses WHERE tenant_id = $1
+          ) t ORDER BY date DESC LIMIT 15
+        `, [tenantId])).rows as { type: string; id: string; label: string; amount: number; date: string }[]);
 
     const vendorIds = [...new Set(rows.filter(r => r.type === 'payment' || r.type === 'distribution').map(r => r.label))];
     const vendorMap: Record<string, string> = {};

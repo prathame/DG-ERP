@@ -198,13 +198,31 @@ router.post('/api/rewards', blockVendors, async (req: AuthRequest, res) => {
 });
 
 router.put('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
+  const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
     const { points, type, description, date } = req.body;
-    const result = await pool.query(
+
+    await client.query('BEGIN');
+    const existing = (await client.query(
+      'SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [id, tenantId]
+    )).rows[0] as Record<string, unknown> | undefined;
+    if (!existing) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Reward not found' });
+    }
+
+    const oldPoints = Number(existing.points) || 0;
+    const oldType = existing.type as string;
+    const vendorId = (existing.vendor_id as string) || null;
+    const newPoints = points !== undefined ? Number(points) : oldPoints;
+    const newType = type !== undefined ? String(type) : oldType;
+
+    const result = await client.query(
       `UPDATE rewards SET
         points = COALESCE($1, points),
         type = COALESCE($2, type),
@@ -213,8 +231,23 @@ router.put('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
       WHERE id = $5 AND tenant_id = $6`,
       [points, type, description, date, id, tenantId]
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Reward not found' });
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Reward not found' });
+    }
 
+    // Reverse old counter effect, apply new
+    const oldDelta = oldType === 'Redeemed' ? -oldPoints : oldType === 'Earned' ? oldPoints : 0;
+    const newDelta = newType === 'Redeemed' ? -newPoints : newType === 'Earned' ? newPoints : 0;
+    const adjust = newDelta - oldDelta;
+    if (adjust !== 0 && vendorId) {
+      await client.query(
+        'UPDATE vendors SET total_reward_points = total_reward_points + $1 WHERE id = $2 AND tenant_id = $3',
+        [adjust, vendorId, tenantId]
+      );
+    }
+
+    await client.query('COMMIT');
     const row = (await pool.query(
       'SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2', [id, tenantId]
     )).rows[0] as Record<string, unknown>;
@@ -227,25 +260,55 @@ router.put('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
       date: row.date,
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
-  }
+  } finally { client.release(); }
 });
 
 router.delete('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
+  const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const result = await pool.query(
+    await client.query('BEGIN');
+    const existing = (await client.query(
+      'SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [id, tenantId]
+    )).rows[0] as Record<string, unknown> | undefined;
+    if (!existing) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Reward not found' });
+    }
+
+    const pts = Number(existing.points) || 0;
+    const rType = existing.type as string;
+    const vendorId = (existing.vendor_id as string) || null;
+    const reverse = rType === 'Redeemed' ? pts : rType === 'Earned' ? -pts : 0;
+
+    const result = await client.query(
       'DELETE FROM rewards WHERE id = $1 AND tenant_id = $2',
       [id, tenantId]
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Reward not found' });
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Reward not found' });
+    }
+
+    if (reverse !== 0 && vendorId) {
+      await client.query(
+        'UPDATE vendors SET total_reward_points = total_reward_points + $1 WHERE id = $2 AND tenant_id = $3',
+        [reverse, vendorId, tenantId]
+      );
+    }
+
+    await client.query('COMMIT');
     res.status(204).send();
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
-  }
+  } finally { client.release(); }
 });
 
 // ============ REWARD RULES ============

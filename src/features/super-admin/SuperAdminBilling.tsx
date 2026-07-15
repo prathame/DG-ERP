@@ -56,7 +56,7 @@ export function SuperAdminBilling() {
 
   const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const printInvoice = (inv: Invoice) => {
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice-${inv.invoiceNumber}</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice-${esc(inv.invoiceNumber)}</title>
 <style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',sans-serif;padding:40px;max-width:700px;margin:auto;}
 .header{display:flex;justify-content:space-between;border-bottom:3px solid #F27D26;padding-bottom:16px;margin-bottom:24px;}
 .logo{display:flex;align-items:center;gap:10px;}.logo-icon{width:40px;height:40px;background:#F27D26;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:16px;}
@@ -65,7 +65,7 @@ td{padding:10px;border-bottom:1px solid #e5e7eb;font-size:13px;}.total{font-size
 .footer{margin-top:40px;font-size:11px;color:#999;text-align:center;}
 @media print{body{padding:20px;}}</style></head><body>
 <div class="header"><div class="logo"><div class="logo-icon">DH</div><div><strong style="font-size:18px;">Dhandho Management</strong><br/><span style="font-size:11px;color:#888;">Subscription Invoice</span></div></div>
-<div style="text-align:right;font-size:13px;"><strong>Invoice #${inv.invoiceNumber}</strong><br/>Date: ${new Date(inv.createdAt).toLocaleDateString()}<br/>Status: <strong style="color:${inv.status === 'paid' ? '#059669' : '#dc2626'}">${inv.status.toUpperCase()}</strong></div></div>
+<div style="text-align:right;font-size:13px;"><strong>Invoice #${esc(inv.invoiceNumber)}</strong><br/>Date: ${new Date(inv.createdAt).toLocaleDateString()}<br/>Status: <strong style="color:${inv.status === 'paid' ? '#059669' : '#dc2626'}">${esc(inv.status.toUpperCase())}</strong></div></div>
 <div style="margin-bottom:20px;"><h4 style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px;">Bill To</h4>
 <p style="font-size:15px;font-weight:bold;">${esc(inv.tenantName)}</p>
 ${inv.planName ? `<p style="font-size:12px;color:#666;">Plan: ${esc(inv.planName)}</p>` : ''}

@@ -9,6 +9,7 @@ import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 
 import { initDatabase, pool } from './pg-db';
+import { enforceModulePermissions, normalizePermissions } from './middleware/permissions';
 
 import superAdminRouter from './routes/super-admin';
 import productsRouter from './routes/products';
@@ -137,12 +138,12 @@ app.use('/api/', async (req, res, next) => {
 
       // Check tenant status AND password_changed_at in one query
       const userRow = await pool.query(
-        `SELECT u.password_changed_at, u.role, u.vendor_id, t.status, t.subscription_ends_at, t.trial_ends_at
+        `SELECT u.password_changed_at, u.role, u.vendor_id, u.permissions, t.status, t.subscription_ends_at, t.trial_ends_at
          FROM users u JOIN tenants t ON t.id = u.tenant_id
          WHERE u.id = $1 AND u.tenant_id = $2`,
         [decoded.userId, decoded.tenantId]
       );
-      const row = userRow.rows[0] as { password_changed_at: Date | null; role: string; vendor_id: string | null; status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
+      const row = userRow.rows[0] as { password_changed_at: Date | null; role: string; vendor_id: string | null; permissions: unknown; status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
 
       // C1: deleted/missing users must not keep API access until JWT expiry
       if (!row) return res.status(401).json({ error: 'User no longer exists. Please log in again.' });
@@ -150,6 +151,7 @@ app.use('/api/', async (req, res, next) => {
       // H1: re-read live role/vendorId from DB so demotions take effect immediately
       decoded.role = row.role;
       decoded.vendorId = row.vendor_id ?? undefined;
+      (decoded as { permissions?: Record<string, string> }).permissions = normalizePermissions(row.permissions, row.role);
 
       if (row.status === 'suspended') return res.status(403).json({ error: 'Account suspended. Contact admin.' });
       // #12 fix: only check the date that applies to this tenant's status
@@ -186,6 +188,9 @@ app.use('/api/', async (req, res, next) => {
   }
   next();
 });
+
+// H2: enforce module permissions server-side (not just UI canAccess)
+app.use('/api/', enforceModulePermissions);
 
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: isProduction ? 10 : 50, message: { error: 'Too many login attempts, try again in 15 minutes' }, standardHeaders: true, legacyHeaders: false });
 app.use('/api/auth/login', loginLimiter);

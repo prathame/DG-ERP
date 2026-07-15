@@ -15,6 +15,7 @@ export interface JwtPayload {
   email: string;
   name: string;
   vendorId?: string | null;
+  permissions?: Record<string, string>;
   iat?: number;
 }
 
@@ -30,6 +31,11 @@ export function generateToken(payload: object): string {
 export const generateSuperAdminToken = generateToken;
 
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+  // H1: global auth in index.ts already attached live role/vendorId — do not clobber with JWT claims
+  if (req.user?.userId && req.tenantId) {
+    return next();
+  }
+
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Authentication required' });
 
@@ -39,16 +45,15 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     req.tenantId = decoded.tenantId;
 
     if (decoded.userId && decoded.tenantId) {
-      // Check password_changed_at to invalidate tokens issued before a password change (P1 fix)
+      // Re-read live role so demotions take effect even on this fallback path
       pool.query(
-        'UPDATE users SET last_active_at=NOW() WHERE id=$1 AND tenant_id=$2 RETURNING password_changed_at',
+        'SELECT role, vendor_id, password_changed_at FROM users WHERE id=$1 AND tenant_id=$2',
         [decoded.userId, decoded.tenantId]
       ).then(r => {
-        const changedAt = r.rows[0]?.password_changed_at as Date | null;
-        if (changedAt && decoded.iat && changedAt.getTime() / 1000 > decoded.iat) {
-          // Token was issued before the last password change — already responded, nothing to do
-          // The next request will fail at jwt.verify since we can't abort here after next()
-          // For full invalidation, use a token version field (see below)
+        const row = r.rows[0] as { role: string; vendor_id: string | null; password_changed_at: Date | null } | undefined;
+        if (row && req.user) {
+          req.user.role = row.role;
+          req.user.vendorId = row.vendor_id ?? undefined;
         }
       }).catch(() => {});
     }
@@ -60,6 +65,25 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
 
 // P1 fix: synchronous password-changed check — use this on sensitive routes
 export async function authMiddlewareStrict(req: AuthRequest, res: Response, next: NextFunction) {
+  // Prefer live identity already attached by global auth
+  if (req.user?.userId && req.tenantId) {
+    if (req.user.iat) {
+      const row = await pool.query(
+        'SELECT password_changed_at, role, vendor_id FROM users WHERE id=$1 AND tenant_id=$2',
+        [req.user.userId, req.tenantId]
+      );
+      const changedAt = row.rows[0]?.password_changed_at as Date | null;
+      if (changedAt && req.user.iat && changedAt.getTime() / 1000 > req.user.iat) {
+        return res.status(401).json({ error: 'Session expired after password change. Please log in again.' });
+      }
+      if (row.rows[0]) {
+        req.user.role = row.rows[0].role as string;
+        req.user.vendorId = (row.rows[0].vendor_id as string | null) ?? undefined;
+      }
+    }
+    return next();
+  }
+
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Authentication required' });
 
@@ -68,12 +92,16 @@ export async function authMiddlewareStrict(req: AuthRequest, res: Response, next
 
     if (decoded.userId && decoded.tenantId) {
       const row = await pool.query(
-        'SELECT password_changed_at FROM users WHERE id=$1 AND tenant_id=$2',
+        'SELECT password_changed_at, role, vendor_id FROM users WHERE id=$1 AND tenant_id=$2',
         [decoded.userId, decoded.tenantId]
       );
       const changedAt = row.rows[0]?.password_changed_at as Date | null;
       if (changedAt && decoded.iat && changedAt.getTime() / 1000 > decoded.iat) {
         return res.status(401).json({ error: 'Session expired after password change. Please log in again.' });
+      }
+      if (row.rows[0]) {
+        decoded.role = row.rows[0].role as string;
+        decoded.vendorId = (row.rows[0].vendor_id as string | null) ?? undefined;
       }
     }
 

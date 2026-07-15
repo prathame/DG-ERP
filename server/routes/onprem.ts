@@ -179,7 +179,8 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
     }
     res.json({ ok: true, applied: updates.length });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -281,7 +282,7 @@ router.post('/api/onprem/provision', async (req, res) => {
     res.json({ ok: true, tenantId, slug });
   } catch (err) {
     console.error('💥 /api/onprem/provision failed:', (err as Error).message);
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

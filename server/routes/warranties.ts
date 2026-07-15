@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { blockVendors, AuthRequest } from '../middleware/auth';
+import { blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 
 const router = Router();
 
-router.get('/api/warranties', async (req, res) => {
+router.get('/api/warranties', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -17,13 +17,18 @@ router.get('/api/warranties', async (req, res) => {
     );
 
     const { search, status, vendorId } = req.query;
+    const scoped = vendorScopeId(req);
+    const forcedVendor = scoped || (typeof vendorId === 'string' ? vendorId : '');
+    if (req.user?.role === 'Vendor' && !scoped) {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    }
     let sql = 'SELECT w.*, p.name as product_name FROM warranties w LEFT JOIN products p ON w.product_id = p.id AND p.tenant_id = $1';
     const params: (string | number)[] = [tenantId];
     let paramIdx = 2;
 
-    if (typeof vendorId === 'string' && vendorId) {
+    if (forcedVendor) {
       sql += ` WHERE w.tenant_id = $1 AND w.barcode IN (SELECT barcode FROM product_sales WHERE vendor_id = $${paramIdx} AND tenant_id = $1)`;
-      params.push(vendorId);
+      params.push(forcedVendor);
       paramIdx++;
     } else {
       sql += ' WHERE w.tenant_id = $1';
