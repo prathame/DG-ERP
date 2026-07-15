@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useInView } from 'motion/react';
 import { ShutterIntro } from './ShutterIntro';
+import { DeskIllustration } from './DeskIllustration';
 import {
   Package, ShoppingCart, Truck, Receipt, IndianRupee, BarChart3, Users,
   ArrowRight, Check, Mail, Phone, MessageCircle, Moon, Sun, Send,
@@ -184,7 +185,9 @@ export function LandingPage() {
         <div className="absolute bottom-0 left-0 w-[600px] h-[600px] pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 65%)', transform: 'translate(-30%, 30%)' }} />
 
         <div className="max-w-6xl mx-auto relative">
-          <div className="max-w-3xl mx-auto text-center mb-14">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center mb-10">
+          {/* Left — text */}
+          <div className="max-w-3xl mx-auto lg:mx-0 text-center lg:text-left">
             {/* Badge */}
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium mb-6" style={{ borderColor: 'rgba(242,125,38,0.3)', background: 'rgba(242,125,38,0.08)', color: '#F27D26' }}>
               <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
@@ -222,6 +225,13 @@ export function LandingPage() {
             </motion.div>
             <p className={`mt-4 text-xs ${faint}`}>{L('No credit card · Cancel anytime','No credit card · कभी भी cancel','No credit card · ગમે ત્યારે cancel')}</p>
           </div>
+
+          {/* Desk illustration — right column */}
+          <div className="hidden lg:flex justify-center items-center">
+            <DeskIllustration dark={dark} />
+          </div>
+
+          </div>{/* end hero grid */}
 
           {/* App preview */}
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }} className="max-w-3xl mx-auto">
