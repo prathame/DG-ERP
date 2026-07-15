@@ -30,15 +30,16 @@ export async function provisionTenant(data: {
   try {
     await client.query('BEGIN');
 
+    // Default tab config — super-admin route overrides this with business-type preset after provisioning
     const defaultTabConfig = JSON.stringify({
-      dashboard: { label: 'Dashboard', visible: true }, inventory: { label: 'Inventory', visible: true },
-      purchases: { label: 'Purchases', visible: true }, distribution: { label: 'Distribution', visible: true },
-      sales: { label: 'Sales Entry', visible: true }, verification: { label: 'Search / Verify', visible: true },
-      warranty: { label: 'Warranty', visible: true }, replacements: { label: 'Replacements', visible: true },
-      rewards: { label: 'Rewards', visible: true }, finance: { label: 'Finance', visible: true },
-      quotations: { label: 'Quotations', visible: true }, orders: { label: 'Orders', visible: true }, accounts: { label: 'Accounts', visible: true },
-      reports: { label: 'Reports', visible: true }, chatbot: { label: 'Chatbot', visible: true },
-      settings: { label: 'Settings', visible: true },
+      analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
+      inventory: { label: 'Inventory', visible: true }, distribution: { label: 'Distribution', visible: true },
+      sales: { label: 'Sales Entry', visible: true }, purchases: { label: 'Purchases', visible: true },
+      verification: { label: 'Search / Verify', visible: true }, quotations: { label: 'Quotes & Orders', visible: true },
+      invoices: { label: 'Invoices', visible: true }, finance: { label: 'Finance', visible: true },
+      accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: true },
+      replacements: { label: 'Replacements', visible: true }, rewards: { label: 'Rewards', visible: true },
+      chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
     });
     await client.query(
       `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, phone, address, gst_number, plan_id, status, trial_ends_at, tab_config)

@@ -153,16 +153,53 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
     if (subscriptionEnd) {
       await pool.query('UPDATE tenants SET subscription_ends_at = $1 WHERE id = $2', [subscriptionEnd, result.tenantId]);
     }
-    const defaultTabConfig = {
-      dashboard: { label: 'Dashboard', visible: true }, inventory: { label: 'Inventory', visible: true },
-      distribution: { label: 'Distribution', visible: true }, sales: { label: 'Sales Entry', visible: true },
-      verification: { label: 'Verify Product', visible: true }, warranty: { label: 'Warranty', visible: true },
-      replacements: { label: 'Replacements', visible: true }, rewards: { label: 'Rewards', visible: true },
-      finance: { label: 'Finance', visible: true }, chatbot: { label: 'Chatbot', visible: true },
-      settings: { label: 'Settings', visible: true },
+    const bType = ['manufacturer', 'dealer', 'retail', 'service'].includes(req.body.businessType) ? req.body.businessType as string : 'manufacturer';
+
+    // Business-type presets — source of truth on backend, not dependent on frontend sending correct tabConfig
+    const PRESETS: Record<string, Record<string, { label: string; visible: boolean }>> = {
+      manufacturer: {
+        analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
+        inventory: { label: 'Inventory', visible: true }, distribution: { label: 'Dispatch', visible: true },
+        sales: { label: 'Warranty Registration', visible: true }, purchases: { label: 'Purchases', visible: true },
+        verification: { label: 'Search / Verify', visible: true }, quotations: { label: 'Quotes & Orders', visible: true },
+        invoices: { label: 'Invoices', visible: true }, finance: { label: 'Vendor Payments', visible: true },
+        accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: true },
+        replacements: { label: 'Replacements', visible: true }, rewards: { label: 'Rewards', visible: true },
+        chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+      },
+      dealer: {
+        analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
+        inventory: { label: 'Inventory', visible: true }, distribution: { label: 'Sales', visible: true },
+        sales: { label: 'Sales Entry', visible: false }, purchases: { label: 'Purchases', visible: true },
+        verification: { label: 'Search / Verify', visible: true }, quotations: { label: 'Quotes & Orders', visible: true },
+        invoices: { label: 'Invoices', visible: true }, finance: { label: 'Dealer Payments', visible: true },
+        accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: false },
+        replacements: { label: 'Replacements', visible: false }, rewards: { label: 'Rewards', visible: false },
+        chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+      },
+      retail: {
+        analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
+        inventory: { label: 'Stock', visible: true }, distribution: { label: 'Purchase', visible: true },
+        sales: { label: 'Sales Entry', visible: false }, purchases: { label: 'Purchases', visible: true },
+        verification: { label: 'Search / Verify', visible: true }, quotations: { label: 'Quotes & Orders', visible: true },
+        invoices: { label: 'Invoices', visible: true }, finance: { label: 'Supplier Payments', visible: true },
+        accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: false },
+        replacements: { label: 'Replacements', visible: false }, rewards: { label: 'Rewards', visible: false },
+        chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+      },
+      service: {
+        analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
+        inventory: { label: 'Inventory', visible: false }, distribution: { label: 'Distribution', visible: false },
+        sales: { label: 'Sales Entry', visible: false }, purchases: { label: 'Expenses', visible: true },
+        verification: { label: 'Search / Verify', visible: false }, quotations: { label: 'Quotes & Orders', visible: true },
+        invoices: { label: 'Invoices', visible: true }, finance: { label: 'Invoice Finance', visible: true },
+        accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: false },
+        replacements: { label: 'Replacements', visible: false }, rewards: { label: 'Rewards', visible: false },
+        chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+      },
     };
-    const bType = ['manufacturer', 'dealer', 'retail', 'service'].includes(req.body.businessType) ? req.body.businessType : 'manufacturer';
-    await pool.query('UPDATE tenants SET tab_config = $1, business_type = $2 WHERE id = $3', [JSON.stringify(req.body.tabConfig || defaultTabConfig), bType, result.tenantId]);
+    const tabConfig = PRESETS[bType] || PRESETS.manufacturer;
+    await pool.query('UPDATE tenants SET tab_config = $1, business_type = $2 WHERE id = $3', [JSON.stringify(tabConfig), bType, result.tenantId]);
     await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ ...result, adminEmail, companyName, tempPassword: result.credentials.password });
   } catch (err) {
