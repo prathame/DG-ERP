@@ -79,7 +79,14 @@ function EnquiryForm({ dark }: { dark: boolean }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export function LandingPage() {
-  const [shutterDone, setShutterDone] = useState(false);
+  const [shutterDone, setShutterDone] = useState(() => {
+    try {
+      // Show only on first visit ('navigate') or manual/hard refresh ('reload')
+      // Skip on browser back/forward button ('back_forward')
+      const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+      return nav?.type === 'back_forward';
+    } catch { return false; }
+  });
   const handleShutterDone = () => setShutterDone(true);
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
