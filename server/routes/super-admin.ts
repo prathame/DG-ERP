@@ -517,6 +517,40 @@ router.get('/api/super-admin/analytics', superAdminMiddleware, async (req, res) 
   }
 });
 
+// Real-time active users (active in last 15 min)
+router.get('/api/super-admin/tenants/:id/active-users', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const rows = (await pool.query(
+      `SELECT id, name, email, role, last_active_at
+       FROM users WHERE tenant_id=$1 AND last_active_at > NOW() - INTERVAL '15 minutes'
+       ORDER BY last_active_at DESC`,
+      [id]
+    )).rows;
+    res.json({ activeCount: rows.length, users: rows });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Upgrade / change plan
+router.post('/api/super-admin/tenants/:id/upgrade-plan', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { planId, subscriptionEnd } = req.body;
+    if (!planId) return res.status(400).json({ error: 'planId required' });
+    const plan = (await pool.query('SELECT id, name FROM plans WHERE id=$1', [planId])).rows[0] as { id: string; name: string } | undefined;
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+    await pool.query(
+      'UPDATE tenants SET plan_id=$1, status=$2, subscription_ends_at=$3 WHERE id=$4',
+      [planId, 'active', subscriptionEnd || null, id]
+    );
+    res.json({ ok: true, plan: plan.name });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // ── Tenant activity — login history, usage stats, storage ────────────────────
 router.get('/api/super-admin/tenants/:id/activity', superAdminMiddleware, async (req, res) => {
   try {

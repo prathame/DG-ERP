@@ -69,6 +69,11 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   const [notifyForm, setNotifyForm] = useState({ title: '', message: '', type: 'info' });
   const [sendingNotify, setSendingNotify] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [activeUsers, setActiveUsers] = useState<{ activeCount: number; users: { id: string; name: string; email: string; role: string; last_active_at: string }[] } | null>(null);
+  const [activeUsersLoading, setActiveUsersLoading] = useState(false);
+  const [upgradePlan, setUpgradePlan] = useState('');
+  const [upgradeEnd, setUpgradeEnd] = useState('');
+  const [upgrading, setUpgrading] = useState(false);
 
   React.useEffect(() => {
     const token = session.getToken();
@@ -536,6 +541,82 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
           <Bell size={16} className="text-amber-500" />
           <div><p className="text-sm font-bold">Send In-App Notification</p><p className="text-xs text-gray-400">Message appears on tenant's next login</p></div>
         </button>
+
+        {/* Real-time active users */}
+        <div className="border border-gray-200 rounded-xl overflow-hidden">
+          <button
+            onClick={async () => {
+              if (activeUsers) { setActiveUsers(null); return; }
+              setActiveUsersLoading(true);
+              const saToken = session.getToken();
+              const r = await fetch(`/api/super-admin/tenants/${tenantId}/active-users`, { headers: { Authorization: `Bearer ${saToken}` } });
+              const d = await r.json();
+              setActiveUsers(d);
+              setActiveUsersLoading(false);
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left"
+          >
+            <Users size={16} className="text-emerald-500" />
+            <div className="flex-1">
+              <p className="text-sm font-bold">Active Users Right Now</p>
+              <p className="text-xs text-gray-400">Users active in last 15 minutes</p>
+            </div>
+            {activeUsersLoading && <span className="text-xs text-gray-400">Loading...</span>}
+            {activeUsers && <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">{activeUsers.activeCount} online</span>}
+          </button>
+          {activeUsers && activeUsers.users.length > 0 && (
+            <div className="border-t border-gray-100 px-4 py-3 space-y-2">
+              {activeUsers.users.map(u => (
+                <div key={u.id} className="flex items-center justify-between text-sm">
+                  <div>
+                    <span className="font-medium">{u.name}</span>
+                    <span className="text-xs text-gray-400 ml-2">{u.role}</span>
+                  </div>
+                  <span className="text-xs text-emerald-600">● {new Date(u.last_active_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {activeUsers && activeUsers.users.length === 0 && (
+            <div className="border-t border-gray-100 px-4 py-3 text-xs text-gray-400">No users active in last 15 minutes</div>
+          )}
+        </div>
+
+        {/* Upgrade plan */}
+        <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Zap size={16} className="text-purple-500" />
+            <p className="text-sm font-bold">Upgrade / Change Plan</p>
+            <span className="ml-auto text-xs bg-gray-100 px-2 py-0.5 rounded-full">Current: {tenant.planId}</span>
+          </div>
+          <div className="flex gap-2">
+            <select value={upgradePlan} onChange={e => setUpgradePlan(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+              <option value="">Select new plan...</option>
+              {plans.map(p => <option key={p.id} value={p.id}>{p.name} — ₹{p.priceMonthly}/mo</option>)}
+            </select>
+            <input type="date" value={upgradeEnd} onChange={e => setUpgradeEnd(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm" title="Valid until" />
+            <button
+              disabled={!upgradePlan || upgrading}
+              onClick={async () => {
+                setUpgrading(true);
+                const saToken = session.getToken();
+                const r = await fetch(`/api/super-admin/tenants/${tenantId}/upgrade-plan`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${saToken}` },
+                  body: JSON.stringify({ planId: upgradePlan, subscriptionEnd: upgradeEnd || undefined }),
+                });
+                const d = await r.json();
+                if (r.ok) { toast(`Upgraded to ${d.plan}`, 'success'); fetchTenant(); setUpgradePlan(''); setUpgradeEnd(''); }
+                else toast(d.error, 'error');
+                setUpgrading(false);
+              }}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 disabled:opacity-50"
+            >
+              {upgrading ? '...' : 'Upgrade'}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Notify modal */}

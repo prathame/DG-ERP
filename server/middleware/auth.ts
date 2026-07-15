@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import { pool } from '../pg-db';
 
 dotenv.config();
 
@@ -40,6 +41,10 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     const decoded = jwt.verify(token, JWT_SECRET!, { algorithms: ['HS256'] }) as JwtPayload;
     req.user = decoded;
     req.tenantId = decoded.tenantId;
+    // Track last active — fire-and-forget, never blocks the request
+    if (decoded.userId && decoded.tenantId) {
+      pool.query('UPDATE users SET last_active_at=NOW() WHERE id=$1 AND tenant_id=$2', [decoded.userId, decoded.tenantId]).catch(() => {});
+    }
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });
