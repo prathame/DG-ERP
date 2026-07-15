@@ -5,7 +5,7 @@ import { api } from '../../api';
 import { PasswordInput } from '../ui/PasswordInput';
 import { session } from '../../lib/session';
 
-type LoginMode = 'login' | 'signup' | 'forgot' | 'reset';
+type LoginMode = 'login' | 'forgot' | 'reset';
 
 interface LoginResult {
   token: string;
@@ -59,11 +59,6 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
     setError('');
     setSuccessMessage('');
 
-    if (mode === 'signup' && form.password !== form.confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
     setSubmitting(true);
     try {
       if (mode === 'forgot') {
@@ -82,9 +77,6 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
           tenantSlug: r.tenantSlug,
           user: { id: r.id, email: r.email, name: r.name, phone: r.phone, address: r.address, role: r.role, companyName: r.companyName, vendorId: r.vendorId, autoWhatsapp: r.autoWhatsapp, planName: (r as Record<string, unknown>).planName as string, barcodeSystemEnabled: (r as Record<string, unknown>).barcodeSystemEnabled as boolean, multiLanguageEnabled: (r as Record<string, unknown>).multiLanguageEnabled as boolean, vendorPortalEnabled: (r as Record<string, unknown>).vendorPortalEnabled as boolean, tabConfig: (r as Record<string, unknown>).tabConfig as Record<string, { label: string; visible: boolean }> | null },
         });
-      } else {
-        const result = await api.auth.signup({ email: form.email, password: form.password, name: form.name });
-        storeAuthAndLogin(result);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
@@ -93,7 +85,7 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
     }
   };
 
-  const showTabs = !isBranded && (mode === 'login' || mode === 'signup');
+  const showTabs = false; // signup disabled — all user creation goes through admin
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center p-4">
@@ -118,30 +110,23 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
           {showTabs && (
             <div className="flex gap-2 mb-6">
               <button type="button" onClick={() => { setMode('login'); setError(''); }} className={cn("flex-1 py-3 rounded-xl font-bold transition-all", mode === 'login' ? 'text-white' : 'bg-white/5 text-gray-400 hover:text-white')} style={mode === 'login' ? { backgroundColor: accentColor } : undefined}>Login</button>
-              <button type="button" onClick={() => { setMode('signup'); setError(''); }} className={cn("flex-1 py-3 rounded-xl font-bold transition-all", mode === 'signup' ? 'text-white' : 'bg-white/5 text-gray-400 hover:text-white')} style={mode === 'signup' ? { backgroundColor: accentColor } : undefined}>Sign Up</button>
             </div>
           )}
           {(mode === 'forgot' || mode === 'reset') && (
             <button type="button" onClick={() => { setMode('login'); setError(''); setSuccessMessage(''); }} className="text-sm text-gray-400 hover:text-white mb-4 flex items-center gap-1">&larr; Back to login</button>
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'signup' && (
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Name</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="Full name" /></div>
-            )}
             {mode !== 'reset' && (
               <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="you@example.com" /></div>
             )}
-            {(mode === 'login' || mode === 'signup') && (
+            {mode === 'login' && (
               <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><PasswordInput required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" /></div>
-            )}
-            {mode === 'signup' && (
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm Password</label><PasswordInput required value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" /></div>
             )}
             {mode === 'forgot' && <p className="text-xs text-gray-500">Enter your email and we'll send you a password reset. Contact your admin if you don't receive it.</p>}
             {successMessage && <p className="text-sm text-emerald-400">{successMessage}</p>}
             {error && <p className="text-sm text-rose-400">{error}</p>}
             <button type="submit" disabled={submitting} className="w-full py-4 text-white rounded-xl font-bold text-lg transition-colors disabled:opacity-60" style={{ backgroundColor: accentColor }}>
-              {submitting ? 'Please wait...' : mode === 'login' ? 'Login' : mode === 'signup' ? 'Sign Up' : mode === 'forgot' ? 'Send Reset Request' : 'Reset Password'}
+              {submitting ? 'Please wait...' : mode === 'login' ? 'Login' : mode === 'forgot' ? 'Send Reset Request' : 'Reset Password'}
             </button>
           </form>
           {mode === 'login' && (
