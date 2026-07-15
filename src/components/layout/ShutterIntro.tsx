@@ -3,6 +3,15 @@ import { useEffect, useState } from 'react';
 
 const SLATS = 14;
 
+// Split string into visual grapheme clusters (handles Gujarati combining chars)
+function splitGraphemes(str: string): string[] {
+  try {
+    return [...new Intl.Segmenter().segment(str)].map(s => s.segment);
+  } catch {
+    return [...str]; // fallback: split by JS char
+  }
+}
+
 function playShutterSound() {
   try {
     const ctx = new AudioContext();
@@ -177,29 +186,41 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
               ધંધો કરો, Smart કરો
             </motion.p>
 
-            {/* Main wordmark — slides up from bottom on reveal, flips EN ↔ GU */}
-            <div style={{ position: 'relative', overflow: 'hidden', paddingTop: '0.15em', paddingBottom: '0.15em' }}>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={wordLang}
-                  style={{
-                    fontSize: 'clamp(3.5rem, 12vw, 8rem)',
-                    lineHeight: 1,
-                    fontWeight: 800,
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    whiteSpace: 'nowrap',
-                  }}
-                  initial={{ y: '110%', opacity: 0 }}
-                  animate={{ y: revealed ? '0%' : '110%', opacity: revealed ? 1 : 0 }}
-                  exit={{ y: '-110%', opacity: 0 }}
-                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  {WORDS[wordLang]}
-                </motion.div>
-              </AnimatePresence>
-            </div>
+            {/* Main wordmark — departure board: each character clips and slides */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={wordLang}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  fontSize: 'clamp(3.5rem, 12vw, 8rem)',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  gap: '0.01em',
+                }}
+              >
+                {splitGraphemes(WORDS[wordLang]).map((char, i) => (
+                  <div
+                    key={i}
+                    style={{ overflow: 'hidden', display: 'inline-flex', alignItems: 'center', lineHeight: 1.05 }}
+                  >
+                    <motion.span
+                      style={{ display: 'inline-block', color: '#ffffff' }}
+                      initial={{ y: '105%' }}
+                      animate={{ y: revealed ? '0%' : '105%' }}
+                      exit={{ y: '-105%' }}
+                      transition={{
+                        delay: i * 0.06,
+                        duration: 0.38,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                    >
+                      {char}
+                    </motion.span>
+                  </div>
+                ))}
+              </motion.div>
+            </AnimatePresence>
 
             {/* Tagline */}
             <motion.p
