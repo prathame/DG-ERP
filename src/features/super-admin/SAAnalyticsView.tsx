@@ -198,6 +198,98 @@ function CloudAnalytics() {
   );
 }
 
+// ── Version Control Panel ──────────────────────────────────────────────────────
+function VersionControlPanel() {
+  const [cfg, setCfg] = useState<{ latestOnpremVersion: string | null; minOnpremVersion: string | null; cloudVersion: string; onpremVersions: { version: string; count: string; latest_seen: string }[] } | null>(null);
+  const [latest, setLatest] = useState('');
+  const [min, setMin] = useState('');
+  const [saving, setSaving] = useState(false);
+  const { toast } = { toast: (msg: string, type: string) => console.log(type, msg) }; // inline fallback
+
+  const load = async () => {
+    const r = await fetch('/api/super-admin/version-config', { headers: { Authorization: `Bearer ${session.getToken()}` } });
+    if (r.ok) {
+      const d = await r.json();
+      setCfg(d);
+      setLatest(d.latestOnpremVersion || '');
+      setMin(d.minOnpremVersion || '');
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    setSaving(true);
+    const r = await fetch('/api/super-admin/version-config', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.getToken()}` },
+      body: JSON.stringify({ latestOnpremVersion: latest || null, minOnpremVersion: min || null }),
+    });
+    if (r.ok) { alert('Version config saved — on-prem apps pick up on next heartbeat (up to 60 min)'); load(); }
+    setSaving(false);
+  };
+
+  if (!cfg) return null;
+
+  const versionList = cfg.onpremVersions || [];
+  const needing = latest ? versionList.filter(v => v.version !== latest && v.version !== 'Unknown').reduce((s, v) => s + Number(v.count), 0) : 0;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-bold flex items-center gap-2"><Zap size={16} className="text-purple-500" /> Version Control</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Manage what version on-prem customers run</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-gray-400">Cloud version</p>
+          <p className="text-sm font-bold text-blue-600">v{cfg.cloudVersion}</p>
+        </div>
+      </div>
+
+      {/* Current on-prem version distribution */}
+      {versionList.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {versionList.map(v => (
+            <div key={v.version} className={cn("rounded-xl p-3 text-center border", v.version === latest ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-gray-50')}>
+              <p className="text-xs text-gray-500 mb-0.5">v{v.version}</p>
+              <p className="text-lg font-bold">{v.count}</p>
+              <p className="text-[10px] text-gray-400">install{Number(v.count) !== 1 ? 's' : ''}</p>
+              {v.version === latest && <p className="text-[10px] text-emerald-600 font-bold mt-0.5">✓ Latest</p>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {needing > 0 && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+          <AlertTriangle size={14} className="text-amber-500 shrink-0" />
+          <p className="text-sm text-amber-700">{needing} installation{needing !== 1 ? 's' : ''} not on latest version</p>
+        </div>
+      )}
+
+      {/* Version inputs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Latest Version (optional update)</label>
+          <input value={latest} onChange={e => setLatest(e.target.value)} placeholder="e.g. 2.2.0"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+          <p className="text-[10px] text-gray-400 mt-1">Shows update notification in customer app</p>
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Minimum Version (force update)</label>
+          <input value={min} onChange={e => setMin(e.target.value)} placeholder="e.g. 2.0.0"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+          <p className="text-[10px] text-gray-400 mt-1">Blocks app until customer updates</p>
+        </div>
+      </div>
+
+      <button onClick={save} disabled={saving}
+        className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 disabled:opacity-50">
+        {saving ? 'Saving...' : 'Save & Push to All On-Prem Installs'}
+      </button>
+    </div>
+  );
+}
+
 // ── On-Prem Analytics ──────────────────────────────────────────────────────────
 function OnPremAnalytics() {
   const [data, setData] = useState<Record<string, unknown> | null>(null);
@@ -231,6 +323,9 @@ function OnPremAnalytics() {
 
   return (
     <div className="space-y-8">
+      {/* Version control panel */}
+      <VersionControlPanel />
+
       {/* KPIs */}
       <div>
         <SectionHeader title="License Health" sub="Real-time status of all on-prem installations" />

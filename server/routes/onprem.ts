@@ -77,9 +77,12 @@ router.post('/api/onprem/heartbeat', async (req, res) => {
       );
     }
 
-    // Check for latest version from env/config
-    const latestVersion = process.env.LATEST_ONPREM_VERSION || null;
-    const forceMinVersion = process.env.MIN_ONPREM_VERSION || null;
+    // Check version config from DB (fallback to env)
+    const cfgRows = (await pool.query("SELECT key, value FROM platform_config WHERE key IN ('latest_onprem_version','min_onprem_version')")).rows as { key: string; value: string }[];
+    const cfgMap: Record<string, string> = {};
+    for (const r of cfgRows) cfgMap[r.key] = r.value;
+    const latestVersion = cfgMap['latest_onprem_version'] || process.env.LATEST_ONPREM_VERSION || null;
+    const forceMinVersion = cfgMap['min_onprem_version'] || process.env.MIN_ONPREM_VERSION || null;
     const updateAvailable = latestVersion && version && latestVersion !== version;
     const forceUpdate = forceMinVersion && version && version < forceMinVersion;
 

@@ -517,6 +517,40 @@ router.get('/api/super-admin/analytics', superAdminMiddleware, async (req, res) 
   }
 });
 
+// ── Version management ────────────────────────────────────────────────────────
+router.get('/api/super-admin/version-config', superAdminMiddleware, async (req, res) => {
+  try {
+    const rows = (await pool.query('SELECT key, value FROM platform_config')).rows as { key: string; value: string }[];
+    const cfg: Record<string, string> = {};
+    for (const r of rows) cfg[r.key] = r.value;
+    // Also get version distribution across all on-prem installs
+    const versions = (await pool.query('SELECT COALESCE(app_version,\'Unknown\') as version, COUNT(*) as count, MAX(last_seen) as latest_seen FROM onprem_licenses WHERE status=\'active\' GROUP BY app_version ORDER BY count DESC')).rows;
+    res.json({
+      latestOnpremVersion: cfg['latest_onprem_version'] || null,
+      minOnpremVersion: cfg['min_onprem_version'] || null,
+      cloudVersion: process.env.npm_package_version || process.env.CLOUD_VERSION || '2.1.0',
+      onpremVersions: versions,
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, res) => {
+  try {
+    const { latestOnpremVersion, minOnpremVersion } = req.body;
+    if (latestOnpremVersion !== undefined) {
+      await pool.query('INSERT INTO platform_config (key, value, updated_at) VALUES ($1,$2,NOW()) ON CONFLICT (key) DO UPDATE SET value=$2, updated_at=NOW()', ['latest_onprem_version', latestOnpremVersion || null]);
+    }
+    if (minOnpremVersion !== undefined) {
+      await pool.query('INSERT INTO platform_config (key, value, updated_at) VALUES ($1,$2,NOW()) ON CONFLICT (key) DO UPDATE SET value=$2, updated_at=NOW()', ['min_onprem_version', minOnpremVersion || null]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // ── Cloud-specific analytics ──────────────────────────────────────────────────
 router.get('/api/super-admin/cloud-analytics', superAdminMiddleware, async (req, res) => {
   try {

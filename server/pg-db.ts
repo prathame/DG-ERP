@@ -713,6 +713,15 @@ export async function initSchema() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_inv_payments ON invoice_payments(tenant_id, invoice_id)');
 
+    // Platform config — key/value store for super admin settings
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS platform_config (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
     // On-premises license management (platform-level, no tenant_id)
     await client.query(`
       CREATE TABLE IF NOT EXISTS onprem_licenses (
