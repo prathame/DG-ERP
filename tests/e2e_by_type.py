@@ -598,6 +598,168 @@ def setup_tenant(sa_h, btype, slug, email):
         return tid, None
     return tid, d["token"]
 
+
+# ── On-Prem license API tests ──────────────────────────────────────────────────
+def test_onprem(sa_h):
+    global CURRENT_TYPE
+    CURRENT_TYPE = "on-prem"
+    RESULTS.setdefault("on-prem", {"pass":[], "fail":[], "skip":[]})
+
+    print("\n\n" + "━"*60)
+    print("  ON-PREM LICENSE API TESTS")
+    print("━"*60)
+
+    lic_id = ""
+    lic_key = ""
+
+    # ── Issue license ─────────────────────────────────────────────────────────
+    sec("Issue license")
+    s, d = req("POST", "/api/super-admin/onprem", {
+        "companyName": "E2E On-Prem Co",
+        "businessType": "manufacturer",
+        "adminEmail": "onprem@e2e.test",
+        "maxUsers": 5,
+        "validUntil": "2099-12-31",
+    }, sa_h)
+    ok("Issue license → 201", s == 201, f"{s} {d}")
+    ok("License key returned", bool(d.get("licenseKey","").startswith("DG-")), d.get("licenseKey",""))
+    ok("Company name in response", d.get("companyName") == "E2E On-Prem Co")
+    lic_id  = d.get("id", "")
+    lic_key = d.get("licenseKey", "")
+
+    # ── List licenses ─────────────────────────────────────────────────────────
+    sec("List licenses")
+    s, d = req("GET", "/api/super-admin/onprem", headers=sa_h)
+    ok("List licenses → 200", s == 200, str(s))
+    ok("License appears in list", any(l.get("licenseKey") == lic_key for l in (d if isinstance(d, list) else [])), lic_key)
+
+    if not lic_key:
+        ok("Remaining on-prem tests", False, "license key not created — skipping", skip=True)
+        return
+
+    # ── Activate (first machine) ───────────────────────────────────────────────
+    sec("Activate")
+    machine_a = "E2E-MACHINE-A"
+    s, d = req("POST", "/api/onprem/activate", {
+        "licenseKey": lic_key,
+        "machineId": machine_a,
+        "osInfo": "Linux x86_64",
+        "appVersion": "2.0.0",
+    })
+    ok("Activate → 200", s == 200, f"{s} {d}")
+    ok("valid=true in response", d.get("valid") is True, str(d.get("valid")))
+    ok("companyName in response", d.get("companyName") == "E2E On-Prem Co")
+    ok("businessType in response", d.get("businessType") == "manufacturer")
+    ok("maxUsers in response", isinstance(d.get("maxUsers"), int))
+
+    # ── Activate — wrong key ───────────────────────────────────────────────────
+    sec("Activate edge cases")
+    s, d = req("POST", "/api/onprem/activate", {"licenseKey": "DG-FAKE-FAKE-FAKE", "machineId": machine_a})
+    ok("Bad key → 404", s == 404, str(s))
+
+    s, d = req("POST", "/api/onprem/activate", {"machineId": machine_a})
+    ok("Missing key → 400", s == 400, str(s))
+
+    # ── Activate — machine conflict ────────────────────────────────────────────
+    s, d = req("POST", "/api/onprem/activate", {
+        "licenseKey": lic_key, "machineId": "E2E-MACHINE-B"
+    })
+    ok("Different machine → 403", s == 403, str(s))
+    ok("Machine conflict message", "machine" in d.get("error","").lower(), d.get("error",""))
+
+    # ── Activate — same machine again (idempotent) ────────────────────────────
+    s, d = req("POST", "/api/onprem/activate", {
+        "licenseKey": lic_key, "machineId": machine_a, "appVersion": "2.0.1"
+    })
+    ok("Re-activate same machine → 200", s == 200, str(s))
+    ok("Re-activate still valid", d.get("valid") is True)
+
+    # ── Heartbeat ─────────────────────────────────────────────────────────────
+    sec("Heartbeat")
+    s, d = req("POST", "/api/onprem/heartbeat", {
+        "licenseKey": lic_key,
+        "machineId": machine_a,
+        "version": "2.0.0",
+        "activeUsers": 3,
+        "diskMB": 512,
+    })
+    ok("Heartbeat → 200", s == 200, f"{s} {d}")
+    ok("licenseValid=true", d.get("licenseValid") is True, str(d.get("licenseValid")))
+    ok("licenseStatus=active", d.get("licenseStatus") == "active")
+    ok("daysUntilExpiry positive", (d.get("daysUntilExpiry") or 0) > 0)
+    ok("updateAvailable is bool", isinstance(d.get("updateAvailable"), bool))
+
+    # ── Heartbeat — unknown key ────────────────────────────────────────────────
+    s, d = req("POST", "/api/onprem/heartbeat", {"licenseKey": "DG-NONE-NONE-NONE", "machineId": machine_a})
+    ok("Heartbeat unknown key → 200 licenseValid=false", s == 200 and d.get("licenseValid") is False, f"{s} {d}")
+
+    # ── Heartbeat — wrong machine ─────────────────────────────────────────────
+    s, d = req("POST", "/api/onprem/heartbeat", {
+        "licenseKey": lic_key, "machineId": "E2E-MACHINE-C", "version": "2.0.0"
+    })
+    ok("Heartbeat wrong machine → licenseValid=false", d.get("licenseValid") is False, str(d))
+
+    # ── Suspend license ────────────────────────────────────────────────────────
+    sec("Suspend / update")
+    s, d = req("PUT", f"/api/super-admin/onprem/{lic_id}", {"status": "suspended"}, sa_h)
+    ok("Suspend → 200", s == 200, f"{s} {d}")
+
+    s, d = req("POST", "/api/onprem/activate", {"licenseKey": lic_key, "machineId": machine_a})
+    ok("Activate suspended → 403", s == 403, str(s))
+
+    s, d = req("POST", "/api/onprem/heartbeat", {"licenseKey": lic_key, "machineId": machine_a})
+    ok("Heartbeat suspended → licenseValid=false", d.get("licenseValid") is False, str(d))
+
+    # ── Re-activate after restore ─────────────────────────────────────────────
+    s, d = req("PUT", f"/api/super-admin/onprem/{lic_id}", {"status": "active"}, sa_h)
+    ok("Restore active → 200", s == 200, str(s))
+
+    s, d = req("POST", "/api/onprem/activate", {"licenseKey": lic_key, "machineId": machine_a})
+    ok("Activate after restore → 200", s == 200, str(s))
+
+    # ── Transfer license (clear machine binding) ──────────────────────────────
+    sec("Transfer license")
+    s, d = req("PUT", f"/api/super-admin/onprem/{lic_id}", {"clearMachine": True}, sa_h)
+    ok("Clear machine → 200", s == 200, str(s))
+
+    # Now a different machine should be able to activate
+    s, d = req("POST", "/api/onprem/activate", {
+        "licenseKey": lic_key, "machineId": "E2E-MACHINE-B"
+    })
+    ok("New machine activates after transfer → 200", s == 200, f"{s} {d}")
+    ok("Still valid after transfer", d.get("valid") is True)
+
+    # ── Deactivate ────────────────────────────────────────────────────────────
+    sec("Deactivate")
+    s, d = req("POST", "/api/onprem/deactivate", {"licenseKey": lic_key, "machineId": "E2E-MACHINE-B"})
+    ok("Deactivate → 200", s == 200, f"{s} {d}")
+    ok("Deactivate ok=true", d.get("ok") is True)
+
+    # Deactivate wrong machine
+    s, d = req("POST", "/api/onprem/deactivate", {"licenseKey": lic_key, "machineId": "E2E-MACHINE-WRONG"})
+    ok("Deactivate wrong machine → 404", s == 404, str(s))
+
+    # ── Update metadata ───────────────────────────────────────────────────────
+    sec("Update license metadata")
+    s, d = req("PUT", f"/api/super-admin/onprem/{lic_id}", {"maxUsers": 10, "validUntil": "2100-01-01"}, sa_h)
+    ok("Update maxUsers + validUntil → 200", s == 200, str(s))
+
+    s, d = req("PUT", f"/api/super-admin/onprem/{lic_id}", {}, sa_h)
+    ok("Empty update → 400", s == 400, str(s))
+
+    # ── Delete license ────────────────────────────────────────────────────────
+    sec("Delete license")
+    s, d = req("DELETE", f"/api/super-admin/onprem/{lic_id}", headers=sa_h)
+    ok("Delete → 200", s == 200, f"{s} {d}")
+    ok("Delete ok=true", d.get("ok") is True)
+
+    s, d = req("DELETE", f"/api/super-admin/onprem/{lic_id}", headers=sa_h)
+    ok("Delete nonexistent → 404", s == 404, str(s))
+
+    # Verify gone from list
+    s, d = req("GET", "/api/super-admin/onprem", headers=sa_h)
+    ok("Deleted license not in list", not any(l.get("id") == lic_id for l in (d if isinstance(d, list) else [])))
+
 def cleanup(sa_h, *tids):
     for tid in tids:
         if tid: req("DELETE",f"/api/super-admin/tenants/{tid}",headers=sa_h)
@@ -667,13 +829,16 @@ if __name__ == "__main__":
         elif btype == "retail":     test_retail(tok, tid, ids)
         elif btype == "service":    test_service(tok, tid, ids)
 
+    # ── On-Prem API tests (super admin scope, no Electron needed)
+    test_onprem(sa_h)
+
     # ── Summary ───────────────────────────────────────────────────────────────
     print(f"\n\n{'═'*60}")
     print("  RESULTS BY BUSINESS TYPE")
     print(f"{'═'*60}")
 
     grand_pass = grand_fail = 0
-    for btype in ["manufacturer","dealer","retail","service"]:
+    for btype in ["manufacturer","dealer","retail","service","on-prem"]:
         r = RESULTS.get(btype, {"pass":[],"fail":[],"skip":[]})
         p,f,sk = len(r["pass"]),len(r["fail"]),len(r["skip"])
         grand_pass += p; grand_fail += f
