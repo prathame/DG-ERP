@@ -259,10 +259,43 @@ router.get('/api/analytics/recent-activity', async (req: AuthRequest, res) => {
 });
 
 // Combined analytics overview
-router.get('/api/analytics/overview', async (req, res) => {
+router.get('/api/analytics/overview', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const vid = vendorScopeId(req);
+    if (req.user?.role === 'Vendor' && !vid) {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    }
+    if (vid) {
+      // Vendor-scoped overview — no tenant-wide invoices/expenses/masters
+      const { from, to } = req.query as { from?: string; to?: string };
+      const dateFilter = (col: string) => from && to ? `AND ${col} BETWEEN $3 AND $4` : from ? `AND ${col} >= $3` : '';
+      const p = from && to ? [tenantId, vid, from, to] : from ? [tenantId, vid, from] : [tenantId, vid];
+      const [collections, salesRev, distribution, outstanding, activityRows] = await Promise.all([
+        pool.query(`SELECT COALESCE(SUM(amount),0) as v FROM vendor_payments WHERE tenant_id=$1 AND vendor_id=$2 ${dateFilter('payment_date')}`, p).then(r => Number(r.rows[0].v) || 0),
+        pool.query(`SELECT COALESCE(SUM(sale_price),0) as v FROM product_sales WHERE tenant_id=$1 AND vendor_id=$2 ${dateFilter('purchase_date')}`, p).then(r => Number(r.rows[0].v) || 0),
+        pool.query(`SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0) as v FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1 AND pd.vendor_id=$2 ${dateFilter('pd.distribution_date')}`, p).then(r => Number(r.rows[0].v) || 0),
+        pool.query(`SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0)-COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id=$1 AND vendor_id=$2),0) as v FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1 AND pd.vendor_id=$2`, [tenantId, vid]).then(r => Number(r.rows[0].v) || 0),
+        pool.query(`SELECT type,id,label,amount,date FROM (
+          SELECT 'sale' as type,id,COALESCE(customer_name,'Customer') as label,sale_price as amount,purchase_date::text as date FROM product_sales WHERE tenant_id=$1 AND vendor_id=$2
+          UNION ALL SELECT 'payment',id,vendor_id,amount,payment_date::text FROM vendor_payments WHERE tenant_id=$1 AND vendor_id=$2
+          UNION ALL SELECT 'distribution',COALESCE(batch_id,id),vendor_id,SUM(COALESCE(billed_price,net_price,0)),MIN(distribution_date)::text FROM product_distribution WHERE tenant_id=$1 AND vendor_id=$2 GROUP BY COALESCE(batch_id,id),vendor_id
+        ) t ORDER BY date DESC LIMIT 15`, [tenantId, vid]),
+      ]);
+      const vName = ((await pool.query('SELECT name FROM vendors WHERE id=$1 AND tenant_id=$2', [vid, tenantId])).rows[0] as { name: string } | undefined)?.name || vid;
+      return res.json({
+        money: { collections, revenue: salesRev, distribution, expenses: 0, outstanding, invoiceOutstanding: 0 },
+        recentActivity: activityRows.rows.map((r: Record<string, unknown>) => ({
+          ...r, amount: Number(r.amount) || 0,
+          label: (r.type === 'payment' || r.type === 'distribution') ? vName : r.label,
+        })),
+        topVendors: [{ vendorId: vid, vendorName: vName, balance: outstanding }],
+        counts: { customerMaster: 0, vendorMaster: 1, itemMaster: 0, bankMaster: 0, staffCount: 0 },
+      });
+    }
+
     const { from, to } = req.query as { from?: string; to?: string };
     const dateFilter = (col: string) => from && to ? `AND ${col} BETWEEN $2 AND $3` : from ? `AND ${col} >= $2` : '';
     const params = (extra: unknown[]) => from && to ? [tenantId, from, to, ...extra] : from ? [tenantId, from, ...extra] : [tenantId, ...extra];
@@ -339,21 +372,26 @@ router.get('/api/analytics/overview', async (req, res) => {
   }
 });
 
-router.get('/api/dashboard/rewards-summary', async (req, res) => {
+router.get('/api/dashboard/rewards-summary', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const vid = vendorScopeId(req);
+    if (req.user?.role === 'Vendor' && !vid) {
+      return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+    }
+
     const [vendorRows, productSales] = await Promise.all([
       pool.query(`
         SELECT v.id, v.name, v.total_sales as products_sold, v.total_reward_points
-        FROM vendors v WHERE v.tenant_id = $1 ORDER BY v.total_reward_points DESC
-      `, [tenantId]),
+        FROM vendors v WHERE v.tenant_id = $1 ${vid ? 'AND v.id = $2' : ''} ORDER BY v.total_reward_points DESC
+      `, vid ? [tenantId, vid] : [tenantId]),
       pool.query(`
         SELECT p.name as product_name, COUNT(ps.id) as sold
         FROM product_sales ps JOIN products p ON ps.product_id = p.id AND p.tenant_id = $1
-        WHERE ps.tenant_id = $1 GROUP BY p.name ORDER BY sold DESC LIMIT 5
-      `, [tenantId]),
+        WHERE ps.tenant_id = $1 ${vid ? 'AND ps.vendor_id = $2' : ''} GROUP BY p.name ORDER BY sold DESC LIMIT 5
+      `, vid ? [tenantId, vid] : [tenantId]),
     ]);
 
     res.json({

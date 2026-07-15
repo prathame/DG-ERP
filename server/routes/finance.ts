@@ -125,6 +125,7 @@ router.get('/api/vendor-finance/:vendorId', async (req: AuthRequest, res) => {
 });
 
 router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: AuthRequest, res) => {
+  const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -135,28 +136,40 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
     if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ error: 'Amount must be a valid number greater than 0' });
     if (parsedAmount > 100000000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
 
-    const vendor = (await pool.query('SELECT id FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0];
-    if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
-
     const pDate = paymentDate || new Date().toISOString().slice(0, 10);
     const pMethod = paymentMethod || 'Cash';
-    const vendorName = ((await pool.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id = $2', [vendorId, tenantId])).rows[0] as { name: string } | undefined)?.name ?? vendorId;
+
+    await client.query('BEGIN');
+    const vendor = (await client.query(
+      'SELECT id, name FROM vendors WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [vendorId, tenantId]
+    )).rows[0] as { id: string; name: string } | undefined;
+    if (!vendor) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Vendor not found' });
+    }
+    const vendorName = vendor.name ?? vendorId;
 
     if (batchId) {
-      const batchOwned = (await pool.query(
+      const batchOwned = (await client.query(
         `SELECT 1 FROM product_distribution WHERE batch_id = $1 AND vendor_id = $2 AND tenant_id = $3 LIMIT 1`,
         [batchId, vendorId, tenantId]
       )).rows[0];
-      if (!batchOwned) return res.status(400).json({ error: 'Batch does not belong to this vendor' });
+      if (!batchOwned) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Batch does not belong to this vendor' });
+      }
 
       const id = uid('VP');
-      await pool.query(
+      await client.query(
         'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
         [id, vendorId, parsedAmount, pDate, pMethod, referenceNumber || null, notes || null, tenantId, batchId]
       );
+      await client.query('COMMIT');
       logAudit(pool, tenantId, 'Payment Recorded', 'payment', id, `${vendorName} paid ₹${parsedAmount}, batch ${batchId}`);
     } else {
-      const batches = (await pool.query(`
+      // Re-read dues inside the locked transaction to avoid concurrent over-allocation
+      const batches = (await client.query(`
         SELECT pd.batch_id,
           SUM(COALESCE(pd.billed_price, pd.net_price, 0)) as bill_value,
           COALESCE((SELECT SUM(vp.amount) FROM vendor_payments vp WHERE vp.batch_id = pd.batch_id AND vp.vendor_id = $1 AND vp.tenant_id = $2), 0) as paid
@@ -167,36 +180,26 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
         ORDER BY MIN(pd.distribution_date)
       `, [vendorId, tenantId])).rows as { batch_id: string; bill_value: number; paid: number }[];
 
-      // H6 fix: wrap all batch INSERTs in a single transaction
-      const batchClient = await (await import('../pg-db')).pool.connect();
-      try {
-        await batchClient.query('BEGIN');
-        let remaining = parsedAmount;
-        for (const b of batches) {
-          if (remaining <= 0) break;
-          const due = Number(b.bill_value) - Number(b.paid);
-          const pay = Math.min(remaining, due);
-          const id = uid('VP');
-          await batchClient.query(
-            'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-            [id, vendorId, pay, pDate, pMethod, referenceNumber || null, notes ? `${notes} (batch ${b.batch_id})` : `All-batch payment`, tenantId, b.batch_id]
-          );
-          remaining -= pay;
-        }
-        if (remaining > 0) {
-          const id = uid('VP');
-          await batchClient.query(
-            'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-            [id, vendorId, remaining, pDate, pMethod, referenceNumber || null, notes || 'Advance payment', tenantId, null]
-          );
-        }
-        await batchClient.query('COMMIT');
-      } catch (e) {
-        await batchClient.query('ROLLBACK');
-        throw e;
-      } finally {
-        batchClient.release();
+      let remaining = parsedAmount;
+      for (const b of batches) {
+        if (remaining <= 0) break;
+        const due = Number(b.bill_value) - Number(b.paid);
+        const pay = Math.min(remaining, due);
+        const id = uid('VP');
+        await client.query(
+          'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+          [id, vendorId, pay, pDate, pMethod, referenceNumber || null, notes ? `${notes} (batch ${b.batch_id})` : `All-batch payment`, tenantId, b.batch_id]
+        );
+        remaining -= pay;
       }
+      if (remaining > 0) {
+        const id = uid('VP');
+        await client.query(
+          'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+          [id, vendorId, remaining, pDate, pMethod, referenceNumber || null, notes || 'Advance payment', tenantId, null]
+        );
+      }
+      await client.query('COMMIT');
       logAudit(pool, tenantId, 'Payment Recorded', 'payment', uid('VP'), `${vendorName} paid ₹${parsedAmount} across ${batches.length} batches`);
     }
 
@@ -204,8 +207,9 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
       id: uid('VP'), amount: parsedAmount, paymentDate: pDate, paymentMethod: pMethod, referenceNumber: referenceNumber || null, notes: notes || null,
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
-  }
+  } finally { client.release(); }
 });
 
 router.put('/api/vendor-finance/:vendorId/reminder', blockVendors, async (req: AuthRequest, res) => {
