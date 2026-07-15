@@ -52,7 +52,7 @@ router.get('/api/audit-log', async (req, res) => {
   }
 });
 
-router.get('/api/backup', async (req, res) => {
+router.get('/api/backup', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -136,20 +136,19 @@ router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) =
     if (!data || !data._meta) return res.status(400).json({ error: 'Invalid backup file — missing _meta header' });
     if (data._meta.version !== '1.0') return res.status(400).json({ error: `Unsupported backup version: ${data._meta.version}` });
 
-    const restoreTables = ['categories', 'products', 'product_inventory', 'product_distribution', 'product_sales', 'product_purchases',
-      'vendors', 'vendor_payments', 'customers', 'warranties', 'rewards', 'reward_rules',
-      'quotations', 'orders', 'credit_debit_notes', 'price_lists',
-      'suppliers', 'supplier_payments', 'banks', 'bill_settings', 'staff_payments'];
+    // H3: only clear/restore tables that have a column allowlist — never wipe
+    // tables we cannot reinsert (staff_members, audit_log, rewards, etc.).
+    const restoreTables = Object.keys(BACKUP_COLUMN_ALLOWLIST);
+    const clearOrder = [
+      'vendor_payments', 'product_sales', 'product_distribution', 'product_inventory',
+      'product_purchases', 'warranties', 'quotations', 'standalone_invoices', 'expenses',
+      'customers', 'banks', 'suppliers', 'vendors', 'categories', 'products',
+    ].filter((t) => BACKUP_COLUMN_ALLOWLIST[t]);
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Clear existing data in reverse dependency order
-      const clearOrder = ['staff_payments', 'staff_members', 'bill_settings', 'audit_log', 'credit_debit_notes', 'price_lists', 'orders', 'quotations',
-        'reward_rules', 'rewards', 'warranties', 'supplier_payments', 'product_purchases',
-        'vendor_payments', 'product_sales', 'product_distribution', 'product_inventory',
-        'customers', 'banks', 'suppliers', 'vendors', 'categories', 'products'];
       for (const table of clearOrder) {
         await client.query(`DELETE FROM ${table} WHERE tenant_id = $1`, [tenantId]);
       }
@@ -161,7 +160,7 @@ router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) =
         for (const row of rows) {
           row.tenant_id = tenantId;
           const allowed = BACKUP_COLUMN_ALLOWLIST[table];
-          if (!allowed) continue; // skip unknown tables entirely
+          if (!allowed) continue;
           const cols = Object.keys(row).filter(k => allowed.has(k));
           if (cols.length === 0) continue;
           const vals = cols.map((_, i) => `$${i + 1}`);
@@ -206,7 +205,7 @@ router.get('/api/backup/settings', async (req, res) => {
   }
 });
 
-router.put('/api/backup/settings', async (req, res) => {
+router.put('/api/backup/settings', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

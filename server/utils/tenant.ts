@@ -89,7 +89,7 @@ export async function deleteTenant(tenantId: string) {
       'expenses', 'staff_payments', 'staff_members', 'bill_settings', 'audit_log',
       'credit_debit_notes', 'price_lists', 'orders', 'quotations',
       'reward_rules', 'rewards', 'product_replacements', 'warranties',
-      'password_reset_tokens', 'transactions', 'tenant_invoices', 'tenant_stats',
+      'password_reset_tokens', 'tenant_invoices', 'tenant_stats',
       'supplier_payments', 'product_purchases', 'vendor_payments',
       'invoice_payments', 'standalone_invoices',
       'product_sales', 'product_distribution', 'product_inventory',

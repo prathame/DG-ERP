@@ -27,8 +27,9 @@ router.post('/api/categories', requireAdmin, async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { name } = req.body;
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'Category name is required' });
     const id = uid('CAT');
-    await pool.query('INSERT INTO categories (id, name, tenant_id) VALUES ($1, $2, $3)', [id, name ?? '', tenantId]);
+    await pool.query('INSERT INTO categories (id, name, tenant_id) VALUES ($1, $2, $3)', [id, String(name).trim(), tenantId]);
     const row = (await pool.query('SELECT * FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     res.status(201).json({ id: row.id, name: row.name });
   } catch (err) {
@@ -441,7 +442,11 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
     if (mode === 'prefix') {
       const prefix = typeof barcodePrefix === 'string' ? barcodePrefix.trim() : '';
       const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
-      if (!prefix) return res.status(400).json({ error: 'Barcode prefix is required (e.g. SP, PUMP, etc.)' });
+      // H5: must ROLLBACK before early return — connection is mid-transaction
+      if (!prefix) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Barcode prefix is required (e.g. SP, PUMP, etc.)' });
+      }
       const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, qty);
       await insertProductRow();
       await insertBarcodes(barcodes);
@@ -454,7 +459,10 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
       await insertBarcodes(barcodes);
     } else if (mode === 'range' && typeof rangeStart === 'string' && typeof rangeEnd === 'string' && rangeStart.trim() && rangeEnd.trim()) {
       const barcodes = expandBarcodeRange(rangeStart.trim(), rangeEnd.trim());
-      if (barcodes.length === 0) return res.status(400).json({ error: 'Invalid barcode range' });
+      if (barcodes.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Invalid barcode range' });
+      }
       await insertProductRow();
       await insertBarcodes(barcodes);
     } else {

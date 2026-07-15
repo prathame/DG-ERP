@@ -144,17 +144,19 @@ app.use('/api/', async (req, res, next) => {
       );
       const row = userRow.rows[0] as { password_changed_at: Date | null; status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
 
-      if (row?.status === 'suspended') return res.status(403).json({ error: 'Account suspended. Contact admin.' });
+      // C1: deleted/missing users must not keep API access until JWT expiry
+      if (!row) return res.status(401).json({ error: 'User no longer exists. Please log in again.' });
+
+      if (row.status === 'suspended') return res.status(403).json({ error: 'Account suspended. Contact admin.' });
       // #12 fix: only check the date that applies to this tenant's status
       // (mirrors the login route logic to prevent active tenants with stale trial_ends_at being blocked)
-      const status = row?.status;
-      const expiresAt = status === 'trial' ? row?.trial_ends_at
-                      : status === 'active' ? row?.subscription_ends_at
+      const expiresAt = row.status === 'trial' ? row.trial_ends_at
+                      : row.status === 'active' ? row.subscription_ends_at
                       : null;
       if (expiresAt && new Date(expiresAt).getTime() < Date.now()) return res.status(403).json({ error: 'Subscription expired. Contact admin to renew.' });
 
       // JWT invalidation: reject tokens issued before the last password change
-      if (row?.password_changed_at && decoded.iat && row.password_changed_at.getTime() / 1000 > decoded.iat) {
+      if (row.password_changed_at && decoded.iat && row.password_changed_at.getTime() / 1000 > decoded.iat) {
         return res.status(401).json({ error: 'Session expired after password change. Please log in again.' });
       }
     } else if (decoded.tenantId) {

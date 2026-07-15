@@ -396,7 +396,7 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
       )).rows as { id: string; barcode: string }[];
       if (distInvRows.length < qty) {
         await client.query('ROLLBACK');
-        client.release();
+        // C3/C8: don't release here — finally block handles it
         return res.status(400).json({ error: `Insufficient stock. Available: ${distInvRows.length}, requested: ${qty}` });
       }
       const existingInBatch = typeof reqBatchId === 'string' && reqBatchId
