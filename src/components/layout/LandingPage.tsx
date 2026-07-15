@@ -6,7 +6,7 @@ import {
   Package, ShoppingCart, Truck, Receipt, IndianRupee, BarChart3, Users,
   ArrowRight, Check, Mail, Phone, MessageCircle, Moon, Sun, Send,
   Store, Factory, Warehouse, Briefcase, Zap, Shield, Globe, FileText,
-  ChevronRight, Database, Cloud, Cpu, Lock,
+  ChevronRight, Database, Cloud, Cpu, Lock, Menu, X,
 } from 'lucide-react';
 
 // ── Animated counter ──────────────────────────────────────────────────────────
@@ -82,6 +82,7 @@ export function LandingPage() {
   const [shutterDone, setShutterDone] = useState(false);
   const handleShutterDone = () => setShutterDone(true);
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [lang, setLang] = useState<'en' | 'hi' | 'gu'>('en');
   const [heroLang, setHeroLang] = useState(0);
   const [heroAuto, setHeroAuto] = useState(true);
@@ -173,8 +174,26 @@ export function LandingPage() {
             </div>
             <button type="button" onClick={toggleTheme} className={`p-2 rounded-lg ${muted} hover:text-current transition-colors`}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
             <a href="#contact" className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-bold rounded-lg transition-colors hidden sm:block">{L('Try Free','ट्राय करें','Try Free')}</a>
+            <button type="button" onClick={() => setMobileMenuOpen(o => !o)} className={`md:hidden p-2 rounded-lg ${muted} hover:text-current transition-colors`}>
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
           </div>
         </div>
+        {/* Mobile dropdown */}
+        {mobileMenuOpen && (
+          <div className={`md:hidden border-t ${border} ${navBg} backdrop-blur-xl`}>
+            {['#business','#features','#pricing','#contact'].map((href, i) => (
+              <a key={href} href={href} onClick={() => setMobileMenuOpen(false)}
+                className={`block px-4 py-3 text-sm border-b ${border} ${muted} hover:text-current transition-colors`}>
+                {[L('Business','व्यापार','વ્યાપાર'), 'Features', L('Pricing','कीमत','કિંમત'), L('Contact','संपर्क','સંપર્ક')][i]}
+              </a>
+            ))}
+            <a href="#contact" onClick={() => setMobileMenuOpen(false)}
+              className="block px-4 py-3 text-sm font-bold text-brand">
+              {L('Try Free','ट्राय करें','Try Free')}
+            </a>
+          </div>
+        )}
       </nav>
 
       {/* ── Hero ────────────────────────────────────────────────────────────── */}
@@ -188,10 +207,10 @@ export function LandingPage() {
           <div className="grid lg:grid-cols-[1fr_480px] gap-12 lg:gap-16 items-center min-h-[520px]">
 
             {/* ── Left col: all text ─────────────────────────────────────── */}
-            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} className="flex flex-col items-start">
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} className="flex flex-col items-center text-center lg:items-start lg:text-left">
 
               {/* Badge + lang switcher row */}
-              <div className="flex flex-wrap items-center gap-3 mb-7">
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-7">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium" style={{ borderColor: 'rgba(242,125,38,0.3)', background: 'rgba(242,125,38,0.08)', color: '#F27D26' }}>
                   <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
                   🇮🇳 Made in India
@@ -216,18 +235,18 @@ export function LandingPage() {
               </motion.div>
 
               {/* CTAs */}
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col sm:flex-row items-start gap-3 mb-4">
-                <a href="#contact" className="group px-7 py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-base transition-colors flex items-center gap-2 shadow-lg shadow-brand/20">
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col sm:flex-row items-center lg:items-start gap-3 mb-4 w-full">
+                <a href="#contact" className="group w-full sm:w-auto px-7 py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-base transition-colors flex items-center justify-center gap-2 shadow-lg shadow-brand/20">
                   {L('Start Free Trial','फ्री ट्रायल','Free Trial')} <ArrowRight size={17} className="group-hover:translate-x-0.5 transition-transform" />
                 </a>
-                <a href="#features" className={`px-7 py-3.5 rounded-xl font-bold text-base border transition-colors ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}>
+                <a href="#features" className={`w-full sm:w-auto px-7 py-3.5 rounded-xl font-bold text-base border transition-colors text-center ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}>
                   {L('Explore Features','Features देखें','Features જુઓ')}
                 </a>
               </motion.div>
-              <p className={`text-xs ${faint}`}>{L('No credit card · Cancel anytime','No credit card · कभी भी cancel','No credit card · ગમે ત્યારે cancel')}</p>
+              <p className={`text-xs ${faint} text-center lg:text-left`}>{L('No credit card · Cancel anytime','No credit card · कभी भी cancel','No credit card · ગમે ત્યારે cancel')}</p>
 
               {/* Trust chips */}
-              <div className="flex flex-wrap gap-2 mt-8">
+              <div className="flex flex-wrap gap-2 mt-8 justify-center lg:justify-start">
                 {[
                   <><Cpu size={11} className="text-brand" /> Cloud-native</>,
                   <><Lock size={11} className="text-emerald-500" /> GST Ready</>,
@@ -332,7 +351,7 @@ export function LandingPage() {
             <h2 className="text-3xl sm:text-4xl font-bold">{L('End-to-end, one place','एक जगह, पूरा cycle','એક જગ્યાએ, પૂરો cycle')}</h2>
             <p className={`mt-3 text-lg ${muted}`}>{L('From purchase to P&L — every step tracked','Purchase से P&L तक — हर step tracked','Purchase થી P&L સુધી — દરેક step tracked')}</p>
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             {[
               { icon: ShoppingCart, label: L('Purchase','खरीदो','ખરીદો'), color: 'text-amber-500', bg: 'bg-amber-500/10' },
               { icon: Package, label: L('Stock','स्टॉक','સ્ટોક'), color: 'text-blue-500', bg: 'bg-blue-500/10' },
@@ -343,7 +362,7 @@ export function LandingPage() {
             ].map((s, i) => (
               <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.06 }}
                 className={`relative p-4 rounded-2xl border text-center ${card} group`}>
-                {i < 5 && <ChevronRight size={12} className={`hidden sm:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 ${faint}`} />}
+                {i < 5 && <ChevronRight size={12} className={`hidden md:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 ${faint}`} />}
                 <div className={`w-10 h-10 ${s.bg} rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform`}>
                   <s.icon size={20} className={s.color} />
                 </div>
@@ -450,7 +469,7 @@ export function LandingPage() {
             <span className="font-bold text-sm">Dhandho</span>
             <span className={`text-xs ${faint}`}>🇮🇳</span>
           </div>
-          <div className={`flex items-center gap-5 text-xs ${faint}`}>
+          <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs ${faint}`}>
             {['#features','#pricing','#contact','/privacy','/terms'].map((href, i) => (
               <a key={href} href={href} className="hover:text-brand transition-colors">
                 {['Features', L('Pricing','कीमत','કિંમત'), L('Contact','संपर्क','સંપર્ક'), L('Privacy','Privacy','Privacy'), L('Terms','Terms','Terms')][i]}

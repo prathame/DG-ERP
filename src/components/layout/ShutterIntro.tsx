@@ -6,7 +6,15 @@ const SLATS = 14;
 function playShutterSound() {
   try {
     const ctx = new AudioContext();
-    if (ctx.state === 'suspended') ctx.resume();
+    // Mobile browsers block autoplay — attach to first touch to unlock
+    const unlockAudio = () => {
+      if (ctx.state === 'suspended') ctx.resume();
+      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('click', unlockAudio);
+    };
+    document.addEventListener('touchstart', unlockAudio, { once: true });
+    document.addEventListener('click', unlockAudio, { once: true });
+    if (ctx.state === 'suspended') ctx.resume(); // try immediately (works on desktop)
 
     const now = ctx.currentTime;
 
