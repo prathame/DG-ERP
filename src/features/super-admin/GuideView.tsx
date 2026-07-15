@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-const APP_DOMAIN = import.meta.env.VITE_APP_URL || 'dg-erp.onrender.com';
 import { motion } from 'motion/react';
 import { BookOpen, Monitor, Cloud, Terminal, CheckSquare, Copy, Check, ChevronDown, ChevronRight, Users, Rocket } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -101,7 +100,7 @@ export function GuideView() {
           <Step n={2} title="Share credentials with customer">
             <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
               <p>After creation, a credentials screen appears with:</p>
-              <p>• Login URL: <code className="bg-gray-200 px-1 rounded">{APP_DOMAIN}/their-slug</code></p>
+              <p>• Login URL: <code className="bg-gray-200 px-1 rounded">{window.location.origin}/their-slug</code></p>
               <p>• Admin email + temporary password</p>
               <p>Click <strong>Share via WhatsApp</strong> — sends everything in one message</p>
             </div>
