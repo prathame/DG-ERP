@@ -119,17 +119,24 @@ function playShutterSound() {
 
 export function ShutterIntro({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState<'shutter' | 'reveal' | 'done'>('shutter');
+  // Alternates between English 'Dhandho' and Gujarati 'ધંધો' after reveal
+  const [wordLang, setWordLang] = useState<'en' | 'gu'>('en');
 
   useEffect(() => {
     playShutterSound();
     // 0.9s shutter open → 4s brand hold → 0.5s fade
     const t1 = setTimeout(() => setPhase('reveal'), 900);
-    const t2 = setTimeout(() => setPhase('done'), 4900);
-    const t3 = setTimeout(onDone, 5400);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    // Flip to Gujarati 1.5s after reveal
+    const t2 = setTimeout(() => setWordLang('gu'), 2500);
+    // Flip back to English 1.5s later
+    const t3 = setTimeout(() => setWordLang('en'), 4200);
+    const t4 = setTimeout(() => setPhase('done'), 4900);
+    const t5 = setTimeout(onDone, 5400);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); };
   }, [onDone]);
 
   const revealed = phase === 'reveal';
+  const WORDS = { en: 'Dhandho', gu: 'ધંધો' };
 
   return (
     <AnimatePresence>
@@ -170,19 +177,32 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
               ધંધો કરો, Smart કરો
             </motion.p>
 
-            {/* Main wordmark — letter by letter */}
-            <div className="flex items-center" style={{ fontSize: 'clamp(3.5rem, 12vw, 8rem)', lineHeight: 1, fontWeight: 800 }}>
-              {'Dhandho'.split('').map((char, i) => (
-                <motion.span
-                  key={i}
-                  style={{ color: '#ffffff', display: 'inline-block' }}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: revealed ? 1 : 0, y: revealed ? 0 : 30 }}
-                  transition={{ delay: 0.05 + i * 0.07, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            {/* Main wordmark — letter by letter on reveal, then flips EN ↔ GU */}
+            <div style={{ position: 'relative', height: 'clamp(3.5rem, 12vw, 8rem)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={wordLang}
+                  className="flex items-center"
+                  style={{ fontSize: 'clamp(3.5rem, 12vw, 8rem)', lineHeight: 1, fontWeight: 800, position: 'absolute' }}
+                  initial={revealed ? { y: 60, opacity: 0 } : false}
+                  animate={{ y: 0, opacity: revealed ? 1 : 0 }}
+                  exit={{ y: -60, opacity: 0 }}
+                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  {char}
-                </motion.span>
-              ))}
+                  {/* First appearance — letter by letter; subsequent — whole word flips */}
+                  {WORDS[wordLang].split('').map((char, i) => (
+                    <motion.span
+                      key={`${wordLang}-${i}`}
+                      style={{ color: '#ffffff', display: 'inline-block' }}
+                      initial={!revealed ? { opacity: 0, y: 30 } : false}
+                      animate={!revealed ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }}
+                      transition={{ delay: wordLang === 'en' && revealed ? 0.05 + i * 0.07 : 0, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                      {char}
+                    </motion.span>
+                  ))}
+                </motion.div>
+              </AnimatePresence>
             </div>
 
             {/* Tagline */}
