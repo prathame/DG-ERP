@@ -142,19 +142,30 @@ router.post('/api/onprem/provision', async (req, res) => {
       ON CONFLICT (id) DO NOTHING
     `);
 
-    const result = await provisionTenant({
-      companyName, adminEmail: adminEmail || `admin@local`,
-      adminName: 'Admin', adminPassword,
-      planId: 'LOCAL', status: 'active',
-    });
+    // If tenant with this slug already exists (retry after partial failure), reuse it
+    const baseSlug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const existing = (await pool.query('SELECT id, slug FROM tenants WHERE slug = $1', [baseSlug])).rows[0] as { id: string; slug: string } | undefined;
+
+    let tenantId: string, slug: string;
+    if (existing) {
+      tenantId = existing.id; slug = existing.slug;
+      // Update admin password if tenant already exists
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.hash(adminPassword, 12);
+      await pool.query('UPDATE users SET password_hash=$1 WHERE tenant_id=$2 AND role=$3', [hash, tenantId, 'Admin']);
+    } else {
+      const result = await provisionTenant({
+        companyName, adminEmail: adminEmail || `admin@local`,
+        adminName: 'Admin', adminPassword,
+        planId: 'LOCAL', status: 'active',
+      });
+      tenantId = result.tenantId; slug = result.slug;
+    }
 
     // Set business type on the tenant
-    await pool.query(
-      'UPDATE tenants SET business_type=$1 WHERE id=$2',
-      [businessType || 'manufacturer', result.tenantId]
-    );
+    await pool.query('UPDATE tenants SET business_type=$1 WHERE id=$2', [businessType || 'manufacturer', tenantId]);
 
-    res.json({ ok: true, tenantId: result.tenantId, slug: result.slug });
+    res.json({ ok: true, tenantId, slug });
   } catch (err) {
     console.error('💥 /api/onprem/provision failed:', (err as Error).message);
     res.status(500).json({ error: (err as Error).message });

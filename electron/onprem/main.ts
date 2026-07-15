@@ -141,10 +141,8 @@ ipcMain.handle('activate-license', async (_event, licenseKey: string) => {
 // IPC: Wizard — complete setup, create tenant + admin user
 ipcMain.handle('complete-setup', async (_event, data: LicenseData & { adminPassword: string }) => {
   const slug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  licenseInfo = { ...data, slug, activatedAt: new Date().toISOString(), lastValidated: new Date().toISOString() };
-  saveLicense(licenseInfo);
 
-  // Create tenant via local Express API
+  // Create tenant via local Express API FIRST — save license only on success
   const r = await fetch(`${LOCAL_API_URL}/api/onprem/provision`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -158,6 +156,10 @@ ipcMain.handle('complete-setup', async (_event, data: LicenseData & { adminPassw
     }),
   });
   if (!r.ok) throw new Error('Provisioning failed');
+
+  // Save license only after successful provisioning
+  licenseInfo = { ...data, slug, activatedAt: new Date().toISOString(), lastValidated: new Date().toISOString() };
+  saveLicense(licenseInfo);
 
   wizardWin?.close();
   await openMainWindow(slug);
