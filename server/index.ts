@@ -157,6 +157,16 @@ app.use('/api/', async (req, res, next) => {
       req.headers['x-tenant-id'] = decoded.tenantId;
       const tenant = await pool.query('SELECT status FROM tenants WHERE id = $1', [decoded.tenantId]);
       if (tenant.rows[0]?.status === 'suspended') return res.status(403).json({ error: 'Account suspended.' });
+    } else {
+      // C4 fix: Platform JWT (super_admin) has no tenantId.
+      // Clear any client-supplied X-Tenant-ID — platform tokens must not access tenant APIs.
+      // Super-admin routes use their own superAdminMiddleware; tenant APIs require a tenant JWT.
+      delete req.headers['x-tenant-id'];
+      if (req.path.startsWith('/super-admin/') || req.path.startsWith('/onprem/')) {
+        // Allow super-admin and on-prem routes through — they have their own auth
+      } else {
+        return res.status(403).json({ error: 'Platform token cannot access tenant APIs.' });
+      }
     }
     (req as unknown as Record<string, unknown>).user = decoded;
     (req as unknown as Record<string, unknown>).tenantId = decoded.tenantId;

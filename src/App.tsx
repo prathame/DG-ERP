@@ -244,17 +244,13 @@ export default function App() {
   const canAccess = (tabId: string) => getAccess(tabId) !== 'hidden';
   const visibleNavItems = navItems.filter((item) => canAccess(item.id));
 
-  // Static pages
+  // C9 fix: all hooks must come before any conditional return.
+  // Moved slug/branding state and effects up here, before the /privacy & /terms early returns.
   const pathname = window.location.pathname;
-  if (pathname === '/privacy') return <PrivacyPolicy />;
-  if (pathname === '/terms') return <TermsOfService />;
-
-  // Detect slug from URL: /splender, /radhe-krishan, etc. (not /admin, not /)
   const isSuperAdminRoute = pathname.startsWith('/admin');
   const slugMatch = pathname.match(/^\/([a-z0-9][a-z0-9-]*[a-z0-9])(\/.*)?$/i) || pathname.match(/^\/([a-z0-9]+)(\/.*)?$/i);
   const urlSlug = (!isSuperAdminRoute && slugMatch) ? slugMatch[1].toLowerCase() : null;
 
-  // Tenant branding state for slug-based login
   const [tenantBranding, setTenantBranding] = useState<{ tenantId: string; companyName: string; slug: string; logoBase64: string | null; primaryColor: string; tagline: string | null } | null>(null);
   const [slugNotFound, setSlugNotFound] = useState(false);
 
@@ -271,6 +267,10 @@ export default function App() {
   useEffect(() => {
     if (authState.isSuperAdmin && urlSlug) session.clearAll();
   }, [authState.isSuperAdmin, urlSlug]);
+
+  // Static pages — now safe to return early (all hooks are above)
+  if (pathname === '/privacy') return <PrivacyPolicy />;
+  if (pathname === '/terms') return <TermsOfService />;
 
   // /admin route — super admin portal
   if (isSuperAdminRoute) {

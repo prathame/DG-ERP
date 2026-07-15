@@ -253,7 +253,7 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
         )).rows as { id: string; barcode: string }[];
         if (invRows.length < item.qty) {
           await client.query('ROLLBACK');
-          client.release();
+          // C8 fix: don't release here — finally block handles it
           return res.status(400).json({ error: `Insufficient stock for ${item.product.name}. Available: ${invRows.length}, requested: ${item.qty}` });
         }
         productNames.push(item.product.name);
@@ -266,7 +266,7 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
 
       if (paidAmount && paidAmount > totalBilled) {
         await client.query('ROLLBACK');
-        client.release();
+        // C8 fix: don't release here — finally block handles it
         return res.status(400).json({ error: `Amount paid (₹${paidAmount}) cannot exceed billed amount (₹${totalBilled})` });
       }
 

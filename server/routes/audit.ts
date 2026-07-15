@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 
@@ -106,7 +107,27 @@ router.get('/api/backup', async (req, res) => {
   }
 });
 
-router.post('/api/backup/restore', async (req, res) => {
+
+// Permitted backup columns per table — prevents SQL injection via attacker-controlled column names
+const BACKUP_COLUMN_ALLOWLIST: Record<string, Set<string>> = {
+  products:             new Set(['id','name','barcode','description','reward_points_value','manufacturing_date','batch_number','status','warranty_months','price','stock','tenant_id','pack_size','pack_name','hsn_code','gst_rate','price_includes_gst','warranty_applicable','created_at']),
+  product_inventory:    new Set(['id','product_id','barcode','batch_id','status','tenant_id','unit_type','created_at']),
+  product_sales:        new Set(['id','product_id','barcode','vendor_id','customer_name','customer_phone','customer_email','sale_price','purchase_date','warranty_months','tenant_id','reward_points_earned','created_at']),
+  product_distribution: new Set(['id','batch_id','product_id','barcode','vendor_id','distribution_date','status','discount_percent','net_price','gst_applied','billed_price','tenant_id','created_at']),
+  product_purchases:    new Set(['id','tenant_id','batch_id','product_id','supplier_id','purchase_date','cost_price','gst_applied','billed_price','discount_percent','invoice_number','created_at']),
+  vendors:              new Set(['id','name','contact_person','phone','email','address','total_sales','total_reward_points','tenant_id','created_at']),
+  customers:            new Set(['id','name','phone','email','address','vendor_id','tenant_id','created_at']),
+  categories:           new Set(['id','name','tenant_id']),
+  warranties:           new Set(['id','product_id','barcode','customer_name','customer_phone','purchase_date','expiry_date','status','tenant_id','created_at']),
+  vendor_payments:      new Set(['id','vendor_id','amount','payment_date','payment_method','reference_number','notes','tenant_id','batch_id','created_at']),
+  expenses:             new Set(['id','category','amount','expense_date','description','vendor_id','tenant_id','created_at']),
+  banks:                new Set(['id','name','account_number','ifsc','branch','tenant_id','created_at']),
+  suppliers:            new Set(['id','name','contact_person','phone','email','address','gst_number','tenant_id','created_at']),
+  standalone_invoices:  new Set(['id','invoice_number','invoice_date','customer_name','customer_phone','customer_email','customer_address','status','grand_total','notes','tenant_id','created_at']),
+  quotations:           new Set(['id','quote_number','vendor_id','quote_date','status','total_amount','notes','tenant_id','created_at']),
+};
+
+router.post('/api/backup/restore', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -139,11 +160,14 @@ router.post('/api/backup/restore', async (req, res) => {
         if (!Array.isArray(rows) || rows.length === 0) continue;
         for (const row of rows) {
           row.tenant_id = tenantId;
-          const cols = Object.keys(row);
+          const allowed = BACKUP_COLUMN_ALLOWLIST[table];
+          if (!allowed) continue; // skip unknown tables entirely
+          const cols = Object.keys(row).filter(k => allowed.has(k));
+          if (cols.length === 0) continue;
           const vals = cols.map((_, i) => `$${i + 1}`);
           const onConflict = cols.includes('id') ? `ON CONFLICT (id, tenant_id) DO NOTHING` : 'ON CONFLICT DO NOTHING';
           try {
-            await client.query(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${vals.join(',')}) ${onConflict}`, cols.map(c => row[c]));
+            await client.query(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${vals.join(',')}) ${onConflict}`, cols.map(k => row[k]));
             restored++;
           } catch {
             // skip rows that fail (schema mismatch, etc)

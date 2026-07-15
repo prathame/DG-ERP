@@ -68,21 +68,16 @@ async function sendHeartbeat(): Promise<void> {
     });
     const data = await r.json() as Record<string, unknown>;
 
-    // Only alert on explicit revocation — not on network/auth errors
+    // C10 fix: never interpolate cloud data into executeJavaScript — use IPC instead
     if (data.licenseValid === false && data.licenseStatus) {
-      mainWin?.webContents.executeJavaScript(
-        `alert('Your Dhandho license has been ${data.licenseStatus}. Please contact support.')`
-      );
+      // Use a fixed string — don't interpolate data.licenseStatus into JS
+      mainWin?.webContents.send('license-status', { valid: false, status: String(data.licenseStatus).slice(0, 32) });
     }
 
     if (data.forceUpdate) {
-      mainWin?.webContents.executeJavaScript(
-        `confirm('A required update is available. Click OK to download.') && window.open('https://dhandho.in/download')`
-      );
+      mainWin?.webContents.send('update-available', { forced: true, url: 'https://dhandho.app/download' });
     } else if (data.updateAvailable) {
-      mainWin?.webContents.executeJavaScript(
-        `console.log('UPDATE_AVAILABLE:${data.latestVersion}')`
-      );
+      mainWin?.webContents.send('update-available', { forced: false, version: String(data.latestVersion || '').slice(0, 20) });
     }
 
     // Apply any pushed settings (tab config, feature toggles) to local tenant
