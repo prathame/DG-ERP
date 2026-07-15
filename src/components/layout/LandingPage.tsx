@@ -185,104 +185,70 @@ export function LandingPage() {
         <div className="absolute bottom-0 left-0 w-[600px] h-[600px] pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 65%)', transform: 'translate(-30%, 30%)' }} />
 
         <div className="max-w-6xl mx-auto relative">
-          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center mb-10">
-          {/* Left — text */}
-          <div className="max-w-3xl mx-auto lg:mx-0 text-center lg:text-left">
-            {/* Badge */}
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium mb-6" style={{ borderColor: 'rgba(242,125,38,0.3)', background: 'rgba(242,125,38,0.08)', color: '#F27D26' }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-              🇮🇳 {L('Made in India · Cloud + Desktop · 3 Languages', 'Made in India · Cloud + Desktop · 3 Languages', 'Made in India · Cloud + Desktop · 3 Languages')}
-            </motion.div>
+          <div className="grid lg:grid-cols-[1fr_480px] gap-12 lg:gap-16 items-center min-h-[520px]">
 
-            {/* Language selector */}
-            <div className="flex justify-center gap-1.5 mb-6">
-              {[
-                { idx: 0, label: 'English' },
-                { idx: 1, label: 'हिन्दी' },
-                { idx: 2, label: 'ગુજ' },
-              ].map(l => (
-                <button key={l.idx} type="button" onClick={() => { setHeroLang(l.idx); setHeroAuto(false); setLang((['en','hi','gu'] as const)[l.idx]); }} className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${heroLang === l.idx ? 'bg-brand text-white' : pill}`}>{l.label}</button>
-              ))}
-            </div>
+            {/* ── Left col: all text ─────────────────────────────────────── */}
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} className="flex flex-col items-start">
 
-            {/* Headline */}
-            <motion.div key={heroLang} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-              <h1 className={`text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-5 ${heroLang === 0 ? 'leading-[1.1]' : 'leading-relaxed'}`}>
-                {h.h1}<br />
-                <span className="bg-gradient-to-r from-brand via-orange-400 to-violet-500 bg-clip-text text-transparent">{h.h2}</span>
-              </h1>
-              <p className={`text-base sm:text-lg md:text-xl ${muted} max-w-2xl mx-auto leading-relaxed mb-8`}>{h.sub}</p>
-            </motion.div>
-
-            {/* CTAs */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <a href="#contact" className="group w-full sm:w-auto px-7 py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-base transition-colors flex items-center justify-center gap-2 shadow-lg shadow-brand/20">
-                {L('Start Free Trial','फ्री ट्रायल','Free Trial')} <ArrowRight size={17} className="group-hover:translate-x-0.5 transition-transform" />
-              </a>
-              <a href="#features" className={`w-full sm:w-auto px-7 py-3.5 rounded-xl font-bold text-base border transition-colors text-center ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}>
-                {L('Explore Features','Features देखें','Features જુઓ')}
-              </a>
-            </motion.div>
-            <p className={`mt-4 text-xs ${faint}`}>{L('No credit card · Cancel anytime','No credit card · कभी भी cancel','No credit card · ગમે ત્યારે cancel')}</p>
-          </div>
-
-          {/* Desk illustration — right column */}
-          <div className="hidden lg:flex justify-center items-center">
-            <DeskIllustration dark={dark} />
-          </div>
-
-          </div>{/* end hero grid */}
-
-          {/* App preview */}
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }} className="max-w-3xl mx-auto">
-            <div className={`rounded-2xl border overflow-hidden shadow-2xl ${dark ? 'border-white/10 bg-gray-900/60' : 'border-gray-200 bg-white'} backdrop-blur-sm`}>
-              {/* Window chrome */}
-              <div className={`px-4 py-3 flex items-center gap-3 border-b ${dark ? 'border-white/5 bg-black/20' : 'border-gray-100 bg-gray-50'}`}>
-                <div className="flex gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-400/70"/><div className="w-2.5 h-2.5 rounded-full bg-yellow-400/70"/><div className="w-2.5 h-2.5 rounded-full bg-green-400/70"/></div>
-                <div className={`flex-1 text-center text-[11px] font-mono ${faint}`}>dhandho.app/acme-industries</div>
+              {/* Badge + lang switcher row */}
+              <div className="flex flex-wrap items-center gap-3 mb-7">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium" style={{ borderColor: 'rgba(242,125,38,0.3)', background: 'rgba(242,125,38,0.08)', color: '#F27D26' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+                  🇮🇳 Made in India
+                </div>
+                <div className={`flex items-center gap-0.5 rounded-full p-0.5 ${dark ? 'bg-white/5' : 'bg-gray-100'}`}>
+                  {[{ idx: 0, label: 'EN' }, { idx: 1, label: 'हि' }, { idx: 2, label: 'ગુ' }].map(l => (
+                    <button key={l.idx} type="button" onClick={() => { setHeroLang(l.idx); setHeroAuto(false); setLang((['en','hi','gu'] as const)[l.idx]); }}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${heroLang === l.idx ? 'bg-brand text-white' : muted}`}>
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {/* Dashboard mockup */}
-              <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+              {/* Headline */}
+              <motion.div key={heroLang} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mb-6">
+                <h1 className={`text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight ${heroLang === 0 ? 'leading-[1.1]' : 'leading-relaxed'}`}>
+                  {h.h1}<br />
+                  <span className="bg-gradient-to-r from-brand via-orange-400 to-violet-500 bg-clip-text text-transparent">{h.h2}</span>
+                </h1>
+                <p className={`mt-5 text-base sm:text-lg ${muted} max-w-lg leading-relaxed`}>{h.sub}</p>
+              </motion.div>
+
+              {/* CTAs */}
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col sm:flex-row items-start gap-3 mb-4">
+                <a href="#contact" className="group px-7 py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-base transition-colors flex items-center gap-2 shadow-lg shadow-brand/20">
+                  {L('Start Free Trial','फ्री ट्रायल','Free Trial')} <ArrowRight size={17} className="group-hover:translate-x-0.5 transition-transform" />
+                </a>
+                <a href="#features" className={`px-7 py-3.5 rounded-xl font-bold text-base border transition-colors ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  {L('Explore Features','Features देखें','Features જુઓ')}
+                </a>
+              </motion.div>
+              <p className={`text-xs ${faint}`}>{L('No credit card · Cancel anytime','No credit card · कभी भी cancel','No credit card · ગમે ત્યારે cancel')}</p>
+
+              {/* Trust chips */}
+              <div className="flex flex-wrap gap-2 mt-8">
                 {[
-                  { label: "Today's Revenue", val: '₹2.4L', delta: '+12%', color: 'text-emerald-500', bg: dark ? 'bg-emerald-500/10' : 'bg-emerald-50' },
-                  { label: 'Distributions', val: '38', delta: '↑ 8 today', color: 'text-blue-500', bg: dark ? 'bg-blue-500/10' : 'bg-blue-50' },
-                  { label: 'Outstanding', val: '₹84K', delta: '6 vendors', color: 'text-orange-500', bg: dark ? 'bg-orange-500/10' : 'bg-orange-50' },
-                  { label: 'Stock Items', val: '1,247', delta: '3 low stock', color: 'text-violet-500', bg: dark ? 'bg-violet-500/10' : 'bg-violet-50' },
-                ].map(s => (
-                  <div key={s.label} className={`p-3 rounded-xl ${s.bg}`}>
-                    <p className={`text-[10px] ${muted} mb-1`}>{s.label}</p>
-                    <p className={`text-lg sm:text-xl font-bold ${s.color}`}>{s.val}</p>
-                    <p className={`text-[10px] ${faint}`}>{s.delta}</p>
-                  </div>
+                  <><Cpu size={11} className="text-brand" /> Cloud-native</>,
+                  <><Lock size={11} className="text-emerald-500" /> GST Ready</>,
+                  <><Database size={11} className="text-violet-500" /> On-Prem option</>,
+                ].map((item, i) => (
+                  <span key={i} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${dark ? 'border-white/8 text-white/40' : 'border-gray-200 text-gray-500'}`}>{item}</span>
                 ))}
               </div>
-              <div className={`px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-3`}>
-                <div className={`p-3 rounded-xl border ${dark ? 'border-white/5 bg-white/3' : 'border-gray-100 bg-gray-50'}`}>
-                  <p className={`text-[10px] font-bold mb-2 ${muted}`}>Recent Distributions</p>
-                  {['Anand Agri · 120 units · ₹18,000','Gujarat Seeds · 80 units · ₹12,400','Patel Traders · 200 units · ₹31,000'].map((r, i) => (
-                    <div key={i} className={`flex items-center gap-2 py-1.5 ${i > 0 ? `border-t ${dark ? 'border-white/5' : 'border-gray-100'}` : ''}`}>
-                      <div className={`w-1.5 h-1.5 rounded-full ${['bg-blue-400','bg-emerald-400','bg-violet-400'][i]}`} />
-                      <span className={`text-[10px] ${muted}`}>{r}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className={`p-3 rounded-xl border ${dark ? 'border-white/5 bg-white/3' : 'border-gray-100 bg-gray-50'}`}>
-                  <p className={`text-[10px] font-bold mb-2 ${muted}`}>GST Summary — July</p>
-                  {[['Output Tax (CGST+SGST)','₹41,200'],['ITC Available','₹18,600'],['Net Payable','₹22,600']].map(([l, v]) => (
-                    <div key={l} className={`flex justify-between py-1.5 border-b last:border-0 ${dark ? 'border-white/5' : 'border-gray-100'}`}>
-                      <span className={`text-[10px] ${muted}`}>{l}</span>
-                      <span className={`text-[10px] font-bold`}>{v}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-center gap-4 mt-4 flex-wrap">
-              {[<><Cpu size={12} className="text-brand" /> Cloud-native</>, <><Lock size={12} className="text-emerald-500" /> GST Ready</>, <><Database size={12} className="text-violet-500" /> On-Prem option</>].map((item, i) => (
-                <span key={i} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${dark ? 'border-white/8 text-white/40' : 'border-gray-200 text-gray-500'}`}>{item}</span>
-              ))}
-            </div>
-          </motion.div>
+            </motion.div>
+
+            {/* ── Right col: illustration ────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.15 }}
+              className="hidden lg:block"
+            >
+              <DeskIllustration dark={dark} />
+            </motion.div>
+
+          </div>
         </div>
       </section>
 

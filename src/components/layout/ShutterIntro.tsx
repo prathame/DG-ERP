@@ -6,17 +6,24 @@ const SLATS = 14;
 function playShutterSound() {
   try {
     const ctx = new AudioContext();
-
-    const resume = () => {
-      if (ctx.state === 'suspended') ctx.resume();
-    };
-    resume();
+    if (ctx.state === 'suspended') ctx.resume();
 
     const now = ctx.currentTime;
-    const duration = 1.0; // matches shutter animation
+
+    // Animation sync (must match CSS values in component):
+    //   first slat delay  = 0.04s
+    //   stagger per slat  = 0.04s
+    //   slat duration     = 0.32s
+    //   last slat (13th) done at: 0.04 + 13*0.04 + 0.32 = 0.88s
+    const FIRST_SLAT  = 0.04;
+    const LAST_SLAT   = 0.88; // shutter fully open
+
+    const rattleStart = now + FIRST_SLAT;
+    const rattleEnd   = now + LAST_SLAT;
+    const rDur        = rattleEnd - rattleStart; // 0.84s
 
     // ── Metallic rattle (filtered white noise) ────────────────────────
-    const bufLen = Math.ceil(ctx.sampleRate * duration);
+    const bufLen = Math.ceil(ctx.sampleRate * (rDur + 0.1));
     const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
     const data = buf.getChannelData(0);
     for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
@@ -24,64 +31,63 @@ function playShutterSound() {
     const noise = ctx.createBufferSource();
     noise.buffer = buf;
 
-    // Bandpass → metallic sheen
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass';
     bp.frequency.value = 900;
-    bp.Q.value = 0.6;
+    bp.Q.value = 0.5;
 
-    // LFO at 20 Hz → slat-rattle rhythm
+    // LFO at 18Hz → individual slat clatter
     const lfo = ctx.createOscillator();
-    lfo.frequency.value = 20;
+    lfo.frequency.value = 18;
     const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 400;
+    lfoGain.gain.value = 350;
     lfo.connect(lfoGain);
     lfoGain.connect(bp.frequency);
 
-    // Envelope: fade in fast, hold, fade out
+    // Envelope: attack fast, ride steady, fade as last slat slows
     const rattle = ctx.createGain();
-    rattle.gain.setValueAtTime(0, now);
-    rattle.gain.linearRampToValueAtTime(0.28, now + 0.12);
-    rattle.gain.setValueAtTime(0.25, now + duration - 0.3);
-    rattle.gain.linearRampToValueAtTime(0, now + duration);
+    rattle.gain.setValueAtTime(0, rattleStart);
+    rattle.gain.linearRampToValueAtTime(0.3, rattleStart + 0.08);   // snap up
+    rattle.gain.setValueAtTime(0.26, rattleEnd - 0.18);             // hold
+    rattle.gain.linearRampToValueAtTime(0, rattleEnd);               // fade with last slat
 
     noise.connect(bp);
     bp.connect(rattle);
     rattle.connect(ctx.destination);
-    noise.start(now);
-    lfo.start(now);
-    noise.stop(now + duration);
-    lfo.stop(now + duration);
+    lfo.connect(lfoGain);
+    noise.start(rattleStart);
+    lfo.start(rattleStart);
+    noise.stop(rattleEnd);
+    lfo.stop(rattleEnd);
 
-    // ── Low rumble (underneath the rattle) ───────────────────────────
+    // ── Low mechanical rumble ─────────────────────────────────────────
     const rumble = ctx.createOscillator();
     rumble.type = 'sawtooth';
-    rumble.frequency.setValueAtTime(55, now);
-    rumble.frequency.linearRampToValueAtTime(40, now + duration);
+    rumble.frequency.setValueAtTime(60, rattleStart);
+    rumble.frequency.linearRampToValueAtTime(38, rattleEnd);
     const rumbleGain = ctx.createGain();
-    rumbleGain.gain.setValueAtTime(0.06, now);
-    rumbleGain.gain.linearRampToValueAtTime(0, now + duration);
+    rumbleGain.gain.setValueAtTime(0.07, rattleStart);
+    rumbleGain.gain.linearRampToValueAtTime(0, rattleEnd);
     rumble.connect(rumbleGain);
     rumbleGain.connect(ctx.destination);
-    rumble.start(now);
-    rumble.stop(now + duration);
+    rumble.start(rattleStart);
+    rumble.stop(rattleEnd);
 
-    // ── Final metallic clank when shutter locks at top ────────────────
-    const clankTime = now + duration - 0.05;
+    // ── Clank: fires exactly when last slat hits the top ─────────────
+    const clankAt = now + LAST_SLAT;
     const clank = ctx.createOscillator();
     clank.type = 'sawtooth';
-    clank.frequency.setValueAtTime(180, clankTime);
-    clank.frequency.exponentialRampToValueAtTime(60, clankTime + 0.25);
+    clank.frequency.setValueAtTime(200, clankAt);
+    clank.frequency.exponentialRampToValueAtTime(55, clankAt + 0.28);
     const clankGain = ctx.createGain();
-    clankGain.gain.setValueAtTime(0.35, clankTime);
-    clankGain.gain.exponentialRampToValueAtTime(0.001, clankTime + 0.3);
+    clankGain.gain.setValueAtTime(0.4, clankAt);
+    clankGain.gain.exponentialRampToValueAtTime(0.001, clankAt + 0.32);
     clank.connect(clankGain);
     clankGain.connect(ctx.destination);
-    clank.start(clankTime);
-    clank.stop(clankTime + 0.3);
+    clank.start(clankAt);
+    clank.stop(clankAt + 0.35);
 
-    // Auto-close context after done
-    setTimeout(() => ctx.close(), (duration + 0.5) * 1000);
+    setTimeout(() => ctx.close(), 2000);
   } catch {
     // Autoplay blocked or Web Audio not supported — silent fail
   }
