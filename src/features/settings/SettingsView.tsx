@@ -557,7 +557,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
               const newPw = (form.elements.namedItem('newPassword') as HTMLInputElement).value;
               const confirm = (form.elements.namedItem('confirmPassword') as HTMLInputElement).value;
               if (newPw !== confirm) { toast('New passwords do not match', 'error'); return; }
-              if (newPw.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
+              if (newPw.length < 8) { toast('Password must be at least 8 characters', 'error'); return; }
               try {
                 await api.settings.changePassword(user!.id, current, newPw);
                 toast('Password changed successfully', 'success');
@@ -566,8 +566,8 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             }} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label htmlFor="settings-field-29" className="text-xs font-bold text-gray-400 uppercase block mb-1">Current Password</label><PasswordInput id="settings-field-29"  name="currentPassword" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
-                <div><label htmlFor="settings-field-30" className="text-xs font-bold text-gray-400 uppercase block mb-1">New Password</label><PasswordInput id="settings-field-30"  name="newPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
-                <div><label htmlFor="settings-field-31" className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm New Password</label><PasswordInput id="settings-field-31"  name="confirmPassword" required minLength={6} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label htmlFor="settings-field-30" className="text-xs font-bold text-gray-400 uppercase block mb-1">New Password</label><PasswordInput id="settings-field-30"  name="newPassword" required minLength={8} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
+                <div><label htmlFor="settings-field-31" className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm New Password</label><PasswordInput id="settings-field-31"  name="confirmPassword" required minLength={8} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" /></div>
               </div>
               <button type="submit" className="px-6 py-2 bg-brand text-white rounded-xl font-bold">Update Password</button>
             </form>

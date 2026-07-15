@@ -38,7 +38,6 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
   const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
 
   const accentColor = tenant?.primaryColor || '#F27D26';
   const isBranded = !!tenant;
@@ -127,30 +126,7 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'signup' && (
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Name</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="Full name" /></div>
-            )}
-            {mode !== 'reset' && (
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="you@example.com" /></div>
-            )}
-            {(mode === 'login' || mode === 'signup') && (
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><PasswordInput required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" /></div>
-            )}
-            {mode === 'signup' && (
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm Password</label><PasswordInput required value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" /></div>
-            )}
-            {mode === 'reset' && (
-              <>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Reset Token</label><input required value={resetToken} onChange={(e) => setResetToken(e.target.value)} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent font-mono text-sm" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="Paste reset token from admin" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">New Password</label><PasswordInput required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="Min 8 characters" /></div>
-                <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm New Password</label><PasswordInput required minLength={8} value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="Repeat new password" /></div>
-              </>
-            )}
-            {mode === 'login' && (
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-white/20 bg-white/5 text-brand" style={{ accentColor }} />
-                <span className="text-sm text-gray-400">Remember me</span>
-              </label>
-            )}
+              <div>)}
             {mode === 'forgot' && <p className="text-xs text-gray-500">Enter your email and we'll send you a password reset. Contact your admin if you don't receive it.</p>}
             {successMessage && <p className="text-sm text-emerald-400">{successMessage}</p>}
             {error && <p className="text-sm text-rose-400">{error}</p>}

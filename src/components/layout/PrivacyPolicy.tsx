@@ -78,7 +78,7 @@ export function PrivacyPolicy() {
 
           <section>
             <h2 className="text-lg font-bold text-[#1A1A1A] mb-2">9. Cookies</h2>
-            <p>We do not use cookies. Session data is stored in your browser's localStorage and is automatically cleared when you close the tab.</p>
+            <p>We do not use cookies. Session data (authentication tokens) is stored in your browser's localStorage, which persists until you log out or clear your browser data. It is NOT automatically cleared when you close the tab.</p>
           </section>
 
           <section>

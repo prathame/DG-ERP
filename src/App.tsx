@@ -54,7 +54,6 @@ const AnalyticsView = lazy(() => import('./features/analytics/AnalyticsView').th
 const MastersView = lazy(() => import('./features/masters/MastersView').then(m => ({ default: m.MastersView })));
 const SettingsView = lazy(() => import('./features/settings/SettingsView').then(m => ({ default: m.SettingsView })));
 const ProductVerificationView = lazy(() => import('./features/verification/ProductVerificationView').then(m => ({ default: m.ProductVerificationView })));
-const PayrollView = lazy(() => import('./features/payroll/PayrollView').then(m => ({ default: m.PayrollView })));
 const InvoicesView = lazy(() => import('./features/invoices/InvoicesView').then(m => ({ default: m.InvoicesView })));
 const SuperAdminApp = lazy(() => import('./features/super-admin/SuperAdminApp').then(m => ({ default: m.SuperAdminApp })));
 const SuperAdminLogin = lazy(() => import('./features/super-admin/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })));
