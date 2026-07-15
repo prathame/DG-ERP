@@ -75,7 +75,7 @@ async function sendHeartbeat(): Promise<void> {
     }
 
     if (data.forceUpdate) {
-      mainWin?.webContents.send('update-available', { forced: true, url: 'https://dhandho.app/download' });
+      mainWin?.webContents.send('update-available', { forced: true, url: `${CLOUD_API}/download` });
     } else if (data.updateAvailable) {
       mainWin?.webContents.send('update-available', { forced: false, version: String(data.latestVersion || '').slice(0, 20) });
     }
