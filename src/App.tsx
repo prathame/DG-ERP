@@ -29,6 +29,7 @@ import { ToastProvider, LoadingSpinner } from './components/ui';
 import { LanguageProvider, useTranslation } from './i18n';
 import { LoginScreen } from './components/layout';
 import { LandingPage } from './components/layout/LandingPage';
+import { AppShutterIntro } from './components/layout/AppShutterIntro';
 import { PrivacyPolicy } from './components/layout/PrivacyPolicy';
 import { TermsOfService } from './components/layout/TermsOfService';
 import { ChatWidget } from './components/layout/ChatWidget';
@@ -179,9 +180,11 @@ export default function App() {
     if (slug) window.history.replaceState(null, '', `/${slug}`);
   };
 
+  const [appShutter, setAppShutter] = useState<string | null>(null);
   const handleLogin = (u: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean }) => {
     setUser(u);
     if (u.companyName) document.title = `${u.companyName} — Dhandho`;
+    if (u.companyName) setAppShutter(u.companyName);
   };
 
   const { t } = useTranslation();
@@ -318,6 +321,7 @@ export default function App() {
 
   return (
     <ToastProvider>
+    {appShutter && <AppShutterIntro companyName={appShutter} onDone={() => setAppShutter(null)} />}
     <div className="flex h-screen bg-[#F8F9FA] text-[#1A1A1A] font-sans">
       {/* Mobile sidebar backdrop */}
       {isSidebarOpen && (

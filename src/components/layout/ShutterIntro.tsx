@@ -103,7 +103,7 @@ function playShutterSound() {
     chime.start(chimeAt);
     chime.stop(chimeAt + 0.72);
 
-    setTimeout(() => ctx.close(), 3000);
+    setTimeout(() => ctx.close(), 6000);
   } catch {
     // Autoplay blocked or Web Audio not supported — silent fail
   }
@@ -114,10 +114,10 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     playShutterSound();
-    // 0.9s shutter open → 1.2s brand hold → 0.5s fade
+    // 0.9s shutter open → 4s brand hold → 0.5s fade
     const t1 = setTimeout(() => setPhase('reveal'), 900);
-    const t2 = setTimeout(() => setPhase('done'), 2100);
-    const t3 = setTimeout(onDone, 2600);
+    const t2 = setTimeout(() => setPhase('done'), 4900);
+    const t3 = setTimeout(onDone, 5400);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onDone]);
 
