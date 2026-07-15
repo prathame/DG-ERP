@@ -134,7 +134,7 @@ export function InvoicesView() {
           <td style="border:none;width:50%;vertical-align:top;padding:4px 8px;">
             <strong style="font-size:10px;color:#555;">BILL TO:</strong><br/>
             <strong>${esc(inv.customerName)}</strong>
-            ${inv.customerGstin ? `<br/><span style="font-family:monospace;font-size:11px;">GSTIN: ${inv.customerGstin}</span>` : ''}
+            ${inv.customerGstin ? `<br/><span style="font-family:monospace;font-size:11px;">GSTIN: ${esc(inv.customerGstin)}</span>` : ''}
             ${inv.customerAddress ? `<br/><span style="font-size:10px;">${esc(inv.customerAddress)}</span>` : ''}
             ${inv.customerPhone ? `<br/><span style="font-size:10px;">Ph: ${esc(inv.customerPhone)}</span>` : ''}
           </td>

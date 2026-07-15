@@ -1125,36 +1125,48 @@ router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: Auth
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { batchId } = req.params;
-    const rows = (await pool.query(
-      'SELECT id, barcode, status FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2',
-      [batchId, tenantId]
-    )).rows as { id: string; barcode: string; status: string }[];
-    if (rows.length === 0) return res.status(404).json({ error: 'Distribution batch not found' });
-
-    const blocked = rows.filter((r) => r.status !== 'Distributed');
-    if (blocked.length > 0) {
-      return res.status(400).json({
-        error: `Cannot delete: ${blocked.length} unit(s) are sold, replaced, or damaged. Reduce quantity to locked minimum instead.`,
-      });
-    }
-
     const client = await pool.connect();
+    let unitsReturned = 0;
     try {
       await client.query('BEGIN');
+      const rows = (await client.query(
+        'SELECT id, barcode, status FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2 ORDER BY id FOR UPDATE',
+        [batchId, tenantId]
+      )).rows as { id: string; barcode: string; status: string }[];
+      if (rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Distribution batch not found' });
+      }
+
+      const blocked = rows.filter((r) => r.status !== 'Distributed');
+      if (blocked.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: `Cannot delete: ${blocked.length} unit(s) are sold, replaced, or damaged. Reduce quantity to locked minimum instead.`,
+        });
+      }
+
+      const barcodes = rows.map((r) => r.barcode);
+      await client.query(
+        `SELECT 1 FROM product_inventory WHERE barcode = ANY($1::text[]) AND tenant_id = $2 FOR UPDATE`,
+        [barcodes, tenantId]
+      );
+
       for (const row of rows) {
         await client.query(
           "UPDATE product_inventory SET status = 'InStock' WHERE barcode = $1 AND tenant_id = $2",
           [row.barcode, tenantId]
         );
         await client.query(
-          'DELETE FROM product_distribution WHERE id = $1 AND tenant_id = $2',
-          [row.id, tenantId]
+          'DELETE FROM product_distribution WHERE id = $1 AND tenant_id = $2 AND status = $3',
+          [row.id, tenantId, 'Distributed']
         );
       }
       await client.query(
         'DELETE FROM vendor_payments WHERE batch_id = $1 AND tenant_id = $2',
         [batchId, tenantId]
       );
+      unitsReturned = rows.length;
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');
@@ -1163,8 +1175,8 @@ router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: Auth
       client.release();
     }
 
-    await logAudit(pool, tenantId, 'Distribution Deleted', 'distribution', batchId, `${rows.length} units returned to inventory`);
-    res.json({ ok: true, batchId, unitsReturned: rows.length });
+    await logAudit(pool, tenantId, 'Distribution Deleted', 'distribution', batchId, `${unitsReturned} units returned to inventory`);
+    res.json({ ok: true, batchId, unitsReturned });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }

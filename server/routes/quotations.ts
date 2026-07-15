@@ -121,49 +121,64 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const quote = (await pool.query('SELECT * FROM quotations WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId])).rows[0] as Record<string, unknown> | undefined;
-    if (!quote) return res.status(404).json({ error: 'Quotation not found' });
-    if (quote.status === 'Converted') return res.status(400).json({ error: 'Already converted' });
-    if (quote.status !== 'Accepted') return res.status(400).json({ error: 'Quotation must be accepted before converting' });
-    if (!quote.vendor_id) return res.status(400).json({ error: 'Quotation must have a vendor to convert to distribution' });
-
-    const items = quote.items as { productId: string; quantity: number; price: number; discountPercent: number; withGst: boolean }[];
-    const distItems = items.map(i => ({ productId: i.productId, quantity: i.quantity, customPrice: i.price, discountPercent: i.discountPercent, withGst: i.withGst }));
-
-    // Create distribution batch via internal call
-    const gstRate = Number(quote.gst_rate) || 18;
-    const date = (quote.quotation_date as string) || new Date().toISOString().slice(0, 10);
-    const vendorId = quote.vendor_id as string;
-
-    // Inline distribution creation (mirrors POST /distribution/batch logic)
-    const batchId = uid('D');
-    let totalBilled = 0;
-    let totalQty = 0;
-    const productNames: string[] = [];
-    const unitRows: { distId: string; productId: string; qty: number; disc: number; netPricePerUnit: number; gstApplied: number; billedPricePerUnit: number }[] = [];
-
-    for (const item of distItems) {
-      const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
-      const product = (await pool.query('SELECT id, name, price FROM products WHERE id = $1 AND tenant_id = $2', [item.productId, tenantId])).rows[0] as { id: string; name: string; price: number } | undefined;
-      if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
-      const basePrice = item.customPrice ? Number(item.customPrice) : product.price;
-      const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
-      const netPricePerUnit = Math.round((basePrice * (100 - disc) / 100) * 100) / 100;
-      const gstApplied = item.withGst !== false ? 1 : 0;
-      const billedPricePerUnit = gstApplied ? Math.round(netPricePerUnit * (100 + gstRate) / 100) : netPricePerUnit;
-      // H9 fix: defer inventory lock until inside BEGIN (done below)
-      productNames.push(product.name);
-      unitRows.push({ distId: '', productId: product.id, qty, disc, netPricePerUnit, gstApplied, billedPricePerUnit });
-      totalBilled += billedPricePerUnit * qty;
-      totalQty += qty;
-    }
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      // Lock inventory rows inside the transaction — prevents concurrent convert TOCTOU race
+      const quote = (await client.query(
+        'SELECT * FROM quotations WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+        [req.params.id, tenantId]
+      )).rows[0] as Record<string, unknown> | undefined;
+      if (!quote) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Quotation not found' });
+      }
+      if (quote.status === 'Converted') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Already converted' });
+      }
+      if (quote.status !== 'Accepted') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Quotation must be accepted before converting' });
+      }
+      if (!quote.vendor_id) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Quotation must have a vendor to convert to distribution' });
+      }
+
+      const items = quote.items as { productId: string; quantity: number; price: number; discountPercent: number; withGst: boolean }[];
+      const distItems = items.map(i => ({ productId: i.productId, quantity: i.quantity, customPrice: i.price, discountPercent: i.discountPercent, withGst: i.withGst }));
+
+      const gstRate = Number(quote.gst_rate) || 18;
+      const date = (quote.quotation_date as string) || new Date().toISOString().slice(0, 10);
+      const vendorId = quote.vendor_id as string;
+
+      const batchId = uid('D');
+      let totalBilled = 0;
+      let totalQty = 0;
+      const productNames: string[] = [];
+      const unitRows: { distId: string; productId: string; qty: number; disc: number; netPricePerUnit: number; gstApplied: number; billedPricePerUnit: number }[] = [];
+
+      for (const item of distItems) {
+        const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
+        const product = (await client.query('SELECT id, name, price FROM products WHERE id = $1 AND tenant_id = $2', [item.productId, tenantId])).rows[0] as { id: string; name: string; price: number } | undefined;
+        if (!product) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: `Product not found: ${item.productId}` });
+        }
+        const basePrice = item.customPrice ? Number(item.customPrice) : product.price;
+        const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
+        const netPricePerUnit = Math.round((basePrice * (100 - disc) / 100) * 100) / 100;
+        const gstApplied = item.withGst !== false ? 1 : 0;
+        const billedPricePerUnit = gstApplied ? Math.round(netPricePerUnit * (100 + gstRate) / 100) : netPricePerUnit;
+        productNames.push(product.name);
+        unitRows.push({ distId: '', productId: product.id, qty, disc, netPricePerUnit, gstApplied, billedPricePerUnit });
+        totalBilled += billedPricePerUnit * qty;
+        totalQty += qty;
+      }
+
       const resolvedUnits: { distId: string; productId: string; barcode: string; invId: string; disc: number; netPrice: number; gstApplied: number; billedPrice: number }[] = [];
-      for (const u of unitRows as { distId: string; productId: string; qty: number; disc: number; netPricePerUnit: number; gstApplied: number; billedPricePerUnit: number }[]) {
+      for (const u of unitRows) {
         const locked = (await client.query(
           `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3 FOR UPDATE SKIP LOCKED`,
           [u.productId, tenantId, u.qty]
@@ -177,7 +192,6 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
           resolvedUnits.push({ distId: '', productId: u.productId, barcode: inv.barcode, invId: inv.id, disc: u.disc, netPrice: u.netPricePerUnit, gstApplied: u.gstApplied, billedPrice: u.billedPricePerUnit });
         }
       }
-      // Use resolvedUnits (with locked barcodes) for the INSERT
       for (let i = 0; i < resolvedUnits.length; i++) {
         const u = resolvedUnits[i];
         const distId = `${batchId}-${i + 1}`;
@@ -187,14 +201,24 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
         );
         await client.query('UPDATE product_inventory SET status = $1 WHERE id = $2 AND tenant_id = $3', ['Distributed', u.invId, tenantId]);
       }
-      await client.query('UPDATE quotations SET status = $1, converted_batch_id = $2 WHERE id = $3 AND tenant_id = $4', ['Converted', batchId, req.params.id, tenantId]);
+      const converted = await client.query(
+        "UPDATE quotations SET status = $1, converted_batch_id = $2 WHERE id = $3 AND tenant_id = $4 AND status = 'Accepted'",
+        ['Converted', batchId, req.params.id, tenantId]
+      );
+      if (converted.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Already converted' });
+      }
       await client.query('COMMIT');
-    } catch (e) { await client.query('ROLLBACK'); throw e; }
-    finally { client.release(); }
 
-    await logAudit(pool, tenantId, 'Quotation Converted', 'quotation', req.params.id as string, `Converted to distribution ${batchId}, ${totalQty} units`);
-
-    res.json({ ok: true, batchId, total: totalQty, billValue: totalBilled });
+      await logAudit(pool, tenantId, 'Quotation Converted', 'quotation', req.params.id as string, `Converted to distribution ${batchId}, ${totalQty} units`);
+      res.json({ ok: true, batchId, total: totalQty, billValue: totalBilled });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 

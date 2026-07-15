@@ -130,23 +130,41 @@ router.post('/api/orders/:id/fulfill', blockVendors, async (req: AuthRequest, re
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const order = (await pool.query('SELECT * FROM orders WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId])).rows[0] as Record<string, unknown> | undefined;
-    if (!order) return res.status(404).json({ error: 'Order not found' });
-    if (order.status === 'Fulfilled') return res.status(400).json({ error: 'Already fulfilled' });
-    if (order.status === 'Cancelled') return res.status(400).json({ error: 'Cannot fulfill cancelled order' });
-    if (order.status === 'Pending') return res.status(400).json({ error: 'Order must be confirmed before fulfilling' });
-    if (!order.vendor_id) return res.status(400).json({ error: 'Order must have a vendor to fulfill' });
-
-    const items = typeof order.items === 'string' ? JSON.parse(order.items as string) : order.items as { productId: string; quantity: number; discountPercent: number; withGst: boolean; price: number }[];
-    const gstRate = Number(order.gst_rate) || 18;
-    const batchId = uid('D');
-    const date = (order.order_date as string) || new Date().toISOString().slice(0, 10);
-    let totalBilled = 0;
-    let totalQty = 0;
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      const order = (await client.query(
+        'SELECT * FROM orders WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+        [req.params.id, tenantId]
+      )).rows[0] as Record<string, unknown> | undefined;
+      if (!order) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Order not found' });
+      }
+      if (order.status === 'Fulfilled') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Already fulfilled' });
+      }
+      if (order.status === 'Cancelled') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Cannot fulfill cancelled order' });
+      }
+      if (order.status === 'Pending') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Order must be confirmed before fulfilling' });
+      }
+      if (!order.vendor_id) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Order must have a vendor to fulfill' });
+      }
+
+      const items = typeof order.items === 'string' ? JSON.parse(order.items as string) : order.items as { productId: string; quantity: number; discountPercent: number; withGst: boolean; price: number }[];
+      const gstRate = Number(order.gst_rate) || 18;
+      const batchId = uid('D');
+      const date = (order.order_date as string) || new Date().toISOString().slice(0, 10);
+      let totalBilled = 0;
+      let totalQty = 0;
 
       for (const item of items) {
         const qty = Number(item.quantity) || 1;
@@ -181,12 +199,24 @@ router.post('/api/orders/:id/fulfill', blockVendors, async (req: AuthRequest, re
         }
       }
 
-      await client.query('UPDATE orders SET status = $1, fulfilled_batch_id = $2 WHERE id = $3 AND tenant_id = $4', ['Fulfilled', batchId, req.params.id, tenantId]);
+      const fulfilled = await client.query(
+        "UPDATE orders SET status = $1, fulfilled_batch_id = $2 WHERE id = $3 AND tenant_id = $4 AND status = 'Confirmed'",
+        ['Fulfilled', batchId, req.params.id, tenantId]
+      );
+      if (fulfilled.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Already fulfilled' });
+      }
       await client.query('COMMIT');
-    } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
 
-    await logAudit(pool, tenantId, 'Order Fulfilled', 'order', req.params.id as string, `Fulfilled as distribution batch ${batchId}, ${totalQty} units`);
-    res.json({ batchId, total: totalQty, billValue: totalBilled });
+      await logAudit(pool, tenantId, 'Order Fulfilled', 'order', req.params.id as string, `Fulfilled as distribution batch ${batchId}, ${totalQty} units`);
+      res.json({ batchId, total: totalQty, billValue: totalBilled });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 

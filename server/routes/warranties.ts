@@ -168,34 +168,73 @@ router.put('/api/warranties/:id', blockVendors, async (req: AuthRequest, res) =>
     if (replacedBarcode && typeof replacedBarcode === 'string' && replacedBarcode.trim()) {
       try {
         const w = row as { barcode: string; product_id: string; customer_name: string; customer_phone: string; activation_date?: string };
+        const newBc = replacedBarcode.trim();
+        const oldBc = w.barcode;
         const prod = (await pool.query(
           'SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [w.product_id, tenantId]
         )).rows[0] as { name: string } | undefined;
-        const sale = (await pool.query(
-          'SELECT vendor_id FROM product_sales WHERE barcode = $1 AND tenant_id = $2', [w.barcode, tenantId]
-        )).rows[0] as { vendor_id: string } | undefined;
-        const dist = (await pool.query(
-          'SELECT vendor_id FROM product_distribution WHERE barcode = $1 AND tenant_id = $2', [w.barcode, tenantId]
-        )).rows[0] as { vendor_id: string } | undefined;
 
-        const repVendorId = sale?.vendor_id ?? dist?.vendor_id ?? 'OWNER';
         const repId = uid('REP');
         const replacedDate = new Date().toISOString().slice(0, 10);
 
         const wClient = await pool.connect();
         try {
           await wClient.query('BEGIN');
+          const [firstBc, secondBc] = [oldBc, newBc].sort();
           await wClient.query(
-            `INSERT INTO product_replacements (id, tenant_id, old_barcode, new_barcode, warranty_id, product_id, product_name, customer_name, customer_phone, replaced_date, reason, vendor_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-            [repId, tenantId, w.barcode, replacedBarcode.trim(), id, w.product_id, prod?.name ?? null, w.customer_name, w.customer_phone, replacedDate, 'Warranty claim', repVendorId]
+            `SELECT 1 FROM product_distribution WHERE barcode = ANY($1::text[]) AND tenant_id = $2 FOR UPDATE`,
+            [[firstBc, secondBc], tenantId]
           );
-          await wClient.query("UPDATE product_distribution SET status = 'Damaged' WHERE barcode = $1 AND tenant_id = $2", [w.barcode, tenantId]);
-          await wClient.query("UPDATE product_distribution SET status = 'Replaced' WHERE barcode = $1 AND tenant_id = $2", [replacedBarcode.trim(), tenantId]);
-          if (repVendorId === 'OWNER') {
-            await wClient.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2", [replacedBarcode.trim(), tenantId]);
+          await wClient.query(
+            `SELECT 1 FROM product_sales WHERE barcode = ANY($1::text[]) AND tenant_id = $2 FOR UPDATE`,
+            [[firstBc, secondBc], tenantId]
+          );
+          await wClient.query(
+            `SELECT 1 FROM product_inventory WHERE barcode = ANY($1::text[]) AND tenant_id = $2 FOR UPDATE`,
+            [[firstBc, secondBc], tenantId]
+          );
+
+          const existingRep = (await wClient.query(
+            'SELECT 1 FROM product_replacements WHERE old_barcode = $1 AND tenant_id = $2 LIMIT 1',
+            [oldBc, tenantId]
+          )).rows[0];
+          if (existingRep) {
+            await wClient.query('ROLLBACK');
+          } else {
+            const sale = (await wClient.query(
+              'SELECT vendor_id FROM product_sales WHERE barcode = $1 AND tenant_id = $2', [oldBc, tenantId]
+            )).rows[0] as { vendor_id: string } | undefined;
+            const distOld = (await wClient.query(
+              'SELECT vendor_id, status FROM product_distribution WHERE barcode = $1 AND tenant_id = $2', [oldBc, tenantId]
+            )).rows[0] as { vendor_id: string; status: string } | undefined;
+            const repVendorId = sale?.vendor_id ?? distOld?.vendor_id ?? 'OWNER';
+
+            const distNew = (await wClient.query(
+              'SELECT vendor_id, status FROM product_distribution WHERE barcode = $1 AND tenant_id = $2', [newBc, tenantId]
+            )).rows[0] as { vendor_id: string; status: string } | undefined;
+            const invNew = repVendorId === 'OWNER'
+              ? (await wClient.query(
+                  'SELECT status FROM product_inventory WHERE barcode = $1 AND tenant_id = $2', [newBc, tenantId]
+                )).rows[0] as { status: string } | undefined
+              : null;
+            const newValid = (distNew?.vendor_id === repVendorId && distNew.status === 'Distributed')
+              || (repVendorId === 'OWNER' && invNew?.status === 'InStock');
+            if (!newValid || distOld?.status === 'Damaged' || distOld?.status === 'Replaced') {
+              await wClient.query('ROLLBACK');
+            } else {
+              await wClient.query(
+                `INSERT INTO product_replacements (id, tenant_id, old_barcode, new_barcode, warranty_id, product_id, product_name, customer_name, customer_phone, replaced_date, reason, vendor_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                [repId, tenantId, oldBc, newBc, id, w.product_id, prod?.name ?? null, w.customer_name, w.customer_phone, replacedDate, 'Warranty claim', repVendorId]
+              );
+              await wClient.query("UPDATE product_distribution SET status = 'Damaged' WHERE barcode = $1 AND tenant_id = $2", [oldBc, tenantId]);
+              await wClient.query("UPDATE product_distribution SET status = 'Replaced' WHERE barcode = $1 AND tenant_id = $2", [newBc, tenantId]);
+              if (repVendorId === 'OWNER') {
+                await wClient.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2", [newBc, tenantId]);
+              }
+              await wClient.query('COMMIT');
+            }
           }
-          await wClient.query('COMMIT');
         } catch (txErr) { await wClient.query('ROLLBACK'); console.error('Warranty replacement failed', txErr); } finally { wClient.release(); }
       } catch (repErr) { console.error('Warranty replacement setup failed', repErr); }
     }
