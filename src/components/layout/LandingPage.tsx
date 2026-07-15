@@ -253,7 +253,7 @@ export function LandingPage() {
           <div className="flex items-center gap-2">
             <div className={`flex items-center gap-0.5 rounded-lg p-0.5 ${dark ? 'bg-white/5' : 'bg-gray-100'}`}>
               {LANGS.map(l => (
-                <button key={l.code} type="button" onClick={() => setLang(l.code)} className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white' : `${muted} hover:text-current`}`}>{l.label}</button>
+                <button key={l.code} type="button" onClick={() => setLang(l.code)} className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white' : `${dark ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-gray-900'}`}`}>{l.label}</button>
               ))}
             </div>
             <button type="button" onClick={toggleTheme} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg ${muted} hover:text-current transition-colors`}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
@@ -312,7 +312,7 @@ export function LandingPage() {
                 <div className={`flex items-center gap-0.5 rounded-full p-0.5 ${dark ? 'bg-white/5' : 'bg-gray-100'}`}>
                   {[{ idx: 0, label: 'EN' }, { idx: 1, label: 'हि' }, { idx: 2, label: 'ગુ' }].map(l => (
                     <button key={l.idx} type="button" onClick={() => { setHeroLang(l.idx); setHeroAuto(false); setLang((['en','hi','gu'] as const)[l.idx]); }}
-                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${heroLang === l.idx ? 'bg-brand text-white' : muted}`}>
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${heroLang === l.idx ? 'bg-brand text-white' : (dark ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-gray-900')}`}>
                       {l.label}
                     </button>
                   ))}
@@ -544,8 +544,12 @@ export function LandingPage() {
             <div className="flex justify-center gap-2 mt-4">
               {TESTIMONIALS.map((_, i) => (
                 <button key={i} onClick={() => setTestimonialIdx(i)}
-                  className={`h-1.5 rounded-full transition-all ${i === testimonialIdx ? 'bg-brand w-4' : `w-1.5 ${dark ? 'bg-white/20' : 'bg-gray-300'}`}`}
-                />
+                  aria-label={`Go to testimonial ${i + 1}`}
+                  className="flex items-center justify-center"
+                  style={{ minWidth: 44, minHeight: 44, background: 'transparent', padding: 0, border: 'none', cursor: 'pointer' }}
+                >
+                  <span className={`inline-block rounded-full transition-all ${i === testimonialIdx ? 'bg-brand h-1.5 w-4' : `h-1.5 w-1.5 ${dark ? 'bg-white/20' : 'bg-gray-300'}`}`} />
+                </button>
               ))}
             </div>
           </div>
@@ -708,9 +712,9 @@ export function LandingPage() {
             ))}
           </div>
           <div className={`flex items-center gap-3 ${faint}`}>
-            <a href="tel:+918806907616" className="hover:text-brand transition-colors"><Phone size={15} /></a>
-            <a href="https://wa.me/918806907616" target="_blank" rel="noopener noreferrer" className="hover:text-green-500 transition-colors"><MessageCircle size={15} /></a>
-            <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand transition-colors"><Mail size={15} /></a>
+            <a href="tel:+918806907616" aria-label="Call us" className="hover:text-brand transition-colors p-2" style={{minWidth:44,minHeight:44,display:'flex',alignItems:'center',justifyContent:'center'}}><Phone size={15} /></a>
+            <a href="https://wa.me/918806907616" aria-label="WhatsApp us" target="_blank" rel="noopener noreferrer" className="hover:text-green-500 transition-colors p-2" style={{minWidth:44,minHeight:44,display:'flex',alignItems:'center',justifyContent:'center'}}><MessageCircle size={15} /></a>
+            <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" aria-label="Email us" target="_blank" rel="noopener noreferrer" className="hover:text-brand transition-colors p-2" style={{minWidth:44,minHeight:44,display:'flex',alignItems:'center',justifyContent:'center'}}><Mail size={15} /></a>
           </div>
         </div>
         <p className={`text-center text-xs mt-5 ${faint}`}>© {new Date().getFullYear()} Dhandho · {L('Built with love for Indian businesses','भारतीय businesses के लिए बना','ભારતીય businesses માટે બનેલું')}</p>
