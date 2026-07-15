@@ -167,45 +167,85 @@ router.post('/api/replacements', blockVendors, async (req: AuthRequest, res) => 
       return res.status(400).json({ error: 'oldBarcode, newBarcode, customerName, customerPhone are required' });
     }
 
-    const sale = (await pool.query(
-      'SELECT product_id, vendor_id FROM product_sales WHERE barcode = $1 AND tenant_id = $2',
-      [oldBarcode, tenantId]
-    )).rows[0] as { product_id: string; vendor_id: string } | undefined;
-
-    const distOld = (await pool.query(
-      'SELECT product_id, vendor_id FROM product_distribution WHERE barcode = $1 AND tenant_id = $2',
-      [oldBarcode, tenantId]
-    )).rows[0] as { product_id: string; vendor_id: string } | undefined;
-
-    const vendorId = sale?.vendor_id ?? distOld?.vendor_id ?? null;
-    if (!vendorId) return res.status(400).json({ error: 'Old barcode not found (not sold or distributed)' });
-    if (restrictToVendorId && vendorId !== restrictToVendorId) return res.status(400).json({ error: 'Old barcode belongs to another vendor' });
-
-    const distNew = (await pool.query(
-      'SELECT vendor_id FROM product_distribution WHERE barcode = $1 AND status = $2 AND tenant_id = $3',
-      [newBarcode, 'Distributed', tenantId]
-    )).rows[0] as { vendor_id: string } | undefined;
-
-    const invNew = vendorId === 'OWNER'
-      ? (await pool.query(
-          'SELECT 1 FROM product_inventory WHERE barcode = $1 AND status = $2 AND tenant_id = $3',
-          [newBarcode, 'InStock', tenantId]
-        )).rows[0]
-      : null;
-
-    const newValid = distNew?.vendor_id === vendorId || (vendorId === 'OWNER' && invNew);
-    if (!newValid) return res.status(400).json({ error: 'New barcode is not allocated to the same vendor. Verify new barcode before saving.' });
-
     const id = uid('REP');
     const date = replacedDate || new Date().toISOString().slice(0, 10);
-    const productId = sale?.product_id ?? distOld?.product_id ?? null;
-    const prod = productId
-      ? (await pool.query('SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])).rows[0] as { name: string } | undefined
-      : null;
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      // Lock barcodes in stable order to avoid deadlocks under concurrent replace
+      const [firstBc, secondBc] = [oldBarcode, newBarcode].sort();
+      await client.query(
+        `SELECT 1 FROM product_distribution WHERE barcode = ANY($1::text[]) AND tenant_id = $2 FOR UPDATE`,
+        [[firstBc, secondBc], tenantId]
+      );
+      await client.query(
+        `SELECT 1 FROM product_sales WHERE barcode = ANY($1::text[]) AND tenant_id = $2 FOR UPDATE`,
+        [[firstBc, secondBc], tenantId]
+      );
+      await client.query(
+        `SELECT 1 FROM product_inventory WHERE barcode = ANY($1::text[]) AND tenant_id = $2 FOR UPDATE`,
+        [[firstBc, secondBc], tenantId]
+      );
+
+      const existingRep = (await client.query(
+        'SELECT 1 FROM product_replacements WHERE old_barcode = $1 AND tenant_id = $2 LIMIT 1',
+        [oldBarcode, tenantId]
+      )).rows[0];
+      if (existingRep) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Old barcode has already been replaced' });
+      }
+
+      const sale = (await client.query(
+        'SELECT product_id, vendor_id FROM product_sales WHERE barcode = $1 AND tenant_id = $2',
+        [oldBarcode, tenantId]
+      )).rows[0] as { product_id: string; vendor_id: string } | undefined;
+
+      const distOld = (await client.query(
+        'SELECT product_id, vendor_id, status FROM product_distribution WHERE barcode = $1 AND tenant_id = $2',
+        [oldBarcode, tenantId]
+      )).rows[0] as { product_id: string; vendor_id: string; status: string } | undefined;
+
+      const vendorId = sale?.vendor_id ?? distOld?.vendor_id ?? null;
+      if (!vendorId) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Old barcode not found (not sold or distributed)' });
+      }
+      if (restrictToVendorId && vendorId !== restrictToVendorId) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Old barcode belongs to another vendor' });
+      }
+      if (distOld?.status === 'Damaged' || distOld?.status === 'Replaced') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Old barcode has already been replaced' });
+      }
+
+      const distNew = (await client.query(
+        'SELECT vendor_id, status FROM product_distribution WHERE barcode = $1 AND tenant_id = $2',
+        [newBarcode, tenantId]
+      )).rows[0] as { vendor_id: string; status: string } | undefined;
+
+      const invNew = vendorId === 'OWNER'
+        ? (await client.query(
+            'SELECT status FROM product_inventory WHERE barcode = $1 AND tenant_id = $2',
+            [newBarcode, tenantId]
+          )).rows[0] as { status: string } | undefined
+        : null;
+
+      const newValid = (distNew?.vendor_id === vendorId && distNew.status === 'Distributed')
+        || (vendorId === 'OWNER' && invNew?.status === 'InStock');
+      if (!newValid) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'New barcode is not allocated to the same vendor. Verify new barcode before saving.' });
+      }
+
+      const productId = sale?.product_id ?? distOld?.product_id ?? null;
+      const prod = productId
+        ? (await client.query('SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])).rows[0] as { name: string } | undefined
+        : null;
+
       await client.query(
         `INSERT INTO product_replacements (id, tenant_id, old_barcode, new_barcode, warranty_id, product_id, product_name, customer_name, customer_phone, replaced_date, reason, vendor_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,

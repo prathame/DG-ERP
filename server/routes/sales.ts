@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { blockVendors, requireAdmin, AuthRequest, assertVendorAccess, vendorScopeId } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest, assertVendorAccess, assertVendorLinked, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 
@@ -205,6 +205,9 @@ router.get('/api/sales', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const unlinked = assertVendorLinked(req as AuthRequest);
+    if (unlinked) return res.status(403).json({ error: unlinked });
 
     const { vendorId } = req.query;
     const { limit, offset, page } = parsePagination(req.query as Record<string, unknown>);

@@ -129,6 +129,25 @@ router.put('/api/admin/users/:id', async (req, res) => {
     const params: unknown[] = [];
     let paramIndex = 1;
 
+    const existing = (await pool.query(
+      'SELECT role, vendor_id FROM users WHERE id = $1 AND tenant_id = $2',
+      [id, tenantId]
+    )).rows[0] as { role: string; vendor_id: string | null } | undefined;
+    if (!existing) return res.status(404).json({ error: 'User not found' });
+
+    const nextRole = role !== undefined ? role : existing.role;
+    const nextVendorId = vendorId !== undefined ? (vendorId || null) : existing.vendor_id;
+    if (nextRole === 'Vendor' && !nextVendorId) {
+      return res.status(400).json({ error: 'Vendor role requires a linked vendorId' });
+    }
+    if (nextVendorId) {
+      const vendorExists = (await pool.query(
+        'SELECT 1 FROM vendors WHERE id = $1 AND tenant_id = $2',
+        [nextVendorId, tenantId]
+      )).rows[0];
+      if (!vendorExists) return res.status(400).json({ error: 'Linked vendor not found' });
+    }
+
     if (role !== undefined) {
       updates.push(`role = $${paramIndex++}`);
       params.push(role);

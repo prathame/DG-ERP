@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { blockVendors, requireAdmin, AuthRequest, vendorScopeId, assertVendorAccess } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest, vendorScopeId, assertVendorAccess, assertVendorLinked } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
@@ -117,6 +117,9 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const unlinked = assertVendorLinked(req);
+    if (unlinked) return res.status(403).json({ error: unlinked });
 
     const { vendorId } = req.query;
     const jwtVendorId = vendorScopeId(req);
@@ -493,31 +496,32 @@ router.put('/api/distribution/apply-billing', blockVendors, async (req: AuthRequ
     const { vendorId, batchId, gstUnits, nonGstUnits, gstRate } = req.body;
     if (!vendorId && !batchId) return res.status(400).json({ error: 'vendorId or batchId required' });
     const rate = Number(gstRate) || 18;
-    let sql = `
-      SELECT pd.id, COALESCE(pd.net_price, p.price) as unit_price
-      FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
-      WHERE pd.tenant_id = $1
-    `;
-    const params: (string | number)[] = [tenantId];
-    let paramIdx = 1;
-    if (batchId) {
-      paramIdx++;
-      sql += ` AND pd.batch_id = $${paramIdx}`;
-      params.push(batchId as string);
-    } else {
-      paramIdx++;
-      sql += ` AND pd.vendor_id = $${paramIdx} AND pd.billed_price IS NULL`;
-      params.push(vendorId as string);
-    }
-    sql += ' ORDER BY pd.id';
-    const units = (await pool.query(sql, params)).rows as { id: string; unit_price: number }[];
-    const totalUnits = units.length;
-    const gstCount = Math.min(gstUnits ?? 0, totalUnits);
-    const nonGstCount = Math.min(nonGstUnits ?? 0, totalUnits - gstCount);
-    let idx = 0;
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      let sql = `
+        SELECT pd.id, COALESCE(pd.net_price, p.price) as unit_price
+        FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
+        WHERE pd.tenant_id = $1
+      `;
+      const params: (string | number)[] = [tenantId];
+      let paramIdx = 1;
+      if (batchId) {
+        paramIdx++;
+        sql += ` AND pd.batch_id = $${paramIdx}`;
+        params.push(batchId as string);
+      } else {
+        paramIdx++;
+        sql += ` AND pd.vendor_id = $${paramIdx} AND pd.billed_price IS NULL`;
+        params.push(vendorId as string);
+      }
+      sql += ' ORDER BY pd.id FOR UPDATE OF pd';
+      const units = (await client.query(sql, params)).rows as { id: string; unit_price: number }[];
+      const totalUnits = units.length;
+      const gstCount = Math.min(gstUnits ?? 0, totalUnits);
+      const nonGstCount = Math.min(nonGstUnits ?? 0, totalUnits - gstCount);
+      let idx = 0;
       for (let i = 0; i < gstCount && idx < units.length; i++, idx++) {
         const u = units[idx];
         const billedPrice = Math.round(u.unit_price * (100 + rate) / 100);
@@ -534,14 +538,14 @@ router.put('/api/distribution/apply-billing', blockVendors, async (req: AuthRequ
         );
       }
       await client.query('COMMIT');
+      await logAudit(pool, tenantId, 'Billing Applied', 'distribution', batchId || vendorId, `GST: ${gstCount} units, Non-GST: ${nonGstCount} units`);
+      res.json({ ok: true, gstUnits: gstCount, nonGstUnits: nonGstCount });
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
     } finally {
       client.release();
     }
-    await logAudit(pool, tenantId, 'Billing Applied', 'distribution', batchId || vendorId, `GST: ${gstCount} units, Non-GST: ${nonGstCount} units`);
-    res.json({ ok: true, gstUnits: gstCount, nonGstUnits: nonGstCount });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
@@ -894,7 +898,7 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
-      if (err instanceof Error) {
+      if (err instanceof Error && (err.message.startsWith('Cannot ') || err.message.startsWith('Insufficient '))) {
         return res.status(400).json({ error: err.message });
       }
       throw err;

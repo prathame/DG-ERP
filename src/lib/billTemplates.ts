@@ -86,7 +86,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
       <strong style="color:#166534;">Warranty Information</strong>
       <table style="width:100%;margin-top:8px;font-size:13px;">
         <tr><td style="color:#6b7280;">Duration</td><td><strong>${bill.warrantyMonths} months</strong></td>
-            <td style="color:#6b7280;">Status</td><td><strong>${bill.warranty.status}</strong></td></tr>
+            <td style="color:#6b7280;">Status</td><td><strong>${esc(bill.warranty.status)}</strong></td></tr>
         <tr><td style="color:#6b7280;">Activation</td><td>${fmtDate(bill.warranty.activationDate)}</td>
             <td style="color:#6b7280;">Expiry</td><td>${fmtDate(bill.warranty.expiryDate)}</td></tr>
       </table>
@@ -152,7 +152,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
     return convert(Math.round(n)) + ' Rupees and ' + String(Math.round((n % 1) * 100) || '00').padStart(2, '0') + ' Paisa Only';
   };
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Invoice'} - ${invPrefix}${bill.id}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Invoice'} - ${esc(invPrefix)}${esc(bill.id)}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
@@ -212,7 +212,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
     </td>
     <td colspan="2" style="padding:0;vertical-align:top;">
       <table style="width:100%;">
-        <tr class="cust-row"><td class="cust-label">Invoice No.</td><td><strong style="font-family:monospace;">${invPrefix}${bill.id}</strong></td></tr>
+        <tr class="cust-row"><td class="cust-label">Invoice No.</td><td><strong style="font-family:monospace;">${esc(invPrefix)}${esc(bill.id)}</strong></td></tr>
         <tr class="cust-row"><td class="cust-label">Invoice Date</td><td><strong>${fmtDate(bill.purchaseDate)}</strong></td></tr>
         <tr class="cust-row"><td class="cust-label">Vendor</td><td>${esc(bill.vendor.name)}</td></tr>
       </table>
@@ -359,7 +359,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
     return convert(Math.round(n)) + ' Rupees and ' + String(Math.round((n % 1) * 100) || '00').padStart(2, '0') + ' Paisa Only';
   };
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Challan'} - ${chPrefix}${bill.challanId}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Challan'} - ${esc(chPrefix)}${esc(bill.challanId)}</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
@@ -441,7 +441,7 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
     </td>
     <td colspan="2" style="padding:0;vertical-align:top;">
       <table style="width:100%;">
-        <tr class="cust-row"><td class="cust-label">Invoice No.</td><td><strong style="font-family:monospace;">${chPrefix}${bill.challanId}</strong></td></tr>
+        <tr class="cust-row"><td class="cust-label">Invoice No.</td><td><strong style="font-family:monospace;">${esc(chPrefix)}${esc(bill.challanId)}</strong></td></tr>
         <tr class="cust-row"><td class="cust-label">Invoice Date</td><td><strong>${fmtDate(bill.distributionDate)}</strong></td></tr>
         ${(bill as unknown as Record<string, unknown>).ewbNumber ? `<tr class="cust-row"><td class="cust-label">E-Way Bill</td><td><strong style="font-family:monospace;">${esc(String((bill as unknown as Record<string, unknown>).ewbNumber))}</strong></td></tr>` : ''}
       </table>
@@ -470,7 +470,7 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
     const lineGst = showGst ? Math.round(g.lineTotal * gstRate / 100) : 0;
     return `<tr>
       <td>${g.sno}</td>
-      <td class="left"><strong>${esc(g.productName)}</strong>${(g as Record<string, unknown>).packQuantity ? ` <span style="font-size:9px;color:#666;">${(g as Record<string, unknown>).packQuantity}</span>` : ''}</td>
+      <td class="left"><strong>${esc(g.productName)}</strong>${(g as Record<string, unknown>).packQuantity ? ` <span style="font-size:9px;color:#666;">${esc((g as Record<string, unknown>).packQuantity)}</span>` : ''}</td>
       ${showGst ? `<td>${esc((g as Record<string, unknown>).hsnCode as string || '-')}</td>` : ''}
       <td>${g.quantity}</td>
       <td class="right">${g.netPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>

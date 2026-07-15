@@ -77,7 +77,7 @@ router.post('/api/staff/batch', blockVendors, async (req: AuthRequest, res) => {
   } catch (e) {
     await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
-    res.status(500).json({ error: (e as Error).message || 'Import failed — no staff were added' });
+    res.status(500).json({ error: 'Import failed — no staff were added' });
   } finally { client.release(); }
 });
 

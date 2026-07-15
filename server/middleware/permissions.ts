@@ -47,6 +47,7 @@ const PATH_MODULE: [string, string][] = [
   ['/categories', 'inventory'],
   ['/purchases', 'purchases'],
   ['/suppliers', 'purchases'],
+  ['/supplier-finance', 'purchases'],
   ['/quotations', 'quotations'],
   ['/orders', 'orders'],
   ['/warranties', 'warranty'],
@@ -63,6 +64,7 @@ const PATH_MODULE: [string, string][] = [
   ['/invoices', 'sales'],
   ['/customers', 'sales'],
   ['/mapping', 'sales'],
+  ['/vendors', 'distribution'],
   ['/search', 'dashboard'],
 ];
 

@@ -144,12 +144,18 @@ export function vendorScopeId(req: AuthRequest): string | null {
   return req.user.vendorId ?? null;
 }
 
-/** Reject if Vendor JWT tries to access another vendor's resource. */
+/** Error if current user is a Vendor with no linked vendor profile; else null. */
+export function assertVendorLinked(req: AuthRequest): string | null {
+  if (req.user?.role !== 'Vendor') return null;
+  if (!req.user.vendorId) return 'Vendor account is not linked to a vendor profile.';
+  return null;
+}
+
+/** Reject if Vendor JWT tries to access another vendor's resource (or is unlinked). */
 export function assertVendorAccess(req: AuthRequest, vendorId: string): string | null {
-  const scoped = vendorScopeId(req);
-  if (scoped == null) return null;
-  if (!scoped) return 'Vendor account is not linked to a vendor profile.';
-  if (scoped !== vendorId) return 'Access denied for this vendor.';
+  if (req.user?.role !== 'Vendor') return null;
+  if (!req.user.vendorId) return 'Vendor account is not linked to a vendor profile.';
+  if (req.user.vendorId !== vendorId) return 'Access denied for this vendor.';
   return null;
 }
 

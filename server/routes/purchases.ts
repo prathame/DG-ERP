@@ -334,6 +334,7 @@ router.get('/api/supplier-finance/:supplierId', async (req, res) => {
 });
 
 router.post('/api/supplier-finance/:supplierId/payments', blockVendors, async (req: AuthRequest, res) => {
+  const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -341,16 +342,71 @@ router.post('/api/supplier-finance/:supplierId/payments', blockVendors, async (r
     const { amount, paymentDate, paymentMethod, referenceNumber, notes, batchId } = req.body;
     const parsedAmount = Number(amount);
     if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ error: 'Amount must be a valid number greater than 0' });
-    const supplier = (await pool.query('SELECT id FROM suppliers WHERE id = $1 AND tenant_id = $2', [supplierId, tenantId])).rows[0];
-    if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+    if (parsedAmount > 100000000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
+
+    await client.query('BEGIN');
+    const supplier = (await client.query(
+      'SELECT id FROM suppliers WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [supplierId, tenantId]
+    )).rows[0];
+    if (!supplier) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    if (batchId) {
+      const batchDue = (await client.query(
+        `SELECT
+           SUM(COALESCE(pp.billed_price, pp.cost_price, 0)) as bill_value,
+           COALESCE((SELECT SUM(sp.amount) FROM supplier_payments sp WHERE sp.batch_id = $1 AND sp.supplier_id = $2 AND sp.tenant_id = $3), 0) as paid
+         FROM product_purchases pp
+         WHERE pp.batch_id = $1 AND pp.supplier_id = $2 AND pp.tenant_id = $3`,
+        [batchId, supplierId, tenantId]
+      )).rows[0] as { bill_value: string | number | null; paid: string | number } | undefined;
+      if (!batchDue || batchDue.bill_value == null || Number(batchDue.bill_value) <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Batch does not belong to this supplier' });
+      }
+      const remaining = Number(batchDue.bill_value) - Number(batchDue.paid);
+      if (remaining <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Batch is already fully paid' });
+      }
+      if (parsedAmount > remaining + 0.01) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Amount exceeds remaining balance of ₹${remaining.toFixed(2)}` });
+      }
+    } else {
+      const due = (await client.query(
+        `SELECT
+           COALESCE((SELECT SUM(COALESCE(pp.billed_price, pp.cost_price, 0)) FROM product_purchases pp WHERE pp.supplier_id = $1 AND pp.tenant_id = $2), 0) as bill_value,
+           COALESCE((SELECT SUM(sp.amount) FROM supplier_payments sp WHERE sp.supplier_id = $1 AND sp.tenant_id = $2), 0) as paid`,
+        [supplierId, tenantId]
+      )).rows[0] as { bill_value: string | number; paid: string | number };
+      const remaining = Number(due.bill_value) - Number(due.paid);
+      if (remaining <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Supplier balance is already fully paid' });
+      }
+      if (parsedAmount > remaining + 0.01) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Amount exceeds remaining balance of ₹${remaining.toFixed(2)}` });
+      }
+    }
+
     const id = uid('SP');
-    await pool.query(
+    await client.query(
       'INSERT INTO supplier_payments (id, tenant_id, supplier_id, amount, payment_date, payment_method, reference_number, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
       [id, tenantId, supplierId, parsedAmount, paymentDate || new Date().toISOString().slice(0, 10), paymentMethod || 'Cash', referenceNumber || null, notes || null, batchId || null]
     );
+    await client.query('COMMIT');
     const row = (await pool.query('SELECT * FROM supplier_payments WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     res.status(201).json({ id: row.id, amount: Number(row.amount), paymentDate: row.payment_date, paymentMethod: row.payment_method });
-  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally { client.release(); }
 });
 
 export default router;

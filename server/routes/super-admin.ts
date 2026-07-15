@@ -543,7 +543,7 @@ router.get('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       onpremVersions: versions,
     });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -558,7 +558,8 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
     }
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -672,7 +673,8 @@ router.get('/api/super-admin/tenants/:id/active-users', superAdminMiddleware, as
     )).rows;
     res.json({ activeCount: rows.length, users: rows });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -690,7 +692,8 @@ router.post('/api/super-admin/tenants/:id/upgrade-plan', superAdminMiddleware, a
     );
     res.json({ ok: true, plan: plan.name });
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

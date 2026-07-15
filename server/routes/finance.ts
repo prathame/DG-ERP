@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { blockVendors, requireAdmin, AuthRequest, vendorScopeId, assertVendorAccess } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest, vendorScopeId, assertVendorAccess, assertVendorLinked } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
@@ -10,6 +10,9 @@ router.get('/api/vendor-finance/summary', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const unlinked = assertVendorLinked(req);
+    if (unlinked) return res.status(403).json({ error: unlinked });
 
     const vendors = (await pool.query(`
       SELECT v.id, v.name, v.phone,
@@ -151,13 +154,26 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
     const vendorName = vendor.name ?? vendorId;
 
     if (batchId) {
-      const batchOwned = (await client.query(
-        `SELECT 1 FROM product_distribution WHERE batch_id = $1 AND vendor_id = $2 AND tenant_id = $3 LIMIT 1`,
+      const batchDue = (await client.query(
+        `SELECT
+           SUM(COALESCE(pd.billed_price, pd.net_price, 0)) as bill_value,
+           COALESCE((SELECT SUM(vp.amount) FROM vendor_payments vp WHERE vp.batch_id = $1 AND vp.vendor_id = $2 AND vp.tenant_id = $3), 0) as paid
+         FROM product_distribution pd
+         WHERE pd.batch_id = $1 AND pd.vendor_id = $2 AND pd.tenant_id = $3`,
         [batchId, vendorId, tenantId]
-      )).rows[0];
-      if (!batchOwned) {
+      )).rows[0] as { bill_value: string | number | null; paid: string | number } | undefined;
+      if (!batchDue || batchDue.bill_value == null || Number(batchDue.bill_value) <= 0) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Batch does not belong to this vendor' });
+      }
+      const remaining = Number(batchDue.bill_value) - Number(batchDue.paid);
+      if (remaining <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Batch is already fully paid' });
+      }
+      if (parsedAmount > remaining + 0.01) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Amount exceeds remaining balance of ₹${remaining.toFixed(2)}` });
       }
 
       const id = uid('VP');
@@ -180,6 +196,16 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
         ORDER BY MIN(pd.distribution_date)
       `, [vendorId, tenantId])).rows as { batch_id: string; bill_value: number; paid: number }[];
 
+      const totalDue = batches.reduce((sum, b) => sum + (Number(b.bill_value) - Number(b.paid)), 0);
+      if (totalDue <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Vendor balance is already fully paid' });
+      }
+      if (parsedAmount > totalDue + 0.01) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Amount exceeds remaining balance of ₹${totalDue.toFixed(2)}` });
+      }
+
       let remaining = parsedAmount;
       for (const b of batches) {
         if (remaining <= 0) break;
@@ -191,13 +217,6 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
           [id, vendorId, pay, pDate, pMethod, referenceNumber || null, notes ? `${notes} (batch ${b.batch_id})` : `All-batch payment`, tenantId, b.batch_id]
         );
         remaining -= pay;
-      }
-      if (remaining > 0) {
-        const id = uid('VP');
-        await client.query(
-          'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-          [id, vendorId, remaining, pDate, pMethod, referenceNumber || null, notes || 'Advance payment', tenantId, null]
-        );
       }
       await client.query('COMMIT');
       logAudit(pool, tenantId, 'Payment Recorded', 'payment', uid('VP'), `${vendorName} paid ₹${parsedAmount} across ${batches.length} batches`);
@@ -349,19 +368,63 @@ router.post('/api/vendor-finance/bank-statement/apply', blockVendors, async (req
     const importBatchId = uid('BSI');
     await client.query('BEGIN');
     let count = 0;
+    const skipped: string[] = [];
     for (const p of payments) {
-      if (!p.vendorId || !p.amount || p.amount <= 0) continue;
+      const amount = Number(p.amount);
+      if (!p.vendorId || !amount || amount <= 0 || amount > 100000000) {
+        skipped.push(`${p.vendorId || '?'}: invalid amount`);
+        continue;
+      }
+      const vendor = (await client.query(
+        'SELECT id FROM vendors WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+        [p.vendorId, tenantId]
+      )).rows[0];
+      if (!vendor) {
+        skipped.push(`${p.vendorId}: vendor not found`);
+        continue;
+      }
+      if (p.batchId) {
+        const batchDue = (await client.query(
+          `SELECT
+             SUM(COALESCE(pd.billed_price, pd.net_price, 0)) as bill_value,
+             COALESCE((SELECT SUM(vp.amount) FROM vendor_payments vp WHERE vp.batch_id = $1 AND vp.vendor_id = $2 AND vp.tenant_id = $3), 0) as paid
+           FROM product_distribution pd
+           WHERE pd.batch_id = $1 AND pd.vendor_id = $2 AND pd.tenant_id = $3`,
+          [p.batchId, p.vendorId, tenantId]
+        )).rows[0] as { bill_value: string | number | null; paid: string | number } | undefined;
+        if (!batchDue || batchDue.bill_value == null || Number(batchDue.bill_value) <= 0) {
+          skipped.push(`${p.vendorId}: batch ${p.batchId} invalid`);
+          continue;
+        }
+        const remaining = Number(batchDue.bill_value) - Number(batchDue.paid);
+        if (amount > remaining + 0.01) {
+          skipped.push(`${p.vendorId}: amount exceeds batch balance`);
+          continue;
+        }
+      } else {
+        const due = (await client.query(
+          `SELECT
+             COALESCE((SELECT SUM(COALESCE(pd.billed_price, pd.net_price, 0)) FROM product_distribution pd WHERE pd.vendor_id = $1 AND pd.tenant_id = $2), 0) as bill_value,
+             COALESCE((SELECT SUM(vp.amount) FROM vendor_payments vp WHERE vp.vendor_id = $1 AND vp.tenant_id = $2), 0) as paid`,
+          [p.vendorId, tenantId]
+        )).rows[0] as { bill_value: string | number; paid: string | number };
+        const remaining = Number(due.bill_value) - Number(due.paid);
+        if (amount > remaining + 0.01) {
+          skipped.push(`${p.vendorId}: amount exceeds vendor balance`);
+          continue;
+        }
+      }
       const id = uid('VP');
       await client.query(
         'INSERT INTO vendor_payments (id, tenant_id, vendor_id, amount, payment_date, payment_method, reference_number, notes, batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-        [id, tenantId, p.vendorId, p.amount, p.date || new Date().toISOString().slice(0, 10), 'Bank Statement',
+        [id, tenantId, p.vendorId, amount, p.date || new Date().toISOString().slice(0, 10), 'Bank Statement',
          p.reference || null, `[${importBatchId}] ${p.note || 'Bank statement import'}`, p.batchId || null]
       );
       count++;
     }
     await client.query('COMMIT');
     await logAudit(pool, tenantId, 'Bank Statement Import', 'payment', importBatchId, `${count} payments applied from bank statement`);
-    res.json({ applied: count, importBatchId });
+    res.json({ applied: count, importBatchId, skipped });
   } catch (e) {
     await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);

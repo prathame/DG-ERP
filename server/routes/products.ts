@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool } from '../pg-db';
 import { uid, mapProduct, logAudit } from '../utils/helpers';
 import { barcodeExists, expandBarcodeRange, generateBarcodesFromPrefix } from '../utils/barcode';
-import { requireAdmin, blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
+import { requireAdmin, blockVendors, AuthRequest, vendorScopeId, assertVendorLinked } from '../middleware/auth';
 import { checkPlanLimit } from '../utils/planLimits';
 import { withTenantClient } from '../pg-db';
 
@@ -224,6 +224,8 @@ router.get('/api/products/verify/:barcode', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const unlinked = assertVendorLinked(req);
+    if (unlinked) return res.status(403).json({ error: unlinked });
     const { barcode } = req.params;
     const jwtVendorId = vendorScopeId(req);
 
@@ -430,7 +432,7 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
   } catch (e) {
     await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
-    res.status(500).json({ error: (e as Error).message || 'Import failed — no products were added' });
+    res.status(500).json({ error: 'Import failed — no products were added' });
   } finally { client.release(); }
 });
 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { checkPlanLimit } from '../utils/planLimits';
-import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
+import { blockVendors, requireAdmin, AuthRequest, assertVendorLinked, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, hashPassword, logAudit, isValidPhone, isValidEmail, isValidGstin } from '../utils/helpers';
 
@@ -10,8 +10,11 @@ router.get('/api/vendors', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    // H1 fix: Vendors can only see themselves
-    const jwtVendorId = req.user?.role === 'Vendor' ? req.user?.vendorId : null;
+
+    const unlinked = assertVendorLinked(req);
+    if (unlinked) return res.status(403).json({ error: unlinked });
+
+    const jwtVendorId = vendorScopeId(req);
 
     const { search } = req.query;
     let sql = jwtVendorId
@@ -98,7 +101,7 @@ router.post('/api/vendors/bulk', blockVendors, async (req: AuthRequest, res) => 
   } catch (e) {
     await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
-    res.status(500).json({ error: (e as Error).message || 'Import failed — no vendors were added' });
+    res.status(500).json({ error: 'Import failed — no vendors were added' });
   } finally { client.release(); }
 });
 

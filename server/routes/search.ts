@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
-import { AuthRequest, vendorScopeId } from '../middleware/auth';
+import { AuthRequest, vendorScopeId, assertVendorLinked } from '../middleware/auth';
 
 const router = Router();
 
@@ -8,6 +8,9 @@ router.get('/api/search', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const unlinked = assertVendorLinked(req);
+    if (unlinked) return res.status(403).json({ error: unlinked });
 
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     if (!q || q.length < 1) return res.json({ products: [], customers: [], vendors: [], warranties: [], sales: [] });
