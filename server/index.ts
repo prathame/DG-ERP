@@ -120,7 +120,7 @@ const PUBLIC_PATHS = [
   '/api/super-admin/login', '/api/tenant/by-slug/', '/api/health',
   '/manifest.json',
   // On-prem license endpoints — validated by license key / localhost, not JWT
-  '/api/onprem/activate', '/api/onprem/heartbeat', '/api/onprem/deactivate', '/api/onprem/provision',
+  '/api/onprem/activate', '/api/onprem/heartbeat', '/api/onprem/deactivate', '/api/onprem/provision', '/api/onprem/apply-settings',
 ];
 
 // Tenant status — no cache, always check DB
@@ -195,6 +195,33 @@ app.get('/manifest.json', async (req, res) => {
 const distPath = path.join(process.cwd(), 'dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
+}
+
+// Block browser access when REQUIRE_ELECTRON=true — cloud customers must use the app
+if (process.env.REQUIRE_ELECTRON === 'true') {
+  app.use((req, res, next) => {
+    // Allow: API calls, admin panel, on-prem local, already-Electron requests
+    const isApi = req.path.startsWith('/api/');
+    const isAdmin = req.path.startsWith('/admin');
+    const isElectron = req.headers['x-dg-client'] === 'electron-cloud' || req.headers['x-dg-client'] === 'electron-onprem';
+    const isOnPremLocal = process.env.DEPLOYMENT_MODE === 'onprem';
+    if (isApi || isAdmin || isElectron || isOnPremLocal) return next();
+    // Browser user — serve download page
+    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>DG ERP — Download App</title>
+    <style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',sans-serif;background:#f9fafb;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#1a1a1a;}
+    .card{background:white;border-radius:20px;padding:48px;max-width:480px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.08);}
+    .icon{width:64px;height:64px;background:#F27D26;border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;color:white;font-weight:800;font-size:24px;}
+    h1{font-size:24px;font-weight:800;margin-bottom:8px;}p{color:#6b7280;font-size:15px;line-height:1.6;margin-bottom:32px;}
+    .btn{display:inline-block;padding:14px 32px;background:#F27D26;color:white;border-radius:12px;font-weight:700;text-decoration:none;font-size:15px;margin:6px;}
+    .btn.sec{background:#f3f4f6;color:#374151;}</style></head>
+    <body><div class="card"><div class="icon">DG</div>
+    <h1>DG ERP requires the desktop app</h1>
+    <p>Browser access is disabled. Download the DG ERP app for Windows or Mac to continue.</p>
+    <a href="https://github.com/prathame/DG-ERP/releases/latest" class="btn">Download for Windows</a>
+    <a href="https://github.com/prathame/DG-ERP/releases/latest" class="btn">Download for Mac</a>
+    <br/><br/><a href="/admin" class="btn sec">Super Admin Login</a>
+    </div></body></html>`);
+  });
 }
 
 // Health check

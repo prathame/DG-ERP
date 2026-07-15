@@ -86,6 +86,20 @@ async function sendHeartbeat(): Promise<void> {
       );
     }
 
+    // Apply any pushed settings (tab config, feature toggles) to local tenant
+    if (data.settings && typeof data.settings === 'object' && licenseInfo) {
+      const s = data.settings as Record<string, unknown>;
+      if (s.tabConfig || s.barcodeSystemEnabled !== undefined) {
+        try {
+          await fetch(`${LOCAL_API_URL}/api/onprem/apply-settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ licenseKey: licenseInfo.licenseKey, settings: s }),
+          });
+        } catch {}
+      }
+    }
+
     connectionStatus = 'online';
     lastSync = new Date();
   } catch {

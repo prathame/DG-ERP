@@ -29,6 +29,11 @@ function createWindow() {
   // Remove default menu bar
   Menu.setApplicationMenu(null);
 
+  // Tag every request so server knows it's coming from the Electron app
+  win.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
+    callback({ requestHeaders: { ...details.requestHeaders, 'X-DG-Client': 'electron-cloud' } });
+  });
+
   win.loadURL(CLOUD_URL);
 
   // Show window once loaded — avoids white flash

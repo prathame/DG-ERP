@@ -118,6 +118,56 @@ router.post('/api/onprem/deactivate', async (req, res) => {
   }
 });
 
+// ── Apply settings pushed from cloud (tab config, feature toggles) ────────────
+router.post('/api/onprem/apply-settings', async (req, res) => {
+  try {
+    const ip = req.ip || req.socket.remoteAddress || '';
+    if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip)) return res.status(403).json({ error: 'Localhost only' });
+    const { licenseKey, settings } = req.body as { licenseKey: string; settings: Record<string, unknown> };
+
+    // Find the local tenant and apply settings
+    const tenant = (await pool.query("SELECT id FROM tenants WHERE slug != 'OWNER' LIMIT 1")).rows[0] as { id: string } | undefined;
+    if (!tenant) return res.json({ ok: true, skipped: true });
+
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    let idx = 1;
+
+    if (settings.tabConfig) {
+      updates.push(`tab_config=$${idx++}`);
+      params.push(JSON.stringify(settings.tabConfig));
+    }
+    if (settings.businessType) {
+      updates.push(`business_type=$${idx++}`);
+      params.push(settings.businessType);
+    }
+    const featureMap: Record<string, string> = {
+      barcodeSystemEnabled: 'barcode_system_enabled',
+      multiLanguageEnabled: 'multi_language_enabled',
+      inventoryTrackingEnabled: 'inventory_tracking_enabled',
+      vendorPortalEnabled: 'vendor_portal_enabled',
+      quotationsEnabled: 'quotations_enabled',
+      accountsEnabled: 'accounts_enabled',
+      purchasesEnabled: 'purchases_enabled',
+      chatbotEnabled: 'chatbot_enabled',
+    };
+    for (const [key, col] of Object.entries(featureMap)) {
+      if (settings[key] !== undefined) {
+        updates.push(`${col}=$${idx++}`);
+        params.push(Boolean(settings[key]));
+      }
+    }
+
+    if (updates.length) {
+      params.push(tenant.id);
+      await pool.query(`UPDATE tenants SET ${updates.join(',')} WHERE id=$${idx}`, params);
+    }
+    res.json({ ok: true, applied: updates.length });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // ── On-prem local provision (called by Electron after wizard, localhost only) ──
 router.post('/api/onprem/provision', async (req, res) => {
   try {

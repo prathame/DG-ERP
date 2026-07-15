@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Monitor, Plus, X, Copy, Check, Wifi, WifiOff, RefreshCw, Trash2, AlertTriangle } from 'lucide-react';
+import { Monitor, Plus, X, Copy, Check, Wifi, WifiOff, RefreshCw, Trash2, AlertTriangle, Settings, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useToast } from '../../components/ui';
 
@@ -43,6 +43,11 @@ export function OnPremView({ saToken }: { saToken: string }) {
   const [showNew, setShowNew] = useState(false);
   const [selected, setSelected] = useState<License | null>(null);
   const [copied, setCopied] = useState('');
+  const [settingsTab, setSettingsTab] = useState<'tabs' | 'features' | 'updates'>('tabs');
+  const [localSettings, setLocalSettings] = useState<Record<string, unknown>>({});
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [latestVersion, setLatestVersion] = useState('');
+  const [minVersion, setMinVersion] = useState('');
 
   const [form, setForm] = useState({
     companyName: '', businessType: 'manufacturer' as typeof BUSINESS_TYPES[number],
@@ -95,6 +100,14 @@ export function OnPremView({ saToken }: { saToken: string }) {
     toast('Updated', 'success');
     load();
     setSelected(prev => prev ? { ...prev, ...patch } : prev);
+  };
+
+  const saveSettings = async () => {
+    if (!selected) return;
+    setSavingSettings(true);
+    await handleUpdate(selected.id, { settings: localSettings });
+    setSavingSettings(false);
+    toast('Settings saved — will apply on next heartbeat (up to 60 min)', 'success');
   };
 
   const handleDelete = async (id: string) => {
@@ -170,6 +183,119 @@ export function OnPremView({ saToken }: { saToken: string }) {
             </button>
           </div>
         )}
+
+        {/* Remote Settings — pushed via heartbeat */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold flex items-center gap-2"><Settings size={16} /> Remote Settings</h3>
+            <p className="text-xs text-gray-400">Applied on next heartbeat (up to 60 min)</p>
+          </div>
+          <div className="flex gap-2 mb-4 border-b border-gray-100 pb-3">
+            {(['tabs','features','updates'] as const).map(t => (
+              <button key={t} onClick={() => setSettingsTab(t)}
+                className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-colors capitalize",
+                  settingsTab === t ? 'bg-brand text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}>
+                {t === 'tabs' ? 'Tab Config' : t === 'features' ? 'Features' : 'Updates'}
+              </button>
+            ))}
+          </div>
+
+          {settingsTab === 'tabs' && (
+            <div className="space-y-2">
+              <p className="text-xs text-gray-400 mb-3">Toggle which tabs are visible. Changes push to the on-prem app on next sync.</p>
+              {[
+                'analytics','masters','inventory','distribution','sales','purchases',
+                'verification','quotations','invoices','finance','accounts',
+                'warranty','replacements','rewards','chatbot'
+              ].map(tab => {
+                const cfg = ((localSettings.tabConfig || selected?.settings?.tabConfig || {}) as Record<string, { label: string; visible: boolean }>)[tab] || { label: tab, visible: true };
+                return (
+                  <div key={tab} className="flex items-center justify-between py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded">{tab}</span>
+                      <input
+                        value={cfg.label}
+                        onChange={e => setLocalSettings(prev => ({
+                          ...prev,
+                          tabConfig: { ...(prev.tabConfig as Record<string, unknown> || {}), [tab]: { ...cfg, label: e.target.value } }
+                        }))}
+                        className="text-sm border border-gray-200 rounded px-2 py-1 w-32 focus:ring-1 focus:ring-brand"
+                      />
+                    </div>
+                    <button onClick={() => setLocalSettings(prev => ({
+                      ...prev,
+                      tabConfig: { ...(prev.tabConfig as Record<string, unknown> || {}), [tab]: { ...cfg, visible: !cfg.visible } }
+                    }))} className={cn("relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition-colors", cfg.visible ? 'bg-emerald-500' : 'bg-gray-300')}>
+                      <span className={cn("inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform", cfg.visible ? 'translate-x-4' : 'translate-x-0')} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {settingsTab === 'features' && (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-400 mb-3">Toggle system features. Changes push to the on-prem app on next sync.</p>
+              {[
+                { key: 'barcodeSystemEnabled', label: 'Barcode System', desc: 'Auto-generated barcodes, scanner, label printing' },
+                { key: 'multiLanguageEnabled', label: 'Multi-Language', desc: 'Switch UI between English, Hindi, Gujarati' },
+                { key: 'inventoryTrackingEnabled', label: 'Inventory Tracking', desc: 'Stock count, barcode quantity, Add Stock' },
+                { key: 'vendorPortalEnabled', label: 'Vendor Portal', desc: 'Vendors get login credentials and portal access' },
+                { key: 'quotationsEnabled', label: 'Quotations', desc: 'Create quotes, share via WhatsApp, convert to distribution' },
+                { key: 'accountsEnabled', label: 'Accounts & Reports', desc: 'P&L, Balance Sheet, GST reports' },
+                { key: 'purchasesEnabled', label: 'Purchases', desc: 'Supplier management and purchase batches' },
+                { key: 'chatbotEnabled', label: 'AI Chatbot', desc: 'Ask business questions in natural language' },
+              ].map(({ key, label, desc }) => {
+                const val = (localSettings[key] ?? (selected?.settings as Record<string, unknown>)?.[key] ?? true) as boolean;
+                return (
+                  <div key={key} className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">{label}</p>
+                      <p className="text-xs text-gray-400">{desc}</p>
+                    </div>
+                    <button onClick={() => setLocalSettings(prev => ({ ...prev, [key]: !val }))}
+                      className={cn("relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition-colors shrink-0 ml-4", val ? 'bg-emerald-500' : 'bg-gray-300')}>
+                      <span className={cn("inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform", val ? 'translate-x-4' : 'translate-x-0')} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {settingsTab === 'updates' && (
+            <div className="space-y-4">
+              <p className="text-xs text-gray-400">Control which version this installation runs. Applied on next heartbeat.</p>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Latest Version (optional update notification)</label>
+                <input value={latestVersion} onChange={e => setLatestVersion(e.target.value)} placeholder="e.g. 2.2.0"
+                  className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Minimum Version (force update below this)</label>
+                <input value={minVersion} onChange={e => setMinVersion(e.target.value)} placeholder="e.g. 2.1.0"
+                  className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+              </div>
+              <button onClick={() => {
+                setLocalSettings(prev => ({ ...prev, latestVersion: latestVersion || null, minVersion: minVersion || null }));
+                toast('Version settings staged — click Save to push', 'info');
+              }} className="w-full py-2 border border-brand text-brand rounded-xl text-sm font-bold hover:bg-orange-50">
+                <Zap size={14} className="inline mr-1" /> Stage Version Update
+              </button>
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
+                Current: <strong>{selected?.appVersion || 'unknown'}</strong> · Last sync: <strong>{timeAgo(selected?.lastSeen || null)}</strong>
+              </div>
+            </div>
+          )}
+
+          {Object.keys(localSettings).length > 0 && (
+            <button onClick={saveSettings} disabled={savingSettings}
+              className="mt-4 w-full py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50">
+              {savingSettings ? 'Saving...' : 'Save & Push to Device'}
+            </button>
+          )}
+        </div>
 
         {/* Renew License */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
