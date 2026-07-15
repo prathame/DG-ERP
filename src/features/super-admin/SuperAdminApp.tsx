@@ -46,7 +46,7 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
 
   const navItems: { id: AdminTab; label: string; icon: typeof LayoutDashboard }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'tenants', label: 'Tenants', icon: Building2 },
+    { id: 'tenants', label: 'Cloud Tenants', icon: Building2 },
     { id: 'plans', label: 'Plans', icon: CreditCard },
     { id: 'billing', label: 'Billing', icon: IndianRupee },
     { id: 'onprem', label: 'On-Prem', icon: Monitor },

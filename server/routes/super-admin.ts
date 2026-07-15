@@ -517,4 +517,111 @@ router.get('/api/super-admin/analytics', superAdminMiddleware, async (req, res) 
   }
 });
 
+// ── Tenant activity — login history, usage stats, storage ────────────────────
+router.get('/api/super-admin/tenants/:id/activity', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [logins, counts, revenue, storage] = await Promise.all([
+      // Last 10 login events
+      pool.query(
+        `SELECT user_name, details, created_at FROM audit_log WHERE tenant_id=$1 AND action='LOGIN' ORDER BY created_at DESC LIMIT 10`,
+        [id]
+      ),
+      // Entity counts
+      pool.query(
+        `SELECT
+          (SELECT COUNT(*) FROM products WHERE tenant_id=$1) as products,
+          (SELECT COUNT(*) FROM vendors WHERE tenant_id=$1 AND id!='OWNER') as vendors,
+          (SELECT COUNT(*) FROM customers WHERE tenant_id=$1) as customers,
+          (SELECT COUNT(*) FROM product_sales WHERE tenant_id=$1) as sales,
+          (SELECT COUNT(*) FROM product_distribution WHERE tenant_id=$1) as distributions,
+          (SELECT COUNT(*) FROM users WHERE tenant_id=$1) as users,
+          (SELECT COUNT(*) FROM expenses WHERE tenant_id=$1) as expenses`,
+        [id]
+      ),
+      // Revenue last 6 months
+      pool.query(
+        `SELECT to_char(purchase_date,'YYYY-MM') as month, COALESCE(SUM(sale_price),0) as revenue
+         FROM product_sales WHERE tenant_id=$1 AND purchase_date >= NOW() - INTERVAL '6 months'
+         GROUP BY month ORDER BY month`,
+        [id]
+      ),
+      // Storage estimate (row counts as proxy)
+      pool.query(
+        `SELECT
+          (SELECT COUNT(*) FROM product_inventory WHERE tenant_id=$1) +
+          (SELECT COUNT(*) FROM product_distribution WHERE tenant_id=$1) +
+          (SELECT COUNT(*) FROM product_sales WHERE tenant_id=$1) +
+          (SELECT COUNT(*) FROM audit_log WHERE tenant_id=$1) as total_rows`,
+        [id]
+      ),
+    ]);
+    const c = counts.rows[0] as Record<string, string>;
+    const s = storage.rows[0] as { total_rows: string };
+    res.json({
+      loginHistory: logins.rows,
+      counts: {
+        products: Number(c.products), vendors: Number(c.vendors),
+        customers: Number(c.customers), sales: Number(c.sales),
+        distributions: Number(c.distributions), users: Number(c.users),
+        expenses: Number(c.expenses),
+      },
+      revenueHistory: revenue.rows.map((r: Record<string, unknown>) => ({ month: r.month, revenue: Number(r.revenue) || 0 })),
+      estimatedStorageRows: Number(s.total_rows) || 0,
+    });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Tenant data export (super admin version)
+router.get('/api/super-admin/tenants/:id/export', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenant = (await pool.query('SELECT company_name FROM tenants WHERE id=$1', [id])).rows[0] as { company_name: string };
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const tables = ['products','vendors','customers','suppliers','banks','product_purchases',
+      'product_distribution','vendor_payments','supplier_payments','product_sales',
+      'standalone_invoices','invoice_payments','expenses','staff_members','staff_payments',
+      'warranties','quotations','orders','rewards','bill_settings'];
+
+    const backup: Record<string, unknown[]> = {};
+    await Promise.all(tables.map(async t => {
+      try {
+        const { rows } = await pool.query(`SELECT * FROM ${t} WHERE tenant_id=$1`, [id]);
+        backup[t] = rows;
+      } catch { backup[t] = []; }
+    }));
+
+    backup._meta = [{ exportedAt: new Date().toISOString(), companyName: tenant.company_name, tenantId: id, exportedBy: 'super_admin' }];
+    res.setHeader('Content-Disposition', `attachment; filename="${tenant.company_name.replace(/[^a-z0-9]/gi,'_')}_backup_${new Date().toISOString().slice(0,10)}.json"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.json(backup);
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Push in-app notification to tenant
+router.post('/api/super-admin/tenants/:id/notify', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, message, type = 'info' } = req.body;
+    if (!title || !message) return res.status(400).json({ error: 'title and message required' });
+    // Store as a system notification in audit_log — tenant reads it on next load
+    await pool.query(
+      `INSERT INTO audit_log (tenant_id, action, entity_type, entity_id, details, user_id, user_name, created_at)
+       VALUES ($1,'SYSTEM_NOTIFICATION','notification','SYS',$2,'SA1','Super Admin',NOW())`,
+      [id, JSON.stringify({ title, message, type })]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

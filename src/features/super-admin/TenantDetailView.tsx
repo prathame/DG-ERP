@@ -1,26 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
-  ArrowLeft,
-  Building2,
-  Users,
-  Package,
-  ShoppingCart,
-  IndianRupee,
-  ExternalLink,
-  Pause,
-  Play,
-  ChevronDown,
-  Mail,
-  Phone,
-  Calendar,
-  Shield,
-  Pencil,
-  RotateCcw,
-  Save,
-  KeyRound,
-  Copy,
-  Check,
+  ArrowLeft, Building2, Users, Package, ShoppingCart, IndianRupee, ExternalLink,
+  Pause, Play, ChevronDown, Mail, Phone, Calendar, Shield, Pencil, RotateCcw,
+  Save, KeyRound, Copy, Check, Download, Bell, BarChart3, Clock, HardDrive, Zap,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
@@ -81,6 +64,11 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   const [resetTokenModal, setResetTokenModal] = useState<{ email: string; userName: string; token: string; resetLink: string; expiresAt: string } | null>(null);
   const [resetLoading, setResetLoading] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [activity, setActivity] = useState<{ loginHistory: Record<string,unknown>[]; counts: Record<string,number>; revenueHistory: {month:string;revenue:number}[]; estimatedStorageRows: number } | null>(null);
+  const [showNotify, setShowNotify] = useState(false);
+  const [notifyForm, setNotifyForm] = useState({ title: '', message: '', type: 'info' });
+  const [sendingNotify, setSendingNotify] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   React.useEffect(() => {
     const token = session.getToken();
@@ -443,6 +431,165 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
           </table>
         </div>
       </div>
+      {/* Analytics + Storage + Login History */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-lg font-bold flex items-center gap-2"><BarChart3 size={18} /> Usage & Activity</h2>
+          <button onClick={() => {
+            if (activity) { setActivity(null); return; }
+            const saToken = session.getToken();
+            fetch(`/api/super-admin/tenants/${tenantId}/activity`, { headers: { Authorization: `Bearer ${saToken}` } })
+              .then(r => r.json()).then(setActivity).catch(() => {});
+          }} className="text-sm text-brand font-bold hover:underline">
+            {activity ? 'Hide' : 'Load'}
+          </button>
+        </div>
+        {activity && (
+          <div className="p-5 space-y-5">
+            {/* Counts */}
+            <div className="grid grid-cols-3 md:grid-cols-7 gap-3">
+              {Object.entries(activity.counts).map(([k, v]) => (
+                <div key={k} className="text-center bg-gray-50 rounded-xl p-3">
+                  <p className="text-xl font-bold">{v}</p>
+                  <p className="text-[10px] text-gray-400 uppercase capitalize">{k}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Revenue trend */}
+            {activity.revenueHistory.length > 0 && (
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Revenue — Last 6 months</p>
+                <div className="flex items-end gap-1.5 h-16">
+                  {activity.revenueHistory.map(r => {
+                    const max = Math.max(...activity.revenueHistory.map(x => x.revenue), 1);
+                    return (
+                      <div key={r.month} className="flex-1 flex flex-col items-center gap-1">
+                        <div className="w-full bg-brand/80 rounded-t" style={{ height: `${(r.revenue / max) * 48}px` }} title={`₹${r.revenue.toLocaleString()}`} />
+                        <p className="text-[9px] text-gray-400">{r.month.slice(5)}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Storage */}
+            <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+              <HardDrive size={18} className="text-gray-400" />
+              <div>
+                <p className="text-sm font-bold">~{(activity.estimatedStorageRows * 0.5).toFixed(0)} KB estimated</p>
+                <p className="text-xs text-gray-400">{activity.estimatedStorageRows.toLocaleString()} total records</p>
+              </div>
+            </div>
+
+            {/* Login history */}
+            {activity.loginHistory.length > 0 && (
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1"><Clock size={11} /> Recent Logins</p>
+                <div className="space-y-1.5">
+                  {activity.loginHistory.map((l, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{l.user_name as string}</span>
+                      <span className="text-xs text-gray-400">{new Date(l.created_at as string).toLocaleString('en-IN')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Actions — Export, Notify, Upgrade */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+        <h2 className="text-lg font-bold mb-3 flex items-center gap-2"><Zap size={18} /> Quick Actions</h2>
+
+        {/* Data export */}
+        <button
+          onClick={async () => {
+            setExporting(true);
+            try {
+              const saToken = session.getToken();
+              const r = await fetch(`/api/super-admin/tenants/${tenantId}/export`, { headers: { Authorization: `Bearer ${saToken}` } });
+              const blob = await r.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url;
+              a.download = `${tenant.companyName}_backup_${new Date().toISOString().slice(0,10)}.json`;
+              a.click(); URL.revokeObjectURL(url);
+            } catch { toast('Export failed', 'error'); }
+            setExporting(false);
+          }}
+          disabled={exporting}
+          className="w-full flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 text-left"
+        >
+          <Download size={16} className="text-blue-500" />
+          <div><p className="text-sm font-bold">Export Tenant Data</p><p className="text-xs text-gray-400">Download full backup as JSON</p></div>
+          {exporting && <span className="ml-auto text-xs text-gray-400">Downloading...</span>}
+        </button>
+
+        {/* Push notification */}
+        <button
+          onClick={() => setShowNotify(true)}
+          className="w-full flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 text-left"
+        >
+          <Bell size={16} className="text-amber-500" />
+          <div><p className="text-sm font-bold">Send In-App Notification</p><p className="text-xs text-gray-400">Message appears on tenant's next login</p></div>
+        </button>
+      </div>
+
+      {/* Notify modal */}
+      {showNotify && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowNotify(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Bell size={18} /> Send Notification</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Title</label>
+                <input value={notifyForm.title} onChange={e => setNotifyForm(f => ({...f, title: e.target.value}))}
+                  className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="System Update" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Message</label>
+                <textarea value={notifyForm.message} onChange={e => setNotifyForm(f => ({...f, message: e.target.value}))}
+                  rows={3} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none"
+                  placeholder="Your message to the tenant..." />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase">Type</label>
+                <select value={notifyForm.type} onChange={e => setNotifyForm(f => ({...f, type: e.target.value}))}
+                  className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+                  <option value="info">ℹ️ Info</option>
+                  <option value="warning">⚠️ Warning</option>
+                  <option value="success">✅ Success</option>
+                </select>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setShowNotify(false)} className="flex-1 py-2 border rounded-lg text-sm font-medium">Cancel</button>
+                <button
+                  disabled={sendingNotify || !notifyForm.title || !notifyForm.message}
+                  onClick={async () => {
+                    setSendingNotify(true);
+                    const saToken = session.getToken();
+                    await fetch(`/api/super-admin/tenants/${tenantId}/notify`, {
+                      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${saToken}` },
+                      body: JSON.stringify(notifyForm),
+                    });
+                    toast('Notification sent', 'success');
+                    setShowNotify(false); setNotifyForm({ title: '', message: '', type: 'info' });
+                    setSendingNotify(false);
+                  }}
+                  className="flex-1 py-2 bg-brand text-white rounded-lg text-sm font-bold disabled:opacity-50"
+                >
+                  {sendingNotify ? 'Sending...' : 'Send'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {resetTokenModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setResetTokenModal(null)} />
