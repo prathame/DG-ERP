@@ -4,7 +4,7 @@
  */
 module.exports = {
   appId: 'in.dhandho.onprem',
-  productName: 'Dhandho',
+  productName: 'Dhandho On-Prem',
   directories: { output: 'dist-electron/onprem' },
   files: [
     'dist/**',           // Built React frontend

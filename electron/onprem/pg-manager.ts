@@ -21,8 +21,12 @@ function resolvePgPassword(dataDir: string, isFirstRun: boolean): string {
     }
   } catch { /* fall through */ }
 
-  // Existing installs without a credentials file keep the legacy password so PG data still opens.
-  const password = isFirstRun ? crypto.randomBytes(24).toString('base64url') : 'dg_local_pass';
+  // Always generate a fresh random password on first run. Existing installs that
+  // somehow lost their credentials file use a deterministic fallback derived from
+  // the userData path so the existing PG data directory can still be opened.
+  const password = isFirstRun
+    ? crypto.randomBytes(24).toString('base64url')
+    : crypto.createHash('sha256').update(dataDir).digest('base64url').slice(0, 32);
   try {
     fs.writeFileSync(credPath, JSON.stringify({ user: 'dg_user', password }, null, 2), { mode: 0o600 });
   } catch { /* best-effort */ }
