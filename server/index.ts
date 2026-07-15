@@ -41,6 +41,7 @@ import chatbotRouter from './routes/chatbot';
 import billSettingsRouter from './routes/bill-settings';
 import payrollRouter from './routes/payroll';
 import expensesRouter from './routes/expenses';
+import gstApiRouter from './routes/gst-api';
 import invoicesRouter from './routes/invoices';
 import { logger } from './utils/logger';
 
@@ -295,6 +296,7 @@ app.use(mappingRouter);
 app.use(auditRouter);
 app.use(payrollRouter);
 app.use(expensesRouter);
+app.use(gstApiRouter);
 app.use(invoicesRouter);
 app.use(chatbotRouter);
 app.use(billSettingsRouter);

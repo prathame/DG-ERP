@@ -493,6 +493,17 @@ vendor: (vendorId: string) =>
       return fetchApi<{ data: { id: number; userId: string; userName: string; action: string; entityType: string; entityId: string; details: string; createdAt: string }[]; total: number; page: number; totalPages: number }>(`/audit-log${qs ? `?${qs}` : ''}`);
     },
   },
+  gst: {
+    getSettings: () => fetchApi<{ mode: string; gstin: string; username: string; clientId: string }>('/gst/settings'),
+    saveSettings: (d: { mode?: string; gstin?: string; username?: string; password?: string; clientId?: string; clientSecret?: string }) =>
+      fetchApi<{ ok: boolean }>('/gst/settings', { method: 'PUT', body: JSON.stringify(d) }),
+    generateIrn: (batchId: string) =>
+      fetchApi<{ ok: boolean; irn: string; ackNo: string; ackDt: string; qrCode: string; mode: string }>('/gst/irn/generate', { method: 'POST', body: JSON.stringify({ batchId }) }),
+    generateEwb: (data: { batchId: string; vehicleNo: string; distance: number; transportMode?: string; transporterName?: string; transporterId?: string }) =>
+      fetchApi<{ ok: boolean; ewbNo: string; ewbDt: string; ewbValidTill: string; mode: string }>('/gst/ewb/generate', { method: 'POST', body: JSON.stringify(data) }),
+    cancelIrn: (irn: string, reason: number, remark?: string) =>
+      fetchApi<{ ok: boolean }>('/gst/irn/cancel', { method: 'POST', body: JSON.stringify({ irn, reason, remark }) }),
+  },
   auth: {
     signup: (data: { email: string; password: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }) =>
       fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string } }>('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),

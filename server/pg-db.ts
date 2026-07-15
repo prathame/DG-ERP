@@ -691,6 +691,16 @@ export async function initSchema() {
     // Missing performance indexes
     await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS price_includes_gst BOOLEAN DEFAULT false');
     await client.query('ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS ewb_number TEXT');
+    await client.query('ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS irn TEXT');
+    await client.query('ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS irn_ack_no TEXT');
+    await client.query('ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS irn_ack_dt TEXT');
+    await client.query('ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS irn_qr TEXT');
+    await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_mode TEXT DEFAULT 'mock'`);
+    await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_gstin TEXT`);
+    await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_username TEXT`);
+    await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_password TEXT`);
+    await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_client_id TEXT`);
+    await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_client_secret TEXT`);
     await client.query('ALTER TABLE product_purchases ALTER COLUMN barcode DROP NOT NULL');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_batch ON product_purchases(tenant_id, batch_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_date ON product_purchases(tenant_id, purchase_date)');
