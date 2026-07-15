@@ -126,7 +126,17 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'signup' && (
-              <div>)}
+              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Name</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="Full name" /></div>
+            )}
+            {mode !== 'reset' && (
+              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="you@example.com" /></div>
+            )}
+            {(mode === 'login' || mode === 'signup') && (
+              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><PasswordInput required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" /></div>
+            )}
+            {mode === 'signup' && (
+              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm Password</label><PasswordInput required value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" /></div>
+            )}
             {mode === 'forgot' && <p className="text-xs text-gray-500">Enter your email and we'll send you a password reset. Contact your admin if you don't receive it.</p>}
             {successMessage && <p className="text-sm text-emerald-400">{successMessage}</p>}
             {error && <p className="text-sm text-rose-400">{error}</p>}
