@@ -103,7 +103,7 @@ function EnquiryForm({ dark }: { dark: boolean }) {
       <button type="submit" disabled={sending} className="w-full py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-60">
         <Send size={16} /> {sending ? 'Sending...' : 'Get Started Free'}
       </button>
-      <p className={`text-xs text-center mt-3 ${dark ? 'text-white/30' : 'text-gray-400'}`}>
+      <p className={`text-xs text-center mt-3 ${dark ? 'text-white/50' : 'text-gray-500'}`}>
         Or WhatsApp: <a href="https://wa.me/918806907616" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:underline">+91 88069 07616</a>
       </p>
     </form>
@@ -174,8 +174,8 @@ export function LandingPage() {
   // Theme tokens
   const bg = dark ? 'bg-[#09090B]' : 'bg-[#FAFAFA]';
   const text = dark ? 'text-white' : 'text-gray-900';
-  const muted = dark ? 'text-white/50' : 'text-gray-500';
-  const faint = dark ? 'text-white/30' : 'text-gray-400';
+  const muted = dark ? 'text-white/65' : 'text-gray-600';
+  const faint = dark ? 'text-white/50' : 'text-gray-500';
   const border = dark ? 'border-white/8' : 'border-gray-200';
   const card = dark ? 'bg-white/[0.03] border-white/8' : 'bg-white border-gray-100 shadow-sm';
   const cardHov = dark
@@ -256,9 +256,9 @@ export function LandingPage() {
                 <button key={l.code} type="button" onClick={() => setLang(l.code)} className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white' : `${muted} hover:text-current`}`}>{l.label}</button>
               ))}
             </div>
-            <button type="button" onClick={toggleTheme} className={`p-2 rounded-lg ${muted} hover:text-current transition-colors`}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
+            <button type="button" onClick={toggleTheme} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg ${muted} hover:text-current transition-colors`}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
             <a href="#contact" className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-bold rounded-lg transition-colors hidden sm:block">{L('Try Free','ट्राय करें','Try Free')}</a>
-            <button type="button" onClick={() => setMobileMenuOpen(o => !o)} className={`md:hidden p-2 rounded-lg ${muted} hover:text-current transition-colors`}>
+            <button type="button" onClick={() => setMobileMenuOpen(o => !o)} aria-label={mobileMenuOpen ? "Close menu" : "Open menu"} aria-expanded={mobileMenuOpen} className={`md:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg ${muted} hover:text-current transition-colors`}>
               {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
@@ -356,7 +356,7 @@ export function LandingPage() {
                   <><Lock size={11} className="text-emerald-500" /> GST Ready</>,
                   <><Database size={11} className="text-violet-500" /> On-Prem option</>,
                 ].map((item, i) => (
-                  <span key={i} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${dark ? 'border-white/8 text-white/40' : 'border-gray-200 text-gray-500'}`}>{item}</span>
+                  <span key={i} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${dark ? 'border-white/10 text-white/55' : 'border-gray-200 text-gray-500'}`}>{item}</span>
                 ))}
               </div>
             </motion.div>

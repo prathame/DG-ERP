@@ -12,12 +12,31 @@ resolve: {
       },
     },
     build: {
+      target: 'es2020',
+      cssCodeSplit: true,
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom'],
-            motion: ['motion'],
-            scanner: ['html5-qrcode', 'jsbarcode'],
+          manualChunks(id) {
+            // React core — tiny, always needed
+            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
+              return 'vendor-react';
+            }
+            // Framer Motion — large, only needed for animated pages
+            if (id.includes('node_modules/motion') || id.includes('node_modules/framer-motion')) {
+              return 'vendor-motion';
+            }
+            // Scanner / barcode — only on inventory pages
+            if (id.includes('html5-qrcode') || id.includes('jsbarcode')) {
+              return 'vendor-scanner';
+            }
+            // xlsx — only on bank statement upload
+            if (id.includes('xlsx')) {
+              return 'vendor-xlsx';
+            }
+            // lucide icons — icon library
+            if (id.includes('node_modules/lucide-react') || id.includes('node_modules/@lucide')) {
+              return 'vendor-icons';
+            }
           },
         },
       },
