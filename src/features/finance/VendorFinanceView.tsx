@@ -8,6 +8,11 @@ import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from 
 import { session } from '../../lib/session';
 import { useConfirm } from '../../hooks/useConfirm';
 
+function esc(t: unknown): string {
+  return String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+
 export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: string; role?: string; vendorId?: string | null } | null; accessLevel?: 'hidden' | 'view' | 'print' | 'full' }) {
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
@@ -162,7 +167,7 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
             const companyName = (() => { try { return (session.getUser() || {} as Record<string, unknown>).companyName || 'Dhandho'; } catch { return 'Dhandho'; } })();
             const w = window.open('', '_blank');
             if (!w) return;
-            w.document.write(`<!DOCTYPE html><html><head><title>Payment History — ${detail.vendor.name}</title><style>
+            w.document.write(`<!DOCTYPE html><html><head><title>Payment History — ${esc(detail.vendor.name)}</title><style>
               body{font-family:Inter,sans-serif;margin:0;padding:40px;color:#1a1a1a}
               .header{border-bottom:3px solid #F27D26;padding-bottom:16px;margin-bottom:24px}
               .company{font-size:18px;font-weight:700}.vendor{font-size:14px;color:#666;margin-top:4px}

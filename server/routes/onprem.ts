@@ -111,7 +111,7 @@ router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
 });
 
 // Deactivate (transfer license to new machine)
-router.post('/api/onprem/deactivate', async (req, res) => {
+router.post('/api/onprem/deactivate', onpremLimiter, async (req, res) => {
   try {
     const { licenseKey, machineId } = req.body;
     const lic = (await pool.query(

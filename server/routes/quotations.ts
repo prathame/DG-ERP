@@ -140,7 +140,7 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
     let totalBilled = 0;
     let totalQty = 0;
     const productNames: string[] = [];
-    const unitRows: { distId: string; productId: string; barcode: string; invId: string; disc: number; netPrice: number; gstApplied: number; billedPrice: number }[] = [];
+    const unitRows: { distId: string; productId: string; qty: number; disc: number; netPricePerUnit: number; gstApplied: number; billedPricePerUnit: number }[] = [];
 
     for (const item of distItems) {
       const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
@@ -151,21 +151,35 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
       const netPricePerUnit = Math.round((basePrice * (100 - disc) / 100) * 100) / 100;
       const gstApplied = item.withGst !== false ? 1 : 0;
       const billedPricePerUnit = gstApplied ? Math.round(netPricePerUnit * (100 + gstRate) / 100) : netPricePerUnit;
-      const invRows = (await pool.query(`SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3`, [product.id, tenantId, qty])).rows as { id: string; barcode: string }[];
-      if (invRows.length < qty) return res.status(400).json({ error: `Insufficient stock for ${product.name}. Available: ${invRows.length}, requested: ${qty}` });
+      // H9 fix: defer inventory lock until inside BEGIN (done below)
       productNames.push(product.name);
-      for (const inv of invRows) {
-        unitRows.push({ distId: '', productId: product.id, barcode: inv.barcode, invId: inv.id, disc, netPrice: netPricePerUnit, gstApplied, billedPrice: billedPricePerUnit });
-        totalBilled += billedPricePerUnit;
-        totalQty++;
-      }
+      unitRows.push({ distId: '', productId: product.id, qty, disc, netPricePerUnit, gstApplied, billedPricePerUnit });
+      totalBilled += billedPricePerUnit * qty;
+      totalQty += qty;
     }
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      for (let i = 0; i < unitRows.length; i++) {
-        const u = unitRows[i];
+      // Lock inventory rows inside the transaction — prevents concurrent convert TOCTOU race
+      const resolvedUnits: { distId: string; productId: string; barcode: string; invId: string; disc: number; netPrice: number; gstApplied: number; billedPrice: number }[] = [];
+      for (const u of unitRows as { distId: string; productId: string; qty: number; disc: number; netPricePerUnit: number; gstApplied: number; billedPricePerUnit: number }[]) {
+        const locked = (await client.query(
+          `SELECT id, barcode FROM product_inventory WHERE product_id = $1 AND status = 'InStock' AND tenant_id = $2 ORDER BY id LIMIT $3 FOR UPDATE SKIP LOCKED`,
+          [u.productId, tenantId, u.qty]
+        )).rows as { id: string; barcode: string }[];
+        const productName = productNames[resolvedUnits.length] || '';
+        if (locked.length < u.qty) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `Insufficient stock for ${productName}. Available: ${locked.length}, requested: ${u.qty}` });
+        }
+        for (const inv of locked) {
+          resolvedUnits.push({ distId: '', productId: u.productId, barcode: inv.barcode, invId: inv.id, disc: u.disc, netPrice: u.netPricePerUnit, gstApplied: u.gstApplied, billedPrice: u.billedPricePerUnit });
+        }
+      }
+      // Use resolvedUnits (with locked barcodes) for the INSERT
+      for (let i = 0; i < resolvedUnits.length; i++) {
+        const u = resolvedUnits[i];
         const distId = `${batchId}-${i + 1}`;
         await client.query(
           'INSERT INTO product_distribution (id, batch_id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price, gst_applied, billed_price, tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',

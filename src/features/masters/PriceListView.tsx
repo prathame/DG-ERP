@@ -7,6 +7,11 @@ import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { session } from '../../lib/session';
 
+function esc(t: unknown): string {
+  return String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+
 interface PriceRule {
   id: string; name: string; productId: string; productName: string;
   vendorId?: string; vendorName?: string;

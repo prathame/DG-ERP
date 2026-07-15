@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, DISTRIBUTION_BILL_UNIT_SQL, logAudit } from '../utils/helpers';
 
@@ -118,8 +119,12 @@ router.get('/api/accounts/profit-loss', async (req, res) => {
       WHERE pd.tenant_id = $1 AND pd.distribution_date >= $2 AND pd.distribution_date <= $3
     `, [tenantId, from, to])).rows[0]?.t ?? 0) || 0;
 
+    // H8 fix: exclude sales of items that came via distribution (already counted in distRevenue)
+    // A product_sale with vendor_id='OWNER' = sold from warehouse stock (not via vendor)
+    // A product_sale with vendor_id!='OWNER' = sold after distribution (revenue already in distRevenue)
+    // Only count OWNER sales to avoid double-counting with distRevenue
     const salesRevenue = Number((await pool.query(
-      'SELECT COALESCE(SUM(COALESCE(sale_price, 0)), 0) as t FROM product_sales WHERE tenant_id = $1 AND purchase_date >= $2 AND purchase_date <= $3',
+      "SELECT COALESCE(SUM(COALESCE(sale_price, 0)), 0) as t FROM product_sales WHERE tenant_id = $1 AND purchase_date >= $2 AND purchase_date <= $3 AND vendor_id = 'OWNER'",
       [tenantId, from, to]
     )).rows[0]?.t ?? 0) || 0;
 
@@ -314,7 +319,7 @@ router.get('/api/accounts/notes', async (req, res) => {
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/api/accounts/notes', async (req, res) => {
+router.post('/api/accounts/notes', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -357,7 +362,7 @@ router.post('/api/accounts/notes', async (req, res) => {
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.delete('/api/accounts/notes/:id', async (req, res) => {
+router.delete('/api/accounts/notes/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -507,7 +512,7 @@ router.get('/api/gstr3b/compute', async (req, res) => {
 });
 
 // GSTR-2B Reconciliation — stateless, upload JSON → match against purchases → return results
-router.post('/api/gstr2b/reconcile', async (req, res) => {
+router.post('/api/gstr2b/reconcile', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

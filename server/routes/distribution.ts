@@ -52,12 +52,15 @@ router.get('/api/distribution/summary', async (req, res) => {
   }
 });
 
-router.get('/api/distribution', async (req, res) => {
+router.get('/api/distribution', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const { vendorId, batchId } = req.query;
+    const { batchId } = req.query;
+    // H1 fix: Vendor JWT can only see their own distributions
+    const jwtVendorId = req.user?.role === 'Vendor' ? req.user?.vendorId : null;
+    const vendorId = jwtVendorId || (req.query.vendorId as string | undefined);
     let sql = `
       SELECT pd.id, pd.batch_id, pd.product_id, pd.barcode, pd.vendor_id, pd.distribution_date, pd.status,
         pd.discount_percent, pd.net_price, pd.gst_applied, pd.billed_price,
@@ -101,7 +104,7 @@ router.get('/api/distribution', async (req, res) => {
   }
 });
 
-router.get('/api/distribution/batches', async (req, res) => {
+router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

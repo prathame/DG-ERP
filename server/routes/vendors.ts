@@ -6,15 +6,19 @@ import { uid, hashPassword, logAudit, isValidPhone, isValidEmail, isValidGstin }
 
 const router = Router();
 
-router.get('/api/vendors', async (req, res) => {
+router.get('/api/vendors', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    // H1 fix: Vendors can only see themselves
+    const jwtVendorId = req.user?.role === 'Vendor' ? req.user?.vendorId : null;
 
     const { search } = req.query;
-    let sql = 'SELECT * FROM vendors WHERE tenant_id = $1';
-    const params: unknown[] = [tenantId];
-    if (typeof search === 'string' && search) {
+    let sql = jwtVendorId
+      ? 'SELECT * FROM vendors WHERE tenant_id = $1 AND id = $2'
+      : 'SELECT * FROM vendors WHERE tenant_id = $1';
+    const params: unknown[] = jwtVendorId ? [tenantId, jwtVendorId] : [tenantId];
+    if (!jwtVendorId && typeof search === 'string' && search) {
       sql = 'SELECT * FROM vendors WHERE tenant_id = $1 AND (name ILIKE $2 OR contact_person ILIKE $3 OR phone ILIKE $4 OR email ILIKE $5)';
       params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }

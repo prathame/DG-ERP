@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 
@@ -94,7 +95,7 @@ router.get('/api/invoice-finance/client/:clientName', async (req, res) => {
 });
 
 // Record a payment against one or more invoices
-router.post('/api/invoice-finance/payments', async (req, res) => {
+router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -139,7 +140,7 @@ router.post('/api/invoice-finance/payments', async (req, res) => {
 });
 
 // Delete a payment
-router.delete('/api/invoice-finance/payments/:id', async (req, res) => {
+router.delete('/api/invoice-finance/payments/:id', blockVendors, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

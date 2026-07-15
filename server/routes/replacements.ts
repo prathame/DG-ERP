@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 
@@ -155,7 +156,7 @@ router.get('/api/replacements', async (req, res) => {
   }
 });
 
-router.post('/api/replacements', async (req, res) => {
+router.post('/api/replacements', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
