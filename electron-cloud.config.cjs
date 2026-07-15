@@ -4,7 +4,7 @@
  */
 module.exports = {
   appId: 'in.dhandho.cloud',
-  productName: 'Dhandho',
+  productName: 'Dhandho',  // Cloud wrapper — opens dhandho.app
   directories: { output: 'dist-electron/cloud' },
   files: [
     'electron/cloud/**',
