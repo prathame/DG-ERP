@@ -87,7 +87,23 @@ function playShutterSound() {
     clank.start(clankAt);
     clank.stop(clankAt + 0.35);
 
-    setTimeout(() => ctx.close(), 2000);
+    // ── Soft chime exactly when brand appears (t = LAST_SLAT + 0.02) ──
+    // Synced to t1 reveal timeout (0.9s from start)
+    const chimeAt = now + 0.92;
+    const chime = ctx.createOscillator();
+    chime.type = 'sine';
+    chime.frequency.setValueAtTime(880, chimeAt);           // A5
+    chime.frequency.exponentialRampToValueAtTime(660, chimeAt + 0.5); // drift down gently
+    const chimeGain = ctx.createGain();
+    chimeGain.gain.setValueAtTime(0, chimeAt);
+    chimeGain.gain.linearRampToValueAtTime(0.12, chimeAt + 0.02);  // instant attack
+    chimeGain.gain.exponentialRampToValueAtTime(0.001, chimeAt + 0.7); // natural decay
+    chime.connect(chimeGain);
+    chimeGain.connect(ctx.destination);
+    chime.start(chimeAt);
+    chime.stop(chimeAt + 0.72);
+
+    setTimeout(() => ctx.close(), 3000);
   } catch {
     // Autoplay blocked or Web Audio not supported — silent fail
   }
@@ -98,10 +114,10 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     playShutterSound();
-    // 0.9s → shutter open → brand holds 3s → fade out
+    // 0.9s shutter open → 1.2s brand hold → 0.5s fade
     const t1 = setTimeout(() => setPhase('reveal'), 900);
-    const t2 = setTimeout(() => setPhase('done'), 5200);
-    const t3 = setTimeout(onDone, 5700);
+    const t2 = setTimeout(() => setPhase('done'), 2100);
+    const t3 = setTimeout(onDone, 2600);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onDone]);
 
