@@ -177,30 +177,26 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
               ધંધો કરો, Smart કરો
             </motion.p>
 
-            {/* Main wordmark — letter by letter on reveal, then flips EN ↔ GU */}
-            <div style={{ position: 'relative', height: 'clamp(3.5rem, 12vw, 8rem)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            {/* Main wordmark — slides up from bottom on reveal, flips EN ↔ GU */}
+            <div style={{ position: 'relative', overflow: 'hidden', paddingTop: '0.15em', paddingBottom: '0.15em' }}>
               <AnimatePresence mode="wait">
                 <motion.div
                   key={wordLang}
-                  className="flex items-center"
-                  style={{ fontSize: 'clamp(3.5rem, 12vw, 8rem)', lineHeight: 1, fontWeight: 800, position: 'absolute' }}
-                  initial={revealed ? { y: 60, opacity: 0 } : false}
-                  animate={{ y: 0, opacity: revealed ? 1 : 0 }}
-                  exit={{ y: -60, opacity: 0 }}
-                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                  style={{
+                    fontSize: 'clamp(3.5rem, 12vw, 8rem)',
+                    lineHeight: 1,
+                    fontWeight: 800,
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    whiteSpace: 'nowrap',
+                  }}
+                  initial={{ y: '110%', opacity: 0 }}
+                  animate={{ y: revealed ? '0%' : '110%', opacity: revealed ? 1 : 0 }}
+                  exit={{ y: '-110%', opacity: 0 }}
+                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  {/* First appearance — letter by letter; subsequent — whole word flips */}
-                  {WORDS[wordLang].split('').map((char, i) => (
-                    <motion.span
-                      key={`${wordLang}-${i}`}
-                      style={{ color: '#ffffff', display: 'inline-block' }}
-                      initial={!revealed ? { opacity: 0, y: 30 } : false}
-                      animate={!revealed ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }}
-                      transition={{ delay: wordLang === 'en' && revealed ? 0.05 + i * 0.07 : 0, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                    >
-                      {char}
-                    </motion.span>
-                  ))}
+                  {WORDS[wordLang]}
                 </motion.div>
               </AnimatePresence>
             </div>
