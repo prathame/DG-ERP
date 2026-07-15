@@ -153,7 +153,7 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
     if (subscriptionEnd) {
       await pool.query('UPDATE tenants SET subscription_ends_at = $1 WHERE id = $2', [subscriptionEnd, result.tenantId]);
     }
-    const bType = ['manufacturer', 'dealer', 'retail', 'service'].includes(req.body.businessType) ? req.body.businessType as string : 'manufacturer';
+    const bType = ['manufacturer', 'dealer', 'retail', 'service', 'custom'].includes(req.body.businessType) ? req.body.businessType as string : 'manufacturer';
 
     // Business-type presets — source of truth on backend, not dependent on frontend sending correct tabConfig
     const PRESETS: Record<string, Record<string, { label: string; visible: boolean }>> = {
@@ -198,7 +198,18 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
         chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
       },
     };
-    const tabConfig = PRESETS[bType] || PRESETS.manufacturer;
+    // Custom: all tabs visible — super admin configures manually via Tab Customization
+    const customPreset = {
+      analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
+      inventory: { label: 'Inventory', visible: true }, distribution: { label: 'Distribution', visible: true },
+      sales: { label: 'Sales Entry', visible: true }, purchases: { label: 'Purchases', visible: true },
+      verification: { label: 'Search / Verify', visible: true }, quotations: { label: 'Quotes & Orders', visible: true },
+      invoices: { label: 'Invoices', visible: true }, finance: { label: 'Finance', visible: true },
+      accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: true },
+      replacements: { label: 'Replacements', visible: true }, rewards: { label: 'Rewards', visible: true },
+      chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+    };
+    const tabConfig = bType === 'custom' ? customPreset : (PRESETS[bType] || PRESETS.manufacturer);
     await pool.query('UPDATE tenants SET tab_config = $1, business_type = $2 WHERE id = $3', [JSON.stringify(tabConfig), bType, result.tenantId]);
     await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
     res.status(201).json({ ...result, adminEmail, companyName, tempPassword: result.credentials.password });
