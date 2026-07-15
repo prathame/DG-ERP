@@ -69,8 +69,8 @@ async function sendHeartbeat(): Promise<void> {
     });
     const data = await r.json() as Record<string, unknown>;
 
-    if (!data.licenseValid) {
-      // License revoked/suspended — show blocking message
+    // Only alert on explicit revocation — not on network/auth errors
+    if (data.licenseValid === false && data.licenseStatus) {
       mainWin?.webContents.executeJavaScript(
         `alert('Your DG ERP license has been ${data.licenseStatus}. Please contact support.')`
       );
