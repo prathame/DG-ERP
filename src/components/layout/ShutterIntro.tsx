@@ -13,7 +13,7 @@ function playShutterSound() {
     resume();
 
     const now = ctx.currentTime;
-    const duration = 1.6; // matches shutter animation
+    const duration = 1.0; // matches shutter animation
 
     // ── Metallic rattle (filtered white noise) ────────────────────────
     const bufLen = Math.ceil(ctx.sampleRate * duration);
@@ -92,8 +92,8 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     playShutterSound();
-    // 1.6s → shutter open → brand holds 3s → fade out
-    const t1 = setTimeout(() => setPhase('reveal'), 1600);
+    // 0.9s → shutter open → brand holds 3s → fade out
+    const t1 = setTimeout(() => setPhase('reveal'), 900);
     const t2 = setTimeout(() => setPhase('done'), 5200);
     const t3 = setTimeout(onDone, 5700);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
@@ -202,7 +202,7 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
           {/* ── Shutter slats ─────────────────────────────────────────── */}
           <div className="absolute inset-0 flex flex-col pointer-events-none" style={{ zIndex: 10 }}>
             {Array.from({ length: SLATS }).map((_, i) => {
-              const delay = 0.1 + i * 0.07;
+              const delay = 0.04 + i * 0.04;
               const slat = SLATS - 1 - i;
               return (
                 <motion.div key={slat} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -214,13 +214,13 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
                     }}
                     initial={{ y: 0 }}
                     animate={{ y: '-100%' }}
-                    transition={{ delay, duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+                    transition={{ delay, duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
                   />
                   <motion.div
                     style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: 'rgba(255,255,255,0.06)' }}
                     initial={{ y: 0 }}
                     animate={{ y: '-100%' }}
-                    transition={{ delay, duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+                    transition={{ delay, duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
                   />
                 </motion.div>
               );
