@@ -3,10 +3,95 @@ import { useEffect, useState } from 'react';
 
 const SLATS = 14;
 
+function playShutterSound() {
+  try {
+    const ctx = new AudioContext();
+
+    const resume = () => {
+      if (ctx.state === 'suspended') ctx.resume();
+    };
+    resume();
+
+    const now = ctx.currentTime;
+    const duration = 1.6; // matches shutter animation
+
+    // ── Metallic rattle (filtered white noise) ────────────────────────
+    const bufLen = Math.ceil(ctx.sampleRate * duration);
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+
+    // Bandpass → metallic sheen
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 900;
+    bp.Q.value = 0.6;
+
+    // LFO at 20 Hz → slat-rattle rhythm
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 20;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 400;
+    lfo.connect(lfoGain);
+    lfoGain.connect(bp.frequency);
+
+    // Envelope: fade in fast, hold, fade out
+    const rattle = ctx.createGain();
+    rattle.gain.setValueAtTime(0, now);
+    rattle.gain.linearRampToValueAtTime(0.28, now + 0.12);
+    rattle.gain.setValueAtTime(0.25, now + duration - 0.3);
+    rattle.gain.linearRampToValueAtTime(0, now + duration);
+
+    noise.connect(bp);
+    bp.connect(rattle);
+    rattle.connect(ctx.destination);
+    noise.start(now);
+    lfo.start(now);
+    noise.stop(now + duration);
+    lfo.stop(now + duration);
+
+    // ── Low rumble (underneath the rattle) ───────────────────────────
+    const rumble = ctx.createOscillator();
+    rumble.type = 'sawtooth';
+    rumble.frequency.setValueAtTime(55, now);
+    rumble.frequency.linearRampToValueAtTime(40, now + duration);
+    const rumbleGain = ctx.createGain();
+    rumbleGain.gain.setValueAtTime(0.06, now);
+    rumbleGain.gain.linearRampToValueAtTime(0, now + duration);
+    rumble.connect(rumbleGain);
+    rumbleGain.connect(ctx.destination);
+    rumble.start(now);
+    rumble.stop(now + duration);
+
+    // ── Final metallic clank when shutter locks at top ────────────────
+    const clankTime = now + duration - 0.05;
+    const clank = ctx.createOscillator();
+    clank.type = 'sawtooth';
+    clank.frequency.setValueAtTime(180, clankTime);
+    clank.frequency.exponentialRampToValueAtTime(60, clankTime + 0.25);
+    const clankGain = ctx.createGain();
+    clankGain.gain.setValueAtTime(0.35, clankTime);
+    clankGain.gain.exponentialRampToValueAtTime(0.001, clankTime + 0.3);
+    clank.connect(clankGain);
+    clankGain.connect(ctx.destination);
+    clank.start(clankTime);
+    clank.stop(clankTime + 0.3);
+
+    // Auto-close context after done
+    setTimeout(() => ctx.close(), (duration + 0.5) * 1000);
+  } catch {
+    // Autoplay blocked or Web Audio not supported — silent fail
+  }
+}
+
 export function ShutterIntro({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState<'shutter' | 'reveal' | 'done'>('shutter');
 
   useEffect(() => {
+    playShutterSound();
     // 1.6s → shutter open → brand holds 3s → fade out
     const t1 = setTimeout(() => setPhase('reveal'), 1600);
     const t2 = setTimeout(() => setPhase('done'), 5200);
