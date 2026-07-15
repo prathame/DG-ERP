@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, useInView, AnimatePresence, useMotionValue, useSpring, useScroll, useTransform, useMotionTemplate } from 'motion/react';
 import { ShutterIntro } from './ShutterIntro';
 import { DeskIllustration } from './DeskIllustration';
@@ -120,7 +120,7 @@ export function LandingPage() {
       return nav?.type === 'back_forward';
     } catch { return false; }
   });
-  const handleShutterDone = () => setShutterDone(true);
+  const handleShutterDone = useCallback(() => setShutterDone(true), []);
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [lang, setLang] = useState<'en' | 'hi' | 'gu'>('en');
