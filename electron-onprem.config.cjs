@@ -3,8 +3,8 @@
  * ~180MB installer. Works fully offline after activation.
  */
 module.exports = {
-  appId: 'in.dg-erp.onprem',
-  productName: 'DG ERP',
+  appId: 'in.dhandho.onprem',
+  productName: 'Dhandho',
   directories: { output: 'dist-electron/onprem' },
   files: [
     'dist/**',           // Built React frontend

@@ -63,7 +63,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     } catch (err) { toast((err as Error).message, 'error'); }
   };
 
-  const companyName = (() => { try { return session.getUser()?.companyName || 'DG Business'; } catch { return 'DG Business'; } })();
+  const companyName = (() => { try { return session.getUser()?.companyName || 'Dhandho'; } catch { return 'Dhandho'; } })();
 
   const generatePriceListText = (vendorFilter?: string) => {
     const filtered = vendorFilter ? rules.filter(r => r.vendorId === vendorFilter || !r.vendorId) : rules;

@@ -75,10 +75,10 @@ router.post('/api/auth/login', async (req, res) => {
     const trialEnds = row.trial_ends_at ? new Date(row.trial_ends_at as string) : null;
     const subEnds = row.subscription_ends_at ? new Date(row.subscription_ends_at as string) : null;
     if (tenantStatus === 'trial' && trialEnds && trialEnds < now) {
-      return res.status(403).json({ error: 'Your trial has expired. Please contact DG ERP to subscribe.' });
+      return res.status(403).json({ error: 'Your trial has expired. Please contact Dhandho to subscribe.' });
     }
     if (tenantStatus === 'active' && subEnds && subEnds < now) {
-      return res.status(403).json({ error: 'Your subscription has expired. Please contact DG ERP to renew.' });
+      return res.status(403).json({ error: 'Your subscription has expired. Please contact Dhandho to renew.' });
     }
 
     // Block vendor login if vendor portal disabled

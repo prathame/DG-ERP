@@ -359,7 +359,7 @@ export async function initSchema() {
         show_rewards BOOLEAN DEFAULT true,
         show_barcode BOOLEAN DEFAULT true,
         show_warranty BOOLEAN DEFAULT true,
-        footer_text TEXT DEFAULT 'Powered by DG ERP Management',
+        footer_text TEXT DEFAULT 'Powered by Dhandho Management',
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );

@@ -506,7 +506,7 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
               <button
                 onClick={() => {
                   const loginUrl = createdCredentials.slug ? `${window.location.origin}/${createdCredentials.slug}` : window.location.origin;
-                  const msg = `Welcome to ${createdCredentials.companyName || 'DG ERP'}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.`;
+                  const msg = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.`;
                   const phone = (createdCredentials.phone || '').replace(/[^0-9]/g, '');
                   window.open(`https://wa.me/${phone ? (phone.startsWith('91') ? phone : '91' + phone) : ''}?text=${encodeURIComponent(msg)}`, '_blank');
                 }}
@@ -517,8 +517,8 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
               <button
                 onClick={() => {
                   const loginUrl = createdCredentials.slug ? `${window.location.origin}/${createdCredentials.slug}` : window.location.origin;
-                  const subject = `Your ${createdCredentials.companyName || 'DG ERP'} Login Credentials`;
-                  const body = `Welcome to ${createdCredentials.companyName || 'DG ERP'}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.\n\nRegards,\nDG ERP Management`;
+                  const subject = `Your ${createdCredentials.companyName || 'Dhandho'} Login Credentials`;
+                  const body = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.\n\nRegards,\nDhandho Management`;
                   window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(createdCredentials.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
                 }}
                 className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors"

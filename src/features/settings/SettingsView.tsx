@@ -19,7 +19,7 @@ const BILL_DEFAULTS: BillSettings = {
   bankAccountName: null, bankAccountNumber: null, bankName: null, bankBranch: null, bankIfsc: null, bankUpiId: null,
   termsAndConditions: null, signatoryName: null, signatoryDesignation: null, signatureBase64: null,
   showRewards: true, showBarcode: true, showWarranty: true,
-  footerText: 'Powered by DG ERP Management',
+  footerText: 'Powered by Dhandho Management',
 };
 
 function BillCustomizationSection() {
@@ -209,7 +209,7 @@ function BillCustomizationSection() {
         {/* Footer */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Footer Text</p>
-          <input id="settings-field-16" value={form.footerText} onChange={(e) => setForm((p) => ({ ...p, footerText: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" placeholder="Powered by DG ERP Management" />
+          <input id="settings-field-16" value={form.footerText} onChange={(e) => setForm((p) => ({ ...p, footerText: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand" placeholder="Powered by Dhandho Management" />
         </div>
 
         <button type="button" onClick={handleSave} disabled={saving} className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:opacity-60">
@@ -507,7 +507,7 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                   onClick={() => {
                     const html = document.documentElement;
                     const nowDark = html.classList.toggle('dark');
-                    localStorage.setItem('dg_erp_theme', nowDark ? 'dark' : 'light');
+                    localStorage.setItem('dhandho_theme', nowDark ? 'dark' : 'light');
                     setIsDarkMode(nowDark);
                   }}
                   className={cn(

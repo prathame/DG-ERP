@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell, Menu, nativeImage } from 'electron';
 import path from 'path';
 
-const CLOUD_URL = process.env.DG_CLOUD_URL || 'https://dg-erp.onrender.com';
+const CLOUD_URL = process.env.DG_CLOUD_URL || 'https://dhandho.app';
 
 let win: BrowserWindow | null = null;
 
@@ -15,7 +15,7 @@ function createWindow() {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    title: 'DG ERP',
+    title: 'Dhandho',
     icon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

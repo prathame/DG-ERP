@@ -1,11 +1,11 @@
 /**
- * Stress Test — DG ERP
+ * Stress Test — Dhandho
  * Tests API load + data volume against production
  * Run: npx tsx tests/stress-test.ts
  */
 
-const BASE = 'https://dg-erp.onrender.com';
-const SUPER_ADMIN = { email: 'admin@spre.ai', password: 'superadmin123' };
+const BASE = 'https://dhandho.app';
+const SUPER_ADMIN = { email: 'admin@dhandho.app', password: 'superadmin123' };
 
 let saToken = '';
 let tenantToken = '';
@@ -179,7 +179,7 @@ async function cleanup() {
 // ============ RUN ============
 async function run() {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(' DG ERP Stress Test');
+  console.log(' Dhandho Stress Test');
   console.log(` Target: ${BASE}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 

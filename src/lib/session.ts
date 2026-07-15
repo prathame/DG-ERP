@@ -20,16 +20,16 @@ export const session = {
   setSlug: (slug: string) => localStorage.setItem(scopedKey('tenant_slug'), slug),
 
   getUser: () => {
-    const raw = localStorage.getItem(scopedKey('dg_erp_user'));
+    const raw = localStorage.getItem(scopedKey('dhandho_user'));
     return raw ? JSON.parse(raw) : null;
   },
-  setUser: (user: unknown) => localStorage.setItem(scopedKey('dg_erp_user'), JSON.stringify(user)),
+  setUser: (user: unknown) => localStorage.setItem(scopedKey('dhandho_user'), JSON.stringify(user)),
 
   clearAll: () => {
     session.removeToken();
     localStorage.removeItem(scopedKey('tenant_id'));
     localStorage.removeItem(scopedKey('tenant_slug'));
-    localStorage.removeItem(scopedKey('dg_erp_user'));
+    localStorage.removeItem(scopedKey('dhandho_user'));
     localStorage.removeItem(scopedKey('remember_me'));
   },
 };

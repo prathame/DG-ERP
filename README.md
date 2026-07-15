@@ -1,8 +1,8 @@
-# DG ERP — Business Management Software
+# Dhandho — Business Management Software
 
 Made in India, for Indian businesses. Multi-tenant cloud SaaS (+ on-prem desktop) covering inventory, purchases, distribution, billing, GST, accounts, and payroll. Multilingual: English, Hindi, Gujarati.
 
-**Live**: [dg-erp.onrender.com](https://dg-erp.onrender.com)
+**Live**: [dhandho.app](https://dhandho.app)
 
 ---
 
@@ -68,13 +68,13 @@ cd splender-inventry
 npm install
 
 # Create database
-createdb dg_erp
+createdb dhandho
 
 # Create .env
 cat > .env << EOF
-DATABASE_URL=postgresql://localhost:5432/dg_erp
+DATABASE_URL=postgresql://localhost:5432/dhandho
 JWT_SECRET=local-dev-secret-change-in-prod
-SUPER_ADMIN_EMAIL=admin@dg-erp.in
+SUPER_ADMIN_EMAIL=admin@dhandho.in
 SUPER_ADMIN_PASSWORD=admin123
 PORT=3001
 VITE_API_URL=http://localhost:3001

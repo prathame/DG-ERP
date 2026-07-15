@@ -24,7 +24,7 @@ const DEFAULTS = {
   showRewards: true,
   showBarcode: true,
   showWarranty: true,
-  footerText: 'Powered by DG ERP Management',
+  footerText: 'Powered by Dhandho Management',
 };
 
 function rowToResponse(row: Record<string, unknown>) {
@@ -47,7 +47,7 @@ function rowToResponse(row: Record<string, unknown>) {
     showRewards: row.show_rewards !== false,
     showBarcode: row.show_barcode !== false,
     showWarranty: row.show_warranty !== false,
-    footerText: (row.footer_text as string) || 'Powered by DG ERP Management',
+    footerText: (row.footer_text as string) || 'Powered by Dhandho Management',
   };
 }
 
@@ -133,7 +133,7 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
       requestBody.showRewards !== false,
       requestBody.showBarcode !== false,
       requestBody.showWarranty !== false,
-      requestBody.footerText || 'Powered by DG ERP Management',
+      requestBody.footerText || 'Powered by Dhandho Management',
     ]);
 
     res.json(rowToResponse(rows[0]));

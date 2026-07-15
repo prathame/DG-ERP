@@ -3,8 +3,8 @@
  * ~20MB installer. No embedded database or server.
  */
 module.exports = {
-  appId: 'in.dg-erp.cloud',
-  productName: 'DG ERP',
+  appId: 'in.dhandho.cloud',
+  productName: 'Dhandho',
   directories: { output: 'dist-electron/cloud' },
   files: [
     'electron/cloud/**',

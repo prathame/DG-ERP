@@ -79,7 +79,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   const showWarranty = billConfig.showWarranty !== false;
   const showRewards = billConfig.showRewards !== false;
   const showBarcode = billConfig.showBarcode !== false;
-  const footerText = (billConfig.footerText as string) || 'Powered by DG ERP Management';
+  const footerText = (billConfig.footerText as string) || 'Powered by Dhandho Management';
 
   const warrantySection = (showWarranty && bill.warranty) ? `
     <div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
@@ -303,7 +303,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
     : `<div class="logo-icon">${(bill.company.name || 'C').substring(0, 1).toUpperCase()}</div>`;
   const tagline = (billConfig.tagline as string) || '';
   const chPrefix = (billConfig.challanPrefix as string) || '';
-  const footerText = (billConfig.footerText as string) || 'Powered by DG ERP Management';
+  const footerText = (billConfig.footerText as string) || 'Powered by Dhandho Management';
 
   const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
   const upiQrSection = billConfig.bankUpiId ? (() => {

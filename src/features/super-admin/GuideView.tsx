@@ -81,7 +81,7 @@ export function GuideView() {
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 max-w-4xl">
       <div>
         <h2 className="text-xl font-bold flex items-center gap-2"><BookOpen size={22} /> Developer Guide</h2>
-        <p className="text-sm text-gray-500 mt-1">Setup, testing, and deployment instructions for all three DG ERP delivery modes</p>
+        <p className="text-sm text-gray-500 mt-1">Setup, testing, and deployment instructions for all three Dhandho delivery modes</p>
       </div>
 
       {/* Onboard Cloud Customer */}
@@ -100,7 +100,7 @@ export function GuideView() {
           <Step n={2} title="Share credentials with customer">
             <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
               <p>After creation, a credentials screen appears with:</p>
-              <p>• Login URL: <code className="bg-gray-200 px-1 rounded">dg-erp.onrender.com/their-slug</code></p>
+              <p>• Login URL: <code className="bg-gray-200 px-1 rounded">dhandho.app/their-slug</code></p>
               <p>• Admin email + temporary password</p>
               <p>Click <strong>Share via WhatsApp</strong> — sends everything in one message</p>
             </div>
@@ -210,7 +210,7 @@ export function GuideView() {
         </Step>
 
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-          <p className="text-sm text-blue-800 font-medium">ℹ️ Cloud Electron does not need a license key — uses existing DG ERP login.</p>
+          <p className="text-sm text-blue-800 font-medium">ℹ️ Cloud Electron does not need a license key — uses existing Dhandho login.</p>
         </div>
       </Section>
 

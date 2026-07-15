@@ -11,12 +11,12 @@ export function TermsOfService() {
         <div className="space-y-8 text-sm text-gray-700 leading-relaxed">
           <section>
             <h2 className="text-lg font-bold text-[#1A1A1A] mb-2">1. Acceptance of Terms</h2>
-            <p>By accessing or using the DG ERP Management platform ("Service"), you agree to be bound by these Terms of Service. If you do not agree, do not use the Service.</p>
+            <p>By accessing or using the Dhandho Management platform ("Service"), you agree to be bound by these Terms of Service. If you do not agree, do not use the Service.</p>
           </section>
 
           <section>
             <h2 className="text-lg font-bold text-[#1A1A1A] mb-2">2. Service Description</h2>
-            <p>DG ERP is a multi-tenant cloud-based Enterprise Resource Planning platform that provides inventory management, sales tracking, distribution management, billing, vendor finance, warranty tracking, and related business management tools.</p>
+            <p>Dhandho is a multi-tenant cloud-based Enterprise Resource Planning platform that provides inventory management, sales tracking, distribution management, billing, vendor finance, warranty tracking, and related business management tools.</p>
           </section>
 
           <section>
@@ -66,7 +66,7 @@ export function TermsOfService() {
 
           <section>
             <h2 className="text-lg font-bold text-[#1A1A1A] mb-2">8. Limitation of Liability</h2>
-            <p>To the maximum extent permitted by law, DG ERP Management shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the Service. Our total liability shall not exceed the amount paid by you in the 12 months preceding the claim.</p>
+            <p>To the maximum extent permitted by law, Dhandho Management shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the Service. Our total liability shall not exceed the amount paid by you in the 12 months preceding the claim.</p>
           </section>
 
           <section>
@@ -81,7 +81,7 @@ export function TermsOfService() {
 
           <section>
             <h2 className="text-lg font-bold text-[#1A1A1A] mb-2">10. Intellectual Property</h2>
-            <p>The DG ERP platform, including its design, code, logos, and documentation, is the intellectual property of DG ERP Management. You are granted a limited, non-exclusive, non-transferable license to use the Service during your subscription period.</p>
+            <p>The Dhandho platform, including its design, code, logos, and documentation, is the intellectual property of Dhandho Management. You are granted a limited, non-exclusive, non-transferable license to use the Service during your subscription period.</p>
           </section>
 
           <section>

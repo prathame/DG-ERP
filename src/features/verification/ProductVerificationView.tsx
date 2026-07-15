@@ -179,7 +179,7 @@ export function ProductVerificationView() {
             <button type="button" onClick={() => setVendorDetail(null)} className="text-xs font-medium text-brand hover:underline">← Back to results</button>
             <button type="button" onClick={() => {
               const d = vendorDetail as { vendor?: { name: string; phone?: string }; totalDistributedValue: number; totalPaid: number; balance: number; payments?: { amount: number; paymentDate: string; paymentMethod: string }[]; distributions?: { date: string; productName: string; quantity: number; total: number }[] };
-              const companyName = (() => { try { return (session.getUser() || {} as Record<string, unknown>).companyName || 'DG ERP'; } catch { return 'DG ERP'; } })();
+              const companyName = (() => { try { return (session.getUser() || {} as Record<string, unknown>).companyName || 'Dhandho'; } catch { return 'Dhandho'; } })();
               const w = window.open('', '_blank'); if (!w) return;
               w.document.write(`<!DOCTYPE html><html><head><title>${d.vendor?.name} — Report</title><style>
                 body{font-family:Inter,sans-serif;margin:0;padding:40px;color:#1a1a1a}

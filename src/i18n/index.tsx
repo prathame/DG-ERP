@@ -14,7 +14,7 @@ export const LANGUAGES: { code: Lang; label: string; nativeLabel: string }[] = [
   { code: 'gu', label: 'Gujarati', nativeLabel: 'ગુજરાતી' },
 ];
 
-const LANG_KEY = 'dg_erp_lang';
+const LANG_KEY = 'dhandho_lang';
 
 function getStoredLang(): Lang {
   const stored = localStorage.getItem(LANG_KEY);

@@ -70,7 +70,7 @@ app.use(helmet({
 }));
 
 const isProduction = process.env.NODE_ENV === 'production';
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || (isProduction ? ['https://dg-erp.onrender.com'] : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002']);
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || (isProduction ? ['https://dhandho.app'] : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002']);
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && (allowedOrigins.includes(origin) || !isProduction)) {
@@ -163,8 +163,8 @@ app.use('/api/auth/signup', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, messa
 app.get('/manifest.json', async (req, res) => {
   const slug = (typeof req.query.slug === 'string' && req.query.slug) ? req.query.slug.toLowerCase() : null;
 
-  let name = 'DG ERP Management';
-  let shortName = 'DG ERP';
+  let name = 'Dhandho Management';
+  let shortName = 'Dhandho';
   let startUrl = '/';
 
   if (slug && slug !== 'admin' && slug !== 'privacy' && slug !== 'terms') {
@@ -207,16 +207,16 @@ if (process.env.REQUIRE_ELECTRON === 'true') {
     const isOnPremLocal = process.env.DEPLOYMENT_MODE === 'onprem';
     if (isApi || isAdmin || isElectron || isOnPremLocal) return next();
     // Browser user — serve download page
-    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>DG ERP — Download App</title>
+    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Dhandho — Download App</title>
     <style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',sans-serif;background:#f9fafb;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#1a1a1a;}
     .card{background:white;border-radius:20px;padding:48px;max-width:480px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.08);}
     .icon{width:64px;height:64px;background:#F27D26;border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;color:white;font-weight:800;font-size:24px;}
     h1{font-size:24px;font-weight:800;margin-bottom:8px;}p{color:#6b7280;font-size:15px;line-height:1.6;margin-bottom:32px;}
     .btn{display:inline-block;padding:14px 32px;background:#F27D26;color:white;border-radius:12px;font-weight:700;text-decoration:none;font-size:15px;margin:6px;}
     .btn.sec{background:#f3f4f6;color:#374151;}</style></head>
-    <body><div class="card"><div class="icon">DG</div>
-    <h1>DG ERP requires the desktop app</h1>
-    <p>Browser access is disabled. Download the DG ERP app for Windows or Mac to continue.</p>
+    <body><div class="card"><div class="icon">DH</div>
+    <h1>Dhandho requires the desktop app</h1>
+    <p>Browser access is disabled. Download the Dhandho app for Windows or Mac to continue.</p>
     <a href="https://github.com/prathame/DG-ERP/releases/latest" class="btn">Download for Windows</a>
     <a href="https://github.com/prathame/DG-ERP/releases/latest" class="btn">Download for Mac</a>
     <br/><br/><a href="/admin" class="btn sec">Super Admin Login</a>
@@ -286,7 +286,7 @@ initDatabase().then(() => {
     const env = process.env.NODE_ENV || 'development';
     console.log('');
     console.log('╔══════════════════════════════════════════╗');
-    console.log('║         DG Business — API Server         ║');
+    console.log('║         Dhandho — API Server         ║');
     console.log('╠══════════════════════════════════════════╣');
     console.log(`║  Port:  ${String(PORT).padEnd(32)}║`);
     console.log(`║  Mode:  ${env.padEnd(32)}║`);

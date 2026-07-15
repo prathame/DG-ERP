@@ -121,7 +121,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
   };
 
   const whatsappMsg = (lic: License) =>
-    encodeURIComponent(`🖥️ *DG ERP — On-Prem License*\n\nCompany: ${lic.companyName}\nLicense Key: \`${lic.licenseKey}\`\n\n📥 Download: https://dg-erp.in/download\n\n1. Install DG ERP\n2. Enter your license key\n3. Set your admin password\n\nValid till: ${lic.validUntil || 'Lifetime'}`);
+    encodeURIComponent(`🖥️ *Dhandho — On-Prem License*\n\nCompany: ${lic.companyName}\nLicense Key: \`${lic.licenseKey}\`\n\n📥 Download: https://dhandho.in/download\n\n1. Install Dhandho\n2. Enter your license key\n3. Set your admin password\n\nValid till: ${lic.validUntil || 'Lifetime'}`);
 
   if (selected) {
     return (

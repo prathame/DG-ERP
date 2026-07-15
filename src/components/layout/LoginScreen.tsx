@@ -107,12 +107,12 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
               {isBranded ? (tenant.companyName || 'C').substring(0, 2).toUpperCase() : 'DG'}
             </div>
           )}
-          <h1 className="text-2xl font-bold text-white">{isBranded ? tenant.companyName : 'DG ERP'}</h1>
+          <h1 className="text-2xl font-bold text-white">{isBranded ? tenant.companyName : 'Dhandho'}</h1>
           <p className="text-gray-400 text-sm mt-1">
             {isBranded ? (tenant.tagline || '') : 'Enterprise Resource Planning'}
           </p>
           {isBranded && (
-            <p className="text-gray-600 text-[10px] mt-2">Powered by DG ERP</p>
+            <p className="text-gray-600 text-[10px] mt-2">Powered by Dhandho</p>
           )}
         </div>
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">

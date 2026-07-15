@@ -259,7 +259,7 @@ router.get('/api/sales/:id/bill', async (req, res) => {
       hsnCode: sale.hsn_code ?? null,
       gstRate: Number(sale.gst_rate) || Number(company?.default_gst_rate) || 18,
       company: {
-        name: company?.company_name ?? 'DG ERP',
+        name: company?.company_name ?? 'Dhandho',
         contactName: company?.name ?? null,
         phone: company?.phone ?? null,
         address: company?.address ?? null,
@@ -285,7 +285,7 @@ router.get('/api/sales/:id/bill', async (req, res) => {
         showRewards: billSettingsRow.show_rewards !== false,
         showBarcode: billSettingsRow.show_barcode !== false,
         showWarranty: billSettingsRow.show_warranty !== false,
-        footerText: (billSettingsRow.footer_text as string) || 'Powered by DG ERP Management',
+        footerText: (billSettingsRow.footer_text as string) || 'Powered by Dhandho Management',
       } : undefined,
     });
   } catch (err) {

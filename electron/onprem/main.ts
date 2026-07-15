@@ -71,13 +71,13 @@ async function sendHeartbeat(): Promise<void> {
     // Only alert on explicit revocation — not on network/auth errors
     if (data.licenseValid === false && data.licenseStatus) {
       mainWin?.webContents.executeJavaScript(
-        `alert('Your DG ERP license has been ${data.licenseStatus}. Please contact support.')`
+        `alert('Your Dhandho license has been ${data.licenseStatus}. Please contact support.')`
       );
     }
 
     if (data.forceUpdate) {
       mainWin?.webContents.executeJavaScript(
-        `confirm('A required update is available. Click OK to download.') && window.open('https://dg-erp.in/download')`
+        `confirm('A required update is available. Click OK to download.') && window.open('https://dhandho.in/download')`
       );
     } else if (data.updateAvailable) {
       mainWin?.webContents.executeJavaScript(
@@ -117,7 +117,7 @@ function showWizard(): void {
     width: 520,
     height: 620,
     resizable: false,
-    title: 'DG ERP — Setup',
+    title: 'Dhandho — Setup',
     icon: getIcon(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -189,7 +189,7 @@ async function openMainWindow(slug: string): Promise<void> {
     height: 900,
     minWidth: 1024,
     minHeight: 600,
-    title: 'DG ERP',
+    title: 'Dhandho',
     icon: getIcon(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

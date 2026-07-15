@@ -11,7 +11,7 @@ export function PrivacyPolicy() {
         <div className="space-y-8 text-sm text-gray-700 leading-relaxed">
           <section>
             <h2 className="text-lg font-bold text-[#1A1A1A] mb-2">1. Introduction</h2>
-            <p>DG ERP Management ("we", "our", "us") operates the DG ERP platform. This Privacy Policy explains how we collect, use, store, and protect your information when you use our services.</p>
+            <p>Dhandho Management ("we", "our", "us") operates the Dhandho platform. This Privacy Policy explains how we collect, use, store, and protect your information when you use our services.</p>
           </section>
 
           <section>

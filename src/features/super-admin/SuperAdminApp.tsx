@@ -107,7 +107,7 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
             </div>
             {sidebarOpen && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-hidden">
-                <p className="text-white font-bold text-sm leading-tight">DG ERP Admin</p>
+                <p className="text-white font-bold text-sm leading-tight">Dhandho Admin</p>
                 <p className="text-gray-500 text-xs">Super Admin Panel</p>
               </motion.div>
             )}

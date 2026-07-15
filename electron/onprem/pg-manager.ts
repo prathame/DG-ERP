@@ -33,14 +33,14 @@ export async function startPostgres(): Promise<string> {
   const client = pg.getPgClient();
   await client.connect();
   const exists = await client.query(
-    `SELECT 1 FROM pg_database WHERE datname = 'dg_erp'`
+    `SELECT 1 FROM pg_database WHERE datname = 'dhandho'`
   );
   if (!exists.rows.length) {
-    await client.query('CREATE DATABASE dg_erp');
+    await client.query('CREATE DATABASE dhandho');
   }
   await client.end();
 
-  const connStr = `postgresql://dg_user:dg_local_pass@localhost:${LOCAL_PG_PORT}/dg_erp`;
+  const connStr = `postgresql://dg_user:dg_local_pass@localhost:${LOCAL_PG_PORT}/dhandho`;
   return connStr;
 }
 

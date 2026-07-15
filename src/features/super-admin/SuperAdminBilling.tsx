@@ -64,19 +64,19 @@ table{width:100%;border-collapse:collapse;margin:20px 0;}th{background:#151619;c
 td{padding:10px;border-bottom:1px solid #e5e7eb;font-size:13px;}.total{font-size:18px;font-weight:bold;color:#F27D26;text-align:right;margin-top:16px;}
 .footer{margin-top:40px;font-size:11px;color:#999;text-align:center;}
 @media print{body{padding:20px;}}</style></head><body>
-<div class="header"><div class="logo"><div class="logo-icon">DG</div><div><strong style="font-size:18px;">DG ERP Management</strong><br/><span style="font-size:11px;color:#888;">Subscription Invoice</span></div></div>
+<div class="header"><div class="logo"><div class="logo-icon">DH</div><div><strong style="font-size:18px;">Dhandho Management</strong><br/><span style="font-size:11px;color:#888;">Subscription Invoice</span></div></div>
 <div style="text-align:right;font-size:13px;"><strong>Invoice #${inv.invoiceNumber}</strong><br/>Date: ${new Date(inv.createdAt).toLocaleDateString()}<br/>Status: <strong style="color:${inv.status === 'paid' ? '#059669' : '#dc2626'}">${inv.status.toUpperCase()}</strong></div></div>
 <div style="margin-bottom:20px;"><h4 style="font-size:11px;color:#999;text-transform:uppercase;margin-bottom:4px;">Bill To</h4>
 <p style="font-size:15px;font-weight:bold;">${esc(inv.tenantName)}</p>
 ${inv.planName ? `<p style="font-size:12px;color:#666;">Plan: ${esc(inv.planName)}</p>` : ''}
 ${inv.periodStart ? `<p style="font-size:12px;color:#666;">Period: ${new Date(inv.periodStart).toLocaleDateString()} — ${inv.periodEnd ? new Date(inv.periodEnd).toLocaleDateString() : 'Ongoing'}</p>` : ''}</div>
 <table><thead><tr><th>Description</th><th style="text-align:right;">Amount</th></tr></thead><tbody>
-<tr><td>Subscription — ${esc(inv.planName || 'DG ERP')}</td><td style="text-align:right;">₹${Number(inv.amount).toLocaleString()}</td></tr>
+<tr><td>Subscription — ${esc(inv.planName || 'Dhandho')}</td><td style="text-align:right;">₹${Number(inv.amount).toLocaleString()}</td></tr>
 ${Number(inv.gstAmount) > 0 ? `<tr><td>GST (18%)</td><td style="text-align:right;">₹${Number(inv.gstAmount).toLocaleString()}</td></tr>` : ''}
 </tbody></table>
 <div class="total">Total: ₹${Number(inv.total).toLocaleString()}</div>
 ${inv.notes ? `<p style="margin-top:16px;font-size:12px;color:#666;">${esc(inv.notes)}</p>` : ''}
-<div class="footer"><p>Thank you for choosing DG ERP Management</p><p style="margin-top:4px;">This is a computer-generated invoice.</p></div>
+<div class="footer"><p>Thank you for choosing Dhandho Management</p><p style="margin-top:4px;">This is a computer-generated invoice.</p></div>
 </body></html>`;
     const win = window.open('', '_blank', 'width=800,height=600');
     if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(() => win.print(), 400); }

@@ -35,7 +35,7 @@ function EnquiryForm({ dark }: { dark: boolean }) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSending(true);
-    const subject = encodeURIComponent(`DG ERP Enquiry — ${form.name} (${form.company || 'N/A'})`);
+    const subject = encodeURIComponent(`Dhandho Enquiry — ${form.name} (${form.company || 'N/A'})`);
     const body = `Name: ${form.name}\nPhone: ${form.phone}\nEmail: ${form.email || 'N/A'}\nCompany: ${form.company || 'N/A'}\n\n${form.message}`;
     window.open(`https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com&su=${subject}&body=${encodeURIComponent(body)}`, '_blank');
     setTimeout(() => { setSent(true); setSending(false); }, 500);
@@ -84,7 +84,7 @@ export function LandingPage() {
 
   const toggleTheme = () => {
     const d = document.documentElement.classList.toggle('dark');
-    localStorage.setItem('dg_erp_theme', d ? 'dark' : 'light');
+    localStorage.setItem('dhandho_theme', d ? 'dark' : 'light');
     setDark(d);
   };
 
@@ -150,8 +150,8 @@ export function LandingPage() {
       <nav className={`fixed top-0 inset-x-0 z-50 ${navBg} backdrop-blur-xl border-b ${border}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-brand rounded-lg grid place-items-center font-bold text-xs text-white">DG</div>
-            <span className="font-bold tracking-tight">DG Business</span>
+            <div className="w-8 h-8 bg-brand rounded-lg grid place-items-center font-bold text-xs text-white">D</div>
+            <span className="font-bold tracking-tight">Dhandho</span>
           </div>
           <div className="hidden md:flex items-center gap-1">
             {['#business','#features','#pricing','#contact'].map((href, i) => (
@@ -225,7 +225,7 @@ export function LandingPage() {
               {/* Window chrome */}
               <div className={`px-4 py-3 flex items-center gap-3 border-b ${dark ? 'border-white/5 bg-black/20' : 'border-gray-100 bg-gray-50'}`}>
                 <div className="flex gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-400/70"/><div className="w-2.5 h-2.5 rounded-full bg-yellow-400/70"/><div className="w-2.5 h-2.5 rounded-full bg-green-400/70"/></div>
-                <div className={`flex-1 text-center text-[11px] font-mono ${faint}`}>dg-erp.onrender.com/acme-industries</div>
+                <div className={`flex-1 text-center text-[11px] font-mono ${faint}`}>dhandho.app/acme-industries</div>
               </div>
               {/* Dashboard mockup */}
               <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -466,8 +466,8 @@ export function LandingPage() {
       <footer className={`border-t ${border} py-8 px-4 sm:px-6`}>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-brand rounded-md grid place-items-center font-bold text-xs text-white">DG</div>
-            <span className="font-bold text-sm">DG Business</span>
+            <div className="w-7 h-7 bg-brand rounded-md grid place-items-center font-bold text-xs text-white">D</div>
+            <span className="font-bold text-sm">Dhandho</span>
             <span className={`text-xs ${faint}`}>🇮🇳</span>
           </div>
           <div className={`flex items-center gap-5 text-xs ${faint}`}>
@@ -483,7 +483,7 @@ export function LandingPage() {
             <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand transition-colors"><Mail size={15} /></a>
           </div>
         </div>
-        <p className={`text-center text-xs mt-5 ${faint}`}>© {new Date().getFullYear()} DG Business Management · {L('Built with love for Indian businesses','भारतीय businesses के लिए बना','ભારતીય businesses માટે બનેલું')}</p>
+        <p className={`text-center text-xs mt-5 ${faint}`}>© {new Date().getFullYear()} Dhandho · {L('Built with love for Indian businesses','भारतीय businesses के लिए बना','ભારતીય businesses માટે બનેલું')}</p>
       </footer>
     </div>
   );

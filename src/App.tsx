@@ -101,7 +101,7 @@ function getAuthState(): { isSuperAdmin: boolean; hasTenant: boolean } {
 
 // Apply saved theme on load
 if (typeof window !== 'undefined') {
-  const savedTheme = localStorage.getItem('dg_erp_theme');
+  const savedTheme = localStorage.getItem('dhandho_theme');
   if (savedTheme === 'dark') document.documentElement.classList.add('dark');
 }
 
@@ -131,7 +131,7 @@ export default function App() {
   const [user, setUser] = useState<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean } | null>(() => {
     try {
       const u = session.getUser();
-      if (u?.companyName) document.title = `${u.companyName} — DG ERP`;
+      if (u?.companyName) document.title = `${u.companyName} — Dhandho`;
       return u;
     } catch { return null; }
   });
@@ -181,7 +181,7 @@ export default function App() {
 
   const handleLogin = (u: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; vendorId?: string | null; autoWhatsapp?: boolean }) => {
     setUser(u);
-    if (u.companyName) document.title = `${u.companyName} — DG ERP`;
+    if (u.companyName) document.title = `${u.companyName} — Dhandho`;
   };
 
   const { t } = useTranslation();
@@ -297,7 +297,7 @@ export default function App() {
             <div className="inline-flex w-16 h-16 bg-gray-700 rounded-2xl items-center justify-center font-bold text-2xl text-gray-400 mb-4">?</div>
             <h1 className="text-xl font-bold text-white mb-2">Company Not Found</h1>
             <p className="text-gray-400 text-sm mb-6">No company registered with URL <span className="font-mono text-gray-300">/{urlSlug}</span></p>
-            <a href="/" className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors">Go to DG ERP Home</a>
+            <a href="/" className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors">Go to Dhandho Home</a>
           </div>
         </div>
       );
@@ -339,7 +339,7 @@ export default function App() {
           {isSidebarOpen && (
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0">{(user?.companyName || 'DG').substring(0, 2).toUpperCase()}</div>
-              <span className="font-semibold text-gray-900 text-sm truncate">{user?.companyName || 'DG ERP'}</span>
+              <span className="font-semibold text-gray-900 text-sm truncate">{user?.companyName || 'Dhandho'}</span>
             </div>
           )}
           <button
@@ -410,7 +410,7 @@ export default function App() {
         )}
         {isSidebarOpen && (
           <div className="px-3 pb-3 text-center">
-            <p className="text-[10px] text-gray-400">Powered by <span className="text-gray-500 font-semibold">DG ERP</span></p>
+            <p className="text-[10px] text-gray-400">Powered by <span className="text-gray-500 font-semibold">Dhandho</span></p>
           </div>
         )}
       </aside>
@@ -427,8 +427,8 @@ export default function App() {
           return (
             <div className={cn("px-4 py-2 text-center text-sm font-medium", days <= 0 ? "bg-rose-600 text-white" : days <= 7 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700")}>
               {days <= 0
-                ? `Your ${isTrial ? 'trial' : 'subscription'} has expired. Contact DG ERP to renew.`
-                : `Your ${isTrial ? 'trial' : 'subscription'} expires in ${days} day${days === 1 ? '' : 's'}. Contact DG ERP to renew.`}
+                ? `Your ${isTrial ? 'trial' : 'subscription'} has expired. Contact Dhandho to renew.`
+                : `Your ${isTrial ? 'trial' : 'subscription'} expires in ${days} day${days === 1 ? '' : 's'}. Contact Dhandho to renew.`}
             </div>
           );
         })()}

@@ -73,7 +73,7 @@ export function InvoicesView() {
       : `<div style="width:48px;height:48px;background:${color};border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:20px;">${(user.companyName || 'C').substring(0, 1)}</div>`;
     const tagline = (bs.tagline as string) || '';
     const invPrefix = (bs.invoicePrefix as string) || '';
-    const footerText = (bs.footerText as string) || 'Powered by DG ERP';
+    const footerText = (bs.footerText as string) || 'Powered by Dhandho';
     const hasBankDetails = bs.bankAccountName || bs.bankAccountNumber || bs.bankName;
     const upiQrDataUrl = bs.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`) : '';
     const upiQrHtml = upiQrDataUrl ? `<div style="text-align:center;"><img src="${upiQrDataUrl}" style="width:120px;height:120px;" /><p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p></div>` : '';
@@ -105,7 +105,7 @@ export function InvoicesView() {
       <tr class="hdr">
         <td colspan="2" style="width:65%;">
           <div style="display:flex;align-items:center;gap:12px;">${logoHtml}<div>
-            <div style="font-size:18px;font-weight:800;color:${color};">${user.companyName || 'DG ERP'}</div>
+            <div style="font-size:18px;font-weight:800;color:${color};">${user.companyName || 'Dhandho'}</div>
             ${user.address ? `<div style="font-size:10px;color:#555;margin-top:2px;">${user.address}</div>` : ''}
             ${user.phone ? `<div style="font-size:10px;color:#555;">Ph: ${user.phone}</div>` : ''}
           </div></div>

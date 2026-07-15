@@ -1,4 +1,4 @@
-# Developer Guide — DG ERP
+# Developer Guide — Dhandho
 
 Technical reference for contributors and maintainers.
 
@@ -8,7 +8,7 @@ Technical reference for contributors and maintainers.
 
 ```bash
 npm install
-createdb dg_erp
+createdb dhandho
 cp .env.example .env   # edit DATABASE_URL + JWT_SECRET
 npm run dev:all        # server :3001 + frontend :3000
 ```
@@ -157,7 +157,7 @@ const items = await api.products.list();
 1. Load license from `userData/license.dat` (AES-256 encrypted)
 2. If no license → show wizard window
 3. Start embedded PostgreSQL on a free port (via `findFreePort()`)
-4. Set `DATABASE_URL=postgresql://localhost:<port>/dg_erp`
+4. Set `DATABASE_URL=postgresql://localhost:<port>/dhandho`
 5. Start Express server (same `server/index.ts`)
 6. Open main app window at `http://localhost:<port>/<slug>`
 7. Start heartbeat timer (every `HEARTBEAT_INTERVAL_MS`)

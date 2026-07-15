@@ -114,7 +114,7 @@ export function OnlineStatus({ collapsed }: { collapsed: boolean }) {
             </div>
             {expiringWarning && (
               <div className="mt-3 p-2 bg-amber-50 rounded-lg text-xs text-amber-700">
-                License expiring soon. Contact DG Business to renew.
+                License expiring soon. Contact Dhandho to renew.
               </div>
             )}
             <button

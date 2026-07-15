@@ -159,7 +159,7 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
             )}
           </div>
           <button type="button" onClick={() => {
-            const companyName = (() => { try { return (session.getUser() || {} as Record<string, unknown>).companyName || 'DG ERP'; } catch { return 'DG ERP'; } })();
+            const companyName = (() => { try { return (session.getUser() || {} as Record<string, unknown>).companyName || 'Dhandho'; } catch { return 'Dhandho'; } })();
             const w = window.open('', '_blank');
             if (!w) return;
             w.document.write(`<!DOCTYPE html><html><head><title>Payment History — ${detail.vendor.name}</title><style>
