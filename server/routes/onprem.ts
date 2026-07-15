@@ -134,14 +134,18 @@ router.post('/api/onprem/provision', async (req, res) => {
     if (!companyName || !adminPassword) return res.status(400).json({ error: 'Missing required fields' });
 
     const { provisionTenant } = await import('../utils/tenant');
-    // Get the best plan or create a local one
-    const planRow = (await pool.query("SELECT id FROM plans LIMIT 1")).rows[0] as { id: string } | undefined;
-    const planId = planRow?.id || 'LOCAL';
+
+    // Ensure a LOCAL plan exists for on-prem (no FK violation)
+    await pool.query(`
+      INSERT INTO plans (id, name, max_products, max_vendors, max_users, max_barcodes, features, price_monthly, price_yearly, is_active)
+      VALUES ('LOCAL', 'On-Prem License', -1, -1, -1, -1, '{}', 0, 0, true)
+      ON CONFLICT (id) DO NOTHING
+    `);
 
     const result = await provisionTenant({
       companyName, adminEmail: adminEmail || `admin@local`,
       adminName: 'Admin', adminPassword,
-      planId, status: 'active',
+      planId: 'LOCAL', status: 'active',
     });
 
     // Set business type on the tenant
