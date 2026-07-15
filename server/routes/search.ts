@@ -13,41 +13,39 @@ router.get('/api/search', async (req, res) => {
     const like = `%${q}%`;
     const limit = 6;
 
-    const products = (await pool.query(`
-      SELECT p.id, p.name, p.price,
-        (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as stock
-      FROM products p WHERE p.name ILIKE $2 AND p.tenant_id = $1 ORDER BY p.name LIMIT $3
-    `, [tenantId, like, limit])).rows as { id: string; name: string; price: number; stock: number }[];
-
-    const customers = (await pool.query(`
-      SELECT id, name, phone, email FROM customers WHERE (name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1) AND tenant_id = $2 ORDER BY name LIMIT $3
-    `, [like, tenantId, limit])).rows as { id: string; name: string; phone: string; email: string }[];
-
-    const vendors = (await pool.query(`
-      SELECT id, name, contact_person, phone FROM vendors WHERE (name ILIKE $1 OR contact_person ILIKE $1 OR phone ILIKE $1) AND tenant_id = $2 ORDER BY name LIMIT $3
-    `, [like, tenantId, limit])).rows as { id: string; name: string; contact_person: string; phone: string }[];
-
-    const barcodeResults = (await pool.query(`
-      SELECT pi.barcode, p.name as product_name, p.id as product_id, pi.status
-      FROM product_inventory pi JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
-      WHERE pi.barcode ILIKE $1 AND pi.tenant_id = $2 LIMIT $3
-    `, [like, tenantId, limit])).rows as { barcode: string; product_name: string; product_id: string; status: string }[];
-
-    const challans = (await pool.query(`
-      SELECT COALESCE(pd.batch_id, pd.id) as batch_id, v.name as vendor_name,
-        MIN(pd.distribution_date) as distribution_date, COUNT(*) as total_units
-      FROM product_distribution pd
-      JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
-      WHERE pd.tenant_id = $1 AND COALESCE(pd.batch_id, pd.id) ILIKE $2
-      GROUP BY COALESCE(pd.batch_id, pd.id), v.name
-      ORDER BY MIN(pd.distribution_date) DESC LIMIT $3
-    `, [tenantId, like, limit])).rows as { batch_id: string; vendor_name: string; distribution_date: string; total_units: number }[];
-
-    const staff = (await pool.query(`
-      SELECT staff_name, SUM(amount) as total_paid, COUNT(*) as payments, MAX(payment_date) as last_payment
-      FROM staff_payments WHERE staff_name ILIKE $1 AND tenant_id = $2
-      GROUP BY staff_name ORDER BY total_paid DESC LIMIT $3
-    `, [like, tenantId, limit])).rows as { staff_name: string; total_paid: number; payments: number; last_payment: string }[];
+    // Run all 6 searches in parallel
+    const [products, customers, vendors, barcodeResults, challans, staff] = await Promise.all([
+      pool.query(`
+        SELECT p.id, p.name, p.price,
+          (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as stock
+        FROM products p WHERE p.name ILIKE $2 AND p.tenant_id = $1 ORDER BY p.name LIMIT $3
+      `, [tenantId, like, limit]).then(r => r.rows as { id: string; name: string; price: number; stock: number }[]),
+      pool.query(`
+        SELECT id, name, phone, email FROM customers WHERE (name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1) AND tenant_id = $2 ORDER BY name LIMIT $3
+      `, [like, tenantId, limit]).then(r => r.rows as { id: string; name: string; phone: string; email: string }[]),
+      pool.query(`
+        SELECT id, name, contact_person, phone FROM vendors WHERE (name ILIKE $1 OR contact_person ILIKE $1 OR phone ILIKE $1) AND tenant_id = $2 ORDER BY name LIMIT $3
+      `, [like, tenantId, limit]).then(r => r.rows as { id: string; name: string; contact_person: string; phone: string }[]),
+      pool.query(`
+        SELECT pi.barcode, p.name as product_name, p.id as product_id, pi.status
+        FROM product_inventory pi JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
+        WHERE pi.barcode ILIKE $1 AND pi.tenant_id = $2 LIMIT $3
+      `, [like, tenantId, limit]).then(r => r.rows as { barcode: string; product_name: string; product_id: string; status: string }[]),
+      pool.query(`
+        SELECT COALESCE(pd.batch_id, pd.id) as batch_id, v.name as vendor_name,
+          MIN(pd.distribution_date) as distribution_date, COUNT(*) as total_units
+        FROM product_distribution pd
+        JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
+        WHERE pd.tenant_id = $1 AND COALESCE(pd.batch_id, pd.id) ILIKE $2
+        GROUP BY COALESCE(pd.batch_id, pd.id), v.name
+        ORDER BY MIN(pd.distribution_date) DESC LIMIT $3
+      `, [tenantId, like, limit]).then(r => r.rows as { batch_id: string; vendor_name: string; distribution_date: string; total_units: number }[]),
+      pool.query(`
+        SELECT staff_name, SUM(amount) as total_paid, COUNT(*) as payments, MAX(payment_date) as last_payment
+        FROM staff_payments WHERE staff_name ILIKE $1 AND tenant_id = $2
+        GROUP BY staff_name ORDER BY total_paid DESC LIMIT $3
+      `, [like, tenantId, limit]).then(r => r.rows as { staff_name: string; total_paid: number; payments: number; last_payment: string }[]),
+    ]);
 
     res.json({
       products: products.map((p) => ({ id: p.id, name: p.name, price: p.price, stock: p.stock, type: 'product' as const })),

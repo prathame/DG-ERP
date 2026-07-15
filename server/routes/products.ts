@@ -418,15 +418,22 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
       // Batch insert all barcodes in one query
       const unitType = barcodePerBox && (Number(packSize) || 1) > 1 ? 'box' : 'piece';
       if (barcodes.length > 0) {
-        const values: string[] = [];
-        const params: unknown[] = [];
-        let paramIdx = 1;
-        for (let i = 0; i < barcodes.length; i++) {
-          values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5}, $${paramIdx + 6})`);
-          params.push(`I${id}-${i + 1}`, id, barcodes[i], batchId, 'InStock', tenantId, unitType);
-          paramIdx += 7;
+        // Chunk at 5000 rows (7 params each = 35000 params per batch, safely under PG's 65535 limit)
+        const CHUNK = 5000;
+        let offset = 0;
+        while (offset < barcodes.length) {
+          const chunk = barcodes.slice(offset, offset + CHUNK);
+          const values: string[] = [];
+          const params: unknown[] = [];
+          let paramIdx = 1;
+          for (let i = 0; i < chunk.length; i++) {
+            values.push(`($${paramIdx},$${paramIdx+1},$${paramIdx+2},$${paramIdx+3},$${paramIdx+4},$${paramIdx+5},$${paramIdx+6})`);
+            params.push(`I${id}-${offset + i + 1}`, id, chunk[i], batchId, 'InStock', tenantId, unitType);
+            paramIdx += 7;
+          }
+          await client.query(`INSERT INTO product_inventory (id,product_id,barcode,batch_id,status,tenant_id,unit_type) VALUES ${values.join(',')}`, params);
+          offset += CHUNK;
         }
-        await client.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type) VALUES ${values.join(',')}`, params);
         invStock = barcodes.length;
       }
     };

@@ -1,11 +1,36 @@
 /**
  * Stress Test — Dhandho
- * Tests API load + data volume against production
- * Run: npx tsx tests/stress-test.ts
+ * Tests API load + data volume.
+ *
+ * SAFETY: This script creates and deletes tenants and MUST NOT target production
+ * unless explicitly confirmed. Configure via environment variables:
+ *
+ *   STRESS_BASE_URL=http://localhost:3001   (required — no default)
+ *   STRESS_SA_EMAIL=admin@example.com       (required)
+ *   STRESS_SA_PASSWORD=secret               (required)
+ *   STRESS_ALLOW_DESTRUCTIVE=true           (required to actually run)
+ *
+ * Run: STRESS_BASE_URL=http://localhost:3001 STRESS_SA_EMAIL=... STRESS_SA_PASSWORD=... STRESS_ALLOW_DESTRUCTIVE=true npx tsx tests/stress-test.ts
  */
 
-const BASE = 'https://dhandho.app';
-const SUPER_ADMIN = { email: 'admin@dhandho.app', password: 'superadmin123' };
+const BASE = process.env.STRESS_BASE_URL ?? '';
+const SUPER_ADMIN = {
+  email:    process.env.STRESS_SA_EMAIL    ?? '',
+  password: process.env.STRESS_SA_PASSWORD ?? '',
+};
+
+if (!BASE || !SUPER_ADMIN.email || !SUPER_ADMIN.password) {
+  console.error('❌ STRESS_BASE_URL, STRESS_SA_EMAIL and STRESS_SA_PASSWORD must be set.');
+  process.exit(1);
+}
+if (process.env.STRESS_ALLOW_DESTRUCTIVE !== 'true') {
+  console.error('❌ Set STRESS_ALLOW_DESTRUCTIVE=true to confirm you understand this script creates/deletes tenants.');
+  process.exit(1);
+}
+if (BASE.includes('dhandho.app') || BASE.includes('render.com')) {
+  console.error('❌ Refusing to run destructive stress test against production URL:', BASE);
+  process.exit(1);
+}
 
 let saToken = '';
 let tenantToken = '';

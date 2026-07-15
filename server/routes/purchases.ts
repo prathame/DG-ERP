@@ -129,15 +129,24 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      // Bulk INSERT all purchase rows in one query
+      const purchaseVals: string[] = [];
+      const purchasePs: unknown[] = [];
       let seq = 0;
+      let pIdx = 1;
       for (const u of purchaseRows) {
         for (let i = 0; i < u.qty; i++) {
           seq++;
-          await client.query(
-            'INSERT INTO product_purchases (id, tenant_id, batch_id, product_id, supplier_id, purchase_date, cost_price, gst_applied, billed_price, discount_percent, invoice_number) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
-            [`${batchId}-${seq}`, tenantId, batchId, u.productId, supplierId, date, u.costPrice, u.gstApplied, u.billedPrice, u.disc, invoiceNumber || null]
-          );
+          purchaseVals.push(`($${pIdx},$${pIdx+1},$${pIdx+2},$${pIdx+3},$${pIdx+4},$${pIdx+5},$${pIdx+6},$${pIdx+7},$${pIdx+8},$${pIdx+9},$${pIdx+10})`);
+          purchasePs.push(`${batchId}-${seq}`, tenantId, batchId, u.productId, supplierId, date, u.costPrice, u.gstApplied, u.billedPrice, u.disc, invoiceNumber || null);
+          pIdx += 11;
         }
+      }
+      if (purchaseVals.length > 0) {
+        await client.query(
+          `INSERT INTO product_purchases (id,tenant_id,batch_id,product_id,supplier_id,purchase_date,cost_price,gst_applied,billed_price,discount_percent,invoice_number) VALUES ${purchaseVals.join(',')}`,
+          purchasePs
+        );
       }
       if (paidAmount > 0) {
         const payId = uid('SP');

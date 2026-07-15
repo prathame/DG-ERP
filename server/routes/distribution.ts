@@ -273,14 +273,24 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
       const totalUnits = unitRows.length;
       unitRows.forEach((u, i) => { u.distId = totalUnits === 1 ? batchId : `${batchId}-${i + 1}`; });
 
-      for (const u of unitRows) {
+      // Bulk INSERT all distribution rows in one query
+      if (unitRows.length > 0) {
+        const vals: string[] = [];
+        const ps: unknown[] = [];
+        let idx = 1;
+        for (const u of unitRows) {
+          vals.push(`($${idx},$${idx+1},$${idx+2},$${idx+3},$${idx+4},$${idx+5},$${idx+6},$${idx+7},$${idx+8},$${idx+9},$${idx+10},$${idx+11})`);
+          ps.push(u.distId, batchId, u.productId, u.barcode, vendorId, date, 'Distributed', u.disc, u.netPrice, u.gstApplied, u.billedPrice, tenantId);
+          idx += 12;
+        }
         await client.query(
-          'INSERT INTO product_distribution (id, batch_id, product_id, barcode, vendor_id, distribution_date, status, discount_percent, net_price, gst_applied, billed_price, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)',
-          [u.distId, batchId, u.productId, u.barcode, vendorId, date, 'Distributed', u.disc, u.netPrice, u.gstApplied, u.billedPrice, tenantId]
+          `INSERT INTO product_distribution (id,batch_id,product_id,barcode,vendor_id,distribution_date,status,discount_percent,net_price,gst_applied,billed_price,tenant_id) VALUES ${vals.join(',')}`,
+          ps
         );
+        // Bulk UPDATE inventory statuses
         await client.query(
-          'UPDATE product_inventory SET status = $1 WHERE id = $2 AND tenant_id = $3',
-          ['Distributed', u.invId, tenantId]
+          `UPDATE product_inventory SET status='Distributed' WHERE id = ANY($1) AND tenant_id = $2`,
+          [unitRows.map(u => u.invId), tenantId]
         );
       }
       if (paidAmount) {
