@@ -403,7 +403,7 @@ export default function App() {
             </button>
           </div>
         )}
-        {(import.meta as unknown as { env: Record<string, string> }).env.VITE_DEPLOYMENT_MODE === 'onprem' && (
+        {((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)?.deploymentMode === 'onprem' && (
           <div className="px-3 pb-2 border-t border-gray-100 pt-2">
             <OnlineStatus collapsed={!isSidebarOpen} />
           </div>
