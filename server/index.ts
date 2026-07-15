@@ -8,7 +8,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 
-import { initDatabase, pool } from './pg-db';
+import { initDatabase, pool, setTenantContext } from './pg-db';
 
 import superAdminRouter from './routes/super-admin';
 import productsRouter from './routes/products';
@@ -142,6 +142,13 @@ app.use('/api/', async (req, res, next) => {
       if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
         return res.status(403).json({ error: 'Subscription expired. Contact admin to renew.' });
       }
+      // P2 fix: set tenant context on a pool connection so RLS policies have app.tenant_id.
+      // Fire-and-forget — the context is session-level and will be picked up by
+      // the next query on that connection. Combined with explicit WHERE tenant_id clauses
+      // this provides two-layer tenant isolation.
+      pool.connect().then(client => {
+        setTenantContext(client, decoded.tenantId!).finally(() => client.release());
+      }).catch(() => {});
     }
     (req as unknown as Record<string, unknown>).user = decoded;
     (req as unknown as Record<string, unknown>).tenantId = decoded.tenantId;

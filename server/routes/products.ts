@@ -4,6 +4,7 @@ import { uid, mapProduct, logAudit } from '../utils/helpers';
 import { barcodeExists, expandBarcodeRange, generateBarcodesFromPrefix } from '../utils/barcode';
 import { requireAdmin, blockVendors, AuthRequest } from '../middleware/auth';
 import { checkPlanLimit } from '../utils/planLimits';
+import { withTenantClient } from '../pg-db';
 
 const router = Router();
 
@@ -593,24 +594,25 @@ router.put('/api/products/:id', blockVendors, async (req: AuthRequest, res) => {
   }
 });
 
-// Delete all products for tenant
+// Delete all products for tenant — uses withTenantClient so RLS is active
 router.delete('/api/products/all', requireAdmin, async (req: AuthRequest, res) => {
-  const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    await client.query('BEGIN');
-    const tables = ['product_purchases', 'product_sales', 'product_distribution', 'product_inventory', 'price_lists', 'warranties', 'product_replacements'];
-    for (const t of tables) await client.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]);
-    const { rowCount } = await client.query('DELETE FROM products WHERE tenant_id = $1', [tenantId]);
-    await client.query('COMMIT');
+
+    const rowCount = await withTenantClient(tenantId, async (client) => {
+      const tables = ['product_purchases', 'product_sales', 'product_distribution', 'product_inventory', 'price_lists', 'warranties', 'product_replacements'];
+      for (const t of tables) await client.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]);
+      const { rowCount: rc } = await client.query('DELETE FROM products WHERE tenant_id = $1', [tenantId]);
+      return rc;
+    });
+
     await logAudit(pool, tenantId, 'Delete All Products', 'product', 'all', `${rowCount} products deleted`);
     res.json({ deleted: rowCount });
   } catch (e) {
-    await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
     res.status(500).json({ error: 'Failed to delete inventory' });
-  } finally { client.release(); }
+  }
 });
 
 router.delete('/api/products/:id', requireAdmin, async (req: AuthRequest, res) => {

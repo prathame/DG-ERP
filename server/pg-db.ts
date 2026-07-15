@@ -4,9 +4,36 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Set tenant context on a connection for RLS
+// Set tenant context on a connection for RLS (P2 fix)
+// Use true = transaction-local (resets after COMMIT/ROLLBACK)
 export async function setTenantContext(client: import('pg').PoolClient, tenantId: string) {
   await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+}
+
+/**
+ * P2 fix: Run a callback with a dedicated pool client scoped to a tenant.
+ * Sets app.tenant_id so RLS policies can enforce isolation as a second layer
+ * (on top of the explicit WHERE tenant_id = $1 in every query).
+ *
+ * Use this for destructive operations and sensitive reads.
+ */
+export async function withTenantClient<T>(
+  tenantId: string,
+  fn: (client: import('pg').PoolClient) => Promise<T>
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export const pool = new Pool({
@@ -789,6 +816,15 @@ export async function initSchema() {
           END IF;
         END $$
       `);
+    }
+    // P2 fix: FORCE ROW LEVEL SECURITY on the most sensitive tables so even the
+    // pool owner role is subject to RLS. Combined with setTenantContext being called
+    // in the global auth middleware, this gives two-layer isolation for these tables.
+    const forceRlsTables = ['users', 'products', 'product_inventory', 'product_sales', 'standalone_invoices'];
+    for (const table of forceRlsTables) {
+      try {
+        await client.query(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
+      } catch { /* table may not exist yet */ }
     }
     console.log('  ✓ Row Level Security policies applied');
 

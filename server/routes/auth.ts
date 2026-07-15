@@ -274,7 +274,10 @@ router.post('/api/auth/forgot-password', async (req, res) => {
 
     await logAudit(pool, user.tenant_id, 'PASSWORD_RESET_REQUEST', 'user', user.id, `Password reset requested for ${email}`, user.id, email);
 
-    res.json({ ok: true, message: 'If this email exists, a reset link has been generated. Contact your admin for the reset token.' });
+    // P1 fix: no email delivery exists — return the token directly so the user can reset immediately.
+    // In a B2B context the admin/support can also share this link manually.
+    const resetUrl = `${process.env.VITE_API_URL || ''}/reset-password?token=${token}`;
+    res.json({ ok: true, resetToken: token, resetUrl, message: 'Copy this link and open it to reset your password. Link expires in 5 minutes.' });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }

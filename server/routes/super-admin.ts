@@ -801,4 +801,37 @@ router.post('/api/super-admin/tenants/:id/notify', superAdminMiddleware, async (
   }
 });
 
+// ── Super-admin: list active reset tokens (support tool) ─────────────────────
+router.get('/api/super-admin/reset-tokens', superAdminMiddleware, async (req, res) => {
+  try {
+    const rows = await pool.query(`
+      SELECT prt.id, prt.email, prt.tenant_id, prt.token, prt.expires_at, t.company_name
+      FROM password_reset_tokens prt
+      JOIN tenants t ON t.id = prt.tenant_id
+      WHERE prt.used = false AND prt.expires_at > NOW()
+      ORDER BY prt.expires_at DESC
+    `);
+    res.json(rows.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── Super-admin: directly reset any user's password ───────────────────────────
+router.post('/api/super-admin/users/:userId/reset-password', superAdminMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    const user = (await pool.query('SELECT id, email, tenant_id FROM users WHERE id = $1', [userId])).rows[0] as { id: string; email: string; tenant_id: string } | undefined;
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const bcrypt = await import('bcrypt');
+    const hash = await bcrypt.hash(newPassword, 12);
+    await pool.query('UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2', [hash, userId]);
+    res.json({ ok: true, message: `Password reset for ${user.email}` });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
