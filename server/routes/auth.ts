@@ -6,50 +6,9 @@ import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-router.post('/api/auth/signup', async (req, res) => {
-  try {
-    // P1 fix: do not trust client-supplied X-Tenant-ID for admin creation.
-    // Require a one-time bootstrap_token that proves the provisioning system
-    // authorised this first-admin setup. The token is stored in tenants.bootstrap_token
-    // and cleared after first use.
-    const { bootstrapToken } = req.body;
-    if (!bootstrapToken) return res.status(400).json({ error: 'Bootstrap token required' });
-
-    const tenantRow = (await pool.query(
-      "SELECT id, bootstrap_token FROM tenants WHERE bootstrap_token = $1 AND bootstrap_token IS NOT NULL",
-      [bootstrapToken]
-    )).rows[0] as { id: string; bootstrap_token: string } | undefined;
-    if (!tenantRow) return res.status(403).json({ error: 'Invalid or already-used bootstrap token' });
-
-    const tenantId = tenantRow.id;
-    const existingAdmins = (await pool.query("SELECT COUNT(*) as c FROM users WHERE tenant_id = $1 AND role IN ('Admin', 'Super Admin')", [tenantId])).rows[0] as { c: number };
-    if (Number(existingAdmins.c) > 0) return res.status(403).json({ error: 'Signup is disabled. Contact your admin to create accounts.' });
-
-    const { email, password, name, phone, address, companyName } = req.body;
-    if (!email || !password || !name) return res.status(400).json({ error: 'Email, password and name are required' });
-    if (typeof password === 'string' && password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    const emailLower = email.toLowerCase().trim();
-
-    const existing = (await pool.query('SELECT id FROM users WHERE LOWER(email) = $1 AND tenant_id = $2', [emailLower, tenantId])).rows[0];
-    if (existing) return res.status(400).json({ error: 'Email already registered' });
-
-    const id = uid('U');
-    const passwordHash = bcrypt.hashSync(password, 12);
-    await pool.query(`
-      INSERT INTO users (id, email, password_hash, name, phone, address, role, company_name, tenant_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `, [id, emailLower, passwordHash, name ?? '', phone ?? null, address ?? null, 'Admin', companyName ?? null, tenantId]);
-
-    const row = (await pool.query('SELECT id, email, name, phone, address, role, company_name FROM users WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
-    const tenant = (await pool.query('SELECT slug FROM tenants WHERE id = $1', [tenantId])).rows[0] as { slug: string } | undefined;
-    const token = generateToken({ userId: id, tenantId, role: 'Admin', email: emailLower, name: name ?? '' });
-    // Clear bootstrap token — one-time use
-    await pool.query('UPDATE tenants SET bootstrap_token = NULL WHERE id = $1', [tenantId]);
-    res.status(201).json({ token, tenantId, tenantSlug: tenant?.slug, user: { id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name } });
-  } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// Signup removed — provisionTenant creates Admin on provisioning; all user
+// creation goes through POST /api/admin/users (admin) or /api/super-admin/tenants.
+router.post('/api/auth/signup', (_req, res) => res.status(410).json({ error: 'Signup disabled. Contact your admin.' }));
 
 router.post('/api/auth/login', async (req, res) => {
   try {
@@ -274,10 +233,11 @@ router.post('/api/auth/forgot-password', async (req, res) => {
 
     await logAudit(pool, user.tenant_id, 'PASSWORD_RESET_REQUEST', 'user', user.id, `Password reset requested for ${email}`, user.id, email);
 
-    // P1 fix: no email delivery exists — return the token directly so the user can reset immediately.
-    // In a B2B context the admin/support can also share this link manually.
-    const resetUrl = `${process.env.VITE_API_URL || ''}/reset-password?token=${token}`;
-    res.json({ ok: true, resetToken: token, resetUrl, message: 'Copy this link and open it to reset your password. Link expires in 5 minutes.' });
+    // Token stored — retrievable by authenticated admin via GET /api/admin/reset-tokens
+    // or super-admin via GET /api/super-admin/reset-tokens.
+    // Never returned here: keeps anti-enumeration intact and prevents token
+    // leaking to anyone who guesses a valid email address.
+    res.json({ ok: true, message: 'Reset token generated. Contact your admin or support to retrieve it.' });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }

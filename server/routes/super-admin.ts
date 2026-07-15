@@ -827,7 +827,7 @@ router.post('/api/super-admin/users/:userId/reset-password', superAdminMiddlewar
     if (!user) return res.status(404).json({ error: 'User not found' });
     const bcrypt = await import('bcrypt');
     const hash = await bcrypt.hash(newPassword, 12);
-    await pool.query('UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2', [hash, userId]);
+    await pool.query('UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2 AND tenant_id = $3', [hash, userId, user.tenant_id]);
     res.json({ ok: true, message: `Password reset for ${user.email}` });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

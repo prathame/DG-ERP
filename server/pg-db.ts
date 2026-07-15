@@ -817,15 +817,11 @@ export async function initSchema() {
         END $$
       `);
     }
-    // P2 fix: FORCE ROW LEVEL SECURITY on the most sensitive tables so even the
-    // pool owner role is subject to RLS. Combined with setTenantContext being called
-    // in the global auth middleware, this gives two-layer isolation for these tables.
-    const forceRlsTables = ['users', 'products', 'product_inventory', 'product_sales', 'standalone_invoices'];
-    for (const table of forceRlsTables) {
-      try {
-        await client.query(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
-      } catch { /* table may not exist yet */ }
-    }
+    // RLS policies are enabled (not forced) — the pool owner bypasses them,
+    // but the explicit WHERE tenant_id = $1 in every handler is the primary isolation.
+    // FORCE ROW LEVEL SECURITY was removed: without per-request SET LOCAL inside the
+    // same transaction, handlers use pool.query() on different connections where
+    // app.tenant_id is unset → FORCE RLS returns empty rows (silent data loss).
     console.log('  ✓ Row Level Security policies applied');
 
     console.log('  ✓ Database schema ready');

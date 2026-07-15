@@ -8,7 +8,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 
-import { initDatabase, pool, setTenantContext } from './pg-db';
+import { initDatabase, pool } from './pg-db';
 
 import superAdminRouter from './routes/super-admin';
 import productsRouter from './routes/products';
@@ -116,7 +116,7 @@ app.use((req, _res, next) => {
 
 // Public routes that don't need auth
 const PUBLIC_PATHS = [
-  '/api/auth/login', '/api/auth/signup', '/api/auth/forgot-password', '/api/auth/reset-password',
+  '/api/auth/login', '/api/auth/forgot-password', '/api/auth/reset-password',
   '/api/super-admin/login', '/api/tenant/by-slug/', '/api/health',
   '/manifest.json',
   // On-prem license endpoints — validated by license key / localhost, not JWT
@@ -131,24 +131,32 @@ app.use('/api/', async (req, res, next) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Authentication required' });
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as { tenantId?: string; userId?: string; role?: string };
-    if (decoded.tenantId) {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as { tenantId?: string; userId?: string; role?: string; iat?: number };
+    if (decoded.tenantId && decoded.userId) {
       req.headers['x-tenant-id'] = decoded.tenantId;
-      const tenant = (await pool.query('SELECT status, subscription_ends_at, trial_ends_at FROM tenants WHERE id = $1', [decoded.tenantId])).rows[0] as { status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
-      if (tenant?.status === 'suspended') {
-        return res.status(403).json({ error: 'Account suspended. Contact admin.' });
+
+      // Check tenant status AND password_changed_at in one query
+      const userRow = await pool.query(
+        `SELECT u.password_changed_at, t.status, t.subscription_ends_at, t.trial_ends_at
+         FROM users u JOIN tenants t ON t.id = u.tenant_id
+         WHERE u.id = $1 AND u.tenant_id = $2`,
+        [decoded.userId, decoded.tenantId]
+      );
+      const row = userRow.rows[0] as { password_changed_at: Date | null; status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
+
+      if (row?.status === 'suspended') return res.status(403).json({ error: 'Account suspended. Contact admin.' });
+      const expiresAt = row?.subscription_ends_at || row?.trial_ends_at;
+      if (expiresAt && new Date(expiresAt).getTime() < Date.now()) return res.status(403).json({ error: 'Subscription expired. Contact admin to renew.' });
+
+      // JWT invalidation: reject tokens issued before the last password change
+      if (row?.password_changed_at && decoded.iat && row.password_changed_at.getTime() / 1000 > decoded.iat) {
+        return res.status(401).json({ error: 'Session expired after password change. Please log in again.' });
       }
-      const expiresAt = tenant?.subscription_ends_at || tenant?.trial_ends_at;
-      if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
-        return res.status(403).json({ error: 'Subscription expired. Contact admin to renew.' });
-      }
-      // P2 fix: set tenant context on a pool connection so RLS policies have app.tenant_id.
-      // Fire-and-forget — the context is session-level and will be picked up by
-      // the next query on that connection. Combined with explicit WHERE tenant_id clauses
-      // this provides two-layer tenant isolation.
-      pool.connect().then(client => {
-        setTenantContext(client, decoded.tenantId!).finally(() => client.release());
-      }).catch(() => {});
+    } else if (decoded.tenantId) {
+      // Vendor/Staff token without userId — check tenant status only
+      req.headers['x-tenant-id'] = decoded.tenantId;
+      const tenant = await pool.query('SELECT status FROM tenants WHERE id = $1', [decoded.tenantId]);
+      if (tenant.rows[0]?.status === 'suspended') return res.status(403).json({ error: 'Account suspended.' });
     }
     (req as unknown as Record<string, unknown>).user = decoded;
     (req as unknown as Record<string, unknown>).tenantId = decoded.tenantId;

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { checkPlanLimit } from '../utils/planLimits';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, hashPassword, logAudit, isValidPhone, isValidEmail, isValidGstin } from '../utils/helpers';
@@ -101,6 +102,9 @@ router.post('/api/vendors', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const vendorLimitErr = await checkPlanLimit(tenantId, 'vendors');
+    if (vendorLimitErr) return res.status(403).json(vendorLimitErr);
 
     const { name, contactPerson, phone, email, address } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Vendor name is required' });

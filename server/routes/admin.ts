@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
+import { checkPlanLimit } from '../utils/planLimits';
 
 const router = Router();
 
@@ -60,6 +61,9 @@ router.post('/api/admin/users', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const userLimitErr = await checkPlanLimit(tenantId, 'users');
+    if (userLimitErr) return res.status(403).json(userLimitErr);
 
     const jwtUser = (req as unknown as Record<string, unknown>).user as { userId?: string; role?: string } | undefined;
     if (!jwtUser?.userId) return res.status(401).json({ error: 'Authentication required' });
