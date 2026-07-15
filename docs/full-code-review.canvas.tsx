@@ -14,7 +14,7 @@ export default function SplenderReviewDocMirror() {
     <Stack gap={16} style={{ padding: 24, maxWidth: 720 }}>
       <H1>Review status</H1>
       <Callout tone="success" title="0 open">
-        Medium invoice items closed. Deferred only: D1–D3.
+        GST High/Medium + cloud retry closed. Deferred D1–D3 only. E2E 523/523.
       </Callout>
       <Grid columns={3} gap={12}>
         <Stat value="0" label="Open" tone="success" />

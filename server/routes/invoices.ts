@@ -53,6 +53,13 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
     const { invoiceNumber, customerName, customerGstin, customerAddress, customerPhone, items, notes, terms, invoiceDate, dueDate, status } = req.body;
     if (!customerName) return res.status(400).json({ error: 'Customer name is required' });
     if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'Add at least one line item' });
+    // paid/cancelled only via status update or invoice-finance — never on create
+    let createStatus = 'draft';
+    if (status === 'sent' || status === 'unpaid') createStatus = 'sent';
+    else if (status === 'draft' || status == null || status === undefined) createStatus = 'draft';
+    else if (status) {
+      return res.status(400).json({ error: 'New invoices can only be draft or sent. Mark paid after recording payment.' });
+    }
 
     const lineItems = items.map((it: { description: string; hsnSac?: string; qty: number; rate: number; gstPercent: number }) => {
       const taxable = (it.qty || 1) * (it.rate || 0);
@@ -68,7 +75,7 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
       `INSERT INTO standalone_invoices (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address, customer_phone, items, subtotal, tax_total, grand_total, notes, terms, status, invoice_date, due_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
       [id, tenantId, invoiceNumber || `INV-${Date.now()}`, customerName, customerGstin || null, customerAddress || null, customerPhone || null,
-       JSON.stringify(lineItems), subtotal, taxTotal, grandTotal, notes || null, terms || null, status || 'draft',
+       JSON.stringify(lineItems), subtotal, taxTotal, grandTotal, notes || null, terms || null, createStatus,
        invoiceDate || new Date().toISOString().slice(0, 10), dueDate || null]
     );
     await logAudit(pool, tenantId, 'Invoice Created', 'invoice', id, `${invoiceNumber} — ${customerName} — ₹${grandTotal}`);

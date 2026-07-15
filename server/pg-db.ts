@@ -701,6 +701,7 @@ export async function initSchema() {
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_password TEXT`);
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_client_id TEXT`);
     await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_client_secret TEXT`);
+    await client.query(`ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS gst_api_seller_pin TEXT`);
     await client.query('ALTER TABLE product_purchases ALTER COLUMN barcode DROP NOT NULL');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_batch ON product_purchases(tenant_id, batch_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pp_date ON product_purchases(tenant_id, purchase_date)');

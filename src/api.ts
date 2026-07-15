@@ -161,10 +161,12 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   if (token) authHeaders['Authorization'] = `Bearer ${token}`;
   if (tenantId) authHeaders['X-Tenant-ID'] = tenantId;
 
-  // Retry up to 3 times on network errors (handles 1-2 second internet blips).
-  // Only retries on TypeError (no connection) — never on 4xx/5xx server errors.
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY_MS = [800, 1600, 3000]; // backoff: 0.8s → 1.6s → 3s
+  // Retry network blips only (TypeError). Never retry on 4xx/5xx.
+  // GETs: up to 3 attempts (safe). Mutations: 1 retry only — reduces duplicate
+  // create risk if the server saved but the response never reached the client.
+  const isSafeRetry = method === 'GET' || method === 'HEAD';
+  const MAX_RETRIES = isSafeRetry ? 3 : 2; // mutations: initial + 1 retry
+  const RETRY_DELAY_MS = isSafeRetry ? [800, 1600, 3000] : [800];
   let lastError: unknown;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
@@ -180,10 +182,11 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
       if (!(err instanceof TypeError)) throw err;
       lastError = err;
       if (attempt < MAX_RETRIES - 1) {
-        await new Promise(r => setTimeout(r, RETRY_DELAY_MS[attempt]));
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS[attempt] ?? 800));
       }
     }
   }
+  void lastError;
   throw new Error('Connection lost. Please check your internet and try again.');
 }
 

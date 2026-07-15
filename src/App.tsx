@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 
 // ── Global offline banner ─────────────────────────────────────────────────────
 function OfflineBanner() {
@@ -42,7 +42,7 @@ function OfflineBanner() {
       {status === 'offline' ? (
         <>
           <span>⚠</span>
-          No internet connection — your entries will be retried when connection is restored.
+          No internet — check your connection. If a save failed, submit it again when you are back online.
         </>
       ) : (
         <>

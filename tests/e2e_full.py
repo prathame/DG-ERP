@@ -437,6 +437,12 @@ def run_all(SA, sa_h, TID, TOK, TID_SVC, SVC_TOK):
         ok("Paid without payments → 400", s == 400)
         s, _ = req("PUT", f"/api/invoices/{INV_ID}/status", {"status": "invalid"}, D)
         ok("Invalid invoice status → 400", s == 400)
+        s, d = req("POST", "/api/invoices", {
+            "customerName": "Paid Bypass", "invoiceDate": "2026-07-15",
+            "items": [{"description": "X", "qty": 1, "rate": 10, "gstPercent": 0}],
+            "status": "paid"
+        }, D)
+        ok("Create invoice as paid → 400", s == 400)
 
     # ── INVOICE FINANCE ───────────────────────────────────────────────────────
     section("INVOICE FINANCE (SERVICE)")

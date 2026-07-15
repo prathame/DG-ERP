@@ -1130,12 +1130,21 @@ router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: Auth
     try {
       await client.query('BEGIN');
       const rows = (await client.query(
-        'SELECT id, barcode, status FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2 ORDER BY id FOR UPDATE',
+        'SELECT id, barcode, status, irn, ewb_number FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2 ORDER BY id FOR UPDATE',
         [batchId, tenantId]
-      )).rows as { id: string; barcode: string; status: string }[];
+      )).rows as { id: string; barcode: string; status: string; irn: string | null; ewb_number: string | null }[];
       if (rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Distribution batch not found' });
+      }
+
+      const withIrn = rows.filter((r) => r.irn);
+      const withEwb = rows.filter((r) => r.ewb_number);
+      if (withIrn.length > 0 || withEwb.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: 'Cannot delete batch with IRN/E-way bill. Cancel IRN first (Settings → GST), clear EWB, then delete.',
+        });
       }
 
       const blocked = rows.filter((r) => r.status !== 'Distributed');

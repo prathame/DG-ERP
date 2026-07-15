@@ -212,6 +212,13 @@ def test_common(tok, tid, ids, btype):
     ok("List invoices", req("GET","/api/invoices",headers=D)[0] == 200)
     ok("Next number", req("GET","/api/invoices/next-number",headers=D)[0] == 200)
     ok("Invoice created", bool(ids.get("invoice")))
+    # N-M1: cannot create as paid
+    s,d = req("POST","/api/invoices",{
+        "customerName":"Paid Bypass Client","invoiceDate":"2026-07-15",
+        "items":[{"description":"X","qty":1,"rate":100,"gstPercent":0}],
+        "status":"paid"
+    },D)
+    ok("Create invoice as paid → 400", s == 400, d.get("error",""))
     if ids.get("invoice"):
         s,d = req("PUT",f"/api/invoices/{ids['invoice']}/status",{"status":"sent"},D)
         ok("Update invoice status sent", s == 200, f"status={s} {d.get('error','')}")
@@ -219,6 +226,10 @@ def test_common(tok, tid, ids, btype):
         ok("Paid without payments → 400", s == 400, f"status={s} {d.get('error','')}")
         s,d = req("PUT",f"/api/invoices/{ids['invoice']}/status",{"status":"bad"},D)
         ok("Invalid invoice status → 400", s == 400, f"got {s}")
+        # Delete draft/sent with no payments OK
+        s,d = req("DELETE",f"/api/invoices/{ids['invoice']}",headers=D)
+        ok("Delete unpaid invoice → 200", s == 200, d.get("error",""))
+        ids["invoice"] = ""  # consumed
 
     sec("Purchases")
     ok("List purchase batches", req("GET","/api/purchases/batches",headers=D)[0] == 200)
@@ -400,6 +411,27 @@ def test_manufacturer(tok, tid, ids):
     if q.get("id"):
         s,d = req("PUT",f"/api/quotations/{q['id']}/status",{"status":"Sent"},D)
         ok("Quotation status update (Draft→Sent)", s == 200, d.get("error",""))
+        s,d = req("PUT",f"/api/quotations/{q['id']}/status",{"status":"Accepted"},D)
+        ok("Quotation Sent→Accepted", s == 200, d.get("error",""))
+        # H13: Converted only via /convert
+        s,d = req("PUT",f"/api/quotations/{q['id']}/status",{"status":"Converted"},D)
+        ok("Quote Converted via status → 400", s == 400, d.get("error",""))
+
+    sec("Orders status integrity (Manufacturer)")
+    if ids.get("product") and ids.get("vendor"):
+        s,ordr = req("POST","/api/orders",{
+            "vendorId":ids["vendor"],"customerName":"Order Cust",
+            "orderDate":"2026-07-15",
+            "items":[{"productId":ids["product"],"quantity":1,"withGst":True}]
+        },D)
+        ok("Create order → 201", s in (200,201), ordr.get("error",""))
+        oid = ordr.get("id","")
+        if oid:
+            s,_ = req("PUT",f"/api/orders/{oid}/status",{"status":"Confirmed"},D)
+            ok("Order Pending→Confirmed", s == 200)
+            # H12: Fulfilled only via /fulfill
+            s,d = req("PUT",f"/api/orders/{oid}/status",{"status":"Fulfilled"},D)
+            ok("Order Fulfilled via status → 400", s == 400, d.get("error",""))
 
     sec("Missing features for Manufacturer")
     # Invoice finance should still work (invoices exist for all types)
@@ -540,6 +572,17 @@ def test_service(tok, tid, ids):
             ok("Delete payment → 204", s == 204)
             ok("Bad payment delete → 404",
                req("DELETE","/api/invoice-finance/payments/NONEXISTENT",headers=D)[0] == 404)
+
+        # M3: cannot delete invoice while payments remain (full pay left one payment after partial deleted)
+        s,d = req("DELETE",f"/api/invoices/{INV}",headers=D)
+        ok("Delete invoice with payments → 400", s == 400, d.get("error",""))
+
+        s,d = req("POST","/api/invoices",{
+            "customerName":"NoPay Client","invoiceDate":"2026-07-15",
+            "items":[{"description":"Draft job","qty":1,"rate":500,"gstPercent":0}],
+            "status":"paid"
+        },D)
+        ok("Service create as paid → 400", s == 400, d.get("error",""))
 
     sec("Service Analytics via QUERY (RFC 10008)")
     s,d = req("QUERY","/api/analytics/overview",{"from":"2026-07-01","to":"2026-07-15"},D)
@@ -825,6 +868,24 @@ def test_gst_api(sa_h):
     s,d = req("PUT","/api/gst/settings",{"mode":"invalid"},D)
     ok("Invalid mode → 400", s == 400, str(d))
 
+    s,d = req("PUT","/api/gst/settings",{"sellerPin":"12"},D)
+    ok("Invalid sellerPin → 400", s == 400, d.get("error",""))
+
+    s,d = req("PUT","/api/gst/settings",{"sellerPin":"380001"},D)
+    ok("Valid sellerPin → 200", s == 200, d.get("error",""))
+
+    # N-H2: sandbox without GSTN public key PEM must fail closed
+    s,d = req("PUT","/api/gst/settings",{
+        "mode":"sandbox","gstin":"24AAAPZ9999G1ZI",
+        "username":"u","password":"p","clientId":"cid","clientSecret":"sec"
+    },D)
+    ok("Switch to sandbox settings → 200", s == 200, d.get("error",""))
+    s,d = req("POST","/api/gst/irn/generate",{"batchId":batch_id,"sellerPin":"380001","buyerPin":"380001"},D)
+    ok("Sandbox IRN without PEM → 400", s == 400, d.get("error",""))
+    # Restore mock for remaining tests
+    s,d = req("PUT","/api/gst/settings",{"mode":"mock"},D)
+    ok("Restore mock mode → 200", s == 200)
+
     # ── IRN generation (mock) ─────────────────────────────────────────────────
     sec("E-invoice / IRN")
     s,d = req("POST","/api/gst/irn/generate",{"batchId":batch_id},D)
@@ -847,6 +908,10 @@ def test_gst_api(sa_h):
     s,d = req("POST","/api/gst/irn/generate",{"batchId":batch_id},D)
     ok("IRN regenerate blocked → 400", s == 400, d.get("error",""))
 
+    # N-M5: cannot delete distribution batch with IRN
+    s,d = req("DELETE",f"/api/distribution/batch/{batch_id}",headers=D)
+    ok("Delete batch with IRN → 400", s == 400, d.get("error",""))
+
     # ── E-way bill generation (mock) ──────────────────────────────────────────
     sec("E-way Bill")
     s,d = req("POST","/api/gst/ewb/generate",{
@@ -862,6 +927,10 @@ def test_gst_api(sa_h):
         "batchId":batch_id,"vehicleNo":"GJ01AB1234","distance":100
     },D)
     ok("EWB regenerate blocked → 400", s == 400, d.get("error",""))
+
+    # Still blocked after EWB too
+    s,d = req("DELETE",f"/api/distribution/batch/{batch_id}",headers=D)
+    ok("Delete batch with EWB → 400", s == 400, d.get("error",""))
 
     # Missing vehicleNo → 400
     s,d = req("POST","/api/gst/ewb/generate",{"batchId":batch_id,"distance":100},D)

@@ -14,7 +14,7 @@ function OfflineBanner() {
   if (status === 'online') return null;
   return (
     <div className={`fixed top-0 inset-x-0 z-[9998] flex items-center justify-center gap-2 py-2 px-4 text-sm font-bold ${status === 'offline' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`} role="alert">
-      {status === 'offline' ? '⚠ No internet connection' : '✓ Back online'}
+      {status === 'offline' ? '⚠ No internet — if a save failed, submit again when back online' : '✓ Back online'}
     </div>
   );
 }
