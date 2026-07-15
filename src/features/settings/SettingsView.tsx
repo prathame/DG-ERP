@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LogIn, LogOut, UserPlus, Phone, MapPin, Building2, UserCog, Shield, Download, MessageCircle, FileText, Settings, Upload, Palette, Eye } from 'lucide-react';
+import { LogIn, LogOut, UserPlus, Phone, MapPin, Building2, UserCog, Shield, Download, MessageCircle, FileText, Settings, Upload, Palette, Eye, FileCheck, ChevronDown } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { PasswordInput } from '../../components/ui/PasswordInput';
@@ -21,6 +21,134 @@ const BILL_DEFAULTS: BillSettings = {
   showRewards: true, showBarcode: true, showWarranty: true,
   footerText: 'Powered by Dhandho Management',
 };
+
+// ── GST API Settings — E-Invoice (IRN) + E-Way Bill ──────────────────────────
+function GstApiSection() {
+  const { toast } = useToast();
+  const [form, setForm] = useState({ mode: 'mock', gstin: '', username: '', password: '', clientId: '', clientSecret: '' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showSecrets, setShowSecrets] = useState(false);
+
+  useEffect(() => {
+    api.gst.getSettings()
+      .then(s => setForm(f => ({ ...f, mode: s.mode || 'mock', gstin: s.gstin || '', username: s.username || '', clientId: s.clientId || '' })))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.gst.saveSettings(form);
+      toast('GST API settings saved', 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Save failed', 'error');
+    } finally { setSaving(false); }
+  };
+
+  const MODE_OPTIONS = [
+    { value: 'mock',       label: 'Mock (Dev)',       desc: 'Instant fake IRNs — no credentials needed. Use during development.' },
+    { value: 'sandbox',    label: 'Sandbox (NIC)',     desc: 'NIC sandbox. Use test credentials from einv-apisandbox.nic.in.' },
+    { value: 'production', label: 'Production (Live)', desc: 'Real IRNs filed with government. Use your actual NIC portal credentials.' },
+  ];
+
+  const modeColor = form.mode === 'production' ? 'text-red-600 bg-red-50 border-red-200' : form.mode === 'sandbox' ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-gray-600 bg-gray-50 border-gray-200';
+
+  if (loading) return null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+        <h3 className="font-bold text-lg flex items-center gap-2">
+          <FileCheck size={20} /> GST API — E-Invoice &amp; E-Way Bill
+        </h3>
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${modeColor}`}>
+          {MODE_OPTIONS.find(m => m.value === form.mode)?.label}
+        </span>
+      </div>
+      <div className="p-6 space-y-5">
+        <p className="text-sm text-gray-500">
+          Connect to NIC's IRP portal to generate E-Invoice IRNs and E-Way Bills directly from distribution challans.
+          No credentials needed in <strong>Mock</strong> mode — switch to <strong>Sandbox</strong> once you receive NIC test credentials.
+        </p>
+
+        {/* Mode dropdown */}
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase block mb-1">API Mode</label>
+          <div className="relative">
+            <select
+              value={form.mode}
+              onChange={e => setForm({ ...form, mode: e.target.value })}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl appearance-none focus:ring-2 focus:ring-brand bg-white pr-10"
+            >
+              {MODE_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+          <p className="text-xs text-gray-400 mt-1">{MODE_OPTIONS.find(m => m.value === form.mode)?.desc}</p>
+        </div>
+
+        {/* Credentials — hidden in mock mode */}
+        <div className={`space-y-4 transition-opacity ${form.mode === 'mock' ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Seller GSTIN</label>
+              <input value={form.gstin} onChange={e => setForm({ ...form, gstin: e.target.value.toUpperCase() })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-brand" placeholder="24AAAPZ9999G1ZI" maxLength={15} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">NIC Username</label>
+              <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" placeholder="From NIC portal" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Client ID</label>
+              <input value={form.clientId} onChange={e => setForm({ ...form, clientId: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-brand" placeholder="l7xx..." />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
+                Password{' '}
+                <button type="button" onClick={() => setShowSecrets(!showSecrets)} className="text-brand hover:underline normal-case font-normal">
+                  {showSecrets ? 'hide' : 'show'}
+                </button>
+              </label>
+              <input type={showSecrets ? 'text' : 'password'} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand" placeholder="Leave blank to keep existing" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Client Secret</label>
+              <input type={showSecrets ? 'text' : 'password'} value={form.clientSecret} onChange={e => setForm({ ...form, clientSecret: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-brand" placeholder="Leave blank to keep existing" />
+            </div>
+          </div>
+
+          {form.mode === 'sandbox' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+              <strong>Sandbox setup:</strong> Register at{' '}
+              <a href="https://einv-apisandbox.nic.in" target="_blank" rel="noopener noreferrer" className="underline font-medium">einv-apisandbox.nic.in</a>{' '}
+              with your PAN → get Client ID + Secret → enter above. Approval takes ~7 days.
+              Default sandbox OTP: <code className="font-mono bg-amber-100 px-1 rounded">575757</code>
+            </div>
+          )}
+          {form.mode === 'production' && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800">
+              <strong>Production mode:</strong> IRNs generated here are filed with the government. Ensure credentials are correct before saving.
+            </div>
+          )}
+        </div>
+
+        <button type="button" onClick={handleSave} disabled={saving}
+          className="px-6 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold transition-colors disabled:opacity-60">
+          {saving ? 'Saving…' : 'Save GST API Settings'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function BillCustomizationSection() {
   const { toast } = useToast();
@@ -573,6 +701,9 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             </form>
           </div>
 
+
+          {/* GST API — E-Invoice + E-Way Bill */}
+          {isAdmin && <GstApiSection />}
 
           {/* Bill Customization */}
           {isAdmin && <BillCustomizationSection />}
