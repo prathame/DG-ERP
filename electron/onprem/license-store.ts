@@ -12,9 +12,10 @@ const STORE_FILE = path.join(app.getPath('userData'), 'license.dat');
 
 function machineSecret(): string {
   // Stable per-machine key derived from hostname + platform + username
+  // SHA-256 gives 64 hex chars = 32 bytes — correct for AES-256-CBC
   return crypto.createHash('sha256')
     .update(`DG-ERP-${os.hostname()}-${os.platform()}-${os.userInfo().username}`)
-    .digest('hex').slice(0, 32);
+    .digest('hex');
 }
 
 function encrypt(text: string): string {
