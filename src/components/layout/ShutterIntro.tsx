@@ -78,9 +78,11 @@ function SplitFlapWord({ word, trigger }: { word: string; trigger: number }) {
   const chars = splitGraphemes(word);
   return (
     <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-      {chars.map((char, i) => (
-        <SplitFlapChar key={i} char={char} delayMs={i * 80} trigger={trigger} />
-      ))}
+      {chars.map((char, i) =>
+        char === ' '
+          ? <div key={i} style={{ width: '0.35em' }} />   // space = visible gap, no panel
+          : <SplitFlapChar key={i} char={char} delayMs={i * 80} trigger={trigger} />
+      )}
     </div>
   );
 }
@@ -201,18 +203,23 @@ function playShutterSound() {
 
 export function ShutterIntro({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState<'shutter' | 'reveal' | 'done'>('shutter');
-  const [wordLang, setWordLang] = useState<'en' | 'gu'>('en');
+  const [wordLang, setWordLang] = useState<'en' | 'gu' | 'hi'>('en');
   const [flipTrigger, setFlipTrigger] = useState(0);
 
-  const WORDS = { en: 'Dhandho', gu: 'ધંધો' };
+  const WORDS = {
+    en: 'Dhandho',
+    gu: 'ધંધો',
+    hi: 'धन दो',   // "Give wealth" — wordplay on Dhandho
+  };
 
   useEffect(() => {
     playShutterSound();
+    // EN (1.5s) → GU (1.5s) → HI (1.5s) → fade
     const t1 = setTimeout(() => { setPhase('reveal'); setFlipTrigger(1); }, 900);
-    const t2 = setTimeout(() => { setWordLang('gu'); setFlipTrigger(2); }, 2600);
-    const t3 = setTimeout(() => { setWordLang('en'); setFlipTrigger(3); }, 4300);
-    const t4 = setTimeout(() => setPhase('done'), 5200);
-    const t5 = setTimeout(onDone, 5700);
+    const t2 = setTimeout(() => { setWordLang('gu'); setFlipTrigger(2); }, 2400);
+    const t3 = setTimeout(() => { setWordLang('hi'); setFlipTrigger(3); }, 3900);
+    const t4 = setTimeout(() => setPhase('done'), 5500);
+    const t5 = setTimeout(onDone, 6000);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); };
   }, [onDone]);
 
@@ -262,16 +269,26 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
               <SplitFlapWord word={WORDS[wordLang]} trigger={flipTrigger} />
             </div>
 
-            {/* Tagline */}
-            <motion.p
-              className="mt-5 tracking-widest uppercase"
-              style={{ color: 'rgba(255,255,255,0.28)', fontSize: 'clamp(0.65rem, 1.5vw, 0.85rem)' }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: revealed ? 1 : 0 }}
-              transition={{ delay: 0.8, duration: 0.5 }}
-            >
-              The Gujarati Way to Run Business
-            </motion.p>
+            {/* Tagline — synced to current language */}
+            <div className="mt-5" style={{ height: '1.4em', overflow: 'hidden', position: 'relative' }}>
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={wordLang}
+                  className="tracking-widest uppercase text-center"
+                  style={{ color: 'rgba(255,255,255,0.28)', fontSize: 'clamp(0.65rem, 1.5vw, 0.85rem)', position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: revealed ? 1 : 0, y: revealed ? 0 : 10 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.4 }}
+                >
+                  {{
+                    en: 'The Gujarati Way to Run Business',
+                    gu: 'ધંધો — Business નું બીજું નામ',
+                    hi: 'धन दो — अपने Business को Smart बनाओ',
+                  }[wordLang]}
+                </motion.p>
+              </AnimatePresence>
+            </div>
 
             {/* OPEN sign — swings in after reveal */}
             <motion.div
