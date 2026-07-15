@@ -90,10 +90,10 @@ export function LandingPage() {
             <span className="font-bold text-base sm:text-lg">DG Business</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
-            <a href="#business" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>For Business</a>
-            <a href="#features" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Features</a>
-            <a href="#pricing" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Pricing</a>
-            <a href="#contact" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>Contact</a>
+            <a href="#business" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>{L('For Business','व्यापार के लिए','વ્યાપાર માટે')}</a>
+            <a href="#features" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>{L('Features','Features','Features')}</a>
+            <a href="#pricing" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>{L('Pricing','कीमत','કિંમત')}</a>
+            <a href="#contact" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>{L('Contact','संपर्क','સંપર્ક')}</a>
             <button type="button" onClick={toggleTheme} className={`p-1.5 sm:p-2 rounded-lg ${navLink}`}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
           </div>
         </div>
@@ -223,10 +223,10 @@ export function LandingPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { icon: Store, title: L('Retail Shop', 'दुकान / Retail Shop', 'દુકાન / Retail Shop'), desc: L('Electrical shop, hardware store, kirana — scan barcode, generate bill, track stock. That simple.', 'बिजली की दुकान, hardware shop — barcode scan करो, bill दो, stock track करो। इतना simple।', 'બિજલીની દુકાન, hardware shop — barcode scan કરો, bill આપો, stock track કરો।'), features: ['Barcode billing', 'Stock alerts', 'WhatsApp bills', 'GST invoice'], color: 'text-blue-500', bg: 'bg-blue-500/10' },
-              { icon: Warehouse, title: L('Dealer / Distributor', 'डीलर / Distributor', 'ડીલર / Distributor'), desc: L('Buy from suppliers, distribute to retailers. Track payments — who owes how much, which batch.', 'Products लाओ supplier से, distribute करो retailers को। Payment track करो — कौन कितना देना है।', 'Products લાવો supplier પાસેથી, distribute કરો। Payment track કરો।'), features: ['Vendor portal', 'Batch-level payment', 'Outstanding reports', 'Quotation → Distribution'], color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-              { icon: Factory, title: L('Manufacturer', 'निर्माता / Manufacturer', 'નિર્માતા / Manufacturer'), desc: L('From production to dealer — purchase, inventory, distribution, billing, accounting all automated.', 'Production से लेकर dealer तक — purchase, inventory, distribution, billing, accounting सब automated।', 'Production થી dealer સુધી — purchase, inventory, distribution, billing, accounting બધું automated।'), features: ['Supplier management', 'P&L / Balance Sheet', 'GST GSTR-1 reports', 'Pack size support'], color: 'text-purple-500', bg: 'bg-purple-500/10' },
-              { icon: Briefcase, title: L('Service / Consulting', 'सर्विस / Consulting', 'Service / Consulting'), desc: L('CNC shop, contractor, consultant — raise invoices, track payments, manage expenses. No inventory needed.', 'CNC shop, contractor, consultant — invoice बनाओ, payment track करो, expenses manage करो। Inventory की ज़रूरत नहीं।', 'CNC shop, contractor, consultant — invoice બનાવો, payment track કરો, expenses manage કરો।'), features: ['Invoice finance', 'Partial payments', 'Expense tracking', 'P&L & Accounts'], color: 'text-orange-500', bg: 'bg-orange-500/10' },
+              { icon: Store, title: L('Retail Shop', 'दुकान / Retail', 'દુકાન / Retail'), desc: L('Electrical shop, hardware store, kirana — scan barcode, generate bill, track stock. That simple.', 'बिजली की दुकान, hardware shop — barcode scan करो, bill दो, stock track करो। इतना simple।', 'બિજલીની દુકાન, hardware shop — barcode scan કરો, bill આપો, stock track કરો।'), features: [L('Barcode billing','बारकोड billing','બારકોડ billing'), L('Stock alerts','स्टॉक अलर्ट','સ્ટોક alert'), L('WhatsApp bills','WhatsApp बिल','WhatsApp bill'), L('GST invoice','GST invoice','GST invoice')], color: 'text-blue-500', bg: 'bg-blue-500/10' },
+              { icon: Warehouse, title: L('Dealer / Distributor', 'डीलर / डिस्ट्रीब्यूटर', 'ડીલર / ડિસ્ટ્રીબ્યુટર'), desc: L('Buy from suppliers, distribute to retailers. Track payments — who owes how much, which batch.', 'Products लाओ supplier से, distribute करो retailers को। Payment track करो — कौन कितना देना है।', 'Products લાવો supplier પાસેથી, distribute કરો। Payment track કરો।'), features: [L('Vendor portal','वेंडर पोर्टल','વેન્ડર પોર્ટલ'), L('Batch payment','Batch भुगतान','Batch ચુકવણી'), L('Outstanding','बकाया रिपोर्ट','બાકી રિપોર્ટ'), L('Quotation→Dispatch','कोटेशन→डिस्पैच','કોટેશન→ડિસ્પેચ')], color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+              { icon: Factory, title: L('Manufacturer', 'निर्माता', 'નિર્માતા'), desc: L('From production to dealer — purchase, inventory, distribution, billing, accounting all automated.', 'Production से लेकर dealer तक — purchase, inventory, distribution, billing, accounting सब automated।', 'Production થી dealer સુધી — purchase, inventory, distribution, billing, accounting બધું automated।'), features: [L('Supplier mgmt','सप्लायर मैनेजमेंट','Supplier management'), L('P&L / Balance Sheet','P&L / Balance Sheet','P&L / Balance Sheet'), L('GST GSTR-1','GST GSTR-1','GST GSTR-1'), L('Pack size','पैक साइज़','Pack size')], color: 'text-purple-500', bg: 'bg-purple-500/10' },
+              { icon: Briefcase, title: L('Service / Consulting', 'सर्विस / कंसल्टिंग', 'સર્વિસ / કન્સલ્ટિંગ'), desc: L('CNC shop, contractor, consultant — raise invoices, track payments, manage expenses. No inventory needed.', 'CNC shop, contractor, consultant — invoice बनाओ, payment track करो, expenses manage करो। Inventory की ज़रूरत नहीं।', 'CNC shop, contractor, consultant — invoice બનાવો, payment track કરો, expenses manage કરો।'), features: [L('Invoice finance','इनवॉइस फाइनेंस','Invoice finance'), L('Partial payments','आंशिक भुगतान','આંશિક ચુકવણી'), L('Expense tracking','खर्च ट्रैकिंग','ખર્ચ ટ્રેકિંગ'), L('P&L & Accounts','P&L और हिसाब','P&L અને હિસાબ')], color: 'text-orange-500', bg: 'bg-orange-500/10' },
             ].map((b, i) => (
               <motion.div key={b.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
                 className={`p-6 border rounded-2xl ${cardBg} ${cardHover} transition-all`}>
@@ -315,22 +315,22 @@ export function LandingPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {[
-              { icon: Package, title: 'Inventory Management', desc: L('Auto-barcode, pack size (box/carton), batch printing, CSV import, stock alerts', 'Auto-barcode, pack size (box/carton), batch printing, CSV import, stock alerts', 'Auto-barcode, pack size (box/carton), batch printing, CSV import, stock alerts') },
-              { icon: ShoppingCart, title: 'Purchase Tracking', desc: L('Supplier management, purchase bills, cost tracking, payables tracking', 'Supplier management, purchase bills, cost tracking, payables (kitna dena hai)', 'Supplier management, purchase bills, cost tracking, payables tracking') },
-              { icon: Truck, title: 'Distribution', desc: L('Vendor distribution with batch-level payment tracking, custom pricing, discount', 'Vendor distribution with batch-level payment tracking, custom pricing, discount', 'Vendor distribution with batch-level payment tracking, custom pricing, discount') },
+              { icon: Package, title: L('Inventory Management', 'स्टॉक प्रबंधन', 'સ્ટોક મેનેજમેન્ટ'), desc: L('Auto-barcode, pack size (box/carton), batch printing, CSV import, stock alerts', 'Auto-barcode, pack size (box/carton), batch printing, CSV import, stock alerts', 'Auto-barcode, pack size (box/carton), batch printing, CSV import, stock alerts') },
+              { icon: ShoppingCart, title: L('Purchase Tracking', 'खरीद ट्रैकिंग', 'ખરીદ ટ્રેકિંગ'), desc: L('Supplier management, purchase bills, cost tracking, payables tracking', 'Supplier management, purchase bills, cost tracking — kitna dena hai', 'Supplier management, purchase bills, cost tracking, payables tracking') },
+              { icon: Truck, title: L('Distribution', 'वितरण', 'વિતરણ'), desc: L('Vendor distribution with batch-level payment tracking, custom pricing, discount', 'Vendor distribution with batch-level payment tracking, custom pricing, discount', 'Vendor distribution with batch-level payment tracking, custom pricing, discount') },
               { icon: FileText, title: L('Quotes & Orders', 'कोटेशन और ऑर्डर', 'કોટેશન અને ઓર્ડર'), desc: L('Create quotes, share via WhatsApp, take orders, fulfill to distribution — full sales cycle', 'Quote बनाओ, WhatsApp से share करो, order लो, distribution में convert करो', 'Quote બનાવો, WhatsApp થી share કરો, order લો, distribution માં convert કરો') },
               { icon: IndianRupee, title: L('Vendor Finance', 'वेंडर फाइनेंस', 'વેન્ડર ફાઇનાન્સ'), desc: L('Track who owes how much, age-wise outstanding, batch-level payment, reminders', 'Kaun kitna dena hai, age-wise outstanding, batch-level payment, reminders', 'કોણ કેટલા દેવા છે, age-wise outstanding, batch-level payment, reminders') },
               { icon: BarChart3, title: L('Accounts & Day Book', 'हिसाब और डे बुक', 'હિસાબ અને ડે બુક'), desc: L('P&L, Balance Sheet, Cash Flow, Ledger, Day Book, Credit/Debit Notes — all auto-generated', 'P&L, Balance Sheet, Cash Flow, Ledger, Day Book — सब auto-generated', 'P&L, Balance Sheet, Cash Flow, Ledger, Day Book — બધું auto-generated') },
               { icon: Receipt, title: L('E-Invoice & E-Way Bill', 'E-Invoice और E-Way Bill', 'E-Invoice અને E-Way Bill'), desc: L('Generate GST E-Invoice and E-Way Bill JSON — upload directly to government portal', 'GST E-Invoice aur E-Way Bill JSON generate karo — government portal pe upload karo', 'GST E-Invoice અને E-Way Bill JSON generate કરો — government portal પર upload કરો') },
-              { icon: Search, title: 'Smart Search', desc: L('Scan barcode or type — product, vendor, customer, challan — all found instantly', 'Barcode scan ya type karo — product, vendor, customer, challan — sab instant mile', 'Barcode scan કરો કે type કરો — product, vendor, customer — બધું instant મળે') },
-              { icon: Users, title: 'Vendor Portal', desc: L('Give dealers their own login — they can see their stock and sales on a separate dashboard', 'Dealers ko alag login do, woh apna stock aur sales dekh sakein — separate dashboard', 'Dealers ને અલગ login આપો, એ પોતાનો stock અને sales જોઈ શકે') },
-              { icon: MessageSquare, title: 'AI Chatbot', desc: L('"What\'s today\'s sale?" — ask in any language and get instant answers from your data', '"Aaj ki sale kitni hai?" — Hindi mein poocho, Hindi mein jawab dega', '"આજનો sale કેટલો?" — ગુજરાતીમાં પૂછો, ગુજરાતીમાં જવાબ') },
+              { icon: Search, title: L('Smart Search', 'स्मार्ट सर्च', 'સ્માર્ટ સર્ચ'), desc: L('Scan barcode or type — product, vendor, customer, challan — all found instantly', 'Barcode scan ya type karo — product, vendor, customer, challan — sab instant mile', 'Barcode scan કરો કે type કરો — product, vendor, customer — બધું instant મળે') },
+              { icon: Users, title: L('Vendor Portal', 'वेंडर पोर्टल', 'વેન્ડર પોર્ટલ'), desc: L('Give dealers their own login — they can see their stock and sales on a separate dashboard', 'Dealers ko alag login do, woh apna stock aur sales dekh sakein — separate dashboard', 'Dealers ને અલગ login આપો, એ પોતાનો stock અને sales જોઈ શકે') },
+              { icon: MessageSquare, title: L('AI Chatbot', 'AI चैटबॉट', 'AI ચેટબોટ'), desc: L('"What\'s today\'s sale?" — ask in any language and get instant answers from your data', '"Aaj ki sale kitni hai?" — Hindi mein poocho, Hindi mein jawab dega', '"આજનો sale કેટલો?" — ગુજરાતીમાં પૂછો, ગુજરાતીમાં જવાબ') },
               { icon: Shield, title: L('UPI QR & Price List', 'UPI QR और Price List', 'UPI QR અને Price List'), desc: L('UPI payment QR code on every bill. Vendor-wise and slab pricing — auto-applied during distribution', 'हर bill पर UPI QR code। Vendor-wise और slab pricing — distribution में auto apply', 'દરેક bill પર UPI QR code। Vendor-wise અને slab pricing — distribution માં auto apply') },
               { icon: Languages, title: '3 Languages', desc: L('English, Hindi, Gujarati — switch from settings and the entire UI changes', 'English, Hindi, Gujarati — switch karo settings se, poora UI badal jayega', 'English, Hindi, Gujarati — settings માંથી switch કરો, આખું UI બદલાશે') },
-              { icon: Smartphone, title: 'Mobile Ready', desc: L('Works on phone, works on tablet — bottom nav, touch-friendly, install as app', 'Phone pe chale, tablet pe chale — bottom nav, touch-friendly, install as app', 'Phone પર ચાલે, tablet પર ચાલે — bottom nav, touch-friendly, install as app') },
-              { icon: Globe, title: 'Cloud Based', desc: L('No server to maintain, no installation needed — open browser and start working', 'Koi server nahi rakhna, koi installation nahi — browser kholo aur shuru karo', 'કોઈ server રાખવો નહિ, installation નહિ — browser ખોલો અને શરૂ કરો') },
-              { icon: Building2, title: 'Multi-Tenant SaaS', desc: L('Run 100 companies from one software — each with separate data and URL', 'Ek software se 100 companies chala sakte ho — har ek ka data alag, URL alag', 'એક software થી 100 companies ચલાવો — દરેકનો data અલગ, URL અલગ') },
-              { icon: Heart, title: 'Affordable', desc: L('Fits a small shop\'s budget — free trial, no hidden charges, cancel anytime', 'Chhoti dukaan ke budget mein — free trial, no hidden charges, cancel anytime', 'નાની દુકાનના budget માં — free trial, no hidden charges, cancel anytime') },
+              { icon: Smartphone, title: L('Mobile Ready', 'मोबाइल फ्रेंडली', 'મોબાઈલ ફ્રેન્ડલી'), desc: L('Works on phone, works on tablet — bottom nav, touch-friendly, install as app', 'Phone pe chale, tablet pe chale — bottom nav, touch-friendly, install as app', 'Phone પર ચાલે, tablet પર ચાલે — bottom nav, touch-friendly, install as app') },
+              { icon: Globe, title: L('Cloud & Desktop', 'Cloud और Desktop App', 'Cloud અને Desktop App'), desc: L('Use via browser or download the DG ERP desktop app for Windows and Mac', 'Browser se ya DG ERP desktop app download karo — Windows aur Mac ke liye', 'Browser થી અથવા DG ERP desktop app download કરો — Windows અને Mac માટે') },
+              { icon: Building2, title: L('Multi-Tenant SaaS', 'Multi-Tenant SaaS', 'Multi-Tenant SaaS'), desc: L('Run 100 companies from one software — each with separate data and URL', 'Ek software se 100 companies chala sakte ho — har ek ka data alag, URL alag', 'એક software થી 100 companies ચલાવો — દરેકનો data અલગ, URL અલગ') },
+              { icon: Heart, title: L('Affordable', 'किफायती', 'કિફાયતી'), desc: L('Fits a small shop\'s budget — free trial, no hidden charges, cancel anytime', 'Chhoti dukaan ke budget mein — free trial, no hidden charges, cancel anytime', 'નાની દુકાનના budget માં — free trial, no hidden charges, cancel anytime') },
             ].map((f, i) => (
               <motion.div key={f.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.03 }}
                 className={`p-5 border rounded-2xl transition-all group ${cardBg} ${cardHover}`}>
@@ -352,13 +352,13 @@ export function LandingPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { name: 'Free Trial', price: '₹0', period: '14 days', desc: 'All features free for 14 days', features: ['All modules', '50 products', '5 vendors', 'Email support'], cta: 'Join Waitlist', highlight: false },
-              { name: 'Standard', price: 'Contact Us', period: '', desc: 'Growing businesses', features: ['Unlimited products', '15 vendors', 'Vendor portal', 'Priority support', 'Pack size', 'Reports'], cta: 'Join Waitlist', highlight: true },
-              { name: 'Professional', price: 'Contact Us', period: '', desc: 'Large manufacturers', features: ['Everything unlimited', 'Accounts + Day Book', 'E-Invoice & E-Way Bill', 'Orders + Price List', 'Chatbot', 'Custom branding'], cta: 'Join Waitlist', highlight: false },
+              { name: L('Free Trial','फ्री ट्रायल','ફ્રી ટ્રાયલ'), price: '₹0', period: L('14 days','14 दिन','14 દિવસ'), desc: L('All features free for 14 days','14 दिन सब features free','14 દિવસ બધા features free'), features: [L('All modules','सब modules','બધા modules'), L('50 products','50 products','50 products'), L('5 vendors','5 vendors','5 vendors'), L('Email support','Email support','Email support')], cta: L('Join Waitlist','Waitlist Join करो','Waitlist Join કરો'), highlight: false },
+              { name: L('Standard','स्टैंडर्ड','સ્ટાન્ડર્ડ'), price: L('Contact Us','संपर्क करें','સંપર્ક કરો'), period: '', desc: L('Growing businesses','बढ़ते व्यापार के लिए','વધતા વ્યાપાર માટે'), features: [L('Unlimited products','Unlimited products','Unlimited products'), L('15 vendors','15 vendors','15 vendors'), L('Vendor portal','Vendor portal','Vendor portal'), L('Priority support','Priority support','Priority support'), L('Pack size','Pack size','Pack size'), L('Reports','Reports','Reports')], cta: L('Join Waitlist','Waitlist Join करो','Waitlist Join કરો'), highlight: true },
+              { name: L('Professional','प्रोफेशनल','પ્રોફેશનલ'), price: L('Contact Us','संपर्क करें','સંપર્ક કરો'), period: '', desc: L('Large manufacturers','बड़े manufacturers के लिए','મોટા manufacturers માટે'), features: [L('Everything unlimited','सब unlimited','બધું unlimited'), L('Accounts + Day Book','Accounts + Day Book','Accounts + Day Book'), L('E-Invoice & E-Way Bill','E-Invoice & E-Way Bill','E-Invoice & E-Way Bill'), L('Orders + Price List','Orders + Price List','Orders + Price List'), L('Chatbot','Chatbot','Chatbot'), L('Custom branding','Custom branding','Custom branding')], cta: L('Join Waitlist','Waitlist Join करो','Waitlist Join કરો'), highlight: false },
             ].map((p, i) => (
               <motion.div key={p.name} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
                 className={`p-6 border rounded-2xl ${p.highlight ? (dark ? 'bg-brand/10 border-brand/30 ring-2 ring-brand/20' : 'bg-brand/5 border-brand/30 shadow-lg shadow-brand/10 ring-2 ring-brand/20') : cardBg}`}>
-                {p.highlight && <div className="text-center mb-3"><span className="px-3 py-1 bg-brand text-white text-xs font-bold rounded-full">Most Popular</span></div>}
+                {p.highlight && <div className="text-center mb-3"><span className="px-3 py-1 bg-brand text-white text-xs font-bold rounded-full">{L('Most Popular','सबसे लोकप्रिय','સૌથી લોકપ્રિય')}</span></div>}
                 <h3 className="font-bold text-lg">{p.name}</h3>
                 <div className="mt-2 mb-1"><span className="text-3xl font-bold">{p.price}</span><span className={`text-sm ${textFaint}`}>{p.period}</span></div>
                 <p className={`text-sm ${textFaint} mb-4`}>{p.desc}</p>
@@ -446,7 +446,7 @@ export function LandingPage() {
               <span className="text-2xl">🦁</span>
               <div className="text-left">
                 <p className="font-bold text-sm">{L('Designed in Rajkot, Built for India', 'राजकोट में डिज़ाइन, भारत के लिए बना', 'રાજકોટમાં ડિઝાઇન, ભારત માટે બનેલું')}</p>
-                <p className={`text-xs ${textFaint}`}>Designed in Rajkot, Built for Bharat</p>
+                <p className={`text-xs ${textFaint}`}>{L('Designed in Rajkot, Built for Bharat','राजकोट में बना, भारत के लिए','રાજકોટમાં બનેલું, ભારત માટે')}</p>
               </div>
             </div>
           </motion.div>
@@ -459,14 +459,14 @@ export function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center font-bold text-xs text-white">DG</div>
-              <div><span className="font-bold">DG Business</span><span className={`text-xs ${textFaint} ml-2`}>🇮🇳 Made with pride in India</span></div>
+              <div><span className="font-bold">DG Business</span><span className={`text-xs ${textFaint} ml-2`}>🇮🇳 {L('Made with pride in India','भारत में बनाया गया','ભારતમાં બનાવ્યું')}</span></div>
             </div>
             <div className={`flex items-center gap-6 text-sm ${textFaint}`}>
-              <a href="#features" className={`${navLink}`}>Features</a>
-              <a href="#pricing" className={`${navLink}`}>Pricing</a>
-              <a href="#contact" className={`${navLink}`}>Contact</a>
-              <a href="/privacy" className={`${navLink}`}>Privacy</a>
-              <a href="/terms" className={`${navLink}`}>Terms</a>
+              <a href="#features" className={`${navLink}`}>{L('Features','Features','Features')}</a>
+              <a href="#pricing" className={`${navLink}`}>{L('Pricing','कीमत','કિંમત')}</a>
+              <a href="#contact" className={`${navLink}`}>{L('Contact','संपर्क','સંપર્ક')}</a>
+              <a href="/privacy" className={`${navLink}`}>{L('Privacy','प्राइवेसी','પ્રાઇવેસી')}</a>
+              <a href="/terms" className={`${navLink}`}>{L('Terms','नियम','નિયમ')}</a>
             </div>
             <div className={`flex items-center gap-4 ${textFaint}`}>
               <a href="tel:+918806907616" className="hover:text-brand"><Phone size={16} /></a>
@@ -474,7 +474,7 @@ export function LandingPage() {
               <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand"><Mail size={16} /></a>
             </div>
           </div>
-          <p className={`text-xs ${textFaint} text-center mt-6`}>&copy; {new Date().getFullYear()} DG Business Management. Designed for Indian businesses, built with love.</p>
+          <p className={`text-xs ${textFaint} text-center mt-6`}>&copy; {new Date().getFullYear()} DG Business Management. {L('Designed for Indian businesses, built with love.','भारतीय व्यापारों के लिए बना, प्यार से।','ભારતીય વ્યાપારો માટે બનેલું, પ્રેમ સાથે.')}</p>
         </div>
       </footer>
     </div>
