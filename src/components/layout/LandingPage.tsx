@@ -1,241 +1,317 @@
-import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, useInView } from 'motion/react';
 import {
-  Package, ShoppingCart, Truck, Receipt, IndianRupee, MessageSquare, Smartphone,
-  Moon, ShieldCheck, BarChart3, Users, Languages, Building2, Shield,
-  ArrowRight, Check, Star, Mail, Phone, Send, MessageCircle, Sun, Search,
-  Store, Factory, Warehouse, Briefcase, FileText, Zap, Heart, Globe, BookOpen,
+  Package, ShoppingCart, Truck, Receipt, IndianRupee, BarChart3, Users,
+  ArrowRight, Check, Mail, Phone, MessageCircle, Moon, Sun, Send,
+  Store, Factory, Warehouse, Briefcase, Zap, Shield, Globe, FileText,
+  ChevronRight, Database, Cloud, Cpu, Lock,
 } from 'lucide-react';
 
+// ── Animated counter ──────────────────────────────────────────────────────────
+function Counter({ to, prefix = '', suffix = '' }: { to: number; prefix?: string; suffix?: string }) {
+  const [val, setVal] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true });
+  useEffect(() => {
+    if (!inView) return;
+    let start = 0;
+    const step = to / 40;
+    const timer = setInterval(() => {
+      start = Math.min(start + step, to);
+      setVal(Math.floor(start));
+      if (start >= to) clearInterval(timer);
+    }, 30);
+    return () => clearInterval(timer);
+  }, [inView, to]);
+  return <span ref={ref}>{prefix}{val}{suffix}</span>;
+}
+
+// ── Enquiry form ──────────────────────────────────────────────────────────────
 function EnquiryForm({ dark }: { dark: boolean }) {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', company: '', message: '' });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', company: '', message: '' });
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
-  const inputCls = dark ? 'bg-white/5 border-white/10 text-white placeholder-gray-600' : 'bg-gray-50 border-gray-200 text-[#1A1A1A] placeholder-gray-400';
-  const formCardCls = dark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-gray-200 shadow-sm';
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault(); setSending(true);
-    const subject = encodeURIComponent(`DG Business Enquiry from ${form.name} — ${form.company || 'N/A'}`);
-    const body = `Name: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone || 'N/A'}\nCompany: ${form.company || 'N/A'}\n\nMessage:\n${form.message}`;
-    window.open(`https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+    e.preventDefault();
+    setSending(true);
+    const subject = encodeURIComponent(`DG ERP Enquiry — ${form.name} (${form.company || 'N/A'})`);
+    const body = `Name: ${form.name}\nPhone: ${form.phone}\nEmail: ${form.email || 'N/A'}\nCompany: ${form.company || 'N/A'}\n\n${form.message}`;
+    window.open(`https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com&su=${subject}&body=${encodeURIComponent(body)}`, '_blank');
     setTimeout(() => { setSent(true); setSending(false); }, 500);
   };
 
+  const inp = `w-full px-4 py-3 rounded-xl border text-sm outline-none transition-colors ${dark ? 'bg-white/5 border-white/10 text-white placeholder-white/20 focus:border-brand/60' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-brand/60'}`;
+
   if (sent) return (
-    <div className={`p-8 border rounded-2xl text-center ${formCardCls}`}>
-      <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4"><Check size={32} className="text-green-500" /></div>
-      <h3 className="font-bold text-xl mb-2">Thank You!</h3>
-      <p className={`text-sm mb-4 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>We'll get back to you within 24 hours.</p>
-      <button type="button" onClick={() => { setSent(false); setForm({ name: '', email: '', phone: '', company: '', message: '' }); }} className="text-sm text-brand hover:underline">Send another</button>
+    <div className={`p-8 rounded-2xl border text-center ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
+      <div className="w-14 h-14 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+        <Check size={28} className="text-green-500" />
+      </div>
+      <h3 className="font-bold text-xl mb-2">Sent!</h3>
+      <p className={`text-sm mb-4 ${dark ? 'text-white/40' : 'text-gray-500'}`}>We'll get back to you within 24 hours.</p>
+      <button type="button" onClick={() => { setSent(false); setForm({ name: '', phone: '', email: '', company: '', message: '' }); }} className="text-sm text-brand hover:underline">Send another</button>
     </div>
   );
 
   return (
-    <form onSubmit={handleSubmit} className={`p-8 border rounded-2xl space-y-4 ${formCardCls}`}>
-      <h3 className="font-bold text-lg mb-1">Start Your Free Trial</h3>
-      <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'} -mt-2 mb-2`}>No credit card needed. Start managing in 5 minutes.</p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Name *</label><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={`w-full px-4 py-3 border rounded-xl ${inputCls}`} placeholder="Your name" /></div>
-        <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Phone *</label><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={`w-full px-4 py-3 border rounded-xl ${inputCls}`} placeholder="+91 98765 43210" /></div>
-        <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Email</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={`w-full px-4 py-3 border rounded-xl ${inputCls}`} placeholder="you@example.com" /></div>
-        <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Business Name</label><input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className={`w-full px-4 py-3 border rounded-xl ${inputCls}`} placeholder="Your shop / company" /></div>
+    <form onSubmit={handleSubmit} className={`p-6 sm:p-8 rounded-2xl border ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
+      <h3 className="font-bold text-lg mb-1">Start Free Trial</h3>
+      <p className={`text-sm mb-5 ${dark ? 'text-white/40' : 'text-gray-500'}`}>No credit card. Setup in 5 minutes.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={inp} placeholder="Your name *" />
+        <input required value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className={inp} placeholder="+91 98765 43210 *" />
+        <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={inp} placeholder="Email (optional)" />
+        <input value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} className={inp} placeholder="Business name" />
       </div>
-      <div><label className={`text-xs font-bold uppercase block mb-1 ${dark ? 'text-gray-500' : 'text-gray-400'}`}>Message</label><textarea rows={3} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className={`w-full px-4 py-3 border rounded-xl resize-none ${inputCls}`} placeholder="Business type, products, team size..." /></div>
-      <button type="submit" disabled={sending} className="w-full py-4 bg-brand text-white rounded-xl font-bold text-lg hover:bg-brand-dark transition-colors disabled:opacity-60 flex items-center justify-center gap-2"><Send size={18} /> {sending ? 'Sending...' : 'Get Started Free'}</button>
-      <p className="text-xs text-gray-500 text-center">Or WhatsApp us: <a href="https://wa.me/918806907616?text=Hi%2C%20I%20want%20DG%20Business%20for%20my%20business" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:underline font-medium">+91 88069 07616</a></p>
+      <textarea rows={3} value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} className={`${inp} resize-none mb-4`} placeholder="Tell us about your business..." />
+      <button type="submit" disabled={sending} className="w-full py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-60">
+        <Send size={16} /> {sending ? 'Sending...' : 'Get Started Free'}
+      </button>
+      <p className={`text-xs text-center mt-3 ${dark ? 'text-white/30' : 'text-gray-400'}`}>
+        Or WhatsApp: <a href="https://wa.me/918806907616" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:underline">+91 88069 07616</a>
+      </p>
     </form>
   );
 }
 
+// ── Main ──────────────────────────────────────────────────────────────────────
 export function LandingPage() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
-  const [lang, setLang] = useState<'en' | 'hi' | 'gu'>('hi');
+  const [lang, setLang] = useState<'en' | 'hi' | 'gu'>('en');
   const [heroLang, setHeroLang] = useState(0);
-  const toggleTheme = () => { const d = document.documentElement.classList.toggle('dark'); localStorage.setItem('dg_erp_theme', d ? 'dark' : 'light'); setDark(d); };
-  const nextLang = () => setLang(lang === 'en' ? 'hi' : lang === 'hi' ? 'gu' : 'en');
-  const isGu = lang === 'gu';
-  const isEn = lang === 'en';
-  const langLabel = lang === 'en' ? 'EN' : lang === 'hi' ? 'हि' : 'ગુ';
-  const L = (en: string, hi: string, gu: string) => isEn ? en : isGu ? gu : hi;
+  const [heroAuto, setHeroAuto] = useState(true);
 
-  const [heroAutoPlay, setHeroAutoPlay] = useState(true);
-  React.useEffect(() => {
-    if (!heroAutoPlay) return;
-    const timer = setInterval(() => setHeroLang(h => (h + 1) % 3), 8000);
-    return () => clearInterval(timer);
-  }, [heroAutoPlay]);
+  const toggleTheme = () => {
+    const d = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('dg_erp_theme', d ? 'dark' : 'light');
+    setDark(d);
+  };
 
-  const bg = dark ? 'bg-[#0A0B0D]' : 'bg-[#FAFAFA]';
-  const navBg = dark ? 'bg-[#0A0B0D]/80' : 'bg-white/80';
-  const navBorder = dark ? 'border-white/5' : 'border-gray-200';
-  const text = dark ? 'text-white' : 'text-[#1A1A1A]';
-  const textMuted = dark ? 'text-gray-400' : 'text-gray-600';
-  const textFaint = dark ? 'text-gray-500' : 'text-gray-400';
-  const cardBg = dark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-gray-100 shadow-sm';
-  const cardHover = dark ? 'hover:border-brand/30 hover:bg-white/[0.05]' : 'hover:border-brand/30 hover:shadow-md';
-  const sectionAlt = dark ? 'bg-white/[0.02]' : 'bg-white';
-  const badgeBg = dark ? 'bg-white/5 border-white/10 text-gray-400' : 'bg-brand/5 border-brand/20 text-brand';
-  const btnSecondary = dark ? 'bg-white/5 border-white/10 text-white hover:bg-white/10' : 'bg-white border-gray-200 text-[#1A1A1A] hover:bg-gray-50';
-  const navLink = dark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-[#1A1A1A]';
-  const adminBtn = dark ? 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10' : 'bg-brand border-brand text-white hover:bg-brand-dark';
+  useEffect(() => {
+    if (!heroAuto) return;
+    const t = setInterval(() => setHeroLang(h => (h + 1) % 3), 7000);
+    return () => clearInterval(t);
+  }, [heroAuto]);
+
+  const L = (en: string, hi: string, gu: string) => lang === 'en' ? en : lang === 'gu' ? gu : hi;
+
+  // Theme tokens
+  const bg = dark ? 'bg-[#09090B]' : 'bg-[#FAFAFA]';
+  const text = dark ? 'text-white' : 'text-gray-900';
+  const muted = dark ? 'text-white/50' : 'text-gray-500';
+  const faint = dark ? 'text-white/30' : 'text-gray-400';
+  const border = dark ? 'border-white/8' : 'border-gray-200';
+  const card = dark ? 'bg-white/[0.03] border-white/8' : 'bg-white border-gray-100 shadow-sm';
+  const cardHov = dark ? 'hover:bg-white/[0.06] hover:border-white/15' : 'hover:shadow-md hover:border-brand/20';
+  const navBg = dark ? 'bg-[#09090B]/80' : 'bg-white/80';
+  const pill = dark ? 'bg-white/8 text-white/60 hover:bg-white/12' : 'bg-gray-100 text-gray-600 hover:bg-gray-200';
+
+  const LANGS = [
+    { code: 'en' as const, label: 'EN' },
+    { code: 'hi' as const, label: 'हि' },
+    { code: 'gu' as const, label: 'ગુ' },
+  ];
+
+  const HERO = [
+    { h1: 'Run your business,', h2: 'not your software.', sub: 'Inventory · GST · Accounts · Distribution — one platform for every Indian business.' },
+    { h1: 'बिज़नेस चलाओ,', h2: 'software नहीं।', sub: 'Inventory · GST · हिसाब-किताब · Distribution — एक platform पर।' },
+    { h1: 'ધંધો ચલાવો,', h2: 'software નહિ।', sub: 'Inventory · GST · હિસાબ · Distribution — એક platform.' },
+  ];
+
+  const TYPES = [
+    { icon: Store, title: L('Retail Shop','दुकान / Retail','દુકાન / Retail'), color: 'from-blue-500/20 to-blue-500/5', dot: 'bg-blue-500', items: [L('Barcode billing','बारकोड billing','બારકોડ billing'), L('Stock alerts','स्टॉक alerts','સ્ટોક alerts'), L('WhatsApp bills','WhatsApp bills','WhatsApp bills'), 'GST invoice'] },
+    { icon: Warehouse, title: L('Dealer / Wholesaler','डीलर / होलसेलर','ડીલર / હોલસેલર'), color: 'from-emerald-500/20 to-emerald-500/5', dot: 'bg-emerald-500', items: [L('Vendor portal','वेंडर portal','વેન્ડર portal'), L('Batch payment','Batch payment','Batch payment'), L('Outstanding','बकाया','બાકી'), L('Quotation→Dispatch','Quote→Dispatch','Quote→Dispatch')] },
+    { icon: Factory, title: L('Manufacturer','निर्माता','નિર્માતા'), color: 'from-violet-500/20 to-violet-500/5', dot: 'bg-violet-500', items: ['P&L / Balance Sheet', 'GSTR-1 / GSTR-3B', 'E-Invoice & E-Way Bill', L('Supplier management','Supplier management','Supplier management')] },
+    { icon: Briefcase, title: L('Service / Consulting','सर्विस / कंसल्टिंग','સર્વિસ / કન્સલ્ટિંગ'), color: 'from-orange-500/20 to-orange-500/5', dot: 'bg-orange-500', items: [L('Standalone invoices','Standalone invoices','Standalone invoices'), L('Partial payments','आंशिक payment','આંશિક payment'), L('Expense tracking','Expense tracking','Expense tracking'), L('Accounts','Accounts','Accounts')] },
+  ];
+
+  const FEATURES = [
+    { icon: Package, title: L('Inventory','स्टॉक','સ્ટોક'), desc: L('Auto-barcode, pack size, batch printing, CSV import, stock alerts, HSN suggest','Auto-barcode, pack size, batch printing, CSV import, stock alerts','Auto-barcode, pack size, batch printing, CSV import, stock alerts') },
+    { icon: ShoppingCart, title: L('Purchases','खरीद','ખરીદ'), desc: L('Supplier management, purchase batches, GSTR-2B invoice matching','Supplier management, purchase batches, GSTR-2B invoice matching','Supplier management, purchase batches, GSTR-2B invoice matching') },
+    { icon: Truck, title: L('Distribution','वितरण','વિતરણ'), desc: L('Batch challan, vendor payment tracking, custom pricing, E-Invoice JSON','Batch challan, vendor payment tracking, custom pricing','Batch challan, vendor payment tracking, custom pricing') },
+    { icon: FileText, title: L('Invoices','इनवॉइस','ઇનવૉઇસ'), desc: L('Standalone invoices, 3 PDF presets, auto-numbering, Draft→Sent→Paid flow','Standalone invoices, PDF presets, Draft→Sent→Paid flow','Standalone invoices, PDF presets, Draft→Sent→Paid flow') },
+    { icon: IndianRupee, title: L('Finance','फाइनेंस','ફાઇનાન્સ'), desc: L('Vendor receivables, age-wise outstanding, partial payments, bulk WhatsApp reminders','Vendor receivables, age-wise outstanding, bulk WhatsApp reminders','Vendor receivables, age-wise outstanding, bulk WhatsApp reminders') },
+    { icon: BarChart3, title: L('Accounts','हिसाब','હિસાબ'), desc: L('P&L, Balance Sheet, Cash Flow, Ledger, Day Book — auto-generated from transactions','P&L, Balance Sheet, Cash Flow, Ledger, Day Book — auto-generated','P&L, Balance Sheet, Cash Flow, Ledger, Day Book — auto-generated') },
+    { icon: Receipt, title: L('GST Reports','GST Reports','GST Reports'), desc: L('GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice, E-Way Bill JSON','GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice, E-Way Bill JSON','GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice, E-Way Bill JSON') },
+    { icon: Users, title: L('Payroll','पेरोल','પેરોલ'), desc: L('Staff directory, salary, advance, bonus payments, WhatsApp salary slips','Staff directory, salary, advance, bonus, WhatsApp salary slips','Staff directory, salary, advance, bonus, WhatsApp salary slips') },
+    { icon: Zap, title: L('Bank Statements','बैंक Statements','બેન્ક Statements'), desc: L('Upload ICICI/HDFC/SBI XLS or XLSX — auto-parse, match UPI to vendors','Upload ICICI/HDFC/SBI XLS/XLSX — auto-parse, match UPI to vendors','Upload ICICI/HDFC/SBI XLS/XLSX — auto-parse, match UPI to vendors') },
+    { icon: Shield, title: L('Rewards & Warranty','Rewards & Warranty','Rewards & Warranty'), desc: L('Customer reward points, QR redemption, serial-linked warranty with expiry alerts','Customer reward points, QR redemption, warranty with expiry alerts','Customer reward points, QR redemption, warranty with expiry alerts') },
+    { icon: Globe, title: L('3 Languages','3 भाषाएं','3 ભાષાઓ'), desc: L('Full English, Hindi, Gujarati — switch from settings, entire UI changes','Full English, Hindi, Gujarati — settings से switch','Full English, Hindi, Gujarati — settings માંથી switch') },
+    { icon: Cloud, title: L('Cloud + Desktop','Cloud + Desktop','Cloud + Desktop'), desc: L('Browser app + Electron desktop (Windows/Mac). On-prem version with local database available','Browser + Electron desktop (Windows/Mac). On-prem version available','Browser + Electron desktop (Windows/Mac). On-prem version available') },
+  ];
+
+  const h = HERO[heroLang] || HERO[0];
 
   return (
-    <div className={`min-h-screen ${bg} ${text} overflow-x-hidden transition-colors duration-300`}>
-      {/* Nav */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 ${navBg} backdrop-blur-xl border-b ${navBorder}`}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-brand rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm text-white">DG</div>
-            <span className="font-bold text-base sm:text-lg">DG Business</span>
+    <div className={`min-h-screen ${bg} ${text} overflow-x-hidden`}>
+
+      {/* ── Nav ─────────────────────────────────────────────────────────────── */}
+      <nav className={`fixed top-0 inset-x-0 z-50 ${navBg} backdrop-blur-xl border-b ${border}`}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-brand rounded-lg grid place-items-center font-bold text-xs text-white">DG</div>
+            <span className="font-bold tracking-tight">DG Business</span>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            <a href="#business" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>{L('For Business','व्यापार के लिए','વ્યાપાર માટે')}</a>
-            <a href="#features" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>{L('Features','Features','Features')}</a>
-            <a href="#pricing" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>{L('Pricing','कीमत','કિંમત')}</a>
-            <a href="#contact" className={`px-3 py-2 text-sm font-medium ${navLink} hidden md:block`}>{L('Contact','संपर्क','સંપર્ક')}</a>
-            <button type="button" onClick={toggleTheme} className={`p-1.5 sm:p-2 rounded-lg ${navLink}`}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
+          <div className="hidden md:flex items-center gap-1">
+            {['#business','#features','#pricing','#contact'].map((href, i) => (
+              <a key={href} href={href} className={`px-3 py-2 text-sm rounded-lg transition-colors ${muted} hover:${text}`}>
+                {[L('Business','व्यापार','વ્યાપાર'), 'Features', L('Pricing','कीमत','કિંમત'), L('Contact','संपर्क','સંપર્ક')][i]}
+              </a>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-0.5 rounded-lg p-0.5 ${dark ? 'bg-white/5' : 'bg-gray-100'}`}>
+              {LANGS.map(l => (
+                <button key={l.code} type="button" onClick={() => setLang(l.code)} className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white' : `${muted} hover:text-current`}`}>{l.label}</button>
+              ))}
+            </div>
+            <button type="button" onClick={toggleTheme} className={`p-2 rounded-lg ${muted} hover:text-current transition-colors`}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
+            <a href="#contact" className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-bold rounded-lg transition-colors hidden sm:block">{L('Try Free','ट्राय करें','Try Free')}</a>
           </div>
         </div>
       </nav>
 
-      {/* Hero — warm gradient + floating app preview */}
-      <section className="relative pt-24 sm:pt-28 pb-16 sm:pb-24 px-4 sm:px-6 overflow-hidden">
-        {/* Warm gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#F27D26] via-[#FF9F43] to-[#FFBE76] opacity-[0.08] pointer-events-none" />
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-radial from-brand/20 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-radial from-amber-500/10 to-transparent rounded-full blur-3xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
-        {/* SVG paper grain texture */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.03]"><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#grain)"/></svg>
+      {/* ── Hero ────────────────────────────────────────────────────────────── */}
+      <section className="relative pt-24 sm:pt-32 pb-16 sm:pb-24 px-4 sm:px-6 overflow-hidden">
+        {/* Grid background */}
+        <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: dark ? 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)' : 'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.06) 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(242,125,38,0.12) 0%, transparent 65%)', transform: 'translate(20%, -30%)' }} />
+        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 65%)', transform: 'translate(-30%, 30%)' }} />
 
         <div className="max-w-6xl mx-auto relative">
-          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-            {/* Left — text content */}
-            <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }} className="text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand text-white rounded-full text-xs font-bold mb-4 shadow-lg">
-                🚀 {L('Coming Soon — Launching Shortly!', 'जल्द आ रहा है!', 'ટૂંક સમયમાં આવી રહ્યું છે!')}
+          <div className="max-w-3xl mx-auto text-center mb-14">
+            {/* Badge */}
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium mb-6" style={{ borderColor: 'rgba(242,125,38,0.3)', background: 'rgba(242,125,38,0.08)', color: '#F27D26' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+              🇮🇳 {L('Made in India · Cloud + Desktop · 3 Languages', 'Made in India · Cloud + Desktop · 3 Languages', 'Made in India · Cloud + Desktop · 3 Languages')}
+            </motion.div>
+
+            {/* Language selector */}
+            <div className="flex justify-center gap-1.5 mb-6">
+              {[
+                { idx: 0, label: 'English' },
+                { idx: 1, label: 'हिन्दी' },
+                { idx: 2, label: 'ગુજ' },
+              ].map(l => (
+                <button key={l.idx} type="button" onClick={() => { setHeroLang(l.idx); setHeroAuto(false); setLang((['en','hi','gu'] as const)[l.idx]); }} className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${heroLang === l.idx ? 'bg-brand text-white' : pill}`}>{l.label}</button>
+              ))}
+            </div>
+
+            {/* Headline */}
+            <motion.div key={heroLang} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+              <h1 className={`text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-5 ${heroLang === 0 ? 'leading-[1.1]' : 'leading-relaxed'}`}>
+                {h.h1}<br />
+                <span className="bg-gradient-to-r from-brand via-orange-400 to-violet-500 bg-clip-text text-transparent">{h.h2}</span>
+              </h1>
+              <p className={`text-base sm:text-lg md:text-xl ${muted} max-w-2xl mx-auto leading-relaxed mb-8`}>{h.sub}</p>
+            </motion.div>
+
+            {/* CTAs */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <a href="#contact" className="group w-full sm:w-auto px-7 py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-base transition-colors flex items-center justify-center gap-2 shadow-lg shadow-brand/20">
+                {L('Start Free Trial','फ्री ट्रायल','Free Trial')} <ArrowRight size={17} className="group-hover:translate-x-0.5 transition-transform" />
+              </a>
+              <a href="#features" className={`w-full sm:w-auto px-7 py-3.5 rounded-xl font-bold text-base border transition-colors text-center ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}>
+                {L('Explore Features','Features देखें','Features જુઓ')}
+              </a>
+            </motion.div>
+            <p className={`mt-4 text-xs ${faint}`}>{L('No credit card · Cancel anytime','No credit card · कभी भी cancel','No credit card · ગમે ત્યારે cancel')}</p>
+          </div>
+
+          {/* App preview */}
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }} className="max-w-3xl mx-auto">
+            <div className={`rounded-2xl border overflow-hidden shadow-2xl ${dark ? 'border-white/10 bg-gray-900/60' : 'border-gray-200 bg-white'} backdrop-blur-sm`}>
+              {/* Window chrome */}
+              <div className={`px-4 py-3 flex items-center gap-3 border-b ${dark ? 'border-white/5 bg-black/20' : 'border-gray-100 bg-gray-50'}`}>
+                <div className="flex gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-400/70"/><div className="w-2.5 h-2.5 rounded-full bg-yellow-400/70"/><div className="w-2.5 h-2.5 rounded-full bg-green-400/70"/></div>
+                <div className={`flex-1 text-center text-[11px] font-mono ${faint}`}>dg-erp.onrender.com/acme-industries</div>
               </div>
-              {(() => {
-                const heroData = [
-                  { line1: 'From Shop to Factory', line2: 'Your Business, Simplified', sub: 'Inventory, billing, GST, vendor management, accounting — all in one place.' },
-                  { line1: 'दुकान हो या फैक्ट्री', line2: 'बिज़नेस आसान बनाओ', sub: 'Inventory, billing, GST, vendor management सब एक जगह।' },
-                  { line1: 'દુકાન હોય કે ફેક્ટરી', line2: 'બિઝનેસ સરળ બનાવો', sub: 'Inventory, billing, GST, vendor management બધું એક જગ્યાએ।' },
-                ];
-                const h = heroData[heroLang] || heroData[0];
-                return (
-                  <motion.div key={heroLang} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-                    <h1 className={`text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-5 ${heroLang === 0 ? 'leading-tight' : 'leading-relaxed'}`}>
-                      {h.line1}<br />
-                      <span className="bg-gradient-to-r from-brand to-amber-500 bg-clip-text text-transparent">{h.line2}</span>
-                    </h1>
-                    <p className={`text-sm sm:text-base md:text-lg ${textMuted} max-w-lg leading-relaxed mx-auto lg:mx-0 mb-8`}>{h.sub}</p>
-                  </motion.div>
-                );
-              })()}
-              <div className="flex items-center justify-center lg:justify-start gap-2 mb-6">
-                {([{ code: 'en' as const, label: 'English' }, { code: 'hi' as const, label: 'हिन्दी' }, { code: 'gu' as const, label: 'ગુજરાતી' }]).map((l, i) => (
-                  <button key={l.code} type="button" onClick={() => { setLang(l.code); setHeroLang(i); setHeroAutoPlay(false); }} className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white scale-105' : `${dark ? 'bg-white/10 text-gray-400 hover:bg-white/20' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`}`}>{l.label}</button>
+              {/* Dashboard mockup */}
+              <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "Today's Revenue", val: '₹2.4L', delta: '+12%', color: 'text-emerald-500', bg: dark ? 'bg-emerald-500/10' : 'bg-emerald-50' },
+                  { label: 'Distributions', val: '38', delta: '↑ 8 today', color: 'text-blue-500', bg: dark ? 'bg-blue-500/10' : 'bg-blue-50' },
+                  { label: 'Outstanding', val: '₹84K', delta: '6 vendors', color: 'text-orange-500', bg: dark ? 'bg-orange-500/10' : 'bg-orange-50' },
+                  { label: 'Stock Items', val: '1,247', delta: '3 low stock', color: 'text-violet-500', bg: dark ? 'bg-violet-500/10' : 'bg-violet-50' },
+                ].map(s => (
+                  <div key={s.label} className={`p-3 rounded-xl ${s.bg}`}>
+                    <p className={`text-[10px] ${muted} mb-1`}>{s.label}</p>
+                    <p className={`text-lg sm:text-xl font-bold ${s.color}`}>{s.val}</p>
+                    <p className={`text-[10px] ${faint}`}>{s.delta}</p>
+                  </div>
                 ))}
               </div>
-              <div className="flex flex-col sm:flex-row items-center lg:items-start justify-center lg:justify-start gap-3">
-                <a href="#contact" className="group w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 bg-brand text-white rounded-xl font-bold text-base sm:text-lg hover:bg-brand-dark transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand/20">
-                  {isEn ? 'Start Free Trial' : isGu ? 'ફ્રી ટ્રાયલ શરૂ કરો' : 'फ्री ट्रायल शुरू करें'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </a>
-                <a href="#features" className={`w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 border rounded-xl font-bold text-base sm:text-lg transition-all text-center ${btnSecondary}`}>{isEn ? 'See Features' : isGu ? 'Features જુઓ' : 'Features देखें'}</a>
-              </div>
-              <p className={`mt-4 text-sm ${textFaint}`}>No credit card • 5 min setup • Cancel anytime</p>
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FF9933] via-white to-[#138808] text-[#1A1A1A] rounded-full text-xs font-bold mt-4 shadow-md">
-                🇮🇳 {L('Made in India, for Indian Businesses', 'भारत में बना, भारतीयों के लिए', 'ભારતમાં બનેલું, ભારતીયો માટે')}
-              </div>
-            </motion.div>
-
-            {/* Right — floating app screenshot */}
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.7, delay: 0.2 }}
-              className="relative hidden lg:block"
-            >
-              <motion.div
-                animate={{ y: [0, -12, 0] }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                className="relative"
-              >
-                {/* App screenshot placeholder — replace src with real screenshot */}
-                <div className={`rounded-2xl shadow-2xl overflow-hidden border-4 ${dark ? 'border-white/10 bg-gray-900' : 'border-white/80 bg-white'}`}>
-                  <div className={`px-4 py-2 flex items-center gap-2 border-b ${dark ? 'border-white/5 bg-gray-800' : 'border-gray-100 bg-gray-50'}`}>
-                    <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-rose-400"/><div className="w-3 h-3 rounded-full bg-amber-400"/><div className="w-3 h-3 rounded-full bg-emerald-400"/></div>
-                    <span className={`text-[10px] font-mono ${dark ? 'text-gray-500' : 'text-gray-400'}`}>dg-erp.onrender.com</span>
-                  </div>
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center text-white font-bold text-sm">DG</div>
-                      <div><p className={`font-bold text-sm ${dark ? 'text-white' : 'text-gray-900'}`}>Dashboard</p><p className={`text-[10px] ${dark ? 'text-gray-500' : 'text-gray-400'}`}>DG Business Management</p></div>
+              <div className={`px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-3`}>
+                <div className={`p-3 rounded-xl border ${dark ? 'border-white/5 bg-white/3' : 'border-gray-100 bg-gray-50'}`}>
+                  <p className={`text-[10px] font-bold mb-2 ${muted}`}>Recent Distributions</p>
+                  {['Anand Agri · 120 units · ₹18,000','Gujarat Seeds · 80 units · ₹12,400','Patel Traders · 200 units · ₹31,000'].map((r, i) => (
+                    <div key={i} className={`flex items-center gap-2 py-1.5 ${i > 0 ? `border-t ${dark ? 'border-white/5' : 'border-gray-100'}` : ''}`}>
+                      <div className={`w-1.5 h-1.5 rounded-full ${['bg-blue-400','bg-emerald-400','bg-violet-400'][i]}`} />
+                      <span className={`text-[10px] ${muted}`}>{r}</span>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[{ l: "Today's Sales", v: '₹1.2L', c: 'text-emerald-600 bg-emerald-50' }, { l: 'Products', v: '50', c: 'text-blue-600 bg-blue-50' }, { l: 'Vendors', v: '22', c: 'text-purple-600 bg-purple-50' }].map(s => (
-                        <div key={s.l} className={`${dark ? 'bg-white/5' : 'bg-gray-50'} rounded-xl p-3`}>
-                          <p className={`text-[9px] ${dark ? 'text-gray-500' : 'text-gray-400'}`}>{s.l}</p>
-                          <p className={`text-lg font-bold ${s.c.split(' ')[0]}`}>{s.v}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className={`${dark ? 'bg-white/5' : 'bg-gray-50'} rounded-xl p-3`}>
-                      <p className={`text-[10px] font-bold mb-2 ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Recent Activity</p>
-                      {['Distribution to Anand Agri — 80 units', 'Payment ₹15,000 from Green Gold', 'Staff salary — Ramesh ₹12,000'].map((a, i) => (
-                        <div key={i} className={`flex items-center gap-2 py-1.5 ${i > 0 ? `border-t ${dark ? 'border-white/5' : 'border-gray-100'}` : ''}`}>
-                          <div className={`w-1.5 h-1.5 rounded-full ${['bg-blue-400', 'bg-emerald-400', 'bg-purple-400'][i]}`} />
-                          <span className={`text-[10px] ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{a}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  ))}
                 </div>
-                {/* Glow effect behind screenshot */}
-                <div className="absolute -inset-4 bg-gradient-to-br from-brand/20 via-amber-500/10 to-transparent rounded-3xl blur-2xl -z-10" />
-              </motion.div>
-            </motion.div>
-          </div>
+                <div className={`p-3 rounded-xl border ${dark ? 'border-white/5 bg-white/3' : 'border-gray-100 bg-gray-50'}`}>
+                  <p className={`text-[10px] font-bold mb-2 ${muted}`}>GST Summary — July</p>
+                  {[['Output Tax (CGST+SGST)','₹41,200'],['ITC Available','₹18,600'],['Net Payable','₹22,600']].map(([l, v]) => (
+                    <div key={l} className={`flex justify-between py-1.5 border-b last:border-0 ${dark ? 'border-white/5' : 'border-gray-100'}`}>
+                      <span className={`text-[10px] ${muted}`}>{l}</span>
+                      <span className={`text-[10px] font-bold`}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-center gap-4 mt-4 flex-wrap">
+              {[<><Cpu size={12} className="text-brand" /> Cloud-native</>, <><Lock size={12} className="text-emerald-500" /> GST Ready</>, <><Database size={12} className="text-violet-500" /> On-Prem option</>].map((item, i) => (
+                <span key={i} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${dark ? 'border-white/8 text-white/40' : 'border-gray-200 text-gray-500'}`}>{item}</span>
+              ))}
+            </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* Trust Stats */}
-      <section className={`py-8 sm:py-10 border-y ${navBorder}`}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6 text-center">
+      {/* ── Stats bar ───────────────────────────────────────────────────────── */}
+      <div className={`border-y ${border} py-8 sm:py-10`}>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 grid grid-cols-2 sm:grid-cols-4 gap-8 text-center">
           {[
-            { val: '15+', label: 'Modules' },
-            { val: '₹0', label: 'To Start' },
-            { val: '3', label: 'Languages' },
-            { val: '100%', label: 'Cloud Based' },
-            { val: '🇮🇳', label: 'Made in India' },
+            { val: 15, suf: '+', label: L('Modules','Modules','Modules') },
+            { val: 38, suf: '', label: L('DB Tables','DB Tables','DB Tables') },
+            { val: 493, suf: '', label: L('E2E Tests','E2E Tests','E2E Tests') },
+            { val: 3, suf: '', label: L('Languages','भाषाएं','ભાષાઓ') },
           ].map(s => (
-            <div key={s.label}><p className="text-2xl md:text-3xl font-bold text-brand">{s.val}</p><p className={`text-xs mt-1 ${textFaint}`}>{s.label}</p></div>
+            <div key={s.label}>
+              <p className="text-3xl sm:text-4xl font-bold text-brand"><Counter to={s.val} suffix={s.suf} /></p>
+              <p className={`text-xs mt-1 ${faint}`}>{s.label}</p>
+            </div>
           ))}
         </div>
-      </section>
+      </div>
 
-      {/* For Every Business */}
-      <section id="business" className={`py-12 sm:py-20 px-4 sm:px-6 ${sectionAlt}`}>
+      {/* ── Business types ──────────────────────────────────────────────────── */}
+      <section id="business" className={`py-16 sm:py-24 px-4 sm:px-6 ${dark ? '' : 'bg-white'}`}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">{isEn ? 'For Every Business Type' : isGu ? 'દરેક બિઝનેસ માટે' : 'हर बिज़नेस के लिए'}</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>{isEn ? 'Shop, dealer, manufacturer, or service business — software built for your type' : isGu ? 'દુકાન, ડીલર, manufacturer, કે service business — તમારા type માટે software' : 'चाहे दुकान, डीलर, manufacturer, या service business — आपके type के लिए software'}</p>
+            <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Built for your business</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">{L('Every business type, one platform','हर business type, एक platform','દરેક business type, એક platform')}</h2>
+            <p className={`mt-3 text-lg ${muted}`}>{L('Tab visibility, labels, and features adapt to your business type','Tab visibility, labels, features — सब आपके business type के हिसाब से','Tab visibility, labels, features — તમારા business type પ્રમાણે')}</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: Store, title: L('Retail Shop', 'दुकान / Retail', 'દુકાન / Retail'), desc: L('Electrical shop, hardware store, kirana — scan barcode, generate bill, track stock. That simple.', 'बिजली की दुकान, hardware shop — barcode scan करो, bill दो, stock track करो। इतना simple।', 'બિજલીની દુકાન, hardware shop — barcode scan કરો, bill આપો, stock track કરો।'), features: [L('Barcode billing','बारकोड billing','બારકોડ billing'), L('Stock alerts','स्टॉक अलर्ट','સ્ટોક alert'), L('WhatsApp bills','WhatsApp बिल','WhatsApp bill'), L('GST invoice','GST invoice','GST invoice')], color: 'text-blue-500', bg: 'bg-blue-500/10' },
-              { icon: Warehouse, title: L('Dealer / Distributor', 'डीलर / डिस्ट्रीब्यूटर', 'ડીલર / ડિસ્ટ્રીબ્યુટર'), desc: L('Buy from suppliers, distribute to retailers. Track payments — who owes how much, which batch.', 'Products लाओ supplier से, distribute करो retailers को। Payment track करो — कौन कितना देना है।', 'Products લાવો supplier પાસેથી, distribute કરો। Payment track કરો।'), features: [L('Vendor portal','वेंडर पोर्टल','વેન્ડર પોર્ટલ'), L('Batch payment','Batch भुगतान','Batch ચુકવણી'), L('Outstanding','बकाया रिपोर्ट','બાકી રિપોર્ટ'), L('Quotation→Dispatch','कोटेशन→डिस्पैच','કોટેશન→ડિસ્પેચ')], color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-              { icon: Factory, title: L('Manufacturer', 'निर्माता', 'નિર્માતા'), desc: L('From production to dealer — purchase, inventory, distribution, billing, accounting all automated.', 'Production से लेकर dealer तक — purchase, inventory, distribution, billing, accounting सब automated।', 'Production થી dealer સુધી — purchase, inventory, distribution, billing, accounting બધું automated।'), features: [L('Supplier mgmt','सप्लायर मैनेजमेंट','Supplier management'), L('P&L / Balance Sheet','P&L / Balance Sheet','P&L / Balance Sheet'), L('GST GSTR-1','GST GSTR-1','GST GSTR-1'), L('Pack size','पैक साइज़','Pack size')], color: 'text-purple-500', bg: 'bg-purple-500/10' },
-              { icon: Briefcase, title: L('Service / Consulting', 'सर्विस / कंसल्टिंग', 'સર્વિસ / કન્સલ્ટિંગ'), desc: L('CNC shop, contractor, consultant — raise invoices, track payments, manage expenses. No inventory needed.', 'CNC shop, contractor, consultant — invoice बनाओ, payment track करो, expenses manage करो। Inventory की ज़रूरत नहीं।', 'CNC shop, contractor, consultant — invoice બનાવો, payment track કરો, expenses manage કરો।'), features: [L('Invoice finance','इनवॉइस फाइनेंस','Invoice finance'), L('Partial payments','आंशिक भुगतान','આંશિક ચુકવણી'), L('Expense tracking','खर्च ट्रैकिंग','ખર્ચ ટ્રેકિંગ'), L('P&L & Accounts','P&L और हिसाब','P&L અને હિસાબ')], color: 'text-orange-500', bg: 'bg-orange-500/10' },
-            ].map((b, i) => (
-              <motion.div key={b.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                className={`p-6 border rounded-2xl ${cardBg} ${cardHover} transition-all`}>
-                <div className={`w-14 h-14 ${b.bg} rounded-2xl flex items-center justify-center mb-4`}><b.icon size={28} className={b.color} /></div>
-                <h3 className="font-bold text-lg mb-2">{b.title}</h3>
-                <p className={`text-sm ${textFaint} mb-4 leading-relaxed`}>{b.desc}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {TYPES.map((t, i) => (
+              <motion.div key={t.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+                className={`relative p-5 rounded-2xl border overflow-hidden transition-all ${card} ${cardHov}`}>
+                <div className={`absolute top-0 inset-x-0 h-px bg-gradient-to-r ${t.color}`} />
+                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${t.color} flex items-center justify-center mb-4`}>
+                  <t.icon size={20} className={t.dot.replace('bg-','text-')} />
+                </div>
+                <h3 className="font-bold mb-3">{t.title}</h3>
                 <div className="space-y-1.5">
-                  {b.features.map(f => (
-                    <div key={f} className="flex items-center gap-2"><Check size={14} className="text-brand shrink-0" /><span className={`text-xs ${textMuted}`}>{f}</span></div>
+                  {t.items.map(f => (
+                    <div key={f} className="flex items-center gap-2">
+                      <Check size={12} className="text-brand shrink-0" />
+                      <span className={`text-xs ${muted}`}>{f}</span>
+                    </div>
                   ))}
                 </div>
               </motion.div>
@@ -244,186 +320,141 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* End-to-End Flow */}
-      <section className="py-20 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">{L('Complete Business in One Place', 'पूरा बिज़नेस एक जगह', 'પૂરો બિઝનેસ એક જગ્યાએ')}</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>{L('From purchase to payment — every step tracked', 'Purchase से लेकर payment तक — हर step tracked', 'Purchase થી payment સુધી — દરેક step tracked')}</p>
-          </div>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-2 sm:gap-3">
-            {[
-              { icon: ShoppingCart, label: L('Purchase', 'खरीदो', 'ખરીદો'), sub: L('Buy from supplier', 'Supplier से खरीदो', 'Supplier પાસેથી ખરીદો'), color: 'text-amber-500', bg: 'bg-amber-500/10' },
-              { icon: Package, label: L('Stock', 'स्टॉक', 'સ્ટોક'), sub: L('Manage stock', 'Stock manage करो', 'Stock manage કરો'), color: 'text-blue-500', bg: 'bg-blue-500/10' },
-              { icon: FileText, label: L('Quote', 'कोटेशन', 'કોટેશન'), sub: L('Send quote', 'Quote भेजो', 'Quote મોકલો'), color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
-              { icon: Truck, label: L('Distribute', 'वितरण', 'વિતરણ'), sub: L('Send to vendor', 'Vendor को दो', 'Vendor ને આપો'), color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-              { icon: IndianRupee, label: L('Payment', 'भुगतान', 'ચુકવણી'), sub: L('Track money', 'पैसा track करो', 'પૈસા track કરો'), color: 'text-brand', bg: 'bg-brand/10' },
-              { icon: BarChart3, label: L('Accounts', 'हिसाब', 'હિસાબ'), sub: 'P&L, Balance Sheet', color: 'text-purple-500', bg: 'bg-purple-500/10' },
-            ].map((step, i) => (
-              <motion.div key={step.label} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
-                className={`relative p-4 border rounded-2xl text-center ${cardBg} ${cardHover} group`}>
-                {i < 5 && <div className="hidden md:block absolute -right-2 top-1/2 -translate-y-1/2 z-10"><ArrowRight size={12} className={textFaint} /></div>}
-                <div className={`w-11 h-11 ${step.bg} rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform`}><step.icon size={22} className={step.color} /></div>
-                <p className="font-bold text-xs">{step.label}</p>
-                <p className={`text-[10px] ${textFaint} mt-0.5`}>{step.sub}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Warehouse & Role Access */}
-      <section className={`py-12 sm:py-20 px-4 sm:px-6 ${sectionAlt}`}>
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">{L('Factory to Vendor — Tracked', 'फैक्ट्री से वेंडर तक — ट्रैक्ड', 'ફેક્ટરી થી વેન્ડર સુધી — ટ્રેક્ડ')}</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>{L('Every role sees only what they need. Every dispatch is tracked.', 'हर role को सिर्फ वही दिखे जो ज़रूरी है। हर dispatch ट्रैक हो।', 'દરેક role ને ફક્ત જરૂરી જ દેખાય। દરેક dispatch ટ્રેક થાય।')}</p>
-          </div>
-          <div className={`p-6 sm:p-8 border rounded-2xl ${cardBg}`}>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 text-center">
-              {[
-                { icon: Building2, title: L('Admin', 'एडमिन', 'એડમિન'), desc: L('Creates distribution, sets prices, manages everything', 'Distribution बनाए, price सेट करे, सब manage करे', 'Distribution બનાવે, price સેટ કરે, બધું manage કરે'), badge: L('Full Access', 'पूरा एक्सेस', 'પૂરો એક્સેસ'), badgeColor: 'bg-emerald-100 text-emerald-700' },
-                { icon: Warehouse, title: L('Warehouse', 'वेयरहाउस', 'વેરહાઉસ'), desc: L('Sees pending dispatches, prints challan, marks dispatched', 'Pending dispatch देखे, challan print करे, dispatch mark करे', 'Pending dispatch જુએ, challan print કરે, dispatch mark કરે'), badge: L('View + Print', 'देखे + प्रिंट', 'જુએ + પ્રિન્ટ'), badgeColor: 'bg-blue-100 text-blue-700' },
-                { icon: Truck, title: L('Dispatch', 'डिस्पैच', 'ડિસ્પેચ'), desc: L('Goods leave factory → Status: Dispatched → Vendor notified', 'माल फैक्ट्री से निकले → Status: Dispatched → Vendor को पता चले', 'માલ ફેક્ટરીથી નીકળે → Status: Dispatched → Vendor ને ખબર પડે'), badge: L('Tracked', 'ट्रैक्ड', 'ટ્રેક્ડ'), badgeColor: 'bg-amber-100 text-amber-700' },
-                { icon: Users, title: L('Vendor', 'वेंडर', 'વેન્ડર'), desc: L('Receives goods, confirms delivery — all on their own dashboard', 'माल मिले, delivery confirm करे — अपने dashboard से', 'માલ મળે, delivery confirm કરે — પોતાના dashboard થી'), badge: L('View Only', 'सिर्फ देखे', 'ફક્ત જુએ'), badgeColor: 'bg-purple-100 text-purple-700' },
-              ].map((role, i) => (
-                <motion.div key={role.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                  className="relative">
-                  {i < 3 && <div className="hidden md:block absolute -right-3 top-1/2 -translate-y-1/2 z-10"><ArrowRight size={16} className={textFaint} /></div>}
-                  <div className={`w-14 h-14 ${i === 0 ? 'bg-emerald-500/10' : i === 1 ? 'bg-blue-500/10' : i === 2 ? 'bg-amber-500/10' : 'bg-purple-500/10'} rounded-2xl flex items-center justify-center mx-auto mb-3`}>
-                    <role.icon size={28} className={i === 0 ? 'text-emerald-500' : i === 1 ? 'text-blue-500' : i === 2 ? 'text-amber-500' : 'text-purple-500'} />
-                  </div>
-                  <h3 className="font-bold text-sm mb-1">{role.title}</h3>
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold mb-2 ${role.badgeColor}`}>{role.badge}</span>
-                  <p className={`text-xs ${textFaint} leading-relaxed`}>{role.desc}</p>
-                </motion.div>
-              ))}
-            </div>
-            <div className={`mt-6 pt-4 border-t ${navBorder} text-center`}>
-              <p className={`text-xs ${textFaint}`}>{L('4 access levels per module: Hidden → View Only → View + Print → Full Access. Admin customizes per user.', '4 access levels: Hidden → सिर्फ देखे → देखे + प्रिंट → पूरा एक्सेस। Admin हर user के लिए customize करे।', '4 access levels: Hidden → ફક્ત જુએ → જુએ + પ્રિન્ટ → પૂરો એક્સેસ. Admin દરેક user માટે customize કરે.')}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Grid */}
-      <section id="features" className={`py-12 sm:py-20 px-4 sm:px-6 ${sectionAlt}`}>
+      {/* ── Features ────────────────────────────────────────────────────────── */}
+      <section id="features" className={`py-16 sm:py-24 px-4 sm:px-6`}>
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-bold">{L('All Features, One Platform', 'सारी Features, एक Platform', 'બધી Features, એક Platform')}</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>{L("What old software can't do — we do it all", 'जो पुराने software में नहीं — वो सब यहीं है', 'જે જૂના software માં નથી — એ બધું અહીં છે')}</p>
+          <div className="text-center mb-12">
+            <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Full feature set</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">{L('Everything your business needs','हर ज़रूरत की feature','દરેક જરૂરિયાતની feature')}</h2>
+            <p className={`mt-3 text-lg ${muted}`}>{L('15+ modules, all in one login','15+ modules, एक ही login','15+ modules, એક જ login')}</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-            {[
-              { icon: Package, title: L('Inventory Management', 'स्टॉक प्रबंधन', 'સ્ટોક મેનેજમેન્ટ'), desc: L('Auto-barcode, pack size (box/carton), batch printing, CSV import, stock alerts', 'Auto-barcode, pack size (box/carton), batch printing, CSV import, stock alerts', 'Auto-barcode, pack size (box/carton), batch printing, CSV import, stock alerts') },
-              { icon: ShoppingCart, title: L('Purchase Tracking', 'खरीद ट्रैकिंग', 'ખરીદ ટ્રેકિંગ'), desc: L('Supplier management, purchase bills, cost tracking, payables tracking', 'Supplier management, purchase bills, cost tracking — kitna dena hai', 'Supplier management, purchase bills, cost tracking, payables tracking') },
-              { icon: Truck, title: L('Distribution', 'वितरण', 'વિતરણ'), desc: L('Vendor distribution with batch-level payment tracking, custom pricing, discount', 'Vendor distribution with batch-level payment tracking, custom pricing, discount', 'Vendor distribution with batch-level payment tracking, custom pricing, discount') },
-              { icon: FileText, title: L('Quotes & Orders', 'कोटेशन और ऑर्डर', 'કોટેશન અને ઓર્ડર'), desc: L('Create quotes, share via WhatsApp, take orders, fulfill to distribution — full sales cycle', 'Quote बनाओ, WhatsApp से share करो, order लो, distribution में convert करो', 'Quote બનાવો, WhatsApp થી share કરો, order લો, distribution માં convert કરો') },
-              { icon: IndianRupee, title: L('Vendor Finance', 'वेंडर फाइनेंस', 'વેન્ડર ફાઇનાન્સ'), desc: L('Track who owes how much, age-wise outstanding, batch-level payment, reminders', 'Kaun kitna dena hai, age-wise outstanding, batch-level payment, reminders', 'કોણ કેટલા દેવા છે, age-wise outstanding, batch-level payment, reminders') },
-              { icon: BarChart3, title: L('Accounts & Day Book', 'हिसाब और डे बुक', 'હિસાબ અને ડે બુક'), desc: L('P&L, Balance Sheet, Cash Flow, Ledger, Day Book, Credit/Debit Notes — all auto-generated', 'P&L, Balance Sheet, Cash Flow, Ledger, Day Book — सब auto-generated', 'P&L, Balance Sheet, Cash Flow, Ledger, Day Book — બધું auto-generated') },
-              { icon: Receipt, title: L('E-Invoice & E-Way Bill', 'E-Invoice और E-Way Bill', 'E-Invoice અને E-Way Bill'), desc: L('Generate GST E-Invoice and E-Way Bill JSON — upload directly to government portal', 'GST E-Invoice aur E-Way Bill JSON generate karo — government portal pe upload karo', 'GST E-Invoice અને E-Way Bill JSON generate કરો — government portal પર upload કરો') },
-              { icon: Search, title: L('Smart Search', 'स्मार्ट सर्च', 'સ્માર્ટ સર્ચ'), desc: L('Scan barcode or type — product, vendor, customer, challan — all found instantly', 'Barcode scan ya type karo — product, vendor, customer, challan — sab instant mile', 'Barcode scan કરો કે type કરો — product, vendor, customer — બધું instant મળે') },
-              { icon: Users, title: L('Vendor Portal', 'वेंडर पोर्टल', 'વેન્ડર પોર્ટલ'), desc: L('Give dealers their own login — they can see their stock and sales on a separate dashboard', 'Dealers ko alag login do, woh apna stock aur sales dekh sakein — separate dashboard', 'Dealers ને અલગ login આપો, એ પોતાનો stock અને sales જોઈ શકે') },
-              { icon: MessageSquare, title: L('AI Chatbot', 'AI चैटबॉट', 'AI ચેટબોટ'), desc: L('"What\'s today\'s sale?" — ask in any language and get instant answers from your data', '"Aaj ki sale kitni hai?" — Hindi mein poocho, Hindi mein jawab dega', '"આજનો sale કેટલો?" — ગુજરાતીમાં પૂછો, ગુજરાતીમાં જવાબ') },
-              { icon: Shield, title: L('UPI QR & Price List', 'UPI QR और Price List', 'UPI QR અને Price List'), desc: L('UPI payment QR code on every bill. Vendor-wise and slab pricing — auto-applied during distribution', 'हर bill पर UPI QR code। Vendor-wise और slab pricing — distribution में auto apply', 'દરેક bill પર UPI QR code। Vendor-wise અને slab pricing — distribution માં auto apply') },
-              { icon: Languages, title: '3 Languages', desc: L('English, Hindi, Gujarati — switch from settings and the entire UI changes', 'English, Hindi, Gujarati — switch karo settings se, poora UI badal jayega', 'English, Hindi, Gujarati — settings માંથી switch કરો, આખું UI બદલાશે') },
-              { icon: Smartphone, title: L('Mobile Ready', 'मोबाइल फ्रेंडली', 'મોબાઈલ ફ્રેન્ડલી'), desc: L('Works on phone, works on tablet — bottom nav, touch-friendly, install as app', 'Phone pe chale, tablet pe chale — bottom nav, touch-friendly, install as app', 'Phone પર ચાલે, tablet પર ચાલે — bottom nav, touch-friendly, install as app') },
-              { icon: Globe, title: L('Cloud & Desktop', 'Cloud और Desktop App', 'Cloud અને Desktop App'), desc: L('Use via browser or download the DG ERP desktop app for Windows and Mac', 'Browser se ya DG ERP desktop app download karo — Windows aur Mac ke liye', 'Browser થી અથવા DG ERP desktop app download કરો — Windows અને Mac માટે') },
-              { icon: Building2, title: L('Multi-Tenant SaaS', 'Multi-Tenant SaaS', 'Multi-Tenant SaaS'), desc: L('Run 100 companies from one software — each with separate data and URL', 'Ek software se 100 companies chala sakte ho — har ek ka data alag, URL alag', 'એક software થી 100 companies ચલાવો — દરેકનો data અલગ, URL અલગ') },
-              { icon: Heart, title: L('Affordable', 'किफायती', 'કિફાયતી'), desc: L('Fits a small shop\'s budget — free trial, no hidden charges, cancel anytime', 'Chhoti dukaan ke budget mein — free trial, no hidden charges, cancel anytime', 'નાની દુકાનના budget માં — free trial, no hidden charges, cancel anytime') },
-            ].map((f, i) => (
-              <motion.div key={f.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.03 }}
-                className={`p-5 border rounded-2xl transition-all group ${cardBg} ${cardHover}`}>
-                <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand/20 transition-colors"><f.icon size={20} className="text-brand" /></div>
-                <h3 className="font-bold text-sm mb-1">{f.title}</h3>
-                <p className={`text-xs ${textFaint} leading-relaxed`}>{f.desc}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {FEATURES.map((f, i) => (
+              <motion.div key={f.title} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.03 }}
+                className={`p-5 rounded-2xl border flex gap-4 transition-all ${card} ${cardHov}`}>
+                <div className="w-9 h-9 bg-brand/10 rounded-xl flex items-center justify-center shrink-0">
+                  <f.icon size={18} className="text-brand" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm mb-1">{f.title}</h3>
+                  <p className={`text-xs leading-relaxed ${faint}`}>{f.desc}</p>
+                </div>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="py-20 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-bold">{L('Fits Every Budget', 'सबके बजट में', 'બધાના બજેટમાં')}</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>{L('From small shops to large factories — affordable plans', 'छोटी दुकान से लेकर बड़ी factory तक — affordable plans', 'નાની દુકાનથી મોટી factory સુધી — affordable plans')}</p>
+      {/* ── Workflow ─────────────────────────────────────────────────────────── */}
+      <section className={`py-16 sm:py-24 px-4 sm:px-6 ${dark ? 'bg-white/[0.02]' : 'bg-white'}`}>
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold">{L('End-to-end, one place','एक जगह, पूरा cycle','એક જગ્યાએ, પૂરો cycle')}</h2>
+            <p className={`mt-3 text-lg ${muted}`}>{L('From purchase to P&L — every step tracked','Purchase से P&L तक — हर step tracked','Purchase થી P&L સુધી — દરેક step tracked')}</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
             {[
-              { name: L('Free Trial','फ्री ट्रायल','ફ્રી ટ્રાયલ'), price: '₹0', period: L('14 days','14 दिन','14 દિવસ'), desc: L('All features free for 14 days','14 दिन सब features free','14 દિવસ બધા features free'), features: [L('All modules','सब modules','બધા modules'), L('50 products','50 products','50 products'), L('5 vendors','5 vendors','5 vendors'), L('Email support','Email support','Email support')], cta: L('Join Waitlist','Waitlist Join करो','Waitlist Join કરો'), highlight: false },
-              { name: L('Standard','स्टैंडर्ड','સ્ટાન્ડર્ડ'), price: L('Contact Us','संपर्क करें','સંપર્ક કરો'), period: '', desc: L('Growing businesses','बढ़ते व्यापार के लिए','વધતા વ્યાપાર માટે'), features: [L('Unlimited products','Unlimited products','Unlimited products'), L('15 vendors','15 vendors','15 vendors'), L('Vendor portal','Vendor portal','Vendor portal'), L('Priority support','Priority support','Priority support'), L('Pack size','Pack size','Pack size'), L('Reports','Reports','Reports')], cta: L('Join Waitlist','Waitlist Join करो','Waitlist Join કરો'), highlight: true },
-              { name: L('Professional','प्रोफेशनल','પ્રોફેશનલ'), price: L('Contact Us','संपर्क करें','સંપર્ક કરો'), period: '', desc: L('Large manufacturers','बड़े manufacturers के लिए','મોટા manufacturers માટે'), features: [L('Everything unlimited','सब unlimited','બધું unlimited'), L('Accounts + Day Book','Accounts + Day Book','Accounts + Day Book'), L('E-Invoice & E-Way Bill','E-Invoice & E-Way Bill','E-Invoice & E-Way Bill'), L('Orders + Price List','Orders + Price List','Orders + Price List'), L('Chatbot','Chatbot','Chatbot'), L('Custom branding','Custom branding','Custom branding')], cta: L('Join Waitlist','Waitlist Join करो','Waitlist Join કરો'), highlight: false },
+              { icon: ShoppingCart, label: L('Purchase','खरीदो','ખરીદો'), color: 'text-amber-500', bg: 'bg-amber-500/10' },
+              { icon: Package, label: L('Stock','स्टॉक','સ્ટોક'), color: 'text-blue-500', bg: 'bg-blue-500/10' },
+              { icon: FileText, label: L('Quote','कोटेशन','કોટેશન'), color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
+              { icon: Truck, label: L('Dispatch','भेजो','મોકલો'), color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+              { icon: IndianRupee, label: L('Collect','वसूलो','વસૂલો'), color: 'text-brand', bg: 'bg-brand/10' },
+              { icon: BarChart3, label: 'P&L', color: 'text-violet-500', bg: 'bg-violet-500/10' },
+            ].map((s, i) => (
+              <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.06 }}
+                className={`relative p-4 rounded-2xl border text-center ${card} group`}>
+                {i < 5 && <ChevronRight size={12} className={`hidden sm:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 ${faint}`} />}
+                <div className={`w-10 h-10 ${s.bg} rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform`}>
+                  <s.icon size={20} className={s.color} />
+                </div>
+                <p className={`font-bold text-xs`}>{s.label}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Tech stack highlight ─────────────────────────────────────────────── */}
+      <section className="py-16 sm:py-24 px-4 sm:px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Cloud-native architecture</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">{L('Modern tech, Indian needs','Modern tech, Indian ज़रूरतें','Modern tech, Indian જરૂરિયાત')}</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[
+              { icon: Cloud, title: L('Cloud SaaS','Cloud SaaS','Cloud SaaS'), desc: L('Browser-based, zero install. Multi-tenant PostgreSQL with row-level security — each business\'s data is isolated.','Browser-based, zero install. Multi-tenant PostgreSQL — हर business का data isolated।','Browser-based, zero install. Multi-tenant PostgreSQL — દરેક business નો data isolated.'), tag: 'React 19 + Node.js + PG' },
+              { icon: Database, title: L('On-Prem Desktop','On-Prem Desktop','On-Prem Desktop'), desc: L('Electron app (~180MB) with embedded PostgreSQL. Runs offline. Activated via license key, syncs heartbeat to cloud.','Electron app with embedded PostgreSQL. Offline ready। License key से activate।','Electron app with embedded PostgreSQL. Offline ready. License key થી activate.'), tag: 'Electron + embedded PG' },
+              { icon: Lock, title: L('GST Compliant','GST Compliant','GST Compliant'), desc: L('GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice (IRN), E-Way Bill — JSON generated, ready to upload to government portal.','GSTR-1, GSTR-3B, GSTR-2B, E-Invoice, E-Way Bill JSON — government portal ke liye ready।','GSTR-1, GSTR-3B, GSTR-2B, E-Invoice, E-Way Bill JSON — government portal માટે ready.'), tag: 'GST API ready' },
+            ].map((c, i) => (
+              <motion.div key={c.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                className={`p-6 rounded-2xl border ${card}`}>
+                <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center mb-4">
+                  <c.icon size={20} className="text-brand" />
+                </div>
+                <div className="inline-block px-2 py-0.5 rounded-md text-[10px] font-mono font-bold mb-3" style={{ background: 'rgba(242,125,38,0.1)', color: '#F27D26' }}>{c.tag}</div>
+                <h3 className="font-bold mb-2">{c.title}</h3>
+                <p className={`text-sm leading-relaxed ${faint}`}>{c.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pricing ─────────────────────────────────────────────────────────── */}
+      <section id="pricing" className={`py-16 sm:py-24 px-4 sm:px-6 ${dark ? 'bg-white/[0.02]' : 'bg-white'}`}>
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Simple pricing</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">{L('Fits every budget','सबके बजट में','બધાના budget માં')}</h2>
+            <p className={`mt-3 text-lg ${muted}`}>{L('Free trial, no credit card. Contact us for pricing.','Free trial, no credit card। Pricing के लिए contact करें।','Free trial, no credit card. Pricing માટે contact કરો.')}</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[
+              { name: L('Free Trial','Free Trial','Free Trial'), price: '₹0', period: L('/ 14 days','/ 14 दिन','/ 14 દિવસ'), desc: L('All features, no card','सब features, no card','બધા features, no card'), feats: [L('All modules','सब modules','બધા modules'), '50 products', '5 vendors', 'Email support'], highlight: false, cta: L('Start Free','शुरू करें','Free Start') },
+              { name: L('Standard','Standard','Standard'), price: L('Contact','संपर्क','સંપર્ક'), period: '', desc: L('Growing businesses','बढ़ते व्यापार के लिए','વધતા business માટે'), feats: [L('Unlimited products','Unlimited products','Unlimited products'), '15 vendors', L('Vendor portal','Vendor portal','Vendor portal'), L('Priority support','Priority support','Priority support'), L('All reports','All reports','All reports')], highlight: true, cta: L('Get Quote','Quote लें','Quote મેળવો') },
+              { name: L('Professional','Professional','Professional'), price: L('Contact','संपर्क','સંપર્ક'), period: '', desc: L('Manufacturers & large dealers','बड़े manufacturers के लिए','મોટા manufacturers માટે'), feats: [L('Everything unlimited','સব unlimited','Everything unlimited'), 'E-Invoice & E-Way Bill', L('AI Chatbot','AI Chatbot','AI Chatbot'), L('Custom branding','Custom branding','Custom branding'), L('On-prem option','On-prem option','On-prem option')], highlight: false, cta: L('Get Quote','Quote लें','Quote મેળવો') },
             ].map((p, i) => (
               <motion.div key={p.name} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                className={`p-6 border rounded-2xl ${p.highlight ? (dark ? 'bg-brand/10 border-brand/30 ring-2 ring-brand/20' : 'bg-brand/5 border-brand/30 shadow-lg shadow-brand/10 ring-2 ring-brand/20') : cardBg}`}>
-                {p.highlight && <div className="text-center mb-3"><span className="px-3 py-1 bg-brand text-white text-xs font-bold rounded-full">{L('Most Popular','सबसे लोकप्रिय','સૌથી લોકપ્રિય')}</span></div>}
-                <h3 className="font-bold text-lg">{p.name}</h3>
-                <div className="mt-2 mb-1"><span className="text-3xl font-bold">{p.price}</span><span className={`text-sm ${textFaint}`}>{p.period}</span></div>
-                <p className={`text-sm ${textFaint} mb-4`}>{p.desc}</p>
+                className={`p-6 rounded-2xl border relative ${p.highlight ? (dark ? 'border-brand/40 bg-brand/5' : 'border-brand/30 bg-brand/3 shadow-lg shadow-brand/10') : card}`}>
+                {p.highlight && <div className="absolute -top-3 left-1/2 -translate-x-1/2"><span className="px-3 py-1 bg-brand text-white text-[10px] font-bold rounded-full uppercase tracking-wide">{L('Popular','Popular','Popular')}</span></div>}
+                <h3 className="font-bold text-lg mb-1">{p.name}</h3>
+                <div className="flex items-baseline gap-1 mb-1"><span className="text-3xl font-bold">{p.price}</span><span className={`text-sm ${faint}`}>{p.period}</span></div>
+                <p className={`text-sm ${faint} mb-5`}>{p.desc}</p>
                 <div className="space-y-2 mb-6">
-                  {p.features.map(f => <div key={f} className="flex items-center gap-2"><Check size={14} className="text-brand" /><span className={`text-sm ${textMuted}`}>{f}</span></div>)}
+                  {p.feats.map(f => <div key={f} className="flex items-center gap-2"><Check size={13} className="text-brand shrink-0" /><span className={`text-sm ${muted}`}>{f}</span></div>)}
                 </div>
-                <a href="#contact" className={`block text-center py-3 rounded-xl font-bold transition-colors ${p.highlight ? 'bg-brand text-white hover:bg-brand-dark' : `border ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}`}>{p.cta}</a>
+                <a href="#contact" className={`block text-center py-3 rounded-xl font-bold text-sm transition-colors ${p.highlight ? 'bg-brand hover:bg-brand-dark text-white' : `border ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}`}>{p.cta}</a>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Why DG Business */}
-      <section className={`py-12 sm:py-20 px-4 sm:px-6 ${sectionAlt}`}>
+      {/* ── Contact ─────────────────────────────────────────────────────────── */}
+      <section id="contact" className="py-16 sm:py-24 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">{L('Beyond Old Software', 'पुराने Software से आगे', 'જૂના Software થી આગળ')}</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>{L('Replace legacy software with modern cloud business management', 'पुराने software को replace करो modern cloud ERP से', 'જૂના software ને replace કરો modern cloud ERP થી')}</p>
+            <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Get started</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">{L('Let\'s talk','बात करें','વાત કરો')}</h2>
+            <p className={`mt-3 text-lg ${muted}`}>{L('Free trial · Setup in 5 min · Reply within 24h','Free trial · 5 min setup · 24h में reply','Free trial · 5 min setup · 24h માં reply')}</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[
-              { emoji: '☁️', title: L('Cloud — No Installation', 'Cloud — कोई Installation नहीं', 'Cloud — કોઈ Installation નહિ'), desc: L('Old software needs install, license, backup. DG Business — just open the browser.', 'पुराने software में install करो, license खरीदो, backup लो। DG Business में सिर्फ browser खोलो।', 'જૂના software માં install કરો, license ખરીદો। DG Business માં ફક્ત browser ખોલો।') },
-              { emoji: '📱', title: L('Works on Mobile', 'मोबाइल पे चले', 'મોબાઈલ પર ચાલે'), desc: L('Old software runs only on desktop. DG Business works on phone and tablet — work from anywhere.', 'पुराने software सिर्फ desktop पे चलते हैं। DG Business phone पे भी tablet पे भी।', 'જૂના software ફક્ત desktop પર ચાલે. DG Business phone અને tablet પર પણ ચાલે.') },
-              { emoji: '🔐', title: L('Vendor Portal', 'वेंडर पोर्टल', 'વેન્ડર પોર્ટલ'), desc: L('Give dealers their own login — they can view their stock, sales, payments. Not in old software.', 'अपने dealers को उनका login दो — वो अपना stock, sales, payments खुद देख लें।', 'Dealers ને એમનું login આપો — એ પોતાનો stock, sales, payments જોઈ શકે.') },
-              { emoji: '🤖', title: L('AI Chatbot', 'AI चैटबॉट', 'AI ચેટબોટ'), desc: L('"What\'s low stock?" Ask the chatbot — it checks the database and answers. Real-time.', '"Low stock क्या है?" पूछो chatbot से — वो database check करके जवाब देगा। Real-time।', '"Low stock શું છે?" chatbot ને પૂછો — એ database check કરીને જવાબ આપશે.') },
-              { emoji: '💰', title: L('Batch-Level Payment', 'Batch-Level भुगतान', 'Batch-Level ચુકવણી'), desc: L('Track payment for each distribution batch separately — which batch paid, which pending. Crystal clear.', 'हर distribution batch का payment अलग track करो — कौन सा batch paid, कौन सा pending।', 'દરેક distribution batch નું payment અલગ track કરો — ક્યો batch paid, ક્યો pending.') },
-              { emoji: '📊', title: L('Auto Accounting', 'ऑटो हिसाब-किताब', 'ઓટો હિસાબ-કિતાબ'), desc: L('P&L, Balance Sheet, Cash Flow — automatically generated from transactions. No manual entry.', 'P&L, Balance Sheet, Cash Flow — automatically generate होता है transactions से। No manual entry।', 'P&L, Balance Sheet, Cash Flow — transactions માંથી automatically generate. No manual entry.') },
-            ].map((w, i) => (
-              <motion.div key={w.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
-                className={`p-5 border rounded-2xl flex gap-4 ${cardBg} ${cardHover}`}>
-                <span className="text-3xl shrink-0">{w.emoji}</span>
-                <div><h3 className="font-bold text-sm mb-1">{w.title}</h3><p className={`text-xs ${textFaint} leading-relaxed`}>{w.desc}</p></div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Contact */}
-      <section id="contact" className="py-20 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-bold">{L('Get Started', 'शुरू करें', 'શરૂ કરો')}</h2>
-            <p className={`mt-3 ${textMuted} text-lg`}>{L('Get a free trial today — setup in 5 minutes', 'आज ही free trial लो — 5 minute में setup हो जाएगा', 'આજે જ free trial લો — 5 minute માં setup થઈ જશે')}</p>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
-            <div className="lg:col-span-2 space-y-6">
-              <div className={`p-6 border rounded-2xl space-y-5 ${cardBg}`}>
-                <h3 className="font-bold text-lg">{L("Let's Talk", 'बात करें', 'વાત કરો')}</h3>
-                <p className={`text-sm ${textFaint}`}>{L('Call, WhatsApp, or email us — we reply within 24 hours.', 'Call karo, WhatsApp karo, ya email karo — hum 24 ghante mein reply karenge.', 'Call કરો, WhatsApp કરો, કે email કરો — અમે 24 કલાકમાં reply કરીશું.')}</p>
-                <div className="space-y-4 pt-2">
-                  <a href="tel:+918806907616" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-brand`}>
-                    <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center shrink-0"><Phone size={18} className="text-brand" /></div>
-                    <div><p className={`text-xs ${textFaint}`}>Phone</p><p className="font-medium">+91 88069 07616</p></div>
-                  </a>
-                  <a href="https://wa.me/918806907616?text=Hi%2C%20I%20want%20DG%20Business%20for%20my%20business" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-green-400`}>
-                    <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center shrink-0"><MessageCircle size={18} className="text-green-500" /></div>
-                    <div><p className={`text-xs ${textFaint}`}>WhatsApp</p><p className="font-medium">+91 88069 07616</p></div>
-                  </a>
-                  <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 text-sm ${textMuted} hover:text-brand`}>
-                    <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center shrink-0"><Mail size={18} className="text-brand" /></div>
-                    <div><p className={`text-xs ${textFaint}`}>Email</p><p className="font-medium">patelprathamesh007@gmail.com</p></div>
-                  </a>
-                </div>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 lg:gap-12">
+            <div className="lg:col-span-2 flex flex-col gap-4">
+              {[
+                { icon: Phone, label: 'Phone', val: '+91 88069 07616', href: 'tel:+918806907616', color: 'text-brand' },
+                { icon: MessageCircle, label: 'WhatsApp', val: '+91 88069 07616', href: 'https://wa.me/918806907616', color: 'text-green-500' },
+                { icon: Mail, label: 'Email', val: 'patelprathamesh007@gmail.com', href: 'https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com', color: 'text-brand' },
+              ].map(c => (
+                <a key={c.label} href={c.href} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${card} ${cardHov}`}>
+                  <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center shrink-0"><c.icon size={18} className={c.color} /></div>
+                  <div><p className={`text-xs ${faint}`}>{c.label}</p><p className="font-medium text-sm">{c.val}</p></div>
+                </a>
+              ))}
+              <div className={`p-4 rounded-2xl border ${dark ? 'border-white/5 bg-white/[0.02]' : 'border-gray-100 bg-gray-50'} mt-2`}>
+                <p className="text-2xl mb-2">🦁</p>
+                <p className="font-bold text-sm">{L('Designed in Rajkot, built for Bharat','Rajkot में बना, Bharat के लिए','Rajkot માં DesIgn, Bharat માટે')}</p>
+                <p className={`text-xs mt-1 ${faint}`}>{L('India\'s industrial heartland. Software for every shopkeeper, dealer, and manufacturer.','India के industrial heartland से। हर दुकानदार, dealer, manufacturer के लिए।','India ના industrial heartland થી. દરેક દુકાનદાર, dealer, manufacturer માટે.')}</p>
               </div>
             </div>
             <div className="lg:col-span-3"><EnquiryForm dark={dark} /></div>
@@ -431,51 +462,28 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Rajkot Pride */}
-      <section className={`py-16 px-6 ${sectionAlt}`}>
-        <div className="max-w-4xl mx-auto text-center">
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <p className="text-4xl mb-4">🏭</p>
-            <h2 className="text-2xl md:text-3xl font-bold mb-3">
-              {L('From the Land of Rajkot, for the World', 'राजकोट की धरती से, दुनिया के लिए', 'રાજકોટની ધરતી પરથી, દુનિયા માટે')}
-            </h2>
-            <p className={`text-lg ${textMuted} max-w-2xl mx-auto leading-relaxed`}>
-              {L('Rajkot — the heart of industrialisation. Software built for every entrepreneur, shopkeeper, and manufacturer here. Rangilu Rajkot! 🦁', 'राजकोट — industrialisation का दिल। यहाँ के हर उद्योगपति, दुकानदार, और manufacturer को ध्यान में रखकर बनाया गया software। रंगीलो राजकोट! 🦁', 'રાજકોટ — industrialisation નું હૃદય। અહીંના દરેક ઉદ્યોગપતિ, દુકાનદાર, અને manufacturer ને ધ્યાનમાં રાખીને બનાવેલું software। રંગીલું રાજકોટ! 🦁 🦁')}
-            </p>
-            <div className={`mt-6 inline-flex items-center gap-3 px-6 py-3 rounded-2xl border ${cardBg}`}>
-              <span className="text-2xl">🦁</span>
-              <div className="text-left">
-                <p className="font-bold text-sm">{L('Designed in Rajkot, Built for India', 'राजकोट में डिज़ाइन, भारत के लिए बना', 'રાજકોટમાં ડિઝાઇન, ભારત માટે બનેલું')}</p>
-                <p className={`text-xs ${textFaint}`}>{L('Designed in Rajkot, Built for Bharat','राजकोट में बना, भारत के लिए','રાજકોટમાં બનેલું, ભારત માટે')}</p>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className={`border-t ${navBorder} py-8 sm:py-10 px-4 sm:px-6`}>
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center font-bold text-xs text-white">DG</div>
-              <div><span className="font-bold">DG Business</span><span className={`text-xs ${textFaint} ml-2`}>🇮🇳 {L('Made with pride in India','भारत में बनाया गया','ભારતમાં બનાવ્યું')}</span></div>
-            </div>
-            <div className={`flex items-center gap-6 text-sm ${textFaint}`}>
-              <a href="#features" className={`${navLink}`}>{L('Features','Features','Features')}</a>
-              <a href="#pricing" className={`${navLink}`}>{L('Pricing','कीमत','કિંમત')}</a>
-              <a href="#contact" className={`${navLink}`}>{L('Contact','संपर्क','સંપર્ક')}</a>
-              <a href="/privacy" className={`${navLink}`}>{L('Privacy','प्राइवेसी','પ્રાઇવેસી')}</a>
-              <a href="/terms" className={`${navLink}`}>{L('Terms','नियम','નિયમ')}</a>
-            </div>
-            <div className={`flex items-center gap-4 ${textFaint}`}>
-              <a href="tel:+918806907616" className="hover:text-brand"><Phone size={16} /></a>
-              <a href="https://wa.me/918806907616" target="_blank" rel="noopener noreferrer" className="hover:text-green-500"><MessageCircle size={16} /></a>
-              <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand"><Mail size={16} /></a>
-            </div>
+      {/* ── Footer ──────────────────────────────────────────────────────────── */}
+      <footer className={`border-t ${border} py-8 px-4 sm:px-6`}>
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 bg-brand rounded-md grid place-items-center font-bold text-xs text-white">DG</div>
+            <span className="font-bold text-sm">DG Business</span>
+            <span className={`text-xs ${faint}`}>🇮🇳</span>
           </div>
-          <p className={`text-xs ${textFaint} text-center mt-6`}>&copy; {new Date().getFullYear()} DG Business Management. {L('Designed for Indian businesses, built with love.','भारतीय व्यापारों के लिए बना, प्यार से।','ભારતીય વ્યાપારો માટે બનેલું, પ્રેમ સાથે.')}</p>
+          <div className={`flex items-center gap-5 text-xs ${faint}`}>
+            {['#features','#pricing','#contact','/privacy','/terms'].map((href, i) => (
+              <a key={href} href={href} className="hover:text-brand transition-colors">
+                {['Features', L('Pricing','कीमत','કિંમત'), L('Contact','संपर्क','સંપર્ક'), L('Privacy','Privacy','Privacy'), L('Terms','Terms','Terms')][i]}
+              </a>
+            ))}
+          </div>
+          <div className={`flex items-center gap-3 ${faint}`}>
+            <a href="tel:+918806907616" className="hover:text-brand transition-colors"><Phone size={15} /></a>
+            <a href="https://wa.me/918806907616" target="_blank" rel="noopener noreferrer" className="hover:text-green-500 transition-colors"><MessageCircle size={15} /></a>
+            <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-brand transition-colors"><Mail size={15} /></a>
+          </div>
         </div>
+        <p className={`text-center text-xs mt-5 ${faint}`}>© {new Date().getFullYear()} DG Business Management · {L('Built with love for Indian businesses','भारतीय businesses के लिए बना','ભારતીય businesses માટે બનેલું')}</p>
       </footer>
     </div>
   );
