@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 
@@ -33,7 +34,7 @@ router.get('/api/banks', async (req, res) => {
 });
 
 // Batch create — all-or-nothing (CSV import)
-router.post('/api/banks/batch', async (req, res) => {
+router.post('/api/banks/batch', requireAdmin, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -68,7 +69,7 @@ router.post('/api/banks/batch', async (req, res) => {
   } finally { client.release(); }
 });
 
-router.post('/api/banks', async (req, res) => {
+router.post('/api/banks', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -91,7 +92,7 @@ router.post('/api/banks', async (req, res) => {
   }
 });
 
-router.put('/api/banks/:id', async (req, res) => {
+router.put('/api/banks/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -110,7 +111,7 @@ router.put('/api/banks/:id', async (req, res) => {
   }
 });
 
-router.delete('/api/banks/:id', async (req, res) => {
+router.delete('/api/banks/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

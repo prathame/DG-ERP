@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 
@@ -20,7 +21,7 @@ router.get('/api/redemption-settings', async (req, res) => {
   }
 });
 
-router.put('/api/redemption-settings', async (req, res) => {
+router.put('/api/redemption-settings', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -102,7 +103,7 @@ router.get('/api/rewards/balance', async (req, res) => {
   }
 });
 
-router.post('/api/rewards', async (req, res) => {
+router.post('/api/rewards', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -111,53 +112,63 @@ router.post('/api/rewards', async (req, res) => {
     const ptsToInsert = Math.max(0, parseInt(String(points), 10) || 0);
     const isVendorRedemption = type === 'Redeemed' && typeof vendorId === 'string' && vendorId;
 
-    if (type === 'Redeemed') {
-      const settings = (await pool.query(
-        'SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2',
-        ['default', tenantId]
-      )).rows[0] as { min_balance: number; min_points: number } | undefined;
-      const minBal = settings?.min_balance ?? 100;
-      const minPts = settings?.min_points ?? 50;
-
-      let balance: number;
-      if (isVendorRedemption) {
-        const v = (await pool.query(
-          'SELECT total_reward_points FROM vendors WHERE id = $1 AND tenant_id = $2',
-          [vendorId, tenantId]
-        )).rows[0] as { total_reward_points: number } | undefined;
-        if (!v) return res.status(400).json({ error: 'Vendor not found' });
-        balance = v.total_reward_points ?? 0;
-      } else {
-        const earned = (await pool.query(
-          "SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned' AND (vendor_id IS NULL OR vendor_id = '') AND tenant_id = $1",
-          [tenantId]
-        )).rows[0] as { total: number };
-        const redeemed = (await pool.query(
-          "SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Redeemed' AND (vendor_id IS NULL OR vendor_id = '') AND tenant_id = $1",
-          [tenantId]
-        )).rows[0] as { total: number };
-        balance = earned.total - redeemed.total;
-      }
-      if (balance < minBal) return res.status(400).json({ error: `Minimum balance of ${minBal} pts required to redeem` });
-      if (ptsToInsert < minPts) return res.status(400).json({ error: `Minimum ${minPts} pts per redemption` });
-      if (ptsToInsert > balance) return res.status(400).json({ error: 'Insufficient balance' });
-    }
-
     const id = uid('R');
     const date = new Date().toISOString().slice(0, 10);
 
-    if (isVendorRedemption) {
+    if (type === 'Redeemed') {
+      // #9 fix: entire balance-check + insert + decrement in one transaction to prevent race
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        const settings = (await client.query(
+          'SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2',
+          ['default', tenantId]
+        )).rows[0] as { min_balance: number; min_points: number } | undefined;
+        const minBal = settings?.min_balance ?? 100;
+        const minPts = settings?.min_points ?? 50;
+
+        let balance: number;
+        if (isVendorRedemption) {
+          const v = (await client.query(
+            'SELECT total_reward_points FROM vendors WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+            [vendorId, tenantId]
+          )).rows[0] as { total_reward_points: number } | undefined;
+          if (!v) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Vendor not found' }); }
+          balance = v.total_reward_points ?? 0;
+        } else {
+          const [earned, redeemed] = await Promise.all([
+            client.query("SELECT COALESCE(SUM(points),0) as total FROM rewards WHERE type='Earned' AND (vendor_id IS NULL OR vendor_id='') AND tenant_id=$1", [tenantId]),
+            client.query("SELECT COALESCE(SUM(points),0) as total FROM rewards WHERE type='Redeemed' AND (vendor_id IS NULL OR vendor_id='') AND tenant_id=$1", [tenantId]),
+          ]);
+          balance = (earned.rows[0] as {total:number}).total - (redeemed.rows[0] as {total:number}).total;
+        }
+
+        if (balance < minBal) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Minimum balance of ${minBal} pts required to redeem` }); }
+        if (ptsToInsert < minPts) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Minimum ${minPts} pts per redemption` }); }
+        if (ptsToInsert > balance) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Insufficient balance' }); }
+
+        if (isVendorRedemption) {
+          await client.query('UPDATE vendors SET total_reward_points = total_reward_points - $1 WHERE id = $2 AND tenant_id = $3', [ptsToInsert, vendorId, tenantId]);
+        }
+        await client.query(
+          `INSERT INTO rewards (id,tenant_id,user_id,points,type,description,date,vendor_id,sale_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [id, tenantId, userId ?? 'D1', ptsToInsert, type ?? 'Earned', description ?? '', date, isVendorRedemption ? vendorId : null, null]
+        );
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    } else {
+      // Non-redemption (Earned): simple insert
       await pool.query(
-        'UPDATE vendors SET total_reward_points = total_reward_points - $1 WHERE id = $2 AND tenant_id = $3',
-        [ptsToInsert, vendorId, tenantId]
+        `INSERT INTO rewards (id,tenant_id,user_id,points,type,description,date,vendor_id,sale_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [id, tenantId, userId ?? 'D1', ptsToInsert, type ?? 'Earned', description ?? '', date, null, null]
       );
     }
-
-    await pool.query(
-      `INSERT INTO rewards (id, tenant_id, user_id, points, type, description, date, vendor_id, sale_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [id, tenantId, userId ?? 'D1', ptsToInsert, type ?? 'Earned', description ?? '', date, isVendorRedemption ? vendorId : null, null]
-    );
 
     const row = (await pool.query(
       'SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2', [id, tenantId]
@@ -175,7 +186,7 @@ router.post('/api/rewards', async (req, res) => {
   }
 });
 
-router.put('/api/rewards/:id', async (req, res) => {
+router.put('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -209,7 +220,7 @@ router.put('/api/rewards/:id', async (req, res) => {
   }
 });
 
-router.delete('/api/rewards/:id', async (req, res) => {
+router.delete('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -252,7 +263,7 @@ router.get('/api/reward-rules', async (req, res) => {
   }
 });
 
-router.post('/api/reward-rules', async (req, res) => {
+router.post('/api/reward-rules', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -285,7 +296,7 @@ router.post('/api/reward-rules', async (req, res) => {
   }
 });
 
-router.put('/api/reward-rules/:id', async (req, res) => {
+router.put('/api/reward-rules/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -322,7 +333,7 @@ router.put('/api/reward-rules/:id', async (req, res) => {
   }
 });
 
-router.delete('/api/reward-rules/:id', async (req, res) => {
+router.delete('/api/reward-rules/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

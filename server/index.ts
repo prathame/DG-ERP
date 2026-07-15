@@ -145,7 +145,12 @@ app.use('/api/', async (req, res, next) => {
       const row = userRow.rows[0] as { password_changed_at: Date | null; status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
 
       if (row?.status === 'suspended') return res.status(403).json({ error: 'Account suspended. Contact admin.' });
-      const expiresAt = row?.subscription_ends_at || row?.trial_ends_at;
+      // #12 fix: only check the date that applies to this tenant's status
+      // (mirrors the login route logic to prevent active tenants with stale trial_ends_at being blocked)
+      const status = row?.status;
+      const expiresAt = status === 'trial' ? row?.trial_ends_at
+                      : status === 'active' ? row?.subscription_ends_at
+                      : null;
       if (expiresAt && new Date(expiresAt).getTime() < Date.now()) return res.status(403).json({ error: 'Subscription expired. Contact admin to renew.' });
 
       // JWT invalidation: reject tokens issued before the last password change

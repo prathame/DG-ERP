@@ -303,7 +303,7 @@ router.get('/api/products/by-barcode/:barcode', async (req, res) => {
 });
 
 // Batch create — all-or-nothing (CSV import)
-router.post('/api/products/batch', async (req, res) => {
+router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -486,7 +486,7 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
   }
 });
 
-router.post('/api/products/:id/add-stock', async (req, res) => {
+router.post('/api/products/:id/add-stock', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

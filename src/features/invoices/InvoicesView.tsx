@@ -9,6 +9,11 @@ import { suggestHsnRate } from '../../lib/hsnRates';
 import { session } from '../../lib/session';
 import { api } from '../../api';
 
+function esc(t: unknown): string {
+  return String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+
 type Invoice = {
   id: string; invoiceNumber: string; customerName: string; customerGstin?: string;
   customerAddress?: string; customerPhone?: string; items: LineItem[];
@@ -78,8 +83,8 @@ export function InvoicesView() {
     const upiQrDataUrl = bs.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`) : '';
     const upiQrHtml = upiQrDataUrl ? `<div style="text-align:center;"><img src="${upiQrDataUrl}" style="width:120px;height:120px;" /><p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p></div>` : '';
     const bankHtml = hasBankDetails || upiQrHtml ? `<div style="margin-top:16px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">${hasBankDetails ? `<div style="flex:1;"><strong style="font-size:12px;">Bank Details</strong><table style="width:100%;margin-top:6px;font-size:11px;">${bs.bankAccountName ? `<tr><td style="color:#6b7280;width:100px;">Account Name</td><td>${bs.bankAccountName}</td></tr>` : ''}${bs.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${bs.bankAccountNumber}</td></tr>` : ''}${bs.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${bs.bankName}${bs.bankBranch ? `, ${bs.bankBranch}` : ''}</td></tr>` : ''}${bs.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${bs.bankIfsc}</td></tr>` : ''}</table></div>` : ''}${upiQrHtml}</div></div>` : '';
-    const sigHtml = (bs.signatoryName || bs.signatureBase64) ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;"><div style="text-align:center;">${bs.signatureBase64 ? `<img src="${bs.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}<p style="font-size:11px;border-top:1px solid #999;padding-top:4px;">${bs.signatoryName || ''}${bs.signatoryDesignation ? `<br/><span style="font-size:10px;color:#666;">${bs.signatoryDesignation}</span>` : ''}</p></div></div>` : '';
-    const termsHtml = (inv.terms || bs.termsAndConditions) ? `<div style="margin-top:16px;font-size:10px;color:#666;"><strong>Terms & Conditions:</strong><br/>${inv.terms || bs.termsAndConditions}</div>` : '';
+    const sigHtml = (bs.signatoryName || bs.signatureBase64) ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;"><div style="text-align:center;">${bs.signatureBase64 ? `<img src="${bs.signatureBase64}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}<p style="font-size:11px;border-top:1px solid #999;padding-top:4px;">${bs.signatoryName || ''}${bs.signatoryDesignation ? `<br/><span style="font-size:10px;color:#666;">${esc(bs.signatoryDesignation)}</span>` : ''}</p></div></div>` : '';
+    const termsHtml = (inv.terms || bs.termsAndConditions) ? `<div style="margin-top:16px;font-size:10px;color:#666;"><strong>Terms & Conditions:</strong><br/>${esc(inv.terms || bs.termsAndConditions)}</div>` : '';
 
     const w = window.open('', '_blank');
     if (!w) return;
@@ -126,9 +131,9 @@ export function InvoicesView() {
         <table style="width:100%;"><tr>
           <td style="border:none;width:50%;vertical-align:top;padding:4px 8px;">
             <strong style="font-size:10px;color:#555;">BILL TO:</strong><br/>
-            <strong>${inv.customerName}</strong>
+            <strong>${esc(inv.customerName)}</strong>
             ${inv.customerGstin ? `<br/><span style="font-family:monospace;font-size:11px;">GSTIN: ${inv.customerGstin}</span>` : ''}
-            ${inv.customerAddress ? `<br/><span style="font-size:10px;">${inv.customerAddress}</span>` : ''}
+            ${inv.customerAddress ? `<br/><span style="font-size:10px;">${esc(inv.customerAddress)}</span>` : ''}
             ${inv.customerPhone ? `<br/><span style="font-size:10px;">Ph: ${inv.customerPhone}</span>` : ''}
           </td>
         </tr></table>

@@ -105,6 +105,36 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
     try {
       await client.query('BEGIN');
 
+      // #9 fix: lock the barcode rows inside the transaction to prevent double-sell race
+      const dist = (await client.query(`
+        SELECT pd.*, p.id as product_id, p.reward_points_value, p.warranty_months
+        FROM product_distribution pd
+        JOIN products p ON pd.product_id = p.id AND p.tenant_id = $2
+        WHERE pd.barcode = $1 AND pd.status = 'Distributed' AND pd.tenant_id = $2
+        FOR UPDATE
+      `, [barcode, tenantId])).rows[0] as { id: string; product_id: string; vendor_id: string; reward_points_value: number; warranty_months: number } | undefined;
+
+      const inv = !dist ? (await client.query(`
+        SELECT pi.id as inv_id, pi.product_id, p.reward_points_value, p.warranty_months
+        FROM product_inventory pi
+        JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
+        WHERE pi.barcode = $1 AND pi.status = 'InStock' AND pi.tenant_id = $2
+        FOR UPDATE
+      `, [barcode, tenantId])).rows[0] as { inv_id: string; product_id: string; reward_points_value: number; warranty_months: number } | undefined : null;
+
+      const saleDataTxn = dist
+        ? { productId: dist.product_id, vendorId: dist.vendor_id, points: dist.reward_points_value ?? 0, warrantyMonths: dist.warranty_months ?? 12 }
+        : inv
+          ? { productId: inv.product_id, vendorId: 'OWNER', points: inv.reward_points_value ?? 0, warrantyMonths: inv.warranty_months ?? 12 }
+          : null;
+
+      if (!saleDataTxn) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Invalid sale: barcode not found or already sold' });
+      }
+
+      const { productId, vendorId, points, warrantyMonths } = saleDataTxn;
+
       // Find or create customer - match by phone AND name to avoid merging different people
       const phoneNorm = String(customerPhone ?? '').trim();
       const existingCustomer = phoneNorm

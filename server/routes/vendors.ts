@@ -177,7 +177,7 @@ router.put('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) => {
 });
 
 // Delete all vendors for tenant
-router.delete('/api/vendors/all', blockVendors, async (req: AuthRequest, res) => {
+router.delete('/api/vendors/all', requireAdmin, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

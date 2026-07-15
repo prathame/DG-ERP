@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 
@@ -62,7 +63,7 @@ router.get('/api/warranties', async (req, res) => {
   }
 });
 
-router.post('/api/warranties', async (req, res) => {
+router.post('/api/warranties', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -106,7 +107,7 @@ router.post('/api/warranties', async (req, res) => {
   }
 });
 
-router.put('/api/warranties/:id', async (req, res) => {
+router.put('/api/warranties/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -205,7 +206,7 @@ router.put('/api/warranties/:id', async (req, res) => {
   }
 });
 
-router.delete('/api/warranties/:id', async (req, res) => {
+router.delete('/api/warranties/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

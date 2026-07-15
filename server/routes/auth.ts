@@ -65,6 +65,7 @@ router.post('/api/auth/login', async (req, res) => {
       role: row.role as string,
       name: row.name as string,
       tenantId: row.tenant_id as string,
+      vendorId: (row.vendor_id as string | null) ?? null,  // needed for server-side vendor scoping
     });
 
     await logAudit(pool, row.tenant_id as string, 'LOGIN', 'user', row.id as string, `User logged in: ${row.email}`, row.id as string, row.name as string);

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 
@@ -47,7 +48,7 @@ router.get('/api/orders/:id', async (req, res) => {
 });
 
 // Create order
-router.post('/api/orders', async (req, res) => {
+router.post('/api/orders', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -108,7 +109,7 @@ router.post('/api/orders', async (req, res) => {
 });
 
 // Update order status
-router.put('/api/orders/:id/status', async (req, res) => {
+router.put('/api/orders/:id/status', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -125,7 +126,7 @@ router.put('/api/orders/:id/status', async (req, res) => {
 });
 
 // Fulfill order → convert to distribution
-router.post('/api/orders/:id/fulfill', async (req, res) => {
+router.post('/api/orders/:id/fulfill', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -190,7 +191,7 @@ router.post('/api/orders/:id/fulfill', async (req, res) => {
 });
 
 // Delete order
-router.delete('/api/orders/:id', async (req, res) => {
+router.delete('/api/orders/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

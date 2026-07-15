@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, isValidPhone, isValidEmail } from '../utils/helpers';
 
@@ -39,7 +40,7 @@ router.get('/api/customers', async (req, res) => {
   }
 });
 
-router.post('/api/customers', async (req, res) => {
+router.post('/api/customers', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -62,7 +63,7 @@ router.post('/api/customers', async (req, res) => {
   }
 });
 
-router.put('/api/customers/:id', async (req, res) => {
+router.put('/api/customers/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -81,7 +82,7 @@ router.put('/api/customers/:id', async (req, res) => {
   }
 });
 
-router.delete('/api/customers/:id', async (req, res) => {
+router.delete('/api/customers/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -127,7 +128,7 @@ router.get('/api/customers/:id/purchases', async (req, res) => {
   }
 });
 
-router.put('/api/customers/:id/vendor', async (req, res) => {
+router.put('/api/customers/:id/vendor', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
