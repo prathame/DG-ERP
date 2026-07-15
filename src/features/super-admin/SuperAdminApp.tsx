@@ -10,7 +10,6 @@ import {
   X,
   FileText,
   IndianRupee,
-  Monitor,
   BookOpen,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -18,14 +17,14 @@ import { ToastProvider } from '../../components/ui';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
 import { SuperAdminAuditLog } from './SuperAdminAuditLog';
 import { SuperAdminBilling } from './SuperAdminBilling';
-import { TenantListView } from './TenantListView';
 import { TenantDetailView } from './TenantDetailView';
 import { PlanManagementView } from './PlanManagementView';
-import { OnPremView } from './OnPremView';
 import { GuideView } from './GuideView';
+import { TenantsView } from './TenantsView';
+import { SAAnalyticsView } from './SAAnalyticsView';
 import { session } from '../../lib/session';
 
-type AdminTab = 'dashboard' | 'tenants' | 'plans' | 'billing' | 'audit' | 'analytics' | 'onprem' | 'guide';
+type AdminTab = 'dashboard' | 'tenants' | 'plans' | 'billing' | 'audit' | 'analytics' | 'guide';
 
 interface SuperAdminUser {
   id: string;
@@ -46,10 +45,9 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
 
   const navItems: { id: AdminTab; label: string; icon: typeof LayoutDashboard }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'tenants', label: 'Cloud Tenants', icon: Building2 },
+    { id: 'tenants', label: 'Tenants', icon: Building2 },
     { id: 'plans', label: 'Plans', icon: CreditCard },
     { id: 'billing', label: 'Billing', icon: IndianRupee },
-    { id: 'onprem', label: 'On-Prem', icon: Monitor },
     { id: 'audit', label: 'Audit Log', icon: FileText },
     { id: 'guide', label: 'Guide', icon: BookOpen },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -76,25 +74,17 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
       case 'dashboard':
         return <SuperAdminDashboard />;
       case 'tenants':
-        return <TenantListView onSelectTenant={handleSelectTenant} />;
+        return <TenantsView onSelectTenant={handleSelectTenant} />;
       case 'plans':
         return <PlanManagementView />;
       case 'billing':
         return <SuperAdminBilling />;
       case 'audit':
         return <SuperAdminAuditLog />;
-      case 'onprem':
-        return <OnPremView saToken={session.getToken() || ''} />;
       case 'guide':
         return <GuideView />;
       case 'analytics':
-        return (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-            <BarChart3 size={48} className="mb-4 opacity-30" />
-            <p className="text-lg font-medium">Analytics Coming Soon</p>
-            <p className="text-sm mt-1">Advanced platform analytics will be available here</p>
-          </div>
-        );
+        return <SAAnalyticsView />;
       default:
         return <SuperAdminDashboard />;
     }

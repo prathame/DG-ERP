@@ -215,7 +215,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
             <p className="text-gray-500 text-sm">Tenant details and management</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={handleImpersonate}
             className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-colors"
@@ -223,6 +223,32 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
             <ExternalLink size={16} />
             Impersonate
           </button>
+          {/* Quick plan upgrade inline */}
+          <div className="flex items-center gap-1.5 border border-gray-200 rounded-xl px-2 py-1.5 bg-white">
+            <Zap size={14} className="text-purple-500 shrink-0" />
+            <select value={upgradePlan} onChange={e => setUpgradePlan(e.target.value)}
+              className="text-xs font-medium bg-transparent border-none outline-none text-gray-600 cursor-pointer pr-1">
+              <option value="">Change Plan...</option>
+              {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            {upgradePlan && (
+              <button onClick={async () => {
+                setUpgrading(true);
+                const saToken = session.getToken();
+                const r = await fetch(`/api/super-admin/tenants/${tenantId}/upgrade-plan`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${saToken}` },
+                  body: JSON.stringify({ planId: upgradePlan }),
+                });
+                const d = await r.json();
+                if (r.ok) { toast(`Changed to ${d.plan}`, 'success'); fetchTenant(); setUpgradePlan(''); }
+                else toast(d.error, 'error');
+                setUpgrading(false);
+              }} disabled={upgrading}
+                className="text-xs font-bold text-purple-600 hover:text-purple-800 disabled:opacity-50 shrink-0">
+                {upgrading ? '...' : 'Apply'}
+              </button>
+            )}
+          </div>
           {tenant.status === 'suspended' ? (
             <button
               onClick={() => handleStatusChange('active')}
