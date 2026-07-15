@@ -16,6 +16,14 @@ router.post('/api/auth/login', async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
     // Login searches across all tenants using JOIN
+    // H3 fix: scope login to the tenant's slug when provided, preventing cross-tenant
+    // email collision (two tenants sharing an email address get deterministic routing).
+    const { slug } = req.body;
+    const loginParams: string[] = [email.trim()];
+    const slugClause = (typeof slug === 'string' && slug)
+      ? (loginParams.push(slug.toLowerCase()), `AND t.slug = $${loginParams.length}`)
+      : '';
+
     const row = (await pool.query(`
       SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name,
              u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number,
@@ -26,8 +34,8 @@ router.post('/api/auth/login', async (req, res) => {
              t.plan_id
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
-      WHERE LOWER(u.email) = LOWER($1) LIMIT 1
-    `, [email.trim()])).rows[0] as Record<string, unknown> | undefined;
+      WHERE LOWER(u.email) = LOWER($1) ${slugClause} LIMIT 1
+    `, loginParams)).rows[0] as Record<string, unknown> | undefined;
 
     if (!row) return res.status(401).json({ error: 'Invalid email or password' });
 
@@ -219,7 +227,15 @@ router.post('/api/auth/forgot-password', async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
-    const user = (await pool.query('SELECT u.id, u.email, u.tenant_id FROM users u WHERE LOWER(u.email) = LOWER($1)', [email])).rows[0] as { id: string; email: string; tenant_id: string } | undefined;
+    const { slug: resetSlug } = req.body;
+    const resetParams: string[] = [email];
+    const resetSlugClause = (typeof resetSlug === 'string' && resetSlug)
+      ? (resetParams.push(resetSlug.toLowerCase()), `AND t.slug = $${resetParams.length}`)
+      : '';
+    const user = (await pool.query(
+      `SELECT u.id, u.email, u.tenant_id FROM users u JOIN tenants t ON t.id = u.tenant_id WHERE LOWER(u.email) = LOWER($1) ${resetSlugClause} LIMIT 1`,
+      resetParams
+    )).rows[0] as { id: string; email: string; tenant_id: string } | undefined;
     // Always return success to prevent email enumeration
     if (!user) return res.json({ ok: true, message: 'If this email exists, a reset link has been generated' });
 

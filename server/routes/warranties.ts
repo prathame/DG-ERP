@@ -73,10 +73,15 @@ router.post('/api/warranties', blockVendors, async (req: AuthRequest, res) => {
 
     const id = uid('W');
     const activationDate = new Date().toISOString().slice(0, 10);
-    const product = (await pool.query(
-      'SELECT id, warranty_months FROM products WHERE barcode = $1 AND tenant_id = $2',
+    // H9 fix: look up product via product_inventory.barcode (unit-level),
+    // not products.barcode (product-level, often null or the first barcode only)
+    const invRow = (await pool.query(
+      'SELECT pi.product_id FROM product_inventory pi WHERE pi.barcode = $1 AND pi.tenant_id = $2 LIMIT 1',
       [barcode, tenantId]
-    )).rows[0] as { id: string; warranty_months: number } | undefined;
+    )).rows[0] as { product_id: string } | undefined;
+    const product = invRow
+      ? (await pool.query('SELECT id, warranty_months FROM products WHERE id = $1 AND tenant_id = $2', [invRow.product_id, tenantId])).rows[0] as { id: string; warranty_months: number } | undefined
+      : undefined;
     const warrantyMonths = product?.warranty_months ?? 24;
     const now = new Date();
     const expiryDate = new Date(now.getFullYear(), now.getMonth() + warrantyMonths, Math.min(now.getDate(), 28));

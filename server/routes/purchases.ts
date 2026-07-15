@@ -148,6 +148,37 @@ router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) 
           purchasePs
         );
       }
+
+      // H8 fix: create product_inventory rows so purchased goods are immediately sellable
+      // Auto-generate barcodes using the purchase batch prefix
+      const { uid: uidFn } = await import('../utils/helpers');
+      const invVals: string[] = [];
+      const invPs: unknown[] = [];
+      let invIdx = 1;
+      for (const u of purchaseRows) {
+        for (let i = 0; i < u.qty; i++) {
+          const invId = `PI-${batchId}-${invVals.length + 1}`;
+          const barcode = `${batchId}-${String(invVals.length + 1).padStart(4, '0')}`;
+          invVals.push(`($${invIdx},$${invIdx+1},$${invIdx+2},$${invIdx+3},$${invIdx+4},$${invIdx+5},$${invIdx+6})`);
+          invPs.push(invId, u.productId, barcode, batchId, 'InStock', tenantId, 'piece');
+          invIdx += 7;
+        }
+      }
+      // Chunk at 5000 rows to stay under PG's 65535 param limit
+      const INV_CHUNK = 5000;
+      for (let off = 0; off < invVals.length; off += INV_CHUNK) {
+        await client.query(
+          `INSERT INTO product_inventory (id,product_id,barcode,batch_id,status,tenant_id,unit_type) VALUES ${invVals.slice(off, off+INV_CHUNK).join(',')}`,
+          invPs.slice(off * 7, (off + INV_CHUNK) * 7)
+        );
+      }
+      // Update product.stock totals
+      const productQtys = new Map<string, number>();
+      for (const u of purchaseRows) productQtys.set(u.productId, (productQtys.get(u.productId) || 0) + u.qty);
+      for (const [pid, qty] of productQtys) {
+        await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2 AND tenant_id = $3', [qty, pid, tenantId]);
+      }
+
       if (paidAmount > 0) {
         const payId = uid('SP');
         await client.query(

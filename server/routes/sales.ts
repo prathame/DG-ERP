@@ -210,7 +210,10 @@ router.get('/api/sales', async (req, res) => {
     const { limit, offset, page } = parsePagination(req.query as Record<string, unknown>);
     let where = 'WHERE ps.tenant_id = $1';
     const params: unknown[] = [tenantId];
-    if (typeof vendorId === 'string' && vendorId) { where += ` AND ps.vendor_id = $${params.length + 1}`; params.push(vendorId); }
+    // H1 fix: Vendor JWT can only see their own sales — override query param with JWT vendorId
+    const jwtUser = (req as AuthRequest).user;
+    const enforcedVendorId = (jwtUser?.role === 'Vendor' && jwtUser?.vendorId) ? jwtUser.vendorId : (typeof vendorId === 'string' && vendorId ? vendorId : null);
+    if (enforcedVendorId) { where += ` AND ps.vendor_id = $${params.length + 1}`; params.push(enforcedVendorId); }
     where += applyDateFilter(req.query as Record<string, unknown>, 'ps.purchase_date', params);
     const countParams = [...params];
     const total = ((await pool.query(`SELECT COUNT(*) as c FROM product_sales ps ${where}`, countParams)).rows[0] as { c: string }).c;

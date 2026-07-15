@@ -157,24 +157,35 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
         ORDER BY MIN(pd.distribution_date)
       `, [vendorId, tenantId])).rows as { batch_id: string; bill_value: number; paid: number }[];
 
-      let remaining = parsedAmount;
-      for (const b of batches) {
-        if (remaining <= 0) break;
-        const due = Number(b.bill_value) - Number(b.paid);
-        const pay = Math.min(remaining, due);
-        const id = uid('VP');
-        await pool.query(
-          'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-          [id, vendorId, pay, pDate, pMethod, referenceNumber || null, notes ? `${notes} (batch ${b.batch_id})` : `All-batch payment`, tenantId, b.batch_id]
-        );
-        remaining -= pay;
-      }
-      if (remaining > 0) {
-        const id = uid('VP');
-        await pool.query(
-          'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-          [id, vendorId, remaining, pDate, pMethod, referenceNumber || null, notes || 'Advance payment', tenantId, null]
-        );
+      // H6 fix: wrap all batch INSERTs in a single transaction
+      const batchClient = await (await import('../pg-db')).pool.connect();
+      try {
+        await batchClient.query('BEGIN');
+        let remaining = parsedAmount;
+        for (const b of batches) {
+          if (remaining <= 0) break;
+          const due = Number(b.bill_value) - Number(b.paid);
+          const pay = Math.min(remaining, due);
+          const id = uid('VP');
+          await batchClient.query(
+            'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+            [id, vendorId, pay, pDate, pMethod, referenceNumber || null, notes ? `${notes} (batch ${b.batch_id})` : `All-batch payment`, tenantId, b.batch_id]
+          );
+          remaining -= pay;
+        }
+        if (remaining > 0) {
+          const id = uid('VP');
+          await batchClient.query(
+            'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+            [id, vendorId, remaining, pDate, pMethod, referenceNumber || null, notes || 'Advance payment', tenantId, null]
+          );
+        }
+        await batchClient.query('COMMIT');
+      } catch (e) {
+        await batchClient.query('ROLLBACK');
+        throw e;
+      } finally {
+        batchClient.release();
       }
       logAudit(pool, tenantId, 'Payment Recorded', 'payment', uid('VP'), `${vendorName} paid ₹${parsedAmount} across ${batches.length} batches`);
     }

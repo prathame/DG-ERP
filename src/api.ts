@@ -495,8 +495,8 @@ vendor: (vendorId: string) =>
   auth: {
     signup: (data: { email: string; password: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }) =>
       fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string } }>('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
-    login: (email: string, password: string) =>
-      fetchApi<{ token: string; tenantId: string; tenantSlug?: string; id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[] | null; vendorId?: string | null; autoWhatsapp?: boolean; defaultGstRate?: number; gstNumber?: string | null; warrantyEnabled?: boolean; replacementEnabled?: boolean; rewardsEnabled?: boolean; financeEnabled?: boolean; chatbotEnabled?: boolean; billCustomizationEnabled?: boolean; multiLanguageEnabled?: boolean; vendorPortalEnabled?: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    login: (email: string, password: string, slug?: string) =>
+      fetchApi<{ token: string; tenantId: string; tenantSlug?: string; id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[] | null; vendorId?: string | null; autoWhatsapp?: boolean; defaultGstRate?: number; gstNumber?: string | null; warrantyEnabled?: boolean; replacementEnabled?: boolean; rewardsEnabled?: boolean; financeEnabled?: boolean; chatbotEnabled?: boolean; billCustomizationEnabled?: boolean; multiLanguageEnabled?: boolean; vendorPortalEnabled?: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, ...(slug ? { slug } : {}) }) }),
     forgotPassword: (email: string) =>
       fetchApi<{ ok: boolean; message: string; token?: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
     resetPassword: (token: string, newPassword: string) =>

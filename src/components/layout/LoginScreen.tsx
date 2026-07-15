@@ -76,7 +76,7 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
         setSuccessMessage('Password reset successfully! You can now login with your new password.');
         setTimeout(() => { setMode('login'); setSuccessMessage(''); }, 2000);
       } else if (mode === 'login') {
-        const r = await api.auth.login(form.email, form.password);
+        const r = await api.auth.login(form.email, form.password, tenant?.slug);
         storeAuthAndLogin({
           token: r.token,
           tenantId: r.tenantId,

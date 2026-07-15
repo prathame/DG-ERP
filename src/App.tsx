@@ -239,7 +239,8 @@ export default function App() {
     if (role === 'Manager') return tabId === 'settings' ? 'view' : 'full';
     if (role === 'Staff') return 'view';
     if (role === 'Vendor') return ['dashboard', 'distribution', 'finance'].includes(tabId) ? 'view' : 'hidden';
-    return 'full';
+    // H10 fix: unknown role gets no access (was incorrectly returning 'full')
+    return 'hidden';
   };
   const canAccess = (tabId: string) => getAccess(tabId) !== 'hidden';
   const visibleNavItems = navItems.filter((item) => canAccess(item.id));

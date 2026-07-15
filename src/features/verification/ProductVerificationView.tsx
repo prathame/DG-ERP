@@ -8,6 +8,11 @@ import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
 import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
 
+function esc(t: unknown): string {
+  return String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+
 interface VerificationResult {
   found: boolean;
   barcode: string;
@@ -193,14 +198,14 @@ export function ProductVerificationView() {
                 .footer{margin-top:30px;text-align:center;font-size:10px;color:#999}
                 @media print{body{padding:20px}}
               </style></head><body>
-              <div class="header"><div class="company">${companyName}</div><div class="sub">${d.vendor?.name}${d.vendor?.phone ? ` • ${d.vendor.phone}` : ''}</div></div>
+              <div class="header"><div class="company">${companyName}</div><div class="sub">${esc(d.vendor?.name || '')}${d.vendor?.phone ? ` • ${d.vendor.phone}` : ''}</div></div>
               <div class="stats">
                 <div class="stat"><div class="stat-label">Billed</div><div class="stat-value" style="color:#2563eb">₹${(d.totalDistributedValue ?? 0).toLocaleString()}</div></div>
                 <div class="stat"><div class="stat-label">Paid</div><div class="stat-value" style="color:#059669">₹${(d.totalPaid ?? 0).toLocaleString()}</div></div>
                 <div class="stat"><div class="stat-label">Balance</div><div class="stat-value" style="color:${(d.balance ?? 0) > 0 ? '#dc2626' : '#059669'}">₹${Math.abs(d.balance ?? 0).toLocaleString()}</div></div>
               </div>
               ${d.payments?.length ? `<h4>Payments</h4><table><thead><tr><th>Date</th><th>Method</th><th class="r">Amount</th></tr></thead><tbody>${d.payments.map(p => `<tr><td>${formatDate(p.paymentDate)}</td><td>${p.paymentMethod}</td><td class="r" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
-              ${d.distributions?.length ? `<h4>Distributions</h4><table><thead><tr><th>Date</th><th>Product</th><th class="r">Qty</th><th class="r">Total</th></tr></thead><tbody>${d.distributions.map(x => `<tr><td>${formatDate(x.date)}</td><td>${x.productName}</td><td class="r">${x.quantity}</td><td class="r" style="font-weight:600">₹${Number(x.total).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
+              ${d.distributions?.length ? `<h4>Distributions</h4><table><thead><tr><th>Date</th><th>Product</th><th class="r">Qty</th><th class="r">Total</th></tr></thead><tbody>${d.distributions.map(x => `<tr><td>${formatDate(x.date)}</td><td>${esc(x.productName)}</td><td class="r">${x.quantity}</td><td class="r" style="font-weight:600">₹${Number(x.total).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
               <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${companyName}</div>
               <script>window.print()</script></body></html>`);
               w.document.close();
