@@ -15,6 +15,21 @@ export function safeImgSrc(src: unknown): string {
   return '';
 }
 
+const STATE_NAMES: Record<string, string> = {
+  '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh',
+  '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh',
+  '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh', '13': 'Nagaland', '14': 'Manipur',
+  '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal',
+  '20': 'Jharkhand', '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh',
+  '24': 'Gujarat', '27': 'Maharashtra', '29': 'Karnataka', '32': 'Kerala', '33': 'Tamil Nadu',
+  '36': 'Telangana', '37': 'Andhra Pradesh',
+};
+
+export function placeOfSupplyLabel(buyerGstin?: string | null, sellerGstin?: string | null): string {
+  const code = String(buyerGstin || sellerGstin || '24').trim().toUpperCase().slice(0, 2);
+  return `${STATE_NAMES[code] || 'Gujarat'} (${code || '24'})`;
+}
+
 function fmtDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
@@ -136,6 +151,9 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   const gstAmount = showGst ? Math.round(basePrice * gstRate / 100) : 0;
   const halfGst = Math.round(gstAmount / 2);
   const grandTotal = basePrice + gstAmount;
+  const sellerGstin = String((bill as unknown as Record<string, unknown>).companyGstin || billConfig.gstNumber || '');
+  const buyerGstin = String((bill as unknown as Record<string, unknown>).customerGstin || '');
+  const posLabel = placeOfSupplyLabel(buyerGstin, sellerGstin);
 
   const numberToWords = (n: number): string => {
     if (n === 0) return 'Zero';
@@ -207,7 +225,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
         <tr class="cust-row"><td class="cust-label">Name</td><td><strong>${esc(bill.customerName)}</strong></td></tr>
         <tr class="cust-row"><td class="cust-label">Phone</td><td>${esc(bill.customerPhone)}</td></tr>
         ${bill.customerEmail ? `<tr class="cust-row"><td class="cust-label">Email</td><td>${esc(bill.customerEmail)}</td></tr>` : ''}
-        ${showGst ? `<tr class="cust-row"><td class="cust-label">Place of Supply</td><td>Gujarat (24)</td></tr>` : ''}
+        ${showGst ? `<tr class="cust-row"><td class="cust-label">Place of Supply</td><td>${esc(posLabel)}</td></tr>` : ''}
       </table>
     </td>
     <td colspan="2" style="padding:0;vertical-align:top;">
@@ -339,10 +357,19 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
 
   const gstRate = bill.gstRate || 18;
   const netVal = bill.totalValue;
-  const gstAmount = showGst ? Math.round(netVal * gstRate / 100) : 0;
+  // Prefer stored billed totals when available (matches books); else exclusive calc on net
+  const billedFromItems = bill.groupedItems?.reduce((s, g) => {
+    const line = Number((g as Record<string, unknown>).billedLineTotal ?? g.lineTotal) || 0;
+    return s + line;
+  }, 0) ?? 0;
+  const gstAmount = showGst
+    ? (billedFromItems > netVal ? Math.round(billedFromItems - netVal) : Math.round(netVal * gstRate / 100))
+    : 0;
   const halfGst = Math.round(gstAmount / 2);
   const grandTotal = netVal + gstAmount;
   const vendorGstin = (bill.vendor as Record<string, unknown>).gstNumber as string || '';
+  const sellerGstin = String(billConfig.gstNumber || (bill as unknown as Record<string, unknown>).companyGstin || '');
+  const posLabel = placeOfSupplyLabel(vendorGstin, sellerGstin);
 
   const numberToWords = (n: number): string => {
     if (n === 0) return 'Zero';
@@ -436,7 +463,7 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
         <tr class="cust-row"><td class="cust-label">Address</td><td>${esc(bill.vendor.address || '-')}</td></tr>
         <tr class="cust-row"><td class="cust-label">Phone</td><td>${esc(bill.vendor.phone || '-')}</td></tr>
         ${showGst ? `<tr class="cust-row"><td class="cust-label">GSTIN</td><td class="gstin-text">${esc(vendorGstin || '-')}</td></tr>` : ''}
-        ${showGst ? `<tr class="cust-row"><td class="cust-label">Place of Supply</td><td>Gujarat (24)</td></tr>` : ''}
+        ${showGst ? `<tr class="cust-row"><td class="cust-label">Place of Supply</td><td>${esc(posLabel)}</td></tr>` : ''}
       </table>
     </td>
     <td colspan="2" style="padding:0;vertical-align:top;">

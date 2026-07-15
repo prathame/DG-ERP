@@ -25,6 +25,58 @@ export function isValidGstin(gstin: string): boolean {
 /** Billable amount per distributed unit (GST-inclusive when billed_price is set). */
 export const DISTRIBUTION_BILL_UNIT_SQL = 'COALESCE(pd.billed_price, pd.net_price, p.price)';
 
+/** Taxable value excl. GST for distribution units. */
+export const DISTRIBUTION_TAXABLE_SQL = 'COALESCE(pd.net_price, p.price)';
+
+/** GST amount on a distribution unit (0 when gst not applied). */
+export const DISTRIBUTION_TAX_SQL = `CASE WHEN COALESCE(pd.gst_applied, false) THEN GREATEST(0, COALESCE(pd.billed_price, pd.net_price, p.price) - COALESCE(pd.net_price, p.price)) ELSE 0 END`;
+
+/** Purchase taxable (excl. GST) = cost_price. */
+export const PURCHASE_TAXABLE_SQL = 'COALESCE(pp.cost_price, 0)';
+
+/** Purchase GST = billed - cost when gst applied. */
+export const PURCHASE_TAX_SQL = `CASE WHEN COALESCE(pp.gst_applied, false) THEN GREATEST(0, COALESCE(pp.billed_price, pp.cost_price, 0) - COALESCE(pp.cost_price, 0)) ELSE 0 END`;
+
+/** Split GST into CGST/SGST (intra) or IGST (inter). Returns round amounts that sum to taxAmt. */
+export function splitGst(
+  taxAmt: number,
+  sellerGstin?: string | null,
+  buyerGstin?: string | null,
+): { cgst: number; sgst: number; igst: number; interstate: boolean } {
+  const tax = Math.round(Number(taxAmt) * 100) / 100;
+  const sState = String(sellerGstin || '').trim().toUpperCase().slice(0, 2);
+  const bState = String(buyerGstin || '').trim().toUpperCase().slice(0, 2);
+  const interstate = !!(sState && bState && /^\d{2}$/.test(sState) && /^\d{2}$/.test(bState) && sState !== bState);
+  if (interstate) return { cgst: 0, sgst: 0, igst: tax, interstate: true };
+  const cgst = Math.round((tax / 2) * 100) / 100;
+  return { cgst, sgst: Math.round((tax - cgst) * 100) / 100, igst: 0, interstate: false };
+}
+
+/** Place of supply label from GSTIN state code (fallback seller / Gujarat). */
+export function placeOfSupplyLabel(buyerGstin?: string | null, sellerGstin?: string | null): string {
+  const STATE: Record<string, string> = {
+    '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh',
+    '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh',
+    '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh', '13': 'Nagaland', '14': 'Manipur',
+    '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal',
+    '20': 'Jharkhand', '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh',
+    '24': 'Gujarat', '25': 'Daman & Diu', '26': 'Dadra & Nagar Haveli', '27': 'Maharashtra',
+    '29': 'Karnataka', '30': 'Goa', '32': 'Kerala', '33': 'Tamil Nadu', '34': 'Puducherry',
+    '36': 'Telangana', '37': 'Andhra Pradesh',
+  };
+  const code = String(buyerGstin || sellerGstin || '24').trim().toUpperCase().slice(0, 2);
+  const name = STATE[code] || 'Gujarat';
+  return `${name} (${code || '24'})`;
+}
+
+/** Exclusive GST: taxable base, tax amount, total. */
+export function gstFromExclusive(taxable: number, ratePercent: number): { taxable: number; tax: number; total: number } {
+  const base = Math.round(Number(taxable) * 100) / 100;
+  const rate = Number(ratePercent) || 0;
+  const tax = Math.round(base * rate) / 100;
+  return { taxable: base, tax, total: Math.round((base + tax) * 100) / 100 };
+}
+
 export function parsePagination(query: Record<string, unknown>): { limit: number; offset: number; page: number } {
   const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
   const limit = Math.min(200, Math.max(1, parseInt(String(query.limit ?? '50'), 10) || 50));

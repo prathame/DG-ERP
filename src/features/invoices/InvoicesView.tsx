@@ -137,6 +137,11 @@ export function InvoicesView() {
             ${inv.customerGstin ? `<br/><span style="font-family:monospace;font-size:11px;">GSTIN: ${esc(inv.customerGstin)}</span>` : ''}
             ${inv.customerAddress ? `<br/><span style="font-size:10px;">${esc(inv.customerAddress)}</span>` : ''}
             ${inv.customerPhone ? `<br/><span style="font-size:10px;">Ph: ${esc(inv.customerPhone)}</span>` : ''}
+            ${hasGst ? `<br/><span style="font-size:10px;">Place of Supply: ${esc((() => {
+              const code = String(inv.customerGstin || user.gstNumber || '24').trim().toUpperCase().slice(0, 2);
+              const STATES: Record<string, string> = { '24': 'Gujarat', '27': 'Maharashtra', '07': 'Delhi', '29': 'Karnataka', '33': 'Tamil Nadu', '09': 'Uttar Pradesh', '06': 'Haryana', '03': 'Punjab', '08': 'Rajasthan', '23': 'Madhya Pradesh', '19': 'West Bengal', '36': 'Telangana', '37': 'Andhra Pradesh', '32': 'Kerala' };
+              return `${STATES[code] || 'Gujarat'} (${code || '24'})`;
+            })())}</span>` : ''}
           </td>
         </tr></table>
       </td></tr>

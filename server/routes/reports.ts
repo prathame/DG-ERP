@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { blockVendors } from '../middleware/auth';
 import { pool } from '../pg-db';
-import { DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
+import { DISTRIBUTION_BILL_UNIT_SQL, gstFromExclusive, splitGst } from '../utils/helpers';
 
 const router = Router();
 
@@ -31,24 +31,24 @@ router.get('/api/reports/sales-register', async (req, res) => {
     sql += ' ORDER BY ps.purchase_date DESC, ps.id DESC';
 
     const rows = (await pool.query(sql, params)).rows as Record<string, unknown>[];
+    // sale_price is taxable (exclusive) — matches tax invoice print
     const mapped = rows.map((r) => {
-      const rate = Number(r.sale_price ?? r.product_price ?? 0);
+      const taxable = Number(r.sale_price ?? r.product_price ?? 0);
       const gstRate = Number(r.gst_rate ?? 18);
-      const taxable = Math.round(rate * 100 / (100 + gstRate));
-      const gstAmt = rate - taxable;
-      const halfGst = Math.round(gstAmt / 2);
+      const { tax: gstAmt, total } = gstFromExclusive(taxable, gstRate);
+      const { cgst, sgst } = splitGst(gstAmt);
       return {
         id: r.id, date: r.purchase_date, barcode: r.barcode, customerName: r.customer_name,
         customerPhone: r.customer_phone, vendorName: r.vendor_name, productName: r.product_name,
-        hsnCode: r.hsn_code || '', gstRate, rate, taxableValue: taxable,
-        cgst: halfGst, sgst: gstAmt - halfGst, total: rate,
+        hsnCode: r.hsn_code || '', gstRate, rate: taxable, taxableValue: taxable,
+        cgst, sgst, total,
       };
     });
     const totals = mapped.reduce((acc, r) => {
       acc.taxableValue += r.taxableValue; acc.cgst += r.cgst; acc.sgst += r.sgst; acc.total += r.total;
       return acc;
     }, { taxableValue: 0, cgst: 0, sgst: 0, total: 0 });
-    res.json({ rows: mapped, totals, count: mapped.length });
+    res.json({ rows: mapped, totals, count: mapped.length, pricing: 'exclusive' });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
@@ -333,6 +333,20 @@ router.get('/api/reports/gstr1', async (req, res) => {
       ORDER BY pd.distribution_date, pd.batch_id
     `, [tenantId, startDate, endDate])).rows as Record<string, unknown>[];
 
+    // Standalone invoices (issued)
+    const invDocRows = (await pool.query(`
+      SELECT id, invoice_number, invoice_date, customer_name, customer_gstin, subtotal, tax_total, grand_total, items
+      FROM standalone_invoices
+      WHERE tenant_id = $1 AND invoice_date >= $2 AND invoice_date < $3 AND status NOT IN ('cancelled','draft')
+    `, [tenantId, startDate, endDate])).rows as Record<string, unknown>[];
+
+    // Credit notes for CDNR
+    const cnRows = (await pool.query(`
+      SELECT note_number, note_date, customer_name, vendor_name, subtotal, gst_amount, total, reference_invoice, gst_rate
+      FROM credit_debit_notes
+      WHERE tenant_id = $1 AND note_date >= $2 AND note_date < $3 AND note_type = 'credit'
+    `, [tenantId, startDate, endDate])).rows as Record<string, unknown>[];
+
     // Group by batch (invoice) for B2B
     const invoiceMap: Record<string, { batchId: string; date: string; vendorName: string; gstin: string; items: { hsn: string; name: string; qty: number; rate: number; taxable: number; cgst: number; sgst: number; total: number }[] }> = {};
     const b2cItems: { hsn: string; name: string; qty: number; taxable: number; cgst: number; sgst: number; total: number }[] = [];
@@ -396,16 +410,73 @@ router.get('/api/reports/gstr1', async (req, res) => {
       num: i + 1, hsn_sc: h.hsn, desc: h.desc, uqc: h.uqc, qty: h.qty, txval: h.taxable, iamt: 0, camt: h.cgst, samt: h.sgst, rt: h.rate,
     }));
 
+    // Append standalone invoices into B2B / B2CS
+    for (const inv of invDocRows) {
+      const gstin = String(inv.customer_gstin || '');
+      const taxable = Number(inv.subtotal) || 0;
+      const tax = Number(inv.tax_total) || 0;
+      const { cgst, sgst, igst } = splitGst(tax, sellerGstin, gstin);
+      const fmtDate = new Date(inv.invoice_date as string).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+      if (gstin && gstin.length >= 15) {
+        if (!b2bByGstin[gstin]) b2bByGstin[gstin] = { ctin: gstin, cfs: 'Y', inv: [] };
+        b2bByGstin[gstin].inv.push({
+          inum: String(inv.invoice_number), idt: fmtDate, val: Number(inv.grand_total) || 0,
+          pos: gstin.substring(0, 2), rchrg: 'N', inv_typ: 'R',
+          itms: [{ num: 1, itm_det: { rt: taxable > 0 ? Math.round((tax / taxable) * 100) : 0, txval: taxable, camt: cgst, samt: sgst, iamt: igst } }],
+        });
+      } else {
+        const rate = taxable > 0 ? Math.round((tax / taxable) * 100) : 0;
+        const key = `${rate}`;
+        if (!b2csGrouped[key]) b2csGrouped[key] = { rt: rate, txval: 0, camt: 0, samt: 0, iamt: 0 };
+        b2csGrouped[key].txval += taxable; b2csGrouped[key].camt += cgst; b2csGrouped[key].samt += sgst; b2csGrouped[key].iamt += igst;
+      }
+    }
+
+    const cdnr = cnRows.map((n) => {
+      const tax = Number(n.gst_amount) || 0;
+      const taxable = Number(n.subtotal) || 0;
+      const half = Math.round(tax / 2 * 100) / 100;
+      return {
+        nt_num: String(n.note_number),
+        nt_dt: n.note_date,
+        ntty: 'C',
+        rsn: '01',
+        val: Number(n.total) || 0,
+        itms: [{ num: 1, itm_det: { rt: Number(n.gst_rate) || 18, txval: taxable, camt: half, samt: Math.round((tax - half) * 100) / 100, iamt: 0 } }],
+        ref: n.reference_invoice || null,
+        party: n.customer_name || n.vendor_name || null,
+      };
+    });
+
     const gstr1 = {
       gstin: sellerGstin,
       fp: period,
       gt: 0,
       cur_gt: 0,
+      disclaimer: 'Working draft for internal use — verify before GST portal upload.',
       b2b: Object.values(b2bByGstin),
-      b2cs: Object.values(b2csGrouped).map(g => ({ ...g, sply_ty: 'INTRA', pos: sellerGstin.substring(0, 2), typ: 'OE' })),
+      b2cs: Object.values(b2csGrouped).map(g => ({
+        ...g,
+        sply_ty: g.iamt > 0 ? 'INTER' : 'INTRA',
+        pos: sellerGstin.substring(0, 2) || '24',
+        typ: 'OE',
+      })),
+      cdnr,
       hsn: { data: hsnData },
       nil: { inv: [{ sply_ty: 'INTRB2B', nil_amt: 0, expt_amt: 0, ngsup_amt: 0 }, { sply_ty: 'INTRB2C', nil_amt: 0, expt_amt: 0, ngsup_amt: 0 }] },
-      doc_issue: { doc_det: [{ doc_num: 1, docs: [{ num: 1, from: `INV-${distRows[0]?.batch_id || '0'}`, to: `INV-${distRows[distRows.length - 1]?.batch_id || '0'}`, totnum: Object.keys(invoiceMap).length, cancel: 0, net_issue: Object.keys(invoiceMap).length }] }] },
+      doc_issue: {
+        doc_det: [{
+          doc_num: 1,
+          docs: [{
+            num: 1,
+            from: invDocRows[0]?.invoice_number || `INV-${distRows[0]?.batch_id || '0'}`,
+            to: invDocRows[invDocRows.length - 1]?.invoice_number || `INV-${distRows[distRows.length - 1]?.batch_id || '0'}`,
+            totnum: Object.keys(invoiceMap).length + invDocRows.length,
+            cancel: 0,
+            net_issue: Object.keys(invoiceMap).length + invDocRows.length,
+          }],
+        }],
+      },
     };
 
     res.json(gstr1);
