@@ -760,6 +760,132 @@ def test_onprem(sa_h):
     s, d = req("GET", "/api/super-admin/onprem", headers=sa_h)
     ok("Deleted license not in list", not any(l.get("id") == lic_id for l in (d if isinstance(d, list) else [])))
 
+# ── GST API tests (E-invoice + E-way Bill, mock mode) ─────────────────────────
+def test_gst_api(sa_h):
+    global CURRENT_TYPE
+    CURRENT_TYPE = "gst-api"
+    RESULTS.setdefault("gst-api", {"pass":[], "fail":[], "skip":[]})
+
+    print("\n\n" + "━"*60)
+    print("  GST API TESTS (E-invoice + E-way Bill)")
+    print("━"*60)
+
+    # ── Create a fresh tenant + scaffold data ─────────────────────────────────
+    import random, time as _t
+    ts = f"{int(_t.time())}{random.randint(10,99)}"
+    slug = f"gst{ts}"
+    email = f"admin@{slug}.com"
+    s,d = req("POST","/api/super-admin/tenants",{
+        "companyName": f"GST Test {ts}",
+        "adminName": "Admin",
+        "adminEmail": email,
+        "adminPassword": "Test@123",
+        "businessType": "manufacturer",
+    }, sa_h)
+    if s not in (200,201):
+        ok("GST tenant setup", False, f"{s} {d}"); return
+    tid = d["tenantId"]
+    s,d = req("POST","/api/auth/login",{"email":email,"password":"Test@123"},{"x-tenant-id":tid})
+    if s != 200:
+        ok("GST tenant login", False, f"{s}"); cleanup(sa_h, tid); return
+    tok = d["token"]
+    D   = h(tok, tid)
+
+    # Create product + vendor + distribution batch
+    s,p = req("POST","/api/products",{"name":"GST Widget","price":100,"warrantyMonths":12,
+              "hsnCode":"8473","gstRate":18,"barcodeMode":"auto","quantity":3},D)
+    pid = p.get("id","") if s in (200,201) else ""
+    s,v = req("POST","/api/vendors",{"name":"GST Vendor","phone":"9000000001"},D)
+    vid = v.get("id","") if s in (200,201) else ""
+    batch_id = ""
+    if pid and vid:
+        s,b = req("POST","/api/distribution/batch",{
+            "vendorId":vid,"distributionDate":"2026-07-15",
+            "items":[{"productId":pid,"quantity":2}]},D)
+        batch_id = b.get("batchId","") if s in (200,201) else ""
+    ok("GST scaffold (product+vendor+batch)", bool(batch_id), f"pid={pid} vid={vid} batch={batch_id}")
+
+    if not batch_id:
+        cleanup(sa_h, tid); return
+
+    # ── Settings ──────────────────────────────────────────────────────────────
+    sec("GST API settings")
+    s,d = req("GET","/api/gst/settings",headers=D)
+    ok("GET settings → 200", s == 200, str(d))
+    ok("Default mode is mock", d.get("mode") == "mock")
+
+    s,d = req("PUT","/api/gst/settings",{
+        "mode":"mock","gstin":"24AAAPZ9999G1ZI",
+        "username":"testuser","password":"test","clientId":"test-id","clientSecret":"test-sec"
+    },D)
+    ok("PUT settings → 200", s == 200, str(d))
+
+    s,d = req("PUT","/api/gst/settings",{"mode":"invalid"},D)
+    ok("Invalid mode → 400", s == 400, str(d))
+
+    # ── IRN generation (mock) ─────────────────────────────────────────────────
+    sec("E-invoice / IRN")
+    s,d = req("POST","/api/gst/irn/generate",{"batchId":batch_id},D)
+    ok("IRN generate → 200", s == 200, d.get("error",""))
+    ok("IRN returned", bool(d.get("irn","")), d.get("irn",""))
+    ok("ackNo returned", bool(d.get("ackNo","")))
+    ok("qrCode returned", bool(d.get("qrCode","")))
+    ok("mode=mock in response", d.get("mode") == "mock")
+    irn = d.get("irn","")
+
+    # Missing batchId → 400
+    s,d = req("POST","/api/gst/irn/generate",{},D)
+    ok("IRN generate missing batchId → 400", s == 400, str(d))
+
+    # Bad batchId → 404
+    s,d = req("POST","/api/gst/irn/generate",{"batchId":"FAKE-BATCH"},D)
+    ok("IRN generate bad batchId → 404", s == 404, str(d))
+
+    # Idempotent — second call should succeed (overwrites IRN on same batch)
+    s,d = req("POST","/api/gst/irn/generate",{"batchId":batch_id},D)
+    ok("IRN regenerate → 200 (idempotent)", s == 200, d.get("error",""))
+
+    # ── E-way bill generation (mock) ──────────────────────────────────────────
+    sec("E-way Bill")
+    s,d = req("POST","/api/gst/ewb/generate",{
+        "batchId":batch_id,"vehicleNo":"GJ01AB1234","distance":100
+    },D)
+    ok("EWB generate → 200", s == 200, d.get("error",""))
+    ok("ewbNo returned", bool(d.get("ewbNo","")), d.get("ewbNo",""))
+    ok("ewbDt returned", bool(d.get("ewbDt","")))
+    ok("ewbValidTill returned", bool(d.get("ewbValidTill","")))
+    ok("mode=mock in EWB response", d.get("mode") == "mock")
+
+    # Missing vehicleNo → 400
+    s,d = req("POST","/api/gst/ewb/generate",{"batchId":batch_id,"distance":100},D)
+    ok("EWB missing vehicleNo → 400", s == 400, str(d))
+
+    # Missing distance → 400
+    s,d = req("POST","/api/gst/ewb/generate",{"batchId":batch_id,"vehicleNo":"GJ01AB1234"},D)
+    ok("EWB missing distance → 400", s == 400, str(d))
+
+    # Bad batchId → 404
+    s,d = req("POST","/api/gst/ewb/generate",{"batchId":"FAKE","vehicleNo":"GJ01AB1234","distance":10},D)
+    ok("EWB bad batchId → 404", s == 404, str(d))
+
+    # ── IRN cancel (mock) ─────────────────────────────────────────────────────
+    sec("IRN cancel")
+    if irn:
+        s,d = req("POST","/api/gst/irn/cancel",{"irn":irn,"reason":1,"remark":"Test cancel"},D)
+        ok("IRN cancel → 200", s == 200, d.get("error",""))
+
+    s,d = req("POST","/api/gst/irn/cancel",{"reason":1},D)
+    ok("IRN cancel missing irn → 400", s == 400, str(d))
+
+    # ── Auth: Vendor cannot call GST APIs ─────────────────────────────────────
+    sec("GST API auth checks")
+    s,_ = req("GET","/api/gst/settings")
+    ok("Settings no auth → 401", s == 401)
+
+    # ── Cleanup ───────────────────────────────────────────────────────────────
+    cleanup(sa_h, tid)
+
+
 def cleanup(sa_h, *tids):
     for tid in tids:
         if tid: req("DELETE",f"/api/super-admin/tenants/{tid}",headers=sa_h)
@@ -832,13 +958,16 @@ if __name__ == "__main__":
     # ── On-Prem API tests (super admin scope, no Electron needed)
     test_onprem(sa_h)
 
+    # ── GST API tests (mock mode — no real credentials needed)
+    test_gst_api(sa_h)
+
     # ── Summary ───────────────────────────────────────────────────────────────
     print(f"\n\n{'═'*60}")
     print("  RESULTS BY BUSINESS TYPE")
     print(f"{'═'*60}")
 
     grand_pass = grand_fail = 0
-    for btype in ["manufacturer","dealer","retail","service","on-prem"]:
+    for btype in ["manufacturer","dealer","retail","service","on-prem","gst-api"]:
         r = RESULTS.get(btype, {"pass":[],"fail":[],"skip":[]})
         p,f,sk = len(r["pass"]),len(r["fail"]),len(r["skip"])
         grand_pass += p; grand_fail += f
