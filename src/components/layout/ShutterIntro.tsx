@@ -15,7 +15,7 @@ function splitGraphemes(str: string): string[] {
 const NOISE = ['8','M','W','H','#','X','0','@','$','%','&','N','B','R','Z'];
 
 // One flap cell — dark panel, center divider, rapid char cycling
-const SplitFlapChar = memo(function SplitFlapChar({ char, delayMs, trigger }: { char: string; delayMs: number; trigger: number }) {
+const SplitFlapChar = memo(function SplitFlapChar({ char, delayMs, trigger, instant }: { char: string; delayMs: number; trigger: number; instant?: boolean }) {
   const [face, setFace] = useState(' ');
   const [scaleY, setScaleY] = useState(1);
   const cancelled = useRef(false);
@@ -23,26 +23,36 @@ const SplitFlapChar = memo(function SplitFlapChar({ char, delayMs, trigger }: { 
   useEffect(() => {
     if (!trigger) return;
     cancelled.current = false;
+
+    if (instant) {
+      // Single clean flip — no noise cycling
+      const t = setTimeout(() => {
+        if (cancelled.current) return;
+        setScaleY(0);
+        setTimeout(() => { if (!cancelled.current) { setFace(char); setScaleY(1); } }, 45);
+      }, delayMs);
+      return () => { cancelled.current = true; clearTimeout(t); };
+    }
+
     let cyclesDone = 0;
-    // More cycles for earlier characters (they start before later ones settle)
     const totalCycles = 10 - Math.min(delayMs / 80, 6);
 
     const flip = () => {
       if (cancelled.current) return;
-      setScaleY(0);                                     // collapse card
+      setScaleY(0);
       setTimeout(() => {
         if (cancelled.current) return;
         const isLast = cyclesDone >= totalCycles - 1;
         setFace(isLast ? char : NOISE[cyclesDone % NOISE.length]);
-        setScaleY(1);                                   // expand with new char
+        setScaleY(1);
         cyclesDone++;
-        if (!isLast) setTimeout(flip, 55 + cyclesDone * 6);  // slows down near end
+        if (!isLast) setTimeout(flip, 55 + cyclesDone * 6);
       }, 45);
     };
 
     const t = setTimeout(flip, delayMs);
     return () => { cancelled.current = true; clearTimeout(t); };
-  }, [char, delayMs, trigger]);
+  }, [char, delayMs, trigger, instant]);
 
   return (
     <div style={{
@@ -76,12 +86,14 @@ const SplitFlapChar = memo(function SplitFlapChar({ char, delayMs, trigger }: { 
 
 function SplitFlapWord({ word, trigger }: { word: string; trigger: number }) {
   const chars = splitGraphemes(word);
+  // trigger=1 is the initial English reveal — skip noise, just flip cleanly
+  const instant = trigger === 1;
   return (
     <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
       {chars.map((char, i) =>
         char === ' '
-          ? <div key={i} style={{ width: '0.35em' }} />   // space = visible gap, no panel
-          : <SplitFlapChar key={i} char={char} delayMs={i * 80} trigger={trigger} />
+          ? <div key={i} style={{ width: '0.35em' }} />
+          : <SplitFlapChar key={i} char={char} delayMs={i * (instant ? 60 : 80)} trigger={trigger} instant={instant} />
       )}
     </div>
   );
