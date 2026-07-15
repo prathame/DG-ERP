@@ -8,10 +8,10 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
 
   // Phase timeline
   useEffect(() => {
-    // Shutter fully open at ~1.2s → hold brand for 0.9s → fade out
-    const t1 = setTimeout(() => setPhase('reveal'), 1200);
-    const t2 = setTimeout(() => setPhase('done'), 2400);
-    const t3 = setTimeout(onDone, 2800);
+    // Shutter fully open at ~2s → hold brand for 3s → fade out
+    const t1 = setTimeout(() => setPhase('reveal'), 2000);
+    const t2 = setTimeout(() => setPhase('done'), 5200);
+    const t3 = setTimeout(onDone, 5700);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onDone]);
 
@@ -73,13 +73,12 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
           {/* ── Shutter slats ─────────────────────────────────────────── */}
           <div className="absolute inset-0 flex flex-col pointer-events-none" style={{ zIndex: 10 }}>
             {Array.from({ length: SLATS }).map((_, i) => {
-              const delay = i * 0.055; // bottom → top stagger
-              const slat = SLATS - 1 - i; // flip: bottom slat animates first
+              const delay = 0.3 + i * 0.09; // slower stagger, starts after a brief pause
+              const slat = SLATS - 1 - i;   // bottom slat moves first
               return (
                 <motion.div
                   key={slat}
                   style={{ flex: 1, position: 'relative', overflow: 'hidden' }}
-                  initial={{ scaleY: 1, originY: 0 }}
                 >
                   {/* Slat body */}
                   <motion.div
@@ -99,7 +98,7 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
                     animate={{ y: '-100%' }}
                     transition={{
                       delay,
-                      duration: 0.42,
+                      duration: 0.6,
                       ease: [0.4, 0, 0.2, 1],
                     }}
                   />
@@ -115,7 +114,7 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
                     }}
                     initial={{ y: 0 }}
                     animate={{ y: '-100%' }}
-                    transition={{ delay, duration: 0.42, ease: [0.4, 0, 0.2, 1] }}
+                    transition={{ delay, duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
                   />
                 </motion.div>
               );

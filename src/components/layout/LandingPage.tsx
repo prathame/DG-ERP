@@ -78,8 +78,8 @@ function EnquiryForm({ dark }: { dark: boolean }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export function LandingPage() {
-  const [shutterDone, setShutterDone] = useState(() => sessionStorage.getItem('dhandho_intro') === '1');
-  const handleShutterDone = () => { sessionStorage.setItem('dhandho_intro', '1'); setShutterDone(true); };
+  const [shutterDone, setShutterDone] = useState(false);
+  const handleShutterDone = () => setShutterDone(true);
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [lang, setLang] = useState<'en' | 'hi' | 'gu'>('en');
   const [heroLang, setHeroLang] = useState(0);
