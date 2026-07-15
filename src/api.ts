@@ -132,7 +132,7 @@ export interface DistributionBillData {
 }
 
 const getCache = new Map<string, { data: unknown; ts: number }>();
-const GET_CACHE_TTL = 15000;
+const GET_CACHE_TTL = 3000; // M6 fix: 3s (was 15s) — reduces stale UI after mutations
 
 export function invalidateCache(prefix?: string) {
   if (!prefix) { getCache.clear(); return; }
@@ -294,16 +294,17 @@ export const api = {
     recentActivity: () =>
       fetchApi<{ type: string; id: string; label: string; amount: number; date: string }[]>('/analytics/recent-activity'),
     overview: (from?: string, to?: string) => {
-      // RFC 10008 — HTTP QUERY method: safe + idempotent + body (replaces GET ?from=&to=)
+      // M6 fix: use GET with query params instead of experimental QUERY method
+      const qp = new URLSearchParams();
+      if (from) qp.set('from', from);
+      if (to) qp.set('to', to);
+      const qs = qp.toString();
       return fetchApi<{
         money: { collections: number; revenue: number; distribution: number; expenses: number; outstanding: number; invoiceOutstanding: number };
         recentActivity: { type: string; id: string; label: string; amount: number; date: string }[];
         topVendors: { vendorId: string; vendorName: string; balance: number }[];
         counts: { customerMaster: number; vendorMaster: number; itemMaster: number; bankMaster: number; staffCount: number };
-      }>('/analytics/overview', {
-        method: 'QUERY',
-        body: JSON.stringify({ ...(from ? { from } : {}), ...(to ? { to } : {}) }),
-      });
+      }>(`/analytics/overview${qs ? '?' + qs : ''}`, { method: 'GET' });
     },
 vendor: (vendorId: string) =>
       fetchApi<{

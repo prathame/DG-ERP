@@ -73,7 +73,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || (isProduction ? ['https://dhandho.app'] : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002']);
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && (allowedOrigins.includes(origin) || !isProduction)) {
+  if (origin && allowedOrigins.includes(origin)) {  // M8 fix: removed !isProduction catch-all
     res.header('Access-Control-Allow-Origin', origin);
   }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');

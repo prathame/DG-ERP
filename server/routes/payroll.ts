@@ -11,13 +11,24 @@ router.get('/api/staff', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { search } = req.query;
+    // M7 fix: replace 4 correlated subqueries with a single LEFT JOIN aggregate
     let sql = `SELECT s.*,
-      COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1 AND payment_type IN ('salary','bonus')), 0) as total_paid,
-      COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1 AND payment_type = 'advance'), 0) as total_advance,
-      COALESCE((SELECT SUM(amount) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1 AND payment_type = 'advance_repay'), 0) as total_repaid,
-      COALESCE((SELECT COUNT(*) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1), 0) as payment_count,
-      (SELECT MAX(payment_date) FROM staff_payments WHERE staff_name = s.name AND tenant_id = $1) as last_payment
-      FROM staff_members s WHERE s.tenant_id = $1`;
+      COALESCE(agg.total_paid, 0)    AS total_paid,
+      COALESCE(agg.total_advance, 0) AS total_advance,
+      COALESCE(agg.total_repaid, 0)  AS total_repaid,
+      COALESCE(agg.payment_count, 0) AS payment_count,
+      agg.last_payment
+      FROM staff_members s
+      LEFT JOIN (
+        SELECT staff_name,
+          SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END) AS total_paid,
+          SUM(CASE WHEN payment_type = 'advance'           THEN amount ELSE 0 END) AS total_advance,
+          SUM(CASE WHEN payment_type = 'advance_repay'     THEN amount ELSE 0 END) AS total_repaid,
+          COUNT(*)                                                                  AS payment_count,
+          MAX(payment_date)                                                         AS last_payment
+        FROM staff_payments WHERE tenant_id = $1 GROUP BY staff_name
+      ) agg ON agg.staff_name = s.name
+      WHERE s.tenant_id = $1`;
     const params: unknown[] = [tenantId];
     if (typeof search === 'string' && search) { sql += ` AND (s.name ILIKE $2 OR s.phone ILIKE $2 OR s.role ILIKE $2)`; params.push(`%${search}%`); }
     sql += ' ORDER BY s.name';

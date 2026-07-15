@@ -1,4 +1,8 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
+
+// M5 fix: rate limit public on-prem endpoints (no JWT)
+const onpremLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, message: { error: 'Too many requests' }, standardHeaders: true, legacyHeaders: false });
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { superAdminMiddleware } from '../middleware/auth';
@@ -8,14 +12,15 @@ const router = Router();
 
 // ── License key generator ─────────────────────────────────────────────────────
 function generateLicenseKey(): string {
-  const seg = () => crypto.randomBytes(2).toString('hex').toUpperCase();
+  // M5 fix: 4 bytes/segment = 32 bits × 3 segments = 96-bit key space (was 48-bit)
+  const seg = () => crypto.randomBytes(4).toString('hex').toUpperCase();
   return `DG-${seg()}-${seg()}-${seg()}`;
 }
 
 // ── Public endpoints (validated by license key, no JWT) ───────────────────────
 
 // Activate license on first install
-router.post('/api/onprem/activate', async (req, res) => {
+router.post('/api/onprem/activate', onpremLimiter, async (req, res) => {
   try {
     const { licenseKey, machineId, osInfo, appVersion } = req.body;
     if (!licenseKey || !machineId) return res.status(400).json({ error: 'licenseKey and machineId required' });
@@ -55,7 +60,7 @@ router.post('/api/onprem/activate', async (req, res) => {
 });
 
 // Heartbeat — called every 60 min by on-prem app when online
-router.post('/api/onprem/heartbeat', async (req, res) => {
+router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
   try {
     const { licenseKey, machineId, version, activeUsers, diskMB } = req.body;
     if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });

@@ -41,8 +41,9 @@ export const pool = new Pool({
   max: process.env.DATABASE_POOL_SIZE ? parseInt(process.env.DATABASE_POOL_SIZE, 10) : (process.env.NODE_ENV === 'production' ? 10 : 20),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
+  // M9 fix: use proper cert validation for managed DBs; only disable locally
   ...(process.env.DATABASE_URL?.includes('render.com') || process.env.DATABASE_URL?.includes('neon.tech') || process.env.DATABASE_SSL === 'true'
-    ? { ssl: { rejectUnauthorized: false } }
+    ? { ssl: { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false' } }
     : {}),
 });
 
