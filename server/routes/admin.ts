@@ -13,14 +13,25 @@ function isAdmin(role: string | undefined) {
 }
 
 type AccessLevel = 'hidden' | 'view' | 'print' | 'full';
-const ALL_MODULES = ['dashboard', 'sales', 'distribution', 'inventory', 'purchases', 'quotations', 'orders', 'finance', 'accounts', 'settings'];
+const ALL_MODULES = [
+  'dashboard', 'sales', 'distribution', 'inventory', 'purchases', 'quotations',
+  'orders', 'finance', 'accounts', 'warranty', 'replacements', 'rewards', 'settings',
+];
 
 const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
   Admin: Object.fromEntries(ALL_MODULES.map(m => [m, 'full'])),
   Manager: Object.fromEntries(ALL_MODULES.map(m => [m, m === 'settings' ? 'view' : 'full'])),
   Staff: Object.fromEntries(ALL_MODULES.map(m => [m, 'view'])),
-  Warehouse: { dashboard: 'view', sales: 'hidden', distribution: 'print', inventory: 'view', purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'hidden', accounts: 'hidden', settings: 'hidden' },
-  Vendor: { dashboard: 'view', sales: 'hidden', distribution: 'view', inventory: 'hidden', purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'view', accounts: 'hidden', settings: 'hidden' },
+  Warehouse: {
+    dashboard: 'view', sales: 'hidden', distribution: 'print', inventory: 'view',
+    purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'hidden',
+    accounts: 'hidden', warranty: 'hidden', replacements: 'hidden', rewards: 'hidden', settings: 'hidden',
+  },
+  Vendor: {
+    dashboard: 'view', sales: 'hidden', distribution: 'view', inventory: 'hidden',
+    purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'view',
+    accounts: 'hidden', warranty: 'hidden', replacements: 'hidden', rewards: 'hidden', settings: 'hidden',
+  },
 };
 
 function normalizePermissions(perms: unknown, role?: string): Record<string, AccessLevel> {

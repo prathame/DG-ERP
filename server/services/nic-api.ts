@@ -11,6 +11,7 @@
  */
 
 import crypto from 'crypto';
+import { decryptSecret } from '../utils/secret-crypto';
 
 export type GstApiMode = 'mock' | 'sandbox' | 'production';
 
@@ -245,8 +246,8 @@ export async function loadGstCredentials(pool: import('pg').Pool, tenantId: stri
     mode: (row.gst_api_mode as GstApiMode) || 'mock',
     gstin: row.gst_api_gstin || '',
     username: row.gst_api_username || '',
-    password: row.gst_api_password || '',
+    password: decryptSecret(row.gst_api_password || ''),
     clientId: row.gst_api_client_id || '',
-    clientSecret: row.gst_api_client_secret || '',
+    clientSecret: decryptSecret(row.gst_api_client_secret || ''),
   };
 }

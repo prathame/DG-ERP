@@ -1,4 +1,58 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+
+// ── Global offline banner ─────────────────────────────────────────────────────
+function OfflineBanner() {
+  const [status, setStatus] = useState<'online' | 'offline' | 'back-online'>('online');
+
+  useEffect(() => {
+    if (!navigator.onLine) setStatus('offline');
+
+    let backTimer: ReturnType<typeof setTimeout>;
+
+    const onOffline = () => {
+      clearTimeout(backTimer);
+      setStatus('offline');
+    };
+    const onOnline = () => {
+      setStatus('back-online');
+      // Hide "back online" after 3 seconds
+      backTimer = setTimeout(() => setStatus('online'), 3000);
+    };
+
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('online', onOnline);
+    return () => {
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('online', onOnline);
+      clearTimeout(backTimer);
+    };
+  }, []);
+
+  if (status === 'online') return null;
+
+  return (
+    <div
+      className={`fixed top-0 inset-x-0 z-[9998] flex items-center justify-center gap-2 py-2 px-4 text-sm font-bold transition-all ${
+        status === 'offline'
+          ? 'bg-red-600 text-white'
+          : 'bg-emerald-600 text-white'
+      }`}
+      role="alert"
+    >
+      {status === 'offline' ? (
+        <>
+          <span>⚠</span>
+          No internet connection — your entries will be retried when connection is restored.
+        </>
+      ) : (
+        <>
+          <span>✓</span>
+          Back online
+        </>
+      )}
+    </div>
+  );
+}
 import { api } from './api';
 import {
   LayoutDashboard,
@@ -331,6 +385,7 @@ export default function App() {
   return (
     <ToastProvider>
     {appShutter && <AppShutterIntro companyName={appShutter} onDone={() => setAppShutter(null)} />}
+    <OfflineBanner />
     <div className="flex h-screen bg-[#F8F9FA] text-[#1A1A1A] font-sans">
       {/* Mobile sidebar backdrop */}
       {isSidebarOpen && (

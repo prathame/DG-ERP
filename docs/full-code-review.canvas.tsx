@@ -8,29 +8,21 @@ import {
   useHostTheme,
 } from "cursor/canvas";
 
-export default function SplenderReviewComplete() {
+export default function SplenderReviewDocMirror() {
   const theme = useHostTheme();
   return (
-    <Stack gap={24} style={{ padding: 24, maxWidth: 800 }}>
-      <Stack gap={8}>
-        <H1>Dhandho — review complete</H1>
-        <Text tone="secondary" size="small">
-          R1–R11 · N1–N8 · O1–O4 closed · D1–D3 deferred only
-        </Text>
-      </Stack>
-      <Callout tone="success" title="Done">
-        No open must-fix or optional hardening items remain from the review
-        cycle. Only deferred product decisions (FORCE RLS, license key,
-        localStorage tokens).
+    <Stack gap={16} style={{ padding: 24, maxWidth: 720 }}>
+      <H1>Review status</H1>
+      <Callout tone="success" title="0 open">
+        Medium invoice items closed. Deferred only: D1–D3.
       </Callout>
       <Grid columns={3} gap={12}>
         <Stat value="0" label="Open" tone="success" />
         <Stat value="3" label="Deferred" tone="info" />
-        <Stat value="0" label="Critical" />
+        <Stat value="523" label="E2E pass" tone="success" />
       </Grid>
       <Text size="small" style={{ color: theme.text.secondary }}>
-        O1–O4: quote/order status locks · dist delete locks · warranty barcode
-        locks · invoice GSTIN esc
+        See docs/FULL_CODE_REVIEW.md
       </Text>
     </Stack>
   );

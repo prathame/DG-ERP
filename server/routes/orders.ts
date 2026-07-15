@@ -114,10 +114,13 @@ router.put('/api/orders/:id/status', blockVendors, async (req: AuthRequest, res)
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { status } = req.body;
-    if (!['Pending', 'Confirmed', 'Fulfilled', 'Cancelled'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    // Fulfilled only via POST /fulfill (deducts stock). Do not allow status-only bypass.
+    if (!['Pending', 'Confirmed', 'Cancelled'].includes(status)) {
+      return res.status(400).json({ error: status === 'Fulfilled' ? 'Use POST /api/orders/:id/fulfill to fulfill (deducts stock)' : 'Invalid status' });
+    }
     const current = (await pool.query('SELECT status FROM orders WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId])).rows[0] as { status: string } | undefined;
     if (!current) return res.status(404).json({ error: 'Order not found' });
-    const valid: Record<string, string[]> = { Pending: ['Confirmed', 'Cancelled'], Confirmed: ['Fulfilled', 'Cancelled'], Cancelled: ['Pending'], Fulfilled: [] };
+    const valid: Record<string, string[]> = { Pending: ['Confirmed', 'Cancelled'], Confirmed: ['Cancelled'], Cancelled: ['Pending'], Fulfilled: [] };
     if (!(valid[current.status] ?? []).includes(status)) return res.status(400).json({ error: `Cannot change from ${current.status} to ${status}` });
     await pool.query('UPDATE orders SET status = $1 WHERE id = $2 AND tenant_id = $3', [status, req.params.id, tenantId]);
     await logAudit(pool, tenantId, 'Order Status Changed', 'order', req.params.id, `${current.status} → ${status}`);

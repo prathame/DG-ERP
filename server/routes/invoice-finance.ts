@@ -149,33 +149,43 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
   } finally { client.release(); }
 });
 
-// Delete a payment
+// Delete a payment (locks invoice so concurrent pay/delete can't race)
 router.delete('/api/invoice-finance/payments/:id', blockVendors, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const payment = (await pool.query(
-      'SELECT invoice_id, amount FROM invoice_payments WHERE id = $1 AND tenant_id = $2',
-      [req.params.id, tenantId]
-    )).rows[0];
-    if (!payment) return res.status(404).json({ error: 'Payment not found' });
-
     await client.query('BEGIN');
+    const payment = (await client.query(
+      'SELECT id, invoice_id, amount FROM invoice_payments WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [req.params.id, tenantId]
+    )).rows[0] as { id: string; invoice_id: string; amount: number } | undefined;
+    if (!payment) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+
+    const inv = (await client.query(
+      'SELECT id, grand_total, status FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [payment.invoice_id, tenantId]
+    )).rows[0] as { id: string; grand_total: number; status: string } | undefined;
+    if (!inv) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Invoice not found for payment' });
+    }
+
     await client.query('DELETE FROM invoice_payments WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
 
-    // Revert invoice to unpaid if needed
     const remaining = Number((await client.query(
       'SELECT COALESCE(SUM(amount),0) as t FROM invoice_payments WHERE invoice_id = $1 AND tenant_id = $2',
       [payment.invoice_id, tenantId]
     )).rows[0].t);
-    const inv = (await client.query(
-      'SELECT grand_total FROM standalone_invoices WHERE id = $1 AND tenant_id = $2',
-      [payment.invoice_id, tenantId]
-    )).rows[0];
-    if (inv && remaining < Number(inv.grand_total)) {
-      await client.query("UPDATE standalone_invoices SET status = 'unpaid' WHERE id = $1 AND tenant_id = $2 AND status = 'paid'", [payment.invoice_id, tenantId]);
+    if (remaining + 0.001 < Number(inv.grand_total) && inv.status === 'paid') {
+      await client.query(
+        "UPDATE standalone_invoices SET status = 'sent', updated_at = NOW() WHERE id = $1 AND tenant_id = $2",
+        [payment.invoice_id, tenantId]
+      );
     }
 
     await client.query('COMMIT');
@@ -184,7 +194,9 @@ router.delete('/api/invoice-finance/payments/:id', blockVendors, async (req: Aut
     await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
     res.status(500).json({ error: 'Internal server error' });
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
 });
 
 export default router;

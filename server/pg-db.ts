@@ -753,6 +753,19 @@ export async function initSchema() {
       )
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_inv_payments ON invoice_payments(tenant_id, invoice_id)');
+    // Drop orphan payment rows then enforce FK (ON DELETE RESTRICT)
+    await client.query(`
+      DELETE FROM invoice_payments ip
+      WHERE NOT EXISTS (SELECT 1 FROM standalone_invoices si WHERE si.id = ip.invoice_id)
+    `);
+    await client.query(`
+      DO $$ BEGIN
+        ALTER TABLE invoice_payments
+          ADD CONSTRAINT invoice_payments_invoice_fk
+          FOREIGN KEY (invoice_id) REFERENCES standalone_invoices(id) ON DELETE RESTRICT;
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$;
+    `);
 
     // Platform config — key/value store for super admin settings
     await client.query(`

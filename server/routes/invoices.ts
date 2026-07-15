@@ -76,31 +76,106 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-// Update status
+// Update status — "paid" only if payments cover grand_total (use invoice-finance to record pay)
 router.put('/api/invoices/:id/status', blockVendors, async (req: AuthRequest, res) => {
+  const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { status } = req.body;
-    if (!['draft', 'sent', 'paid', 'cancelled'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
-    const result = await pool.query(
-      'UPDATE standalone_invoices SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3 RETURNING id',
+    if (!['draft', 'sent', 'paid', 'cancelled'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    await client.query('BEGIN');
+    const inv = (await client.query(
+      'SELECT id, grand_total, status FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [req.params.id, tenantId]
+    )).rows[0] as { id: string; grand_total: number; status: string } | undefined;
+    if (!inv) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    if (status === 'paid') {
+      const paid = Number((await client.query(
+        'SELECT COALESCE(SUM(amount),0) as t FROM invoice_payments WHERE invoice_id = $1 AND tenant_id = $2',
+        [req.params.id, tenantId]
+      )).rows[0].t);
+      if (paid + 0.001 < Number(inv.grand_total)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: 'Cannot mark paid without full payment. Record payment under Invoice Finance.',
+          paid,
+          due: Number(inv.grand_total),
+        });
+      }
+    }
+
+    if (status === 'cancelled') {
+      const payCount = Number((await client.query(
+        'SELECT COUNT(*)::int as c FROM invoice_payments WHERE invoice_id = $1 AND tenant_id = $2',
+        [req.params.id, tenantId]
+      )).rows[0].c);
+      if (payCount > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Cannot cancel invoice with payments. Delete payments first.' });
+      }
+    }
+
+    await client.query(
+      'UPDATE standalone_invoices SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3',
       [status, req.params.id, tenantId]
     );
-    if (!result.rows.length) return res.status(404).json({ error: 'Invoice not found' });
+    await client.query('COMMIT');
     res.json({ ok: true });
-  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
 });
 
-// Delete invoice
+// Delete invoice — blocked if any payments exist (avoids orphan money rows)
 router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) => {
+  const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const result = await pool.query('DELETE FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 RETURNING id', [req.params.id, tenantId]);
-    if (!result.rows.length) return res.status(404).json({ error: 'Invoice not found' });
+
+    await client.query('BEGIN');
+    const inv = (await client.query(
+      'SELECT id, status FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [req.params.id, tenantId]
+    )).rows[0] as { id: string; status: string } | undefined;
+    if (!inv) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const payCount = Number((await client.query(
+      'SELECT COUNT(*)::int as c FROM invoice_payments WHERE invoice_id = $1 AND tenant_id = $2',
+      [req.params.id, tenantId]
+    )).rows[0].c);
+    if (payCount > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: 'Cannot delete invoice with payments. Delete payments first, or keep the invoice for audit.',
+      });
+    }
+
+    await client.query('DELETE FROM standalone_invoices WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
+    await client.query('COMMIT');
     res.json({ ok: true });
-  } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
 });
 
 export default router;

@@ -431,8 +431,10 @@ def run_all(SA, sa_h, TID, TOK, TID_SVC, SVC_TOK):
     ok("Create invoice no body → 400", s == 400)
 
     if INV_ID:
+        s, d = req("PUT", f"/api/invoices/{INV_ID}/status", {"status": "sent"}, D)
+        ok("Update invoice status sent → 200", s == 200)
         s, d = req("PUT", f"/api/invoices/{INV_ID}/status", {"status": "paid"}, D)
-        ok("Update invoice status → 200", s == 200)
+        ok("Paid without payments → 400", s == 400)
         s, _ = req("PUT", f"/api/invoices/{INV_ID}/status", {"status": "invalid"}, D)
         ok("Invalid invoice status → 400", s == 400)
 

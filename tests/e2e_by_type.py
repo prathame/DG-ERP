@@ -213,8 +213,10 @@ def test_common(tok, tid, ids, btype):
     ok("Next number", req("GET","/api/invoices/next-number",headers=D)[0] == 200)
     ok("Invoice created", bool(ids.get("invoice")))
     if ids.get("invoice"):
+        s,d = req("PUT",f"/api/invoices/{ids['invoice']}/status",{"status":"sent"},D)
+        ok("Update invoice status sent", s == 200, f"status={s} {d.get('error','')}")
         s,d = req("PUT",f"/api/invoices/{ids['invoice']}/status",{"status":"paid"},D)
-        ok("Update invoice status paid", s == 200, f"status={s} {d.get('error','')}")
+        ok("Paid without payments → 400", s == 400, f"status={s} {d.get('error','')}")
         s,d = req("PUT",f"/api/invoices/{ids['invoice']}/status",{"status":"bad"},D)
         ok("Invalid invoice status → 400", s == 400, f"got {s}")
 
@@ -841,9 +843,9 @@ def test_gst_api(sa_h):
     s,d = req("POST","/api/gst/irn/generate",{"batchId":"FAKE-BATCH"},D)
     ok("IRN generate bad batchId → 404", s == 404, str(d))
 
-    # Idempotent — second call should succeed (overwrites IRN on same batch)
+    # Reject regenerate while IRN exists (must cancel first)
     s,d = req("POST","/api/gst/irn/generate",{"batchId":batch_id},D)
-    ok("IRN regenerate → 200 (idempotent)", s == 200, d.get("error",""))
+    ok("IRN regenerate blocked → 400", s == 400, d.get("error",""))
 
     # ── E-way bill generation (mock) ──────────────────────────────────────────
     sec("E-way Bill")
@@ -855,6 +857,11 @@ def test_gst_api(sa_h):
     ok("ewbDt returned", bool(d.get("ewbDt","")))
     ok("ewbValidTill returned", bool(d.get("ewbValidTill","")))
     ok("mode=mock in EWB response", d.get("mode") == "mock")
+
+    s,d = req("POST","/api/gst/ewb/generate",{
+        "batchId":batch_id,"vehicleNo":"GJ01AB1234","distance":100
+    },D)
+    ok("EWB regenerate blocked → 400", s == 400, d.get("error",""))
 
     # Missing vehicleNo → 400
     s,d = req("POST","/api/gst/ewb/generate",{"batchId":batch_id,"distance":100},D)
@@ -873,6 +880,10 @@ def test_gst_api(sa_h):
     if irn:
         s,d = req("POST","/api/gst/irn/cancel",{"irn":irn,"reason":1,"remark":"Test cancel"},D)
         ok("IRN cancel → 200", s == 200, d.get("error",""))
+        # After cancel, regenerate allowed
+        s,d = req("POST","/api/gst/irn/generate",{"batchId":batch_id},D)
+        ok("IRN regenerate after cancel → 200", s == 200, d.get("error",""))
+        irn = d.get("irn","") or irn
 
     s,d = req("POST","/api/gst/irn/cancel",{"reason":1},D)
     ok("IRN cancel missing irn → 400", s == 400, str(d))

@@ -1,4 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+
+function OfflineBanner() {
+  const [status, setStatus] = useState<'online' | 'offline' | 'back-online'>('online');
+  useEffect(() => {
+    if (!navigator.onLine) setStatus('offline');
+    let t: ReturnType<typeof setTimeout>;
+    const goOffline = () => { clearTimeout(t); setStatus('offline'); };
+    const goOnline  = () => { setStatus('back-online'); t = setTimeout(() => setStatus('online'), 3000); };
+    window.addEventListener('offline', goOffline);
+    window.addEventListener('online', goOnline);
+    return () => { window.removeEventListener('offline', goOffline); window.removeEventListener('online', goOnline); clearTimeout(t); };
+  }, []);
+  if (status === 'online') return null;
+  return (
+    <div className={`fixed top-0 inset-x-0 z-[9998] flex items-center justify-center gap-2 py-2 px-4 text-sm font-bold ${status === 'offline' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`} role="alert">
+      {status === 'offline' ? '⚠ No internet connection' : '✓ Back online'}
+    </div>
+  );
+}
 import { motion, useInView, AnimatePresence, useMotionValue, useSpring, useScroll, useTransform, useMotionTemplate } from 'motion/react';
 import { ShutterIntro } from './ShutterIntro';
 import { DeskIllustration } from './DeskIllustration';
@@ -230,6 +249,7 @@ export function LandingPage() {
 
   return (
     <div className={`min-h-screen ${bg} ${text} overflow-x-hidden`}>
+      <OfflineBanner />
       <CustomCursor />
       {/* Mouse-follow hero light */}
       <motion.div className="pointer-events-none fixed inset-0 z-30" style={{ background: mouseLight }} />
