@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useInView } from 'motion/react';
+import { ShutterIntro } from './ShutterIntro';
 import {
   Package, ShoppingCart, Truck, Receipt, IndianRupee, BarChart3, Users,
   ArrowRight, Check, Mail, Phone, MessageCircle, Moon, Sun, Send,
@@ -77,6 +78,8 @@ function EnquiryForm({ dark }: { dark: boolean }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export function LandingPage() {
+  const [shutterDone, setShutterDone] = useState(() => sessionStorage.getItem('dhandho_intro') === '1');
+  const handleShutterDone = () => { sessionStorage.setItem('dhandho_intro', '1'); setShutterDone(true); };
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [lang, setLang] = useState<'en' | 'hi' | 'gu'>('en');
   const [heroLang, setHeroLang] = useState(0);
@@ -145,6 +148,7 @@ export function LandingPage() {
 
   return (
     <div className={`min-h-screen ${bg} ${text} overflow-x-hidden`}>
+      {!shutterDone && <ShutterIntro onDone={handleShutterDone} />}
 
       {/* ── Nav ─────────────────────────────────────────────────────────────── */}
       <nav className={`fixed top-0 inset-x-0 z-50 ${navBg} backdrop-blur-xl border-b ${border}`}>
