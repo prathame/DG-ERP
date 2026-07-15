@@ -6,7 +6,6 @@
 import { app, BrowserWindow, ipcMain, shell, Menu, nativeImage } from 'electron';
 import path from 'path';
 import os from 'os';
-import fetch from 'node-fetch';
 import { startPostgres, stopPostgres } from './pg-manager';
 import { loadLicense, saveLicense, clearLicense, getMachineId, LicenseData } from './license-store';
 import { CLOUD_API, HEARTBEAT_INTERVAL_MS } from '../shared/constants';

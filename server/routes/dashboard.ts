@@ -88,32 +88,6 @@ router.get('/api/dashboard/stats', async (req, res) => {
   }
 });
 
-
-router.get('/api/dashboard/money', async (req, res) => {
-  try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { from, to } = req.query as { from?: string; to?: string };
-    const dateFilter = (col: string) => from && to ? `AND ${col} BETWEEN $2 AND $3` : from ? `AND ${col} >= $2` : '';
-    const params = (extra: unknown[]) => from && to ? [tenantId, from, to, ...extra] : from ? [tenantId, from, ...extra] : [tenantId, ...extra];
-
-    const [collections, revenue, distribution, expenses, outstanding, invoiceOutstanding] = await Promise.all([
-      pool.query(`SELECT COALESCE(SUM(amount),0) as v FROM vendor_payments WHERE tenant_id=$1 ${dateFilter('payment_date')}`, params([])).then(r => Number(r.rows[0].v) || 0),
-      Promise.all([
-        pool.query(`SELECT COALESCE(SUM(sale_price),0) as v FROM product_sales WHERE tenant_id=$1 ${dateFilter('purchase_date')}`, params([])),
-        pool.query(`SELECT COALESCE(SUM(grand_total),0) as v FROM standalone_invoices WHERE tenant_id=$1 AND status != 'cancelled' ${dateFilter('invoice_date')}`, params([])),
-      ]).then(([ps, si]) => (Number(ps.rows[0].v) || 0) + (Number(si.rows[0].v) || 0)),
-      pool.query(`SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0) as v FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1 ${dateFilter('pd.distribution_date')}`, params([])).then(r => Number(r.rows[0].v) || 0),
-      pool.query(`SELECT COALESCE(SUM(amount),0) as v FROM expenses WHERE tenant_id=$1 ${dateFilter('expense_date')}`, params([])).then(r => Number(r.rows[0].v) || 0),
-      pool.query(`SELECT COALESCE(SUM(COALESCE(pd.billed_price,pd.net_price,p.price)),0) - COALESCE((SELECT SUM(amount) FROM vendor_payments WHERE tenant_id=$1),0) as v FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1`, [tenantId]).then(r => Number(r.rows[0].v) || 0),
-      pool.query(`SELECT COALESCE(SUM(grand_total),0) as v FROM standalone_invoices WHERE tenant_id=$1 AND status NOT IN ('paid','cancelled')`, [tenantId]).then(r => Number(r.rows[0].v) || 0),
-    ]);
-    res.json({ collections, revenue, distribution, expenses, outstanding, invoiceOutstanding });
-  } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 router.get('/api/analytics/recent-activity', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

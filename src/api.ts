@@ -305,14 +305,7 @@ export const api = {
         body: JSON.stringify({ ...(from ? { from } : {}), ...(to ? { to } : {}) }),
       });
     },
-    money: (from?: string, to?: string) => {
-      const params = new URLSearchParams();
-      if (from) params.set('from', from);
-      if (to) params.set('to', to);
-      const qs = params.toString();
-      return fetchApi<{ collections: number; revenue: number; distribution: number; expenses: number; outstanding: number; invoiceOutstanding: number }>(`/dashboard/money${qs ? '?' + qs : ''}`);
-    },
-    vendor: (vendorId: string) =>
+vendor: (vendorId: string) =>
       fetchApi<{
         vendor: { id: string; name: string; totalSales: number; totalRewardPoints: number };
         assignedProducts: { id: string; productName: string; barcode: string; rewardPointsValue: number }[];

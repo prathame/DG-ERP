@@ -1,9 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
 import { pool } from '../pg-db';
-
-dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -25,13 +22,11 @@ export interface AuthRequest extends Request {
   tenantId?: string;
 }
 
-export function generateToken(payload: JwtPayload): string {
+export function generateToken(payload: object): string {
   return jwt.sign(payload, JWT_SECRET!, { expiresIn: '24h', algorithm: 'HS256' } as jwt.SignOptions);
 }
 
-export function generateSuperAdminToken(payload: { userId: string; email: string; name: string; role: string }): string {
-  return jwt.sign(payload, JWT_SECRET!, { expiresIn: '24h', algorithm: 'HS256' } as jwt.SignOptions);
-}
+export const generateSuperAdminToken = generateToken;
 
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.replace('Bearer ', '');
