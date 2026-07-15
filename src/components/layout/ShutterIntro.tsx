@@ -1,15 +1,88 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 
 const SLATS = 14;
 
-// Split string into visual grapheme clusters (handles Gujarati combining chars)
 function splitGraphemes(str: string): string[] {
   try {
     return [...new Intl.Segmenter().segment(str)].map(s => s.segment);
   } catch {
-    return [...str]; // fallback: split by JS char
+    return [...str];
   }
+}
+
+// Characters that cycle on the flap before landing (Latin + symbols look great)
+const NOISE = ['8','M','W','H','#','X','0','@','$','%','&','N','B','R','Z'];
+
+// One flap cell — dark panel, center divider, rapid char cycling
+const SplitFlapChar = memo(function SplitFlapChar({ char, delayMs, trigger }: { char: string; delayMs: number; trigger: number }) {
+  const [face, setFace] = useState(' ');
+  const [scaleY, setScaleY] = useState(1);
+  const cancelled = useRef(false);
+
+  useEffect(() => {
+    if (!trigger) return;
+    cancelled.current = false;
+    let cyclesDone = 0;
+    // More cycles for earlier characters (they start before later ones settle)
+    const totalCycles = 10 - Math.min(delayMs / 80, 6);
+
+    const flip = () => {
+      if (cancelled.current) return;
+      setScaleY(0);                                     // collapse card
+      setTimeout(() => {
+        if (cancelled.current) return;
+        const isLast = cyclesDone >= totalCycles - 1;
+        setFace(isLast ? char : NOISE[cyclesDone % NOISE.length]);
+        setScaleY(1);                                   // expand with new char
+        cyclesDone++;
+        if (!isLast) setTimeout(flip, 55 + cyclesDone * 6);  // slows down near end
+      }, 45);
+    };
+
+    const t = setTimeout(flip, delayMs);
+    return () => { cancelled.current = true; clearTimeout(t); };
+  }, [char, delayMs, trigger]);
+
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      background: 'linear-gradient(180deg, #141414 0%, #0e0e0e 100%)',
+      border: '1.5px solid #2c2c2c',
+      borderRadius: 6,
+      minWidth: '0.62em',
+      padding: '0.06em 0.1em',
+      position: 'relative',
+      boxShadow: '0 3px 12px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.05)',
+      overflow: 'hidden',
+    }}>
+      <motion.span
+        style={{ display: 'inline-block', color: '#f5f5f5', fontWeight: 800 }}
+        animate={{ scaleY }}
+        transition={{ duration: 0.045, ease: 'easeInOut' }}
+      >
+        {face}
+      </motion.span>
+      {/* Horizontal split line — the signature departure board detail */}
+      <div style={{
+        position: 'absolute', left: 0, right: 0, top: '50%',
+        height: 2, background: '#000',
+        boxShadow: '0 -1px 0 rgba(255,255,255,0.04)',
+        pointerEvents: 'none',
+      }} />
+    </div>
+  );
+});
+
+function SplitFlapWord({ word, trigger }: { word: string; trigger: number }) {
+  const chars = splitGraphemes(word);
+  return (
+    <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+      {chars.map((char, i) => (
+        <SplitFlapChar key={i} char={char} delayMs={i * 80} trigger={trigger} />
+      ))}
+    </div>
+  );
 }
 
 function playShutterSound() {
@@ -128,24 +201,22 @@ function playShutterSound() {
 
 export function ShutterIntro({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState<'shutter' | 'reveal' | 'done'>('shutter');
-  // Alternates between English 'Dhandho' and Gujarati 'ધંધો' after reveal
   const [wordLang, setWordLang] = useState<'en' | 'gu'>('en');
+  const [flipTrigger, setFlipTrigger] = useState(0);
+
+  const WORDS = { en: 'Dhandho', gu: 'ધંધો' };
 
   useEffect(() => {
     playShutterSound();
-    // 0.9s shutter open → 4s brand hold → 0.5s fade
-    const t1 = setTimeout(() => setPhase('reveal'), 900);
-    // Flip to Gujarati 1.5s after reveal
-    const t2 = setTimeout(() => setWordLang('gu'), 2500);
-    // Flip back to English 1.5s later
-    const t3 = setTimeout(() => setWordLang('en'), 4200);
-    const t4 = setTimeout(() => setPhase('done'), 4900);
-    const t5 = setTimeout(onDone, 5400);
+    const t1 = setTimeout(() => { setPhase('reveal'); setFlipTrigger(1); }, 900);
+    const t2 = setTimeout(() => { setWordLang('gu'); setFlipTrigger(2); }, 2600);
+    const t3 = setTimeout(() => { setWordLang('en'); setFlipTrigger(3); }, 4300);
+    const t4 = setTimeout(() => setPhase('done'), 5200);
+    const t5 = setTimeout(onDone, 5700);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); };
   }, [onDone]);
 
   const revealed = phase === 'reveal';
-  const WORDS = { en: 'Dhandho', gu: 'ધંધો' };
 
   return (
     <AnimatePresence>
@@ -186,41 +257,10 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
               ધંધો કરો, Smart કરો
             </motion.p>
 
-            {/* Main wordmark — departure board: each character clips and slides */}
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={wordLang}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  fontSize: 'clamp(3.5rem, 12vw, 8rem)',
-                  fontWeight: 800,
-                  lineHeight: 1,
-                  gap: '0.01em',
-                }}
-              >
-                {splitGraphemes(WORDS[wordLang]).map((char, i) => (
-                  <div
-                    key={i}
-                    style={{ overflow: 'hidden', display: 'inline-flex', alignItems: 'center', lineHeight: 1.05 }}
-                  >
-                    <motion.span
-                      style={{ display: 'inline-block', color: '#ffffff' }}
-                      initial={{ y: '105%' }}
-                      animate={{ y: revealed ? '0%' : '105%' }}
-                      exit={{ y: '-105%' }}
-                      transition={{
-                        delay: i * 0.06,
-                        duration: 0.38,
-                        ease: [0.22, 1, 0.36, 1],
-                      }}
-                    >
-                      {char}
-                    </motion.span>
-                  </div>
-                ))}
-              </motion.div>
-            </AnimatePresence>
+            {/* Main wordmark — split-flap departure board */}
+            <div style={{ fontSize: 'clamp(2.8rem, 10vw, 7rem)' }}>
+              <SplitFlapWord word={WORDS[wordLang]} trigger={flipTrigger} />
+            </div>
 
             {/* Tagline */}
             <motion.p
