@@ -9,7 +9,7 @@ import {
   Cloud, Monitor, BarChart3, Users, IndianRupee, TrendingUp, RefreshCw,
   Wifi, WifiOff, AlertTriangle, CheckCircle, Package, Zap, Clock,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, bizTypeLabel } from '../../lib/utils';
 import { session } from '../../lib/session';
 
 type Mode = 'cloud' | 'onprem';
@@ -180,7 +180,7 @@ function CloudAnalytics() {
             {topTenants.map((t, i) => (
               <tr key={i} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5 font-medium">{t.company_name as string}</td>
-                <td className="px-4 py-2.5 text-center text-xs capitalize text-gray-500">{t.business_type as string || '—'}</td>
+                <td className="px-4 py-2.5 text-center text-xs text-gray-500">{bizTypeLabel(t.business_type as string, t.company_name as string)}</td>
                 <td className="px-4 py-2.5 text-right font-bold text-emerald-600">₹{Number(t.revenue || 0).toLocaleString()}</td>
                 <td className="px-4 py-2.5 text-center text-gray-500">{String(t.users ?? 0)}</td>
                 <td className="px-4 py-2.5 text-center">

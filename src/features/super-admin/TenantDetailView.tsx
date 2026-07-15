@@ -5,7 +5,7 @@ import {
   Pause, Play, ChevronDown, Mail, Phone, Calendar, Shield, Pencil, RotateCcw,
   Save, KeyRound, Copy, Check, Download, Bell, BarChart3, Clock, HardDrive, Zap,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, bizTypeLabel } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
 import { session } from '../../lib/session';
 
@@ -305,7 +305,9 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
           </div>
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-400 text-xs font-bold uppercase">Type:</span>
-            <span className="px-2 py-1 bg-gray-100 rounded-lg text-sm font-medium capitalize">{{ manufacturer: 'Manufacturer', dealer: 'Dealer / Wholesaler', retail: 'Retail Shop' }[tenant.businessType || 'manufacturer'] || tenant.businessType}</span>
+            <span className="px-2 py-1 bg-gray-100 rounded-lg text-sm font-medium">
+              {bizTypeLabel(tenant.businessType, tenant.companyName)}
+            </span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Calendar size={16} className="text-gray-400" />

@@ -17,6 +17,18 @@ export async function fetchImageAsDataUrl(url: string): Promise<string> {
   } catch { return url; }
 }
 
+const BIZ_LABELS: Record<string, string> = {
+  manufacturer: 'Manufacturer', dealer: 'Dealer / Wholesaler',
+  retail: 'Retail Shop', service: 'Service / Consulting',
+};
+
+/** Display label for a business type — custom shows "Custom (CompanyName)" */
+export function bizTypeLabel(type: string | null | undefined, companyName?: string): string {
+  if (!type) return 'Manufacturer';
+  if (type === 'custom') return companyName ? `Custom (${companyName})` : 'Custom';
+  return BIZ_LABELS[type] || (type.charAt(0).toUpperCase() + type.slice(1));
+}
+
 /** Returns the super-admin-renamed label for a tab, falling back to the provided default. */
 export function useTabLabel(tabId: string, defaultLabel: string): string {
   try {
