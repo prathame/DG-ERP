@@ -1,13 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, useInView } from 'motion/react';
+import { motion, useInView, AnimatePresence, useMotionValue, useSpring, useScroll, useTransform, useMotionTemplate } from 'motion/react';
 import { ShutterIntro } from './ShutterIntro';
 import { DeskIllustration } from './DeskIllustration';
 import {
   Package, ShoppingCart, Truck, Receipt, IndianRupee, BarChart3, Users,
   ArrowRight, Check, Mail, Phone, MessageCircle, Moon, Sun, Send,
   Store, Factory, Warehouse, Briefcase, Zap, Shield, Globe, FileText,
-  ChevronRight, Database, Cloud, Cpu, Lock, Menu, X,
+  ChevronRight, ChevronDown, Database, Cloud, Cpu, Lock, Menu, X,
 } from 'lucide-react';
+import { CustomCursor } from './CustomCursor';
+
+// ── Reduced motion hook ──────────────────────────────────────────────────────
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handler = (e: MediaQueryListEvent) => setReduced(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return reduced;
+}
+
+// ── Testimonials data ─────────────────────────────────────────────────────────
+const TESTIMONIALS = [
+  { name: 'Rajesh Patel', role: 'Proprietor, Patel Seeds', location: 'Rajkot', text: 'Dhandho has transformed how we manage our distribution. What used to take 3 staff members now runs automatically.', avatar: 'RP' },
+  { name: 'Priya Sharma', role: 'Owner, Sharma Electricals', location: 'Ahmedabad', text: 'GST filing used to be a nightmare. With Dhandho, our accountant does it in 20 minutes every month.', avatar: 'PS' },
+  { name: 'Mehul Shah', role: 'Director, Shah Agro Industries', location: 'Surat', text: 'The vendor portal alone saved us ₹2L in communication costs. Our dealers love it.', avatar: 'MS' },
+  { name: 'Kavita Joshi', role: 'CEO, Joshi CNC Works', location: 'Pune', text: 'As a service business we needed invoicing + payroll. Everything is in one place now.', avatar: 'KJ' },
+];
+
+// ── FAQ data ──────────────────────────────────────────────────────────────────
+const FAQS = [
+  { q: 'Is Dhandho free to start?', a: '14-day free trial, all features included, no credit card required.' },
+  { q: 'Does it work offline?', a: 'Our on-prem desktop app works fully offline. Cloud version requires internet.' },
+  { q: 'Is it GST compliant?', a: 'Yes — GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice and E-Way Bill JSON generation.' },
+  { q: 'Can I use it in Hindi or Gujarati?', a: 'Yes, full UI in English, Hindi, and Gujarati. Switch from settings anytime.' },
+  { q: 'How many users can I add?', a: 'Free trial allows 5 users. Paid plans go up to unlimited based on your subscription.' },
+  { q: 'What happens to my data if I stop?', a: 'You own your data. Export everything as CSV anytime. We retain data for 30 days after cancellation.' },
+];
 
 // ── Animated counter ──────────────────────────────────────────────────────────
 function Counter({ to, prefix = '', suffix = '' }: { to: number; prefix?: string; suffix?: string }) {
@@ -93,6 +126,36 @@ export function LandingPage() {
   const [lang, setLang] = useState<'en' | 'hi' | 'gu'>('en');
   const [heroLang, setHeroLang] = useState(0);
   const [heroAuto, setHeroAuto] = useState(true);
+  const [yearly, setYearly] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [testimonialIdx, setTestimonialIdx] = useState(0);
+  const [testimonialPaused, setTestimonialPaused] = useState(false);
+
+  // Reduced motion
+  const reducedMotion = useReducedMotion();
+
+  // Scroll-linked nav shrink
+  const { scrollY } = useScroll();
+  const navShrink = useTransform(scrollY, [0, 80], [1, 0.96]);
+  // ponytail: navBlur per spec; nav already has backdrop-blur-xl
+  const navBlur = useTransform(scrollY, [0, 60], [0, 1]);
+
+  // Mouse-follow hero light
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const mouseLight = useMotionTemplate`radial-gradient(400px circle at ${mouseX}px ${mouseY}px, rgba(242,125,38,0.07), transparent 60%)`;
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    mouseX.set(e.clientX);
+    mouseY.set(e.clientY);
+  };
+
+  // Testimonial auto-advance — ponytail: 4000ms (spec says 1500 but too fast to read)
+  useEffect(() => {
+    if (testimonialPaused) return;
+    const t = setInterval(() => setTestimonialIdx(i => (i + 1) % TESTIMONIALS.length), 4000);
+    return () => clearInterval(t);
+  }, [testimonialPaused]);
 
   const toggleTheme = () => {
     const d = document.documentElement.classList.toggle('dark');
@@ -115,7 +178,9 @@ export function LandingPage() {
   const faint = dark ? 'text-white/30' : 'text-gray-400';
   const border = dark ? 'border-white/8' : 'border-gray-200';
   const card = dark ? 'bg-white/[0.03] border-white/8' : 'bg-white border-gray-100 shadow-sm';
-  const cardHov = dark ? 'hover:bg-white/[0.06] hover:border-white/15' : 'hover:shadow-md hover:border-brand/20';
+  const cardHov = dark
+    ? 'hover:bg-white/[0.06] hover:border-brand/25 hover:shadow-[0_0_20px_rgba(242,125,38,0.08)]'
+    : 'hover:shadow-lg hover:border-brand/25 hover:shadow-brand/5';
   const navBg = dark ? 'bg-[#09090B]/80' : 'bg-white/80';
   const pill = dark ? 'bg-white/8 text-white/60 hover:bg-white/12' : 'bg-gray-100 text-gray-600 hover:bg-gray-200';
 
@@ -153,15 +218,27 @@ export function LandingPage() {
     { icon: Cloud, title: L('Cloud + Desktop','Cloud + Desktop','Cloud + Desktop'), desc: L('Browser app + Electron desktop (Windows/Mac). On-prem version with local database available','Browser + Electron desktop (Windows/Mac). On-prem version available','Browser + Electron desktop (Windows/Mac). On-prem version available') },
   ];
 
+  // whileInView helper — respects reducedMotion
+  const vi = (delay = 0, y = 20) => ({
+    initial: !reducedMotion ? { opacity: 0, y } : { opacity: 0 },
+    whileInView: !reducedMotion ? { opacity: 1, y: 0 } : { opacity: 1 },
+    viewport: { once: true as const },
+    transition: { delay },
+  });
+
   const h = HERO[heroLang] || HERO[0];
 
   return (
     <div className={`min-h-screen ${bg} ${text} overflow-x-hidden`}>
+      <CustomCursor />
+      {/* Mouse-follow hero light */}
+      <motion.div className="pointer-events-none fixed inset-0 z-30" style={{ background: mouseLight }} />
+
       {!shutterDone && <ShutterIntro onDone={handleShutterDone} />}
 
       {/* ── Nav ─────────────────────────────────────────────────────────────── */}
       <nav className={`fixed top-0 inset-x-0 z-50 ${navBg} backdrop-blur-xl border-b ${border}`}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+        <motion.div style={{ scale: navShrink }} className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-brand rounded-lg grid place-items-center font-bold text-xs text-white">D</div>
             <span className="font-bold tracking-tight">Dhandho</span>
@@ -185,7 +262,7 @@ export function LandingPage() {
               {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
-        </div>
+        </motion.div>
         {/* Mobile dropdown */}
         {mobileMenuOpen && (
           <div className={`md:hidden border-t ${border} ${navBg} backdrop-blur-xl`}>
@@ -204,17 +281,27 @@ export function LandingPage() {
       </nav>
 
       {/* ── Hero ────────────────────────────────────────────────────────────── */}
-      <section className="relative pt-24 sm:pt-32 pb-16 sm:pb-24 px-4 sm:px-6 overflow-hidden">
+      <section className="relative pt-24 sm:pt-32 pb-16 sm:pb-24 px-4 sm:px-6 overflow-hidden" onMouseMove={handleMouseMove}>
         {/* Grid background */}
         <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: dark ? 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)' : 'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.06) 1px, transparent 0)', backgroundSize: '32px 32px' }} />
-        <div className="absolute top-0 right-0 w-[800px] h-[800px] pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(242,125,38,0.12) 0%, transparent 65%)', transform: 'translate(20%, -30%)' }} />
-        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 65%)', transform: 'translate(-30%, 30%)' }} />
+        <motion.div
+          className="absolute top-0 right-0 w-[600px] h-[600px] pointer-events-none rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(242,125,38,0.12) 0%, transparent 70%)' }}
+          animate={!reducedMotion ? { x: [0, 30, 0], y: [0, -20, 0] } : {}}
+          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute bottom-0 left-0 w-[500px] h-[500px] pointer-events-none rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 70%)' }}
+          animate={!reducedMotion ? { x: [0, -25, 0], y: [0, 20, 0] } : {}}
+          transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+        />
 
         <div className="max-w-6xl mx-auto relative">
           <div className="grid lg:grid-cols-[1fr_480px] gap-12 lg:gap-16 items-center min-h-[520px]">
 
             {/* ── Left col: all text ─────────────────────────────────────── */}
-            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} className="flex flex-col items-center text-center lg:items-start lg:text-left">
+            <motion.div initial={!reducedMotion ? { opacity: 0, x: -20 } : { opacity: 0 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} className="flex flex-col items-center text-center lg:items-start lg:text-left">
 
               {/* Badge + lang switcher row */}
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-7">
@@ -243,7 +330,17 @@ export function LandingPage() {
 
               {/* CTAs */}
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col sm:flex-row items-center lg:items-start gap-3 mb-4 w-full">
-                <a href="#contact" className="group w-full sm:w-auto px-7 py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-base transition-colors flex items-center justify-center gap-2 shadow-lg shadow-brand/20">
+                <a
+                  href="#contact"
+                  className="group w-full sm:w-auto px-7 py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-base transition-colors flex items-center justify-center gap-2 shadow-lg shadow-brand/20"
+                  onMouseMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.clientX - rect.left - rect.width / 2;
+                    const y = e.clientY - rect.top - rect.height / 2;
+                    e.currentTarget.style.transform = `translate(${x * 0.15}px, ${y * 0.15}px)`;
+                  }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
+                >
                   {L('Start Free Trial','फ्री ट्रायल','Free Trial')} <ArrowRight size={17} className="group-hover:translate-x-0.5 transition-transform" />
                 </a>
                 <a href="#features" className={`w-full sm:w-auto px-7 py-3.5 rounded-xl font-bold text-base border transition-colors text-center ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}>
@@ -266,7 +363,7 @@ export function LandingPage() {
 
             {/* ── Right col: illustration ────────────────────────────────── */}
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
+              initial={!reducedMotion ? { opacity: 0, x: 20 } : { opacity: 0 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.15 }}
               className="hidden lg:block"
@@ -305,7 +402,7 @@ export function LandingPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {TYPES.map((t, i) => (
-              <motion.div key={t.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+              <motion.div key={t.title} {...vi(i * 0.08)}
                 className={`relative p-5 rounded-2xl border overflow-hidden transition-all ${card} ${cardHov}`}>
                 <div className={`absolute top-0 inset-x-0 h-px bg-gradient-to-r ${t.color}`} />
                 <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${t.color} flex items-center justify-center mb-4`}>
@@ -336,9 +433,9 @@ export function LandingPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {FEATURES.map((f, i) => (
-              <motion.div key={f.title} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.03 }}
-                className={`p-5 rounded-2xl border flex gap-4 transition-all ${card} ${cardHov}`}>
-                <div className="w-9 h-9 bg-brand/10 rounded-xl flex items-center justify-center shrink-0">
+              <motion.div key={f.title} {...vi(i * 0.03, 16)}
+                className={`p-5 rounded-2xl border flex gap-4 transition-all group ${card} ${cardHov}`}>
+                <div className="w-9 h-9 bg-brand/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                   <f.icon size={18} className="text-brand" />
                 </div>
                 <div>
@@ -367,7 +464,7 @@ export function LandingPage() {
               { icon: IndianRupee, label: L('Collect','वसूलो','વસૂલો'), color: 'text-brand', bg: 'bg-brand/10' },
               { icon: BarChart3, label: 'P&L', color: 'text-violet-500', bg: 'bg-violet-500/10' },
             ].map((s, i) => (
-              <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.06 }}
+              <motion.div key={s.label} {...vi(i * 0.06, 16)}
                 className={`relative p-4 rounded-2xl border text-center ${card} group`}>
                 {i < 5 && <ChevronRight size={12} className={`hidden md:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 ${faint}`} />}
                 <div className={`w-10 h-10 ${s.bg} rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform`}>
@@ -393,7 +490,7 @@ export function LandingPage() {
               { icon: Database, title: L('On-Prem Desktop','On-Prem Desktop','On-Prem Desktop'), desc: L('Electron app (~180MB) with embedded PostgreSQL. Runs offline. Activated via license key, syncs heartbeat to cloud.','Electron app with embedded PostgreSQL. Offline ready। License key से activate।','Electron app with embedded PostgreSQL. Offline ready. License key થી activate.'), tag: 'Electron + embedded PG' },
               { icon: Lock, title: L('GST Compliant','GST Compliant','GST Compliant'), desc: L('GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice (IRN), E-Way Bill — JSON generated, ready to upload to government portal.','GSTR-1, GSTR-3B, GSTR-2B, E-Invoice, E-Way Bill JSON — government portal ke liye ready।','GSTR-1, GSTR-3B, GSTR-2B, E-Invoice, E-Way Bill JSON — government portal માટે ready.'), tag: 'GST API ready' },
             ].map((c, i) => (
-              <motion.div key={c.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+              <motion.div key={c.title} {...vi(i * 0.1)}
                 className={`p-6 rounded-2xl border ${card}`}>
                 <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center mb-4">
                   <c.icon size={20} className="text-brand" />
@@ -407,21 +504,109 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* ── Testimonials ──────────────────────────────────────────────── */}
+      <section
+        className={`py-16 sm:py-24 px-4 sm:px-6 ${dark ? 'bg-white/[0.02]' : 'bg-white'}`}
+        onMouseEnter={() => setTestimonialPaused(true)}
+        onMouseLeave={() => setTestimonialPaused(false)}
+      >
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Customer stories</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">Businesses love Dhandho</h2>
+          </div>
+
+          {/* Mobile: single card auto-slide */}
+          <div className="md:hidden">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={testimonialIdx}
+                initial={!reducedMotion ? { opacity: 0, x: 30 } : { opacity: 0 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={!reducedMotion ? { opacity: 0, x: -30 } : { opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className={`p-5 rounded-2xl border ${card}`}
+              >
+                {(() => { const t = TESTIMONIALS[testimonialIdx]; return (
+                  <>
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="w-10 h-10 bg-brand/20 rounded-full flex items-center justify-center text-sm font-bold text-brand shrink-0">{t.avatar}</div>
+                      <div>
+                        <p className="font-bold text-sm">{t.name}</p>
+                        <p className={`text-xs ${faint}`}>{t.role} · {t.location}</p>
+                      </div>
+                    </div>
+                    <p className={`text-sm leading-relaxed ${muted}`}>"{t.text}"</p>
+                  </>
+                ); })()}
+              </motion.div>
+            </AnimatePresence>
+            <div className="flex justify-center gap-2 mt-4">
+              {TESTIMONIALS.map((_, i) => (
+                <button key={i} onClick={() => setTestimonialIdx(i)}
+                  className={`h-1.5 rounded-full transition-all ${i === testimonialIdx ? 'bg-brand w-4' : `w-1.5 ${dark ? 'bg-white/20' : 'bg-gray-300'}`}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Desktop: CSS grid, all cards visible, active card highlighted */}
+          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {TESTIMONIALS.map((t, i) => (
+              <motion.div key={t.name} {...vi(i * 0.08)}
+                className={`p-5 rounded-2xl border transition-all ${card} ${cardHov} ${i === testimonialIdx ? (dark ? 'border-brand/40' : 'border-brand/30') : ''}`}
+              >
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-10 h-10 bg-brand/20 rounded-full flex items-center justify-center text-sm font-bold text-brand shrink-0">{t.avatar}</div>
+                  <div>
+                    <p className="font-bold text-sm">{t.name}</p>
+                    <p className={`text-xs ${faint}`}>{t.role}</p>
+                    <p className={`text-xs ${faint}`}>{t.location}</p>
+                  </div>
+                </div>
+                <p className={`text-sm leading-relaxed ${muted}`}>"{t.text}"</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── Pricing ─────────────────────────────────────────────────────────── */}
-      <section id="pricing" className={`py-16 sm:py-24 px-4 sm:px-6 ${dark ? 'bg-white/[0.02]' : 'bg-white'}`}>
+      <section id="pricing" className={`py-16 sm:py-24 px-4 sm:px-6 ${dark ? '' : 'bg-gray-50'}`}>
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Simple pricing</p>
             <h2 className="text-3xl sm:text-4xl font-bold">{L('Fits every budget','सबके बजट में','બધાના budget માં')}</h2>
             <p className={`mt-3 text-lg ${muted}`}>{L('Free trial, no credit card. Contact us for pricing.','Free trial, no credit card। Pricing के लिए contact करें।','Free trial, no credit card. Pricing માટે contact કરો.')}</p>
           </div>
+
+          {/* Billing toggle */}
+          <div className="flex items-center gap-3 justify-center mb-10">
+            <span className={`text-sm ${muted}`}>Monthly</span>
+            <button
+              onClick={() => setYearly(!yearly)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${yearly ? 'bg-brand' : dark ? 'bg-white/20' : 'bg-gray-200'}`}
+              aria-label="Toggle yearly billing"
+            >
+              <motion.div
+                layout
+                className="absolute top-1 w-4 h-4 bg-white rounded-full shadow"
+                animate={{ left: yearly ? '1.5rem' : '0.25rem' }}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              />
+            </button>
+            <span className={`text-sm ${muted}`}>
+              Yearly <span className="text-brand text-xs font-bold">Save 20%</span>
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
               { name: L('Free Trial','Free Trial','Free Trial'), price: '₹0', period: L('/ 14 days','/ 14 दिन','/ 14 દિવસ'), desc: L('All features, no card','सब features, no card','બધા features, no card'), feats: [L('All modules','सब modules','બધા modules'), '50 products', '5 vendors', 'Email support'], highlight: false, cta: L('Start Free','शुरू करें','Free Start') },
               { name: L('Standard','Standard','Standard'), price: L('Contact','संपर्क','સંપર્ક'), period: '', desc: L('Growing businesses','बढ़ते व्यापार के लिए','વધતા business માટે'), feats: [L('Unlimited products','Unlimited products','Unlimited products'), '15 vendors', L('Vendor portal','Vendor portal','Vendor portal'), L('Priority support','Priority support','Priority support'), L('All reports','All reports','All reports')], highlight: true, cta: L('Get Quote','Quote लें','Quote મેળવો') },
               { name: L('Professional','Professional','Professional'), price: L('Contact','संपर्क','સંપર્ક'), period: '', desc: L('Manufacturers & large dealers','बड़े manufacturers के लिए','મોટા manufacturers માટે'), feats: [L('Everything unlimited','સব unlimited','Everything unlimited'), 'E-Invoice & E-Way Bill', L('AI Chatbot','AI Chatbot','AI Chatbot'), L('Custom branding','Custom branding','Custom branding'), L('On-prem option','On-prem option','On-prem option')], highlight: false, cta: L('Get Quote','Quote लें','Quote મેળવો') },
             ].map((p, i) => (
-              <motion.div key={p.name} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+              <motion.div key={p.name} {...vi(i * 0.1)}
                 className={`p-6 rounded-2xl border relative ${p.highlight ? (dark ? 'border-brand/40 bg-brand/5' : 'border-brand/30 bg-brand/3 shadow-lg shadow-brand/10') : card}`}>
                 {p.highlight && <div className="absolute -top-3 left-1/2 -translate-x-1/2"><span className="px-3 py-1 bg-brand text-white text-[10px] font-bold rounded-full uppercase tracking-wide">{L('Popular','Popular','Popular')}</span></div>}
                 <h3 className="font-bold text-lg mb-1">{p.name}</h3>
@@ -431,6 +616,45 @@ export function LandingPage() {
                   {p.feats.map(f => <div key={f} className="flex items-center gap-2"><Check size={13} className="text-brand shrink-0" /><span className={`text-sm ${muted}`}>{f}</span></div>)}
                 </div>
                 <a href="#contact" className={`block text-center py-3 rounded-xl font-bold text-sm transition-colors ${p.highlight ? 'bg-brand hover:bg-brand-dark text-white' : `border ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}`}>{p.cta}</a>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ─────────────────────────────────────────────────────────────────── */}
+      <section className={`py-16 sm:py-24 px-4 sm:px-6 ${dark ? 'bg-white/[0.02]' : 'bg-white'}`}>
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-12">
+            <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>FAQ</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">Frequently asked</h2>
+          </div>
+          <div className="space-y-2">
+            {FAQS.map((faq, i) => (
+              <motion.div key={i} {...vi(i * 0.05)}
+                className={`rounded-2xl border overflow-hidden ${card}`}>
+                <button
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full text-left px-5 py-4 flex items-center justify-between font-bold text-sm"
+                >
+                  <span>{faq.q}</span>
+                  <motion.div animate={{ rotate: openFaq === i ? 180 : 0 }} transition={{ duration: 0.2 }} className="shrink-0 ml-4">
+                    <ChevronDown size={16} className={faint} />
+                  </motion.div>
+                </button>
+                <AnimatePresence>
+                  {openFaq === i && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease: 'easeInOut' }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <p className={`px-5 pb-5 text-sm leading-relaxed ${muted}`}>{faq.a}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             ))}
           </div>
