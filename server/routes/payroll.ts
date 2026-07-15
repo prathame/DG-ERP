@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, isValidPhone } from '../utils/helpers';
 
@@ -34,7 +35,7 @@ router.get('/api/staff', async (req, res) => {
 });
 
 // Batch create — all-or-nothing (CSV import)
-router.post('/api/staff/batch', async (req, res) => {
+router.post('/api/staff/batch', blockVendors, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -69,7 +70,7 @@ router.post('/api/staff/batch', async (req, res) => {
   } finally { client.release(); }
 });
 
-router.post('/api/staff', async (req, res) => {
+router.post('/api/staff', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -90,7 +91,7 @@ router.post('/api/staff', async (req, res) => {
   }
 });
 
-router.put('/api/staff/:id', async (req, res) => {
+router.put('/api/staff/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -106,7 +107,7 @@ router.put('/api/staff/:id', async (req, res) => {
   }
 });
 
-router.delete('/api/staff/:id', async (req, res) => {
+router.delete('/api/staff/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -186,7 +187,7 @@ router.get('/api/payroll/summary', async (req, res) => {
   }
 });
 
-router.post('/api/payroll', async (req, res) => {
+router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -212,7 +213,7 @@ router.post('/api/payroll', async (req, res) => {
   }
 });
 
-router.delete('/api/payroll/:id', async (req, res) => {
+router.delete('/api/payroll/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

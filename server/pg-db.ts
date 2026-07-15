@@ -69,8 +69,11 @@ export async function initSchema() {
         status TEXT DEFAULT 'active',
         trial_ends_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT NOW(),
-        last_active_at TIMESTAMPTZ
+        last_active_at TIMESTAMPTZ,
+        bootstrap_token TEXT  -- one-time token for first-admin signup (P1 fix)
       );
+      -- Add bootstrap_token to existing tenants tables (idempotent)
+      ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bootstrap_token TEXT;
 
       CREATE TABLE IF NOT EXISTS tenant_stats (
         id SERIAL PRIMARY KEY,

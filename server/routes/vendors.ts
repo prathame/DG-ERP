@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, hashPassword, logAudit, isValidPhone, isValidEmail, isValidGstin } from '../utils/helpers';
 
@@ -35,7 +36,7 @@ router.get('/api/vendors', async (req, res) => {
   }
 });
 
-router.post('/api/vendors/bulk', async (req, res) => {
+router.post('/api/vendors/bulk', blockVendors, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -96,7 +97,7 @@ router.post('/api/vendors/bulk', async (req, res) => {
   } finally { client.release(); }
 });
 
-router.post('/api/vendors', async (req, res) => {
+router.post('/api/vendors', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -147,7 +148,7 @@ router.post('/api/vendors', async (req, res) => {
   }
 });
 
-router.put('/api/vendors/:id', async (req, res) => {
+router.put('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -172,7 +173,7 @@ router.put('/api/vendors/:id', async (req, res) => {
 });
 
 // Delete all vendors for tenant
-router.delete('/api/vendors/all', async (req, res) => {
+router.delete('/api/vendors/all', blockVendors, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -192,7 +193,7 @@ router.delete('/api/vendors/all', async (req, res) => {
   } finally { client.release(); }
 });
 
-router.delete('/api/vendors/:id', async (req, res) => {
+router.delete('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

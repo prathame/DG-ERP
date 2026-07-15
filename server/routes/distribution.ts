@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
@@ -185,7 +186,7 @@ router.get('/api/distribution/batches', async (req, res) => {
 });
 
 // Create one distribution batch from the "Distribute Products to Vendor" modal (all rows = one event)
-router.post('/api/distribution/batch', async (req, res) => {
+router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -342,7 +343,7 @@ router.post('/api/distribution/batch', async (req, res) => {
   }
 });
 
-router.post('/api/distribution', async (req, res) => {
+router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -456,7 +457,7 @@ router.post('/api/distribution', async (req, res) => {
 });
 
 // Mark distribution units as GST or non-GST billed (updates finance amounts)
-router.put('/api/distribution/apply-billing', async (req, res) => {
+router.put('/api/distribution/apply-billing', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -671,7 +672,7 @@ router.get('/api/distribution/bill', async (req, res) => {
 });
 
 // Update a distribution batch (date, per-product qty/discount/GST)
-router.put('/api/distribution/batch/:batchId', async (req, res) => {
+router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -1009,7 +1010,7 @@ router.get('/api/distribution/batch/:batchId', async (req, res) => {
 });
 
 // Save EWB number on batch
-router.put('/api/distribution/batch/:batchId/ewb', async (req, res) => {
+router.put('/api/distribution/batch/:batchId/ewb', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -1024,7 +1025,7 @@ router.put('/api/distribution/batch/:batchId/ewb', async (req, res) => {
 });
 
 // Mark batch as dispatched/delivered
-router.put('/api/distribution/batch/:batchId/dispatch', async (req, res) => {
+router.put('/api/distribution/batch/:batchId/dispatch', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -1045,7 +1046,7 @@ router.put('/api/distribution/batch/:batchId/dispatch', async (req, res) => {
 });
 
 // Delete entire distribution batch (only if nothing sold/replaced/damaged)
-router.delete('/api/distribution/batch/:batchId', async (req, res) => {
+router.delete('/api/distribution/batch/:batchId', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

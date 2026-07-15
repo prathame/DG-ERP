@@ -25,6 +25,8 @@ export async function provisionTenant(data: {
   const defaultPassword = data.adminPassword || crypto.randomBytes(12).toString('base64url');
   const passwordHash = await bcrypt.hash(defaultPassword, 12);
   const userId = `U${Date.now()}`;
+  // P1 fix: generate one-time bootstrap token for first-admin signup
+  const bootstrapToken = crypto.randomBytes(32).toString('hex');
 
   const client = await pool.connect();
   try {
@@ -42,9 +44,9 @@ export async function provisionTenant(data: {
       chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
     });
     await client.query(
-      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, phone, address, gst_number, plan_id, status, trial_ends_at, tab_config)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      [tenantId, data.companyName, slug, data.adminEmail, data.adminName, data.phone || null, data.address || null, data.gstNumber || null, data.planId, data.status || 'active', data.trialEndsAt || null, defaultTabConfig]
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, phone, address, gst_number, plan_id, status, trial_ends_at, tab_config, bootstrap_token)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [tenantId, data.companyName, slug, data.adminEmail, data.adminName, data.phone || null, data.address || null, data.gstNumber || null, data.planId, data.status || 'active', data.trialEndsAt || null, defaultTabConfig, bootstrapToken]
     );
 
     await client.query(
@@ -68,6 +70,7 @@ export async function provisionTenant(data: {
     return {
       tenantId,
       slug,
+      bootstrapToken,  // returned to super admin to share with first user
       credentials: { email: data.adminEmail, password: defaultPassword },
     };
   } catch (err) {

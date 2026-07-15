@@ -8,9 +8,20 @@ const router = Router();
 
 router.post('/api/auth/signup', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
-    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    // P1 fix: do not trust client-supplied X-Tenant-ID for admin creation.
+    // Require a one-time bootstrap_token that proves the provisioning system
+    // authorised this first-admin setup. The token is stored in tenants.bootstrap_token
+    // and cleared after first use.
+    const { bootstrapToken } = req.body;
+    if (!bootstrapToken) return res.status(400).json({ error: 'Bootstrap token required' });
 
+    const tenantRow = (await pool.query(
+      "SELECT id, bootstrap_token FROM tenants WHERE bootstrap_token = $1 AND bootstrap_token IS NOT NULL",
+      [bootstrapToken]
+    )).rows[0] as { id: string; bootstrap_token: string } | undefined;
+    if (!tenantRow) return res.status(403).json({ error: 'Invalid or already-used bootstrap token' });
+
+    const tenantId = tenantRow.id;
     const existingAdmins = (await pool.query("SELECT COUNT(*) as c FROM users WHERE tenant_id = $1 AND role IN ('Admin', 'Super Admin')", [tenantId])).rows[0] as { c: number };
     if (Number(existingAdmins.c) > 0) return res.status(403).json({ error: 'Signup is disabled. Contact your admin to create accounts.' });
 
@@ -32,6 +43,8 @@ router.post('/api/auth/signup', async (req, res) => {
     const row = (await pool.query('SELECT id, email, name, phone, address, role, company_name FROM users WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
     const tenant = (await pool.query('SELECT slug FROM tenants WHERE id = $1', [tenantId])).rows[0] as { slug: string } | undefined;
     const token = generateToken({ userId: id, tenantId, role: 'Admin', email: emailLower, name: name ?? '' });
+    // Clear bootstrap token — one-time use
+    await pool.query('UPDATE tenants SET bootstrap_token = NULL WHERE id = $1', [tenantId]);
     res.status(201).json({ token, tenantId, tenantSlug: tenant?.slug, user: { id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name } });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });

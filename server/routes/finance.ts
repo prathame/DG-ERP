@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 
@@ -119,7 +120,7 @@ router.get('/api/vendor-finance/:vendorId', async (req, res) => {
   }
 });
 
-router.post('/api/vendor-finance/:vendorId/payments', async (req, res) => {
+router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -186,7 +187,7 @@ router.post('/api/vendor-finance/:vendorId/payments', async (req, res) => {
   }
 });
 
-router.put('/api/vendor-finance/:vendorId/reminder', async (req, res) => {
+router.put('/api/vendor-finance/:vendorId/reminder', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -207,7 +208,7 @@ router.put('/api/vendor-finance/:vendorId/reminder', async (req, res) => {
   }
 });
 
-router.post('/api/vendor-finance/:vendorId/reminder-sent', async (req, res) => {
+router.post('/api/vendor-finance/:vendorId/reminder-sent', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -222,7 +223,7 @@ router.post('/api/vendor-finance/:vendorId/reminder-sent', async (req, res) => {
 });
 
 // Bank statement CSV — parse and match to vendors
-router.post('/api/vendor-finance/bank-statement/preview', async (req, res) => {
+router.post('/api/vendor-finance/bank-statement/preview', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -312,7 +313,7 @@ router.post('/api/vendor-finance/bank-statement/preview', async (req, res) => {
 });
 
 // Apply bank statement payments (after preview)
-router.post('/api/vendor-finance/bank-statement/apply', async (req, res) => {
+router.post('/api/vendor-finance/bank-statement/apply', blockVendors, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;

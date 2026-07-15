@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 
@@ -38,7 +39,7 @@ router.get('/api/invoices/next-number', async (req, res) => {
 });
 
 // Create invoice
-router.post('/api/invoices', async (req, res) => {
+router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -69,7 +70,7 @@ router.post('/api/invoices', async (req, res) => {
 });
 
 // Update status
-router.put('/api/invoices/:id/status', async (req, res) => {
+router.put('/api/invoices/:id/status', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -85,7 +86,7 @@ router.put('/api/invoices/:id/status', async (req, res) => {
 });
 
 // Delete invoice
-router.delete('/api/invoices/:id', async (req, res) => {
+router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

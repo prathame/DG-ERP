@@ -128,6 +128,13 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
     if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip)) return res.status(403).json({ error: 'Localhost only' });
     const { licenseKey, settings } = req.body as { licenseKey: string; settings: Record<string, unknown> };
 
+    // P2 fix: validate the license key before applying any settings
+    if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });
+    const lic = (await pool.query(
+      "SELECT id FROM onprem_licenses WHERE license_key = $1 AND status = 'active'", [licenseKey]
+    )).rows[0];
+    if (!lic) return res.status(403).json({ error: 'Invalid or inactive license key' });
+
     // Find the local tenant and apply settings
     const tenant = (await pool.query("SELECT id FROM tenants WHERE slug != 'OWNER' LIMIT 1")).rows[0] as { id: string } | undefined;
     if (!tenant) return res.json({ ok: true, skipped: true });

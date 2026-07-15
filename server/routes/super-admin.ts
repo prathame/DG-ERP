@@ -400,45 +400,8 @@ router.delete('/api/super-admin/plans/:id', superAdminMiddleware, async (req, re
   }
 });
 
-// ============ SELF-SERVICE REGISTRATION ============
-router.post('/api/tenant/register', superAdminMiddleware, async (req, res) => {
-  try {
-    const { companyName, adminName, adminEmail, adminPassword, phone, address, gstNumber, businessType } = req.body;
-    if (!companyName || !adminName || !adminEmail || !adminPassword) return res.status(400).json({ error: 'All fields required' });
-    if (adminPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    if (phone && !/^\+?\d[\d\s-]{6,14}$/.test(phone.trim())) return res.status(400).json({ error: 'Invalid phone number' });
-    const existing = (await pool.query('SELECT id FROM tenants WHERE admin_email = $1', [adminEmail])).rows[0];
-    if (existing) return res.status(400).json({ error: 'An account with this email already exists' });
-    const trialEnds = new Date(); trialEnds.setDate(trialEnds.getDate() + 14);
-    const result = await provisionTenant({
-      companyName, adminEmail, adminName, adminPassword, phone,
-      planId: 'TRIAL', status: 'trial', trialEndsAt: trialEnds.toISOString(),
-    });
-
-    // Save additional fields
-    if (address || gstNumber || businessType) {
-      const updates: string[] = [];
-      const params: unknown[] = [];
-      let idx = 1;
-      if (address) { updates.push(`address = $${idx++}`); params.push(address); }
-      if (gstNumber) { updates.push(`gst_number = $${idx++}`); params.push(gstNumber); }
-      if (businessType) { updates.push(`business_type = $${idx++}`); params.push(businessType); }
-      if (updates.length) {
-        params.push(result.tenantId);
-        await pool.query(`UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`, params);
-        if (address) await pool.query('UPDATE users SET address = $1 WHERE tenant_id = $2 AND role = $3', [address, result.tenantId, 'Admin']);
-        if (gstNumber) await pool.query('UPDATE users SET gst_number = $1 WHERE tenant_id = $2 AND role = $3', [gstNumber, result.tenantId, 'Admin']);
-      }
-    }
-
-    const { generateToken } = await import('../middleware/auth');
-    const token = generateToken({ userId: `U-${result.tenantId}`, email: adminEmail, name: adminName, role: 'Super Admin', tenantId: result.tenantId });
-
-    res.status(201).json({ token, tenantId: result.tenantId, tenantSlug: result.slug, companyName, user: { email: adminEmail, name: adminName, role: 'Super Admin', companyName } });
-  } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// P1 fix: self-service registration removed — it was behind superAdminMiddleware (contradicting its purpose)
+// and generated an invalid user ID. Tenants are provisioned exclusively via /api/super-admin/tenants.
 
 // ============ TENANT BILLING ============
 router.get('/api/super-admin/billing', superAdminMiddleware, async (req, res) => {

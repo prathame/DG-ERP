@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { pool } from '../pg-db';
 import { uid, mapProduct, logAudit } from '../utils/helpers';
 import { barcodeExists, expandBarcodeRange, generateBarcodesFromPrefix } from '../utils/barcode';
+import { requireAdmin, blockVendors, AuthRequest } from '../middleware/auth';
+import { checkPlanLimit } from '../utils/planLimits';
 
 const router = Router();
 
@@ -18,7 +20,7 @@ router.get('/api/categories', async (req, res) => {
   }
 });
 
-router.post('/api/categories', async (req, res) => {
+router.post('/api/categories', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -33,7 +35,7 @@ router.post('/api/categories', async (req, res) => {
   }
 });
 
-router.put('/api/categories/:id', async (req, res) => {
+router.put('/api/categories/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -49,7 +51,7 @@ router.put('/api/categories/:id', async (req, res) => {
   }
 });
 
-router.delete('/api/categories/:id', async (req, res) => {
+router.delete('/api/categories/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -375,10 +377,14 @@ router.post('/api/products/batch', async (req, res) => {
   } finally { client.release(); }
 });
 
-router.post('/api/products', async (req, res) => {
+router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    // P1: enforce plan product limit
+    const limitErr = await checkPlanLimit(tenantId, 'products');
+    if (limitErr) return res.status(403).json(limitErr);
 
     const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix, packSize, packName, hsnCode, gstRate, barcodePerBox, priceIncludesGst } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Product name is required' });
@@ -545,7 +551,7 @@ router.post('/api/products/:id/add-stock', async (req, res) => {
   }
 });
 
-router.put('/api/products/:id', async (req, res) => {
+router.put('/api/products/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -588,7 +594,7 @@ router.put('/api/products/:id', async (req, res) => {
 });
 
 // Delete all products for tenant
-router.delete('/api/products/all', async (req, res) => {
+router.delete('/api/products/all', requireAdmin, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -607,7 +613,7 @@ router.delete('/api/products/all', async (req, res) => {
   } finally { client.release(); }
 });
 
-router.delete('/api/products/:id', async (req, res) => {
+router.delete('/api/products/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });

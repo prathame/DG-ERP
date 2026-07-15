@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 
@@ -25,7 +26,7 @@ router.get('/api/suppliers', async (req, res) => {
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/api/suppliers', async (req, res) => {
+router.post('/api/suppliers', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -44,7 +45,7 @@ router.post('/api/suppliers', async (req, res) => {
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.put('/api/suppliers/:id', async (req, res) => {
+router.put('/api/suppliers/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -63,7 +64,7 @@ router.put('/api/suppliers/:id', async (req, res) => {
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.delete('/api/suppliers/:id', async (req, res) => {
+router.delete('/api/suppliers/:id', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -78,7 +79,7 @@ router.delete('/api/suppliers/:id', async (req, res) => {
 
 // ============ PURCHASE BATCHES ============
 
-router.post('/api/purchases/batch', async (req, res) => {
+router.post('/api/purchases/batch', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
@@ -292,7 +293,7 @@ router.get('/api/supplier-finance/:supplierId', async (req, res) => {
   } catch (err) { console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/api/supplier-finance/:supplierId/payments', async (req, res) => {
+router.post('/api/supplier-finance/:supplierId/payments', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
