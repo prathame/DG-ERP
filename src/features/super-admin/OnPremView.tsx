@@ -364,12 +364,10 @@ export function OnPremView({ saToken }: { saToken: string }) {
             </div>
           )}
 
-          {Object.keys(localSettings).length > 0 && (
-            <button onClick={saveSettings} disabled={savingSettings}
-              className="mt-4 w-full py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50">
-              {savingSettings ? 'Saving...' : 'Save & Push to Device'}
-            </button>
-          )}
+          <button onClick={saveSettings} disabled={savingSettings || Object.keys(localSettings).length === 0}
+            className="mt-4 w-full py-2.5 bg-brand text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity">
+            {savingSettings ? 'Saving...' : Object.keys(localSettings).length > 0 ? '💾 Save & Push to Device' : 'No changes'}
+          </button>
         </div>
 
         {/* Renew License */}

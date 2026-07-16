@@ -79,9 +79,7 @@ async function sendHeartbeat(): Promise<void> {
         diskMB: 0,
         businessType: licenseInfo.businessType,
         slug: licenseInfo.slug,
-        tabConfig: await fetch(`${LOCAL_API_URL}/api/onprem/tab-config`, {
-          headers: { 'x-license-key': licenseInfo.licenseKey }
-        }).then(r => r.ok ? r.json() : null).catch(() => null),
+        // ponytail: never push tabConfig up — cloud is authoritative, only pull down
       }),
       signal: AbortSignal.timeout(10000),
     });
