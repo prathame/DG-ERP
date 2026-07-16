@@ -411,8 +411,8 @@ export default function App() {
     }
 
     // Root URL (/) — in Electron cloud app show slug entry, else landing page
-    const isElectron = navigator.userAgent.toLowerCase().includes('electron');
-    if (isElectron) return <ElectronSlugEntry />;
+    const isDesktop = new URLSearchParams(window.location.search).get('desktop') === '1';
+    if (isDesktop) return <ElectronSlugEntry />;
     return <LandingPage />;
   }
 

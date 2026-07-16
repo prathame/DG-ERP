@@ -34,16 +34,15 @@ function createWindow() {
     callback({ requestHeaders: { ...details.requestHeaders, 'X-DG-Client': 'electron-cloud' } });
   });
 
-  win.loadURL(CLOUD_URL);
+  // Load with ?desktop=1 so React knows it's the Electron app
+  // After load, check localStorage for last slug and redirect
+  win.loadURL(`${CLOUD_URL}?desktop=1`);
 
-  // After page loads, redirect to last-used slug so user lands on login, not landing page
   win.webContents.once('did-finish-load', () => {
     win?.webContents.executeJavaScript(`
       (() => {
         const slug = localStorage.getItem('dg_last_slug');
-        if (slug && window.location.pathname === '/') {
-          window.location.href = '/' + slug;
-        }
+        if (slug) window.location.href = '/' + slug;
       })();
     `).catch(() => {});
   });
