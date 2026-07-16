@@ -91,13 +91,11 @@ export function OnPremView({ saToken }: { saToken: string }) {
   const [copied, setCopied] = useState('');
   const [settingsTab, setSettingsTab] = useState<'tabs' | 'features' | 'updates'>('tabs');
   const [localSettings, setLocalSettings] = useState<Record<string, unknown>>({});
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [hardSyncing, setHardSyncing] = useState(false);
+  const [pushing, setPushing] = useState(false);
   const [latestVersion, setLatestVersion] = useState('');
   const [minVersion, setMinVersion] = useState('');
   const [githubReleases, setGithubReleases] = useState<{ tag: string; name: string; published: string }[]>([]);
   const [releasesLoading, setReleasesLoading] = useState(false);
-  const [showPayload, setShowPayload] = useState(true);
 
   const [form, setForm] = useState({
     companyName: '', businessType: 'manufacturer' as typeof BUSINESS_TYPES[number],
@@ -196,38 +194,26 @@ export function OnPremView({ saToken }: { saToken: string }) {
     return merged;
   };
 
-  const saveSettings = async () => {
+  /** One action: save toggles to cloud + force device to pick them up. */
+  const pushToDevice = async () => {
     if (!selected) return;
-    setSavingSettings(true);
-    const settings = buildMergedSettings();
-    const ok = await handleUpdate(selected.id, { settings }, { quiet: true });
-    setLocalSettings({});
-    setSavingSettings(false);
-    setShowPayload(true);
-    if (ok) toast('Pushed to cloud — status: NOT SYNCED until device applies (or click Hard Sync)', 'success');
-  };
-
-  /** Hard sync: push full settings + forceSyncAt so next heartbeat must re-apply. */
-  const hardSync = async () => {
-    if (!selected) return;
-    setHardSyncing(true);
+    setPushing(true);
     const settings = {
       ...buildMergedSettings(),
       forceSyncAt: new Date().toISOString(),
     };
     const ok = await handleUpdate(selected.id, { settings }, { quiet: true });
     setLocalSettings({});
-    setHardSyncing(false);
-    setShowPayload(true);
+    setPushing(false);
     if (ok) {
       toast(
         selected.isOnline
-          ? 'Hard sync queued — status NOT SYNCED until device applies (~1 min or Sync Now in app)'
-          : 'Hard sync queued — device offline; will stay NOT SYNCED until it connects',
+          ? 'Sent. Open the app and tap Sync Now.'
+          : 'Sent to cloud. Device is offline — sync when it comes online.',
         'success'
       );
       setTimeout(() => load(true), 3000);
-      setTimeout(() => load(true), 10000);
+      setTimeout(() => load(true), 12000);
     }
   };
 
@@ -488,131 +474,69 @@ export function OnPremView({ saToken }: { saToken: string }) {
 
               <button onClick={() => {
                 setLocalSettings(prev => ({ ...prev, latestVersion: latestVersion || null, minVersion: minVersion || null }));
-                toast('Version staged — click Save & Push to apply', 'success');
+                toast('Version ready — click Push to device', 'success');
               }} className="w-full py-2 border border-brand text-brand rounded-xl text-sm font-bold hover:bg-orange-50 flex items-center justify-center gap-1.5">
                 <Zap size={14} /> Stage Update
               </button>
             </div>
           )}
 
-          <button onClick={saveSettings} disabled={savingSettings || Object.keys(localSettings).length === 0}
-            className="mt-4 w-full py-2.5 bg-brand text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity">
-            {savingSettings ? 'Saving...' : Object.keys(localSettings).length > 0 ? '💾 Save & Push to Device' : 'No changes'}
-          </button>
-
-          <button onClick={hardSync} disabled={hardSyncing}
-            className="mt-2 w-full py-2.5 border-2 border-brand text-brand rounded-xl text-sm font-bold hover:bg-orange-50 disabled:opacity-40 flex items-center justify-center gap-1.5">
-            <RefreshCw size={14} className={hardSyncing ? 'animate-spin' : ''} />
-            {hardSyncing ? 'Queuing hard sync...' : '⚡ Hard Sync to Device'}
-          </button>
-          <p className="mt-1.5 text-[11px] text-gray-400 text-center">
-            Hard Sync re-pushes the full config and forces the device to re-apply on next heartbeat.
-            {selected.isOnline ? ' Device is online.' : ' Device is offline — sync waits until it connects.'}
-            {' '}Portal and device must use the <span className="font-semibold">same cloud</span>
-            {' '}(if the app uses Render, open Super Admin on Render — not localhost).
-          </p>
-
-          {/* Sync status + payload — clear synced / not synced */}
+          {/* One button. One status. Easy. */}
           {(() => {
             const pending = isSyncPending(selected);
-            const synced = !!selected.settingsAppliedAt && !pending;
-            const neverPushed = !selected.settingsPushedAt;
-            // Prefer unsaved local edits in preview; else last pushed cloud settings
-            const previewSrc = Object.keys(localSettings).length > 0
-              ? buildMergedSettings()
-              : (selected.settings || {});
+            const dirty = Object.keys(localSettings).length > 0;
+            const previewSrc = dirty ? buildMergedSettings() : (selected.settings || {});
             const summary = summarizeSettings(previewSrc);
-            const statusLabel = neverPushed
-              ? 'Never synced'
-              : pending
-                ? 'NOT SYNCED — waiting for device'
-                : 'SYNCED on device';
-            const statusClass = neverPushed
-              ? 'bg-gray-100 text-gray-600'
-              : pending
-                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                : 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+            const offList = [...summary.tabsOff, ...summary.featuresOff.map(f => `${f} (feature)`)];
 
             return (
-              <div className="mt-4 space-y-2">
-                <div className={cn('rounded-xl px-3 py-2.5 text-sm font-bold text-center', statusClass)}>
-                  {neverPushed ? '○' : pending ? '⏳' : '✓'} {statusLabel}
-                </div>
-
-                <div className="text-xs space-y-1 bg-gray-50 rounded-xl p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Last push (cloud)</span>
-                    <span className="font-medium">{timeAgo(selected.settingsPushedAt)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Device applied</span>
-                    {pending ? (
-                      <span className="font-medium text-amber-600">Not yet</span>
-                    ) : (
-                      <span className="font-medium text-emerald-600">{timeAgo(selected.settingsAppliedAt)}</span>
-                    )}
-                  </div>
-                  {summary.forceSyncAt && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-500">Hard sync stamp</span>
-                      <span className="font-medium">{timeAgo(summary.forceSyncAt)}</span>
-                    </div>
-                  )}
-                  {synced && (
-                    <p className="text-emerald-600 pt-1">Device has the latest pushed settings.</p>
-                  )}
-                  {pending && (
-                    <p className="text-amber-600 pt-1">
-                      Push is on the cloud. Device has not applied it yet
-                      {selected.isOnline ? ' — wait for heartbeat or tap Sync Now in the app.' : ' — bring the device online.'}
-                    </p>
-                  )}
-                </div>
-
-                <button type="button" onClick={() => setShowPayload(v => !v)}
-                  className="w-full text-left text-xs font-bold text-gray-500 hover:text-gray-700 flex items-center justify-between px-1">
-                  <span>{Object.keys(localSettings).length > 0 ? 'Will send (unsaved)' : 'Last payload sent'}</span>
-                  <span>{showPayload ? 'Hide ▲' : 'Show ▼'}</span>
+              <div className="mt-5 space-y-3">
+                <button
+                  onClick={pushToDevice}
+                  disabled={pushing}
+                  className="w-full py-3 bg-brand text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <RefreshCw size={16} className={pushing ? 'animate-spin' : ''} />
+                  {pushing ? 'Sending…' : dirty ? 'Push changes to device' : 'Push to device again'}
                 </button>
 
-                {showPayload && (
-                  <div className="text-xs bg-white border border-gray-200 rounded-xl p-3 space-y-2">
-                    {summary.tabsOff.length > 0 && (
-                      <div>
-                        <p className="font-bold text-red-600 mb-0.5">Tabs OFF ({summary.tabsOff.length})</p>
-                        <p className="text-gray-700">{summary.tabsOff.join(', ')}</p>
-                      </div>
-                    )}
-                    {summary.tabsOn.length > 0 && (
-                      <div>
-                        <p className="font-bold text-emerald-700 mb-0.5">Tabs ON ({summary.tabsOn.length})</p>
-                        <p className="text-gray-600">{summary.tabsOn.join(', ')}</p>
-                      </div>
-                    )}
-                    {summary.featuresOff.length > 0 && (
-                      <div>
-                        <p className="font-bold text-red-600 mb-0.5">Features OFF</p>
-                        <p className="text-gray-700">{summary.featuresOff.join(', ')}</p>
-                      </div>
-                    )}
-                    {summary.featuresOn.length > 0 && (
-                      <div>
-                        <p className="font-bold text-emerald-700 mb-0.5">Features ON</p>
-                        <p className="text-gray-600">{summary.featuresOn.join(', ')}</p>
-                      </div>
-                    )}
-                    {(summary.latestVersion || summary.minVersion) && (
-                      <div>
-                        <p className="font-bold text-gray-700 mb-0.5">App versions</p>
-                        <p className="text-gray-600">
-                          Latest: {summary.latestVersion || '—'} · Min: {summary.minVersion || '—'}
-                        </p>
-                      </div>
-                    )}
-                    {!summary.tabsOn.length && !summary.tabsOff.length && !summary.featuresOn.length && !summary.featuresOff.length && (
-                      <p className="text-gray-400">No tab/feature payload yet — toggle something and Save, or Hard Sync.</p>
-                    )}
+                <div className={cn(
+                  'rounded-xl px-4 py-3 text-sm',
+                  !selected.settingsPushedAt && 'bg-gray-50 text-gray-600',
+                  pending && 'bg-amber-50 text-amber-800 border border-amber-200',
+                  selected.settingsPushedAt && !pending && 'bg-emerald-50 text-emerald-800 border border-emerald-200',
+                )}>
+                  {!selected.settingsPushedAt && (
+                    <p className="font-bold">Not sent yet</p>
+                  )}
+                  {pending && (
+                    <>
+                      <p className="font-bold">Waiting for the app</p>
+                      <p className="text-xs mt-1 opacity-90">
+                        Config is on the cloud. On the device: tap <b>Sync Now</b>
+                        {!selected.isOnline ? ' (device looks offline)' : ''}.
+                      </p>
+                    </>
+                  )}
+                  {selected.settingsPushedAt && !pending && (
+                    <>
+                      <p className="font-bold">✓ On the device</p>
+                      <p className="text-xs mt-1 opacity-90">Applied {timeAgo(selected.settingsAppliedAt)}</p>
+                    </>
+                  )}
+                </div>
+
+                {offList.length > 0 && (
+                  <div className="text-xs rounded-xl border border-red-100 bg-red-50 px-3 py-2">
+                    <p className="font-bold text-red-700 mb-0.5">Hidden on device</p>
+                    <p className="text-red-800">{offList.join(', ')}</p>
                   </div>
+                )}
+
+                {dirty && (
+                  <p className="text-[11px] text-amber-600 text-center font-medium">
+                    You have unsaved toggles — click Push to send them.
+                  </p>
                 )}
               </div>
             );
