@@ -102,11 +102,16 @@ async function sendHeartbeat(): Promise<void> {
       const s = data.settings as Record<string, unknown>;
       // Apply whenever settings exist — covers tabConfig, feature flags, and force sync
       try {
-        await fetch(`${LOCAL_API_URL}/api/onprem/apply-settings`, {
+        const r = await fetch(`${LOCAL_API_URL}/api/onprem/apply-settings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ licenseKey: licenseInfo.licenseKey, settings: s }),
         });
+        const result = await r.json() as { applied?: number };
+        // If settings were actually applied, reload the window so React picks up new tabConfig
+        if (result.applied && result.applied > 0) {
+          mainWin?.webContents.reload();
+        }
       } catch {}
     }
 
