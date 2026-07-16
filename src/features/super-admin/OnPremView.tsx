@@ -6,6 +6,13 @@ import { useToast } from '../../components/ui';
 
 const BUSINESS_TYPES = ['manufacturer','dealer','retail','service'] as const;
 
+const TAB_PRESETS: Record<string, Record<string, { label: string; visible: boolean }>> = {
+  manufacturer: { analytics:{label:'Analytics',visible:true}, masters:{label:'Masters',visible:true}, inventory:{label:'Inventory',visible:true}, distribution:{label:'Dispatch',visible:true}, sales:{label:'Warranty Registration',visible:true}, purchases:{label:'Purchases',visible:true}, verification:{label:'Search / Verify',visible:true}, quotations:{label:'Quotes & Orders',visible:true}, invoices:{label:'Invoices',visible:true}, finance:{label:'Vendor Payments',visible:true}, accounts:{label:'Accounts',visible:true}, warranty:{label:'Warranty',visible:true}, replacements:{label:'Replacements',visible:true}, rewards:{label:'Rewards',visible:true}, chatbot:{label:'Chatbot',visible:true} },
+  dealer: { analytics:{label:'Analytics',visible:true}, masters:{label:'Masters',visible:true}, inventory:{label:'Inventory',visible:true}, distribution:{label:'Sales',visible:true}, sales:{label:'Sales Entry',visible:false}, purchases:{label:'Purchases',visible:true}, verification:{label:'Search / Verify',visible:true}, quotations:{label:'Quotes & Orders',visible:true}, invoices:{label:'Invoices',visible:true}, finance:{label:'Dealer Payments',visible:true}, accounts:{label:'Accounts',visible:true}, warranty:{label:'Warranty',visible:false}, replacements:{label:'Replacements',visible:false}, rewards:{label:'Rewards',visible:false}, chatbot:{label:'Chatbot',visible:true} },
+  retail: { analytics:{label:'Analytics',visible:true}, masters:{label:'Masters',visible:true}, inventory:{label:'Stock',visible:true}, distribution:{label:'Purchase',visible:true}, sales:{label:'Sales Entry',visible:false}, purchases:{label:'Purchases',visible:true}, verification:{label:'Search / Verify',visible:true}, quotations:{label:'Quotes & Orders',visible:true}, invoices:{label:'Invoices',visible:true}, finance:{label:'Supplier Payments',visible:true}, accounts:{label:'Accounts',visible:true}, warranty:{label:'Warranty',visible:false}, replacements:{label:'Replacements',visible:false}, rewards:{label:'Rewards',visible:false}, chatbot:{label:'Chatbot',visible:true} },
+  service: { analytics:{label:'Analytics',visible:true}, masters:{label:'Masters',visible:true}, inventory:{label:'Inventory',visible:false}, distribution:{label:'Distribution',visible:false}, sales:{label:'Sales Entry',visible:false}, purchases:{label:'Expenses',visible:true}, verification:{label:'Search / Verify',visible:false}, quotations:{label:'Quotes & Orders',visible:true}, invoices:{label:'Invoices',visible:true}, finance:{label:'Invoice Finance',visible:true}, accounts:{label:'Accounts',visible:true}, warranty:{label:'Warranty',visible:false}, replacements:{label:'Replacements',visible:false}, rewards:{label:'Rewards',visible:false}, chatbot:{label:'Chatbot',visible:true} },
+};
+
 interface License {
   id: string;
   licenseKey: string;
@@ -211,7 +218,9 @@ export function OnPremView({ saToken }: { saToken: string }) {
                 'verification','quotations','invoices','finance','accounts',
                 'warranty','replacements','rewards','chatbot'
               ].map(tab => {
-                const cfg = ((localSettings.tabConfig || selected?.settings?.tabConfig || {}) as Record<string, { label: string; visible: boolean }>)[tab] || { label: tab, visible: true };
+                const businessType = (selected?.businessType as string) || 'manufacturer';
+                const presetCfg = TAB_PRESETS[businessType]?.[tab] || { label: tab, visible: true };
+                const cfg = ((localSettings.tabConfig || selected?.settings?.tabConfig || {}) as Record<string, { label: string; visible: boolean }>)[tab] || presetCfg;
                 return (
                   <div key={tab} className="flex items-center justify-between py-1.5">
                     <div className="flex items-center gap-2">

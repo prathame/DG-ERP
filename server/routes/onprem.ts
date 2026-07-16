@@ -63,7 +63,7 @@ router.post('/api/onprem/activate', onpremLimiter, async (req, res) => {
 // Heartbeat — called every 60 min by on-prem app when online
 router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
   try {
-    const { licenseKey, machineId, version, activeUsers, diskMB, businessType } = req.body;
+    const { licenseKey, machineId, version, activeUsers, diskMB, businessType, slug, tabConfig } = req.body;
     if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });
 
     const lic = (await pool.query(
@@ -83,6 +83,14 @@ router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
           ? [version || null, activeUsers || 0, diskMB || 0, licenseKey, businessType]
           : [version || null, activeUsers || 0, diskMB || 0, licenseKey]
       );
+
+      // Sync tabConfig from local on-prem DB to cloud license settings
+      if (tabConfig) {
+        await pool.query(
+          `UPDATE onprem_licenses SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{tabConfig}', $1::jsonb) WHERE license_key = $2`,
+          [JSON.stringify(tabConfig), licenseKey]
+        ).catch(() => {});
+      }
     }
 
     // Check version config from DB (fallback to env)
@@ -127,6 +135,25 @@ router.post('/api/onprem/deactivate', onpremLimiter, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── Tab config endpoint — read local tenant tab_config for heartbeat sync ─────
+router.get('/api/onprem/tab-config', async (req, res) => {
+  try {
+    const ip = req.ip || req.socket.remoteAddress || '';
+    if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip)) return res.status(403).json({ error: 'Localhost only' });
+    const licenseKey = req.headers['x-license-key'] as string;
+    if (!licenseKey) return res.status(400).json({ error: 'Missing license key' });
+    const row = (await pool.query(
+      `SELECT t.tab_config FROM tenants t
+       JOIN onprem_licenses l ON l.company_name = t.company_name
+       WHERE l.license_key = $1 LIMIT 1`,
+      [licenseKey]
+    )).rows[0] as { tab_config: unknown } | undefined;
+    res.json(row?.tab_config || null);
+  } catch {
+    res.json(null);
   }
 });
 

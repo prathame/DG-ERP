@@ -78,6 +78,10 @@ async function sendHeartbeat(): Promise<void> {
         activeUsers: 1,
         diskMB: 0,
         businessType: licenseInfo.businessType,
+        slug: licenseInfo.slug,
+        tabConfig: await fetch(`${LOCAL_API_URL}/api/onprem/tab-config`, {
+          headers: { 'x-license-key': licenseInfo.licenseKey }
+        }).then(r => r.ok ? r.json() : null).catch(() => null),
       }),
       signal: AbortSignal.timeout(10000),
     });
