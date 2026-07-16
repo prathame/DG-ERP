@@ -223,10 +223,10 @@ export function LandingPage() {
   ];
 
   const TYPES = [
-    { icon: Store, title: L('Retail Shop','दुकान / Retail','દુકાન / Retail'), color: 'from-blue-500/20 to-blue-500/5', dot: 'bg-blue-500', items: [L('Barcode billing','बारकोड billing','બારકોડ billing'), L('Stock alerts','स्टॉक alerts','સ્ટોક alerts'), L('WhatsApp bills','WhatsApp bills','WhatsApp bills'), 'GST invoice'] },
-    { icon: Warehouse, title: L('Dealer / Wholesaler','डीलर / होलसेलर','ડીલર / હોલસેલર'), color: 'from-emerald-500/20 to-emerald-500/5', dot: 'bg-emerald-500', items: [L('Vendor portal','वेंडर portal','વેન્ડર portal'), L('Batch payment','Batch payment','Batch payment'), L('Outstanding','बकाया','બાકી'), L('Quotation→Dispatch','Quote→Dispatch','Quote→Dispatch')] },
-    { icon: Factory, title: L('Manufacturer','निर्माता','નિર્માતા'), color: 'from-violet-500/20 to-violet-500/5', dot: 'bg-violet-500', items: ['P&L / Balance Sheet', 'GSTR-1 / GSTR-3B', 'E-Invoice & E-Way Bill', L('Supplier management','Supplier management','Supplier management')] },
-    { icon: Briefcase, title: L('Service / Consulting','सर्विस / कंसल्टिंग','સર્વિસ / કન્સલ્ટિંગ'), color: 'from-orange-500/20 to-orange-500/5', dot: 'bg-orange-500', items: [L('Standalone invoices','Standalone invoices','Standalone invoices'), L('Partial payments','आंशिक payment','આંશિક payment'), L('Expense tracking','Expense tracking','Expense tracking'), L('Accounts','Accounts','Accounts')] },
+    { icon: Store, title: L('Retail Shop','दुकान / Retail','દુકાન / Retail','दुकान / Retail'), color: 'from-blue-500/20 to-blue-500/5', dot: 'bg-blue-500', items: [L('Barcode billing','बारकोड billing','બારકોડ billing','बारकोड billing'), L('Stock alerts','स्टॉक alerts','સ્ટોક alerts','साठा सूचना'), L('WhatsApp bills','WhatsApp bills','WhatsApp bills','WhatsApp bills'), 'GST invoice'] },
+    { icon: Warehouse, title: L('Dealer / Wholesaler','डीलर / होलसेलर','ડીલર / હોલસેલર','डीलर / घाऊक'), color: 'from-emerald-500/20 to-emerald-500/5', dot: 'bg-emerald-500', items: [L('Vendor portal','वेंडर portal','વેન્ડર portal','विक्रेता portal'), L('Batch payment','Batch payment','Batch payment','Batch payment'), L('Outstanding','बकाया','બાકી','थकबाकी'), L('Quotation→Dispatch','Quote→Dispatch','Quote→Dispatch','Quote→Dispatch')] },
+    { icon: Factory, title: L('Manufacturer','निर्माता','નિર્માતા','उत्पादक'), color: 'from-violet-500/20 to-violet-500/5', dot: 'bg-violet-500', items: ['P&L / Balance Sheet', 'GSTR-1 / GSTR-3B', 'E-Invoice & E-Way Bill', L('Supplier management','Supplier management','Supplier management','Supplier management')] },
+    { icon: Briefcase, title: L('Service / Consulting','सर्विस / कंसल्टिंग','સર્વિસ / કન્સલ્ટિંગ','सेवा / सल्लागार'), color: 'from-orange-500/20 to-orange-500/5', dot: 'bg-orange-500', items: [L('Standalone invoices','Standalone invoices','Standalone invoices','Standalone invoices'), L('Partial payments','आंशिक payment','આંશિક payment','आंशिक payment'), L('Expense tracking','Expense tracking','Expense tracking','Expense tracking'), L('Accounts','Accounts','Accounts','Accounts')] },
   ];
 
   const FEATURES = [
@@ -273,7 +273,7 @@ export function LandingPage() {
           <div className="hidden md:flex items-center gap-1">
             {['#business','#features','#pricing','#contact'].map((href, i) => (
               <a key={href} href={href} className={`px-3 py-2 text-sm rounded-lg transition-colors ${muted} hover:${text}`}>
-                {[L('Business','व्यापार','વ્યાપાર'), 'Features', L('Pricing','कीमत','કિંમત'), L('Contact','संपर्क','સંપર્ક')][i]}
+                {[L('Business','व्यापार','વ્યાપાર','व्यवसाय'), 'Features', L('Pricing','कीमत','કિંમત','किंमत'), L('Contact','संपर्क','સંપર્ક','संपर्क')][i]}
               </a>
             ))}
           </div>
@@ -284,7 +284,7 @@ export function LandingPage() {
               ))}
             </div>
             <button type="button" onClick={toggleTheme} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg ${muted} hover:text-current transition-colors`}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
-            <a href="#contact" className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-bold rounded-lg transition-colors hidden sm:block">{L('Try Free','ट्राय करें','Try Free')}</a>
+            <a href="#contact" className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-bold rounded-lg transition-colors hidden sm:block">{L('Try Free','ट्राय करें','Try Free','मोफत वापरा')}</a>
             <button type="button" onClick={() => setMobileMenuOpen(o => !o)} aria-label={mobileMenuOpen ? "Close menu" : "Open menu"} aria-expanded={mobileMenuOpen} className={`md:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg ${muted} hover:text-current transition-colors`}>
               {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -296,12 +296,12 @@ export function LandingPage() {
             {['#business','#features','#pricing','#contact'].map((href, i) => (
               <a key={href} href={href} onClick={() => setMobileMenuOpen(false)}
                 className={`block px-4 py-3 text-sm border-b ${border} ${muted} hover:text-current transition-colors`}>
-                {[L('Business','व्यापार','વ્યાપાર'), 'Features', L('Pricing','कीमत','કિંમત'), L('Contact','संपर्क','સંપર્ક')][i]}
+                {[L('Business','व्यापार','વ્યાપાર','व्यवसाय'), 'Features', L('Pricing','कीमत','કિંમત','किंमत'), L('Contact','संपर्क','સંપર્ક','संपर्क')][i]}
               </a>
             ))}
             <a href="#contact" onClick={() => setMobileMenuOpen(false)}
               className="block px-4 py-3 text-sm font-bold text-brand">
-              {L('Try Free','ट्राय करें','Try Free')}
+              {L('Try Free','ट्राय करें','Try Free','मोफत वापरा')}
             </a>
           </div>
         )}
@@ -368,13 +368,13 @@ export function LandingPage() {
                   }}
                   onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
                 >
-                  {L('Start Free Trial','फ्री ट्रायल','Free Trial')} <ArrowRight size={17} className="group-hover:translate-x-0.5 transition-transform" />
+                  {L('Start Free Trial','फ्री ट्रायल','Free Trial','मोफत सुरू करा')} <ArrowRight size={17} className="group-hover:translate-x-0.5 transition-transform" />
                 </a>
                 <a href="#features" className={`w-full sm:w-auto px-7 py-3.5 rounded-xl font-bold text-base border transition-colors text-center ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}>
-                  {L('Explore Features','Features देखें','Features જુઓ')}
+                  {L('Explore Features','Features देखें','Features જુઓ','Features पहा')}
                 </a>
               </motion.div>
-              <p className={`text-xs ${faint} text-center lg:text-left`}>{L('No credit card · Cancel anytime','No credit card · कभी भी cancel','No credit card · ગમે ત્યારે cancel')}</p>
+              <p className={`text-xs ${faint} text-center lg:text-left`}>{L('No credit card · Cancel anytime','No credit card · कभी भी cancel','No credit card · ગમે ત્યારે cancel','No credit card · कधीही रद्द करा')}</p>
 
               {/* Trust chips */}
               <div className="flex flex-wrap gap-2 mt-8 justify-center lg:justify-start">
@@ -409,7 +409,7 @@ export function LandingPage() {
             { val: 15, suf: '+', label: L('Modules','Modules','Modules') },
             { val: 38, suf: '', label: L('DB Tables','DB Tables','DB Tables') },
             { val: 493, suf: '', label: L('E2E Tests','E2E Tests','E2E Tests') },
-            { val: 3, suf: '', label: L('Languages','भाषाएं','ભાષાઓ') },
+            { val: 4, suf: '', label: L('Languages','भाषाएं','ભાષાઓ','भाषा') },
           ].map(s => (
             <div key={s.label}>
               <p className="text-3xl sm:text-4xl font-bold text-brand"><Counter to={s.val} suffix={s.suf} /></p>
@@ -424,8 +424,8 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Built for your business</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">{L('Every business type, one platform','हर business type, एक platform','દરેક business type, એક platform')}</h2>
-            <p className={`mt-3 text-lg ${muted}`}>{L('Tab visibility, labels, and features adapt to your business type','Tab visibility, labels, features — सब आपके business type के हिसाब से','Tab visibility, labels, features — તમારા business type પ્રમાણે')}</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">{L('Every business type, one platform','हर business type, एक platform','દરેક business type, એક platform','प्रत्येक व्यवसायासाठी, एक platform')}</h2>
+            <p className={`mt-3 text-lg ${muted}`}>{L('Tab visibility, labels, and features adapt to your business type','Tab visibility, labels, features — सब आपके business type के हिसाब से','तમારા business type પ્રમાણે','तुमच्या व्यवसायानुसार बदलतात')}</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {TYPES.map((t, i) => (
@@ -455,8 +455,8 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Full feature set</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">{L('Everything your business needs','हर ज़रूरत की feature','દરેક જરૂરિયાતની feature')}</h2>
-            <p className={`mt-3 text-lg ${muted}`}>{L('15+ modules, all in one login','15+ modules, एक ही login','15+ modules, એક જ login')}</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">{L('Everything your business needs','हर ज़रूरत की feature','દરેક જરૂરિયાતની feature','व्यवसायाला हवे ते सर्व')}</h2>
+            <p className={`mt-3 text-lg ${muted}`}>{L('15+ modules, all in one login','15+ modules, एक ही login','15+ modules, એક જ login','15+ modules, एकाच login मध्ये')}</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {FEATURES.map((f, i) => (
@@ -479,8 +479,8 @@ export function LandingPage() {
       <section className={`py-16 sm:py-24 px-4 sm:px-6 ${dark ? 'bg-white/[0.02]' : 'bg-white'}`}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold">{L('End-to-end, one place','एक जगह, पूरा cycle','એક જગ્યાએ, પૂરો cycle')}</h2>
-            <p className={`mt-3 text-lg ${muted}`}>{L('From purchase to P&L — every step tracked','Purchase से P&L तक — हर step tracked','Purchase થી P&L સુધી — દરેક step tracked')}</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">{L('End-to-end, one place','एक जगह, पूरा cycle','એક જગ્યાએ, પૂરો cycle','एकाच ठिकाणी, पूर्ण cycle')}</h2>
+            <p className={`mt-3 text-lg ${muted}`}>{L('From purchase to P&L — every step tracked','Purchase से P&L तक — हर step tracked','Purchase થી P&L સુધી — દરેક step tracked','खरेदीपासून P&L पर्यंत — प्रत्येक टप्पा tracked')}</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             {[
@@ -607,8 +607,8 @@ export function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Simple pricing</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">{L('Fits every budget','सबके बजट में','બધાના budget માં')}</h2>
-            <p className={`mt-3 text-lg ${muted}`}>{L('Free trial, no credit card. Contact us for pricing.','Free trial, no credit card। Pricing के लिए contact करें।','Free trial, no credit card. Pricing માટે contact કરો.')}</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">{L('Fits every budget','सबके बजट में','બધાના budget માં','सर्वांच्या बजेटमध्ये')}</h2>
+            <p className={`mt-3 text-lg ${muted}`}>{L('Free trial, no credit card. Contact us for pricing.','Free trial, no credit card। Pricing के लिए contact करें।','Free trial, no credit card. Pricing માટે contact કરો.','Free trial, no credit card. Pricing साठी संपर्क करा.')}</p>
           </div>
 
           {/* Billing toggle */}
@@ -633,9 +633,9 @@ export function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
-              { name: L('Free Trial','Free Trial','Free Trial'), price: '₹0', period: L('/ 14 days','/ 14 दिन','/ 14 દિવસ'), desc: L('All features, no card','सब features, no card','બધા features, no card'), feats: [L('All modules','सब modules','બધા modules'), '50 products', '5 vendors', 'Email support'], highlight: false, cta: L('Start Free','शुरू करें','Free Start') },
-              { name: L('Standard','Standard','Standard'), price: L('Contact','संपर्क','સંપર્ક'), period: '', desc: L('Growing businesses','बढ़ते व्यापार के लिए','વધતા business માટે'), feats: [L('Unlimited products','Unlimited products','Unlimited products'), '15 vendors', L('Vendor portal','Vendor portal','Vendor portal'), L('Priority support','Priority support','Priority support'), L('All reports','All reports','All reports')], highlight: true, cta: L('Get Quote','Quote लें','Quote મેળવો') },
-              { name: L('Professional','Professional','Professional'), price: L('Contact','संपर्क','સંપર્ક'), period: '', desc: L('Manufacturers & large dealers','बड़े manufacturers के लिए','મોટા manufacturers માટે'), feats: [L('Everything unlimited','સব unlimited','Everything unlimited'), 'E-Invoice & E-Way Bill', L('AI Chatbot','AI Chatbot','AI Chatbot'), L('Custom branding','Custom branding','Custom branding'), L('On-prem option','On-prem option','On-prem option')], highlight: false, cta: L('Get Quote','Quote लें','Quote મેળવો') },
+              { name: L('Free Trial','Free Trial','Free Trial'), price: '₹0', period: L('/ 14 days','/ 14 दिन','/ 14 દિવસ'), desc: L('All features, no card','सब features, no card','બધા features, no card'), feats: [L('All modules','सब modules','બધા modules'), '50 products', '5 vendors', 'Email support'], highlight: false, cta: L('Start Free','शुरू करें','Free Start','Free trial, सर्व features, no card') },
+              { name: L('Standard','Standard','Standard'), price: L('Contact','संपर्क','સંપર્ક'), period: '', desc: L('Growing businesses','बढ़ते व्यापार के लिए','વધતા business માટે'), feats: [L('Unlimited products','Unlimited products','Unlimited products'), '15 vendors', L('Vendor portal','Vendor portal','Vendor portal'), L('Priority support','Priority support','Priority support'), L('All reports','All reports','All reports')], highlight: true, cta: L('Get Quote','Quote लें','Quote મેળવો','संपर्क') },
+              { name: L('Professional','Professional','Professional'), price: L('Contact','संपर्क','સંપર્ક'), period: '', desc: L('Manufacturers & large dealers','बड़े manufacturers के लिए','મોટા manufacturers માટે'), feats: [L('Everything unlimited','સব unlimited','Everything unlimited'), 'E-Invoice & E-Way Bill', L('AI Chatbot','AI Chatbot','AI Chatbot'), L('Custom branding','Custom branding','Custom branding'), L('On-prem option','On-prem option','On-prem option')], highlight: false, cta: L('Get Quote','Quote लें','Quote મેળવો','संपर्क') },
             ].map((p, i) => (
               <motion.div key={p.name} {...vi(i * 0.1)}
                 className={`p-6 rounded-2xl border relative ${p.highlight ? (dark ? 'border-brand/40 bg-brand/5' : 'border-brand/30 bg-brand/3 shadow-lg shadow-brand/10') : card}`}>
@@ -697,8 +697,8 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Get started</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">{L('Let\'s talk','बात करें','વાત કરો')}</h2>
-            <p className={`mt-3 text-lg ${muted}`}>{L('Free trial · Setup in 5 min · Reply within 24h','Free trial · 5 min setup · 24h में reply','Free trial · 5 min setup · 24h માં reply')}</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">{L('Let\'s talk','बात करें','વાત કરો','बोलूया')}</h2>
+            <p className={`mt-3 text-lg ${muted}`}>{L('Free trial · Setup in 5 min · Reply within 24h','Free trial · 5 min setup · 24h में reply','Free trial · 5 min setup · 24h માં reply','Free trial · 5 min setup · 24h मध्ये reply')}</p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 lg:gap-12">
             <div className="lg:col-span-2 flex flex-col gap-4">
@@ -714,8 +714,8 @@ export function LandingPage() {
               ))}
               <div className={`p-4 rounded-2xl border ${dark ? 'border-white/5 bg-white/[0.02]' : 'border-gray-100 bg-gray-50'} mt-2`}>
                 <p className="text-2xl mb-2">🦁</p>
-                <p className="font-bold text-sm">{L('Designed in Rajkot, built for Bharat','Rajkot में बना, Bharat के लिए','Rajkot માં DesIgn, Bharat માટે')}</p>
-                <p className={`text-xs mt-1 ${faint}`}>{L('India\'s industrial heartland. Software for every shopkeeper, dealer, and manufacturer.','India के industrial heartland से। हर दुकानदार, dealer, manufacturer के लिए।','India ના industrial heartland થી. દરેક દુકાનદાર, dealer, manufacturer માટે.')}</p>
+                <p className="font-bold text-sm">{L('Designed in Rajkot, built for Bharat','Rajkot में बना, Bharat के लिए','Rajkot માં DesIgn, Bharat માટે','Rajkot मध्ये बनवले, Bharat साठी')}</p>
+                <p className={`text-xs mt-1 ${faint}`}>{L('India\'s industrial heartland. Software for every shopkeeper, dealer, and manufacturer.','India के industrial heartland से। हर दुकानदार, dealer, manufacturer के लिए।','India ના industrial heartland થી. દરેક દુકાનદાર, dealer, manufacturer માટે.','भारतातील प्रत्येक दुकानदार, dealer, उत्पादकासाठी.')}</p>
               </div>
             </div>
             <div className="lg:col-span-3"><EnquiryForm dark={dark} /></div>
