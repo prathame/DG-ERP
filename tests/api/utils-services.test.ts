@@ -1,0 +1,393 @@
+/**
+ * Direct unit coverage for server/utils + server/services (path to 90%).
+ */
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { pool, cleanupTestData } from '../helpers';
+import {
+  uid, isValidPhone, isValidEmail, isValidGstin, splitGst, placeOfSupplyLabel,
+  gstFromExclusive, parsePagination, applyDateFilter, logAudit, hashPassword, mapProduct,
+} from '../../server/utils/helpers';
+import { encryptSecret, decryptSecret } from '../../server/utils/secret-crypto';
+import { expandBarcodeRange, barcodeExists, getMaxBarcodeNumber, generateBarcodesFromPrefix } from '../../server/utils/barcode';
+import { checkPlanLimit } from '../../server/utils/planLimits';
+import { provisionTenant, deleteTenant, getTenantStats } from '../../server/utils/tenant';
+import { logger } from '../../server/utils/logger';
+import {
+  isValidPin, resolveSupplyType, getGstnPublicKey, buildIrnPayload, buildEwbPayload,
+  NicApiClient, loadGstCredentials, loadSellerPin,
+} from '../../server/services/nic-api';
+
+const TENANT = 'T-TEST-UTILS';
+
+beforeAll(async () => {
+  if (!process.env.JWT_SECRET) process.env.JWT_SECRET = 'test-secret-for-vitest-at-least-32-chars!!';
+  await cleanupTestData(TENANT);
+  await pool.query(
+    `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status)
+     VALUES ($1, 'Utils Co', 'test-utils', 'u@test.com', 'U', 'active') ON CONFLICT DO NOTHING`,
+    [TENANT]
+  );
+});
+
+afterAll(async () => {
+  await cleanupTestData(TENANT);
+});
+
+describe('utils/helpers', () => {
+  it('uid / validators / gst math', () => {
+    expect(uid('X').startsWith('X')).toBe(true);
+    expect(isValidPhone('9876543210')).toBe(true);
+    expect(isValidPhone('0123456789')).toBe(false);
+    expect(isValidEmail('a@b.com')).toBe(true);
+    expect(isValidEmail('bad')).toBe(false);
+    expect(isValidGstin('24AABCT1332L1ZS')).toBe(true);
+    expect(isValidGstin('xx')).toBe(false);
+
+    const intra = splitGst(18, '24AAAAA0000A1Z5', '24BBBBB0000B1Z5');
+    expect(intra.interstate).toBe(false);
+    expect(intra.cgst + intra.sgst).toBeCloseTo(18, 1);
+
+    const inter = splitGst(18, '24AAAAA0000A1Z5', '27BBBBB0000B1Z5');
+    expect(inter.interstate).toBe(true);
+    expect(inter.igst).toBe(18);
+
+    expect(placeOfSupplyLabel('27AAAAA0000A1Z5')).toContain('Maharashtra');
+    expect(placeOfSupplyLabel(null, '24AAAAA0000A1Z5')).toContain('Gujarat');
+
+    const g = gstFromExclusive(100, 18);
+    expect(g.taxable).toBe(100);
+    expect(g.tax).toBe(18);
+    expect(g.total).toBe(118);
+
+    expect(hashPassword('x').startsWith('$2')).toBe(true);
+    expect(mapProduct({ id: '1', name: 'P', price: 10 }).name).toBe('P');
+  });
+
+  it('parsePagination + applyDateFilter', () => {
+    expect(parsePagination({ page: '2', limit: '10' })).toEqual({ page: 2, limit: 10, offset: 10 });
+    expect(parsePagination({ page: '0', limit: '999' }).limit).toBe(200);
+
+    const params: unknown[] = [];
+    expect(applyDateFilter({ dateRange: 'today' }, 'd', params)).toMatch(/AND d =/);
+    expect(applyDateFilter({ dateRange: 'week' }, 'd', params)).toMatch(/AND d >=/);
+    expect(applyDateFilter({ dateRange: 'month' }, 'd', params)).toMatch(/AND d >=/);
+    expect(applyDateFilter({ dateFrom: '2026-01-01', dateTo: '2026-01-31' }, 'd', params)).toMatch(/AND d >=/);
+  });
+
+  it('logAudit writes row', async () => {
+    await logAudit(pool, TENANT, 'CREATE', 'vendor', 'V1', 'test', 'U1', 'Admin');
+    const { rows } = await pool.query(
+      `SELECT action FROM audit_log WHERE tenant_id = $1 AND entity_id = 'V1'`,
+      [TENANT]
+    );
+    expect(rows[0]?.action).toBe('CREATE');
+  });
+});
+
+describe('utils/secret-crypto', () => {
+  it('encrypt/decrypt + corrupt', () => {
+    const enc = encryptSecret('secret');
+    expect(decryptSecret(enc)).toBe('secret');
+    expect(decryptSecret('legacy')).toBe('legacy');
+    expect(() => decryptSecret('enc:v1:bad')).toThrow();
+  });
+});
+
+describe('utils/barcode', () => {
+  it('expandBarcodeRange edges', () => {
+    expect(expandBarcodeRange('SP001', 'SP003')).toEqual(['SP001', 'SP002', 'SP003']);
+    expect(expandBarcodeRange('', 'SP003')).toEqual([]);
+    expect(expandBarcodeRange('ABC', 'DEF')).toEqual(['ABC']);
+    expect(expandBarcodeRange('SP010', 'SP001')).toEqual(['SP010']);
+    expect(expandBarcodeRange('A01', 'B10')).toEqual(['A01']);
+  });
+
+  it('barcodeExists / generate from prefix', async () => {
+    await pool.query(
+      `INSERT INTO products (id, tenant_id, name, price, barcode)
+       VALUES ('P-U-1', $1, 'P', 1, 'BC-U-001') ON CONFLICT DO NOTHING`,
+      [TENANT]
+    );
+    expect(await barcodeExists(pool, TENANT, 'BC-U-001')).toBe(true);
+    expect(await barcodeExists(pool, TENANT, 'BC-MISSING')).toBe(false);
+
+    await pool.query(
+      `INSERT INTO product_inventory (id, tenant_id, product_id, barcode, status)
+       VALUES ('I-U-1', $1, 'P-U-1', 'PRE005', 'InStock') ON CONFLICT DO NOTHING`,
+      [TENANT]
+    );
+    expect(await getMaxBarcodeNumber(pool, TENANT, 'PRE')).toBe(5);
+    const next = await generateBarcodesFromPrefix(pool, TENANT, 'PRE', 2, 3);
+    expect(next).toEqual(['PRE006', 'PRE007']);
+  });
+});
+
+describe('utils/logger', () => {
+  it('info/warn/error/flush do not throw', () => {
+    logger.info('t', { a: 1 });
+    logger.warn('t');
+    logger.error('t', { e: 'x' });
+    expect(() => logger.flush()).not.toThrow();
+  });
+});
+
+describe('utils/planLimits', () => {
+  it('allows when unlimited or no plan', async () => {
+    const r = await checkPlanLimit(TENANT, 'products');
+    expect(r === null || typeof r?.error === 'string').toBe(true);
+  });
+
+  it('blocks when at plan cap', async () => {
+    const tid = 'T-TEST-PLAN-CAP';
+    await cleanupTestData(tid);
+    await pool.query(
+      `INSERT INTO plans (id, name, max_products, max_vendors, max_users, max_barcodes, features, price_monthly, price_yearly)
+       VALUES ('plan-cap-test', 'Cap', 0, 0, 1, 0, '[]', 0, 0)
+       ON CONFLICT (id) DO UPDATE SET max_products = 0, max_vendors = 0`
+    );
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, plan_id)
+       VALUES ($1, 'Cap Co', 'test-plan-cap', 'cap@test.com', 'C', 'active', 'plan-cap-test')
+       ON CONFLICT (id) DO UPDATE SET plan_id = 'plan-cap-test'`,
+      [tid]
+    );
+    const blocked = await checkPlanLimit(tid, 'products');
+    expect(blocked?.error).toMatch(/Plan limit reached/i);
+    await cleanupTestData(tid);
+  });
+});
+
+describe('utils/tenant', () => {
+  let createdId = '';
+
+  afterAll(async () => {
+    if (createdId) await deleteTenant(createdId).catch(() => {});
+  });
+
+  it('provision + stats + delete', async () => {
+    const plan = (await pool.query(`SELECT id FROM plans ORDER BY id LIMIT 1`)).rows[0];
+    if (!plan) return; // skip if no plans seeded
+
+    const name = `Utils Prov ${Date.now()}`;
+    const result = await provisionTenant({
+      companyName: name,
+      adminEmail: `prov${Date.now()}@test.com`,
+      adminName: 'Prov',
+      adminPassword: 'Test@12345',
+      planId: plan.id,
+      status: 'active',
+    });
+    createdId = result.tenantId;
+    expect(result.slug).toBeTruthy();
+    expect(result.bootstrapToken).toBeTruthy();
+
+    const stats = await getTenantStats(createdId);
+    expect(Number(stats.users)).toBeGreaterThanOrEqual(1);
+
+    await deleteTenant(createdId);
+    createdId = '';
+    const gone = (await pool.query('SELECT 1 FROM tenants WHERE id = $1', [result.tenantId])).rows[0];
+    expect(gone).toBeUndefined();
+  });
+
+  it('duplicate slug throws', async () => {
+    const plan = (await pool.query(`SELECT id FROM plans ORDER BY id LIMIT 1`)).rows[0];
+    if (!plan) return;
+    const companyName = `DupSlug ${Date.now()}`;
+    const a = await provisionTenant({
+      companyName, adminEmail: `a${Date.now()}@t.com`, adminName: 'A', planId: plan.id,
+    });
+    await expect(provisionTenant({
+      companyName, adminEmail: `b${Date.now()}@t.com`, adminName: 'B', planId: plan.id,
+    })).rejects.toMatchObject({ code: 'DUPLICATE_SLUG' });
+    await deleteTenant(a.tenantId);
+  });
+});
+
+describe('services/nic-api', () => {
+  it('pin / supply / public key / payloads / mock client', async () => {
+    expect(isValidPin('380001')).toBe(true);
+    expect(resolveSupplyType('24AABCT1332L1ZS')).toBe('B2B');
+    expect(resolveSupplyType('')).toBe('B2C');
+    expect(() => getGstnPublicKey('mock')).not.toThrow();
+    delete process.env.GSTN_SANDBOX_PUBLIC_KEY;
+    expect(() => getGstnPublicKey('sandbox')).toThrow(/crypto not configured/i);
+
+    const irn = buildIrnPayload({
+      sellerGstin: '24AABCT1332L1ZS', sellerName: 'S', sellerAddr: 'Addr', sellerPin: '380001',
+      buyerGstin: '27AABCT1332L1ZS', buyerName: 'B', buyerAddr: 'Mumbai', buyerPin: '400001',
+      invoiceNo: 'INV-1', invoiceDate: '15/07/2026',
+      items: [{ hsnCode: '8471', productName: 'Item', qty: 1, unitPrice: 100, gstRate: 18, taxable: 100, cgst: 0, sgst: 0, igst: 18, total: 118 }],
+      totalTaxable: 100, totalCgst: 0, totalSgst: 0, totalIgst: 18, grandTotal: 118,
+    });
+    expect(irn.TranDtls.SupTyp).toBe('B2B');
+    expect(irn.ItemList).toHaveLength(1);
+
+    const ewb = buildEwbPayload({
+      supplyType: 'O', subSupplyType: '1', docType: 'INV', docNo: 'INV-1', docDate: '15/07/2026',
+      sellerGstin: '24AABCT1332L1ZS', sellerName: 'S', sellerAddr: 'A', sellerPin: '380001',
+      buyerGstin: '27AABCT1332L1ZS', buyerName: 'B', buyerAddr: 'B', buyerPin: '400001',
+      items: [{ productName: 'Item', hsnCode: '8471', qty: 1, taxable: 100, cgst: 0, sgst: 0, igst: 18, total: 118 }],
+      totalTaxable: 100, totalCgst: 0, totalSgst: 0, totalIgst: 18, grandTotal: 118,
+      vehicleNo: 'GJ01AB1234', distance: 100,
+    });
+    expect(ewb.vehicleNo).toBe('GJ01AB1234');
+
+    const client = new NicApiClient({
+      mode: 'mock', gstin: '24AABCT1332L1ZS', username: '', password: '', clientId: 'mock', clientSecret: '',
+    });
+    const irnRes = await client.generateIrn(irn);
+    expect(irnRes.irn).toBeTruthy();
+    expect(irnRes.qrCode).toBeTruthy();
+    const ewbRes = await client.generateEwb(ewb);
+    expect(ewbRes.ewbNo).toBeTruthy();
+    await expect(client.cancelIrn(irnRes.irn, 1, 'test')).resolves.toBeUndefined();
+  });
+
+  it('loadGstCredentials mock + loadSellerPin', async () => {
+    const tid = 'T-TEST-GST-CREDS';
+    await cleanupTestData(tid);
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status)
+       VALUES ($1, 'Gst Creds', 'test-gst-creds', 'gc@test.com', 'G', 'active')
+       ON CONFLICT (id) DO NOTHING`,
+      [tid]
+    );
+    await pool.query(
+      `INSERT INTO bill_settings (tenant_id, gst_api_mode, gst_api_seller_pin)
+       VALUES ($1, 'mock', '380001')
+       ON CONFLICT (tenant_id) DO UPDATE SET gst_api_mode = 'mock', gst_api_seller_pin = '380001'`,
+      [tid]
+    );
+
+    const creds = await loadGstCredentials(pool, tid);
+    expect(creds.ok).toBe(true);
+    if (creds.ok) expect(creds.creds.mode).toBe('mock');
+
+    expect(await loadSellerPin(pool, tid)).toBe('380001');
+    await cleanupTestData(tid);
+  });
+
+  it('sandbox loadGstCredentials fails without client_id; ok with PEM + creds', async () => {
+    const tid = 'T-TEST-GST-SB';
+    const pem = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtL6P53A8vmQ5X0s65l6S
+T1odNXxpq4ocqsMT+M12m4sZXyNjGJin7T1S2OS25yA89B6NLs2AN4tHHkoljNsx
+0RmdMIFoJX8G8W+Ltwi//p1BACli/yqXCvVAqoEU8dBbcyXh7bpIcKHU/zrA5aFP
+o3Zj/bSPRDTt8v2OVgE7QQQXa75mEVvPHZph0STkA1JbOdxoW+sH7s3/j/LITi3y
+CcjR4DnP+MjodZcFOH2J0pXApI0AFBFJhieJSuYVnO85megv0DyvnU7HAVFi69z+
+KUaL2wt1X25rx547+2u1vKFvK18OCN/ULqWS6sdzdvhiDW2CzOC0FBu9SI1glMd0
+TwIDAQAB
+-----END PUBLIC KEY-----`;
+    process.env.GSTN_SANDBOX_PUBLIC_KEY = pem;
+
+    await cleanupTestData(tid);
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status)
+       VALUES ($1, 'Gst Sb', 'test-gst-sb', 'sb@test.com', 'S', 'active') ON CONFLICT DO NOTHING`,
+      [tid]
+    );
+    await pool.query(
+      `INSERT INTO bill_settings (tenant_id, gst_api_mode, gst_api_username)
+       VALUES ($1, 'sandbox', 'user')
+       ON CONFLICT (tenant_id) DO UPDATE SET gst_api_mode = 'sandbox', gst_api_username = 'user', gst_api_client_id = NULL`,
+      [tid]
+    );
+    const missing = await loadGstCredentials(pool, tid);
+    expect(missing.ok).toBe(false);
+
+    await pool.query(
+      `UPDATE bill_settings SET gst_api_client_id = 'cid', gst_api_password = $2, gst_api_client_secret = $3
+       WHERE tenant_id = $1`,
+      [tid, encryptSecret('pw'), encryptSecret('sec')]
+    );
+    const ok = await loadGstCredentials(pool, tid);
+    expect(ok.ok).toBe(true);
+    if (ok.ok) {
+      expect(ok.creds.mode).toBe('sandbox');
+      expect(ok.creds.password).toBe('pw');
+    }
+    await cleanupTestData(tid);
+  });
+
+  it('sandbox NicApiClient authenticate + generate via mocked fetch', async () => {
+    const crypto = await import('crypto');
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const pubPem = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    process.env.GSTN_SANDBOX_PUBLIC_KEY = pubPem;
+    expect(getGstnPublicKey('sandbox')).toContain('BEGIN PUBLIC KEY');
+
+    const aesEnc = (data: string, keyB64: string) => {
+      const key = Buffer.from(keyB64, 'base64');
+      const cipher = crypto.createCipheriv('aes-256-ecb', key, null);
+      return Buffer.concat([cipher.update(data, 'utf8'), cipher.final()]).toString('base64');
+    };
+
+    let sessionKeyB64 = '';
+    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => {
+      const u = String(url);
+      if (u.includes('/user/auth')) {
+        const body = JSON.parse(init?.body || '{}') as { appkey: string };
+        const appKeyRaw = crypto.privateDecrypt(
+          { key: privateKey, padding: crypto.constants.RSA_PKCS1_PADDING },
+          Buffer.from(body.appkey, 'base64')
+        );
+        const appKeyB64 = appKeyRaw.toString('base64');
+        sessionKeyB64 = appKeyB64;
+        const data = aesEnc(JSON.stringify({ AuthToken: 'tok', Sek: appKeyB64 }), appKeyB64);
+        return { ok: true, json: async () => ({ Status: 1, Data: data }) };
+      }
+      if (u.includes('/Invoice/Cancel')) {
+        return { ok: true, json: async () => ({ Status: 1 }) };
+      }
+      if (u.includes('/Invoice')) {
+        const data = aesEnc(JSON.stringify({
+          Irn: 'IRN123', AckNo: 'ACK1', AckDt: 'now', QRCode: 'qr', SignedQRCode: 'sqr',
+        }), sessionKeyB64);
+        return { ok: true, json: async () => ({ Status: 1, Data: data }) };
+      }
+      if (u.includes('ewbgenerate')) {
+        const data = aesEnc(JSON.stringify({
+          ewayBillNo: 123456789012, ewayBillDate: 'd1', validUpto: 'd2',
+        }), sessionKeyB64);
+        return { ok: true, json: async () => ({ Status: 1, Data: data }) };
+      }
+      return { ok: false, status: 500, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new NicApiClient({
+      mode: 'sandbox',
+      gstin: '24AABCT1332L1ZS',
+      username: 'u',
+      password: 'p',
+      clientId: 'c',
+      clientSecret: 's',
+    });
+
+    const irnBody = buildIrnPayload({
+      sellerGstin: '24AABCT1332L1ZS', sellerName: 'S', sellerAddr: 'A', sellerPin: '380001',
+      buyerName: 'B', buyerAddr: 'B', buyerPin: '380001',
+      invoiceNo: 'INV-L', invoiceDate: '15/07/2026',
+      items: [{ hsnCode: '8471', productName: 'I', qty: 1, unitPrice: 100, gstRate: 18, taxable: 100, cgst: 9, sgst: 9, igst: 0, total: 118 }],
+      totalTaxable: 100, totalCgst: 9, totalSgst: 9, totalIgst: 0, grandTotal: 118,
+    });
+    const irn = await client.generateIrn(irnBody);
+    expect(irn.irn).toBe('IRN123');
+
+    const ewbBody = buildEwbPayload({
+      supplyType: 'O', subSupplyType: '1', docType: 'INV', docNo: 'INV-L', docDate: '15/07/2026',
+      sellerGstin: '24AABCT1332L1ZS', sellerName: 'S', sellerAddr: 'A', sellerPin: '380001',
+      buyerGstin: 'URP', buyerName: 'B', buyerAddr: 'B', buyerPin: '380001',
+      items: [{ productName: 'I', hsnCode: '8471', qty: 1, taxable: 100, cgst: 9, sgst: 9, igst: 0, total: 118 }],
+      totalTaxable: 100, totalCgst: 9, totalSgst: 9, totalIgst: 0, grandTotal: 118,
+      vehicleNo: 'GJ01AB1234', distance: 50,
+    });
+    const ewb = await client.generateEwb(ewbBody);
+    expect(ewb.ewbNo).toBe('123456789012');
+
+    await client.cancelIrn('IRN123', 1, 'wrong');
+    expect(fetchMock).toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+});

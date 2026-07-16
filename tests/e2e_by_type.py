@@ -154,8 +154,15 @@ def test_common(tok, tid, ids, btype):
     if ids.get("vendor"):
         s,d = req("PUT",f"/api/vendors/{ids['vendor']}",{"name":"Updated Vendor"},D)
         ok("Update vendor", s == 200, f"status={s} {d.get('error','')}")
+        s,d = req("GET",f"/api/vendors?search=Updated",headers=D)
+        ok("Search vendors → 200", s == 200)
     ok("Vendor no name → 400", req("POST","/api/vendors",{},D)[0] == 400)
+    ok("Vendor bad phone → 400",
+       req("POST","/api/vendors",{"name":"Bad Phone","phone":"12"},D)[0] == 400)
     ok("Vendor no auth → 401", req("GET","/api/vendors")[0] == 401)
+    s,d = req("POST","/api/vendors/bulk",
+        {"vendors":[{"name":f"Bulk {btype} V1","phone":"9111111111"}]},D)
+    ok("Bulk create vendors → 200/201", s in (200,201), d.get("error",""))
 
     sec("Customers CRUD")
     ok("List customers", req("GET","/api/customers",headers=D)[0] == 200)
@@ -180,14 +187,28 @@ def test_common(tok, tid, ids, btype):
     if ids.get("supplier"):
         s,d=req("PUT",f"/api/suppliers/{ids['supplier']}",{"name":"Updated Supplier"},D)
         ok("Update supplier", s == 200, f"status={s} {d.get('error','')}")
+        s,d = req("GET","/api/suppliers?search=Updated",headers=D)
+        ok("Search suppliers → 200", s == 200)
         s,d = req("GET","/api/supplier-finance/summary",headers=D)
         ok("Supplier finance summary", s == 200)
+        s,d = req("GET",f"/api/supplier-finance/{ids['supplier']}",headers=D)
+        ok("Supplier finance detail → 200", s == 200)
         s,d = req("POST",f"/api/supplier-finance/{ids['supplier']}/payments",
             {"amount":100,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)
         ok("Supplier payment → 201", s == 201, d.get("error",""))
         ok("Supplier payment zero → 400",
             req("POST",f"/api/supplier-finance/{ids['supplier']}/payments",
                 {"amount":0,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 400)
+        ok("Supplier payment negative → 400",
+            req("POST",f"/api/supplier-finance/{ids['supplier']}/payments",
+                {"amount":-50,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 400)
+        ok("Supplier payment overpay → 400",
+            req("POST",f"/api/supplier-finance/{ids['supplier']}/payments",
+                {"amount":99999999,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 400)
+        ok("Supplier finance bad ID → 404",
+            req("GET","/api/supplier-finance/NONEXISTENT",headers=D)[0] == 404)
+    ok("Supplier no name → 400", req("POST","/api/suppliers",{},D)[0] == 400)
+    ok("Supplier no auth → 401", req("GET","/api/suppliers")[0] == 401)
 
     sec("Staff & Payroll")
     ok("List staff", req("GET","/api/staff",headers=D)[0] == 200)
@@ -235,9 +256,14 @@ def test_common(tok, tid, ids, btype):
     ok("List purchase batches", req("GET","/api/purchases/batches",headers=D)[0] == 200)
     ok("Purchase batch created", bool(ids.get("purchase_batch")))
     ok("Purchase batch no items → 400", req("POST","/api/purchases/batch",{},D)[0] == 400)
+    ok("Purchase batch no supplier → 400",
+       req("POST","/api/purchases/batch",{"items":[{"productId":"x","quantity":1}]},D)[0] == 400)
     if ids.get("purchase_batch"):
         ok("Get purchase batch",
             req("GET",f"/api/purchases/batch/{ids['purchase_batch']}",headers=D)[0] == 200)
+        ok("Get missing purchase batch → 404",
+            req("GET","/api/purchases/batch/NONEXISTENT",headers=D)[0] == 404)
+    ok("Purchases no auth → 401", req("GET","/api/purchases/batches")[0] == 401)
 
     sec("Accounts — Core")
     ok("P&L → 200", req("GET","/api/accounts/profit-loss?from=2026-04-01&to=2026-07-15",headers=D)[0] == 200)
@@ -355,9 +381,15 @@ def test_manufacturer(tok, tid, ids):
 
     sec("Vendor Finance (Manufacturer)")
     ok("Vendor finance summary", req("GET","/api/vendor-finance/summary",headers=D)[0] == 200)
+    ok("Reminders due → 200", req("GET","/api/vendor-finance/reminders-due",headers=D)[0] == 200)
     if ids.get("vendor"):
         ok("Vendor finance detail",
            req("GET",f"/api/vendor-finance/{ids['vendor']}",headers=D)[0] == 200)
+        s,d = req("PUT",f"/api/vendor-finance/{ids['vendor']}/reminder",
+            {"enabled":True,"reminderDays":7},D)
+        ok("Upsert vendor reminder → 200", s == 200, d.get("error",""))
+        s,d = req("POST",f"/api/vendor-finance/{ids['vendor']}/reminder-sent",{},D)
+        ok("Mark reminder sent → 200", s == 200, d.get("error",""))
         s,d = req("POST",f"/api/vendor-finance/{ids['vendor']}/payments",
             {"amount":100,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)
         ok("Vendor payment → 201", s == 201, d.get("error",""))
@@ -367,9 +399,14 @@ def test_manufacturer(tok, tid, ids):
         ok("Vendor payment negative → 400",
            req("POST",f"/api/vendor-finance/{ids['vendor']}/payments",
                {"amount":-100,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 400)
+        ok("Vendor payment overpay → 400",
+           req("POST",f"/api/vendor-finance/{ids['vendor']}/payments",
+               {"amount":99999999,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 400)
         ok("Vendor bad ID → 404",
            req("POST","/api/vendor-finance/NONEXISTENT/payments",
                {"amount":100,"paymentDate":"2026-07-15","paymentMethod":"Cash"},D)[0] == 404)
+        ok("Vendor finance detail bad ID → 404",
+           req("GET","/api/vendor-finance/NONEXISTENT",headers=D)[0] == 404)
 
     sec("Bank Statement (Manufacturer)")
     txns = [
