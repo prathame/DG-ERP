@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogIn, LogOut, UserPlus, Phone, MapPin, Building2, UserCog, Shield, Download, MessageCircle, FileText, Settings, Upload, Palette, Eye, FileCheck, ChevronDown } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api } from '../../api';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import type { Vendor, BillSettings } from '../../types';
@@ -196,8 +196,9 @@ function BillCustomizationSection() {
       billSettings: form,
     };
     const html = generateSalesInvoiceHtml(sampleBill as never);
-    const win = window.open('', '_blank', 'width=850,height=900');
-    if (win) { win.document.write(html); win.document.close(); }
+    const win = openPrintWindow('Preparing preview…');
+    if (!win) { toast(PRINT_POPUP_BLOCKED, 'error'); return; }
+    printBillInWindow(win, html, 'Bill Preview', { autoPrint: false });
   };
 
   const toggleField = (field: 'showRewards' | 'showBarcode' | 'showWarranty') => (

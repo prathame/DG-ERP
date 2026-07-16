@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Search, Package, Truck, ShoppingCart, ShieldCheck, RefreshCw, Gift, Camera, CheckCircle2, XCircle, Clock, AlertCircle, IndianRupee, Users, FileText, Barcode, Printer } from 'lucide-react';
-import { cn, formatDate } from '../../lib/utils';
+import { cn, formatDate, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api } from '../../api';
 import { useToast } from '../../components/ui';
 import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
@@ -185,8 +185,9 @@ export function ProductVerificationView() {
             <button type="button" onClick={() => {
               const d = vendorDetail as { vendor?: { name: string; phone?: string }; totalDistributedValue: number; totalPaid: number; balance: number; payments?: { amount: number; paymentDate: string; paymentMethod: string }[]; distributions?: { date: string; productName: string; quantity: number; total: number }[] };
               const companyName = (() => { try { return (session.getUser() || {} as Record<string, unknown>).companyName || 'Dhandho'; } catch { return 'Dhandho'; } })();
-              const w = window.open('', '_blank'); if (!w) return;
-              w.document.write(`<!DOCTYPE html><html><head><title>${esc(d.vendor?.name)} — Report</title><style>
+              const w = openPrintWindow();
+              if (!w) { toast(PRINT_POPUP_BLOCKED, 'error'); return; }
+              printBillInWindow(w, `<!DOCTYPE html><html><head><title>${esc(d.vendor?.name)} — Report</title><style>
                 body{font-family:Inter,sans-serif;margin:0;padding:40px;color:#1a1a1a}
                 .header{border-bottom:3px solid #F27D26;padding-bottom:16px;margin-bottom:24px}
                 .company{font-size:18px;font-weight:700}.sub{font-size:13px;color:#666;margin-top:4px}
@@ -207,8 +208,7 @@ export function ProductVerificationView() {
               ${d.payments?.length ? `<h4>Payments</h4><table><thead><tr><th>Date</th><th>Method</th><th class="r">Amount</th></tr></thead><tbody>${d.payments.map(p => `<tr><td>${esc(formatDate(p.paymentDate))}</td><td>${esc(p.paymentMethod)}</td><td class="r" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
               ${d.distributions?.length ? `<h4>Distributions</h4><table><thead><tr><th>Date</th><th>Product</th><th class="r">Qty</th><th class="r">Total</th></tr></thead><tbody>${d.distributions.map(x => `<tr><td>${esc(formatDate(x.date))}</td><td>${esc(x.productName)}</td><td class="r">${x.quantity}</td><td class="r" style="font-weight:600">₹${Number(x.total).toLocaleString()}</td></tr>`).join('')}</tbody></table>` : ''}
               <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${esc(companyName)}</div>
-              <script>window.print()</script></body></html>`);
-              w.document.close();
+              </body></html>`, `${d.vendor?.name || 'Vendor'}-Report`);
             }} className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50"><Printer size={14} /> Print / PDF</button>
           </div>
           {(() => {

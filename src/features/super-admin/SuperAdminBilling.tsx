@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Check, X, ChevronLeft, ChevronRight, IndianRupee, Printer } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
 import { session } from '../../lib/session';
 
@@ -78,8 +78,9 @@ ${Number(inv.gstAmount) > 0 ? `<tr><td>GST (18%)</td><td style="text-align:right
 ${inv.notes ? `<p style="margin-top:16px;font-size:12px;color:#666;">${esc(inv.notes)}</p>` : ''}
 <div class="footer"><p>Thank you for choosing Dhandho Management</p><p style="margin-top:4px;">This is a computer-generated invoice.</p></div>
 </body></html>`;
-    const win = window.open('', '_blank', 'width=800,height=600');
-    if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(() => win.print(), 400); }
+    const win = openPrintWindow();
+    if (!win) { toast(PRINT_POPUP_BLOCKED, 'error'); return; }
+    printBillInWindow(win, html, inv.invoiceNumber);
   };
 
   const totalRevenue = invoices.reduce((s, i) => s + Number(i.total), 0);

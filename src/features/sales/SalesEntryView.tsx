@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Barcode, CheckCircle2, AlertCircle, Download, Printer, MessageCircle, Mail, Camera } from 'lucide-react';
-import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatSalesInvoiceText, formatDate, useTabLabel, fetchImageAsDataUrl } from '../../lib/utils';
+import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatSalesInvoiceText, formatDate, useTabLabel, fetchImageAsDataUrl, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api } from '../../api';
 import type { SaleRecord } from '../../api';
 import { useToast, DateRangeFilter, PaginationControls } from '../../components/ui';
@@ -184,7 +184,16 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                     <button
                       type="button"
-                      onClick={async () => { const w = openPrintWindow(); if (!w) return; try { const bill = await api.sales.getBill(s.id); const bs = (bill as unknown as Record<string,unknown>).billSettings as Record<string,unknown>|undefined; const qrDataUrl = bs?.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName||'Business'}&cu=INR`)}`) : undefined; printBillInWindow(w, generateSalesInvoiceHtml(bill, { showGst: includeGst, qrDataUrl })); } catch(err) { w.close(); toast((err as Error).message, 'error'); } }}
+                      onClick={async () => {
+                        const w = openPrintWindow();
+                        if (!w) { toast(PRINT_POPUP_BLOCKED, 'error'); return; }
+                        try {
+                          const bill = await api.sales.getBill(s.id);
+                          const bs = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined;
+                          const qrDataUrl = bs?.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`) : undefined;
+                          printBillInWindow(w, generateSalesInvoiceHtml(bill, { showGst: includeGst, qrDataUrl }));
+                        } catch (err) { try { w.close(); } catch { /* ignore */ } toast((err as Error).message, 'error'); }
+                      }}
                       className="p-1.5 text-gray-400 hover:text-brand hover:bg-orange-50 rounded-lg"
                       title="Print Invoice"
                     >
@@ -192,7 +201,18 @@ export function SalesEntryView({ user }: { user: { id: string; role?: string; ve
                     </button>
                     <button
                       type="button"
-                      onClick={async () => { try { const bill = await api.sales.getBill(s.id); const bs = (bill as unknown as Record<string,unknown>).billSettings as Record<string,unknown>|undefined; const qrDataUrl = bs?.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName||'Business'}&cu=INR`)}`) : undefined; saveBillAsPdf(generateSalesInvoiceHtml(bill, { showGst: includeGst, qrDataUrl }), `Invoice-${s.customerName}-${s.id}`); } catch(err) { toast((err as Error).message, 'error'); } }}
+                      onClick={async () => {
+                        const w = openPrintWindow('Preparing PDF…');
+                        if (!w) { toast(PRINT_POPUP_BLOCKED, 'error'); return; }
+                        try {
+                          const bill = await api.sales.getBill(s.id);
+                          const bs = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined;
+                          const qrDataUrl = bs?.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`) : undefined;
+                          if (!saveBillAsPdf(generateSalesInvoiceHtml(bill, { showGst: includeGst, qrDataUrl }), `Invoice-${s.customerName}-${s.id}`, w)) {
+                            toast(PRINT_POPUP_BLOCKED, 'error');
+                          }
+                        } catch (err) { try { w.close(); } catch { /* ignore */ } toast((err as Error).message, 'error'); }
+                      }}
                       className="p-1.5 text-gray-400 hover:text-brand hover:bg-orange-50 rounded-lg"
                       title="Save as PDF"
                     >

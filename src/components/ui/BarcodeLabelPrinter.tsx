@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Printer, QrCode } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
 import { api } from '../../api';
-import { LoadingSpinner } from './index';
-import { cn } from '../../lib/utils';
+import { LoadingSpinner, useToast } from './index';
+import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { session } from '../../lib/session';
 import { esc } from '../../lib/billTemplates';
 
@@ -64,6 +64,7 @@ function generateQrDataUrl(text: string, size: number = 100): string {
 }
 
 export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: BarcodeLabelPrinterProps) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [product, setProduct] = useState<{ name: string; price: number } | null>(null);
   const [barcodes, setBarcodes] = useState<{ barcode: string; status: string }[]>([]);
@@ -141,13 +142,9 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
 <div class="grid">${labels}</div>
 </body></html>`;
 
-    const win = window.open('', '_blank', 'width=800,height=600');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      win.focus();
-      setTimeout(() => win.print(), 500);
-    }
+    const win = openPrintWindow('Preparing labels…');
+    if (!win) { toast(PRINT_POPUP_BLOCKED, 'error'); return; }
+    printBillInWindow(win, html, `Labels-${product.name}`);
   };
 
   if (loading) return (

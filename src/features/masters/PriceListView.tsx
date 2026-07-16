@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Trash2, Tag, Printer, MessageCircle, Mail } from 'lucide-react';
-import { cn, openPrintWindow, shareViaWhatsApp, shareViaEmail } from '../../lib/utils';
+import { cn, openPrintWindow, printBillInWindow, shareViaWhatsApp, shareViaEmail, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
@@ -122,7 +122,11 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         <button type="button" onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft size={20} /></button>
         <div className="flex-1"><h2 className="text-xl font-bold">Price List</h2><p className="text-sm text-gray-500">Set custom prices per vendor and quantity slabs</p></div>
         {rules.length > 0 && <>
-          <button type="button" onClick={() => { const w = openPrintWindow(); if (w) { w.document.write(generatePriceListHtml()); w.document.close(); w.print(); } }} className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50"><Printer size={16} /> Print</button>
+          <button type="button" onClick={() => {
+            const w = openPrintWindow();
+            if (!w) { toast(PRINT_POPUP_BLOCKED, 'error'); return; }
+            printBillInWindow(w, generatePriceListHtml(), 'Price List');
+          }} className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50"><Printer size={16} /> Print</button>
           <button type="button" onClick={() => { const phone = prompt('Enter WhatsApp number (with country code):'); if (phone) shareViaWhatsApp(phone, generatePriceListText()); }} className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 text-green-600"><MessageCircle size={16} /> WhatsApp</button>
           <button type="button" onClick={() => { const email = prompt('Enter email address:'); if (email) shareViaEmail(email, `Price List — ${companyName}`, generatePriceListText()); }} className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 text-blue-600"><Mail size={16} /> Email</button>
         </>}

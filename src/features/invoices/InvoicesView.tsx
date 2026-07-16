@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, FileText, Trash2, Download, Send, Check, X, Printer } from 'lucide-react';
-import { cn, formatDate, exportToCsv, useTabLabel, fetchImageAsDataUrl } from '../../lib/utils';
+import { cn, formatDate, exportToCsv, useTabLabel, fetchImageAsDataUrl, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { fetchApi } from '../../api';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
@@ -70,6 +70,13 @@ export function InvoicesView() {
   const [pdfStyle, setPdfStyle] = useState<'modern' | 'classic' | 'minimal'>(() => (localStorage.getItem('dg_inv_style') as 'modern' | 'classic' | 'minimal') || 'modern');
 
   const printInvoice = async (inv: Invoice) => {
+    // Open sync with the click — await before window.open gets blocked (Electron / pop-up blockers)
+    const w = openPrintWindow();
+    if (!w) {
+      toast(PRINT_POPUP_BLOCKED, 'error');
+      return;
+    }
+    try {
     const user = session.getUser() || {};
     const bs = billSettings;
     const color = /^#[0-9a-fA-F]{3,8}$/.test(String(bs.primaryColor || '')) ? String(bs.primaryColor) : '#F27D26';
@@ -88,11 +95,9 @@ export function InvoicesView() {
     const sigHtml = (bs.signatoryName || sigSrc) ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;"><div style="text-align:center;">${sigSrc ? `<img src="${sigSrc}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}<p style="font-size:11px;border-top:1px solid #999;padding-top:4px;">${esc(bs.signatoryName || '')}${bs.signatoryDesignation ? `<br/><span style="font-size:10px;color:#666;">${esc(bs.signatoryDesignation)}</span>` : ''}</p></div></div>` : '';
     const termsHtml = (inv.terms || bs.termsAndConditions) ? `<div style="margin-top:16px;font-size:10px;color:#666;"><strong>Terms & Conditions:</strong><br/>${esc(inv.terms || bs.termsAndConditions)}</div>` : '';
 
-    const w = window.open('', '_blank');
-    if (!w) return;
     const hasGst = inv.taxTotal > 0;
     const halfGst = Math.round(inv.taxTotal / 2);
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${invPrefix}${esc(inv.invoiceNumber)}</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${invPrefix}${esc(inv.invoiceNumber)}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
       table{border-collapse:collapse;}.outer{border:2px solid ${color};width:100%;}.outer td,.outer th{border:1px solid #ccc;padding:4px 8px;font-size:11px;}
@@ -159,8 +164,12 @@ export function InvoicesView() {
     ${inv.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${esc(inv.notes)}</div>` : ''}
     ${bankHtml}${termsHtml}${sigHtml}
     <p class="footer-text">${footerText}</p>
-    <script>(function(){var imgs=document.querySelectorAll('img');var n=imgs.length;if(!n){setTimeout(function(){window.print();},200);return;}var done=0;function check(){if(++done>=n)setTimeout(function(){window.print();},200);}imgs.forEach(function(img){if(img.complete)check();else{img.onload=check;img.onerror=check;}});})()</script></body></html>`);
-    w.document.close();
+    </body></html>`;
+    printBillInWindow(w, html, `${hasGst ? 'Tax-Invoice' : 'Invoice'}-${inv.invoiceNumber}`);
+    } catch (err) {
+      try { w.close(); } catch { /* ignore */ }
+      toast(err instanceof Error ? err.message : 'Print failed', 'error');
+    }
   };
 
   if (loading) return <div className="py-20"><LoadingSpinner /></div>;

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, ArrowLeft, Clock, MessageCircle, Send, Search, Printer, Upload, FileSpreadsheet, Check, X, AlertTriangle } from 'lucide-react';
-import { cn, shareViaWhatsApp, formatDate } from '../../lib/utils';
+import { cn, shareViaWhatsApp, formatDate, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { session } from '../../lib/session';
@@ -165,9 +165,9 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
           </div>
           <button type="button" onClick={() => {
             const companyName = (() => { try { return (session.getUser() || {} as Record<string, unknown>).companyName || 'Dhandho'; } catch { return 'Dhandho'; } })();
-            const w = window.open('', '_blank');
-            if (!w) return;
-            w.document.write(`<!DOCTYPE html><html><head><title>Payment History — ${esc(detail.vendor.name)}</title><style>
+            const w = openPrintWindow();
+            if (!w) { toast(PRINT_POPUP_BLOCKED, 'error'); return; }
+            printBillInWindow(w, `<!DOCTYPE html><html><head><title>Payment History — ${esc(detail.vendor.name)}</title><style>
               body{font-family:Inter,sans-serif;margin:0;padding:40px;color:#1a1a1a}
               .header{border-bottom:3px solid #F27D26;padding-bottom:16px;margin-bottom:24px}
               .company{font-size:18px;font-weight:700}.vendor{font-size:14px;color:#666;margin-top:4px}
@@ -191,8 +191,7 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
             <table><thead><tr><th>Date</th><th>Method</th><th class="text-right">Amount</th><th>Reference</th><th>Notes</th></tr></thead>
             <tbody>${detail.payments.map((p: Record<string, unknown>) => `<tr><td>${esc(formatDate(p.paymentDate as string))}</td><td>${esc(p.paymentMethod)}</td><td class="text-right" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td><td>${esc(p.referenceNumber || '—')}</td><td>${esc(p.notes || '—')}</td></tr>`).join('')}</tbody></table>
             <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${esc(companyName)}</div>
-            <script>window.print()</script></body></html>`);
-            w.document.close();
+            </body></html>`, `Payment-History-${detail.vendor.name}`);
           }} className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50"><Printer size={16} /> PDF</button>
           {isAdmin && <button type="button" onClick={openPaymentModal} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"><Plus size={18} /> Record Payment</button>}
         </div>

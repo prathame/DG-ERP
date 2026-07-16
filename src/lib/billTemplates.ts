@@ -311,7 +311,12 @@ ${tcSection ? `<table class="outer" style="margin-top:-1px;"><tr><td style="padd
 </body></html>`;
 }
 
-export function generateDistributionChallanHtml(bill: DistributionBillData, options?: { showGst?: boolean; fullyPaid?: boolean; qrDataUrl?: string }): string {
+export function generateDistributionChallanHtml(bill: DistributionBillData, options?: {
+  showGst?: boolean;
+  fullyPaid?: boolean;
+  qrDataUrl?: string;
+  irnQrDataUrl?: string;
+}): string {
   const showGst = options?.showGst ?? true;
   const fullyPaid = options?.fullyPaid ?? false;
   const billConfig = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
@@ -322,6 +327,13 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   const tagline = (billConfig.tagline as string) || '';
   const chPrefix = (billConfig.challanPrefix as string) || '';
   const footerText = (billConfig.footerText as string) || 'Powered by Dhandho Management';
+  const ewbNumber = bill.ewbNumber || '';
+  const irn = bill.irn || '';
+  const irnAckNo = bill.irnAckNo || '';
+  const irnAckDt = bill.irnAckDt || '';
+  const irnQrPayload = bill.irnQr || '';
+  const irnQrSrc = options?.irnQrDataUrl
+    || (irnQrPayload ? `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(irnQrPayload)}` : '');
 
   const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
   const upiQrSection = billConfig.bankUpiId ? (() => {
@@ -470,8 +482,15 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
       <table style="width:100%;">
         <tr class="cust-row"><td class="cust-label">Invoice No.</td><td><strong style="font-family:monospace;">${esc(chPrefix)}${esc(bill.challanId)}</strong></td></tr>
         <tr class="cust-row"><td class="cust-label">Invoice Date</td><td><strong>${fmtDate(bill.distributionDate)}</strong></td></tr>
-        ${(bill as unknown as Record<string, unknown>).ewbNumber ? `<tr class="cust-row"><td class="cust-label">E-Way Bill</td><td><strong style="font-family:monospace;">${esc(String((bill as unknown as Record<string, unknown>).ewbNumber))}</strong></td></tr>` : ''}
+        ${ewbNumber ? `<tr class="cust-row"><td class="cust-label">E-Way Bill</td><td><strong style="font-family:monospace;">${esc(ewbNumber)}</strong></td></tr>` : ''}
+        ${irn ? `<tr class="cust-row"><td class="cust-label">IRN</td><td style="font-family:monospace;font-size:9px;word-break:break-all;">${esc(irn)}</td></tr>` : ''}
+        ${irnAckNo ? `<tr class="cust-row"><td class="cust-label">Ack No.</td><td><strong style="font-family:monospace;">${esc(irnAckNo)}</strong></td></tr>` : ''}
+        ${irnAckDt ? `<tr class="cust-row"><td class="cust-label">Ack Date</td><td>${esc(irnAckDt)}</td></tr>` : ''}
       </table>
+      ${irnQrSrc ? `<div style="padding:8px;text-align:center;border-top:1px solid #eee;">
+        <img src="${irnQrSrc}" style="width:120px;height:120px;" alt="E-Invoice QR" />
+        <div style="font-size:9px;color:#666;margin-top:2px;font-weight:600;">e-Invoice QR</div>
+      </div>` : ''}
     </td>
   </tr>
 </table>

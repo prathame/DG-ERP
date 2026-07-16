@@ -49,39 +49,111 @@ export function formatDate(dateStr: string | null | undefined): string {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 }
 
-/** Open a print window immediately (must be called from click handler, not async callback) */
-export function openPrintWindow(): Window | null {
-  const win = window.open('', '_blank', 'width=800,height=600');
+/** Prefer SignedQRCode / stored irnQr; fall back to decoding base64 mock qrCode. */
+export function resolveIrnQrPayload(r: { qrCode?: string | null; signedQrCode?: string | null; irnQr?: string | null }): string {
+  const candidate = r.signedQrCode || r.irnQr || r.qrCode || '';
+  if (!candidate) return '';
+  if (candidate.includes('|') || candidate.startsWith('eyJ')) return candidate;
+  try {
+    const decoded = atob(candidate);
+    if (decoded.includes('|') || /^[\x20-\x7E\n\r]+$/.test(decoded)) return decoded;
+  } catch { /* not base64 */ }
+  return candidate;
+}
+
+/** Shown when window.open is blocked (Electron / browser pop-up blocker). */
+export const PRINT_POPUP_BLOCKED = 'Pop-up blocked — allow pop-ups to print';
+
+/**
+ * Open a print/preview window immediately.
+ * Must be called synchronously from a click handler — never after await.
+ * Avoids feature strings (width/height) which often make Electron return null.
+ */
+export function openPrintWindow(placeholder = 'Preparing…'): Window | null {
+  let win: Window | null = null;
+  try { win = window.open('', '_blank'); } catch { /* ignore */ }
+  if (!win) {
+    try { win = window.open('about:blank'); } catch { /* ignore */ }
+  }
   if (win) {
-    win.document.write('<html><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#999;"><p>Preparing bill...</p></body></html>');
-    win.document.close();
+    try {
+      const safe = String(placeholder).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      win.document.open();
+      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${safe}</p></body></html>`);
+      win.document.close();
+    } catch { /* ignore */ }
   }
   return win;
 }
 
-/** Write bill HTML to an already-opened print window and trigger print */
-export function printBillInWindow(win: Window, html: string, filename?: string) {
-  const safeTitle = filename
-    ? String(filename).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-    : '';
-  const titled = filename ? html.replace(/<title>[^<]*<\/title>/, `<title>${safeTitle}</title>`) : html;
+function applyPrintTitle(html: string, filename?: string): string {
+  if (!filename) return html;
+  const safeTitle = String(filename).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return html.includes('<title>')
+    ? html.replace(/<title>[^<]*<\/title>/, `<title>${safeTitle}</title>`)
+    : html.replace(/<head([^>]*)>/i, `<head$1><title>${safeTitle}</title>`);
+}
+
+function triggerPrintWhenReady(win: Window) {
+  try {
+    win.focus();
+    let printed = false;
+    const printNow = () => {
+      if (printed) return;
+      printed = true;
+      try { win.print(); } catch { /* ignore */ }
+    };
+    const imgs = Array.from(win.document.images || []);
+    if (imgs.length === 0) {
+      setTimeout(printNow, 200);
+      return;
+    }
+    let done = 0;
+    const check = () => { if (++done >= imgs.length) setTimeout(printNow, 150); };
+    imgs.forEach((img) => {
+      if (img.complete) check();
+      else { img.onload = check; img.onerror = check; }
+    });
+    setTimeout(printNow, 4000); // fallback if image events never fire
+  } catch { /* ignore */ }
+}
+
+/** Write HTML into an already-opened print window and trigger print */
+export function printBillInWindow(win: Window, html: string, filename?: string, opts?: { autoPrint?: boolean }) {
+  const titled = applyPrintTitle(html, filename);
   win.document.open();
   win.document.write(titled);
   win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); }, 400);
+  if (opts?.autoPrint === false) {
+    try { win.focus(); } catch { /* ignore */ }
+    return;
+  }
+  triggerPrintWhenReady(win);
 }
 
-/** Open bill HTML in a new tab for saving as PDF */
-export function saveBillAsPdf(html: string, filename?: string) {
-  const win = window.open('', '_blank');
-  if (!win) return;
-  const safeTitle = filename
-    ? String(filename).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-    : '';
-  const titled = filename ? html.replace(/<title>[^<]*<\/title>/, `<title>${safeTitle}</title>`) : html;
-  win.document.write(titled);
-  win.document.close();
+/**
+ * Write HTML into a print window. Returns false if win is null (pop-up blocked).
+ * Pass a window from openPrintWindow() called synchronously on click.
+ */
+export function writePrintHtml(
+  win: Window | null,
+  html: string,
+  options?: { filename?: string; autoPrint?: boolean },
+): boolean {
+  if (!win) return false;
+  printBillInWindow(win, html, options?.filename, { autoPrint: options?.autoPrint ?? true });
+  return true;
+}
+
+/**
+ * Open bill HTML for Save as PDF (no auto print dialog).
+ * Pass `win` from openPrintWindow() when called after await — otherwise open may be blocked.
+ */
+export function saveBillAsPdf(html: string, filename?: string, win?: Window | null): boolean {
+  const w = win ?? openPrintWindow('Preparing PDF…');
+  if (!w) return false;
+  printBillInWindow(w, html, filename, { autoPrint: false });
+  return true;
 }
 
 export function shareViaWhatsApp(phone: string, message: string) {
@@ -150,6 +222,9 @@ export function formatDistributionChallanText(bill: {
   items: { sno: number; barcode: string; productName: string }[];
   groupedItems?: { sno: number; productName: string; barcodeRange: string; quantity: number; netPrice: number; lineTotal: number }[];
   totalQuantity: number; totalValue: number;
+  ewbNumber?: string | null;
+  irn?: string | null;
+  irnAckNo?: string | null;
   payment?: { totalDistributedValue: number; totalPaid: number; balance: number };
 }): string {
   const itemLines = bill.groupedItems
@@ -160,6 +235,9 @@ export function formatDistributionChallanText(bill: {
     `━━━━━━━━━━━━━━━━━━━━━━━━`,
     `Challan: ${bill.challanId}`,
     `Date: ${bill.distributionDate}`,
+    bill.ewbNumber ? `E-Way Bill: ${bill.ewbNumber}` : '',
+    bill.irn ? `IRN: ${bill.irn}` : '',
+    bill.irnAckNo ? `Ack No: ${bill.irnAckNo}` : '',
     `From: ${bill.company.name}`,
     bill.company.address ? `Address: ${bill.company.address}` : '',
     bill.company.phone ? `Phone: ${bill.company.phone}` : '',

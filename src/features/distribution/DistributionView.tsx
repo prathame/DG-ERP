@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Plus, Download, Upload, Printer, MessageCircle, Mail, ArrowLeft, Pencil, Trash2, Search, IndianRupee, MoreVertical, Truck, FileCheck, QrCode } from 'lucide-react';
-import { cn, exportToCsv, openPrintWindow, printBillInWindow, saveBillAsPdf, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate, useTabLabel, fetchImageAsDataUrl } from '../../lib/utils';
+import { cn, exportToCsv, openPrintWindow, printBillInWindow, shareViaWhatsApp, shareViaEmail, formatDistributionChallanText, formatDate, useTabLabel, fetchImageAsDataUrl, PRINT_POPUP_BLOCKED, resolveIrnQrPayload } from '../../lib/utils';
 import { api, fetchApi, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
@@ -11,22 +11,47 @@ import { session } from '../../lib/session';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 import { useConfirm } from '../../hooks/useConfirm';
 
+async function buildGstPrintOptions(bill: import('../../api').DistributionBillData, showGst: boolean, fullyPaid: boolean) {
+  const bs = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined;
+  const qrDataUrl = bs?.bankUpiId
+    ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`)
+    : undefined;
+  const irnPayload = resolveIrnQrPayload({ irnQr: bill.irnQr, qrCode: bill.irnQr });
+  const irnQrDataUrl = irnPayload
+    ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(irnPayload)}`)
+    : undefined;
+  const billForPrint = irnPayload && bill.irnQr !== irnPayload ? { ...bill, irnQr: irnPayload } : bill;
+  return { billForPrint, opts: { showGst, fullyPaid, qrDataUrl, irnQrDataUrl } };
+}
+
 // ── E-Invoice + E-Way Bill buttons (per distribution batch) ──────────────────
-function EInvoiceButtons({ batchId }: { batchId: string }) {
+function EInvoiceButtons({ batchId, initialIrn, initialQr, initialEwb }: {
+  batchId: string;
+  initialIrn?: string | null;
+  initialQr?: string | null;
+  initialEwb?: string | null;
+}) {
   const { toast } = useToast();
-  const [irn, setIrn] = useState('');
-  const [qr, setQr] = useState('');
-  const [ewbNo, setEwbNo] = useState('');
+  const [irn, setIrn] = useState(initialIrn || '');
+  const [qr, setQr] = useState(() => resolveIrnQrPayload({ irnQr: initialQr, qrCode: initialQr }));
+  const [ewbNo, setEwbNo] = useState(initialEwb || '');
   const [generating, setGenerating] = useState<'irn' | 'ewb' | null>(null);
   const [showEwbModal, setShowEwbModal] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
   const [ewbForm, setEwbForm] = useState({ vehicleNo: '', distance: '', transportMode: '1', transporterName: '' });
+
+  useEffect(() => {
+    setIrn(initialIrn || '');
+    setQr(resolveIrnQrPayload({ irnQr: initialQr, qrCode: initialQr }));
+    setEwbNo(initialEwb || '');
+  }, [batchId, initialIrn, initialQr, initialEwb]);
 
   const generateIrn = async () => {
     setGenerating('irn');
     try {
       const r = await api.gst.generateIrn(batchId);
       setIrn(r.irn);
-      setQr(r.qrCode || '');
+      setQr(resolveIrnQrPayload(r));
       toast(`E-Invoice generated${r.mode === 'mock' ? ' (mock)' : ''}`, 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'IRN generation failed', 'error');
@@ -69,13 +94,27 @@ function EInvoiceButtons({ batchId }: { batchId: string }) {
           <QrCode size={13} className="text-indigo-600 shrink-0" />
           <span className="font-mono text-indigo-700 truncate max-w-[120px]" title={irn}>IRN: {irn.slice(0, 12)}…</span>
           {qr && (
-            <button type="button" onClick={() => {
-              const w = window.open('', '_blank', 'width=400,height=420');
-              if (!w) return;
-              w.document.write(`<!DOCTYPE html><html><head><title>E-Invoice QR</title><style>body{font-family:sans-serif;padding:24px;text-align:center;}pre{font-size:9px;word-break:break-all;text-align:left;background:#f5f5f5;padding:8px;border-radius:4px;}</style></head><body><h3>IRN QR Data</h3><pre>${qr}</pre><p style="font-size:11px;color:#888">Use any QR generator to create scannable code</p></body></html>`);
-              w.document.close();
-            }} className="text-indigo-600 hover:underline text-[10px] shrink-0">View QR</button>
+            <button type="button" onClick={() => setShowQrModal(true)} className="text-indigo-600 hover:underline text-[10px] shrink-0">View QR</button>
           )}
+        </div>
+      )}
+
+      {/* IRN QR modal — in-app (window.open is blocked in Electron / by pop-up blockers) */}
+      {showQrModal && qr && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={e => { if (e.target === e.currentTarget) setShowQrModal(false); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <h3 className="font-bold text-lg mb-1 flex items-center justify-center gap-2"><QrCode size={20} className="text-indigo-600" /> E-Invoice QR</h3>
+            <p className="text-xs text-gray-500 font-mono mb-4 break-all" title={irn}>IRN: {irn}</p>
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(resolveIrnQrPayload({ qrCode: qr }))}`}
+              alt="E-Invoice QR code"
+              width={240}
+              height={240}
+              className="mx-auto rounded-lg border border-gray-100"
+            />
+            <p className="text-[11px] text-gray-400 mt-3">Scan with GST / e-invoice apps</p>
+            <button type="button" onClick={() => setShowQrModal(false)} className="mt-5 w-full py-2.5 border border-gray-200 rounded-xl font-medium hover:bg-gray-50">Close</button>
+          </div>
         </div>
       )}
 
@@ -503,7 +542,12 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                           <input type="text" placeholder="EWB Number" defaultValue={(selectedBatch as Record<string, unknown>).ewbNumber as string || ''} onBlur={(e) => { const val = e.target.value.trim(); fetchApi(`/distribution/batch/${selectedBatch.batchId}/ewb`, { method: 'PUT', body: JSON.stringify({ ewbNumber: val || null }) }).then(() => { if (val) toast('EWB number saved', 'success'); }).catch(() => {}); }} className="w-36 px-2 py-1 text-xs border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-brand" maxLength={15} />
                         </div>
                         {/* E-Invoice + E-Way Bill generation */}
-                        <EInvoiceButtons batchId={selectedBatch.batchId} />
+                        <EInvoiceButtons
+                          batchId={selectedBatch.batchId}
+                          initialIrn={selectedBatch.irn}
+                          initialQr={selectedBatch.irnQr}
+                          initialEwb={selectedBatch.ewbNumber}
+                        />
                       </>;
                     })()}
                     {!isVendorUser && canEdit && !selectedBatchProductId && selectedBatch.balanceRemaining > 0 && (
@@ -976,11 +1020,19 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                       type="button"
                       onClick={async () => {
                         const w = openPrintWindow();
-                        if (!w) return;
-                        const paidOpts = selectedVendorId ? challanOptions(selectedVendorId) : { showGst: true, fullyPaid: false };
-                        const bs = (splitBillModal.bill as unknown as Record<string,unknown>).billSettings as Record<string,unknown>|undefined;
-                        const qrDataUrl = bs?.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName||'Business'}&cu=INR`)}`) : undefined;
-                        printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(gstItems, gstSubtotal), { showGst: true, fullyPaid: paidOpts.fullyPaid, qrDataUrl }));
+                        if (!w) { toast(PRINT_POPUP_BLOCKED, 'error'); return; }
+                        try {
+                          const paidOpts = selectedVendorId ? challanOptions(selectedVendorId) : { showGst: true, fullyPaid: false };
+                          const fresh = selectedBatchId && selectedVendorId
+                            ? await api.distribution.getBill({ batchId: selectedBatchId, vendorId: selectedVendorId })
+                            : splitBillModal.bill;
+                          const slice = {
+                            ...makeSplitBill(gstItems, gstSubtotal),
+                            irn: fresh.irn, irnQr: fresh.irnQr, irnAckNo: fresh.irnAckNo, irnAckDt: fresh.irnAckDt, ewbNumber: fresh.ewbNumber,
+                          };
+                          const { billForPrint, opts } = await buildGstPrintOptions(slice, true, paidOpts.fullyPaid);
+                          printBillInWindow(w, generateDistributionChallanHtml(billForPrint, opts));
+                        } catch (err) { try { w.close(); } catch { /* ignore */ } toast((err as Error).message, 'error'); }
                       }}
                       className="flex-1 py-2.5 border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-xl font-bold text-sm hover:bg-emerald-100"
                     >
@@ -992,11 +1044,19 @@ export function DistributionView({ user, accessLevel = 'full', businessType = 'm
                       type="button"
                       onClick={async () => {
                         const w = openPrintWindow();
-                        if (!w) return;
-                        const paidOpts = selectedVendorId ? challanOptions(selectedVendorId) : { showGst: true, fullyPaid: false };
-                        const bs = (splitBillModal.bill as unknown as Record<string,unknown>).billSettings as Record<string,unknown>|undefined;
-                        const qrDataUrl = bs?.bankUpiId ? await fetchImageAsDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName||'Business'}&cu=INR`)}`) : undefined;
-                        printBillInWindow(w, generateDistributionChallanHtml(makeSplitBill(nonGstItems, nonGstSubtotal), { showGst: false, fullyPaid: paidOpts.fullyPaid, qrDataUrl }));
+                        if (!w) { toast(PRINT_POPUP_BLOCKED, 'error'); return; }
+                        try {
+                          const paidOpts = selectedVendorId ? challanOptions(selectedVendorId) : { showGst: true, fullyPaid: false };
+                          const fresh = selectedBatchId && selectedVendorId
+                            ? await api.distribution.getBill({ batchId: selectedBatchId, vendorId: selectedVendorId })
+                            : splitBillModal.bill;
+                          const slice = {
+                            ...makeSplitBill(nonGstItems, nonGstSubtotal),
+                            irn: fresh.irn, irnQr: fresh.irnQr, irnAckNo: fresh.irnAckNo, irnAckDt: fresh.irnAckDt, ewbNumber: fresh.ewbNumber,
+                          };
+                          const { billForPrint, opts } = await buildGstPrintOptions(slice, false, paidOpts.fullyPaid);
+                          printBillInWindow(w, generateDistributionChallanHtml(billForPrint, opts));
+                        } catch (err) { try { w.close(); } catch { /* ignore */ } toast((err as Error).message, 'error'); }
                       }}
                       className="flex-1 py-2.5 border border-amber-300 text-amber-700 bg-amber-50 rounded-xl font-bold text-sm hover:bg-amber-100"
                     >

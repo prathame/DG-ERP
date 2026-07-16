@@ -142,7 +142,9 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
         COALESCE(MAX(pd.dispatch_status), 'pending') as dispatch_status,
         MAX(pd.dispatched_by) as dispatched_by,
         MAX(pd.dispatched_at) as dispatched_at,
-        MAX(pd.ewb_number) as ewb_number
+        MAX(pd.ewb_number) as ewb_number,
+        MAX(pd.irn) as irn,
+        MAX(pd.irn_qr) as irn_qr
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
@@ -193,6 +195,8 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
         balanceRemaining: Number(r.bill_value) - paid,
         dispatchStatus: (r.dispatch_status as string) || 'pending',
         ewbNumber: (r.ewb_number as string) || null,
+        irn: (r.irn as string) || null,
+        irnQr: (r.irn_qr as string) || null,
         dispatchedBy: r.dispatched_by as string || null,
         dispatchedAt: r.dispatched_at as string || null,
       };
@@ -580,7 +584,8 @@ router.get('/api/distribution/bill', async (req: AuthRequest, res) => {
     let sql = `
       SELECT pd.id, pd.batch_id, pd.barcode, pd.distribution_date, pd.status, pd.discount_percent, pd.net_price, pd.billed_price, pd.gst_applied,
              pd.product_id, p.name as product_name, p.price, p.batch_number, p.pack_size, p.pack_name,
-             v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address, v.gst_number as vendor_gst_number, pd.ewb_number
+             v.name as vendor_name, v.contact_person as vendor_contact, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address, v.gst_number as vendor_gst_number,
+             pd.ewb_number, pd.irn, pd.irn_qr, pd.irn_ack_no, pd.irn_ack_dt
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
       JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $1
@@ -640,6 +645,10 @@ router.get('/api/distribution/bill', async (req: AuthRequest, res) => {
         gstNumber: first.vendor_gst_number ?? null,
       },
       ewbNumber: first.ewb_number ?? null,
+      irn: first.irn ?? null,
+      irnQr: first.irn_qr ?? null,
+      irnAckNo: first.irn_ack_no ?? null,
+      irnAckDt: first.irn_ack_dt ?? null,
       company: {
         name: company?.company_name ?? 'DG ERP',
         contactName: company?.name ?? null,

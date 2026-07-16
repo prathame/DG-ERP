@@ -34,6 +34,10 @@ export interface DistributionBatch {
   gstApplied: boolean;
   amountPaid: number;
   balanceRemaining: number;
+  ewbNumber?: string | null;
+  irn?: string | null;
+  irnQr?: string | null;
+  dispatchStatus?: string;
 }
 
 export interface DistributionBatchItem {
@@ -117,9 +121,14 @@ export interface DistributionBillData {
   challanId: string;
   batchId?: string | null;
   distributionDate: string;
-  vendor: { name: string; contactPerson?: string | null; phone?: string | null; email?: string | null; address?: string | null };
+  vendor: { name: string; contactPerson?: string | null; phone?: string | null; email?: string | null; address?: string | null; gstNumber?: string | null };
   company: { name: string; contactName?: string | null; phone?: string | null; address?: string | null; gstNumber?: string | null };
   gstRate: number;
+  ewbNumber?: string | null;
+  irn?: string | null;
+  irnQr?: string | null;
+  irnAckNo?: string | null;
+  irnAckDt?: string | null;
   items: { sno: number; barcode: string; productName: string; batchNumber?: string | null; originalPrice: number; discountPercent: number; price: number; status: string }[];
   groupedItems: { sno: number; productName: string; barcodeRange: string; quantity: number; originalPrice: number; discountPercent: number; netPrice: number; lineTotal: number }[];
   totalQuantity: number;
@@ -524,7 +533,7 @@ vendor: (vendorId: string) =>
     saveSettings: (d: { mode?: string; gstin?: string; username?: string; password?: string; clientId?: string; clientSecret?: string }) =>
       fetchApi<{ ok: boolean }>('/gst/settings', { method: 'PUT', body: JSON.stringify(d) }),
     generateIrn: (batchId: string) =>
-      fetchApi<{ ok: boolean; irn: string; ackNo: string; ackDt: string; qrCode: string; mode: string }>('/gst/irn/generate', { method: 'POST', body: JSON.stringify({ batchId }) }),
+      fetchApi<{ ok: boolean; irn: string; ackNo: string; ackDt: string; qrCode: string; signedQrCode?: string; mode: string }>('/gst/irn/generate', { method: 'POST', body: JSON.stringify({ batchId }) }),
     generateEwb: (data: { batchId: string; vehicleNo: string; distance: number; transportMode?: string; transporterName?: string; transporterId?: string }) =>
       fetchApi<{ ok: boolean; ewbNo: string; ewbDt: string; ewbValidTill: string; mode: string }>('/gst/ewb/generate', { method: 'POST', body: JSON.stringify(data) }),
     cancelIrn: (irn: string, reason: number, remark?: string) =>
