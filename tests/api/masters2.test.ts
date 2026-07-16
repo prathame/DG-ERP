@@ -61,15 +61,17 @@ describe('/api/masters/counts', () => {
 
     await pool.query(`INSERT INTO banks (id, tenant_id, name, account_number, bank_name, branch, ifsc_code) VALUES
       ('B-CNT-1', $1, 'Main Acct',  '1234500000', 'SBI',  'Branch1', 'SBIN0000001'),
-      ('B-CNT-2', $1, 'Savings',    '9876500000', 'HDFC', 'Branch2', 'HDFC0000002')`,
+      ('B-CNT-2', $1, 'Savings',    '9876500000', 'HDFC', 'Branch2', 'HDFC0000002')
+      ON CONFLICT DO NOTHING`,
       [TEST_TENANT]);
 
     await pool.query(`INSERT INTO categories (id, name, tenant_id) VALUES
-      ('CAT-CNT-1', 'Electronics', $1)`, [TEST_TENANT]);
+      ('CAT-CNT-1', 'Electronics', $1) ON CONFLICT DO NOTHING`, [TEST_TENANT]);
 
     await pool.query(`INSERT INTO staff_members (id, tenant_id, name, phone, role, address, salary, joining_date) VALUES
       ('ST-CNT-1', $1, 'Staff One', '4444444444', 'Accountant', 'Addr1', 20000, '2024-01-01'),
-      ('ST-CNT-2', $1, 'Staff Two', '5555555555', 'Manager',    'Addr2', 30000, '2024-06-01')`,
+      ('ST-CNT-2', $1, 'Staff Two', '5555555555', 'Manager',    'Addr2', 30000, '2024-06-01')
+      ON CONFLICT DO NOTHING`,
       [TEST_TENANT]);
 
     // OTHER_TENANT: 1 of each to confirm isolation
@@ -77,10 +79,10 @@ describe('/api/masters/counts', () => {
     await pool.query(`INSERT INTO vendors   (id, tenant_id, name)         VALUES ('V-CNT-O1', $1, 'Other V')`,           [OTHER_TENANT]);
     await pool.query(`INSERT INTO products  (id, tenant_id, name, price)  VALUES ('P-CNT-O1', $1, 'Other P', 99)`,      [OTHER_TENANT]);
     await pool.query(`INSERT INTO banks (id, tenant_id, name, account_number, bank_name, branch, ifsc_code)
-      VALUES ('B-CNT-O1', $1, 'Other Bk', '0000000001', 'PNB', 'OBranch', 'PNB0000001')`, [OTHER_TENANT]);
-    await pool.query(`INSERT INTO categories    (id, name, tenant_id)      VALUES ('CAT-CNT-O1', 'Other Cat', $1)`,     [OTHER_TENANT]);
+      VALUES ('B-CNT-O1', $1, 'Other Bk', '0000000001', 'PNB', 'OBranch', 'PNB0000001') ON CONFLICT DO NOTHING`, [OTHER_TENANT]);
+    await pool.query(`INSERT INTO categories    (id, name, tenant_id)      VALUES ('CAT-CNT-O1', 'Other Cat', $1) ON CONFLICT DO NOTHING`,     [OTHER_TENANT]);
     await pool.query(`INSERT INTO staff_members (id, tenant_id, name, phone, role, address, salary, joining_date)
-      VALUES ('ST-CNT-O1', $1, 'Other Staff', '7777777777', 'Driver', 'Addr3', 10000, '2024-01-01')`, [OTHER_TENANT]);
+      VALUES ('ST-CNT-O1', $1, 'Other Staff', '7777777777', 'Driver', 'Addr3', 10000, '2024-01-01') ON CONFLICT DO NOTHING`, [OTHER_TENANT]);
   });
 
   afterAll(async () => {
