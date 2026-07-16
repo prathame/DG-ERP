@@ -6,20 +6,37 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const EmbeddedPostgres = require('embedded-postgres').default ?? require('embedded-postgres');
 import { LOCAL_PG_PORT } from '../shared/constants';
 
-// Resolve postgres binaries from app.asar.unpacked so they can be spawned
-function getUnpackedBinDir(): string {
-  const arch = process.arch; // arm64 or x64
-  const platform = process.platform; // darwin, linux, win32
+// Patch @embedded-postgres binaries to resolve from app.asar.unpacked before loading embedded-postgres
+function patchEmbeddedPostgresBinaries(): void {
+  const arch = process.arch;
+  const platform = process.platform;
   const pkgName = `@embedded-postgres/${platform}-${arch}`;
-  // In packaged app, unpacked modules live in app.asar.unpacked
-  const asarPath = path.join(__dirname, '..', '..', 'node_modules', pkgName, 'native', 'bin');
-  const unpackedPath = asarPath.replace('app.asar', 'app.asar.unpacked');
-  return fs.existsSync(unpackedPath) ? unpackedPath : asarPath;
+  const asarBase = path.join(__dirname, '..', '..', 'node_modules', pkgName);
+  const unpackedBase = asarBase.replace('app.asar', 'app.asar.unpacked');
+  const binBase = fs.existsSync(unpackedBase) ? unpackedBase : asarBase;
+  const binDir = path.join(binBase, 'native', 'bin');
+
+  // Override the module cache so embedded-postgres gets unpacked paths
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Module = require('module');
+  const origLoad = Module._load.bind(Module);
+  Module._load = (request: string, ...args: unknown[]) => {
+    if (request === pkgName || request.endsWith(`/${pkgName}`)) {
+      return {
+        postgres: path.join(binDir, 'postgres'),
+        initdb: path.join(binDir, 'initdb'),
+        pg_ctl: path.join(binDir, 'pg_ctl'),
+      };
+    }
+    return origLoad(request, ...args);
+  };
 }
+
+patchEmbeddedPostgresBinaries();
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const EmbeddedPostgres = require('embedded-postgres').default ?? require('embedded-postgres');
 
 let pg: InstanceType<typeof EmbeddedPostgres> | null = null;
 
@@ -49,17 +66,12 @@ export async function startPostgres(): Promise<string> {
   const isFirstRun = !fs.existsSync(dataDir) || fs.readdirSync(dataDir).length === 0;
   const password = resolvePgPassword(dataDir, isFirstRun);
 
-  const binDir = getUnpackedBinDir();
   pg = new EmbeddedPostgres({
     databaseDir: dataDir,
     user: 'dg_user',
     password,
     port: LOCAL_PG_PORT,
     persistent: true,
-    // Explicit binary paths so embedded-postgres doesn't try to resolve via import.meta.url inside asar
-    postgresPath: path.join(binDir, 'postgres'),
-    initdbPath: path.join(binDir, 'initdb'),
-    pgCtlPath: path.join(binDir, 'pg_ctl'),
   });
 
   if (isFirstRun) {
