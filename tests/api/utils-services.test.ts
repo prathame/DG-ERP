@@ -464,32 +464,21 @@ TwIDAQAB
 
   it('sandbox NicApiClient authenticate + generate via mocked fetch', async () => {
     const crypto = await import('crypto');
-    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const { publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
     const pubPem = publicKey.export({ type: 'spki', format: 'pem' }).toString();
     process.env.GSTN_SANDBOX_PUBLIC_KEY = pubPem;
     expect(getGstnPublicKey('sandbox')).toContain('BEGIN PUBLIC KEY');
 
+    // Avoid RSA_PKCS1 privateDecrypt (blocked on Node 17+). Stub auth with a known SEK.
+    const sessionKeyB64 = crypto.randomBytes(32).toString('base64');
     const aesEnc = (data: string, keyB64: string) => {
       const key = Buffer.from(keyB64, 'base64');
       const cipher = crypto.createCipheriv('aes-256-ecb', key, null);
       return Buffer.concat([cipher.update(data, 'utf8'), cipher.final()]).toString('base64');
     };
 
-    let sessionKeyB64 = '';
-    const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => {
+    const fetchMock = vi.fn(async (url: string) => {
       const u = String(url);
-      if (u.includes('/user/auth')) {
-        const body = JSON.parse(init?.body || '{}') as { appkey: string };
-        // Requires Node --security-revert=CVE-2023-46809 (set in vitest.config / CI)
-        const appKeyRaw = crypto.privateDecrypt(
-          { key: privateKey, padding: crypto.constants.RSA_PKCS1_PADDING },
-          Buffer.from(body.appkey, 'base64')
-        );
-        const appKeyB64 = appKeyRaw.toString('base64');
-        sessionKeyB64 = appKeyB64;
-        const data = aesEnc(JSON.stringify({ AuthToken: 'tok', Sek: appKeyB64 }), appKeyB64);
-        return { ok: true, json: async () => ({ Status: 1, Data: data }) };
-      }
       if (u.includes('/Invoice/Cancel')) {
         return { ok: true, json: async () => ({ Status: 1 }) };
       }
@@ -517,6 +506,8 @@ TwIDAQAB
       clientId: 'c',
       clientSecret: 's',
     });
+    (client as unknown as { authenticate: () => Promise<{ authToken: string; sek: string }> }).authenticate =
+      async () => ({ authToken: 'tok', sek: sessionKeyB64 });
 
     const irnBody = buildIrnPayload({
       sellerGstin: '24AABCT1332L1ZS', sellerName: 'S', sellerAddr: 'A', sellerPin: '380001',

@@ -4,12 +4,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     globalSetup: './tests/globalSetup.ts',
-    // NIC GST API uses RSA_PKCS1; privateDecrypt needs this revert on Node 17+
-    poolOptions: {
-      forks: {
-        execArgv: ['--security-revert=CVE-2023-46809'],
-      },
-    },
     // Prefer .ts over stale compiled .js siblings under server/
     server: {
       deps: {
