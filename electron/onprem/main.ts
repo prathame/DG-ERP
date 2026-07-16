@@ -101,10 +101,25 @@ async function sendHeartbeat(): Promise<void> {
       }
     }
 
+    // Save validUntil locally so offline expiry check works
+    if (data.validUntil && licenseInfo) {
+      licenseInfo.validUntil = String(data.validUntil);
+      saveLicense(licenseInfo);
+    }
+
+    // Check offline expiry
+    if (licenseInfo?.validUntil && new Date(licenseInfo.validUntil) < new Date()) {
+      mainWin?.webContents.send('license-status', { valid: false, status: 'expired' });
+    }
+
     connectionStatus = 'online';
     lastSync = new Date();
   } catch {
     connectionStatus = 'offline';
+    // When offline, check local expiry
+    if (licenseInfo?.validUntil && new Date(licenseInfo.validUntil) < new Date()) {
+      mainWin?.webContents.send('license-status', { valid: false, status: 'expired' });
+    }
   }
 }
 

@@ -105,9 +105,10 @@ export function OnlineStatus({ collapsed }: { collapsed: boolean }) {
               </div>
               {conn.validUntil && (
                 <div className="flex justify-between">
-                  <span className="text-gray-500">License valid</span>
-                  <span className={cn("font-medium", expiringWarning ? 'text-amber-600' : '')}>
-                    {daysLeft} days left
+                  <span className="text-gray-500">License expires</span>
+                  <span className={cn("font-medium", daysLeft !== null && daysLeft <= 30 ? 'text-amber-600' : daysLeft !== null && daysLeft <= 7 ? 'text-red-600' : '')}>
+                    {new Date(conn.validUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {daysLeft !== null && <span className="text-xs ml-1 text-gray-400">({daysLeft}d)</span>}
                   </span>
                 </div>
               )}

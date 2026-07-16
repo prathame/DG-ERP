@@ -101,6 +101,7 @@ router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
       licenseValid: isValid && isMachineMatch,
       licenseStatus: lic.status,
       daysUntilExpiry: daysLeft,
+      validUntil: lic.valid_until || null,
       updateAvailable: Boolean(updateAvailable),
       latestVersion: latestVersion || null,
       forceUpdate: Boolean(forceUpdate),
