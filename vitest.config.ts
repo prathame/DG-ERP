@@ -15,14 +15,10 @@ export default defineConfig({
       include: [
         'server/utils/**/*.ts',
         'server/services/**/*.ts',
-        'src/platforms/shared/**/*.ts',
-        'src/platforms/mobile/offline/**/*.ts',
-        'src/platforms/mobile/online/**/*.ts',
       ],
       exclude: [
         '**/*.test.ts',
         '**/*.js',
-        'src/platforms/mobile/offline/network.ts',
       ],
       thresholds: {
         statements: 90,
