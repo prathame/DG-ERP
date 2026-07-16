@@ -234,7 +234,10 @@ app.get('/manifest.json', async (req, res) => {
 });
 
 // Serve static files in production (only if dist exists)
-const distPath = path.join(process.cwd(), 'dist');
+// Use __dirname-relative path so it works inside Electron asar packages
+const distPath = fs.existsSync(path.join(__dirname, '..', 'dist'))
+  ? path.join(__dirname, '..', 'dist')
+  : path.join(process.cwd(), 'dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
 }
@@ -316,7 +319,7 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
 // SPA fallback (only if built)
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) return next();
-  const indexPath = path.join(process.cwd(), 'dist', 'index.html');
+  const indexPath = path.join(distPath, 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
