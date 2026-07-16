@@ -32,40 +32,32 @@ describe('Tenants', () => {
     expect(Number(rows[0].c)).toBe(1);
   });
 
-  it('should have feature toggles defaulting to true', async () => {
+  it('should have behavior toggles defaulting to true', async () => {
     const { rows } = await pool.query(
-      'SELECT warranty_enabled, replacement_enabled, rewards_enabled FROM tenants WHERE id = $1',
+      'SELECT vendor_portal_enabled, barcode_system_enabled, multi_language_enabled FROM tenants WHERE id = $1',
       [TEST_TENANT]
     );
-    expect(rows[0].warranty_enabled).toBe(true);
-    expect(rows[0].replacement_enabled).toBe(true);
-    expect(rows[0].rewards_enabled).toBe(true);
+    expect(rows[0].vendor_portal_enabled).toBe(true);
+    expect(rows[0].barcode_system_enabled).toBe(true);
+    expect(rows[0].multi_language_enabled).toBe(true);
   });
 
-  it('should update feature toggles', async () => {
+  it('should update behavior toggles', async () => {
     await pool.query(
-      'UPDATE tenants SET warranty_enabled = false, rewards_enabled = false WHERE id = $1',
+      'UPDATE tenants SET vendor_portal_enabled = false, barcode_system_enabled = false WHERE id = $1',
       [TEST_TENANT]
     );
     const { rows } = await pool.query(
-      'SELECT warranty_enabled, rewards_enabled FROM tenants WHERE id = $1',
+      'SELECT vendor_portal_enabled, barcode_system_enabled FROM tenants WHERE id = $1',
       [TEST_TENANT]
     );
-    expect(rows[0].warranty_enabled).toBe(false);
-    expect(rows[0].rewards_enabled).toBe(false);
-  });
-
-  it('warranty OFF should auto-disable replacement', async () => {
+    expect(rows[0].vendor_portal_enabled).toBe(false);
+    expect(rows[0].barcode_system_enabled).toBe(false);
+    // restore for later assertions
     await pool.query(
-      'UPDATE tenants SET warranty_enabled = false, replacement_enabled = false WHERE id = $1',
+      'UPDATE tenants SET vendor_portal_enabled = true, barcode_system_enabled = true WHERE id = $1',
       [TEST_TENANT]
     );
-    const { rows } = await pool.query(
-      'SELECT warranty_enabled, replacement_enabled FROM tenants WHERE id = $1',
-      [TEST_TENANT]
-    );
-    expect(rows[0].warranty_enabled).toBe(false);
-    expect(rows[0].replacement_enabled).toBe(false);
   });
 
   it('should set subscription expiry', async () => {

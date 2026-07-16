@@ -886,17 +886,16 @@ export async function seedPlatformData() {
   const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
   if (!superAdminEmail || !superAdminPassword) {
     console.log('  ⚠ Set SUPER_ADMIN_EMAIL + SUPER_ADMIN_PASSWORD env vars to create admin');
-    return;
-  }
-
-  const existing = await pool.query('SELECT id FROM super_admins WHERE email = $1', [superAdminEmail]);
-  if (existing.rows.length === 0) {
-    const hash = await bcrypt.hash(superAdminPassword, 12);
-    await pool.query(
-      'INSERT INTO super_admins (id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5)',
-      ['SA1', superAdminEmail, hash, 'Platform Owner', 'owner']
-    );
-    console.log(`  ✓ Super admin created: ${superAdminEmail}`);
+  } else {
+    const existing = await pool.query('SELECT id FROM super_admins WHERE email = $1', [superAdminEmail]);
+    if (existing.rows.length === 0) {
+      const hash = await bcrypt.hash(superAdminPassword, 12);
+      await pool.query(
+        'INSERT INTO super_admins (id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5)',
+        ['SA1', superAdminEmail, hash, 'Platform Owner', 'owner']
+      );
+      console.log(`  ✓ Super admin created: ${superAdminEmail}`);
+    }
   }
 
   const plans = [

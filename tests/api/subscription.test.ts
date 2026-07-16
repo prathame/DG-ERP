@@ -153,14 +153,22 @@ describe('Subscription — End to End', () => {
     });
 
     it('downgrading from Professional to Basic should disable features', async () => {
-      await pool.query('UPDATE tenants SET plan_id = $1, warranty_enabled = true, barcode_system_enabled = true, chatbot_enabled = true WHERE id = $2', ['PROFESSIONAL', TENANT]);
+      await pool.query(
+        'UPDATE tenants SET plan_id = $1, barcode_system_enabled = true, vendor_portal_enabled = true, chatbot_enabled = true WHERE id = $2',
+        ['PROFESSIONAL', TENANT]
+      );
 
       const basicPlan = (await pool.query('SELECT features FROM plans WHERE id = $1', ['BASIC'])).rows[0];
-      await pool.query('UPDATE tenants SET plan_id = $1, warranty_enabled = $2, barcode_system_enabled = $3, chatbot_enabled = $4 WHERE id = $5',
-        ['BASIC', basicPlan.features.warranty, basicPlan.features.barcodeSystem, basicPlan.features.chatbot, TENANT]);
-      const tenant = (await pool.query('SELECT warranty_enabled, barcode_system_enabled, chatbot_enabled FROM tenants WHERE id = $1', [TENANT])).rows[0];
-      expect(tenant.warranty_enabled).toBe(false);
+      await pool.query(
+        'UPDATE tenants SET plan_id = $1, barcode_system_enabled = $2, vendor_portal_enabled = $3, chatbot_enabled = $4 WHERE id = $5',
+        ['BASIC', basicPlan.features.barcodeSystem, basicPlan.features.vendorPortal, basicPlan.features.chatbot, TENANT]
+      );
+      const tenant = (await pool.query(
+        'SELECT barcode_system_enabled, vendor_portal_enabled, chatbot_enabled FROM tenants WHERE id = $1',
+        [TENANT]
+      )).rows[0];
       expect(tenant.barcode_system_enabled).toBe(false);
+      expect(tenant.vendor_portal_enabled).toBe(false);
       expect(tenant.chatbot_enabled).toBe(false);
     });
 
@@ -212,16 +220,19 @@ describe('Subscription — End to End', () => {
       const newEnd = new Date();
       newEnd.setFullYear(newEnd.getFullYear() + 1);
       await pool.query(
-        'UPDATE tenants SET plan_id = $1, subscription_ends_at = $2, status = $3, warranty_enabled = $4, chatbot_enabled = $5, barcode_system_enabled = $6 WHERE id = $7',
-        ['PROFESSIONAL', newEnd.toISOString(), 'active', proPlan.features.warranty, proPlan.features.chatbot, proPlan.features.barcodeSystem, TENANT]
+        'UPDATE tenants SET plan_id = $1, subscription_ends_at = $2, status = $3, chatbot_enabled = $4, barcode_system_enabled = $5, vendor_portal_enabled = $6 WHERE id = $7',
+        ['PROFESSIONAL', newEnd.toISOString(), 'active', proPlan.features.chatbot, proPlan.features.barcodeSystem, proPlan.features.vendorPortal, TENANT]
       );
 
-      const tenant = (await pool.query('SELECT plan_id, warranty_enabled, chatbot_enabled, barcode_system_enabled, status FROM tenants WHERE id = $1', [TENANT])).rows[0];
+      const tenant = (await pool.query(
+        'SELECT plan_id, chatbot_enabled, barcode_system_enabled, vendor_portal_enabled, status FROM tenants WHERE id = $1',
+        [TENANT]
+      )).rows[0];
       expect(tenant.plan_id).toBe('PROFESSIONAL');
       expect(tenant.status).toBe('active');
-      expect(tenant.warranty_enabled).toBe(true);
       expect(tenant.chatbot_enabled).toBe(true);
       expect(tenant.barcode_system_enabled).toBe(true);
+      expect(tenant.vendor_portal_enabled).toBe(true);
     });
   });
 
