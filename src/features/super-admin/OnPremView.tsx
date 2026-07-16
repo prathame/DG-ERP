@@ -43,6 +43,45 @@ function timeAgo(ts: string | null): string {
   return `${date}, ${time}`;
 }
 
+const FEATURE_KEYS: { key: string; label: string }[] = [
+  { key: 'barcodeSystemEnabled', label: 'Barcode' },
+  { key: 'multiLanguageEnabled', label: 'Multi-language' },
+  { key: 'inventoryTrackingEnabled', label: 'Inventory' },
+  { key: 'vendorPortalEnabled', label: 'Vendor portal' },
+  { key: 'quotationsEnabled', label: 'Quotations' },
+  { key: 'accountsEnabled', label: 'Accounts' },
+  { key: 'purchasesEnabled', label: 'Purchases' },
+  { key: 'chatbotEnabled', label: 'AI Chatbot' },
+];
+
+/** Human-readable summary of what cloud will push to the device. */
+function summarizeSettings(s: Record<string, unknown> | undefined | null) {
+  const tc = (s?.tabConfig || {}) as Record<string, { label?: string; visible?: boolean }>;
+  const tabsOn = Object.entries(tc).filter(([, v]) => v?.visible !== false).map(([k, v]) => v?.label || k);
+  const tabsOff = Object.entries(tc).filter(([, v]) => v?.visible === false).map(([k, v]) => v?.label || k);
+  const featuresOn: string[] = [];
+  const featuresOff: string[] = [];
+  for (const { key, label } of FEATURE_KEYS) {
+    if (s?.[key] === undefined) continue;
+    (s[key] ? featuresOn : featuresOff).push(label);
+  }
+  return {
+    tabsOn,
+    tabsOff,
+    featuresOn,
+    featuresOff,
+    latestVersion: s?.latestVersion ? String(s.latestVersion) : null,
+    minVersion: s?.minVersion ? String(s.minVersion) : null,
+    forceSyncAt: s?.forceSyncAt ? String(s.forceSyncAt) : null,
+  };
+}
+
+function isSyncPending(lic: Pick<License, 'settingsPushedAt' | 'settingsAppliedAt'>) {
+  if (!lic.settingsPushedAt) return false;
+  if (!lic.settingsAppliedAt) return true;
+  return new Date(lic.settingsPushedAt).getTime() > new Date(lic.settingsAppliedAt).getTime();
+}
+
 export function OnPremView({ saToken }: { saToken: string }) {
   const { toast } = useToast();
   const [licenses, setLicenses] = useState<License[]>([]);
@@ -53,10 +92,12 @@ export function OnPremView({ saToken }: { saToken: string }) {
   const [settingsTab, setSettingsTab] = useState<'tabs' | 'features' | 'updates'>('tabs');
   const [localSettings, setLocalSettings] = useState<Record<string, unknown>>({});
   const [savingSettings, setSavingSettings] = useState(false);
+  const [hardSyncing, setHardSyncing] = useState(false);
   const [latestVersion, setLatestVersion] = useState('');
   const [minVersion, setMinVersion] = useState('');
   const [githubReleases, setGithubReleases] = useState<{ tag: string; name: string; published: string }[]>([]);
   const [releasesLoading, setReleasesLoading] = useState(false);
+  const [showPayload, setShowPayload] = useState(true);
 
   const [form, setForm] = useState({
     companyName: '', businessType: 'manufacturer' as typeof BUSINESS_TYPES[number],
@@ -65,17 +106,34 @@ export function OnPremView({ saToken }: { saToken: string }) {
 
   const h = { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' };
 
-  const load = () => {
-    setLoading(true);
+  const load = (silent = false) => {
+    if (!silent) setLoading(true);
     fetch('/api/super-admin/onprem', { headers: h })
-      .then(r => r.json()).then(setLicenses).catch(() => {}).finally(() => setLoading(false));
+      .then(r => r.json())
+      .then((rows: License[]) => {
+        setLicenses(rows);
+        setSelected(prev => {
+          if (!prev) return prev;
+          const fresh = rows.find(l => l.id === prev.id);
+          return fresh ? { ...prev, ...fresh } : prev;
+        });
+      })
+      .catch(() => {})
+      .finally(() => { if (!silent) setLoading(false); });
   };
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 30000); // auto-refresh every 30s
+    const t = setInterval(() => load(true), 30000);
     return () => clearInterval(t);
   }, []);
+
+  // While waiting for device apply, poll every 5s so status flips to Synced quickly
+  useEffect(() => {
+    if (!selected || !isSyncPending(selected)) return;
+    const t = setInterval(() => load(true), 5000);
+    return () => clearInterval(t);
+  }, [selected?.id, selected?.settingsPushedAt, selected?.settingsAppliedAt]);
 
   const copyKey = (key: string) => {
     navigator.clipboard.writeText(key);
@@ -105,22 +163,72 @@ export function OnPremView({ saToken }: { saToken: string }) {
     setSelected({ ...d, isOnline: false, lastSeen: null, machineId: null, machineOs: null, appVersion: null, activeUsers: 0, diskMB: 0, createdAt: new Date().toISOString(), status: 'active' });
   };
 
-  const handleUpdate = async (id: string, patch: Record<string, unknown>) => {
+  const handleUpdate = async (id: string, patch: Record<string, unknown>, opts?: { quiet?: boolean }) => {
     const r = await fetch(`/api/super-admin/onprem/${id}`, {
       method: 'PUT', headers: h, body: JSON.stringify(patch),
     });
-    if (!r.ok) { toast('Update failed', 'error'); return; }
-    toast('Updated', 'success');
-    load();
-    setSelected(prev => prev ? { ...prev, ...patch } : prev);
+    if (!r.ok) { toast('Update failed', 'error'); return false; }
+    const d = await r.json().catch(() => ({})) as { license?: License };
+    if (!opts?.quiet) toast('Updated', 'success');
+    load(true);
+    setSelected(prev => {
+      if (!prev) return prev;
+      if (d.license) {
+        return { ...prev, ...d.license, settings: d.license.settings ?? prev.settings };
+      }
+      return { ...prev, ...patch };
+    });
+    return true;
+  };
+
+  /** Merge delta into full cloud settings so PUT never wipes sibling keys. */
+  const buildMergedSettings = () => {
+    const base = { ...(selected?.settings || {}) } as Record<string, unknown>;
+    const delta = { ...localSettings };
+    const merged = { ...base, ...delta };
+    // Heal partial tabConfig left by older buggy saves — fill from business-type presets
+    const presets = TAB_PRESETS[selected?.businessType || 'manufacturer'] || {};
+    merged.tabConfig = {
+      ...presets,
+      ...((base.tabConfig as Record<string, unknown>) || {}),
+      ...((delta.tabConfig as Record<string, unknown>) || {}),
+    };
+    return merged;
   };
 
   const saveSettings = async () => {
     if (!selected) return;
     setSavingSettings(true);
-    await handleUpdate(selected.id, { settings: localSettings });
+    const settings = buildMergedSettings();
+    const ok = await handleUpdate(selected.id, { settings }, { quiet: true });
+    setLocalSettings({});
     setSavingSettings(false);
-    toast('Settings saved — will apply on next heartbeat (up to 15 min)', 'success');
+    setShowPayload(true);
+    if (ok) toast('Pushed to cloud — status: NOT SYNCED until device applies (or click Hard Sync)', 'success');
+  };
+
+  /** Hard sync: push full settings + forceSyncAt so next heartbeat must re-apply. */
+  const hardSync = async () => {
+    if (!selected) return;
+    setHardSyncing(true);
+    const settings = {
+      ...buildMergedSettings(),
+      forceSyncAt: new Date().toISOString(),
+    };
+    const ok = await handleUpdate(selected.id, { settings }, { quiet: true });
+    setLocalSettings({});
+    setHardSyncing(false);
+    setShowPayload(true);
+    if (ok) {
+      toast(
+        selected.isOnline
+          ? 'Hard sync queued — status NOT SYNCED until device applies (~1 min or Sync Now in app)'
+          : 'Hard sync queued — device offline; will stay NOT SYNCED until it connects',
+        'success'
+      );
+      setTimeout(() => load(true), 3000);
+      setTimeout(() => load(true), 10000);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -223,24 +331,30 @@ export function OnPremView({ saToken }: { saToken: string }) {
               ].map(tab => {
                 const businessType = (selected?.businessType as string) || 'manufacturer';
                 const presetCfg = TAB_PRESETS[businessType]?.[tab] || { label: tab, visible: true };
-                const cfg = ((localSettings.tabConfig || selected?.settings?.tabConfig || {}) as Record<string, { label: string; visible: boolean }>)[tab] || presetCfg;
+                const baseTc = {
+                  ...((selected?.settings?.tabConfig as Record<string, { label: string; visible: boolean }>) || {}),
+                  ...((localSettings.tabConfig as Record<string, { label: string; visible: boolean }>) || {}),
+                };
+                const cfg = baseTc[tab] || presetCfg;
+                const patchTab = (next: { label: string; visible: boolean }) => setLocalSettings(prev => ({
+                  ...prev,
+                  tabConfig: {
+                    ...((selected?.settings?.tabConfig as Record<string, unknown>) || {}),
+                    ...((prev.tabConfig as Record<string, unknown>) || {}),
+                    [tab]: next,
+                  },
+                }));
                 return (
                   <div key={tab} className="flex items-center justify-between py-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded">{tab}</span>
                       <input
                         value={cfg.label}
-                        onChange={e => setLocalSettings(prev => ({
-                          ...prev,
-                          tabConfig: { ...(prev.tabConfig as Record<string, unknown> || {}), [tab]: { ...cfg, label: e.target.value } }
-                        }))}
+                        onChange={e => patchTab({ ...cfg, label: e.target.value })}
                         className="text-sm border border-gray-200 rounded px-2 py-1 w-32 focus:ring-1 focus:ring-brand"
                       />
                     </div>
-                    <button onClick={() => setLocalSettings(prev => ({
-                      ...prev,
-                      tabConfig: { ...(prev.tabConfig as Record<string, unknown> || {}), [tab]: { ...cfg, visible: !cfg.visible } }
-                    }))} className={cn("relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition-colors", cfg.visible ? 'bg-emerald-500' : 'bg-gray-300')}>
+                    <button onClick={() => patchTab({ ...cfg, visible: !cfg.visible })} className={cn("relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition-colors", cfg.visible ? 'bg-emerald-500' : 'bg-gray-300')}>
                       <span className={cn("inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform", cfg.visible ? 'translate-x-4' : 'translate-x-0')} />
                     </button>
                   </div>
@@ -269,7 +383,21 @@ export function OnPremView({ saToken }: { saToken: string }) {
                       <p className="text-sm font-medium">{label}</p>
                       <p className="text-xs text-gray-400">{desc}</p>
                     </div>
-                    <button onClick={() => setLocalSettings(prev => ({ ...prev, [key]: !val }))}
+                    <button onClick={() => setLocalSettings(prev => {
+                      const next = { ...prev, [key]: !val };
+                      // Keep chatbot tab in sync with Features → AI Chatbot
+                      if (key === 'chatbotEnabled') {
+                        const baseTc = {
+                          ...((selected?.settings?.tabConfig as Record<string, { label?: string; visible?: boolean }>) || {}),
+                          ...((prev.tabConfig as Record<string, { label?: string; visible?: boolean }>) || {}),
+                        };
+                        next.tabConfig = {
+                          ...baseTc,
+                          chatbot: { label: baseTc.chatbot?.label || 'Chatbot', visible: !val },
+                        };
+                      }
+                      return next;
+                    })}
                       className={cn("relative inline-flex h-5 w-9 rounded-full border-2 border-transparent transition-colors shrink-0 ml-4", val ? 'bg-emerald-500' : 'bg-gray-300')}>
                       <span className={cn("inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform", val ? 'translate-x-4' : 'translate-x-0')} />
                     </button>
@@ -372,36 +500,121 @@ export function OnPremView({ saToken }: { saToken: string }) {
             {savingSettings ? 'Saving...' : Object.keys(localSettings).length > 0 ? '💾 Save & Push to Device' : 'No changes'}
           </button>
 
-          {/* Force sync — sets flag on cloud, app picks up on next heartbeat */}
-          <button onClick={async () => {
-            await handleUpdate(selected.id, { settings: { ...(selected.settings || {}), forceSyncAt: new Date().toISOString() } });
-            toast('Force sync requested — app will apply on next heartbeat (click Sync Now in app for instant)', 'success');
-          }} className="mt-2 w-full py-2 border border-brand text-brand rounded-xl text-sm font-bold hover:bg-orange-50 flex items-center justify-center gap-1.5">
-            <RefreshCw size={14} /> Force Sync Now
+          <button onClick={hardSync} disabled={hardSyncing}
+            className="mt-2 w-full py-2.5 border-2 border-brand text-brand rounded-xl text-sm font-bold hover:bg-orange-50 disabled:opacity-40 flex items-center justify-center gap-1.5">
+            <RefreshCw size={14} className={hardSyncing ? 'animate-spin' : ''} />
+            {hardSyncing ? 'Queuing hard sync...' : '⚡ Hard Sync to Device'}
           </button>
+          <p className="mt-1.5 text-[11px] text-gray-400 text-center">
+            Hard Sync re-pushes the full config and forces the device to re-apply on next heartbeat.
+            {selected.isOnline ? ' Device is online.' : ' Device is offline — sync waits until it connects.'}
+          </p>
 
-          {/* Sync status log */}
-          {(selected.settingsPushedAt || selected.settingsAppliedAt) && (
-            <div className="mt-3 text-xs space-y-1 bg-gray-50 rounded-xl p-3">
-              {selected.settingsPushedAt && (
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Settings saved</span>
-                  <span className="font-medium">{timeAgo(selected.settingsPushedAt)}</span>
+          {/* Sync status + payload — clear synced / not synced */}
+          {(() => {
+            const pending = isSyncPending(selected);
+            const synced = !!selected.settingsAppliedAt && !pending;
+            const neverPushed = !selected.settingsPushedAt;
+            // Prefer unsaved local edits in preview; else last pushed cloud settings
+            const previewSrc = Object.keys(localSettings).length > 0
+              ? buildMergedSettings()
+              : (selected.settings || {});
+            const summary = summarizeSettings(previewSrc);
+            const statusLabel = neverPushed
+              ? 'Never synced'
+              : pending
+                ? 'NOT SYNCED — waiting for device'
+                : 'SYNCED on device';
+            const statusClass = neverPushed
+              ? 'bg-gray-100 text-gray-600'
+              : pending
+                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+
+            return (
+              <div className="mt-4 space-y-2">
+                <div className={cn('rounded-xl px-3 py-2.5 text-sm font-bold text-center', statusClass)}>
+                  {neverPushed ? '○' : pending ? '⏳' : '✓'} {statusLabel}
                 </div>
-              )}
-              {selected.settingsAppliedAt ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Applied on device</span>
-                  <span className="font-medium text-emerald-600">✓ {timeAgo(selected.settingsAppliedAt)}</span>
+
+                <div className="text-xs space-y-1 bg-gray-50 rounded-xl p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Last push (cloud)</span>
+                    <span className="font-medium">{timeAgo(selected.settingsPushedAt)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Device applied</span>
+                    {pending ? (
+                      <span className="font-medium text-amber-600">Not yet</span>
+                    ) : (
+                      <span className="font-medium text-emerald-600">{timeAgo(selected.settingsAppliedAt)}</span>
+                    )}
+                  </div>
+                  {summary.forceSyncAt && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500">Hard sync stamp</span>
+                      <span className="font-medium">{timeAgo(summary.forceSyncAt)}</span>
+                    </div>
+                  )}
+                  {synced && (
+                    <p className="text-emerald-600 pt-1">Device has the latest pushed settings.</p>
+                  )}
+                  {pending && (
+                    <p className="text-amber-600 pt-1">
+                      Push is on the cloud. Device has not applied it yet
+                      {selected.isOnline ? ' — wait for heartbeat or tap Sync Now in the app.' : ' — bring the device online.'}
+                    </p>
+                  )}
                 </div>
-              ) : selected.settingsPushedAt ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Applied on device</span>
-                  <span className="font-medium text-amber-500">⏳ Pending next sync</span>
-                </div>
-              ) : null}
-            </div>
-          )}
+
+                <button type="button" onClick={() => setShowPayload(v => !v)}
+                  className="w-full text-left text-xs font-bold text-gray-500 hover:text-gray-700 flex items-center justify-between px-1">
+                  <span>{Object.keys(localSettings).length > 0 ? 'Will send (unsaved)' : 'Last payload sent'}</span>
+                  <span>{showPayload ? 'Hide ▲' : 'Show ▼'}</span>
+                </button>
+
+                {showPayload && (
+                  <div className="text-xs bg-white border border-gray-200 rounded-xl p-3 space-y-2">
+                    {summary.tabsOff.length > 0 && (
+                      <div>
+                        <p className="font-bold text-red-600 mb-0.5">Tabs OFF ({summary.tabsOff.length})</p>
+                        <p className="text-gray-700">{summary.tabsOff.join(', ')}</p>
+                      </div>
+                    )}
+                    {summary.tabsOn.length > 0 && (
+                      <div>
+                        <p className="font-bold text-emerald-700 mb-0.5">Tabs ON ({summary.tabsOn.length})</p>
+                        <p className="text-gray-600">{summary.tabsOn.join(', ')}</p>
+                      </div>
+                    )}
+                    {summary.featuresOff.length > 0 && (
+                      <div>
+                        <p className="font-bold text-red-600 mb-0.5">Features OFF</p>
+                        <p className="text-gray-700">{summary.featuresOff.join(', ')}</p>
+                      </div>
+                    )}
+                    {summary.featuresOn.length > 0 && (
+                      <div>
+                        <p className="font-bold text-emerald-700 mb-0.5">Features ON</p>
+                        <p className="text-gray-600">{summary.featuresOn.join(', ')}</p>
+                      </div>
+                    )}
+                    {(summary.latestVersion || summary.minVersion) && (
+                      <div>
+                        <p className="font-bold text-gray-700 mb-0.5">App versions</p>
+                        <p className="text-gray-600">
+                          Latest: {summary.latestVersion || '—'} · Min: {summary.minVersion || '—'}
+                        </p>
+                      </div>
+                    )}
+                    {!summary.tabsOn.length && !summary.tabsOff.length && !summary.featuresOn.length && !summary.featuresOff.length && (
+                      <p className="text-gray-400">No tab/feature payload yet — toggle something and Save, or Hard Sync.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Renew License */}

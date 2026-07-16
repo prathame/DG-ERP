@@ -179,16 +179,29 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
     if (!lic) return res.status(403).json({ error: 'Invalid or inactive license key' });
 
     // Find the local tenant and apply settings
-    const tenant = (await pool.query("SELECT id FROM tenants WHERE slug != 'OWNER' LIMIT 1")).rows[0] as { id: string } | undefined;
+    const tenant = (await pool.query("SELECT id, tab_config FROM tenants WHERE slug != 'OWNER' LIMIT 1")).rows[0] as { id: string; tab_config: unknown } | undefined;
     if (!tenant) return res.json({ ok: true, skipped: true });
 
     const updates: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
 
-    if (settings.tabConfig) {
+    if (settings.tabConfig && typeof settings.tabConfig === 'object') {
+      // Deep-merge so a partial push (e.g. only rewards OFF) does not wipe other tabs
+      const existing = (typeof tenant.tab_config === 'string'
+        ? JSON.parse(tenant.tab_config)
+        : (tenant.tab_config || {})) as Record<string, unknown>;
+      const incoming = settings.tabConfig as Record<string, unknown>;
+      const merged: Record<string, unknown> = { ...existing };
+      for (const [key, val] of Object.entries(incoming)) {
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
+          merged[key] = { ...((existing[key] as object) || {}), ...(val as object) };
+        } else {
+          merged[key] = val;
+        }
+      }
       updates.push(`tab_config=$${idx++}`);
-      params.push(JSON.stringify(settings.tabConfig));
+      params.push(JSON.stringify(merged));
     }
     if (settings.businessType) {
       updates.push(`business_type=$${idx++}`);
@@ -397,8 +410,32 @@ router.put('/api/super-admin/onprem/:id', superAdminMiddleware, async (req, res)
     const result = await pool.query(
       `UPDATE onprem_licenses SET ${updates.join(',')} WHERE id=$${idx} RETURNING *`, params
     );
-    if (!result.rows[0]) return res.status(404).json({ error: 'License not found' });
-    res.json({ ok: true, license: result.rows[0] });
+    const r = result.rows[0] as Record<string, unknown>;
+    if (!r) return res.status(404).json({ error: 'License not found' });
+    // Same camelCase shape as GET list — portal relies on settingsPushedAt after save
+    res.json({
+      ok: true,
+      license: {
+        id: r.id,
+        licenseKey: r.license_key,
+        companyName: r.company_name,
+        businessType: r.business_type,
+        adminEmail: r.admin_email,
+        maxUsers: r.max_users,
+        validUntil: r.valid_until,
+        status: r.status,
+        machineId: r.machine_id,
+        machineOs: r.machine_os,
+        appVersion: r.app_version,
+        lastSeen: r.last_seen,
+        activeUsers: r.active_users,
+        diskMB: r.disk_mb,
+        settings: typeof r.settings === 'string' ? JSON.parse(r.settings as string) : r.settings,
+        settingsPushedAt: r.settings_pushed_at,
+        settingsAppliedAt: r.settings_applied_at,
+        createdAt: r.created_at,
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }

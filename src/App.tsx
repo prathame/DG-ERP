@@ -285,12 +285,12 @@ export default function App() {
     { label: 'Supply Chain', items: [
       { id: 'purchases', label: tc('purchases', 'Purchase / Expense'), icon: ShoppingBag, show: tv('purchases') },
       { id: 'verification', label: tc('verification', t('nav.verification')), icon: ScanSearch, show: tv('verification') },
-      { id: 'quotations', label: tc('quotations', 'Quotes & Orders'), icon: FileText, show: true },
+      { id: 'quotations', label: tc('quotations', 'Quotes & Orders'), icon: FileText, show: tv('quotations') },
     ]},
     { label: 'Finance & Reports', items: [
-      { id: 'invoices', label: 'Invoices', icon: ReceiptIndianRupee, show: true },
+      { id: 'invoices', label: 'Invoices', icon: ReceiptIndianRupee, show: tv('invoices') },
       { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
-      { id: 'accounts', label: 'Accounts', icon: BarChart3, show: true },
+      { id: 'accounts', label: 'Accounts', icon: BarChart3, show: tv('accounts') },
     ]},
     { label: 'After Sales', items: [
       { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },

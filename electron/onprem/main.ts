@@ -108,15 +108,18 @@ async function sendHeartbeat(): Promise<void> {
           body: JSON.stringify({ licenseKey: licenseInfo.licenseKey, settings: s }),
         });
         const result = await r.json() as { applied?: number };
-        if (result.applied && result.applied > 0) {
-          // Mark applied on cloud so super admin sync log shows ✓
+        const forced = !!s.forceSyncAt;
+        // Mark applied when columns changed OR hard-sync was requested
+        if ((result.applied && result.applied > 0) || forced) {
           fetch(`${CLOUD_API}/api/onprem/mark-applied`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ licenseKey: licenseInfo.licenseKey }),
           }).catch(() => {});
-          // Reload window so React picks up new tabConfig
-          mainWin?.webContents.reload();
+          // Reload when config actually changed (or hard sync) so UI picks up tabConfig
+          if ((result.applied && result.applied > 0) || forced) {
+            mainWin?.webContents.reload();
+          }
         }
       } catch {}
     }
