@@ -92,6 +92,8 @@ export function OnPremView({ saToken }: { saToken: string }) {
   const [settingsTab, setSettingsTab] = useState<'tabs' | 'features' | 'updates'>('tabs');
   const [localSettings, setLocalSettings] = useState<Record<string, unknown>>({});
   const [pushing, setPushing] = useState(false);
+  /** idle | waiting (device confirm) | done | timeout */
+  const [pushPhase, setPushPhase] = useState<'idle' | 'waiting' | 'done' | 'timeout'>('idle');
   const [latestVersion, setLatestVersion] = useState('');
   const [minVersion, setMinVersion] = useState('');
   const [githubReleases, setGithubReleases] = useState<{ tag: string; name: string; published: string }[]>([]);
@@ -104,9 +106,9 @@ export function OnPremView({ saToken }: { saToken: string }) {
 
   const h = { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' };
 
-  const load = (silent = false) => {
+  const load = (silent = false): Promise<License[]> => {
     if (!silent) setLoading(true);
-    fetch('/api/super-admin/onprem', { headers: h })
+    return fetch('/api/super-admin/onprem', { headers: h })
       .then(r => r.json())
       .then((rows: License[]) => {
         setLicenses(rows);
@@ -115,9 +117,33 @@ export function OnPremView({ saToken }: { saToken: string }) {
           const fresh = rows.find(l => l.id === prev.id);
           return fresh ? { ...prev, ...fresh } : prev;
         });
+        return rows;
       })
-      .catch(() => {})
+      .catch(() => [] as License[])
       .finally(() => { if (!silent) setLoading(false); });
+  };
+
+  /** Poll until device calls mark-applied (applied ≥ pushed), or timeout. */
+  const waitForDeviceConfirm = async (licenseId: string, pushedAtIso: string, maxMs = 90000) => {
+    const pushedMs = new Date(pushedAtIso).getTime();
+    const start = Date.now();
+    setPushPhase('waiting');
+    while (Date.now() - start < maxMs) {
+      await new Promise(r => setTimeout(r, 2000));
+      const rows = await load(true);
+      const lic = rows.find(l => l.id === licenseId);
+      if (!lic) continue;
+      const appliedMs = lic.settingsAppliedAt ? new Date(lic.settingsAppliedAt).getTime() : 0;
+      // Device confirmed this push (applied at or after push)
+      if (appliedMs >= pushedMs - 1000) {
+        setPushPhase('done');
+        toast('Device confirmed — settings applied successfully', 'success');
+        return true;
+      }
+    }
+    setPushPhase('timeout');
+    toast('Sent, but no device confirmation yet. Tap Sync Now in the app, or check you use the same cloud.', 'error');
+    return false;
   };
 
   useEffect(() => {
@@ -168,7 +194,6 @@ export function OnPremView({ saToken }: { saToken: string }) {
     if (!r.ok) { toast('Update failed', 'error'); return false; }
     const d = await r.json().catch(() => ({})) as { license?: License };
     if (!opts?.quiet) toast('Updated', 'success');
-    load(true);
     setSelected(prev => {
       if (!prev) return prev;
       if (d.license) {
@@ -176,6 +201,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
       }
       return { ...prev, ...patch };
     });
+    await load(true);
     return true;
   };
 
@@ -194,27 +220,31 @@ export function OnPremView({ saToken }: { saToken: string }) {
     return merged;
   };
 
-  /** One action: save toggles to cloud + force device to pick them up. */
+  /** Push to cloud, then wait for device mark-applied confirmation. */
   const pushToDevice = async () => {
     if (!selected) return;
     setPushing(true);
+    setPushPhase('idle');
+    const forceSyncAt = new Date().toISOString();
     const settings = {
       ...buildMergedSettings(),
-      forceSyncAt: new Date().toISOString(),
+      forceSyncAt,
     };
     const ok = await handleUpdate(selected.id, { settings }, { quiet: true });
     setLocalSettings({});
-    setPushing(false);
-    if (ok) {
-      toast(
-        selected.isOnline
-          ? 'Sent. Open the app and tap Sync Now.'
-          : 'Sent to cloud. Device is offline — sync when it comes online.',
-        'success'
-      );
-      setTimeout(() => load(true), 3000);
-      setTimeout(() => load(true), 12000);
+    if (!ok) {
+      setPushing(false);
+      return;
     }
+    toast(
+      selected.isOnline
+        ? 'Sent — waiting for the app to confirm (tap Sync Now)…'
+        : 'Sent — waiting for device to come online and Sync Now…',
+      'success'
+    );
+    // Block until device marks applied on THIS same API, or 90s timeout
+    await waitForDeviceConfirm(selected.id, forceSyncAt, 90000);
+    setPushing(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -517,29 +547,53 @@ export function OnPremView({ saToken }: { saToken: string }) {
                   className="w-full py-3 bg-brand text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   <RefreshCw size={16} className={pushing ? 'animate-spin' : ''} />
-                  {pushing ? 'Sending…' : dirty ? '1. Push to device' : '1. Push to device again'}
+                  {pushing
+                    ? (pushPhase === 'waiting' ? 'Waiting for device confirm…' : 'Sending…')
+                    : dirty ? 'Push to device' : 'Push to device again'}
                 </button>
 
                 <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400 px-0.5">Status (not a button)</div>
                 <div className={cn(
                   'rounded-xl px-4 py-3 text-sm pointer-events-none select-none',
-                  !selected.settingsPushedAt && 'bg-gray-100 text-gray-600',
-                  pending && 'bg-amber-50 text-amber-900',
-                  selected.settingsPushedAt && !pending && 'bg-emerald-50 text-emerald-900',
+                  pushPhase === 'done' || (selected.settingsPushedAt && !pending) ? 'bg-emerald-50 text-emerald-900' : '',
+                  (pushPhase === 'waiting' || pending) && pushPhase !== 'done' ? 'bg-amber-50 text-amber-900' : '',
+                  pushPhase === 'timeout' ? 'bg-red-50 text-red-900' : '',
+                  !selected.settingsPushedAt && pushPhase === 'idle' ? 'bg-gray-100 text-gray-600' : '',
                 )}>
-                  {!selected.settingsPushedAt && <p className="font-bold">Not sent yet</p>}
-                  {pending && (
+                  {pushPhase === 'waiting' && (
                     <>
-                      <p className="font-bold">2. Waiting — tap Sync Now in the app</p>
+                      <p className="font-bold">Waiting for device to confirm…</p>
                       <p className="text-xs mt-1 opacity-80">
-                        Last sent {timeAgo(selected.settingsPushedAt)}
-                        {onLocalhost ? ' · this page watches localhost, not Render' : ''}
+                        Tap <b>Sync Now</b> in the app. This page waits up to 90s for success.
                       </p>
                     </>
                   )}
-                  {selected.settingsPushedAt && !pending && (
+                  {pushPhase === 'done' && (
                     <>
-                      <p className="font-bold">✓ Done — on the device</p>
+                      <p className="font-bold">✓ Device confirmed — applied successfully</p>
+                      <p className="text-xs mt-1 opacity-80">{timeAgo(selected.settingsAppliedAt)}</p>
+                    </>
+                  )}
+                  {pushPhase === 'timeout' && (
+                    <>
+                      <p className="font-bold">No confirmation yet</p>
+                      <p className="text-xs mt-1 opacity-80">
+                        App may have applied on a different cloud. Use the same cloud, then Refresh status.
+                      </p>
+                    </>
+                  )}
+                  {pushPhase === 'idle' && !selected.settingsPushedAt && (
+                    <p className="font-bold">Not sent yet</p>
+                  )}
+                  {pushPhase === 'idle' && pending && (
+                    <>
+                      <p className="font-bold">Waiting — tap Sync Now in the app</p>
+                      <p className="text-xs mt-1 opacity-80">Last sent {timeAgo(selected.settingsPushedAt)}</p>
+                    </>
+                  )}
+                  {pushPhase === 'idle' && selected.settingsPushedAt && !pending && (
+                    <>
+                      <p className="font-bold">✓ On the device</p>
                       <p className="text-xs mt-1 opacity-80">Applied {timeAgo(selected.settingsAppliedAt)}</p>
                     </>
                   )}
