@@ -54,7 +54,7 @@ describe('Purchases & Suppliers', () => {
     });
 
     it('rejects empty name', () => {
-      const name = '';
+      const name: string = '';
       expect(!name || !name.trim()).toBe(true);
     });
 

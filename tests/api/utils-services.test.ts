@@ -421,7 +421,7 @@ TwIDAQAB
     process.env.GSTN_SANDBOX_PUBLIC_KEY = '-----BEGIN PUBLIC KEY-----\nbad\n-----END PUBLIC KEY-----';
     const badPem = await loadGstCredentials(pool, tid);
     expect(badPem.ok).toBe(false);
-    if (!badPem.ok) expect(badPem.error).toMatch(/Invalid GSTN|crypto not configured/i);
+    expect(badPem).toMatchObject({ ok: false, error: expect.stringMatching(/Invalid GSTN|crypto not configured/i) });
 
     process.env.GSTN_SANDBOX_PUBLIC_KEY = pem;
     const ok = await loadGstCredentials(pool, tid);

@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
+    globalSetup: './tests/globalSetup.ts',
     // Prefer .ts over stale compiled .js siblings under server/
     server: {
       deps: {
