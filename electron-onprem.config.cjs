@@ -20,7 +20,10 @@ module.exports = {
     type: 'commonjs',
   },
   // PostgreSQL binaries bundled via embedded-postgres
-  asarUnpack: ['node_modules/embedded-postgres/**'],
+  asarUnpack: [
+    'node_modules/embedded-postgres/**',
+    'node_modules/@embedded-postgres/**',
+  ],
   win: {
     target: [{ target: 'nsis', arch: ['x64'] }],
     icon: 'public/icons/icon.ico',
