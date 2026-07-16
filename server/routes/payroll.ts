@@ -219,15 +219,25 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
     const typeLabel = { salary: 'Salary', advance: 'Advance Given', advance_repay: 'Advance Repaid', bonus: 'Bonus', deduction: 'Deduction' }[pType] || pType;
     await logAudit(pool, tenantId, 'Staff Payment', 'payroll', id, `${typeLabel}: ₹${Number(amount).toLocaleString()} — ${staffName.trim()}`);
 
-    // Sync to expenses table so dashboard/analytics shows staff costs
-    // advance_repay is negative (money coming back), deduction doesn't flow out
+    // Sync to expenses — look up verified name + role from staff_members DB
     if (pType !== 'deduction') {
+      const staffRow = (await pool.query(
+        `SELECT name, role FROM staff_members WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+        [tenantId, staffName.trim()]
+      )).rows[0] as { name: string; role?: string } | undefined;
+
+      const verifiedName = staffRow?.name || staffName.trim();
+      const roleHint = staffRow?.role ? ` (${staffRow.role})` : '';
       const expenseAmount = pType === 'advance_repay' ? -Number(amount) : Number(amount);
       const expCategory = pType === 'advance_repay' ? 'Staff Advance Repaid' : pType === 'advance' ? 'Staff Advance' : pType === 'bonus' ? 'Staff Bonus' : 'Staff Salary';
+      const expDescription = `${typeLabel} — ${verifiedName}${roleHint}`;
+      // Use payment notes if provided, otherwise generate a clear note
+      const expNotes = notes || `${typeLabel} paid to ${verifiedName}${roleHint} via ${paymentMethod || 'Cash'}`;
+
       await pool.query(
         `INSERT INTO expenses (id, tenant_id, category, description, amount, expense_date, payment_method, reference_number, notes)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [uid('EXP'), tenantId, expCategory, `${typeLabel} — ${staffName.trim()}`, expenseAmount, date, paymentMethod || 'Cash', referenceNumber || null, notes || null]
+        [uid('EXP'), tenantId, expCategory, expDescription, expenseAmount, date, paymentMethod || 'Cash', referenceNumber || null, expNotes]
       ).catch(() => {}); // best-effort — don't fail payment if expense insert fails
     }
 
