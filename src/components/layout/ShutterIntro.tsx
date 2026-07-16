@@ -284,7 +284,17 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
               </AnimatePresence>
             </div>
 
-            {/* Main wordmark — split-flap departure board */}
+            {/* Logo */}
+            <motion.img
+              src="/icons/logo-full.png"
+              alt="Dhando"
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: revealed ? 1 : 0, scale: revealed ? 1 : 0.85 }}
+              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              style={{ height: 'clamp(80px, 16vw, 160px)', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 0 32px rgba(242,125,38,0.4))' }}
+            />
+
+            {/* Split-flap wordmark */}
             <div style={{ fontSize: 'clamp(2.8rem, 10vw, 7rem)' }}>
               <SplitFlapWord word={WORDS[wordLang]} trigger={flipTrigger} />
             </div>

@@ -12,6 +12,7 @@ module.exports = {
   ],
   extraMetadata: {
     main: 'electron/cloud/main.js',
+    type: 'commonjs',
   },
   win: {
     target: [{ target: 'nsis', arch: ['x64'] }],
