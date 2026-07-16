@@ -4,9 +4,10 @@ import { twMerge } from "tailwind-merge";
 import { session } from './session';
 
 /** Fetch an image URL and return a base64 data URL — ensures it's embedded inline in PDFs */
-export async function fetchImageAsDataUrl(url: string): Promise<string> {
+export async function fetchImageAsDataUrl(url: string, timeoutMs = 4000): Promise<string> {
   try {
-    const resp = await fetch(url);
+    const resp = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!resp.ok) return url;
     const blob = await resp.blob();
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -131,17 +132,48 @@ export function printBillInWindow(win: Window, html: string, filename?: string, 
   triggerPrintWhenReady(win);
 }
 
+/** Hidden-iframe print — works when Electron/browser blocks window.open */
+function printViaIframe(html: string, autoPrint = true) {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc) { iframe.remove(); return; }
+  doc.open();
+  doc.write(html);
+  doc.close();
+  const cleanup = () => { try { iframe.remove(); } catch { /* ignore */ } };
+  if (!autoPrint) {
+    // Keep briefly so user can use browser print from a visible path if needed
+    setTimeout(cleanup, 60_000);
+    return;
+  }
+  const w = iframe.contentWindow;
+  if (!w) { cleanup(); return; }
+  const run = () => {
+    try { w.focus(); w.print(); } catch { /* ignore */ }
+    setTimeout(cleanup, 1500);
+  };
+  // Wait a tick for layout / images
+  setTimeout(run, 400);
+}
+
 /**
- * Write HTML into a print window. Returns false if win is null (pop-up blocked).
- * Pass a window from openPrintWindow() called synchronously on click.
+ * Write HTML into a print window, or iframe-fallback if pop-up was blocked.
+ * Always returns true if content was handed off for print/preview.
  */
 export function writePrintHtml(
   win: Window | null,
   html: string,
   options?: { filename?: string; autoPrint?: boolean },
 ): boolean {
-  if (!win) return false;
-  printBillInWindow(win, html, options?.filename, { autoPrint: options?.autoPrint ?? true });
+  const titled = applyPrintTitle(html, options?.filename);
+  if (win) {
+    printBillInWindow(win, titled, undefined, { autoPrint: options?.autoPrint ?? true });
+    return true;
+  }
+  printViaIframe(titled, options?.autoPrint ?? true);
   return true;
 }
 
@@ -151,7 +183,11 @@ export function writePrintHtml(
  */
 export function saveBillAsPdf(html: string, filename?: string, win?: Window | null): boolean {
   const w = win ?? openPrintWindow('Preparing PDF…');
-  if (!w) return false;
+  if (!w) {
+    // Last resort: open print dialog via iframe (user can "Save as PDF")
+    printViaIframe(applyPrintTitle(html, filename), true);
+    return true;
+  }
   printBillInWindow(w, html, filename, { autoPrint: false });
   return true;
 }

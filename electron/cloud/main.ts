@@ -53,6 +53,18 @@ function createWindow() {
 
   // Open external links in system browser, not inside the app
   win.webContents.setWindowOpenHandler(({ url }) => {
+    // Print / PDF preview uses window.open('') → about:blank
+    if (!url || url === 'about:blank' || url.startsWith('about:blank')) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 900,
+          height: 720,
+          autoHideMenuBar: true,
+          webPreferences: { contextIsolation: true, nodeIntegration: false },
+        },
+      };
+    }
     try {
       const u = new URL(url);
       if (url.startsWith(CLOUD_URL)) {

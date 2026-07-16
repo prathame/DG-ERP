@@ -287,6 +287,18 @@ async function openMainWindow(slug: string): Promise<void> {
   mainWin.loadURL(`${LOCAL_API_URL}/${slug}`);
   mainWin.once('ready-to-show', () => mainWin?.show());
   mainWin.webContents.setWindowOpenHandler(({ url }) => {
+    // Print / PDF preview uses window.open('') → about:blank
+    if (!url || url === 'about:blank' || url.startsWith('about:blank')) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 900,
+          height: 720,
+          autoHideMenuBar: true,
+          webPreferences: { contextIsolation: true, nodeIntegration: false },
+        },
+      };
+    }
     try {
       const u = new URL(url);
       if (u.protocol === 'https:' || u.protocol === 'http:') {
