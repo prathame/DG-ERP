@@ -37,10 +37,12 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
   };
 
   const openAdd = () => { setEditing(null); setForm({ name: '', phone: '', role: '', address: '', salary: '', joiningDate: '' }); setAddStaffOpen(true); };
-  const openEdit = (s: Staff) => { setEditing(s); setForm({ name: s.name, phone: s.phone || '', role: s.role || '', address: s.address || '', salary: s.salary ? String(s.salary) : '', joiningDate: s.joiningDate || '' }); setAddStaffOpen(true); };
+  const openEdit = (s: Staff) => { setEditing(s); setForm({ name: s.name, phone: s.phone || '', role: s.role || '', address: s.address || '', salary: s.salary ? String(s.salary) : '', joiningDate: s.joiningDate ? s.joiningDate.slice(0, 10) : '' }); setAddStaffOpen(true); };
 
   const handleSaveStaff = async () => {
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
+    if (!form.name.trim()) { toast('Name is required', 'error'); return; }
+    if (form.phone && !/^\d{10}$/.test(form.phone.replace(/\s/g, ''))) { toast('Phone must be 10 digits', 'error'); return; }
     try {
       if (editing) {
         await api.staff.update(editing.id, { name: form.name, phone: form.phone, role: form.role, address: form.address, salary: form.salary ? Number(form.salary) : undefined });
