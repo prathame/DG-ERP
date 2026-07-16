@@ -1,58 +1,11 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-
-// ── Global offline banner ─────────────────────────────────────────────────────
-function OfflineBanner() {
-  const [status, setStatus] = useState<'online' | 'offline' | 'back-online'>('online');
-
-  useEffect(() => {
-    if (!navigator.onLine) setStatus('offline');
-
-    let backTimer: ReturnType<typeof setTimeout>;
-
-    const onOffline = () => {
-      clearTimeout(backTimer);
-      setStatus('offline');
-    };
-    const onOnline = () => {
-      setStatus('back-online');
-      // Hide "back online" after 3 seconds
-      backTimer = setTimeout(() => setStatus('online'), 3000);
-    };
-
-    window.addEventListener('offline', onOffline);
-    window.addEventListener('online', onOnline);
-    return () => {
-      window.removeEventListener('offline', onOffline);
-      window.removeEventListener('online', onOnline);
-      clearTimeout(backTimer);
-    };
-  }, []);
-
-  if (status === 'online') return null;
-
-  return (
-    <div
-      className={`fixed top-0 inset-x-0 z-[9998] flex items-center justify-center gap-2 py-2 px-4 text-sm font-bold transition-all ${
-        status === 'offline'
-          ? 'bg-red-600 text-white'
-          : 'bg-emerald-600 text-white'
-      }`}
-      role="alert"
-    >
-      {status === 'offline' ? (
-        <>
-          <span>⚠</span>
-          No internet — check your connection. If a save failed, submit it again when you are back online.
-        </>
-      ) : (
-        <>
-          <span>✓</span>
-          Back online
-        </>
-      )}
-    </div>
-  );
-}
+import { OfflineBanner } from './platforms/mobile/offline';
+import {
+  MobileOnboarding,
+  isMobileClient,
+  getSavedCompanySlug,
+  clearSavedCompanySlug,
+} from './platforms/mobile/online';
 import { api } from './api';
 import {
   LayoutDashboard,
@@ -90,7 +43,7 @@ import { DownloadPage } from './components/layout/DownloadPage';
 import { ChatWidget } from './components/layout/ChatWidget';
 import { session } from './lib/session';
 import { CommandPalette } from './components/ui/CommandPalette';
-import { OnlineStatus } from './components/ui/OnlineStatus';
+import { OnlineStatus } from './platforms/desktop/offline';
 
 const DashboardView = lazy(() => import('./features/dashboard/DashboardView').then(m => ({ default: m.DashboardView })));
 const SalesEntryView = lazy(() => import('./features/sales/SalesEntryView').then(m => ({ default: m.SalesEntryView })));
@@ -352,7 +305,24 @@ export default function App() {
     }
   }, [urlSlug, !user]);
 
+  // Mobile: restore last company when opening at /
+  useEffect(() => {
+    if (user || urlSlug || !isMobileClient()) return;
+    const saved = getSavedCompanySlug();
+    if (saved) {
+      window.history.replaceState(null, '', `/${saved}`);
+      window.location.reload();
+    }
+  }, [user, urlSlug]);
+
   const authState = getAuthState();
+
+  const goToMobileOnboarding = () => {
+    clearSavedCompanySlug();
+    session.clearAll();
+    window.history.replaceState(null, '', '/');
+    window.location.reload();
+  };
 
   useEffect(() => {
     if (authState.isSuperAdmin && urlSlug) session.clearAll();
@@ -391,7 +361,17 @@ export default function App() {
             <div className="inline-flex w-16 h-16 bg-gray-700 rounded-2xl items-center justify-center font-bold text-2xl text-gray-400 mb-4">?</div>
             <h1 className="text-xl font-bold text-white mb-2">Company Not Found</h1>
             <p className="text-gray-400 text-sm mb-6">No company registered with URL <span className="font-mono text-gray-300">/{urlSlug}</span></p>
-            <a href="/" className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors">Go to Dhandho Home</a>
+            {isMobileClient() ? (
+              <button
+                type="button"
+                onClick={goToMobileOnboarding}
+                className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors"
+              >
+                Enter a different company
+              </button>
+            ) : (
+              <a href="/" className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors">Go to Dhandho Home</a>
+            )}
           </div>
         </div>
       );
@@ -401,39 +381,86 @@ export default function App() {
     if (urlSlug && tenantBranding) {
       return (
         <ToastProvider>
-          <LoginScreen onLogin={handleLogin} tenant={tenantBranding} />
+          <LoginScreen
+            onLogin={handleLogin}
+            tenant={tenantBranding}
+            onChangeCompany={isMobileClient() ? goToMobileOnboarding : undefined}
+          />
         </ToastProvider>
       );
     }
 
-    // Root URL (/) — show company landing page
+    // Waiting on tenant branding fetch for /{slug}
+    if (urlSlug && !slugNotFound) {
+      return (
+        <div className="min-h-[100dvh] flex items-center justify-center bg-[#151619]">
+          <LoadingSpinner size="lg" />
+        </div>
+      );
+    }
+
+    // Mobile first launch — company code onboarding (not marketing landing)
+    if (isMobileClient()) {
+      // Restoring saved company — avoid flashing onboarding
+      if (getSavedCompanySlug()) {
+        return (
+          <div className="min-h-[100dvh] flex items-center justify-center bg-[#151619]">
+            <LoadingSpinner size="lg" />
+          </div>
+        );
+      }
+      return (
+        <ToastProvider>
+          <OfflineBanner />
+          <MobileOnboarding
+            onComplete={(slug) => {
+              window.history.replaceState(null, '', `/${slug}`);
+              window.location.reload();
+            }}
+          />
+        </ToastProvider>
+      );
+    }
+
+    // Root URL (/) — show company landing page (web)
     const isDesktop = new URLSearchParams(window.location.search).get('desktop') === '1';
     if (isDesktop) return <ElectronSlugEntry />;
     return <LandingPage />;
   }
 
+  const mobileNavIds = user?.role === 'Vendor'
+    ? ['analytics', 'distribution', 'finance', 'inventory', 'settings']
+    : ['analytics', 'masters', 'inventory', 'finance', 'quotations'];
+  const mobileNavItems = mobileNavIds
+    .map((id) => visibleNavItems.find((n) => n.id === id))
+    .filter((n): n is NonNullable<typeof n> => !!n)
+    .slice(0, 4);
+  const mobileMoreActive = !mobileNavItems.some((i) => i.id === activeTab) && activeTab !== 'settings';
+
   return (
     <ToastProvider>
     {appShutter && <AppShutterIntro companyName={appShutter} onDone={() => setAppShutter(null)} />}
     <OfflineBanner />
-    <div className="flex h-screen bg-[#F8F9FA] text-[#1A1A1A] font-sans">
+    <div className="app-shell flex h-[100dvh] max-h-[100dvh] bg-[#F8F9FA] text-[#1A1A1A] font-sans overflow-hidden">
       {/* Mobile sidebar backdrop */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-[1px]"
           onClick={() => setIsSidebarOpen(false)}
           aria-hidden="true"
         />
       )}
-      {/* Sidebar */}
+      {/* Sidebar — full-height drawer on phone, rail on desktop */}
       <aside
         className={cn(
-          "bg-white border-r border-gray-200 transition-all duration-300 flex flex-col z-50",
+          "bg-white border-r border-gray-200 transition-transform duration-300 flex flex-col z-50 shadow-xl lg:shadow-none",
           "fixed lg:relative inset-y-0 left-0",
-          isSidebarOpen ? "w-60 translate-x-0" : "w-16 -translate-x-full lg:translate-x-0"
+          isSidebarOpen
+            ? "w-[min(88vw,20rem)] translate-x-0 lg:w-60"
+            : "w-16 -translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="h-16 px-4 flex items-center justify-between border-b border-gray-100">
+        <div className="h-14 lg:h-16 px-4 flex items-center justify-between border-b border-gray-100 pt-[env(safe-area-inset-top)] lg:pt-0">
           {isSidebarOpen && (
             <div className="flex items-center gap-2.5 min-w-0">
               <img src="/icons/logo-full.png" alt="Dhando" className="h-8 w-auto object-contain shrink-0" />
@@ -443,7 +470,8 @@ export default function App() {
           <button
             type="button"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500"
+            className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500"
+            aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
           >
             {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
@@ -471,7 +499,7 @@ export default function App() {
                       type="button"
                       onClick={() => { setActiveTab(item.id as Tab); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
                       className={cn(
-                        "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] group relative",
+                        "w-full flex items-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-lg transition-all text-[13px] group relative",
                         activeTab === item.id
                           ? "bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[9px]"
                           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -530,18 +558,30 @@ export default function App() {
             </div>
           );
         })()}
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 sm:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100 px-3 sm:px-8 py-2.5 sm:py-4 flex items-center justify-between gap-2 app-header-safe">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors lg:hidden"
+              className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-xl transition-colors lg:hidden shrink-0"
+              aria-label="Open menu"
             >
               <Menu size={22} />
             </button>
-            <h1 className="text-xl sm:text-2xl font-bold">{t(`nav.${activeTab}`)}</h1>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-bold truncate leading-tight">{t(`nav.${activeTab}`)}</h1>
+              <p className="text-[11px] text-gray-400 truncate sm:hidden">{user?.companyName}</p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => setCmdOpen(true)}
+              className="sm:hidden p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-xl text-gray-500"
+              aria-label="Search"
+            >
+              <Search size={20} />
+            </button>
             <button type="button" onClick={() => setCmdOpen(true)} className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm text-gray-500">
               <Search size={15} />
               <span>Search...</span>
@@ -551,19 +591,19 @@ export default function App() {
               <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
               <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">{(userConfig?.planName as string) || 'Standard'} Plan</span>
             </div>
-            <button type="button" onClick={() => canAccess('inventory') && setActiveTab('inventory')} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-700">
+            <button type="button" onClick={() => canAccess('inventory') && setActiveTab('inventory')} className="relative p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-xl transition-colors text-gray-500 hover:text-gray-700" aria-label="Low stock alerts">
               <Bell size={20} />
               {lowStockCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">{lowStockCount > 9 ? '9+' : lowStockCount}</span>
               )}
             </button>
             <div className="relative flex items-center gap-2 sm:gap-3">
-              <button type="button" onClick={() => setUserMenuOpen((o) => !o)} className="flex items-center gap-3 rounded-xl p-1.5 hover:bg-gray-100 transition-colors">
+              <button type="button" onClick={() => setUserMenuOpen((o) => !o)} className="flex items-center gap-3 rounded-xl p-1 hover:bg-gray-100 transition-colors" aria-label="Account menu">
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-semibold">{user?.name ?? 'Guest'}</p>
                   <p className="text-xs text-gray-500">{user?.role ?? 'Not signed in'}</p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] border-2 border-white shadow-sm flex items-center justify-center text-white font-bold text-sm">{user?.name?.charAt(0) ?? '?'}</div>
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] border-2 border-white shadow-sm flex items-center justify-center text-white font-bold text-sm">{user?.name?.charAt(0) ?? '?'}</div>
               </button>
               {userMenuOpen && <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} aria-hidden="true" />}
               <AnimatePresence>
@@ -594,7 +634,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
+        <div className="app-mobile-content p-3 sm:p-6 lg:p-8 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:pb-8">
           <Suspense fallback={<LazyFallback />}>
           <div key={tabKey}>
           {canAccess(activeTab) && activeTab === 'dashboard' && <DashboardView user={user} setActiveTab={setActiveTab} businessType={(userConfig?.businessType as string) || 'manufacturer'} />}
@@ -620,36 +660,43 @@ export default function App() {
           </Suspense>
         </div>
       </main>
-      {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 lg:hidden safe-bottom">
-        <div className="flex items-center justify-around px-1 py-1">
-          {(() => {
-            const priorityIds = user?.role === 'Vendor'
-              ? ['analytics', 'distribution', 'finance', 'inventory', 'settings']
-              : ['analytics', 'masters', 'inventory', 'finance', 'quotations'];
-            const mobileItems = priorityIds.map(id => visibleNavItems.find(n => n.id === id)).filter(Boolean).slice(0, 5);
-            return mobileItems;
-          })().map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setActiveTab(item.id as Tab)}
-              className={cn("flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-lg min-w-[56px] transition-colors", activeTab === item.id ? "text-brand" : "text-gray-400")}
-            >
-              <item.icon size={20} />
-              <span className="text-[9px] font-medium leading-tight">{item.label.split(' ')[0]}</span>
-            </button>
-          ))}
-          {visibleNavItems.length > 5 && (
-            <button
-              type="button"
-              onClick={() => setIsSidebarOpen(true)}
-              className="flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-lg text-gray-400"
-            >
-              <Menu size={20} />
-              <span className="text-[9px] font-medium leading-tight">More</span>
-            </button>
-          )}
+      {/* Mobile bottom nav — primary destinations + More drawer */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 lg:hidden safe-bottom shadow-[0_-4px_24px_rgba(0,0,0,0.06)]" aria-label="Primary">
+        <div className="flex items-stretch justify-around px-1 pt-1 pb-0.5">
+          {mobileNavItems.map((item) => {
+            const active = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id as Tab)}
+                className={cn(
+                  "flex flex-1 flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-xl min-h-[52px] transition-colors",
+                  active ? "text-brand" : "text-gray-400"
+                )}
+              >
+                <span className={cn("flex items-center justify-center w-10 h-8 rounded-xl transition-colors", active && "bg-brand/10")}>
+                  <item.icon size={22} strokeWidth={active ? 2.5 : 2} />
+                </span>
+                <span className={cn("text-[10px] leading-tight max-w-[4.5rem] truncate", active ? "font-bold" : "font-medium")}>
+                  {item.label.split(' ')[0]}
+                </span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className={cn(
+              "flex flex-1 flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-xl min-h-[52px] transition-colors",
+              mobileMoreActive || isSidebarOpen ? "text-brand" : "text-gray-400"
+            )}
+          >
+            <span className={cn("flex items-center justify-center w-10 h-8 rounded-xl transition-colors", (mobileMoreActive || isSidebarOpen) && "bg-brand/10")}>
+              <Menu size={22} />
+            </span>
+            <span className={cn("text-[10px] leading-tight font-medium", (mobileMoreActive || isSidebarOpen) && "font-bold")}>More</span>
+          </button>
         </div>
       </nav>
     </div>

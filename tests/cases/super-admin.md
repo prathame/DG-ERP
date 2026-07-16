@@ -62,3 +62,18 @@ Covers super-admin authentication, tenant CRUD, feature toggle management, plan 
 | 34 | Filter audit log by date range | Set a start and end date | Only entries within that date range are shown |
 | 35 | Filter audit log by action type | Select action type (e.g., "Tenant Created") | Only matching action entries are shown |
 | 36 | Audit log entry for tenant creation | Create a new tenant; check audit log | Entry with "Tenant Created" action and tenant details is present |
+
+## Mobile onboarding & sync (8)
+
+See also [`pwa-mobile.md`](pwa-mobile.md) and [`docs/MOBILE.md`](../../docs/MOBILE.md).
+
+| # | Test Case | Steps | Expected Result |
+|---|-----------|-------|-----------------|
+| 37 | Mobile invite on create | Create a cloud tenant | Credentials UI shows `DG-M-…` invite |
+| 38 | Mobile panel on tenant detail | Open tenant detail | Mobile panel: invite, force sync, versions, devices |
+| 39 | Rotate invite | Click Issue / Rotate invite | New code; old code stops redeeming |
+| 40 | WhatsApp mobile share | Share from Mobile panel | Message has `/download` + invite + slug |
+| 41 | Force sync | Click Force sync now | `forceSyncAt` updates; phones reload within ~1 min |
+| 42 | Version policy save | Set min/latest version; Save | Values persist after refresh |
+| 43 | Devices list | Login from a phone; refresh devices | Row shows platform, version, user, Online |
+| 44 | Guide documents mobile | Open Super Admin → Guide | Section “Onboard a Mobile Customer” present |

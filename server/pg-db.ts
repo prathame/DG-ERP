@@ -817,6 +817,30 @@ export async function initSchema() {
     await client.query("ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_pushed_at TIMESTAMPTZ");
     await client.query("ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_applied_at TIMESTAMPTZ");
 
+    // Mobile app (Capacitor) — Super Admin invite + force sync + device registry
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_invite_code TEXT`);
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_invite_expires_at TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_force_sync_at TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_min_version TEXT`);
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_latest_version TEXT`);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_mobile_invite ON tenants(mobile_invite_code) WHERE mobile_invite_code IS NOT NULL`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS mobile_devices (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        user_id TEXT,
+        device_id TEXT NOT NULL,
+        platform TEXT DEFAULT 'unknown',
+        app_version TEXT,
+        last_seen TIMESTAMPTZ DEFAULT NOW(),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, device_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_mobile_devices_tenant ON mobile_devices(tenant_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_mobile_devices_seen ON mobile_devices(last_seen)');
+
     // Row Level Security (RLS) — DB-level tenant isolation safety net
     // RLS policies enforce tenant_id filtering at the DB level.
     // Table owner (our pool user) bypasses RLS — this is intentional.

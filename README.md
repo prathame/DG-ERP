@@ -50,6 +50,7 @@ Each tenant is provisioned as one of five types. The type controls which tabs ar
 - **Backend**: Node.js, Express 4, PostgreSQL 16 (RLS per tenant)
 - **Auth**: JWT (HS256, 24h), bcrypt
 - **Desktop**: Electron (cloud wrapper + on-prem with embedded PostgreSQL)
+- **Mobile**: Capacitor (Android / iOS) against the cloud API — invite onboarding + light offline queue
 - **Hosting**: Render (cloud), self-hosted (on-prem)
 
 ---
@@ -97,7 +98,7 @@ npm start       # serves both API + static from port 3001
 
 ## Desktop Apps
 
-Two Electron builds, same codebase:
+Two Electron builds, same codebase. See also [`electron/README.md`](electron/README.md).
 
 ### Cloud Wrapper (~20 MB)
 Wraps the live cloud URL in a native window. No local database.
@@ -117,19 +118,69 @@ npm run build:electron:onprem:win  # → .exe installer
 npm run build:electron:onprem:mac  # → .dmg
 ```
 
-On first launch shows a wizard: enter the license key issued by super admin → activates against cloud → creates local tenant → opens app. Heartbeat every 60 min keeps the super admin dashboard updated.
+On first launch shows a wizard: enter the license key issued by super admin → activates against cloud → creates local tenant → opens app. Heartbeat keeps the super admin dashboard updated.
+
+---
+
+## Mobile App (Android / iOS)
+
+Capacitor app for **cloud** tenants. Full guide: [`docs/MOBILE.md`](docs/MOBILE.md).
+
+1. Super Admin creates tenant → gets invite `DG-M-XXXX-XXXX`
+2. Customer installs from [`/download`](https://dg-erp.onrender.com/download)
+3. App onboarding: invite code (or company slug) → login
+4. Heartbeat registers the device; SA can **Force sync** and set version policy
+
+```bash
+# .env.mobile — VITE_MOBILE=1, VITE_API_ORIGIN=https://your-api.host
+npm run build:mobile
+npm run cap:sync
+npm run cap:android   # or cap:ios
+```
+
+Optional store links on `/download`:
+
+```bash
+VITE_ANDROID_STORE_URL=https://play.google.com/store/apps/details?id=app.dhandho.mobile
+VITE_IOS_STORE_URL=https://apps.apple.com/app/idXXXXXXXX
+```
+
+---
+
+## Downloads page
+
+Public URL: **`/download`**
+
+| Section | What |
+|---------|------|
+| Mobile | Play Store / App Store / GitHub APK |
+| On-Prem desktop | Electron offline installers |
+| Cloud desktop | Electron online installers |
 
 ---
 
 ## Super Admin
 
-Accessible at `/super-admin` (cloud) or via the super admin account.
+Accessible at `/admin` (or `/super-admin` depending on deploy) with the platform admin account.
 
 | Section | What it manages |
 |---|---|
-| **Tenants** | Create / manage cloud tenants, set business type, rename tabs per tenant |
-| **On-Prem** | Issue license keys, track installations, online/offline status, push update notifications |
+| **Tenants** | Create / manage cloud tenants, business type, tabs; **Mobile panel** (invite, force sync, devices) |
+| **On-Prem** | Issue license keys, track installations, push settings |
 | **Analytics** | Revenue, tenant growth, plan distribution |
+| **Guide** | In-app operator documentation |
+
+---
+
+## Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [`docs/MOBILE.md`](docs/MOBILE.md) | Mobile onboarding, APIs, sync, build |
+| [`DEVELOPER.md`](DEVELOPER.md) | Architecture, routes, Electron, platforms |
+| [`src/platforms/README.md`](src/platforms/README.md) | mobile/desktop · online/offline layout |
+| [`electron/README.md`](electron/README.md) | Electron cloud vs on-prem |
+| Super Admin → **Guide** | Operator how-tos inside the product |
 
 ---
 
@@ -137,31 +188,30 @@ Accessible at `/super-admin` (cloud) or via the super admin account.
 
 ```
 src/
+  platforms/        — mobile|desktop × online|offline (see platforms/README.md)
   features/         — one folder per module (analytics, inventory, sales, …)
-  lib/
-    businessTypeConfig.ts   — per-type tab visibility / label defaults
-    billTemplates.ts        — PDF bill HTML generators
-    session.ts              — JWT session helpers
-    utils.ts                — shared utilities
-  api.ts            — typed API client
+  lib/              — shared helpers (session, bills, businessTypeConfig, …)
+  api.ts            — typed API client (uses platforms offline helpers)
 
 server/
-  routes/           — one file per domain (30 route files)
-  middleware/       — auth.ts (JWT), rateLimit.ts
-  utils/
-    tenant.ts       — provisionTenant, deleteTenant
-    barcode.ts      — barcode generation / validation
-  pg-db.ts          — connection pool + schema init (38 tables)
-  index.ts          — Express app entrypoint
+  routes/           — domain routes (+ mobile.ts, onprem.ts, super-admin.ts)
+  middleware/       — auth.ts (JWT)
+  utils/            — tenant.ts, barcode.ts, …
+  pg-db.ts          — pool + schema init
+  index.ts / app.ts — Express entry
 
 electron/
-  cloud/            — cloud wrapper (main.ts, preload.ts)
-  onprem/           — on-prem (main.ts, pg-manager.ts, license-store.ts)
-  shared/           — constants.ts, find-port.ts
+  cloud/            — desktop · online
+  onprem/           — desktop · offline
+  shared/
+
+android/ ios/       — Capacitor native projects (generated / synced)
+docs/
+  MOBILE.md
 
 tests/
-  e2e_by_type.py    — 453-test E2E suite across all 4 business types
-  cases/            — manual test case specs per feature
+  e2e_by_type.py
+  cases/            — manual specs (incl. pwa-mobile.md, super-admin.md)
 ```
 
 ---
@@ -176,7 +226,9 @@ tests/
 
 **Supporting**: `warranties`, `rewards`, `reward_rules`, `redemption_settings`, `quotations`, `orders`, `price_lists`, `credit_debit_notes`, `staff_members`, `staff_payments`
 
-**Platform**: `plans`, `super_admins`, `tenant_invoices`, `tenant_stats`, `audit_log`, `bill_settings`, `vendor_reminder_settings`, `password_reset_tokens`, `onprem_licenses`, `platform_config`
+**Platform**: `plans`, `super_admins`, `tenant_invoices`, `tenant_stats`, `audit_log`, `bill_settings`, `vendor_reminder_settings`, `password_reset_tokens`, `onprem_licenses`, `platform_config`, `mobile_devices`
+
+**Mobile columns on `tenants`**: `mobile_invite_code`, `mobile_invite_expires_at`, `mobile_force_sync_at`, `mobile_min_version`, `mobile_latest_version`
 
 ---
 

@@ -1,3 +1,7 @@
+/**
+ * Desktop · online (Electron cloud wrapper).
+ * Thin window around the hosted ERP. Pair with `src/platforms/desktop/online/`.
+ */
 import { app, BrowserWindow, shell, Menu, nativeImage } from 'electron';
 import path from 'path';
 

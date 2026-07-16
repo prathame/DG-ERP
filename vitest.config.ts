@@ -11,8 +11,18 @@ export default defineConfig({
     },
     coverage: {
       provider: 'v8',
-      include: ['server/utils/**/*.ts', 'server/services/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/*.js'],
+      include: [
+        'server/utils/**/*.ts',
+        'server/services/**/*.ts',
+        'src/platforms/shared/**/*.ts',
+        'src/platforms/mobile/offline/**/*.ts',
+        'src/platforms/mobile/online/**/*.ts',
+      ],
+      exclude: [
+        '**/*.test.ts',
+        '**/*.js',
+        'src/platforms/mobile/offline/network.ts',
+      ],
       thresholds: {
         statements: 90,
         branches: 75,

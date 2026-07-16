@@ -1,6 +1,19 @@
 import { session } from './lib/session';
+import { resolveApiUrl } from './platforms/shared';
+import { isMobileClient } from './platforms/mobile/online/isMobileClient';
+import {
+  cacheGet,
+  cacheSet,
+  cacheInvalidateForApiPath,
+  enqueueOfflineMutation,
+  getConnectionState,
+} from './platforms/mobile/offline';
 
-const API_BASE = '/api';
+const CACHEABLE_GET = [/^\/products(?:\?|$)/, /^\/vendors(?:\?|$)/, /^\/tenant\//];
+
+function offlineCacheKey(path: string, tenantId: string | null): string {
+  return `${tenantId || 'anon'}:${path}`;
+}
 
 export interface DistributionRecord {
   id: string;
@@ -160,15 +173,42 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
     if (cached && Date.now() - cached.ts < GET_CACHE_TTL) return cached.data as T;
   }
 
-  // Invalidate cache on mutations
+  // Invalidate in-memory + durable offline caches on mutations
   if (method !== 'GET') {
     const segment = path.split('/')[1] || '';
     invalidateCache(segment);
+    cacheInvalidateForApiPath(path);
   }
 
   const authHeaders: Record<string, string> = {};
   if (token) authHeaders['Authorization'] = `Bearer ${token}`;
   if (tenantId) authHeaders['X-Tenant-ID'] = tenantId;
+
+  // App paths are like `/products` — always resolve via `/api/...`
+  const requestUrl = resolveApiUrl(`/api${path.startsWith('/') ? path : `/${path}`}`);
+
+  const queueMutation = () => {
+    const body = typeof options?.body === 'string' ? options.body : undefined;
+    enqueueOfflineMutation({
+      path: requestUrl,
+      method,
+      body,
+      headers: authHeaders,
+      label: `${method} ${path}`,
+    });
+  };
+
+  // Offline queue/cache is mobile-only (Capacitor / VITE_MOBILE) — not desktop Electron/web
+  if (isMobileClient() && !getConnectionState().connected) {
+    if (method === 'GET' && CACHEABLE_GET.some((re) => re.test(path))) {
+      const hit = cacheGet<T>(offlineCacheKey(path, tenantId));
+      if (hit != null) return hit;
+    }
+    if (method !== 'GET' && method !== 'HEAD') {
+      queueMutation();
+      throw new Error('You are offline — change queued and will sync when online.');
+    }
+  }
 
   // Retry network blips only (TypeError). Never retry on 4xx/5xx.
   // GETs: up to 3 attempts (safe). Mutations: 1 retry only — reduces duplicate
@@ -177,9 +217,10 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   const MAX_RETRIES = isSafeRetry ? 3 : 2; // mutations: initial + 1 retry
   const RETRY_DELAY_MS = isSafeRetry ? [800, 1600, 3000] : [800];
   let lastError: unknown;
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const res = await fetch(`${API_BASE}${path}`, {
+      const res = await fetch(requestUrl, {
         ...options,
         headers: { 'Content-Type': 'application/json', ...authHeaders, ...options?.headers },
       });
@@ -196,6 +237,16 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
     }
   }
   void lastError;
+
+  // Last resort: durable offline cache for GET
+  if (method === 'GET' && CACHEABLE_GET.some((re) => re.test(path))) {
+    const hit = cacheGet<T>(offlineCacheKey(path, tenantId));
+    if (hit != null) return hit;
+  }
+  if (method !== 'GET' && method !== 'HEAD') {
+    queueMutation();
+    throw new Error('Connection lost — change queued and will sync when online.');
+  }
   throw new Error('Connection lost. Please check your internet and try again.');
 }
 
@@ -234,6 +285,9 @@ async function handleResponse<T>(res: Response, path: string, method: string, te
   if (method === 'GET') {
     const cacheKey = `${tenantId}:${path}`;
     getCache.set(cacheKey, { data, ts: Date.now() });
+    if (CACHEABLE_GET.some((re) => re.test(path))) {
+      cacheSet(offlineCacheKey(path, tenantId), data);
+    }
   }
   return data;
 }

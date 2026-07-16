@@ -82,6 +82,11 @@ describe('utils/helpers', () => {
     );
     expect(rows[0]?.action).toBe('CREATE');
   });
+
+  it('logAudit logs error when insert fails', async () => {
+    const badPool = { query: vi.fn().mockRejectedValue(new Error('db down')) } as unknown as typeof pool;
+    await expect(logAudit(badPool, TENANT, 'FAIL', 'x', '1', 'd')).resolves.toBeUndefined();
+  });
 });
 
 describe('utils/secret-crypto', () => {
@@ -90,6 +95,16 @@ describe('utils/secret-crypto', () => {
     expect(decryptSecret(enc)).toBe('secret');
     expect(decryptSecret('legacy')).toBe('legacy');
     expect(() => decryptSecret('enc:v1:bad')).toThrow();
+  });
+
+  it('throws when JWT_SECRET missing', async () => {
+    const prev = process.env.JWT_SECRET;
+    delete process.env.JWT_SECRET;
+    vi.resetModules();
+    const mod = await import('../../server/utils/secret-crypto');
+    expect(() => mod.encryptSecret('x')).toThrow(/JWT_SECRET required/);
+    process.env.JWT_SECRET = prev;
+    vi.resetModules();
   });
 });
 
@@ -116,9 +131,24 @@ describe('utils/barcode', () => {
        VALUES ('I-U-1', $1, 'P-U-1', 'PRE005', 'InStock') ON CONFLICT DO NOTHING`,
       [TENANT]
     );
+    // Non-numeric suffix under same prefix — skipped by regex (covers !m branch)
+    await pool.query(
+      `INSERT INTO product_inventory (id, tenant_id, product_id, barcode, status)
+       VALUES ('I-U-2', $1, 'P-U-1', 'PREXYZ', 'InStock') ON CONFLICT DO NOTHING`,
+      [TENANT]
+    );
+    // Lower number after higher — covers `n > maxNum` false branch
+    await pool.query(
+      `INSERT INTO product_inventory (id, tenant_id, product_id, barcode, status)
+       VALUES ('I-U-3', $1, 'P-U-1', 'PRE003', 'InStock') ON CONFLICT DO NOTHING`,
+      [TENANT]
+    );
     expect(await getMaxBarcodeNumber(pool, TENANT, 'PRE')).toBe(5);
     const next = await generateBarcodesFromPrefix(pool, TENANT, 'PRE', 2, 3);
     expect(next).toEqual(['PRE006', 'PRE007']);
+    // Auto pad length when padLength omitted
+    const auto = await generateBarcodesFromPrefix(pool, TENANT, 'PRE', 1);
+    expect(auto[0]).toMatch(/^PRE\d+$/);
   });
 });
 
@@ -129,12 +159,59 @@ describe('utils/logger', () => {
     logger.error('t', { e: 'x' });
     expect(() => logger.flush()).not.toThrow();
   });
+
+  it('forwards to Logtail when token is set', async () => {
+    const info = vi.fn();
+    const warn = vi.fn();
+    const error = vi.fn();
+    const flush = vi.fn().mockResolvedValue(undefined);
+    vi.resetModules();
+    process.env.LOGTAIL_TOKEN = 'test-logtail-token';
+    vi.doMock('@logtail/node', () => ({
+      Logtail: class {
+        info = info;
+        warn = warn;
+        error = error;
+        flush = flush;
+      },
+    }));
+    const { logger: ltLogger } = await import('../../server/utils/logger');
+    ltLogger.info('i', { k: 1 });
+    ltLogger.warn('w', { k: 2 });
+    ltLogger.error('e');
+    await ltLogger.flush();
+    expect(info).toHaveBeenCalled();
+    expect(warn).toHaveBeenCalled();
+    expect(error).toHaveBeenCalled();
+    expect(flush).toHaveBeenCalled();
+    delete process.env.LOGTAIL_TOKEN;
+    vi.doUnmock('@logtail/node');
+    vi.resetModules();
+  });
 });
 
 describe('utils/planLimits', () => {
   it('allows when unlimited or no plan', async () => {
     const r = await checkPlanLimit(TENANT, 'products');
     expect(r === null || typeof r?.error === 'string').toBe(true);
+  });
+
+  it('returns null when under plan cap', async () => {
+    const tid = 'T-TEST-PLAN-OK';
+    await cleanupTestData(tid);
+    await pool.query(
+      `INSERT INTO plans (id, name, max_products, max_vendors, max_users, max_barcodes, features, price_monthly, price_yearly)
+       VALUES ('plan-ok-test', 'Ok', 100, 100, 10, 1000, '[]', 0, 0)
+       ON CONFLICT (id) DO UPDATE SET max_products = 100`
+    );
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, plan_id)
+       VALUES ($1, 'Ok Co', 'test-plan-ok', 'ok@test.com', 'O', 'active', 'plan-ok-test')
+       ON CONFLICT (id) DO UPDATE SET plan_id = 'plan-ok-test'`,
+      [tid]
+    );
+    expect(await checkPlanLimit(tid, 'products')).toBeNull();
+    await cleanupTestData(tid);
   });
 
   it('blocks when at plan cap', async () => {
@@ -154,6 +231,13 @@ describe('utils/planLimits', () => {
     const blocked = await checkPlanLimit(tid, 'products');
     expect(blocked?.error).toMatch(/Plan limit reached/i);
     await cleanupTestData(tid);
+  });
+
+  it('fails closed when limit query throws', async () => {
+    const spy = vi.spyOn(pool, 'query').mockRejectedValueOnce(new Error('db'));
+    const r = await checkPlanLimit(TENANT, 'products');
+    spy.mockRestore();
+    expect(r?.error).toMatch(/Unable to verify plan limits/i);
   });
 });
 
@@ -202,6 +286,33 @@ describe('utils/tenant', () => {
     })).rejects.toMatchObject({ code: 'DUPLICATE_SLUG' });
     await deleteTenant(a.tenantId);
   });
+
+  it('provisionTenant rolls back when insert fails', async () => {
+    await expect(provisionTenant({
+      companyName: `BadPlan ${Date.now()}`,
+      adminEmail: `badplan${Date.now()}@t.com`,
+      adminName: 'X',
+      planId: 'plan-does-not-exist-xyz',
+    })).rejects.toThrow();
+  });
+
+  it('deleteTenant rolls back when a delete fails', async () => {
+    const realConnect = pool.connect.bind(pool);
+    const spy = vi.spyOn(pool, 'connect').mockImplementation(async () => {
+      const client = await realConnect();
+      const orig = client.query.bind(client);
+      let n = 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (client as any).query = async (...args: unknown[]) => {
+        n += 1;
+        if (n === 3) throw new Error('forced delete fail');
+        return orig(...(args as Parameters<typeof orig>));
+      };
+      return client;
+    });
+    await expect(deleteTenant('T-NONEXIST-ROLLBACK')).rejects.toThrow(/forced delete fail/);
+    spy.mockRestore();
+  });
 });
 
 describe('services/nic-api', () => {
@@ -211,7 +322,11 @@ describe('services/nic-api', () => {
     expect(resolveSupplyType('')).toBe('B2C');
     expect(() => getGstnPublicKey('mock')).not.toThrow();
     delete process.env.GSTN_SANDBOX_PUBLIC_KEY;
+    delete process.env.GSTN_PUBLIC_KEY;
     expect(() => getGstnPublicKey('sandbox')).toThrow(/crypto not configured/i);
+    process.env.GSTN_SANDBOX_PUBLIC_KEY = '-----BEGIN PUBLIC KEY-----\nbm90LWEtcmVhbC1rZXk=\n-----END PUBLIC KEY-----';
+    expect(() => getGstnPublicKey('sandbox')).toThrow(/Invalid GSTN public key/);
+    delete process.env.GSTN_SANDBOX_PUBLIC_KEY;
 
     const irn = buildIrnPayload({
       sellerGstin: '24AABCT1332L1ZS', sellerName: 'S', sellerAddr: 'Addr', sellerPin: '380001',
@@ -301,6 +416,14 @@ TwIDAQAB
        WHERE tenant_id = $1`,
       [tid, encryptSecret('pw'), encryptSecret('sec')]
     );
+
+    // Creds present but PEM invalid → catch in loadGstCredentials
+    process.env.GSTN_SANDBOX_PUBLIC_KEY = '-----BEGIN PUBLIC KEY-----\nbad\n-----END PUBLIC KEY-----';
+    const badPem = await loadGstCredentials(pool, tid);
+    expect(badPem.ok).toBe(false);
+    if (!badPem.ok) expect(badPem.error).toMatch(/Invalid GSTN|crypto not configured/i);
+
+    process.env.GSTN_SANDBOX_PUBLIC_KEY = pem;
     const ok = await loadGstCredentials(pool, tid);
     expect(ok.ok).toBe(true);
     if (ok.ok) {
@@ -308,6 +431,35 @@ TwIDAQAB
       expect(ok.creds.password).toBe('pw');
     }
     await cleanupTestData(tid);
+  });
+
+  it('authenticate throws when session payload cannot be decrypted', async () => {
+    const crypto = await import('crypto');
+    const { publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    process.env.GSTN_SANDBOX_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ Status: 1, Data: Buffer.from('not-aes').toString('base64') }),
+    })));
+
+    const client = new NicApiClient({
+      mode: 'sandbox',
+      gstin: '24AABCT1332L1ZS',
+      username: 'u',
+      password: 'p',
+      clientId: 'c',
+      clientSecret: 's',
+    });
+    const irnBody = buildIrnPayload({
+      sellerGstin: '24AABCT1332L1ZS', sellerName: 'S', sellerAddr: 'A', sellerPin: '380001',
+      buyerName: 'B', buyerAddr: 'B', buyerPin: '380001',
+      invoiceNo: 'INV-DEC', invoiceDate: '15/07/2026',
+      items: [{ hsnCode: '8471', productName: 'I', qty: 1, unitPrice: 100, gstRate: 18, taxable: 100, cgst: 9, sgst: 9, igst: 0, total: 118 }],
+      totalTaxable: 100, totalCgst: 9, totalSgst: 9, totalIgst: 0, grandTotal: 118,
+    });
+    await expect(client.generateIrn(irnBody)).rejects.toThrow(/could not decrypt session key/);
+    vi.unstubAllGlobals();
   });
 
   it('sandbox NicApiClient authenticate + generate via mocked fetch', async () => {
