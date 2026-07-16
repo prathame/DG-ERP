@@ -10,6 +10,17 @@ import crypto from 'crypto';
 const EmbeddedPostgres = require('embedded-postgres').default ?? require('embedded-postgres');
 import { LOCAL_PG_PORT } from '../shared/constants';
 
+// Resolve postgres binaries from app.asar.unpacked so they can be spawned
+function getUnpackedBinDir(): string {
+  const arch = process.arch; // arm64 or x64
+  const platform = process.platform; // darwin, linux, win32
+  const pkgName = `@embedded-postgres/${platform}-${arch}`;
+  // In packaged app, unpacked modules live in app.asar.unpacked
+  const asarPath = path.join(__dirname, '..', '..', 'node_modules', pkgName, 'native', 'bin');
+  const unpackedPath = asarPath.replace('app.asar', 'app.asar.unpacked');
+  return fs.existsSync(unpackedPath) ? unpackedPath : asarPath;
+}
+
 let pg: InstanceType<typeof EmbeddedPostgres> | null = null;
 
 function resolvePgPassword(dataDir: string, isFirstRun: boolean): string {
@@ -38,12 +49,17 @@ export async function startPostgres(): Promise<string> {
   const isFirstRun = !fs.existsSync(dataDir) || fs.readdirSync(dataDir).length === 0;
   const password = resolvePgPassword(dataDir, isFirstRun);
 
+  const binDir = getUnpackedBinDir();
   pg = new EmbeddedPostgres({
     databaseDir: dataDir,
     user: 'dg_user',
     password,
     port: LOCAL_PG_PORT,
     persistent: true,
+    // Explicit binary paths so embedded-postgres doesn't try to resolve via import.meta.url inside asar
+    postgresPath: path.join(binDir, 'postgres'),
+    initdbPath: path.join(binDir, 'initdb'),
+    pgCtlPath: path.join(binDir, 'pg_ctl'),
   });
 
   if (isFirstRun) {
