@@ -142,7 +142,7 @@ export function LandingPage() {
   const handleShutterDone = useCallback(() => setShutterDone(true), []);
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [lang, setLang] = useState<'en' | 'hi' | 'gu'>('en');
+  const [lang, setLang] = useState<'en' | 'hi' | 'gu' | 'mr'>('en');
   const [heroLang, setHeroLang] = useState(0);
   const [heroAuto, setHeroAuto] = useState(true);
   const [yearly, setYearly] = useState(false);
@@ -184,11 +184,16 @@ export function LandingPage() {
 
   useEffect(() => {
     if (!heroAuto) return;
-    const t = setInterval(() => setHeroLang(h => (h + 1) % 3), 7000);
+    const CYCLE = ['en', 'hi', 'gu', 'mr'] as const;
+    const t = setInterval(() => setHeroLang(h => {
+      const next = (h + 1) % 4;
+      setLang(CYCLE[next]);
+      return next;
+    }), 7000);
     return () => clearInterval(t);
   }, [heroAuto]);
 
-  const L = (en: string, hi: string, gu: string) => lang === 'en' ? en : lang === 'gu' ? gu : hi;
+  const L = (en: string, hi: string, gu: string, mr?: string) => lang === 'en' ? en : lang === 'gu' ? gu : lang === 'mr' ? (mr ?? hi) : hi;
 
   // Theme tokens
   const bg = dark ? 'bg-[#09090B]' : 'bg-[#FAFAFA]';
@@ -207,12 +212,14 @@ export function LandingPage() {
     { code: 'en' as const, label: 'EN' },
     { code: 'hi' as const, label: 'हि' },
     { code: 'gu' as const, label: 'ગુ' },
+    { code: 'mr' as const, label: 'म' },
   ];
 
   const HERO = [
     { h1: 'Run your business,', h2: 'not your software.', sub: 'Inventory · GST · Accounts · Distribution — one platform for every Indian business.' },
     { h1: 'बिज़नेस चलाओ,', h2: 'software नहीं।', sub: 'Inventory · GST · हिसाब-किताब · Distribution — एक platform पर।' },
     { h1: 'ધંધો ચલાવો,', h2: 'software નહિ।', sub: 'Inventory · GST · હિસાબ · Distribution — એક platform.' },
+    { h1: 'धंदा करा,', h2: 'software नाही।', sub: 'Inventory · GST · हिशोब · Distribution — एक platform वर.' },
   ];
 
   const TYPES = [
@@ -233,7 +240,7 @@ export function LandingPage() {
     { icon: Users, title: L('Payroll','पेरोल','પેરોલ'), desc: L('Staff directory, salary, advance, bonus payments, WhatsApp salary slips','Staff directory, salary, advance, bonus, WhatsApp salary slips','Staff directory, salary, advance, bonus, WhatsApp salary slips') },
     { icon: Zap, title: L('Bank Statements','बैंक Statements','બેન્ક Statements'), desc: L('Upload ICICI/HDFC/SBI XLS or XLSX — auto-parse, match UPI to vendors','Upload ICICI/HDFC/SBI XLS/XLSX — auto-parse, match UPI to vendors','Upload ICICI/HDFC/SBI XLS/XLSX — auto-parse, match UPI to vendors') },
     { icon: Shield, title: L('Rewards & Warranty','Rewards & Warranty','Rewards & Warranty'), desc: L('Customer reward points, QR redemption, serial-linked warranty with expiry alerts','Customer reward points, QR redemption, warranty with expiry alerts','Customer reward points, QR redemption, warranty with expiry alerts') },
-    { icon: Globe, title: L('3 Languages','3 भाषाएं','3 ભાષાઓ'), desc: L('Full English, Hindi, Gujarati — switch from settings, entire UI changes','Full English, Hindi, Gujarati — settings से switch','Full English, Hindi, Gujarati — settings માંથી switch') },
+    { icon: Globe, title: L('4 Languages','4 भाषाएं','4 ભાષાઓ','4 भाषा'), desc: L('Full English, Hindi, Gujarati, Marathi — switch from settings, entire UI changes','English, Hindi, Gujarati, Marathi — settings से switch','English, Hindi, Gujarati, Marathi — settings માંથી switch','English, Hindi, Gujarati, Marathi — settings मधून बदला') },
     { icon: Cloud, title: L('Cloud + Desktop','Cloud + Desktop','Cloud + Desktop'), desc: L('Browser app + Electron desktop (Windows/Mac). On-prem version with local database available','Browser + Electron desktop (Windows/Mac). On-prem version available','Browser + Electron desktop (Windows/Mac). On-prem version available') },
   ];
 
@@ -330,8 +337,8 @@ export function LandingPage() {
                   🇮🇳 Made in India
                 </div>
                 <div className={`flex items-center gap-0.5 rounded-full p-0.5 ${dark ? 'bg-white/5' : 'bg-gray-100'}`}>
-                  {[{ idx: 0, label: 'EN' }, { idx: 1, label: 'हि' }, { idx: 2, label: 'ગુ' }].map(l => (
-                    <button key={l.idx} type="button" onClick={() => { setHeroLang(l.idx); setHeroAuto(false); setLang((['en','hi','gu'] as const)[l.idx]); }}
+                  {[{ idx: 0, label: 'EN' }, { idx: 1, label: 'हि' }, { idx: 2, label: 'ગુ' }, { idx: 3, label: 'म' }].map(l => (
+                    <button key={l.idx} type="button" onClick={() => { setHeroLang(l.idx); setHeroAuto(false); setLang((['en','hi','gu','mr'] as const)[l.idx]); }}
                       className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${heroLang === l.idx ? 'bg-brand text-white' : (dark ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-gray-900')}`}>
                       {l.label}
                     </button>
@@ -737,7 +744,7 @@ export function LandingPage() {
             <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" aria-label="Email us" target="_blank" rel="noopener noreferrer" className="hover:text-brand transition-colors p-2" style={{minWidth:44,minHeight:44,display:'flex',alignItems:'center',justifyContent:'center'}}><Mail size={15} /></a>
           </div>
         </div>
-        <p className={`text-center text-xs mt-5 ${faint}`}>© {new Date().getFullYear()} Dhandho · {L('Built with love for Indian businesses','भारतीय businesses के लिए बना','ભારતીય businesses માટે બનેલું')}</p>
+        <p className={`text-center text-xs mt-5 ${faint}`}>© {new Date().getFullYear()} Dhandho · {L('Built with love for Indian businesses','भारतीय businesses के लिए बना','ભારતીય businesses માટે બનેલું','भारतीय व्यवसायांसाठी बनवले')}</p>
       </footer>
     </div>
   );

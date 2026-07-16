@@ -2,23 +2,25 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import en from './en.json';
 import hi from './hi.json';
 import gu from './gu.json';
+import mr from './mr.json';
 
 type Translations = typeof en;
-type Lang = 'en' | 'hi' | 'gu';
+type Lang = 'en' | 'hi' | 'gu' | 'mr';
 
-const translations: Record<Lang, Translations> = { en, hi, gu };
+const translations: Record<Lang, Translations> = { en, hi, gu, mr };
 
 export const LANGUAGES: { code: Lang; label: string; nativeLabel: string }[] = [
   { code: 'en', label: 'English', nativeLabel: 'English' },
   { code: 'hi', label: 'Hindi', nativeLabel: 'हिन्दी' },
   { code: 'gu', label: 'Gujarati', nativeLabel: 'ગુજરાતી' },
+  { code: 'mr', label: 'Marathi', nativeLabel: 'मराठी' },
 ];
 
 const LANG_KEY = 'dhandho_lang';
 
 function getStoredLang(): Lang {
   const stored = localStorage.getItem(LANG_KEY);
-  if (stored === 'hi' || stored === 'gu') return stored;
+  if (stored === 'hi' || stored === 'gu' || stored === 'mr') return stored;
   return 'en';
 }
 
