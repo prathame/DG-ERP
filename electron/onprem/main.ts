@@ -33,6 +33,12 @@ async function startExpressServer(dbUrl: string): Promise<void> {
   process.env.DATABASE_URL = dbUrl;
   process.env.DEPLOYMENT_MODE = 'onprem';
   process.env.PORT = String(LOCAL_API_PORT);
+  process.env.NODE_ENV = process.env.NODE_ENV || 'production';
+  // Generate a stable JWT secret from machine ID if not set — on-prem doesn't need .env
+  if (!process.env.JWT_SECRET) {
+    const { getMachineId } = await import('./license-store');
+    process.env.JWT_SECRET = `onprem-${getMachineId()}-dhandho-jwt-secret-2024`;
+  }
   // Dynamically import the server (avoids top-level side effects)
   await import('../../server/index');
 }
