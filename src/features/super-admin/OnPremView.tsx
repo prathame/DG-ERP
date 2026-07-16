@@ -109,7 +109,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
     setSavingSettings(true);
     await handleUpdate(selected.id, { settings: localSettings });
     setSavingSettings(false);
-    toast('Settings saved — will apply on next heartbeat (up to 60 min)', 'success');
+    toast('Settings saved — will apply on next heartbeat (up to 15 min)', 'success');
   };
 
   const handleDelete = async (id: string) => {
@@ -190,7 +190,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold flex items-center gap-2"><Settings size={16} /> Remote Settings</h3>
-            <p className="text-xs text-gray-400">Applied on next heartbeat (up to 60 min)</p>
+            <p className="text-xs text-gray-400">Applied on next heartbeat (up to 15 min)</p>
           </div>
           <div className="flex gap-2 mb-4 border-b border-gray-100 pb-3">
             {(['tabs','features','updates'] as const).map(t => (
@@ -289,7 +289,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
                 </div>
               </div>
 
-              <p className="text-xs text-gray-400">Control which version this installation runs. Applied on next heartbeat (up to 60 min).</p>
+              <p className="text-xs text-gray-400">Control which version this installation runs. Applied on next heartbeat (up to 15 min).</p>
 
               {/* Latest version dropdown */}
               <div>

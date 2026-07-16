@@ -223,7 +223,7 @@ function VersionControlPanel() {
       method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.getToken()}` },
       body: JSON.stringify({ latestOnpremVersion: latest || null, minOnpremVersion: min || null }),
     });
-    if (r.ok) { alert('Version config saved — on-prem apps pick up on next heartbeat (up to 60 min)'); load(); }
+    if (r.ok) { alert('Version config saved — on-prem apps pick up on next heartbeat (up to 15 min)'); load(); }
     setSaving(false);
   };
 
