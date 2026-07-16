@@ -97,7 +97,7 @@
       <p class="sub">Enter your license key to get started</p>
       <div id="error1" class="error"></div>
       <label>License Key</label>
-      <input id="licenseKey" class="key" placeholder="DG-XXXX-XXXX-XXXX" maxlength="17" autocomplete="off" />
+      <input id="licenseKey" class="key" placeholder="DG-XXXXXXXX-XXXXXXXX-XXXXXXXX" maxlength="29" autocomplete="off" />
       <p class="hint">You received this key from Dhandho</p>
       <button id="activateBtn" onclick="activate()">Activate License</button>
     </div>
@@ -140,21 +140,21 @@
       document.getElementById('step' + n).classList.add('active');
     }
 
-    // Format license key input as user types
+    // Format license key input as user types — DG-XXXXXXXX-XXXXXXXX-XXXXXXXX
     document.getElementById('licenseKey').addEventListener('input', function() {
       let v = this.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
       let parts = [];
       if (v.length > 0) parts.push('DG');
-      if (v.length > 2) parts.push(v.slice(2, 6));
-      if (v.length > 6) parts.push(v.slice(6, 10));
-      if (v.length > 10) parts.push(v.slice(10, 14));
+      if (v.length > 2) parts.push(v.slice(2, 10));
+      if (v.length > 10) parts.push(v.slice(10, 18));
+      if (v.length > 18) parts.push(v.slice(18, 26));
       this.value = parts.join('-');
     });
 
     async function activate() {
       hideError('error1');
       const key = document.getElementById('licenseKey').value.trim();
-      if (!key || key.length < 14) { showError('error1', 'Please enter a valid license key'); return; }
+      if (!key || key.length < 29) { showError('error1', 'Please enter a valid license key (DG-XXXXXXXX-XXXXXXXX-XXXXXXXX)'); return; }
 
       const btn = document.getElementById('activateBtn');
       btn.disabled = true;
