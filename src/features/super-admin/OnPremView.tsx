@@ -27,13 +27,10 @@ interface License {
 
 function timeAgo(ts: string | null): string {
   if (!ts) return 'Never';
-  const diff = Date.now() - new Date(ts).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return 'Just now';
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  return `${Math.floor(hr / 24)}d ago`;
+  const d = new Date(ts);
+  const date = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${date}, ${time}`;
 }
 
 export function OnPremView({ saToken }: { saToken: string }) {
