@@ -146,7 +146,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
           {[
             { label: 'Status', value: selected.status, color: selected.status === 'active' ? 'text-emerald-600' : 'text-rose-600' },
             { label: 'App Version', value: selected.appVersion || '—' },
-            { label: 'Last Seen', value: timeAgo(selected.lastSeen) },
+            { label: 'Last Sync', value: timeAgo(selected.lastSeen) },
             { label: 'Active Users', value: String(selected.activeUsers || 0) },
           ].map(c => (
             <div key={c.label} className="bg-white rounded-xl border border-gray-100 p-4">
@@ -478,7 +478,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
               <th className="px-5 py-3 text-left text-xs font-bold text-gray-400 uppercase">License Key</th>
               <th className="px-5 py-3 text-center text-xs font-bold text-gray-400 uppercase">Status</th>
               <th className="px-5 py-3 text-center text-xs font-bold text-gray-400 uppercase">Version</th>
-              <th className="px-5 py-3 text-left text-xs font-bold text-gray-400 uppercase">Last Seen</th>
+              <th className="px-5 py-3 text-left text-xs font-bold text-gray-400 uppercase">Last Sync</th>
               <th className="px-5 py-3 text-left text-xs font-bold text-gray-400 uppercase">Valid Until</th>
               <th className="px-5 py-3"></th>
             </tr></thead>
