@@ -16,7 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "electron:cloud:dev": "electron electron/cloud/main.ts",
-    "electron:onprem:dev": "concurrently \"npm run server\" \"electron electron/onprem/main.ts\"",
+    "electron:onprem:dev": "npm run tsc:electron && electron electron/onprem/main.js",
     "tsc:electron": "node_modules/.bin/tsc -p tsconfig.electron.json",
     "build:electron:cloud": "npm run tsc:electron && electron-builder --config electron-cloud.config.cjs",
     "build:electron:cloud:win": "npm run tsc:electron && electron-builder --config electron-cloud.config.cjs --win",
