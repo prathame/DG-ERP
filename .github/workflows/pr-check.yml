@@ -5,6 +5,42 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    name: Tests & Coverage
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: dhandho_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dhandho_test
+      JWT_SECRET: test-jwt-secret-for-ci-only-not-production
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests with coverage
+        run: npx vitest run --coverage
+      - name: Enforce coverage threshold (50% minimum)
+        run: |
+          STMTS=$(npx vitest run --coverage --reporter=json 2>/dev/null | grep -o '"pct":[0-9.]*' | head -1 | grep -o '[0-9.]*')
+          echo "Statement coverage: ${STMTS}%"
+          awk -v pct="${STMTS:-0}" 'BEGIN { if (pct+0 < 50) { print "FAIL: Coverage " pct "% < 50%"; exit 1 } else print "PASS: Coverage " pct "%" }'
+
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
