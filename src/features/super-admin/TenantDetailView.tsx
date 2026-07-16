@@ -726,30 +726,59 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   );
 }
 
-const DEFAULT_TAB_CONFIG: Record<string, { label: string; visible: boolean }> = {
-  analytics: { label: 'Analytics', visible: true },
-  masters: { label: 'Masters', visible: true },
-  inventory: { label: 'Inventory', visible: true },
-  distribution: { label: 'Distribution', visible: true },
-  sales: { label: 'Sales Entry', visible: true },
-  purchases: { label: 'Purchases', visible: true },
-  verification: { label: 'Search / Verify', visible: true },
-  quotations: { label: 'Quotes & Orders', visible: true },
-  invoices: { label: 'Invoices', visible: true },
-  finance: { label: 'Finance', visible: true },
-  accounts: { label: 'Accounts', visible: true },
-  warranty: { label: 'Warranty', visible: true },
-  replacements: { label: 'Replacements', visible: true },
-  rewards: { label: 'Rewards', visible: true },
-  chatbot: { label: 'Chatbot', visible: true },
-  settings: { label: 'Settings', visible: true },
+const TAB_PRESETS: Record<string, Record<string, { label: string; visible: boolean }>> = {
+  manufacturer: {
+    analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
+    inventory: { label: 'Inventory', visible: true }, distribution: { label: 'Dispatch', visible: true },
+    sales: { label: 'Warranty Registration', visible: true }, purchases: { label: 'Purchases', visible: true },
+    verification: { label: 'Search / Verify', visible: true }, quotations: { label: 'Quotes & Orders', visible: true },
+    invoices: { label: 'Invoices', visible: true }, finance: { label: 'Vendor Payments', visible: true },
+    accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: true },
+    replacements: { label: 'Replacements', visible: true }, rewards: { label: 'Rewards', visible: true },
+    chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+  },
+  dealer: {
+    analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
+    inventory: { label: 'Inventory', visible: true }, distribution: { label: 'Sales', visible: true },
+    sales: { label: 'Sales Entry', visible: false }, purchases: { label: 'Purchases', visible: true },
+    verification: { label: 'Search / Verify', visible: true }, quotations: { label: 'Quotes & Orders', visible: true },
+    invoices: { label: 'Invoices', visible: true }, finance: { label: 'Dealer Payments', visible: true },
+    accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: false },
+    replacements: { label: 'Replacements', visible: false }, rewards: { label: 'Rewards', visible: false },
+    chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+  },
+  retail: {
+    analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
+    inventory: { label: 'Stock', visible: true }, distribution: { label: 'Purchase', visible: true },
+    sales: { label: 'Sales Entry', visible: false }, purchases: { label: 'Purchases', visible: true },
+    verification: { label: 'Search / Verify', visible: true }, quotations: { label: 'Quotes & Orders', visible: true },
+    invoices: { label: 'Invoices', visible: true }, finance: { label: 'Supplier Payments', visible: true },
+    accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: false },
+    replacements: { label: 'Replacements', visible: false }, rewards: { label: 'Rewards', visible: false },
+    chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+  },
+  service: {
+    analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
+    inventory: { label: 'Inventory', visible: false }, distribution: { label: 'Distribution', visible: false },
+    sales: { label: 'Sales Entry', visible: false }, purchases: { label: 'Expenses', visible: true },
+    verification: { label: 'Search / Verify', visible: false }, quotations: { label: 'Quotes & Orders', visible: true },
+    invoices: { label: 'Invoices', visible: true }, finance: { label: 'Invoice Finance', visible: true },
+    accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: false },
+    replacements: { label: 'Replacements', visible: false }, rewards: { label: 'Rewards', visible: false },
+    chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+  },
 };
+const DEFAULT_TAB_CONFIG = TAB_PRESETS.manufacturer;
+
+function getDefaultTabConfig(businessType?: string): Record<string, { label: string; visible: boolean }> {
+  return TAB_PRESETS[businessType || 'manufacturer'] || TAB_PRESETS.manufacturer;
+}
 
 const TAB_KEYS = ['analytics', 'masters', 'inventory', 'distribution', 'sales', 'purchases', 'verification', 'quotations', 'invoices', 'finance', 'accounts', 'warranty', 'replacements', 'rewards', 'chatbot', 'settings'] as const;
 
 function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: string; tabConfig: Record<string, { label: string; visible: boolean }> | null; tenant: Record<string, unknown>; onSaved: () => void }) {
   const { toast } = useToast();
-  const [config, setConfig] = useState<Record<string, { label: string; visible: boolean }>>(tabConfig ?? DEFAULT_TAB_CONFIG);
+  const [config, setConfig] = useState<Record<string, { label: string; visible: boolean }>>(tabConfig ?? getDefaultTabConfig(tenant.businessType as string));
   const [barcodeSystem, setBarcodeSystem] = useState(tenant.barcodeSystemEnabled !== false);
   const [multiLanguage, setMultiLanguage] = useState(tenant.multiLanguageEnabled !== false);
   const [inventoryTracking, setInventoryTracking] = useState(tenant.inventoryTrackingEnabled !== false);
@@ -761,7 +790,7 @@ function TabCustomization({ tenantId, tabConfig, tenant, onSaved }: { tenantId: 
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setConfig(tabConfig ?? DEFAULT_TAB_CONFIG);
+    setConfig(tabConfig ?? getDefaultTabConfig(tenant.businessType as string));
     setBarcodeSystem(tenant.barcodeSystemEnabled !== false);
     setMultiLanguage(tenant.multiLanguageEnabled !== false);
     setInventoryTracking(tenant.inventoryTrackingEnabled !== false);
