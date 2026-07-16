@@ -34,7 +34,19 @@ function createWindow() {
     callback({ requestHeaders: { ...details.requestHeaders, 'X-DG-Client': 'electron-cloud' } });
   });
 
-  win.loadURL(CLOUD_URL);
+  // Check localStorage for last-used slug, else load with ?desktop=1 to show slug entry
+  win.loadURL(`${CLOUD_URL}?desktop=1`);
+
+  win.webContents.once('did-finish-load', () => {
+    win?.webContents.executeJavaScript(`
+      (function() {
+        var slug = localStorage.getItem('dg_last_slug');
+        if (slug && window.location.pathname === '/') {
+          window.location.href = '/' + slug;
+        }
+      })();
+    `).catch(function() {});
+  });
 
   // Show window once loaded — avoids white flash
   win.once('ready-to-show', () => win?.show());

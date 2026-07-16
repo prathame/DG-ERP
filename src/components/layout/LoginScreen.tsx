@@ -47,7 +47,10 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
     if (result.tenantId) session.setTenantId(result.tenantId);
     session.setUser(result.user);
     const slug = result.tenantSlug || tenant?.slug;
-    if (slug) session.setSlug(slug);
+    if (slug) {
+      session.setSlug(slug);
+      localStorage.setItem('dg_last_slug', slug);
+    }
     onLogin(result.user);
     if (slug && window.location.pathname !== `/${slug}`) {
       window.history.replaceState(null, '', `/${slug}`);
