@@ -86,6 +86,7 @@ import { LandingPage } from './components/layout/LandingPage';
 import { AppShutterIntro } from './components/layout/AppShutterIntro';
 import { PrivacyPolicy } from './components/layout/PrivacyPolicy';
 import { TermsOfService } from './components/layout/TermsOfService';
+import { DownloadPage } from './components/layout/DownloadPage';
 import { ChatWidget } from './components/layout/ChatWidget';
 import { session } from './lib/session';
 import { CommandPalette } from './components/ui/CommandPalette';
@@ -360,6 +361,7 @@ export default function App() {
   // Static pages — now safe to return early (all hooks are above)
   if (pathname === '/privacy') return <PrivacyPolicy />;
   if (pathname === '/terms') return <TermsOfService />;
+  if (pathname === '/download') return <DownloadPage />;
 
   // /admin route — super admin portal
   if (isSuperAdminRoute) {
