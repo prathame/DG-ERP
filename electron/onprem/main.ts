@@ -184,6 +184,8 @@ ipcMain.handle('complete-setup', async (_event, data: LicenseData & { adminPassw
 
   wizardWin?.close();
   await openMainWindow(slug);
+  // Immediate heartbeat after setup so cloud reflects tab config + business type right away
+  await sendHeartbeat().catch(() => {});
   startHeartbeat();
 });
 
