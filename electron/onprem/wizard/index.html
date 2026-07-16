@@ -167,7 +167,8 @@
           btn.disabled = false; btn.textContent = 'Activate License';
           return;
         }
-        licenseData = result;
+        // Must keep the typed key — cloud activate response does not echo licenseKey
+        licenseData = { ...result, licenseKey: key };
         document.getElementById('welcomeTitle').textContent = `Welcome, ${result.companyName}!`;
         showStep(2);
       } catch (e) {

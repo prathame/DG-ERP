@@ -47,6 +47,7 @@ router.post('/api/onprem/activate', onpremLimiter, async (req, res) => {
 
     res.json({
       valid: true,
+      licenseKey, // echo so clients never drop the key after activate
       companyName: lic.company_name,
       businessType: lic.business_type || 'manufacturer',
       maxUsers: Number(lic.max_users) || 5,
@@ -134,13 +135,24 @@ router.post('/api/onprem/deactivate', onpremLimiter, async (req, res) => {
 
 // ── Mark settings as applied (called by Electron after local apply succeeds) ──
 router.post('/api/onprem/mark-applied', onpremLimiter, async (req, res) => {
+  const licenseKey = (req.body as { licenseKey?: string })?.licenseKey;
+  if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });
   try {
-    const { licenseKey } = req.body;
-    if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });
-    await pool.query('UPDATE onprem_licenses SET settings_applied_at=NOW() WHERE license_key=$1', [licenseKey]);
+    // Clear forceSyncAt so the device does not re-apply/reload on every heartbeat
+    await pool.query(
+      `UPDATE onprem_licenses
+       SET settings_applied_at = NOW(),
+           settings = COALESCE(settings, '{}'::jsonb) - 'forceSyncAt'
+       WHERE license_key = $1`,
+      [licenseKey]
+    );
     res.json({ ok: true });
   } catch (err) {
     console.error('mark-applied failed:', (err as Error).message);
+    // Fallback: still stamp applied even if jsonb strip fails
+    try {
+      await pool.query('UPDATE onprem_licenses SET settings_applied_at=NOW() WHERE license_key=$1', [licenseKey]);
+    } catch { /* ignore */ }
     res.json({ ok: false });
   }
 });
@@ -171,12 +183,11 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
     if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip)) return res.status(403).json({ error: 'Localhost only' });
     const { licenseKey, settings } = req.body as { licenseKey: string; settings: Record<string, unknown> };
 
-    // P2 fix: validate the license key before applying any settings
-    if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });
-    const lic = (await pool.query(
-      "SELECT id FROM onprem_licenses WHERE license_key = $1 AND status = 'active'", [licenseKey]
-    )).rows[0];
-    if (!lic) return res.status(403).json({ error: 'Invalid or inactive license key' });
+    // Localhost-only endpoint. On-prem local DB usually has no onprem_licenses row
+    // (licenses live on cloud) — require licenseKey string, not a local license table hit.
+    if (!licenseKey || typeof licenseKey !== 'string' || licenseKey.length < 8) {
+      return res.status(400).json({ error: 'licenseKey required' });
+    }
 
     // Find the local tenant and apply settings
     const tenant = (await pool.query("SELECT id, tab_config FROM tenants WHERE slug != 'OWNER' LIMIT 1")).rows[0] as { id: string; tab_config: unknown } | undefined;

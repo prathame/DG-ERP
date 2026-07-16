@@ -22,6 +22,9 @@ let connectionStatus: 'online' | 'offline' | 'syncing' = 'offline';
 let lastSync: Date | null = null;
 let licenseInfo: LicenseData | null = null;
 let heartbeatTimer: NodeJS.Timeout | null = null;
+/** Last forceSyncAt we already applied — prevents reload loop when cloud still has the stamp */
+let lastAppliedForceSyncAt: string | null = null;
+let lastAppliedSettingsHash: string | null = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getIcon() {
@@ -66,6 +69,11 @@ async function waitForServer(maxWait = 15000): Promise<void> {
 // ── Heartbeat ─────────────────────────────────────────────────────────────────
 async function sendHeartbeat(): Promise<void> {
   if (!licenseInfo) return;
+  if (!licenseInfo.licenseKey) {
+    console.error('[sync] ABORT: local license.dat has no licenseKey — clear license and re-activate from the wizard');
+    connectionStatus = 'offline';
+    return;
+  }
   connectionStatus = 'syncing';
   try {
     const r = await fetch(`${CLOUD_API}/api/onprem/heartbeat`, {
@@ -84,6 +92,7 @@ async function sendHeartbeat(): Promise<void> {
       signal: AbortSignal.timeout(10000),
     });
     const data = await r.json() as Record<string, unknown>;
+    console.log(`[sync] heartbeat → ${CLOUD_API} status=${r.status} valid=${data.licenseValid} hasSettings=${!!(data.settings && typeof data.settings === 'object')}${data.error ? ` error=${data.error}` : ''}`);
 
     // C10 fix: never interpolate cloud data into executeJavaScript — use IPC instead
     if (data.licenseValid === false && data.licenseStatus) {
@@ -100,28 +109,50 @@ async function sendHeartbeat(): Promise<void> {
     // Apply any pushed settings (tab config, feature toggles) to local tenant
     if (data.settings && typeof data.settings === 'object' && licenseInfo) {
       const s = data.settings as Record<string, unknown>;
-      // Apply whenever settings exist — covers tabConfig, feature flags, and force sync
-      try {
-        const r = await fetch(`${LOCAL_API_URL}/api/onprem/apply-settings`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ licenseKey: licenseInfo.licenseKey, settings: s }),
-        });
-        const result = await r.json() as { applied?: number };
-        const forced = !!s.forceSyncAt;
-        // Mark applied when columns changed OR hard-sync was requested
-        if ((result.applied && result.applied > 0) || forced) {
-          fetch(`${CLOUD_API}/api/onprem/mark-applied`, {
+      const forceAt = s.forceSyncAt ? String(s.forceSyncAt) : null;
+      // Stable hash of settings without the one-shot force stamp
+      const { forceSyncAt: _f, ...durable } = s;
+      const settingsHash = JSON.stringify(durable);
+      const alreadyApplied =
+        (forceAt && forceAt === lastAppliedForceSyncAt) ||
+        (!forceAt && settingsHash === lastAppliedSettingsHash);
+
+      if (alreadyApplied) {
+        console.log('[sync] settings already applied — skip re-apply/reload');
+      } else {
+        const tc = (s.tabConfig || {}) as Record<string, { visible?: boolean }>;
+        const offTabs = Object.entries(tc).filter(([, v]) => v?.visible === false).map(([k]) => k);
+        console.log(`[sync] applying settings from cloud… tabsOFF=[${offTabs.join(',')}] force=${!!forceAt}`);
+        try {
+          const applyRes = await fetch(`${LOCAL_API_URL}/api/onprem/apply-settings`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ licenseKey: licenseInfo.licenseKey }),
-          }).catch(() => {});
-          // Reload when config actually changed (or hard sync) so UI picks up tabConfig
-          if ((result.applied && result.applied > 0) || forced) {
-            mainWin?.webContents.reload();
+            body: JSON.stringify({ licenseKey: licenseInfo.licenseKey, settings: s }),
+          });
+          const result = await applyRes.json() as { applied?: number; error?: string; ok?: boolean };
+          console.log(`[sync] apply-settings → ${applyRes.status}`, result);
+          if (applyRes.ok) {
+            lastAppliedForceSyncAt = forceAt;
+            lastAppliedSettingsHash = settingsHash;
+            // Clears forceSyncAt on cloud so next heartbeat does not loop
+            fetch(`${CLOUD_API}/api/onprem/mark-applied`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ licenseKey: licenseInfo.licenseKey }),
+            }).catch((e) => console.error('[sync] mark-applied failed:', e));
+            if (result.applied && result.applied > 0) {
+              console.log('[sync] marked applied on cloud — reloading UI');
+              mainWin?.webContents.reload();
+            } else {
+              console.log('[sync] marked applied (no local column changes)');
+            }
           }
+        } catch (err) {
+          console.error('[sync] apply-settings failed:', err);
         }
-      } catch {}
+      }
+    } else {
+      console.log('[sync] cloud returned no settings to apply');
     }
 
     // Save validUntil locally so offline expiry check works
@@ -137,8 +168,9 @@ async function sendHeartbeat(): Promise<void> {
 
     connectionStatus = 'online';
     lastSync = new Date();
-  } catch {
+  } catch (err) {
     connectionStatus = 'offline';
+    console.error('[sync] heartbeat failed (offline or cloud unreachable):', err);
     // When offline, check local expiry
     if (licenseInfo?.validUntil && new Date(licenseInfo.validUntil) < new Date()) {
       mainWin?.webContents.send('license-status', { valid: false, status: 'expired' });
@@ -217,6 +249,9 @@ ipcMain.handle('complete-setup', async (_event, data: LicenseData & { adminPassw
     throw new Error(`Provisioning failed (${r.status}): ${errBody.error || 'unknown'}`);
   }
 
+  if (!data.licenseKey) {
+    throw new Error('Setup missing licenseKey — re-enter your license key in the wizard');
+  }
   // Save license only after successful provisioning
   licenseInfo = { ...data, slug, activatedAt: new Date().toISOString(), lastValidated: new Date().toISOString() };
   saveLicense(licenseInfo);

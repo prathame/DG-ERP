@@ -508,6 +508,8 @@ export function OnPremView({ saToken }: { saToken: string }) {
           <p className="mt-1.5 text-[11px] text-gray-400 text-center">
             Hard Sync re-pushes the full config and forces the device to re-apply on next heartbeat.
             {selected.isOnline ? ' Device is online.' : ' Device is offline — sync waits until it connects.'}
+            {' '}Portal and device must use the <span className="font-semibold">same cloud</span>
+            {' '}(if the app uses Render, open Super Admin on Render — not localhost).
           </p>
 
           {/* Sync status + payload — clear synced / not synced */}
