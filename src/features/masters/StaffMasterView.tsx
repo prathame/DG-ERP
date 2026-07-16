@@ -140,42 +140,47 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
         </div>
       )}
 
-      {/* Selected Staff — Payment History */}
+      {/* Selected Staff — Payment History slide-over */}
       {selected && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 bg-gray-50 border-b flex items-center justify-between">
-            <div>
-              <h3 className="font-bold">{selected.name} — Payment History</h3>
-              <p className="text-xs text-gray-400">{selected.paymentCount} payments · Total: ₹{selected.totalPaid.toLocaleString()}</p>
+        <>
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setSelected(null)} />
+          <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-lg bg-white shadow-2xl flex flex-col overflow-hidden">
+            <div className="px-5 py-4 bg-gray-50 border-b flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="font-bold">{selected.name} — Payment History</h3>
+                <p className="text-xs text-gray-400">{selected.paymentCount} payments · Total: ₹{selected.totalPaid.toLocaleString()}</p>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setPayForm({ amount: selected.salary ? String(selected.salary) : '', paymentType: 'salary', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' }); setPayModalOpen(true); }} className="flex items-center gap-1 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={14} /> Record Payment</button>
+                <button type="button" onClick={() => setSelected(null)} className="p-2 text-gray-400 hover:text-gray-600"><X size={18} /></button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => { setPayForm({ amount: selected.salary ? String(selected.salary) : '', paymentType: 'salary', paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: 'Cash', referenceNumber: '', notes: '' }); setPayModalOpen(true); }} className="flex items-center gap-1 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"><Plus size={14} /> Record Payment</button>
-              <button type="button" onClick={() => setSelected(null)} className="p-2 text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            <div className="flex-1 overflow-y-auto">
+              {payments.length === 0 ? (
+                <div className="py-12 text-center text-gray-400">No payments recorded yet. Click "Record Payment" to add one.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b"><th className="px-4 py-3">Type</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Notes</th><th className="px-4 py-3 w-10"></th></tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {payments.map(p => (
+                        <tr key={p.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${p.paymentType === 'advance' ? 'bg-amber-100 text-amber-700' : p.paymentType === 'advance_repay' ? 'bg-blue-100 text-blue-700' : p.paymentType === 'bonus' ? 'bg-purple-100 text-purple-700' : p.paymentType === 'deduction' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>{{ salary: 'Salary', advance: 'Advance', advance_repay: 'Repaid', bonus: 'Bonus', deduction: 'Deduction' }[p.paymentType] || p.paymentType}</span></td>
+                          <td className="px-4 py-3 text-right font-bold">₹{p.amount.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-gray-500">{fmtDate(p.paymentDate)}</td>
+                          <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{p.paymentMethod}</span></td>
+                          <td className="px-4 py-3 text-gray-400 text-xs">{p.notes || '—'}</td>
+                          <td className="px-4 py-3"><button type="button" onClick={async () => { if (!await confirm({ message: 'Delete this payment? This cannot be undone.' })) return; try { await api.payroll.delete(p.id); toast('Deleted', 'success'); load(); selectStaff(selected); } catch(e) { toast((e as Error).message, 'error'); } }} className="p-1 text-rose-400 hover:text-rose-600"><Trash2 size={14} /></button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
+            {payments.length > 0 && <div className="px-4 py-3 bg-gray-50 border-t text-right font-bold text-sm shrink-0">Total: ₹{payments.reduce((s, p) => s + p.amount, 0).toLocaleString()}</div>}
           </div>
-          {payments.length === 0 ? (
-            <div className="py-12 text-center text-gray-400">No payments recorded yet. Click "Record Payment" to add one.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead><tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b"><th className="px-4 py-3">Type</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Notes</th><th className="px-4 py-3 w-10"></th></tr></thead>
-                <tbody className="divide-y divide-gray-100">
-                  {payments.map(p => (
-                    <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${p.paymentType === 'advance' ? 'bg-amber-100 text-amber-700' : p.paymentType === 'advance_repay' ? 'bg-blue-100 text-blue-700' : p.paymentType === 'bonus' ? 'bg-purple-100 text-purple-700' : p.paymentType === 'deduction' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>{{ salary: 'Salary', advance: 'Advance', advance_repay: 'Repaid', bonus: 'Bonus', deduction: 'Deduction' }[p.paymentType] || p.paymentType}</span></td>
-                      <td className="px-4 py-3 text-right font-bold">₹{p.amount.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-gray-500">{fmtDate(p.paymentDate)}</td>
-                      <td className="px-4 py-3"><span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{p.paymentMethod}</span></td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">{p.notes || '—'}</td>
-                      <td className="px-4 py-3"><button type="button" onClick={async () => { if (!await confirm({ message: 'Delete this payment? This cannot be undone.' })) return; try { await api.payroll.delete(p.id); toast('Deleted', 'success'); load(); selectStaff(selected); } catch(e) { toast((e as Error).message, 'error'); } }} className="p-1 text-rose-400 hover:text-rose-600"><Trash2 size={14} /></button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {payments.length > 0 && <div className="px-4 py-3 bg-gray-50 border-t text-right font-bold text-sm">Total: ₹{payments.reduce((s, p) => s + p.amount, 0).toLocaleString()}</div>}
-        </div>
+        </>
       )}
 
       {/* Add/Edit Staff Modal */}
