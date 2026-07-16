@@ -24,6 +24,7 @@ router.post('/api/onprem/activate', onpremLimiter, async (req, res) => {
   try {
     const { licenseKey, machineId, osInfo, appVersion } = req.body;
     if (!licenseKey || !machineId) return res.status(400).json({ error: 'licenseKey and machineId required' });
+    if (!/^[a-f0-9]{32}$/.test(machineId)) return res.status(400).json({ error: 'Invalid machineId format' });
 
     const lic = (await pool.query(
       'SELECT * FROM onprem_licenses WHERE license_key = $1', [licenseKey]
@@ -201,6 +202,7 @@ router.post('/api/onprem/provision', async (req, res) => {
 
     const { companyName, businessType, adminEmail, adminPassword, licenseKey, maxUsers } = req.body;
     if (!companyName || !adminPassword) return res.status(400).json({ error: 'Missing required fields' });
+    if (adminPassword.length < 8) return res.status(400).json({ error: 'Admin password must be at least 8 characters' });
 
     const { provisionTenant } = await import('../utils/tenant');
 

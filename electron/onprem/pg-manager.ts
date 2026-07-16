@@ -30,9 +30,8 @@ function resolvePgPassword(dataDir: string, isFirstRun: boolean): string {
       if (saved.password) return saved.password;
     }
   } catch { /* fall through */ }
-  const password = isFirstRun
-    ? crypto.randomBytes(24).toString('base64url')
-    : crypto.createHash('sha256').update(dataDir).digest('base64url').slice(0, 32);
+  if (!isFirstRun) throw new Error('PostgreSQL credentials missing. Clear app data and re-activate.');
+  const password = crypto.randomBytes(24).toString('base64url');
   try {
     fs.writeFileSync(credPath, JSON.stringify({ user: 'dg_user', password }, null, 2), { mode: 0o600 });
   } catch { /* best-effort */ }
@@ -67,10 +66,12 @@ export async function startPostgres(): Promise<string> {
   }
 
   // Start postgres in background
+  // ponytail: use userData for socket — /tmp is world-accessible
+  const socketDir = app.getPath('userData');
   pgProcess = spawn(postgres, [
     '-D', dataDir,
     '-p', String(LOCAL_PG_PORT),
-    '-k', '/tmp',
+    '-k', socketDir,
   ], { stdio: 'ignore', detached: false });
 
   // Wait for postgres to be ready

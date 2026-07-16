@@ -1,6 +1,7 @@
 /**
  * Encrypted local storage for license key and cached activation data.
- * Uses the machine's CPU serial + app ID as encryption key — no hardcoded secret.
+ * Uses AES-256-GCM (authenticated encryption) with a random per-install key
+ * stored in userData — prevents offline expiry tampering.
  */
 import { app } from 'electron';
 import fs from 'fs';
@@ -8,31 +9,38 @@ import path from 'path';
 import crypto from 'crypto';
 import os from 'os';
 
-const STORE_FILE = path.join(app.getPath('userData'), 'license.dat');
+const STORE_FILE  = path.join(app.getPath('userData'), 'license.dat');
+const SECRET_FILE = path.join(app.getPath('userData'), 'install.key');
 
-function machineSecret(): string {
-  // Stable per-machine key derived from hostname + platform + username
-  // SHA-256 gives 64 hex chars = 32 bytes — correct for AES-256-CBC
-  return crypto.createHash('sha256')
-    .update(`DG-ERP-${os.hostname()}-${os.platform()}-${os.userInfo().username}`)
-    .digest('hex');
+// Random 32-byte key generated once per install, never derived from guessable data
+function getInstallKey(): Buffer {
+  if (fs.existsSync(SECRET_FILE)) {
+    const raw = fs.readFileSync(SECRET_FILE);
+    if (raw.length === 32) return raw;
+  }
+  const key = crypto.randomBytes(32);
+  fs.writeFileSync(SECRET_FILE, key, { mode: 0o600 });
+  return key;
 }
 
 function encrypt(text: string): string {
-  const key = Buffer.from(machineSecret(), 'hex');
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
-  return iv.toString('hex') + ':' + encrypted.toString('hex');
+  const key = getInstallKey();
+  const iv  = crypto.randomBytes(12); // GCM standard IV
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const enc = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  // iv(12) + tag(16) + ciphertext — all hex, colon-separated
+  return `${iv.toString('hex')}:${tag.toString('hex')}:${enc.toString('hex')}`;
 }
 
 function decrypt(data: string): string {
-  const [ivHex, encHex] = data.split(':');
-  const key = Buffer.from(machineSecret(), 'hex');
-  const iv = Buffer.from(ivHex, 'hex');
-  const enc = Buffer.from(encHex, 'hex');
-  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-  return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8');
+  const parts = data.split(':');
+  if (parts.length !== 3) throw new Error('invalid store format');
+  const [ivHex, tagHex, encHex] = parts;
+  const key = getInstallKey();
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivHex, 'hex'));
+  decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+  return Buffer.concat([decipher.update(Buffer.from(encHex, 'hex')), decipher.final()]).toString('utf8');
 }
 
 export interface LicenseData {
@@ -48,7 +56,8 @@ export interface LicenseData {
 }
 
 export function saveLicense(data: LicenseData): void {
-  fs.writeFileSync(STORE_FILE, encrypt(JSON.stringify(data)), 'utf8');
+  // ponytail: 0o600 = owner read/write only
+  fs.writeFileSync(STORE_FILE, encrypt(JSON.stringify(data)), { encoding: 'utf8', mode: 0o600 });
 }
 
 export function loadLicense(): LicenseData | null {
@@ -57,7 +66,7 @@ export function loadLicense(): LicenseData | null {
     const raw = fs.readFileSync(STORE_FILE, 'utf8');
     return JSON.parse(decrypt(raw)) as LicenseData;
   } catch {
-    return null;
+    return null; // tampered or missing — treat as no license
   }
 }
 

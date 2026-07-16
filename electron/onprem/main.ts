@@ -5,6 +5,7 @@
  */
 import { app, BrowserWindow, ipcMain, shell, Menu, nativeImage } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import os from 'os';
 import { startPostgres, stopPostgres } from './pg-manager';
 import { loadLicense, saveLicense, clearLicense, getMachineId, LicenseData } from './license-store';
@@ -34,10 +35,17 @@ async function startExpressServer(dbUrl: string): Promise<void> {
   process.env.DEPLOYMENT_MODE = 'onprem';
   process.env.PORT = String(LOCAL_API_PORT);
   process.env.NODE_ENV = process.env.NODE_ENV || 'production';
-  // Generate a stable JWT secret from machine ID if not set — on-prem doesn't need .env
+  // Generate a random JWT secret once per install — stored alongside install.key
   if (!process.env.JWT_SECRET) {
-    const { getMachineId } = await import('./license-store');
-    process.env.JWT_SECRET = `onprem-${getMachineId()}-dhandho-jwt-secret-2024`;
+    const jwtSecretFile = path.join(app.getPath('userData'), 'jwt.key');
+    let jwtSecret: string;
+    if (fs.existsSync(jwtSecretFile)) {
+      jwtSecret = fs.readFileSync(jwtSecretFile, 'utf8').trim();
+    } else {
+      jwtSecret = require('crypto').randomBytes(48).toString('base64');
+      fs.writeFileSync(jwtSecretFile, jwtSecret, { encoding: 'utf8', mode: 0o600 });
+    }
+    process.env.JWT_SECRET = jwtSecret;
   }
   // Dynamically import the server (avoids top-level side effects)
   await import('../../server/index');
