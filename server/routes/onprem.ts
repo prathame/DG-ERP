@@ -201,6 +201,11 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
     if (updates.length) {
       params.push(tenant.id);
       await pool.query(`UPDATE tenants SET ${updates.join(',')} WHERE id=$${idx}`, params);
+      // Mark settings as applied in cloud license record
+      await pool.query(
+        'UPDATE onprem_licenses SET settings_applied_at=NOW() WHERE license_key=$1',
+        [licenseKey]
+      ).catch(() => {});
     }
     res.json({ ok: true, applied: updates.length });
   } catch (err) {
@@ -337,7 +342,9 @@ router.get('/api/super-admin/onprem', superAdminMiddleware, async (req, res) => 
       activeUsers: r.active_users,
       diskMB: r.disk_mb,
       settings: r.settings,
-      isOnline: r.last_seen && (now - new Date(r.last_seen as string).getTime()) < 70 * 60 * 1000, // online if seen < 70 min ago
+      settingsPushedAt: r.settings_pushed_at,
+      settingsAppliedAt: r.settings_applied_at,
+      isOnline: r.last_seen && (now - new Date(r.last_seen as string).getTime()) < 70 * 60 * 1000,
       createdAt: r.created_at,
     })));
   } catch (err) {
@@ -374,7 +381,7 @@ router.put('/api/super-admin/onprem/:id', superAdminMiddleware, async (req, res)
     if (status !== undefined) { updates.push(`status=$${idx++}`); params.push(status); }
     if (maxUsers !== undefined) { updates.push(`max_users=$${idx++}`); params.push(maxUsers); }
     if (validUntil !== undefined) { updates.push(`valid_until=$${idx++}`); params.push(validUntil); }
-    if (settings !== undefined) { updates.push(`settings=$${idx++}`); params.push(JSON.stringify(settings)); }
+    if (settings !== undefined) { updates.push(`settings=$${idx++}`); params.push(JSON.stringify(settings)); updates.push(`settings_pushed_at=NOW()`); }
     if (clearMachine) { updates.push(`machine_id=NULL`); }
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
     params.push(req.params.id);

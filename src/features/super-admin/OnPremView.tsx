@@ -30,6 +30,9 @@ interface License {
   diskMB: number;
   isOnline: boolean;
   createdAt: string;
+  settingsPushedAt: string | null;
+  settingsAppliedAt: string | null;
+  settings?: Record<string, unknown>;
 }
 
 function timeAgo(ts: string | null): string {
@@ -368,6 +371,29 @@ export function OnPremView({ saToken }: { saToken: string }) {
             className="mt-4 w-full py-2.5 bg-brand text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity">
             {savingSettings ? 'Saving...' : Object.keys(localSettings).length > 0 ? '💾 Save & Push to Device' : 'No changes'}
           </button>
+
+          {/* Sync status log */}
+          {(selected.settingsPushedAt || selected.settingsAppliedAt) && (
+            <div className="mt-3 text-xs space-y-1 bg-gray-50 rounded-xl p-3">
+              {selected.settingsPushedAt && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Settings saved</span>
+                  <span className="font-medium">{timeAgo(selected.settingsPushedAt)}</span>
+                </div>
+              )}
+              {selected.settingsAppliedAt ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Applied on device</span>
+                  <span className="font-medium text-emerald-600">✓ {timeAgo(selected.settingsAppliedAt)}</span>
+                </div>
+              ) : selected.settingsPushedAt ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Applied on device</span>
+                  <span className="font-medium text-amber-500">⏳ Pending next sync</span>
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {/* Renew License */}
