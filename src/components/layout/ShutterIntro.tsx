@@ -215,24 +215,26 @@ function playShutterSound() {
 
 export function ShutterIntro({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState<'shutter' | 'reveal' | 'done'>('shutter');
-  const [wordLang, setWordLang] = useState<'en' | 'gu' | 'hi'>('en');
+  const [wordLang, setWordLang] = useState<'en' | 'gu' | 'hi' | 'mr'>('en');
   const [flipTrigger, setFlipTrigger] = useState(0);
 
   const WORDS = {
     en: 'Dhandho',
     gu: 'ધંધો',
     hi: 'धन दो',   // "Give wealth" — wordplay on Dhandho
+    mr: 'धंदा',    // Marathi equivalent
   };
 
   useEffect(() => {
     playShutterSound();
-    // EN (1.5s) → GU (1.5s) → HI (1.5s) → fade
+    // EN (1.5s) → GU (1.5s) → HI (1.5s) → MR (1.5s) → fade
     const t1 = setTimeout(() => { setPhase('reveal'); setFlipTrigger(1); }, 900);
     const t2 = setTimeout(() => { setWordLang('gu'); setFlipTrigger(2); }, 2400);
     const t3 = setTimeout(() => { setWordLang('hi'); setFlipTrigger(3); }, 3900);
-    const t4 = setTimeout(() => setPhase('done'), 5500);
-    const t5 = setTimeout(onDone, 6000);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); };
+    const t4 = setTimeout(() => { setWordLang('mr'); setFlipTrigger(4); }, 5400);
+    const t5 = setTimeout(() => setPhase('done'), 7000);
+    const t6 = setTimeout(onDone, 7500);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); clearTimeout(t6); };
   }, [onDone]);
 
   const revealed = phase === 'reveal';
@@ -265,16 +267,22 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
             {/* Ambient glow */}
             <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 55% 35% at 50% 52%, rgba(242,125,38,0.16) 0%, transparent 70%)' }} />
 
-            {/* Gujarati tagline */}
-            <motion.p
-              className="font-bold tracking-[0.25em] uppercase mb-3"
-              style={{ color: 'rgba(242,125,38,0.7)', fontSize: 'clamp(0.75rem, 2vw, 1rem)' }}
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: revealed ? 0 : 10, opacity: revealed ? 1 : 0 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-            >
-              ધંધો કરો, Smart કરો
-            </motion.p>
+            {/* Top tagline — changes with each language flip */}
+            <div style={{ height: '1.6em', overflow: 'hidden', marginBottom: '0.75rem' }}>
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={`top-${wordLang}`}
+                  className="font-bold tracking-[0.25em] uppercase"
+                  style={{ color: 'rgba(242,125,38,0.7)', fontSize: 'clamp(0.75rem, 2vw, 1rem)' }}
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: revealed ? 0 : 10, opacity: revealed ? 1 : 0 }}
+                  exit={{ y: -10, opacity: 0 }}
+                  transition={{ delay: revealed ? 0.2 : 0, duration: 0.4 }}
+                >
+                  {{ en: 'Run Smart · Run Simple', gu: 'ધંધો કરો, Smart કરો', hi: 'धन दो, Smart बनो', mr: 'धंदा करा, Smart व्हा' }[wordLang]}
+                </motion.p>
+              </AnimatePresence>
+            </div>
 
             {/* Main wordmark — split-flap departure board */}
             <div style={{ fontSize: 'clamp(2.8rem, 10vw, 7rem)' }}>
@@ -297,6 +305,7 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
                     en: 'The Gujarati Way to Run Business',
                     gu: 'ધંધો — Business નું બીજું નામ',
                     hi: 'धन दो — अपने Business को Smart बनाओ',
+                    mr: 'धंदा करा — Smart व्यापार करा',
                   }[wordLang]}
                 </motion.p>
               </AnimatePresence>
