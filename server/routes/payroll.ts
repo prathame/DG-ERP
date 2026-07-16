@@ -218,6 +218,19 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
     );
     const typeLabel = { salary: 'Salary', advance: 'Advance Given', advance_repay: 'Advance Repaid', bonus: 'Bonus', deduction: 'Deduction' }[pType] || pType;
     await logAudit(pool, tenantId, 'Staff Payment', 'payroll', id, `${typeLabel}: ₹${Number(amount).toLocaleString()} — ${staffName.trim()}`);
+
+    // Sync to expenses table so dashboard/analytics shows staff costs
+    // advance_repay is negative (money coming back), deduction doesn't flow out
+    if (pType !== 'deduction') {
+      const expenseAmount = pType === 'advance_repay' ? -Number(amount) : Number(amount);
+      const expCategory = pType === 'advance_repay' ? 'Staff Advance Repaid' : pType === 'advance' ? 'Staff Advance' : pType === 'bonus' ? 'Staff Bonus' : 'Staff Salary';
+      await pool.query(
+        `INSERT INTO expenses (id, tenant_id, category, description, amount, expense_date, payment_method, reference_number, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [uid('EXP'), tenantId, expCategory, `${typeLabel} — ${staffName.trim()}`, expenseAmount, date, paymentMethod || 'Cash', referenceNumber || null, notes || null]
+      ).catch(() => {}); // best-effort — don't fail payment if expense insert fails
+    }
+
     res.status(201).json({ id, staffName: staffName.trim(), amount: Number(amount), paymentDate: date, paymentType: pType, paymentMethod: paymentMethod || 'Cash', referenceNumber, notes, month: m, year: y });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });

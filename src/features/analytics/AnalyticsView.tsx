@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { CreditCard, TrendingUp, ShoppingCart, IndianRupee, Users, Package, Landmark, UserRound, ArrowRight, FileText } from 'lucide-react';
+import { CreditCard, TrendingUp, ShoppingCart, IndianRupee, Users, Package, Landmark, UserRound, ArrowRight, FileText, Wallet } from 'lucide-react';
 import { cn, formatDate, useTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
@@ -44,6 +44,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
   const [vendors, setVendors] = useState<{ vendorId: string; vendorName: string; balance: number }[]>([]);
   const [activity, setActivity] = useState<{ type: string; id: string; label: string; amount: number; date: string }[]>([]);
   const [counts, setCounts] = useState<{ customerMaster: number; vendorMaster: number; itemMaster: number; bankMaster: number; staffCount?: number } | null>(null);
+  const [payroll, setPayroll] = useState<{ grandTotal: number; byStaff: { name: string; total: number; payments: number }[]; byMonth: { month: string; total: number }[] } | null>(null);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -59,6 +60,8 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
       setVendors(data.topVendors);
       setCounts(data.counts);
     }).catch(() => {});
+    const year = new Date().getFullYear();
+    api.payroll.summary(year).then(data => setPayroll(data)).catch(() => {});
   }, [range, fromDate, toDate]);
 
   return (
@@ -165,6 +168,44 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
           )}
         </div>
       </div>
+
+      {/* Staff Payroll Summary */}
+      {payroll && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold flex items-center gap-2"><Wallet size={18} className="text-indigo-500" /> Staff Payroll — {new Date().getFullYear()}</h3>
+            <button type="button" onClick={() => setActiveTab('masters')} className="text-xs text-brand font-bold flex items-center gap-1 hover:underline">Manage Staff <ArrowRight size={12} /></button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div className="bg-indigo-50 rounded-xl p-3">
+              <p className="text-xs text-gray-500 mb-1">Total Paid This Year</p>
+              <p className="text-lg font-bold text-indigo-600">{fmt(payroll.grandTotal)}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-gray-500 mb-1">Staff on Payroll</p>
+              <p className="text-lg font-bold">{payroll.byStaff.length}</p>
+            </div>
+            <div className="bg-amber-50 rounded-xl p-3">
+              <p className="text-xs text-gray-500 mb-1">Advance Outstanding</p>
+              <p className="text-lg font-bold text-amber-600">{fmt(counts?.staffCount ?? 0)}</p>
+            </div>
+          </div>
+          {payroll.byStaff.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-gray-400 uppercase">Top Staff by Payment</p>
+              {payroll.byStaff.slice(0, 5).map(s => (
+                <div key={s.name} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{s.name}</p>
+                    <p className="text-xs text-gray-400">{s.payments} payments</p>
+                  </div>
+                  <span className="text-sm font-bold text-indigo-600">{fmt(s.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Summary Cards */}
       {counts && (
