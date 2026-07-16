@@ -134,17 +134,20 @@ async function sendHeartbeat(): Promise<void> {
           if (applyRes.ok) {
             lastAppliedForceSyncAt = forceAt;
             lastAppliedSettingsHash = settingsHash;
-            // Clears forceSyncAt on cloud so next heartbeat does not loop
-            fetch(`${CLOUD_API}/api/onprem/mark-applied`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ licenseKey: licenseInfo.licenseKey }),
-            }).catch((e) => console.error('[sync] mark-applied failed:', e));
+            try {
+              const markRes = await fetch(`${CLOUD_API}/api/onprem/mark-applied`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ licenseKey: licenseInfo.licenseKey }),
+              });
+              const markBody = await markRes.json().catch(() => ({}));
+              console.log(`[sync] mark-applied → ${CLOUD_API} status=${markRes.status}`, markBody);
+            } catch (e) {
+              console.error('[sync] mark-applied failed:', e);
+            }
             if (result.applied && result.applied > 0) {
-              console.log('[sync] marked applied on cloud — reloading UI');
+              console.log('[sync] reloading UI');
               mainWin?.webContents.reload();
-            } else {
-              console.log('[sync] marked applied (no local column changes)');
             }
           }
         } catch (err) {

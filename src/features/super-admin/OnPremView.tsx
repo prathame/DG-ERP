@@ -481,61 +481,88 @@ export function OnPremView({ saToken }: { saToken: string }) {
             </div>
           )}
 
-          {/* One button. One status. Easy. */}
+          {/* One button + status (status is not a button) */}
           {(() => {
             const pending = isSyncPending(selected);
             const dirty = Object.keys(localSettings).length > 0;
             const previewSrc = dirty ? buildMergedSettings() : (selected.settings || {});
             const summary = summarizeSettings(previewSrc);
             const offList = [...summary.tabsOff, ...summary.featuresOff.map(f => `${f} (feature)`)];
+            const onLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
             return (
               <div className="mt-5 space-y-3">
+                {onLocalhost && (
+                  <div className="rounded-xl bg-red-50 text-red-800 px-3 py-2.5 text-xs leading-relaxed">
+                    <p className="font-bold mb-1">Why status stays “Waiting”</p>
+                    <p>
+                      This Super Admin is <b>localhost</b>. The on-prem app syncs to{' '}
+                      <b>dg-erp.onrender.com</b>. Device can apply settings, but this page never sees “applied”.
+                    </p>
+                    <p className="mt-1.5 font-medium">Pick one:</p>
+                    <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                      <li>Open Super Admin on Render: <span className="font-mono">https://dg-erp.onrender.com/admin</span></li>
+                      <li>Or run the app against local cloud:{' '}
+                        <span className="font-mono">npm run electron:onprem:dev:local</span>
+                        {' '}(+ <span className="font-mono">npm run server</span>)
+                      </li>
+                    </ul>
+                  </div>
+                )}
+
                 <button
+                  type="button"
                   onClick={pushToDevice}
                   disabled={pushing}
                   className="w-full py-3 bg-brand text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   <RefreshCw size={16} className={pushing ? 'animate-spin' : ''} />
-                  {pushing ? 'Sending…' : dirty ? 'Push changes to device' : 'Push to device again'}
+                  {pushing ? 'Sending…' : dirty ? '1. Push to device' : '1. Push to device again'}
                 </button>
 
+                <div className="text-[10px] font-bold uppercase tracking-wide text-gray-400 px-0.5">Status (not a button)</div>
                 <div className={cn(
-                  'rounded-xl px-4 py-3 text-sm',
-                  !selected.settingsPushedAt && 'bg-gray-50 text-gray-600',
-                  pending && 'bg-amber-50 text-amber-800 border border-amber-200',
-                  selected.settingsPushedAt && !pending && 'bg-emerald-50 text-emerald-800 border border-emerald-200',
+                  'rounded-xl px-4 py-3 text-sm pointer-events-none select-none',
+                  !selected.settingsPushedAt && 'bg-gray-100 text-gray-600',
+                  pending && 'bg-amber-50 text-amber-900',
+                  selected.settingsPushedAt && !pending && 'bg-emerald-50 text-emerald-900',
                 )}>
-                  {!selected.settingsPushedAt && (
-                    <p className="font-bold">Not sent yet</p>
-                  )}
+                  {!selected.settingsPushedAt && <p className="font-bold">Not sent yet</p>}
                   {pending && (
                     <>
-                      <p className="font-bold">Waiting for the app</p>
-                      <p className="text-xs mt-1 opacity-90">
-                        Config is on the cloud. On the device: tap <b>Sync Now</b>
-                        {!selected.isOnline ? ' (device looks offline)' : ''}.
+                      <p className="font-bold">2. Waiting — tap Sync Now in the app</p>
+                      <p className="text-xs mt-1 opacity-80">
+                        Last sent {timeAgo(selected.settingsPushedAt)}
+                        {onLocalhost ? ' · this page watches localhost, not Render' : ''}
                       </p>
                     </>
                   )}
                   {selected.settingsPushedAt && !pending && (
                     <>
-                      <p className="font-bold">✓ On the device</p>
-                      <p className="text-xs mt-1 opacity-90">Applied {timeAgo(selected.settingsAppliedAt)}</p>
+                      <p className="font-bold">✓ Done — on the device</p>
+                      <p className="text-xs mt-1 opacity-80">Applied {timeAgo(selected.settingsAppliedAt)}</p>
                     </>
                   )}
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => load(true)}
+                  className="w-full py-2 text-xs font-bold text-gray-500 hover:text-gray-800 border border-gray-200 rounded-xl"
+                >
+                  Refresh status
+                </button>
+
                 {offList.length > 0 && (
-                  <div className="text-xs rounded-xl border border-red-100 bg-red-50 px-3 py-2">
-                    <p className="font-bold text-red-700 mb-0.5">Hidden on device</p>
+                  <div className="text-xs rounded-xl bg-red-50 px-3 py-2">
+                    <p className="font-bold text-red-700 mb-0.5">Will hide</p>
                     <p className="text-red-800">{offList.join(', ')}</p>
                   </div>
                 )}
 
                 {dirty && (
                   <p className="text-[11px] text-amber-600 text-center font-medium">
-                    You have unsaved toggles — click Push to send them.
+                    Toggles changed — click Push to send.
                   </p>
                 )}
               </div>

@@ -18,6 +18,7 @@
     "test:coverage": "vitest run --coverage",
     "electron:cloud:dev": "electron electron/cloud/main.ts",
     "electron:onprem:dev": "npm run tsc:electron && electron electron/onprem/main.js",
+    "electron:onprem:dev:local": "npm run tsc:electron && DG_CLOUD_URL=http://localhost:3001 electron electron/onprem/main.js",
     "tsc:electron": "node_modules/.bin/tsc -p tsconfig.electron.json",
     "build:electron:cloud": "npm run tsc:electron && electron-builder --config electron-cloud.config.cjs",
     "build:electron:cloud:win": "npm run tsc:electron && electron-builder --config electron-cloud.config.cjs --win",
