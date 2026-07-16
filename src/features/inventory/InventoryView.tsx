@@ -360,7 +360,7 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     <input value={addForm.hsnCode ?? ''} onChange={(e) => {
                       const v = e.target.value;
                       const hint = suggestHsnRate(v);
-                      setAddForm(f => ({ ...f, hsnCode: v, ...(hint && (f.gstRate === 18 || f.gstRate === 0) ? { gstRate: hint.rate } : {}) }));
+                      setAddForm(f => ({ ...f, hsnCode: v, ...(hint ? { gstRate: hint.rate } : {}) }));
                     }} className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand font-mono" placeholder="e.g. 8413" />
                     {(() => {
                       const code = (addForm.hsnCode ?? '').replace(/\s/g, '');
