@@ -132,6 +132,19 @@ router.post('/api/onprem/deactivate', onpremLimiter, async (req, res) => {
   }
 });
 
+// ── Mark settings as applied (called by Electron after local apply succeeds) ──
+router.post('/api/onprem/mark-applied', onpremLimiter, async (req, res) => {
+  try {
+    const { licenseKey } = req.body;
+    if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });
+    await pool.query('UPDATE onprem_licenses SET settings_applied_at=NOW() WHERE license_key=$1', [licenseKey]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('mark-applied failed:', (err as Error).message);
+    res.json({ ok: false });
+  }
+});
+
 // ── Tab config endpoint — read local tenant tab_config for heartbeat sync ─────
 router.get('/api/onprem/tab-config', async (req, res) => {
   try {
@@ -201,11 +214,7 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
     if (updates.length) {
       params.push(tenant.id);
       await pool.query(`UPDATE tenants SET ${updates.join(',')} WHERE id=$${idx}`, params);
-      // Mark settings as applied in cloud license record
-      await pool.query(
-        'UPDATE onprem_licenses SET settings_applied_at=NOW() WHERE license_key=$1',
-        [licenseKey]
-      ).catch(() => {});
+      // settings_applied_at is marked by Electron via /api/onprem/mark-applied after local apply
     }
     res.json({ ok: true, applied: updates.length });
   } catch (err) {

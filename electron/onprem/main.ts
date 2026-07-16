@@ -108,8 +108,14 @@ async function sendHeartbeat(): Promise<void> {
           body: JSON.stringify({ licenseKey: licenseInfo.licenseKey, settings: s }),
         });
         const result = await r.json() as { applied?: number };
-        // If settings were actually applied, reload the window so React picks up new tabConfig
         if (result.applied && result.applied > 0) {
+          // Mark applied on cloud so super admin sync log shows ✓
+          fetch(`${CLOUD_API}/api/onprem/mark-applied`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ licenseKey: licenseInfo.licenseKey }),
+          }).catch(() => {});
+          // Reload window so React picks up new tabConfig
           mainWin?.webContents.reload();
         }
       } catch {}
