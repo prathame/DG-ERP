@@ -9,15 +9,12 @@ interface ConnectionStatus {
   validUntil: string | null;
 }
 
-function timeAgo(iso: string | null): string {
+function formatSync(iso: string | null): string {
   if (!iso) return 'Never';
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return 'Just now';
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  return `${Math.floor(hr / 24)}d ago`;
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${date}, ${time}`;
 }
 
 export function OnlineStatus({ collapsed }: { collapsed: boolean }) {
@@ -78,7 +75,7 @@ export function OnlineStatus({ collapsed }: { collapsed: boolean }) {
               {conn.status === 'online' ? 'Online · Synced' : conn.status === 'syncing' ? 'Syncing...' : 'Offline'}
               {expiringWarning && <AlertTriangle size={10} className="inline ml-1 text-amber-500" />}
             </p>
-            <p className="text-[10px] text-gray-400 truncate">Last sync: {timeAgo(conn.lastSync)}</p>
+            <p className="text-[10px] text-gray-400 truncate">Last sync: {formatSync(conn.lastSync)}</p>
           </div>
         )}
       </button>
@@ -97,7 +94,7 @@ export function OnlineStatus({ collapsed }: { collapsed: boolean }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Last sync</span>
-                <span className="font-medium">{timeAgo(conn.lastSync)}</span>
+                <span className="font-medium">{formatSync(conn.lastSync)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">App version</span>
