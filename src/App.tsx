@@ -406,8 +406,8 @@ export default function App() {
         <div className="h-16 px-4 flex items-center justify-between border-b border-gray-100">
           {isSidebarOpen && (
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0">{(user?.companyName || 'DG').substring(0, 2).toUpperCase()}</div>
-              <span className="font-semibold text-gray-900 text-sm truncate">{user?.companyName || 'Dhandho'}</span>
+              <img src="/icons/logo-full.png" alt="Dhando" className="h-8 w-auto object-contain shrink-0" />
+              <span className="font-semibold text-gray-900 text-sm truncate">{user?.companyName}</span>
             </div>
           )}
           <button

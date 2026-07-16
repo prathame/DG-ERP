@@ -17,6 +17,7 @@ module.exports = {
   ],
   extraMetadata: {
     main: 'electron/onprem/main.js',
+    type: 'commonjs',
   },
   // PostgreSQL binaries bundled via embedded-postgres
   asarUnpack: ['node_modules/embedded-postgres/**'],

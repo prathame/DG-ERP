@@ -267,8 +267,7 @@ export function LandingPage() {
       <nav className={`fixed top-0 inset-x-0 z-50 ${navBg} backdrop-blur-xl border-b ${border}`}>
         <motion.div style={{ scale: navShrink }} className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-brand rounded-lg grid place-items-center font-bold text-xs text-white">D</div>
-            <span className="font-bold tracking-tight">Dhandho</span>
+            <img src="/icons/logo-full.png" alt="Dhando" className="h-8 w-auto object-contain" />
           </div>
           <div className="hidden md:flex items-center gap-1">
             {['#business','#features','#pricing','#contact'].map((href, i) => (
@@ -727,8 +726,7 @@ export function LandingPage() {
       <footer className={`border-t ${border} py-8 px-4 sm:px-6`}>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-brand rounded-md grid place-items-center font-bold text-xs text-white">D</div>
-            <span className="font-bold text-sm">Dhandho</span>
+            <img src="/icons/logo-full.png" alt="Dhando" className="h-7 w-auto object-contain" />
             <span className={`text-xs ${faint}`}>🇮🇳</span>
           </div>
           <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs ${faint}`}>
