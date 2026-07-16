@@ -25,6 +25,8 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dhandho_test
       JWT_SECRET: test-jwt-secret-for-ci-only-not-production
       NODE_ENV: test
+      # NIC GST tests decrypt RSA_PKCS1 app keys (Node 17+ disables this by default)
+      NODE_OPTIONS: --security-revert=CVE-2023-46809
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

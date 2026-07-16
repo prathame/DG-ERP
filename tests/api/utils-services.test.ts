@@ -464,15 +464,10 @@ TwIDAQAB
 
   it('sandbox NicApiClient authenticate + generate via mocked fetch', async () => {
     const crypto = await import('crypto');
-    const { publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
     const pubPem = publicKey.export({ type: 'spki', format: 'pem' }).toString();
     process.env.GSTN_SANDBOX_PUBLIC_KEY = pubPem;
     expect(getGstnPublicKey('sandbox')).toContain('BEGIN PUBLIC KEY');
-
-    // Node 17+ rejects RSA_PKCS1 for privateDecrypt; bypass encrypt so the mock can read the app key.
-    const encryptSpy = vi.spyOn(crypto, 'publicEncrypt').mockImplementation(
-      (_opts, buffer) => Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as Uint8Array)
-    );
 
     const aesEnc = (data: string, keyB64: string) => {
       const key = Buffer.from(keyB64, 'base64');
@@ -485,7 +480,11 @@ TwIDAQAB
       const u = String(url);
       if (u.includes('/user/auth')) {
         const body = JSON.parse(init?.body || '{}') as { appkey: string };
-        const appKeyRaw = Buffer.from(body.appkey, 'base64');
+        // Requires Node --security-revert=CVE-2023-46809 (set in vitest.config / CI)
+        const appKeyRaw = crypto.privateDecrypt(
+          { key: privateKey, padding: crypto.constants.RSA_PKCS1_PADDING },
+          Buffer.from(body.appkey, 'base64')
+        );
         const appKeyB64 = appKeyRaw.toString('base64');
         sessionKeyB64 = appKeyB64;
         const data = aesEnc(JSON.stringify({ AuthToken: 'tok', Sek: appKeyB64 }), appKeyB64);
@@ -542,7 +541,6 @@ TwIDAQAB
 
     await client.cancelIrn('IRN123', 1, 'wrong');
     expect(fetchMock).toHaveBeenCalled();
-    encryptSpy.mockRestore();
     vi.unstubAllGlobals();
   });
 });
