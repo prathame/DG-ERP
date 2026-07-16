@@ -61,7 +61,11 @@ export function OnPremView({ saToken }: { saToken: string }) {
       .then(r => r.json()).then(setLicenses).catch(() => {}).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 30000); // auto-refresh every 30s
+    return () => clearInterval(t);
+  }, []);
 
   const copyKey = (key: string) => {
     navigator.clipboard.writeText(key);
