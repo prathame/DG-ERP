@@ -62,7 +62,7 @@ router.post('/api/onprem/activate', onpremLimiter, async (req, res) => {
 // Heartbeat — called every 60 min by on-prem app when online
 router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
   try {
-    const { licenseKey, machineId, version, activeUsers, diskMB } = req.body;
+    const { licenseKey, machineId, version, activeUsers, diskMB, businessType } = req.body;
     if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });
 
     const lic = (await pool.query(
@@ -77,8 +77,10 @@ router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
 
     if (isValid && isMachineMatch) {
       await pool.query(
-        `UPDATE onprem_licenses SET last_seen=NOW(), app_version=$1, active_users=$2, disk_mb=$3 WHERE license_key=$4`,
-        [version || null, activeUsers || 0, diskMB || 0, licenseKey]
+        `UPDATE onprem_licenses SET last_seen=NOW(), app_version=$1, active_users=$2, disk_mb=$3${businessType ? ', business_type=$5' : ''} WHERE license_key=$4`,
+        businessType
+          ? [version || null, activeUsers || 0, diskMB || 0, licenseKey, businessType]
+          : [version || null, activeUsers || 0, diskMB || 0, licenseKey]
       );
     }
 

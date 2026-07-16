@@ -69,6 +69,7 @@ async function sendHeartbeat(): Promise<void> {
         version: app.getVersion(),
         activeUsers: 1,
         diskMB: 0,
+        businessType: licenseInfo.businessType,
       }),
       signal: AbortSignal.timeout(10000),
     });
