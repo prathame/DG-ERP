@@ -192,7 +192,22 @@ router.get('/api/payroll/summary', async (req, res) => {
       [tenantId, y]
     )).rows as { month: string; total: number; payments: number }[];
     const grandTotal = Number((await pool.query("SELECT COALESCE(SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END), 0) as t FROM staff_payments WHERE tenant_id = $1 AND year = $2", [tenantId, y])).rows[0]?.t ?? 0);
-    res.json({ year: y, grandTotal, byStaff: byStaff.map(r => ({ name: r.staff_name, total: Number(r.total), payments: Number(r.payments) })), byMonth: byMonth.map(r => ({ month: r.month, total: Number(r.total), payments: Number(r.payments) })) });
+    // Lifetime advance outstanding across all staff (not year-scoped — balances carry forward)
+    const advanceOutstanding = Number((await pool.query(
+      `SELECT COALESCE(
+         SUM(CASE WHEN payment_type = 'advance' THEN amount ELSE 0 END)
+         - SUM(CASE WHEN payment_type = 'advance_repay' THEN amount ELSE 0 END)
+       , 0) AS bal
+       FROM staff_payments WHERE tenant_id = $1`,
+      [tenantId]
+    )).rows[0]?.bal ?? 0);
+    res.json({
+      year: y,
+      grandTotal,
+      advanceOutstanding: Math.max(0, advanceOutstanding),
+      byStaff: byStaff.map(r => ({ name: r.staff_name, total: Number(r.total), payments: Number(r.payments) })),
+      byMonth: byMonth.map(r => ({ month: r.month, total: Number(r.total), payments: Number(r.payments) })),
+    });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }

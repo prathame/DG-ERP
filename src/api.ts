@@ -586,7 +586,7 @@ vendor: (vendorId: string) =>
       if (filters?.staffName) q.set('staffName', filters.staffName);
       return fetchApi<{ id: string; staffName: string; amount: number; paymentDate: string; paymentMethod: string; referenceNumber?: string; notes?: string; month: string; year: number }[]>(`/payroll?${q}`);
     },
-    summary: (year?: number) => fetchApi<{ year: number; grandTotal: number; byStaff: { name: string; total: number; payments: number }[]; byMonth: { month: string; total: number; payments: number }[] }>(`/payroll/summary?year=${year || new Date().getFullYear()}`),
+    summary: (year?: number) => fetchApi<{ year: number; grandTotal: number; advanceOutstanding: number; byStaff: { name: string; total: number; payments: number }[]; byMonth: { month: string; total: number; payments: number }[] }>(`/payroll/summary?year=${year || new Date().getFullYear()}`),
     create: (data: { staffName: string; amount: number; paymentDate?: string; paymentType?: string; paymentMethod?: string; referenceNumber?: string; notes?: string }) =>
       fetchApi<{ id: string; staffName: string; amount: number; paymentDate: string; paymentType: string }>('/payroll', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: string) => fetchApi<{ ok: boolean }>(`/payroll/${id}`, { method: 'DELETE' }),

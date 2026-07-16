@@ -44,7 +44,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
   const [vendors, setVendors] = useState<{ vendorId: string; vendorName: string; balance: number }[]>([]);
   const [activity, setActivity] = useState<{ type: string; id: string; label: string; amount: number; date: string }[]>([]);
   const [counts, setCounts] = useState<{ customerMaster: number; vendorMaster: number; itemMaster: number; bankMaster: number; staffCount?: number } | null>(null);
-  const [payroll, setPayroll] = useState<{ grandTotal: number; byStaff: { name: string; total: number; payments: number }[]; byMonth: { month: string; total: number }[] } | null>(null);
+  const [payroll, setPayroll] = useState<{ grandTotal: number; advanceOutstanding: number; byStaff: { name: string; total: number; payments: number }[]; byMonth: { month: string; total: number }[] } | null>(null);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -187,7 +187,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
             </div>
             <div className="bg-amber-50 rounded-xl p-3">
               <p className="text-xs text-gray-500 mb-1">Advance Outstanding</p>
-              <p className="text-lg font-bold text-amber-600">{fmt(counts?.staffCount ?? 0)}</p>
+              <p className="text-lg font-bold text-amber-600">{fmt(payroll.advanceOutstanding ?? 0)}</p>
             </div>
           </div>
           {payroll.byStaff.length > 0 && (
