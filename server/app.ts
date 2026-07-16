@@ -47,7 +47,8 @@ const PUBLIC_PATHS = [
   '/api/auth/login', '/api/auth/forgot-password', '/api/auth/reset-password',
   '/api/super-admin/login', '/api/tenant/by-slug/', '/api/health',
   '/manifest.json',
-  '/api/onprem/activate', '/api/onprem/heartbeat', '/api/onprem/deactivate', '/api/onprem/provision', '/api/onprem/apply-settings',
+  '/api/onprem/activate', '/api/onprem/heartbeat', '/api/onprem/deactivate',
+  '/api/onprem/provision', '/api/onprem/apply-settings', '/api/onprem/mark-applied',
 ];
 
 /** Build the Express app without listening — used by server entry and supertest. */
@@ -55,6 +56,11 @@ export function createApp(): express.Application {
   const app = express();
   const isProduction = process.env.NODE_ENV === 'production';
   const isTest = process.env.VITEST === 'true' || process.env.NODE_ENV === 'test';
+
+  // Render / reverse proxies set X-Forwarded-For — required for express-rate-limit
+  if (isProduction || process.env.TRUST_PROXY === '1') {
+    app.set('trust proxy', 1);
+  }
 
   app.use(compression());
   app.use(helmet({
