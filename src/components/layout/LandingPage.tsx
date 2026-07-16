@@ -142,7 +142,7 @@ export function LandingPage() {
   const handleShutterDone = useCallback(() => setShutterDone(true), []);
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [lang, setLang] = useState<'en' | 'hi' | 'gu'>('en');
+  const [lang, setLang] = useState<'en' | 'hi' | 'gu' | 'mr'>('en');
   const [heroLang, setHeroLang] = useState(0);
   const [heroAuto, setHeroAuto] = useState(true);
   const [yearly, setYearly] = useState(false);
@@ -184,7 +184,12 @@ export function LandingPage() {
 
   useEffect(() => {
     if (!heroAuto) return;
-    const t = setInterval(() => setHeroLang(h => (h + 1) % 3), 7000);
+    const CYCLE = ['en', 'hi', 'gu', 'mr'] as const;
+    const t = setInterval(() => setHeroLang(h => {
+      const next = (h + 1) % 4;
+      setLang(CYCLE[next]);
+      return next;
+    }), 7000);
     return () => clearInterval(t);
   }, [heroAuto]);
 
