@@ -112,6 +112,38 @@ const InvoicesView = lazy(() => import('./features/invoices/InvoicesView').then(
 const SuperAdminApp = lazy(() => import('./features/super-admin/SuperAdminApp').then(m => ({ default: m.SuperAdminApp })));
 const SuperAdminLogin = lazy(() => import('./features/super-admin/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })));
 
+function ElectronSlugEntry() {
+  const [slug, setSlug] = React.useState('');
+  const go = (e: React.FormEvent) => {
+    e.preventDefault();
+    const s = slug.trim().toLowerCase();
+    if (s) window.location.href = `/${s}`;
+  };
+  return (
+    <div className="min-h-screen bg-[#09090B] flex flex-col items-center justify-center gap-8 px-4">
+      <img src="/icons/logo-full.png" alt="Dhando" className="h-24 w-auto object-contain" style={{ filter: 'drop-shadow(0 0 24px rgba(242,125,38,0.4))' }} />
+      <div className="w-full max-w-sm">
+        <p className="text-white/50 text-sm text-center mb-6">Enter your company URL to continue</p>
+        <form onSubmit={go} className="flex flex-col gap-3">
+          <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-brand/60 transition-colors">
+            <span className="text-white/30 text-sm pl-4 pr-1 shrink-0">dg-erp.onrender.com/</span>
+            <input
+              autoFocus
+              value={slug}
+              onChange={e => setSlug(e.target.value)}
+              placeholder="your-company"
+              className="flex-1 bg-transparent py-3 pr-4 text-white placeholder-white/20 text-sm outline-none"
+            />
+          </div>
+          <button type="submit" disabled={!slug.trim()} className="w-full py-3 bg-brand hover:bg-brand-dark text-white font-bold rounded-xl transition-colors disabled:opacity-40">
+            Continue →
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function QuotationsAndOrdersView() {
   const [view, setView] = React.useState<'quotations' | 'orders'>('quotations');
   return (
@@ -378,7 +410,9 @@ export default function App() {
       );
     }
 
-    // Root URL (/) — show company landing page
+    // Root URL (/) — in Electron cloud app show slug entry, else landing page
+    const isElectron = navigator.userAgent.toLowerCase().includes('electron');
+    if (isElectron) return <ElectronSlugEntry />;
     return <LandingPage />;
   }
 

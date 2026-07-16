@@ -36,6 +36,18 @@ function createWindow() {
 
   win.loadURL(CLOUD_URL);
 
+  // After page loads, redirect to last-used slug so user lands on login, not landing page
+  win.webContents.once('did-finish-load', () => {
+    win?.webContents.executeJavaScript(`
+      (() => {
+        const slug = localStorage.getItem('dg_last_slug');
+        if (slug && window.location.pathname === '/') {
+          window.location.href = '/' + slug;
+        }
+      })();
+    `).catch(() => {});
+  });
+
   // Show window once loaded — avoids white flash
   win.once('ready-to-show', () => win?.show());
 
