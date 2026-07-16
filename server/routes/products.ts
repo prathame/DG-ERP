@@ -421,48 +421,85 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
     let created = 0;
     let stockAdded = 0;
     const details: { name: string; action: 'created' | 'stock_added'; quantity: number }[] = [];
+
+    // ponytail: one SELECT to find all existing products instead of N selects
+    const names = items.map(r => String(r.name).trim().toLowerCase());
+    const existingRows = (await client.query(
+      'SELECT id, name, stock FROM products WHERE tenant_id = $1 AND LOWER(name) = ANY($2::text[])',
+      [tenantId, names]
+    )).rows as { id: string; name: string; stock: number }[];
+    const existingMap = new Map(existingRows.map(r => [r.name.toLowerCase(), r]));
+
+    // Split into new vs existing
+    const toInsert: typeof items = [];
+    const toUpdate: { id: string; qty: number; name: string }[] = [];
     for (const r of items) {
       const name = String(r.name).trim();
-      const ps = Number(r.packSize) || 1;
       const qty = Number(r.quantity) || 0;
-      const prefix = r.barcodePrefix ? String(r.barcodePrefix).trim() : '';
-      const existing = (await client.query('SELECT id, stock FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name])).rows[0] as { id: string; stock: number } | undefined;
-
-      let productId: string;
-      if (existing) {
-        // Add to existing stock
-        productId = existing.id;
-        if (qty > 0) await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2 AND tenant_id = $3', [qty, productId, tenantId]);
-        stockAdded++;
+      const ex = existingMap.get(name.toLowerCase());
+      if (ex) {
+        toUpdate.push({ id: ex.id, qty, name });
         details.push({ name, action: 'stock_added', quantity: qty });
+        stockAdded++;
       } else {
-        // Create new product
-        productId = uid('P');
-        await client.query(
-          `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-          [productId, name, null, r.description || null, Number(r.rewardPointsValue) || 0, null, null, 'Active',
-           Number(r.warrantyMonths) || 12, Number(r.price) || 0, qty, tenantId,
-           ps > 1 ? ps : 1, r.packName || (ps > 1 ? 'Box' : 'Piece'),
-           r.hsnCode || null, r.gstRate != null ? Number(r.gstRate) : 18, !!r.priceIncludesGst]
-        );
-        created++;
+        toInsert.push(r);
         details.push({ name, action: 'created', quantity: qty });
+        created++;
       }
-      // Generate barcodes if prefix provided
-      if (prefix && qty > 0) {
-        const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, Math.min(qty, 10000));
-        const unitType = (ps > 1) ? 'box' : 'piece';
-        const batchId = uid('B');
-        const vals: string[] = [];
-        const params: unknown[] = [];
-        let pIdx = 1;
-        for (let j = 0; j < barcodes.length; j++) {
-          vals.push(`($${pIdx},$${pIdx+1},$${pIdx+2},$${pIdx+3},$${pIdx+4},$${pIdx+5},$${pIdx+6})`);
-          params.push(uid('I'), productId, barcodes[j], batchId, 'InStock', tenantId, unitType);
-          pIdx += 7;
+    }
+
+    // Bulk UPDATE existing stock
+    if (toUpdate.length > 0) {
+      await client.query(`
+        UPDATE products SET stock = products.stock + v.qty
+        FROM (SELECT unnest($1::text[]) AS id, unnest($2::int[]) AS qty) AS v
+        WHERE products.id = v.id AND products.tenant_id = $3
+      `, [toUpdate.map(u => u.id), toUpdate.map(u => u.qty), tenantId]);
+    }
+
+    // Bulk INSERT new products
+    if (toInsert.length > 0) {
+      const vals: string[] = [];
+      const params: unknown[] = [];
+      let pIdx = 1;
+      const productIds: { r: Record<string, unknown>; id: string }[] = [];
+      for (const r of toInsert) {
+        const name = String(r.name).trim();
+        const ps = Number(r.packSize) || 1;
+        const qty = Number(r.quantity) || 0;
+        const productId = uid('P');
+        productIds.push({ r, id: productId });
+        vals.push(`($${pIdx},$${pIdx+1},$${pIdx+2},$${pIdx+3},$${pIdx+4},$${pIdx+5},$${pIdx+6},$${pIdx+7},$${pIdx+8},$${pIdx+9},$${pIdx+10},$${pIdx+11},$${pIdx+12},$${pIdx+13},$${pIdx+14},$${pIdx+15},$${pIdx+16})`);
+        params.push(productId, name, null, r.description || null, Number(r.rewardPointsValue) || 0, null, null, 'Active',
+          Number(r.warrantyMonths) || 12, Number(r.price) || 0, qty, tenantId,
+          ps > 1 ? ps : 1, r.packName || (ps > 1 ? 'Box' : 'Piece'),
+          r.hsnCode || null, r.gstRate != null ? Number(r.gstRate) : 18, !!r.priceIncludesGst);
+        pIdx += 17;
+      }
+      await client.query(
+        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst) VALUES ${vals.join(',')}`,
+        params
+      );
+
+      // Generate barcodes per new product (still per-product since prefix varies)
+      for (const { r, id: productId } of productIds) {
+        const prefix = r.barcodePrefix ? String(r.barcodePrefix).trim() : '';
+        const qty = Number(r.quantity) || 0;
+        const ps = Number(r.packSize) || 1;
+        if (prefix && qty > 0) {
+          const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, Math.min(qty, 10000));
+          const unitType = (ps > 1) ? 'box' : 'piece';
+          const batchId = uid('B');
+          const bVals: string[] = [];
+          const bParams: unknown[] = [];
+          let bIdx = 1;
+          for (const bc of barcodes) {
+            bVals.push(`($${bIdx},$${bIdx+1},$${bIdx+2},$${bIdx+3},$${bIdx+4},$${bIdx+5},$${bIdx+6})`);
+            bParams.push(uid('I'), productId, bc, batchId, 'InStock', tenantId, unitType);
+            bIdx += 7;
+          }
+          if (bVals.length) await client.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type) VALUES ${bVals.join(',')}`, bParams);
         }
-        if (vals.length) await client.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type) VALUES ${vals.join(',')}`, params);
       }
     }
     await client.query('COMMIT');

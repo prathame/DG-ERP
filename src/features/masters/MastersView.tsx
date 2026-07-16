@@ -32,7 +32,7 @@ export function MastersView({ setActiveTab, user, businessType = 'manufacturer' 
     }).catch(() => {});
   };
 
-  useEffect(() => { refreshCounts(); }, [selectedMaster]);
+  useEffect(() => { refreshCounts(); }, []); // ponytail: fetch once on mount, not on every selectedMaster change
 
   const allMasters = [
     ...(hasCustomerTracking && !isDirectSell ? [{ id: 'customer' as const, name: 'Customers', count: masterCounts.customer as number | string, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' }] : []),

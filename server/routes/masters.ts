@@ -9,20 +9,24 @@ router.get('/api/masters/counts', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const customers = (await pool.query('SELECT COUNT(*) as count FROM customers WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
-    const vendors = (await pool.query('SELECT COUNT(*) as count FROM vendors WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
-    const products = (await pool.query('SELECT COUNT(*) as count FROM products WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
-    const banks = (await pool.query('SELECT COUNT(*) as count FROM banks WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
-    const categories = (await pool.query('SELECT COUNT(*) as count FROM categories WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
-    const staff = (await pool.query('SELECT COUNT(*) as count FROM staff_members WHERE tenant_id = $1', [tenantId])).rows[0] as { count: number };
+    // ponytail: single round-trip instead of 6 sequential COUNT queries
+    const { rows: [r] } = await pool.query(`
+      SELECT
+        (SELECT COUNT(*) FROM customers    WHERE tenant_id = $1) AS customers,
+        (SELECT COUNT(*) FROM vendors      WHERE tenant_id = $1) AS vendors,
+        (SELECT COUNT(*) FROM products     WHERE tenant_id = $1) AS products,
+        (SELECT COUNT(*) FROM banks        WHERE tenant_id = $1) AS banks,
+        (SELECT COUNT(*) FROM categories   WHERE tenant_id = $1) AS categories,
+        (SELECT COUNT(*) FROM staff_members WHERE tenant_id = $1) AS staff
+    `, [tenantId]);
 
     res.json({
-      customerMaster: customers.count,
-      vendorMaster: vendors.count,
-      itemMaster: products.count,
-      bankMaster: banks.count,
-      categoryMaster: categories.count,
-      staffCount: staff.count,
+      customerMaster: r.customers,
+      vendorMaster: r.vendors,
+      itemMaster: r.products,
+      bankMaster: r.banks,
+      categoryMaster: r.categories,
+      staffCount: r.staff,
     });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });

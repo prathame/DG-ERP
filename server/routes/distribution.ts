@@ -521,21 +521,27 @@ router.put('/api/distribution/apply-billing', blockVendors, async (req: AuthRequ
       const totalUnits = units.length;
       const gstCount = Math.min(gstUnits ?? 0, totalUnits);
       const nonGstCount = Math.min(nonGstUnits ?? 0, totalUnits - gstCount);
-      let idx = 0;
-      for (let i = 0; i < gstCount && idx < units.length; i++, idx++) {
-        const u = units[idx];
-        const billedPrice = Math.round(u.unit_price * (100 + rate) / 100);
-        await client.query(
-          'UPDATE product_distribution SET gst_applied = true, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
-          [billedPrice, u.id, tenantId]
-        );
+      // ponytail: bulk UPDATE instead of N individual round-trips
+      const gstSlice = units.slice(0, gstCount);
+      const nonGstSlice = units.slice(gstCount, gstCount + nonGstCount);
+
+      if (gstSlice.length > 0) {
+        const ids = gstSlice.map(u => u.id);
+        const prices = gstSlice.map(u => Math.round(u.unit_price * (100 + rate) / 100));
+        await client.query(`
+          UPDATE product_distribution SET gst_applied = true, billed_price = v.price
+          FROM (SELECT unnest($1::text[]) AS id, unnest($2::int[]) AS price) AS v
+          WHERE product_distribution.id = v.id AND product_distribution.tenant_id = $3
+        `, [ids, prices, tenantId]);
       }
-      for (let i = 0; i < nonGstCount && idx < units.length; i++, idx++) {
-        const u = units[idx];
-        await client.query(
-          'UPDATE product_distribution SET gst_applied = false, billed_price = $1 WHERE id = $2 AND tenant_id = $3',
-          [u.unit_price, u.id, tenantId]
-        );
+      if (nonGstSlice.length > 0) {
+        const ids = nonGstSlice.map(u => u.id);
+        const prices = nonGstSlice.map(u => u.unit_price);
+        await client.query(`
+          UPDATE product_distribution SET gst_applied = false, billed_price = v.price
+          FROM (SELECT unnest($1::text[]) AS id, unnest($2::int[]) AS price) AS v
+          WHERE product_distribution.id = v.id AND product_distribution.tenant_id = $3
+        `, [ids, prices, tenantId]);
       }
       await client.query('COMMIT');
       await logAudit(pool, tenantId, 'Billing Applied', 'distribution', batchId || vendorId, `GST: ${gstCount} units, Non-GST: ${nonGstCount} units`);
