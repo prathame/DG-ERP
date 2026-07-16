@@ -372,6 +372,14 @@ export function OnPremView({ saToken }: { saToken: string }) {
             {savingSettings ? 'Saving...' : Object.keys(localSettings).length > 0 ? '💾 Save & Push to Device' : 'No changes'}
           </button>
 
+          {/* Force sync — sets flag on cloud, app picks up on next heartbeat */}
+          <button onClick={async () => {
+            await handleUpdate(selected.id, { settings: { ...(selected.settings || {}), forceSyncAt: new Date().toISOString() } });
+            toast('Force sync requested — app will apply on next heartbeat (click Sync Now in app for instant)', 'success');
+          }} className="mt-2 w-full py-2 border border-brand text-brand rounded-xl text-sm font-bold hover:bg-orange-50 flex items-center justify-center gap-1.5">
+            <RefreshCw size={14} /> Force Sync Now
+          </button>
+
           {/* Sync status log */}
           {(selected.settingsPushedAt || selected.settingsAppliedAt) && (
             <div className="mt-3 text-xs space-y-1 bg-gray-50 rounded-xl p-3">
