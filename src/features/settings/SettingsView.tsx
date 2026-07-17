@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LogIn, LogOut, UserPlus, Phone, MapPin, Building2, UserCog, Shield, Download, MessageCircle, FileText, Settings, Upload, Palette, Eye, FileCheck, ChevronDown } from 'lucide-react';
+import { LogIn, LogOut, UserPlus, Phone, MapPin, Building2, UserCog, Shield, Download, MessageCircle, FileText, Settings, Upload, Palette, Eye, FileCheck, ChevronDown, Trash2 } from 'lucide-react';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api } from '../../api';
 import { PasswordInput } from '../../components/ui/PasswordInput';
@@ -397,11 +397,26 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
   useEffect(() => { api.backup.settings().then(setBackupSettings).catch(() => {}); }, []);
 
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+    // Load phone/address/gst from API — not kept in localStorage after privacy harden
+    api.settings.getProfile(user.id).then((fresh) => {
+      setProfileForm({
+        name: fresh.name,
+        phone: fresh.phone ?? '',
+        address: fresh.address ?? '',
+        role: fresh.role ?? 'Admin',
+        companyName: fresh.companyName ?? '',
+        gstNumber: fresh.gstNumber ?? '',
+        defaultGstRate: Number(fresh.defaultGstRate) || 18,
+      });
+      const merged = { ...user, ...fresh };
+      session.setUser(merged);
+      onUserChange(merged);
+    }).catch(() => {
       const ux = user as Record<string, unknown>;
       setProfileForm({ name: user.name, phone: user.phone ?? '', address: user.address ?? '', role: user.role ?? 'Admin', companyName: user.companyName ?? '', gstNumber: (ux.gstNumber as string) ?? '', defaultGstRate: Number(ux.defaultGstRate) || 18 });
-    }
-  }, [user]);
+    });
+  }, [user?.id]);
 
   const isAdmin = user && ADMIN_ROLES.includes(user.role ?? '');
   useEffect(() => {
@@ -426,9 +441,15 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
       session.setToken(r.token);
       if (r.tenantId) session.setTenantId(r.tenantId);
       if (r.tenantSlug) session.setSlug(r.tenantSlug);
-      const u = { id: r.id, email: r.email, name: r.name, phone: r.phone, address: r.address, role: r.role, companyName: r.companyName, vendorId: r.vendorId, autoWhatsapp: r.autoWhatsapp, barcodeSystemEnabled: (r as Record<string, unknown>).barcodeSystemEnabled, multiLanguageEnabled: (r as Record<string, unknown>).multiLanguageEnabled, vendorPortalEnabled: (r as Record<string, unknown>).vendorPortalEnabled, tabConfig: (r as Record<string, unknown>).tabConfig };
+      const u = { id: r.id, email: r.email, name: r.name, role: r.role, companyName: r.companyName, vendorId: r.vendorId, autoWhatsapp: r.autoWhatsapp, barcodeSystemEnabled: (r as Record<string, unknown>).barcodeSystemEnabled, multiLanguageEnabled: (r as Record<string, unknown>).multiLanguageEnabled, vendorPortalEnabled: (r as Record<string, unknown>).vendorPortalEnabled, tabConfig: (r as Record<string, unknown>).tabConfig };
       session.setUser(u);
       onUserChange(u);
+      // Hydrate PII fields from profile endpoint (not returned on login)
+      api.settings.getProfile(r.id).then((fresh) => {
+        const merged = { ...u, ...fresh };
+        session.setUser(merged);
+        onUserChange(merged);
+      }).catch(() => {});
       setAuthForm({ email: '', password: '', name: '', confirmPassword: '' });
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Login failed');
@@ -702,6 +723,37 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
             </form>
           </div>
 
+          {/* Delete my account */}
+          <div className="bg-white rounded-2xl border border-rose-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 bg-rose-50 border-b border-rose-100">
+              <h3 className="font-bold text-lg flex items-center gap-2 text-rose-800"><Trash2 size={20} /> Delete Account</h3>
+            </div>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!user) return;
+                const form = e.target as HTMLFormElement;
+                const password = (form.elements.namedItem('deletePassword') as HTMLInputElement).value;
+                if (!await confirm({ title: 'Delete your account?', message: 'Your personal data will be anonymized. This cannot be undone.', confirmLabel: 'Delete account', variant: 'danger' })) return;
+                try {
+                  await api.settings.deleteAccount(password);
+                  session.clearAll();
+                  onUserChange(null);
+                  toast('Account deleted', 'success');
+                } catch (err) {
+                  toast(err instanceof Error ? err.message : 'Failed to delete account', 'error');
+                }
+              }}
+              className="p-6 space-y-4"
+            >
+              <p className="text-sm text-gray-600">Permanently anonymizes your name, email, phone, and address. Sales history kept for business records is not tied to your login after this.</p>
+              <div className="max-w-sm">
+                <label htmlFor="settings-delete-pw" className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm with password</label>
+                <PasswordInput id="settings-delete-pw" name="deletePassword" required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-rose-400" />
+              </div>
+              <button type="submit" className="px-6 py-2 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700">Delete my account</button>
+            </form>
+          </div>
 
           {/* GST API — E-Invoice + E-Way Bill */}
           {isAdmin && <GstApiSection />}
@@ -853,7 +905,29 @@ export function SettingsView({ user, onUserChange }: { user: { id: string; email
                             <td className="px-4 py-3 text-sm text-gray-600">{u.email}</td>
                             <td className="px-4 py-3"><span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{u.role ?? 'Staff'}</span></td>
                             <td className="px-4 py-3">
-                              {u.id === user?.id ? <span className="text-xs text-gray-400">You</span> : <button type="button" onClick={() => { setEditUserTarget(u); setEditUserForm({ role: u.role ?? 'Staff', permissions: (u.permissions && typeof u.permissions === 'object' && !Array.isArray(u.permissions) ? u.permissions : ROLE_PRESETS[u.role ?? 'Staff'] || ROLE_PRESETS.Staff) as Record<string, string>, vendorId: (u as Record<string, unknown>).vendorId as string ?? '' }); }} className="text-sm font-bold text-brand hover:underline flex items-center gap-1"><Shield size={14} /> Permissions</button>}
+                              {u.id === user?.id ? (
+                                <span className="text-xs text-gray-400">You</span>
+                              ) : (
+                                <div className="flex items-center gap-3">
+                                  <button type="button" onClick={() => { setEditUserTarget(u); setEditUserForm({ role: u.role ?? 'Staff', permissions: (u.permissions && typeof u.permissions === 'object' && !Array.isArray(u.permissions) ? u.permissions : ROLE_PRESETS[u.role ?? 'Staff'] || ROLE_PRESETS.Staff) as Record<string, string>, vendorId: (u as Record<string, unknown>).vendorId as string ?? '' }); }} className="text-sm font-bold text-brand hover:underline flex items-center gap-1"><Shield size={14} /> Permissions</button>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (!await confirm({ title: 'Delete user?', message: `${u.name} will be anonymized and cannot log in.`, confirmLabel: 'Delete', variant: 'danger' })) return;
+                                      try {
+                                        await api.admin.deleteUser(u.id);
+                                        setUsers((prev) => prev.filter((x) => x.id !== u.id));
+                                        toast('User deleted', 'success');
+                                      } catch (err) {
+                                        toast(err instanceof Error ? err.message : 'Failed', 'error');
+                                      }
+                                    }}
+                                    className="text-sm font-bold text-rose-600 hover:underline flex items-center gap-1"
+                                  >
+                                    <Trash2 size={14} /> Delete
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         ))}

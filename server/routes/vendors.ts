@@ -97,6 +97,7 @@ router.post('/api/vendors/bulk', blockVendors, async (req: AuthRequest, res) => 
     }
     await client.query('COMMIT');
     await logAudit(pool, tenantId, 'Vendors Bulk Import', 'vendor', undefined, `${success} vendors imported`);
+    res.setHeader('Cache-Control', 'no-store');
     res.json({ success, errors: [], credentials });
   } catch (e) {
     await client.query('ROLLBACK');
@@ -150,6 +151,7 @@ router.post('/api/vendors', blockVendors, async (req: AuthRequest, res) => {
         credentials = { email, password: defaultPassword };
       }
     }
+    res.setHeader('Cache-Control', 'no-store');
     res.status(201).json({
       id: row.id, name: row.name, contactPerson: row.contact_person, phone: row.phone, email: row.email, address: row.address, totalSales: 0, totalRewardPoints: 0, gstNumber: row.gst_number ?? null,
       credentials,

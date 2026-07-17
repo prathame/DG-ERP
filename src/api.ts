@@ -647,11 +647,13 @@ vendor: (vendorId: string) =>
   },
   settings: {
     getProfile: (userId: string) =>
-      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: Record<string, string> | string[] | null; vendorId?: string | null }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),
+      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: Record<string, string> | string[] | null; vendorId?: string | null; gstNumber?: string | null; defaultGstRate?: number }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),
     changePassword: (userId: string, currentPassword: string, newPassword: string) =>
       fetchApi<{ ok: boolean }>('/settings/change-password', { method: 'PUT', body: JSON.stringify({ userId, currentPassword, newPassword }) }),
     updateProfile: (userId: string, data: Record<string, unknown>) =>
       fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; autoWhatsapp?: boolean }>('/settings/profile', { method: 'PUT', body: JSON.stringify({ userId, ...data }) }),
+    deleteAccount: (password: string) =>
+      fetchApi<{ ok: boolean; message: string }>('/auth/me', { method: 'DELETE', body: JSON.stringify({ password }) }),
     getBillSettings: () =>
       fetchApi<import('./types').BillSettings>('/settings/bill'),
     updateBillSettings: (data: Partial<import('./types').BillSettings>) =>
@@ -664,5 +666,7 @@ vendor: (vendorId: string) =>
       fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[] | null; vendorId?: string | null }>('/admin/users', { method: 'POST', body: JSON.stringify({ adminUserId, ...data }) }),
     updateUser: (adminUserId: string, userId: string, data: { role?: string; permissions?: Record<string, string> | string[]; vendorId?: string }) =>
       fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: Record<string, string> | null }>(`/admin/users/${userId}`, { method: 'PUT', body: JSON.stringify({ adminUserId, ...data }) }),
+    deleteUser: (userId: string) =>
+      fetchApi<{ ok: boolean; message: string }>(`/admin/users/${userId}`, { method: 'DELETE' }),
   },
 };

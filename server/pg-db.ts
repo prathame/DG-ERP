@@ -894,7 +894,7 @@ export async function seedPlatformData() {
         'INSERT INTO super_admins (id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5)',
         ['SA1', superAdminEmail, hash, 'Platform Owner', 'owner']
       );
-      console.log(`  ✓ Super admin created: ${superAdminEmail}`);
+      console.log('  ✓ Super admin created: [REDACTED_EMAIL]');
     }
   }
 

@@ -41,8 +41,11 @@ router.post('/api/super-admin/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-    const { rows } = await pool.query('SELECT * FROM super_admins WHERE email = $1', [email]);
-    const admin = rows[0];
+    const { rows } = await pool.query(
+      'SELECT id, email, name, password_hash, role FROM super_admins WHERE email = $1',
+      [email]
+    );
+    const admin = rows[0] as { id: string; email: string; name: string; password_hash: string; role: string } | undefined;
     if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
     const valid = await bcrypt.compare(password, admin.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
@@ -222,7 +225,8 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
     } catch (inviteErr) {
       console.error('mobile invite after create failed:', (inviteErr as Error).message);
     }
-    await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
+    await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
+    res.setHeader('Cache-Control', 'no-store');
     res.status(201).json({
       ...result,
       adminEmail,
@@ -349,14 +353,18 @@ router.post('/api/super-admin/tenants/:id/reset-token', superAdminMiddleware, as
 router.post('/api/super-admin/tenants/:id/impersonate', superAdminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const tenant = (await pool.query('SELECT * FROM tenants WHERE id = $1', [id])).rows[0];
+    const tenant = (await pool.query('SELECT id, company_name FROM tenants WHERE id = $1', [id])).rows[0] as { id: string; company_name: string } | undefined;
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-    const admin = (await pool.query("SELECT * FROM users WHERE tenant_id = $1 AND role IN ('Super Admin', 'Admin') ORDER BY created_at LIMIT 1", [id])).rows[0];
+    const admin = (await pool.query(
+      "SELECT id, email, name, role FROM users WHERE tenant_id = $1 AND role IN ('Super Admin', 'Admin') ORDER BY created_at LIMIT 1",
+      [id]
+    )).rows[0] as { id: string; email: string; name: string; role: string } | undefined;
     if (!admin) return res.status(404).json({ error: 'No admin user found for this tenant' });
 
     const { generateToken } = await import('../middleware/auth');
     const token = generateToken({ userId: admin.id, email: admin.email, name: admin.name, role: admin.role, tenantId: id });
-    await logAudit(pool, id, 'IMPERSONATE', 'tenant', id, `Super admin impersonated ${admin.email}`, (req as AuthRequest).user?.userId, 'Super Admin');
+    await logAudit(pool, id, 'IMPERSONATE', 'tenant', id, 'Super admin impersonated tenant admin', (req as AuthRequest).user?.userId, 'Super Admin');
+    res.setHeader('Cache-Control', 'no-store');
     res.json({ token, tenantId: id, companyName: tenant.company_name, user: { id: admin.id, email: admin.email, name: admin.name, role: admin.role } });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
