@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Printer, QrCode } from 'lucide-react';
-import JsBarcode from 'jsbarcode';
 import { api } from '../../api';
 import { LoadingSpinner, useToast } from './index';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
@@ -16,9 +15,10 @@ interface BarcodeLabelPrinterProps {
 type LabelFormat = 'a4-24' | 'a4-40' | 'single';
 type CodeType = 'barcode' | 'qr';
 
-function generateBarcodeDataUrl(text: string): string {
+async function generateBarcodeDataUrl(text: string): Promise<string> {
   const canvas = document.createElement('canvas');
   try {
+    const JsBarcode = (await import('jsbarcode')).default;
     JsBarcode(canvas, text, { format: 'CODE128', width: 2, height: 50, displayValue: false, margin: 0 });
     return canvas.toDataURL('image/png');
   } catch {
@@ -72,6 +72,7 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
   const [codeType, setCodeType] = useState<CodeType>('barcode');
   const [showPrice, setShowPrice] = useState(true);
   const [selectedBarcodes, setSelectedBarcodes] = useState<Set<string>>(new Set());
+  const [previewSrc, setPreviewSrc] = useState('');
   const companyName = (() => { try { return (session.getUser() || {}).companyName || ''; } catch { return ''; } })();
 
   useEffect(() => {
@@ -91,6 +92,17 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
       .finally(() => setLoading(false));
   }, [productId, barcodeRange]);
 
+  useEffect(() => {
+    const first = barcodes[0]?.barcode;
+    if (!first) { setPreviewSrc(''); return; }
+    let cancelled = false;
+    (async () => {
+      const src = codeType === 'barcode' ? await generateBarcodeDataUrl(first) : generateQrDataUrl(first, 60);
+      if (!cancelled) setPreviewSrc(src);
+    })();
+    return () => { cancelled = true; };
+  }, [barcodes, codeType]);
+
   const toggleBarcode = (bc: string) => {
     setSelectedBarcodes((prev) => {
       const next = new Set(prev);
@@ -102,19 +114,18 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
   const selectAll = () => setSelectedBarcodes(new Set(barcodes.map((b) => b.barcode)));
   const selectNone = () => setSelectedBarcodes(new Set());
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (!product) return;
     const selected = barcodes.filter((b) => selectedBarcodes.has(b.barcode));
     if (selected.length === 0) return;
 
     const labelWidth = format === 'a4-24' ? '63mm' : format === 'a4-40' ? '48mm' : '80mm';
     const labelHeight = format === 'a4-24' ? '33mm' : format === 'a4-40' ? '25mm' : '40mm';
-    const cols = format === 'a4-24' ? 3 : format === 'a4-40' ? 4 : 1;
     const imgHeight = format === 'a4-40' ? '18px' : '35px';
     const fontSize = format === 'a4-40' ? '7px' : '9px';
 
-    const labels = selected.map((b) => {
-      const codeImg = codeType === 'barcode' ? generateBarcodeDataUrl(b.barcode) : generateQrDataUrl(b.barcode);
+    const labelParts = await Promise.all(selected.map(async (b) => {
+      const codeImg = codeType === 'barcode' ? await generateBarcodeDataUrl(b.barcode) : generateQrDataUrl(b.barcode);
       const safeSrc = codeImg.startsWith('data:image/') ? codeImg : '';
       return `<div class="label">
         ${companyName ? `<div class="company">${esc(companyName)}</div>` : ''}
@@ -123,7 +134,8 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
         <div class="barcode-text">${esc(b.barcode)}</div>
         ${showPrice ? `<div class="price">₹${esc(Number(product.price).toLocaleString())}</div>` : ''}
       </div>`;
-    }).join('');
+    }));
+    const labels = labelParts.join('');
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Barcode Labels — ${esc(product.name)}</title>
 <style>
@@ -227,10 +239,8 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
               <div className="border border-gray-300 bg-white p-3 text-center" style={{ width: '180px' }}>
                 {companyName && <p style={{ fontSize: '8px', fontWeight: 700, color: '#666' }}>{companyName}</p>}
                 <p style={{ fontSize: '9px', fontWeight: 600 }}>{product?.name}</p>
-                {barcodes[0] && (
-                  codeType === 'barcode'
-                    ? <img src={generateBarcodeDataUrl(barcodes[0].barcode)} alt="barcode" style={{ height: '30px', margin: '4px auto' }} />
-                    : <img src={generateQrDataUrl(barcodes[0].barcode, 60)} alt="qr" style={{ height: '50px', margin: '4px auto' }} />
+                {barcodes[0] && previewSrc && (
+                  <img src={previewSrc} alt={codeType === 'barcode' ? 'barcode' : 'qr'} style={{ height: codeType === 'barcode' ? '30px' : '50px', margin: '4px auto' }} />
                 )}
                 <p style={{ fontSize: '8px', fontFamily: 'monospace', letterSpacing: '1px' }}>{barcodes[0]?.barcode}</p>
                 {showPrice && <p style={{ fontSize: '10px', fontWeight: 700 }}>₹{Number(product?.price || 0).toLocaleString()}</p>}

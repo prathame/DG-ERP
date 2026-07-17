@@ -33,18 +33,18 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { Tab } from './types';
 import { ToastProvider, LoadingSpinner } from './components/ui';
-import { LanguageProvider, useTranslation } from './i18n';
-import { LoginScreen } from './components/layout';
-import { LandingPage } from './components/layout/LandingPage';
+import { useTranslation } from './i18n';
 import { AppShutterIntro } from './components/layout/AppShutterIntro';
-import { PrivacyPolicy } from './components/layout/PrivacyPolicy';
-import { TermsOfService } from './components/layout/TermsOfService';
-import { DownloadPage } from './components/layout/DownloadPage';
-import { ChatWidget } from './components/layout/ChatWidget';
 import { session } from './lib/session';
 import { CommandPalette } from './components/ui/CommandPalette';
 import { OnlineStatus } from './platforms/desktop/offline';
 
+const LandingPage = lazy(() => import('./components/layout/LandingPage').then(m => ({ default: m.LandingPage })));
+const LoginScreen = lazy(() => import('./components/layout/LoginScreen').then(m => ({ default: m.LoginScreen })));
+const PrivacyPolicy = lazy(() => import('./components/layout/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })));
+const TermsOfService = lazy(() => import('./components/layout/TermsOfService').then(m => ({ default: m.TermsOfService })));
+const DownloadPage = lazy(() => import('./components/layout/DownloadPage').then(m => ({ default: m.DownloadPage })));
+const ChatWidget = lazy(() => import('./components/layout/ChatWidget').then(m => ({ default: m.ChatWidget })));
 const DashboardView = lazy(() => import('./features/dashboard/DashboardView').then(m => ({ default: m.DashboardView })));
 const SalesEntryView = lazy(() => import('./features/sales/SalesEntryView').then(m => ({ default: m.SalesEntryView })));
 const DistributionView = lazy(() => import('./features/distribution/DistributionView').then(m => ({ default: m.DistributionView })));
@@ -189,7 +189,7 @@ export default function App() {
         setActiveTabRaw(e.state.tab);
       } else {
         window.history.pushState({ tab: 'analytics' }, '', window.location.pathname);
-        setActiveTabRaw('dashboard');
+        setActiveTabRaw('analytics');
       }
     };
     window.addEventListener('popstate', onPopState);
@@ -258,20 +258,26 @@ export default function App() {
     const u = userConfig as Record<string, unknown> | null;
     if (!u) return 'hidden';
     const perms = u.permissions as Record<string, string> | string[] | null;
-    // Object format (new): { dashboard: "full", inventory: "view" }
+    // Object format (new): { analytics: "full", inventory: "view" }
+    // Treat legacy "dashboard" permission as "analytics" (nav id)
     if (perms && typeof perms === 'object' && !Array.isArray(perms)) {
-      const level = perms[tabId] as string;
+      const level = (perms[tabId] ?? (tabId === 'analytics' ? perms.dashboard : undefined) ?? (tabId === 'dashboard' ? perms.analytics : undefined)) as string | undefined;
       if (level === 'full' || level === 'print' || level === 'view' || level === 'hidden') return level;
       return 'hidden';
     }
-    // Array format (old): ["dashboard", "distribution"]
-    if (Array.isArray(perms)) return perms.includes(tabId) ? 'full' : 'hidden';
+    // Array format (old): ["dashboard", "distribution"] — map dashboard ↔ analytics
+    if (Array.isArray(perms)) {
+      if (perms.includes(tabId)) return 'full';
+      if (tabId === 'analytics' && perms.includes('dashboard')) return 'full';
+      if (tabId === 'dashboard' && perms.includes('analytics')) return 'full';
+      return 'hidden';
+    }
     // No permissions — role defaults
     const role = u.role as string ?? '';
     if (['Super Admin', 'Admin'].includes(role)) return 'full';
     if (role === 'Manager') return tabId === 'settings' ? 'view' : 'full';
     if (role === 'Staff') return 'view';
-    if (role === 'Vendor') return ['dashboard', 'distribution', 'finance'].includes(tabId) ? 'view' : 'hidden';
+    if (role === 'Vendor') return ['analytics', 'dashboard', 'distribution', 'finance'].includes(tabId) ? 'view' : 'hidden';
     // H10 fix: unknown role gets no access (was incorrectly returning 'full')
     return 'hidden';
   };
@@ -279,9 +285,14 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
+    // Normalize legacy dashboard tab → analytics (primary nav id)
+    if (activeTab === 'dashboard' && canAccess('analytics')) {
+      setActiveTabRaw('analytics');
+      return;
+    }
     if (!canAccess(activeTab)) {
-      const fallback = (['analytics', 'dashboard', 'distribution', 'finance', 'inventory'] as Tab[])
-        .find((t) => canAccess(t)) ?? 'dashboard';
+      const fallback = (['analytics', 'distribution', 'finance', 'inventory'] as Tab[])
+        .find((t) => canAccess(t)) ?? 'analytics';
       setActiveTabRaw(fallback);
     }
   }, [activeTab, user]);
@@ -329,9 +340,9 @@ export default function App() {
   }, [authState.isSuperAdmin, urlSlug]);
 
   // Static pages — now safe to return early (all hooks are above)
-  if (pathname === '/privacy') return <PrivacyPolicy />;
-  if (pathname === '/terms') return <TermsOfService />;
-  if (pathname === '/download') return <DownloadPage />;
+  if (pathname === '/privacy') return <Suspense fallback={<LazyFallback />}><PrivacyPolicy /></Suspense>;
+  if (pathname === '/terms') return <Suspense fallback={<LazyFallback />}><TermsOfService /></Suspense>;
+  if (pathname === '/download') return <Suspense fallback={<LazyFallback />}><DownloadPage /></Suspense>;
 
   // /admin route — super admin portal
   if (isSuperAdminRoute) {
@@ -381,11 +392,13 @@ export default function App() {
     if (urlSlug && tenantBranding) {
       return (
         <ToastProvider>
-          <LoginScreen
-            onLogin={handleLogin}
-            tenant={tenantBranding}
-            onChangeCompany={isMobileClient() ? goToMobileOnboarding : undefined}
-          />
+          <Suspense fallback={<LazyFallback />}>
+            <LoginScreen
+              onLogin={handleLogin}
+              tenant={tenantBranding}
+              onChangeCompany={isMobileClient() ? goToMobileOnboarding : undefined}
+            />
+          </Suspense>
         </ToastProvider>
       );
     }
@@ -425,7 +438,7 @@ export default function App() {
     // Root URL (/) — show company landing page (web)
     const isDesktop = new URLSearchParams(window.location.search).get('desktop') === '1';
     if (isDesktop) return <ElectronSlugEntry />;
-    return <LandingPage />;
+    return <Suspense fallback={<LazyFallback />}><LandingPage /></Suspense>;
   }
 
   const mobileNavIds = user?.role === 'Vendor'
@@ -518,7 +531,7 @@ export default function App() {
 
         {tv('chatbot') && (
           <div className="px-3 pt-1">
-            <ChatWidget />
+            <Suspense fallback={null}><ChatWidget /></Suspense>
           </div>
         )}
         {canAccess('settings') && (

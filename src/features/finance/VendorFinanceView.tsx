@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, ArrowLeft, Clock, MessageCircle, Send, Search, Printer, Upload, FileSpreadsheet, Check, X, AlertTriangle } from 'lucide-react';
 import { cn, shareViaWhatsApp, formatDate, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
@@ -319,6 +318,7 @@ export function VendorFinanceView({ user, accessLevel = 'full' }: { user: { id: 
             <input type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={async (e) => {
               const file = e.target.files?.[0]; if (!file) return; e.target.value = '';
               const buf = await file.arrayBuffer();
+              const XLSX = await import('xlsx');
               const wb = XLSX.read(buf, { type: 'array', cellDates: true });
               const ws = wb.Sheets[wb.SheetNames[0]];
               // Bank statements often have metadata rows before actual headers — find the real header row

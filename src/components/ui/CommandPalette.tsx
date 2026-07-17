@@ -33,6 +33,8 @@ export function CommandPalette({ items, onSelect, onClose }: {
     else if (e.key === 'Escape') { onClose(); }
   }, [filtered, activeIdx, onSelect, onClose]);
 
+  const activeId = filtered[activeIdx] ? `cmd-item-${filtered[activeIdx].id}` : undefined;
+
   return (
     <>
       <motion.div
@@ -41,18 +43,27 @@ export function CommandPalette({ items, onSelect, onClose }: {
         exit={{ opacity: 0 }}
         className="fixed inset-0 bg-black/40 z-[300]"
         onClick={onClose}
+        aria-hidden="true"
       />
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
         initial={{ opacity: 0, scale: 0.95, y: -20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: -20 }}
         transition={{ duration: 0.15 }}
-        className="fixed top-[20%] left-1/2 -translate-x-1/2 w-full max-w-lg z-[301] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
+        className="fixed top-[12%] sm:top-[20%] left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-lg max-h-[80dvh] z-[301] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col"
       >
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-          <Search size={20} className="text-gray-400 shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 shrink-0">
+          <Search size={20} className="text-gray-400 shrink-0" aria-hidden="true" />
           <input
             ref={inputRef}
+            role="combobox"
+            aria-expanded={filtered.length > 0}
+            aria-controls="command-palette-list"
+            aria-activedescendant={activeId}
+            aria-autocomplete="list"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKey}
@@ -60,18 +71,21 @@ export function CommandPalette({ items, onSelect, onClose }: {
             className="flex-1 text-sm outline-none bg-transparent placeholder:text-gray-400"
           />
           <kbd className="hidden sm:inline text-[10px] font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">ESC</kbd>
-          <button type="button" onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md sm:hidden">
+          <button type="button" onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md sm:hidden" aria-label="Close search">
             <X size={16} className="text-gray-400" />
           </button>
         </div>
-        <div ref={listRef} className="max-h-[320px] overflow-y-auto py-2">
+        <div id="command-palette-list" ref={listRef} role="listbox" className="max-h-[320px] overflow-y-auto py-2">
           {filtered.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">No results for "{query}"</p>
+            <p className="text-sm text-gray-400 text-center py-8" role="status">No results for "{query}"</p>
           ) : (
             filtered.map((item, idx) => (
               <button
+                id={`cmd-item-${item.id}`}
                 key={item.id}
                 type="button"
+                role="option"
+                aria-selected={idx === activeIdx}
                 onClick={() => { onSelect(item.id); onClose(); }}
                 onMouseEnter={() => setActiveIdx(idx)}
                 className={cn(
