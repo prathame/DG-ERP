@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`electron/onprem/main.ts` is part of Dhandho (DG-ERP). Approximate size: **427 lines**.
+`electron/onprem/main.ts` is part of Dhandho (DG-ERP). Approximate size: **444 lines**.
 
 ## Business value
 
@@ -35,7 +35,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (10 detected)
+## Functions (14 detected)
 
 ### Function: getIcon
 
@@ -142,6 +142,21 @@ openMainWindow(slug: string)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: data
+
+```ts
+data(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `electron/onprem/main.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `data` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 ### Function: alreadyApplied
 
 ```ts
@@ -172,6 +187,21 @@ tc(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: result
+
+```ts
+result(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `electron/onprem/main.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `result` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 ### Function: applyNotifBody
 
 ```ts
@@ -183,6 +213,36 @@ applyNotifBody(...)
 | Purpose | Symbol in `electron/onprem/main.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `applyNotifBody` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: markNotifBody
+
+```ts
+markNotifBody(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `electron/onprem/main.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `markNotifBody` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: errBody
+
+```ts
+errBody(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `electron/onprem/main.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `errBody` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -203,7 +263,7 @@ rg -n "main" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **427**. Large view/route files are refactor candidates.
+Line count **444**. Large view/route files are refactor candidates.
 
 ## Security impact
 

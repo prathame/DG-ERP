@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/super-admin.ts` is part of Dhandho (DG-ERP). Approximate size: **1459 lines**.
+`server/routes/super-admin.ts` is part of Dhandho (DG-ERP). Approximate size: **1466 lines**.
 
 ## Business value
 
@@ -473,7 +473,7 @@ rg -n "super-admin" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **1459**. Large view/route files are refactor candidates.
+Line count **1466**. Large view/route files are refactor candidates.
 
 ## Security impact
 

@@ -143,6 +143,12 @@ router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
         createdAt: r.created_at ? new Date(r.created_at as string).toISOString() : new Date().toISOString(),
         expiresAt: r.expires_at ? new Date(r.expires_at as string).toISOString() : null,
       }));
+      if (pendingNotifications.length > 0) {
+        logger.info('On-prem heartbeat pending notifications', {
+          licenseId: lic.id,
+          pending: pendingNotifications.length,
+        });
+      }
     }
 
     res.json({
@@ -191,8 +197,9 @@ router.post('/api/onprem/mark-applied', onpremLimiter, async (req, res) => {
     if (!lic || lic.status !== 'active') {
       return res.status(404).json({ error: 'Invalid or inactive license' });
     }
-    if (body.machineId && lic.machine_id && body.machineId !== lic.machine_id) {
-      return res.status(403).json({ error: 'Machine mismatch' });
+    if (lic.machine_id) {
+      if (!body.machineId) return res.status(403).json({ error: 'machineId required' });
+      if (body.machineId !== lic.machine_id) return res.status(403).json({ error: 'Machine mismatch' });
     }
     // Clear forceSyncAt so the device does not re-apply/reload on every heartbeat
     const updated = await pool.query(
@@ -248,12 +255,29 @@ router.get('/api/onprem/tab-config', async (req, res) => {
   }
 });
 
+function assertLocalOnpremOnly(
+  req: { socket: { remoteAddress?: string } },
+  res: {
+    status: (n: number) => { json: (b: unknown) => unknown };
+  },
+): boolean {
+  const ip = req.socket.remoteAddress || '';
+  if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip)) {
+    res.status(403).json({ error: 'Localhost only' });
+    return false;
+  }
+  const isTest = process.env.VITEST === 'true' || process.env.NODE_ENV === 'test';
+  if (process.env.DEPLOYMENT_MODE !== 'onprem' && !isTest) {
+    res.status(403).json({ error: 'On-prem only' });
+    return false;
+  }
+  return true;
+}
+
 // ── Apply SA notifications from cloud into local Bell feed ───────────────────
 router.post('/api/onprem/apply-notifications', async (req, res) => {
   try {
-    const ip = req.socket.remoteAddress || '';
-    if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip))
-      return res.status(403).json({ error: 'Localhost only' });
+    if (!assertLocalOnpremOnly(req, res)) return;
     const { licenseKey, notifications } = req.body as {
       licenseKey?: string;
       notifications?: {
@@ -270,24 +294,27 @@ router.post('/api/onprem/apply-notifications', async (req, res) => {
       return res.status(400).json({ error: 'licenseKey required' });
     }
     if (!Array.isArray(notifications) || notifications.length === 0) {
-      return res.json({ ok: true, applied: 0, ids: [] as string[] });
+      return res.json({ ok: true, inserted: 0, ids: [] as string[] });
     }
 
     const tenant = (await pool.query("SELECT id FROM tenants WHERE slug != 'OWNER' LIMIT 1")).rows[0] as
       { id: string } | undefined;
-    if (!tenant) return res.json({ ok: true, skipped: true, applied: 0, ids: [] as string[] });
+    if (!tenant) return res.json({ ok: true, skipped: true, inserted: 0, ids: [] as string[] });
 
-    const appliedIds: string[] = [];
+    const ackIds: string[] = [];
+    let inserted = 0;
     for (const n of notifications.slice(0, 20)) {
       if (!n?.id || !n?.title || !n?.body) continue;
+      if (n.expiresAt && new Date(n.expiresAt).getTime() < Date.now()) continue;
       const notifType = ['info', 'warning', 'success'].includes(String(n.type)) ? String(n.type) : 'info';
+      const id = String(n.id).slice(0, 64);
       const result = await pool.query(
         `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, created_at, expires_at)
          VALUES ($1,$2,$3,$4,$5,$6,COALESCE($7::timestamptz, NOW()),$8)
          ON CONFLICT (id, tenant_id) DO NOTHING
          RETURNING id`,
         [
-          String(n.id).slice(0, 64),
+          id,
           tenant.id,
           String(n.title).slice(0, 200),
           String(n.body).slice(0, 2000),
@@ -297,14 +324,15 @@ router.post('/api/onprem/apply-notifications', async (req, res) => {
           n.expiresAt || null,
         ],
       );
-      if (result.rows[0]) appliedIds.push(String(n.id));
-      else appliedIds.push(String(n.id)); // already present — still ack as delivered
+      ackIds.push(id);
+      if (result.rows[0]) inserted++;
     }
     logger.info('On-prem notifications applied locally', {
       tenantId: tenant.id,
-      applied: appliedIds.length,
+      inserted,
+      ack: ackIds.length,
     });
-    res.json({ ok: true, applied: appliedIds.length, ids: appliedIds });
+    res.json({ ok: true, inserted, applied: inserted, ids: ackIds });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -327,8 +355,9 @@ router.post('/api/onprem/mark-notifications-delivered', onpremLimiter, async (re
     if (!lic || lic.status !== 'active') {
       return res.status(404).json({ error: 'Invalid or inactive license' });
     }
-    if (machineId && lic.machine_id && machineId !== lic.machine_id) {
-      return res.status(403).json({ error: 'Machine mismatch' });
+    if (lic.machine_id) {
+      if (!machineId) return res.status(403).json({ error: 'machineId required' });
+      if (machineId !== lic.machine_id) return res.status(403).json({ error: 'Machine mismatch' });
     }
 
     const safeIds = ids.map(String).slice(0, 50);
@@ -350,10 +379,7 @@ router.post('/api/onprem/mark-notifications-delivered', onpremLimiter, async (re
 // ── Apply settings pushed from cloud (tab config, feature toggles) ────────────
 router.post('/api/onprem/apply-settings', async (req, res) => {
   try {
-    // Use socket peer address — ignore X-Forwarded-For (trust proxy bypass)
-    const ip = req.socket.remoteAddress || '';
-    if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip))
-      return res.status(403).json({ error: 'Localhost only' });
+    if (!assertLocalOnpremOnly(req, res)) return;
     const { licenseKey, settings } = req.body as { licenseKey: string; settings: Record<string, unknown> };
 
     // Localhost-only endpoint. On-prem local DB usually has no onprem_licenses row

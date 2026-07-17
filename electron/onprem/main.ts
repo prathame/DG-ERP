@@ -144,7 +144,10 @@ async function sendHeartbeat(): Promise<void> {
               const markRes = await fetch(`${CLOUD_API}/api/onprem/mark-applied`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ licenseKey: licenseInfo.licenseKey }),
+                body: JSON.stringify({
+                  licenseKey: licenseInfo.licenseKey,
+                  machineId: getMachineId(),
+                }),
               });
               const markBody = await markRes.json().catch(() => ({}));
               console.log(`[sync] mark-applied → ${CLOUD_API} status=${markRes.status}`, markBody);
@@ -185,11 +188,13 @@ async function sendHeartbeat(): Promise<void> {
         });
         const applyNotifBody = (await applyNotifRes.json().catch(() => ({}))) as {
           ok?: boolean;
+          inserted?: number;
           applied?: number;
           ids?: string[];
         };
         console.log(`[sync] apply-notifications → ${applyNotifRes.status}`, applyNotifBody);
         if (applyNotifRes.ok && applyNotifBody.ids?.length) {
+          let markedOk = false;
           try {
             const markNotifRes = await fetch(`${CLOUD_API}/api/onprem/mark-notifications-delivered`, {
               method: 'POST',
@@ -200,15 +205,18 @@ async function sendHeartbeat(): Promise<void> {
                 ids: applyNotifBody.ids,
               }),
             });
-            const markNotifBody = await markNotifRes.json().catch(() => ({}));
+            const markNotifBody = (await markNotifRes.json().catch(() => ({}))) as { marked?: number };
             console.log(
               `[sync] mark-notifications-delivered → ${CLOUD_API} status=${markNotifRes.status}`,
               markNotifBody,
             );
+            markedOk = markNotifRes.ok;
           } catch (e) {
             console.error('[sync] mark-notifications-delivered failed:', e);
           }
-          if ((applyNotifBody.applied ?? 0) > 0) shouldReload = true;
+          // Reload only for newly inserted rows after a successful cloud ack (avoids reload loops)
+          const inserted = applyNotifBody.inserted ?? applyNotifBody.applied ?? 0;
+          if (markedOk && inserted > 0) shouldReload = true;
         }
       } catch (err) {
         console.error('[sync] apply-notifications failed:', err);

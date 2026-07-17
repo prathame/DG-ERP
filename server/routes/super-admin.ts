@@ -1400,6 +1400,13 @@ router.post('/api/super-admin/notifications/broadcast', superAdminMiddleware, as
       );
       onpremSent++;
     }
+    if (onpremSent > 0) {
+      await pool.query(
+        `INSERT INTO audit_log (tenant_id, action, entity_type, entity_id, details, user_id, user_name, created_at)
+         VALUES (NULL,'SYSTEM_NOTIFICATION','onprem_notification',NULL,$1,$2,'Super Admin',NOW())`,
+        [`SA broadcast on-prem: ${safeTitle} (${notifType}) → ${onpremSent} license(s)`, saId || null],
+      );
+    }
     logger.info('SA notification broadcast', {
       sent,
       onpremSent,

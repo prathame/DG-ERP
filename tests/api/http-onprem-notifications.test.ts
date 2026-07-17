@@ -120,4 +120,69 @@ describe('HTTP: on-prem SA notifications via heartbeat', () => {
     ).rows[0];
     expect(row).toBeTruthy();
   });
+
+  it('wrong machineId gets no pending and mark-delivered 403', async () => {
+    const notifId = uid('OPN');
+    await pool.query(
+      `INSERT INTO onprem_notifications (id, license_id, title, body, type, source, expires_at)
+       VALUES ($1,$2,'Machine Gate','Body','info','super_admin', NOW() + INTERVAL '30 days')`,
+      [notifId, LICENSE_ID],
+    );
+
+    const hb = await api().post('/api/onprem/heartbeat').send({
+      licenseKey: LICENSE_KEY,
+      machineId: 'wrong-machine',
+    });
+    expect(hb.status).toBe(200);
+    expect(hb.body.licenseValid).toBe(false);
+    expect(hb.body.pendingNotifications || []).toEqual([]);
+
+    const mark = await api()
+      .post('/api/onprem/mark-notifications-delivered')
+      .send({
+        licenseKey: LICENSE_KEY,
+        machineId: 'wrong-machine',
+        ids: [notifId],
+      });
+    expect(mark.status).toBe(403);
+
+    const markMissing = await api()
+      .post('/api/onprem/mark-notifications-delivered')
+      .send({
+        licenseKey: LICENSE_KEY,
+        ids: [notifId],
+      });
+    expect(markMissing.status).toBe(403);
+  });
+
+  it('expired on-prem notifications are not returned', async () => {
+    const notifId = uid('OPN');
+    await pool.query(
+      `INSERT INTO onprem_notifications (id, license_id, title, body, type, source, expires_at)
+       VALUES ($1,$2,'Expired','Body','info','super_admin', NOW() - INTERVAL '1 day')`,
+      [notifId, LICENSE_ID],
+    );
+    const hb = await api().post('/api/onprem/heartbeat').send({
+      licenseKey: LICENSE_KEY,
+      machineId: 'machine-test-notif',
+    });
+    const pending = (hb.body.pendingNotifications as { id: string }[]) || [];
+    expect(pending.some(p => p.id === notifId)).toBe(false);
+  });
+
+  it('idempotent re-apply still returns ids for ack', async () => {
+    const notifId = uid('OPN');
+    const payload = {
+      licenseKey: LICENSE_KEY,
+      notifications: [{ id: notifId, title: 'Idem', body: 'Body', type: 'info' }],
+    };
+    const first = await api().post('/api/onprem/apply-notifications').send(payload);
+    expect(first.status).toBe(200);
+    expect(first.body.inserted).toBeGreaterThanOrEqual(1);
+
+    const second = await api().post('/api/onprem/apply-notifications').send(payload);
+    expect(second.status).toBe(200);
+    expect(second.body.ids).toContain(notifId);
+    expect(second.body.inserted).toBe(0);
+  });
 });

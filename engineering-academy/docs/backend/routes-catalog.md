@@ -38,7 +38,8 @@ flowchart TB
 | `banks.ts` | `/api/banks` | `accounts` | Admin bank master |
 | `finance.ts` | `/api/vendor-finance` | `finance` | Receivables, reminders, bank statement |
 | `invoice-finance.ts` | `/api/invoice-finance` | `finance` | Party-keyed collections (`partyKey`); payments against standalone invoices |
-| `onprem.ts` | `/api/onprem/*`, `/api/super-admin/onprem` | public + SA | License activate/heartbeat; localhost provision |
+| `onprem.ts` | `/api/onprem/*`, `/api/super-admin/onprem` | public + SA | License activate/heartbeat; settings + Bell sync; localhost provision |
+| `notifications.ts` | `/api/notifications` | auth (ungated module) | Quiet Bell feed: SA messages + digests |
 | `mobile.ts` | `/api/mobile/*`, SA mobile invites | public + auth | Invite redeem, heartbeat, devices |
 | `auth.ts` | `/api/auth/*`, `/api/settings/profile` | public / self | Login, reset, profile, self-delete |
 | `admin.ts` | `/api/admin/users` | `settings` | Tenant user CRUD |
@@ -68,7 +69,7 @@ Defined in `PUBLIC_PATHS` inside `app.ts`:
 
 - Auth: login, forgot/reset password  
 - SA login, tenant-by-slug, health, manifest  
-- On-prem: activate, heartbeat, deactivate, provision, apply-settings, mark-applied  
+- On-prem: activate, heartbeat, deactivate, provision, apply-settings, apply-notifications, mark-applied, mark-notifications-delivered  
 - Mobile: redeem-invite, heartbeat  
 
 Everything else → Bearer JWT required.
