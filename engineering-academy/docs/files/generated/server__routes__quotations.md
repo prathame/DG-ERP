@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/quotations.ts` is part of Dhandho (DG-ERP). Approximate size: **469 lines**.
+`server/routes/quotations.ts` is part of Dhandho (DG-ERP). Approximate size: **753 lines**.
 
 ## Business value
 
@@ -26,6 +26,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../utils/helpers`
 - `../utils/http-error`
 - `../utils/price-resolve`
+- `../utils/gst-place`
 
 ## Exports and symbols
 
@@ -33,19 +34,86 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (9 detected)
+## Functions (17 detected)
 
-### Function: rows
+### Function: todayYmd
 
 ```ts
-rows(...)
+todayYmd()
 ```
 
 | Aspect | Detail |
 | --- | --- |
 | Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `rows` before deleting. |
+| What breaks if removed | Search the repo for `todayYmd` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: mapQuote
+
+```ts
+mapQuote(r: Record<string, unknown>)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `mapQuote` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: expireIfNeeded
+
+```ts
+expireIfNeeded(client: { query: typeof pool.query },
+  row: Record<string, unknown>,
+  tenantId: string,)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `expireIfNeeded` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: buildResolvedItems
+
+```ts
+buildResolvedItems(tenantId: string,
+  vendorId: string | null | undefined,
+  items: QuoteItemInput[],
+  rate: number,)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `buildResolvedItems` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: resolveVendorName
+
+```ts
+resolveVendorName(tenantId: string,
+  vendorId: string | null | undefined,
+  customerName: string | null | undefined,)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `resolveVendorName` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -65,21 +133,6 @@ product(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: maxNum
-
-```ts
-maxNum(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `maxNum` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
 ### Function: v
 
 ```ts
@@ -95,17 +148,32 @@ v(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: row
+### Function: rows
 
 ```ts
-row(...)
+rows(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
 | Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `row` before deleting. |
+| What breaks if removed | Search the repo for `rows` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: maxNum
+
+```ts
+maxNum(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `maxNum` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -125,17 +193,47 @@ current(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: quote
+### Function: row
 
 ```ts
-quote(...)
+row(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
 | Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `quote` before deleting. |
+| What breaks if removed | Search the repo for `row` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: tenantType
+
+```ts
+tenantType(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `tenantType` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: items
+
+```ts
+items(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `items` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -151,6 +249,36 @@ date(...)
 | Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `date` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: bs
+
+```ts
+bs(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `bs` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: t
+
+```ts
+t(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `t` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -186,7 +314,7 @@ rg -n "quotations" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **469**. Large view/route files are refactor candidates.
+Line count **753**. Large view/route files are refactor candidates.
 
 ## Security impact
 

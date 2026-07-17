@@ -634,6 +634,8 @@ router.get('/api/accounts/notes', async (req, res) => {
         gstAmount: Number(r.gst_amount) || 0,
         total: Number(r.total) || 0,
         referenceInvoice: r.reference_invoice,
+        referenceType: (r.reference_type as string) || null,
+        referenceId: (r.reference_id as string) || null,
         status: r.status,
       })),
     );
@@ -646,12 +648,32 @@ router.post('/api/accounts/notes', blockVendors, async (req: AuthRequest, res) =
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { noteType, vendorId, vendorName, customerName, noteDate, reason, items, gstRate, referenceInvoice } =
-      req.body;
+    const {
+      noteType,
+      vendorId,
+      vendorName,
+      customerName,
+      noteDate,
+      reason,
+      items,
+      gstRate,
+      referenceInvoice,
+      referenceType,
+      referenceId,
+    } = req.body;
     if (!noteType || !['credit', 'debit'].includes(noteType))
       return res.status(400).json({ error: 'noteType must be credit or debit' });
     if (!items || !Array.isArray(items) || items.length === 0)
       return res.status(400).json({ error: 'At least one item required' });
+
+    let resolvedRefType: string | null = null;
+    if (referenceType != null && referenceType !== '') {
+      if (!['invoice', 'distribution', 'quotation'].includes(referenceType)) {
+        return res.status(400).json({ error: "referenceType must be 'invoice', 'distribution', or 'quotation'" });
+      }
+      resolvedRefType = referenceType;
+    }
+    const resolvedRefId = referenceId || null;
 
     const id = uid(noteType === 'credit' ? 'CN' : 'DN');
     const prefix = noteType === 'credit' ? 'CN' : 'DN';
@@ -702,8 +724,8 @@ router.post('/api/accounts/notes', blockVendors, async (req: AuthRequest, res) =
     }
 
     await pool.query(
-      `INSERT INTO credit_debit_notes (id, tenant_id, note_number, note_type, vendor_id, vendor_name, customer_name, note_date, reason, items, subtotal, gst_rate, gst_amount, total, reference_invoice)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      `INSERT INTO credit_debit_notes (id, tenant_id, note_number, note_type, vendor_id, vendor_name, customer_name, note_date, reason, items, subtotal, gst_rate, gst_amount, total, reference_invoice, reference_type, reference_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
       [
         id,
         tenantId,
@@ -720,6 +742,8 @@ router.post('/api/accounts/notes', blockVendors, async (req: AuthRequest, res) =
         gstAmount,
         total,
         referenceInvoice || null,
+        resolvedRefType,
+        resolvedRefId,
       ],
     );
 
@@ -731,17 +755,15 @@ router.post('/api/accounts/notes', blockVendors, async (req: AuthRequest, res) =
       id,
       `${noteNum} — ₹${total} for ${vName || customerName || 'N/A'}`,
     );
-    res
-      .status(201)
-      .json({
-        id,
-        noteNumber: noteNum,
-        noteType,
-        vendorName: vName,
-        customerName: customerName || vName,
-        total,
-        status: 'Active',
-      });
+    res.status(201).json({
+      id,
+      noteNumber: noteNum,
+      noteType,
+      vendorName: vName,
+      customerName: customerName || vName,
+      total,
+      status: 'Active',
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/distribution/DistributionView.tsx` is part of Dhandho (DG-ERP). Approximate size: **2631 lines**.
+`src/features/distribution/DistributionView.tsx` is part of Dhandho (DG-ERP). Approximate size: **2630 lines**.
 
 ## Business value
 
@@ -435,7 +435,7 @@ rg -n "DistributionView" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **2631**. Large view/route files are refactor candidates.
+Line count **2630**. Large view/route files are refactor candidates.
 
 ## Security impact
 

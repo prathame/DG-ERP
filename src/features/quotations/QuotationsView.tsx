@@ -52,6 +52,7 @@ interface Quotation {
     lineNet: number;
     lineGst: number;
     lineTotal: number;
+    convertedQty?: number;
   }[];
   subtotal: number;
   gstRate: number;
@@ -59,6 +60,7 @@ interface Quotation {
   total: number;
   notes?: string;
   convertedBatchId?: string;
+  convertedInvoiceId?: string | null;
 }
 
 export function QuotationsView() {
@@ -71,8 +73,13 @@ export function QuotationsView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Quotation | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'Draft' | 'Sent' | 'Accepted' | 'Converted'>('all');
+  const [partialConvert, setPartialConvert] = useState<{
+    quote: Quotation;
+    lines: { lineIndex: number; productId: string; productName: string; remaining: number; qty: number }[];
+  } | null>(null);
 
   const [form, setForm] = useState({
     vendorId: '',
@@ -91,10 +98,15 @@ export function QuotationsView() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const sessionUser = session.getUser() as Record<string, unknown> | null;
   const companyName = String(sessionUser?.companyName || '');
+  const isService = String(sessionUser?.businessType || '') === 'service';
+  const convertLabel = isService ? 'Convert to Invoice' : 'Convert to Distribution';
 
   useEscapeKey(() => {
-    if (modalOpen) setModalOpen(false);
-    else if (selectedId) {
+    if (partialConvert) setPartialConvert(null);
+    else if (modalOpen) {
+      setModalOpen(false);
+      setEditingId(null);
+    } else if (selectedId) {
       setSelectedId(null);
       setSelected(null);
     }
@@ -243,6 +255,43 @@ export function QuotationsView() {
     { net: 0, gst: 0, total: 0, items: 0 },
   );
 
+  const resetForm = () => {
+    setEditingId(null);
+    setRows([{ productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }]);
+    setForm({
+      vendorId: '',
+      customerName: '',
+      customerPhone: '',
+      customerEmail: '',
+      date: new Date().toISOString().slice(0, 10),
+      validUntil: '',
+      notes: '',
+    });
+  };
+
+  const openEditDraft = (q: Quotation) => {
+    setEditingId(q.id);
+    setForm({
+      vendorId: q.vendorId || '',
+      customerName: q.customerName || '',
+      customerPhone: q.customerPhone || '',
+      customerEmail: q.customerEmail || '',
+      date: String(q.quotationDate).slice(0, 10),
+      validUntil: q.validUntil ? String(q.validUntil).slice(0, 10) : '',
+      notes: q.notes || '',
+    });
+    setRows(
+      q.items.map(i => ({
+        productId: i.productId,
+        quantity: i.quantity,
+        customPrice: String(i.price),
+        discount: i.discountPercent || 0,
+        withGst: i.withGst !== false,
+      })),
+    );
+    setModalOpen(true);
+  };
+
   const handleCreate = async () => {
     const validRows = rows.filter(r => r.productId && r.quantity > 0);
     if (validRows.length === 0) {
@@ -251,39 +300,37 @@ export function QuotationsView() {
     }
     setSubmitting(true);
     try {
-      await fetchApi('/quotations', {
-        method: 'POST',
-        body: JSON.stringify({
-          vendorId: form.vendorId || undefined,
-          customerName: form.customerName || undefined,
-          customerPhone: form.customerPhone || undefined,
-          customerEmail: form.customerEmail || undefined,
-          quotationDate: form.date,
-          validUntil: form.validUntil || undefined,
-          gstRate: defaultGstRate,
-          notes: form.notes || undefined,
-          items: validRows.map(r => ({
-            productId: r.productId,
-            quantity: r.quantity,
-            customPrice: r.customPrice ? parseFloat(r.customPrice) : undefined,
-            discountPercent: r.discount > 0 ? r.discount : undefined,
-            withGst: r.withGst,
-          })),
-        }),
-      });
+      const body = {
+        vendorId: form.vendorId || undefined,
+        customerName: form.customerName || undefined,
+        customerPhone: form.customerPhone || undefined,
+        customerEmail: form.customerEmail || undefined,
+        quotationDate: form.date,
+        validUntil: form.validUntil || undefined,
+        gstRate: defaultGstRate,
+        notes: form.notes || undefined,
+        items: validRows.map(r => ({
+          productId: r.productId,
+          quantity: r.quantity,
+          customPrice: r.customPrice ? parseFloat(r.customPrice) : undefined,
+          discountPercent: r.discount > 0 ? r.discount : undefined,
+          withGst: r.withGst,
+        })),
+      };
+      if (editingId) {
+        await fetchApi(`/quotations/${editingId}`, { method: 'PUT', body: JSON.stringify(body) });
+        toast('Quotation updated', 'success');
+      } else {
+        await fetchApi('/quotations', { method: 'POST', body: JSON.stringify(body) });
+        toast('Quotation created', 'success');
+      }
       setModalOpen(false);
-      setRows([{ productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }]);
-      setForm({
-        vendorId: '',
-        customerName: '',
-        customerPhone: '',
-        customerEmail: '',
-        date: new Date().toISOString().slice(0, 10),
-        validUntil: '',
-        notes: '',
-      });
+      resetForm();
       load();
-      toast('Quotation created', 'success');
+      if (editingId && selectedId === editingId) {
+        const refreshed = await fetchApi<Quotation>(`/quotations/${editingId}`);
+        setSelected(refreshed);
+      }
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
@@ -291,25 +338,68 @@ export function QuotationsView() {
     }
   };
 
-  const handleConvert = async (q: Quotation) => {
-    if (
-      !(await confirm({
-        title: 'Convert to Distribution',
-        message: `Convert ${q.quotationNumber}? This will deduct stock.`,
-        confirmLabel: 'Convert',
-        variant: 'warning',
-      }))
-    )
+  const openConvert = (q: Quotation) => {
+    const lines = q.items
+      .map((i, lineIndex) => {
+        const remaining = i.quantity - (Number(i.convertedQty) || 0);
+        return {
+          lineIndex,
+          productId: i.productId,
+          productName: i.productName,
+          remaining,
+          qty: remaining,
+        };
+      })
+      .filter(l => l.remaining > 0);
+    if (lines.length === 0) {
+      toast('Nothing left to convert', 'error');
       return;
+    }
+    setPartialConvert({ quote: q, lines });
+  };
+
+  const handleConvertSubmit = async (full: boolean) => {
+    if (!partialConvert) return;
+    const q = partialConvert.quote;
+    const items = full
+      ? undefined
+      : partialConvert.lines
+          .filter(l => l.qty > 0)
+          .map(l => ({ productId: l.productId, quantity: l.qty, lineIndex: l.lineIndex }));
+    if (!full && (!items || items.length === 0)) {
+      toast('Select at least one quantity to convert', 'error');
+      return;
+    }
+    const msg = isService
+      ? `Convert ${q.quotationNumber} to a standalone invoice?`
+      : `Convert ${q.quotationNumber}? This will deduct stock.`;
+    if (!(await confirm({ title: convertLabel, message: msg, confirmLabel: 'Convert', variant: 'warning' }))) return;
     try {
-      const result = await fetchApi<{ batchId: string; total: number; billValue: number }>(
-        `/quotations/${q.id}/convert`,
-        { method: 'POST' },
-      );
-      toast(
-        `Converted! Distribution ${result.batchId} created — ${result.total} items, ₹${result.billValue}`,
-        'success',
-      );
+      const result = await fetchApi<{
+        batchId?: string;
+        invoiceId?: string;
+        invoiceNumber?: string;
+        total?: number;
+        billValue?: number;
+        grandTotal?: number;
+        fullyConverted?: boolean;
+        target?: string;
+      }>(`/quotations/${q.id}/convert`, {
+        method: 'POST',
+        body: JSON.stringify(items ? { items } : {}),
+      });
+      if (result.target === 'invoice') {
+        toast(
+          `Invoice ${result.invoiceNumber} created${result.fullyConverted ? '' : ' (partial)'} — ₹${result.grandTotal}`,
+          'success',
+        );
+      } else {
+        toast(
+          `Distribution ${result.batchId} — ${result.total} items, ₹${result.billValue}${result.fullyConverted ? '' : ' (partial)'}`,
+          'success',
+        );
+      }
+      setPartialConvert(null);
       load();
       setSelectedId(null);
       setSelected(null);
@@ -414,13 +504,22 @@ export function QuotationsView() {
                 {selected.status}
               </span>
               {selected.status === 'Draft' && (
-                <button
-                  type="button"
-                  onClick={() => handleStatusChange(selected, 'Sent')}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"
-                >
-                  <Send size={14} /> Mark Sent
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => openEditDraft(selected)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                  >
+                    Edit Draft
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange(selected, 'Sent')}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"
+                  >
+                    <Send size={14} /> Mark Sent
+                  </button>
+                </>
               )}
               {selected.status === 'Sent' && (
                 <button
@@ -431,13 +530,13 @@ export function QuotationsView() {
                   <Check size={14} /> Accepted
                 </button>
               )}
-              {(selected.status === 'Accepted' || selected.status === 'Draft') && selected.vendorId && (
+              {selected.status === 'Accepted' && (isService || selected.vendorId) && (
                 <button
                   type="button"
-                  onClick={() => handleConvert(selected)}
+                  onClick={() => openConvert(selected)}
                   className="flex items-center gap-1 px-3 py-1.5 text-sm font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg"
                 >
-                  <ArrowRight size={14} /> Convert to Distribution
+                  <ArrowRight size={14} /> {convertLabel}
                 </button>
               )}
               <button
@@ -512,17 +611,28 @@ export function QuotationsView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {selected.items.map((item, i) => (
-                  <tr key={i}>
-                    <td className="py-2">{item.productName}</td>
-                    <td className="py-2 text-right">{item.quantity}</td>
-                    <td className="py-2 text-right">₹{item.price.toLocaleString()}</td>
-                    <td className="py-2 text-right">{item.discountPercent}%</td>
-                    <td className="py-2 text-right">₹{item.lineNet.toLocaleString()}</td>
-                    <td className="py-2 text-right">₹{item.lineGst.toLocaleString()}</td>
-                    <td className="py-2 text-right font-bold">₹{item.lineTotal.toLocaleString()}</td>
-                  </tr>
-                ))}
+                {selected.items.map((item, i) => {
+                  const converted = Number(item.convertedQty) || 0;
+                  const remaining = item.quantity - converted;
+                  return (
+                    <tr key={i}>
+                      <td className="py-2">
+                        {item.productName}
+                        {converted > 0 && (
+                          <span className="block text-xs text-gray-400">
+                            Converted {converted} · Remaining {remaining}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 text-right">{item.quantity}</td>
+                      <td className="py-2 text-right">₹{item.price.toLocaleString()}</td>
+                      <td className="py-2 text-right">{item.discountPercent}%</td>
+                      <td className="py-2 text-right">₹{item.lineNet.toLocaleString()}</td>
+                      <td className="py-2 text-right">₹{item.lineGst.toLocaleString()}</td>
+                      <td className="py-2 text-right font-bold">₹{item.lineTotal.toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-gray-300 font-bold">
@@ -556,7 +666,10 @@ export function QuotationsView() {
         </div>
         <button
           type="button"
-          onClick={() => setModalOpen(true)}
+          onClick={() => {
+            resetForm();
+            setModalOpen(true);
+          }}
           className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
         >
           <Plus size={16} /> New Quotation
@@ -626,7 +739,7 @@ export function QuotationsView() {
               animate={{ opacity: 1, scale: 1 }}
               className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto p-6"
             >
-              <h3 className="text-lg font-bold mb-4">New Quotation</h3>
+              <h3 className="text-lg font-bold mb-4">{editingId ? 'Edit Draft Quotation' : 'New Quotation'}</h3>
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Vendor / Customer</label>
@@ -852,7 +965,10 @@ export function QuotationsView() {
               <div className="flex gap-3 mt-4">
                 <button
                   type="button"
-                  onClick={() => setModalOpen(false)}
+                  onClick={() => {
+                    setModalOpen(false);
+                    resetForm();
+                  }}
                   className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
                 >
                   Cancel
@@ -863,7 +979,76 @@ export function QuotationsView() {
                   disabled={submitting}
                   className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60"
                 >
-                  {submitting ? 'Creating...' : 'Create Quotation'}
+                  {submitting ? 'Saving...' : editingId ? 'Save Changes' : 'Create Quotation'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {partialConvert && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6"
+            >
+              <h3 className="text-lg font-bold mb-1">{convertLabel}</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                {partialConvert.quote.quotationNumber} — adjust quantities for a partial convert, or convert all
+                remaining.
+              </p>
+              <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+                {partialConvert.lines.map((line, idx) => (
+                  <div key={line.productId} className="flex items-center justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{line.productName}</div>
+                      <div className="text-xs text-gray-400">Remaining {line.remaining}</div>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={line.remaining}
+                      value={line.qty || ''}
+                      onChange={e => {
+                        const qty = Math.min(line.remaining, Math.max(0, parseInt(e.target.value) || 0));
+                        setPartialConvert(pc =>
+                          pc
+                            ? {
+                                ...pc,
+                                lines: pc.lines.map((l, i) => (i === idx ? { ...l, qty } : l)),
+                              }
+                            : pc,
+                        );
+                      }}
+                      className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-center"
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPartialConvert(null)}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConvertSubmit(false)}
+                  className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl font-bold"
+                >
+                  Convert selected
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConvertSubmit(true)}
+                  className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold"
+                >
+                  Convert all remaining
                 </button>
               </div>
             </motion.div>

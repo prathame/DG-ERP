@@ -10,7 +10,7 @@ description: Auto-generated walkthrough pages for every TS/TSX file in DG-ERP
 These pages ensure **zero skipped files**. Prefer curated chapters under [File Walkthrough](/files/) for narrative learning.
 :::
 
-## Server (51 files)
+## Server (52 files)
 
 - [`server/app.ts`](/files/generated/server__app)
 - [`server/index.ts`](/files/generated/server__index)
@@ -54,6 +54,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`server/utils/authCache.ts`](/files/generated/server__utils__authcache)
 - [`server/utils/barcode.ts`](/files/generated/server__utils__barcode)
 - [`server/utils/env.ts`](/files/generated/server__utils__env)
+- [`server/utils/gst-place.ts`](/files/generated/server__utils__gst-place)
 - [`server/utils/helpers.ts`](/files/generated/server__utils__helpers)
 - [`server/utils/http-error.ts`](/files/generated/server__utils__http-error)
 - [`server/utils/logger.ts`](/files/generated/server__utils__logger)
@@ -176,7 +177,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`electron/shared/constants.ts`](/files/generated/electron__shared__constants)
 - [`electron/shared/find-port.ts`](/files/generated/electron__shared__find-port)
 
-## Tests (50 files)
+## Tests (51 files)
 
 - [`tests/api/audit.test.ts`](/files/generated/tests__api__audit.test)
 - [`tests/api/auth.test.ts`](/files/generated/tests__api__auth.test)
@@ -219,6 +220,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`tests/stress-test.ts`](/files/generated/tests__stress-test)
 - [`tests/unit/authCache.test.ts`](/files/generated/tests__unit__authcache.test)
 - [`tests/unit/env.test.ts`](/files/generated/tests__unit__env.test)
+- [`tests/unit/gst-place.test.ts`](/files/generated/tests__unit__gst-place.test)
 - [`tests/unit/http-error.test.ts`](/files/generated/tests__unit__http-error.test)
 - [`tests/unit/impersonation-token.test.ts`](/files/generated/tests__unit__impersonation-token.test)
 - [`tests/unit/invoice-finance-party.test.ts`](/files/generated/tests__unit__invoice-finance-party.test)
@@ -229,4 +231,4 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`tests/unit/pii.test.ts`](/files/generated/tests__unit__pii.test)
 - [`tests/unit/price-resolve.test.ts`](/files/generated/tests__unit__price-resolve.test)
 
-**Total files documented:** 207
+**Total files documented:** 209

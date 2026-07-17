@@ -38,6 +38,17 @@ interface PriceRule {
   maxQty: number | null;
   price: number;
   isActive: boolean;
+  validFrom?: string | null;
+  validTo?: string | null;
+}
+
+function formatRuleDateRange(rule: Pick<PriceRule, 'validFrom' | 'validTo'>): string {
+  const from = rule.validFrom ? String(rule.validFrom).slice(0, 10) : '';
+  const to = rule.validTo ? String(rule.validTo).slice(0, 10) : '';
+  if (!from && !to) return '';
+  if (from && to) return `${from} → ${to}`;
+  if (from) return `from ${from}`;
+  return `to ${to}`;
 }
 
 type TenantHeader = {
@@ -63,14 +74,17 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     name: '',
     productId: '',
     vendorId: '',
     minQty: '1',
     maxQty: '',
     price: '',
+    validFrom: '',
+    validTo: '',
   });
+  const [form, setForm] = useState(emptyForm);
 
   const tabRules = useMemo(
     () => (tab === 'generic' ? rules.filter(r => !r.vendorId) : rules.filter(r => !!r.vendorId)),
@@ -89,7 +103,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         : `Rates for a specific ${partyLabel.toLowerCase().replace(/s$/, '')} (overrides generic + product price)`;
 
   const openCreate = () => {
-    setForm({ name: '', productId: '', vendorId: '', minQty: '1', maxQty: '', price: '' });
+    setForm(emptyForm());
     setModalOpen(true);
   };
 
@@ -141,19 +155,22 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     const vendorId = tab === 'generic' ? undefined : form.vendorId || undefined;
     setSubmitting(true);
     try {
+      const body: Record<string, unknown> = {
+        name: form.name || (vendorId ? `${partyLabel.replace(/s$/, '')} rate` : 'Catalog rate'),
+        productId: form.productId,
+        vendorId,
+        minQty: Number(form.minQty) || 1,
+        maxQty: form.maxQty ? Number(form.maxQty) : undefined,
+        price: Number(form.price),
+      };
+      if (form.validFrom) body.validFrom = form.validFrom;
+      if (form.validTo) body.validTo = form.validTo;
       await fetchApi('/price-lists', {
         method: 'POST',
-        body: JSON.stringify({
-          name: form.name || (vendorId ? `${partyLabel.replace(/s$/, '')} rate` : 'Catalog rate'),
-          productId: form.productId,
-          vendorId,
-          minQty: Number(form.minQty) || 1,
-          maxQty: form.maxQty ? Number(form.maxQty) : undefined,
-          price: Number(form.price),
-        }),
+        body: JSON.stringify(body),
       });
       setModalOpen(false);
-      setForm({ name: '', productId: '', vendorId: '', minQty: '1', maxQty: '', price: '' });
+      setForm(emptyForm());
       load();
       toast('Price rule added', 'success');
     } catch (err) {
@@ -186,6 +203,8 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         maxQty: r.maxQty ?? '',
         price: r.price,
         name: r.name || '',
+        validFrom: r.validFrom ? String(r.validFrom).slice(0, 10) : '',
+        validTo: r.validTo ? String(r.validTo).slice(0, 10) : '',
       })),
       tab === 'generic' ? 'price-list-generic' : 'price-list-vendor',
     );
@@ -218,7 +237,8 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
       text += `*${name}* (Base: ₹${base?.price?.toLocaleString() || '—'})\n`;
       for (const r of pRules) {
         const vendorTag = r.vendorId ? `[${r.vendorName}]` : '[All]';
-        text += `  ${vendorTag} Qty ${r.minQty}${r.maxQty ? `-${r.maxQty}` : '+'} → ₹${r.price.toLocaleString()}\n`;
+        const dates = formatRuleDateRange(r);
+        text += `  ${vendorTag} Qty ${r.minQty}${r.maxQty ? `-${r.maxQty}` : '+'} → ₹${r.price.toLocaleString()}${dates ? ` (${dates})` : ''}\n`;
       }
       text += '\n';
     }
@@ -249,13 +269,15 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     let rowsHtml = '';
     for (const r of tabRules) {
       const base = products.find(p => p.id === r.productId);
+      const dates = formatRuleDateRange(r);
+      const ruleLabel = [r.name || '', dates].filter(Boolean).join(' · ') || '—';
       rowsHtml += `<tr>
         <td>${esc(r.productName)}</td>
         <td style="text-align:right">₹${(base?.price ?? 0).toLocaleString('en-IN')}</td>
         <td><span class="chip ${r.vendorId ? 'chip-vendor' : 'chip-all'}">${esc(r.vendorId ? r.vendorName : `All ${partyLabel}`)}</span></td>
-        <td style="text-align:center">${r.minQty}${r.maxQty ? `–${r.maxQty}` : '+'}</td>
+        <td style="text-align:center">${r.minQty}${r.maxQty ? `–${r.maxQty}` : '+'}${dates ? `<div class="muted" style="font-size:10px">${esc(dates)}</div>` : ''}</td>
         <td class="price" style="text-align:right">₹${Number(r.price).toLocaleString('en-IN')}</td>
-        <td class="muted">${esc(r.name || '—')}</td>
+        <td class="muted">${esc(ruleLabel)}</td>
       </tr>`;
     }
 
@@ -532,6 +554,9 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                         {rule.maxQty ? `-${rule.maxQty}` : '+'}
                       </span>
                       <span className="font-bold text-brand">₹{rule.price.toLocaleString()}</span>
+                      {formatRuleDateRange(rule) && (
+                        <span className="text-xs text-gray-500">{formatRuleDateRange(rule)}</span>
+                      )}
                       {rule.name && <span className="text-xs text-gray-400">{rule.name}</span>}
                     </div>
                     <button
@@ -659,6 +684,26 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                     placeholder="Custom price for this rule"
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Valid From</label>
+                    <input
+                      type="date"
+                      value={form.validFrom}
+                      onChange={e => setForm({ ...form, validFrom: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Valid To</label>
+                    <input
+                      type="date"
+                      value={form.validTo}
+                      onChange={e => setForm({ ...form, validTo: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
+                    />
+                  </div>
+                </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Rule Name</label>
                   <input
@@ -705,6 +750,8 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
             { key: 'maxQty', label: 'Max Qty' },
             { key: 'price', label: 'Price', required: true },
             { key: 'name', label: 'Rule Name' },
+            { key: 'validFrom', label: 'Valid From (YYYY-MM-DD)' },
+            { key: 'validTo', label: 'Valid To (YYYY-MM-DD)' },
           ]}
           onClose={() => setCsvImportOpen(false)}
           onImport={async rows => {
@@ -715,6 +762,8 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
               maxQty: r.maxQty || r.MaxQty || '',
               price: r.price || r.Price || '',
               name: r.name || r.ruleName || r.Name || '',
+              validFrom: r.validFrom || r.ValidFrom || r.valid_from || '',
+              validTo: r.validTo || r.ValidTo || r.valid_to || '',
             }));
             const result = await fetchApi<{ success: number; errors: string[] }>('/price-lists/bulk', {
               method: 'POST',

@@ -917,16 +917,22 @@ function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefre
     total: number;
     reason?: string;
     status: string;
+    referenceInvoice?: string;
+    referenceType?: string | null;
+    referenceId?: string | null;
   }[];
   const [creating, setCreating] = React.useState(false);
-  const [noteForm, setNoteForm] = React.useState({
+  const emptyNoteForm = {
     noteType: 'credit' as 'credit' | 'debit',
     vendorName: '',
     customerName: '',
     reason: '',
     referenceInvoice: '',
+    referenceType: '' as '' | 'invoice' | 'distribution' | 'quotation',
+    referenceId: '',
     items: [{ description: '', quantity: 1, price: 0, withGst: true }],
-  });
+  };
+  const [noteForm, setNoteForm] = React.useState(emptyNoteForm);
   const [submitting, setSubmitting] = React.useState(false);
 
   const handleCreate = async () => {
@@ -935,17 +941,15 @@ function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefre
     try {
       await fetchApi('/accounts/notes', {
         method: 'POST',
-        body: JSON.stringify({ ...noteForm, items: noteForm.items.filter(i => i.description && i.price > 0) }),
+        body: JSON.stringify({
+          ...noteForm,
+          referenceType: noteForm.referenceType || undefined,
+          referenceId: noteForm.referenceId || undefined,
+          items: noteForm.items.filter(i => i.description && i.price > 0),
+        }),
       });
       setCreating(false);
-      setNoteForm({
-        noteType: 'credit',
-        vendorName: '',
-        customerName: '',
-        reason: '',
-        referenceInvoice: '',
-        items: [{ description: '', quantity: 1, price: 0, withGst: true }],
-      });
+      setNoteForm(emptyNoteForm);
       onRefresh();
     } catch {
     } finally {
@@ -993,6 +997,11 @@ function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefre
               {n.vendorName || n.customerName || 'N/A'} — {formatDate(n.noteDate)}
             </p>
             {n.reason && <p className="text-xs text-gray-400">{n.reason}</p>}
+            {(n.referenceType || n.referenceInvoice) && (
+              <p className="text-xs text-gray-400">
+                Ref{n.referenceType ? ` (${n.referenceType})` : ''}: {n.referenceId || n.referenceInvoice}
+              </p>
+            )}
           </div>
           <div className="text-right">
             <p className={cn('font-bold text-lg', n.noteType === 'credit' ? 'text-emerald-600' : 'text-rose-600')}>
@@ -1049,12 +1058,40 @@ function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefre
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Reference Invoice</label>
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Reference label</label>
               <input
                 value={noteForm.referenceInvoice}
                 onChange={e => setNoteForm({ ...noteForm, referenceInvoice: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
-                placeholder="Original invoice number"
+                placeholder="Invoice / challan number (display)"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Linked document type</label>
+              <select
+                value={noteForm.referenceType}
+                onChange={e =>
+                  setNoteForm({
+                    ...noteForm,
+                    referenceType: e.target.value as typeof noteForm.referenceType,
+                  })
+                }
+                className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
+              >
+                <option value="">None</option>
+                <option value="invoice">Standalone invoice</option>
+                <option value="distribution">Distribution batch</option>
+                <option value="quotation">Quotation</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Linked document id</label>
+              <input
+                value={noteForm.referenceId}
+                onChange={e => setNoteForm({ ...noteForm, referenceId: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
+                placeholder="Internal id (INV-… / batch / QT-…)"
+                disabled={!noteForm.referenceType}
               />
             </div>
           </div>

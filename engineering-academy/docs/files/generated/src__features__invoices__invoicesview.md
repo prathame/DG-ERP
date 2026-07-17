@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/invoices/InvoicesView.tsx` is part of Dhandho (DG-ERP). Approximate size: **1159 lines**.
+`src/features/invoices/InvoicesView.tsx` is part of Dhandho (DG-ERP). Approximate size: **1257 lines**.
 
 ## Business value
 
@@ -37,7 +37,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (15 detected)
+## Functions (18 detected)
 
 ### Function: esc
 
@@ -50,6 +50,21 @@ esc(t: unknown)
 | Purpose | Symbol in `src/features/invoices/InvoicesView.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `esc` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: lineTaxable
+
+```ts
+lineTaxable(qty: number, rate: number, discountPercent: number)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/invoices/InvoicesView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `lineTaxable` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -194,6 +209,51 @@ printInvoice(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: itemColspan
+
+```ts
+itemColspan(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/invoices/InvoicesView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `itemColspan` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: resolveRowPrice
+
+```ts
+resolveRowPrice(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/invoices/InvoicesView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `resolveRowPrice` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: token
+
+```ts
+token(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/invoices/InvoicesView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `token` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 ### Function: selectParty
 
 ```ts
@@ -239,21 +299,6 @@ updateRowQty(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: taxable
-
-```ts
-taxable(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `src/features/invoices/InvoicesView.tsx`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `taxable` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
 ### Function: handleSubmit
 
 ```ts
@@ -285,7 +330,7 @@ rg -n "InvoicesView" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **1159**. Large view/route files are refactor candidates.
+Line count **1257**. Large view/route files are refactor candidates.
 
 ## Security impact
 

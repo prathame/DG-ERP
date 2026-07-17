@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, FileText, Trash2, Download, Send, Check, X, Printer } from 'lucide-react';
 import {
@@ -37,6 +37,10 @@ type Invoice = {
   items: LineItem[];
   subtotal: number;
   taxTotal: number;
+  taxCgst?: number;
+  taxSgst?: number;
+  taxIgst?: number;
+  isInterstate?: boolean;
   grandTotal: number;
   notes?: string;
   terms?: string;
@@ -50,6 +54,8 @@ type LineItem = {
   qty: number;
   rate: number;
   gstPercent: number;
+  discountPercent?: number;
+  productId?: string;
   taxable: number;
   tax: number;
   total: number;
@@ -61,6 +67,7 @@ type InvoiceLineRow = {
   qty: number;
   rate: number;
   gstPercent: number;
+  discountPercent: number;
   /** Empty = custom line; otherwise Masters product id (price from price list when available) */
   productId: string;
 };
@@ -81,8 +88,14 @@ const emptyRow = (): InvoiceLineRow => ({
   qty: 1,
   rate: 0,
   gstPercent: 18,
+  discountPercent: 0,
   productId: '',
 });
+
+function lineTaxable(qty: number, rate: number, discountPercent: number): number {
+  const disc = Math.min(100, Math.max(0, discountPercent || 0));
+  return Math.round((((qty || 0) * (rate || 0) * (100 - disc)) / 100) * 100) / 100;
+}
 
 /** Mirror server /price-lists/resolve: vendor slab > general slab > product.price */
 function resolveCatalogPrice(product: Product, rules: PriceRule[], vendorId: string | null, qty: number): number {
@@ -215,7 +228,12 @@ export function InvoicesView() {
           : '';
 
       const hasGst = inv.taxTotal > 0;
-      const halfGst = Math.round(inv.taxTotal / 2);
+      const useIgst = inv.isInterstate === true || (typeof inv.taxIgst === 'number' && inv.taxIgst > 0);
+      const taxCgst = typeof inv.taxCgst === 'number' ? inv.taxCgst : Math.round(inv.taxTotal / 2);
+      const taxSgst = typeof inv.taxSgst === 'number' ? inv.taxSgst : Math.round((inv.taxTotal - taxCgst) * 100) / 100;
+      const taxIgst = typeof inv.taxIgst === 'number' ? inv.taxIgst : inv.taxTotal;
+      const showDiscCol = inv.items.some(it => (it.discountPercent || 0) > 0);
+      const itemColspan = (hasGst ? 8 : 6) + (showDiscCol ? 1 : 0);
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${invPrefix}${esc(inv.invoiceNumber)}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
@@ -298,27 +316,34 @@ export function InvoicesView() {
     </table>
     <table class="outer items" style="margin-top:-2px;">
       <thead>
-        <tr class="repeat-banner"><th colspan="${hasGst ? 8 : 6}">
+        <tr class="repeat-banner"><th colspan="${itemColspan}">
           <span style="font-weight:800;color:${color};">${esc(user.companyName || 'Dhandho')}</span>
           <span style="float:right;font-weight:700;">${invPrefix}${esc(inv.invoiceNumber)}</span>
         </th></tr>
-        <tr><th style="width:30px;">Sr</th><th class="left">Description</th><th>HSN/SAC</th><th>Qty</th><th class="right">Rate</th>${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr>
+        <tr><th style="width:30px;">Sr</th><th class="left">Description</th><th>HSN/SAC</th><th>Qty</th><th class="right">Rate</th>${showDiscCol ? '<th class="right">Disc%</th>' : ''}${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr>
       </thead>
       <tbody>
-        ${inv.items.map((it, i) => `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td><td>${esc(it.hsnSac || '—')}</td><td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`).join('')}
+        ${inv.items
+          .map((it, i) => {
+            const disc = it.discountPercent || 0;
+            return `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td><td>${esc(it.hsnSac || '—')}</td><td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${showDiscCol ? `<td class="right">${disc > 0 ? `${disc}%` : '—'}</td>` : ''}${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`;
+          })
+          .join('')}
       </tbody>
     </table>
     <div class="print-end avoid-break">
     <table class="outer items" style="margin-top:-2px;border-top:none;">
       <tbody>
-        <tr class="total-row"><td colspan="${hasGst ? 7 : 5}" class="right">Subtotal</td><td class="right">₹${inv.subtotal.toLocaleString()}</td></tr>
+        <tr class="total-row"><td colspan="${itemColspan - 1}" class="right">Subtotal</td><td class="right">₹${inv.subtotal.toLocaleString()}</td></tr>
         ${
           hasGst
-            ? `<tr><td colspan="7" class="right">CGST</td><td class="right">₹${halfGst.toLocaleString()}</td></tr>
-        <tr><td colspan="7" class="right">SGST</td><td class="right">₹${(inv.taxTotal - halfGst).toLocaleString()}</td></tr>`
+            ? useIgst
+              ? `<tr><td colspan="${itemColspan - 1}" class="right">IGST</td><td class="right">₹${Number(taxIgst).toLocaleString()}</td></tr>`
+              : `<tr><td colspan="${itemColspan - 1}" class="right">CGST</td><td class="right">₹${Number(taxCgst).toLocaleString()}</td></tr>
+        <tr><td colspan="${itemColspan - 1}" class="right">SGST</td><td class="right">₹${Number(taxSgst).toLocaleString()}</td></tr>`
             : ''
         }
-        <tr class="total-row"><td colspan="${hasGst ? 7 : 5}" class="right"><span class="grand-total">Grand Total</span></td><td class="right"><span class="grand-total">₹${inv.grandTotal.toLocaleString()}</span></td></tr>
+        <tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><span class="grand-total">Grand Total</span></td><td class="right"><span class="grand-total">₹${inv.grandTotal.toLocaleString()}</span></td></tr>
       </tbody>
     </table>
     ${inv.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${esc(inv.notes)}</div>` : ''}
@@ -656,8 +681,46 @@ export function CreateInvoiceModal({
     }
     return '';
   });
+  const resolveTokenRef = useRef<Record<number, number>>({});
 
   const pricingVendorId = partyKey.startsWith('vendor:') ? partyKey.slice('vendor:'.length) : null;
+
+  /** Prefer server resolve; fall back to client catalog rules. */
+  const resolveRowPrice = (idx: number, productId: string, vendorId: string | null, quantity: number) => {
+    if (!productId || quantity <= 0) return;
+    const token = (resolveTokenRef.current[idx] = (resolveTokenRef.current[idx] || 0) + 1);
+    const qs = new URLSearchParams({
+      productId,
+      quantity: String(quantity),
+    });
+    if (vendorId) qs.set('vendorId', vendorId);
+    fetch(`/api/price-lists/resolve?${qs}`, {
+      headers: {
+        Authorization: `Bearer ${session.getToken()}`,
+        'X-Tenant-ID': session.getTenantId() || '',
+      },
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (resolveTokenRef.current[idx] !== token) return;
+        if (!d || typeof d.price !== 'number') return;
+        setRows(prev => {
+          const row = prev[idx];
+          if (!row || row.productId !== productId || (row.qty || 0) !== quantity) return prev;
+          return prev.map((r, i) => (i === idx ? { ...r, rate: d.price } : r));
+        });
+      })
+      .catch(() => {
+        const p = products.find(x => x.id === productId);
+        if (!p) return;
+        const rate = resolveCatalogPrice(p, priceRules, vendorId, quantity);
+        setRows(prev => {
+          const row = prev[idx];
+          if (!row || row.productId !== productId) return prev;
+          return prev.map((r, i) => (i === idx ? { ...r, rate } : r));
+        });
+      });
+  };
 
   useEffect(() => {
     fetchApi<{ number: string }>('/invoices/next-number')
@@ -730,14 +793,16 @@ export function CreateInvoiceModal({
     }));
     // Re-price catalog lines when vendor party changes (vendor-specific price list)
     const vendorId = party.partyType === 'vendor' ? party.partyId : null;
-    setRows(prev =>
-      prev.map(r => {
-        if (!r.productId) return r;
-        const p = products.find(x => x.id === r.productId);
-        if (!p) return r;
-        return { ...r, rate: resolveCatalogPrice(p, priceRules, vendorId, r.qty) };
-      }),
-    );
+    const nextRows = rows.map(r => {
+      if (!r.productId) return r;
+      const p = products.find(x => x.id === r.productId);
+      if (!p) return r;
+      return { ...r, rate: resolveCatalogPrice(p, priceRules, vendorId, r.qty) };
+    });
+    setRows(nextRows);
+    nextRows.forEach((r, i) => {
+      if (r.productId) resolveRowPrice(i, r.productId, vendorId, r.qty || 1);
+    });
   };
 
   const applyCatalogItem = (idx: number, productId: string) => {
@@ -765,6 +830,7 @@ export function CreateInvoiceModal({
           : r,
       ),
     );
+    resolveRowPrice(idx, p.id, pricingVendorId, qty);
   };
 
   const updateRowQty = (idx: number, qty: number) => {
@@ -779,11 +845,15 @@ export function CreateInvoiceModal({
         return next;
       }),
     );
+    const row = rows[idx];
+    if (row?.productId && qty > 0) {
+      resolveRowPrice(idx, row.productId, pricingVendorId, qty);
+    }
   };
 
   const totals = rows.reduce(
     (acc, r) => {
-      const taxable = (r.qty || 0) * (r.rate || 0);
+      const taxable = lineTaxable(r.qty, r.rate, r.discountPercent);
       const tax = Math.round(((taxable * (r.gstPercent || 0)) / 100) * 100) / 100;
       return { subtotal: acc.subtotal + taxable, tax: acc.tax + tax, grand: acc.grand + taxable + tax };
     },
@@ -808,12 +878,14 @@ export function CreateInvoiceModal({
         body: JSON.stringify({
           ...form,
           invoiceNumber,
-          items: validRows.map(({ description, hsnSac, qty, rate, gstPercent }) => ({
+          items: validRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId }) => ({
             description,
             hsnSac,
             qty,
             rate,
             gstPercent,
+            discountPercent: discountPercent || 0,
+            ...(productId ? { productId } : {}),
           })),
           status,
           partyType: selected?.partyType || null,
@@ -947,13 +1019,14 @@ export function CreateInvoiceModal({
               Pick from Masters items / Price List, or choose Custom to type freely
             </p>
             <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
-              <table className="w-full text-sm min-w-[640px]">
+              <table className="w-full text-sm min-w-[720px]">
                 <thead className="bg-gray-50">
                   <tr className="text-xs font-bold text-gray-400 uppercase">
                     <th className="px-3 py-2 text-left min-w-[200px]">Item</th>
                     <th className="px-3 py-2 w-24">HSN/SAC</th>
                     <th className="px-3 py-2 w-16">Qty</th>
                     <th className="px-3 py-2 w-24">Rate</th>
+                    <th className="px-3 py-2 w-16">Disc%</th>
                     <th className="px-3 py-2 w-16">GST%</th>
                     <th className="px-3 py-2 w-24 text-right">Total</th>
                     <th className="px-3 py-2 w-8"></th>
@@ -961,7 +1034,7 @@ export function CreateInvoiceModal({
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {rows.map((row, idx) => {
-                    const taxable = (row.qty || 0) * (row.rate || 0);
+                    const taxable = lineTaxable(row.qty, row.rate, row.discountPercent);
                     const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
                     const catalogPrice =
                       row.productId && products.find(p => p.id === row.productId)
@@ -1050,6 +1123,28 @@ export function CreateInvoiceModal({
                               )
                             }
                             className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={row.discountPercent || ''}
+                            onChange={e =>
+                              setRows(
+                                rows.map((r, i) =>
+                                  i === idx
+                                    ? {
+                                        ...r,
+                                        discountPercent: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)),
+                                      }
+                                    : r,
+                                ),
+                              )
+                            }
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                            placeholder="0"
                           />
                         </td>
                         <td className="px-3 py-2">

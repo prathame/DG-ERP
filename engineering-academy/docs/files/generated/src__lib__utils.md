@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/lib/utils.ts` is part of Dhandho (DG-ERP). Approximate size: **360 lines**.
+`src/lib/utils.ts` is part of Dhandho (DG-ERP). Approximate size: **440 lines**.
 
 ## Business value
 
@@ -110,7 +110,11 @@ formatDate(dateStr: string | null | undefined)
 ### Function: resolveIrnQrPayload
 
 ```ts
-resolveIrnQrPayload(r: { qrCode?: string | null; signedQrCode?: string | null; irnQr?: string | null })
+resolveIrnQrPayload(r: {
+  qrCode?: string | null;
+  signedQrCode?: string | null;
+  irnQr?: string | null;
+})
 ```
 
 | Aspect | Detail |
@@ -278,9 +282,16 @@ shareViaEmail(email: string, subject: string, body: string)
 
 ```ts
 formatSalesInvoiceText(bill: {
-  id: string; barcode: string; productName: string; category?: string | null;
-  salePrice: number; warrantyMonths: number; purchaseDate: string;
-  customerName: string; customerPhone: string; customerEmail?: string | null;
+  id: string;
+  barcode: string;
+  productName: string;
+  category?: string | null;
+  salePrice: number;
+  warrantyMonths: number;
+  purchaseDate: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string | null;
   vendor: { name: string; contactPerson?: string | null; phone?: string | null };
   warranty?: { expiryDate: string } | null;
   company: { name: string; phone?: string | null; address?: string | null };
@@ -301,12 +312,21 @@ formatSalesInvoiceText(bill: {
 
 ```ts
 formatDistributionChallanText(bill: {
-  challanId: string; distributionDate: string;
+  challanId: string;
+  distributionDate: string;
   vendor: { name: string; contactPerson?: string | null; phone?: string | null };
   company: { name: string; phone?: string | null; address?: string | null };
   items: { sno: number; barcode: string; productName: string }[];
-  groupedItems?: { sno: number; productName: string; barcodeRange: string; quantity: number; netPrice: number; lineTotal: number }[];
-  totalQuantity: number; totalValue: number;
+  groupedItems?: {
+    sno: number;
+    productName: string;
+    barcodeRange: string;
+    quantity: number;
+    netPrice: number;
+    lineTotal: number;
+  }[];
+  totalQuantity: number;
+  totalValue: number;
   ewbNumber?: string | null;
   irn?: string | null;
   irnAckNo?: string | null;
@@ -429,7 +449,7 @@ rg -n "utils" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **360**. Large view/route files are refactor candidates.
+Line count **440**. Large view/route files are refactor candidates.
 
 ## Security impact
 

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/utils/price-resolve.ts` is part of Dhandho (DG-ERP). Approximate size: **70 lines**.
+`server/utils/price-resolve.ts` is part of Dhandho (DG-ERP). Approximate size: **72 lines**.
 
 ## Business value
 
@@ -130,7 +130,7 @@ rg -n "price-resolve" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **70**. Large view/route files are refactor candidates.
+Line count **72**. Large view/route files are refactor candidates.
 
 ## Security impact
 

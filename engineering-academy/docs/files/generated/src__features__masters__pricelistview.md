@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/masters/PriceListView.tsx` is part of Dhandho (DG-ERP). Approximate size: **736 lines**.
+`src/features/masters/PriceListView.tsx` is part of Dhandho (DG-ERP). Approximate size: **781 lines**.
 
 ## Business value
 
@@ -37,7 +37,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (11 detected)
+## Functions (13 detected)
 
 ### Function: esc
 
@@ -54,6 +54,21 @@ esc(t: unknown)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: formatRuleDateRange
+
+```ts
+formatRuleDateRange(rule: Pick<PriceRule, 'validFrom' | 'validTo'>)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/masters/PriceListView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `formatRuleDateRange` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 ### Function: PriceListView
 
 ```ts
@@ -65,6 +80,21 @@ PriceListView({ onBack }: { onBack: ()
 | Purpose | Symbol in `src/features/masters/PriceListView.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `PriceListView` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: emptyForm
+
+```ts
+emptyForm(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/masters/PriceListView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `emptyForm` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -220,7 +250,7 @@ rg -n "PriceListView" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **736**. Large view/route files are refactor candidates.
+Line count **781**. Large view/route files are refactor candidates.
 
 ## Security impact
 

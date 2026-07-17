@@ -21,6 +21,8 @@ export async function resolvePrice(
       WHERE tenant_id = $1 AND product_id = $2 AND is_active = true
         AND (vendor_id = $3 OR vendor_id IS NULL)
         AND min_qty <= $4 AND (max_qty IS NULL OR max_qty >= $4)
+        AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+        AND (valid_to IS NULL OR valid_to >= CURRENT_DATE)
       ORDER BY
         CASE WHEN vendor_id = $3 THEN 0 ELSE 1 END,
         min_qty DESC

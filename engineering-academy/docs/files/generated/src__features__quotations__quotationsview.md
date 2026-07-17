@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/quotations/QuotationsView.tsx` is part of Dhandho (DG-ERP). Approximate size: **478 lines**.
+`src/features/quotations/QuotationsView.tsx` is part of Dhandho (DG-ERP). Approximate size: **1060 lines**.
 
 ## Business value
 
@@ -38,7 +38,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (10 detected)
+## Functions (15 detected)
 
 ### Function: QuotationsView
 
@@ -115,6 +115,66 @@ resolveQuoteRowPrice(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: token
+
+```ts
+token(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `token` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: lineAmounts
+
+```ts
+lineAmounts(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `lineAmounts` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: resetForm
+
+```ts
+resetForm(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `resetForm` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: openEditDraft
+
+```ts
+openEditDraft(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `openEditDraft` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 ### Function: handleCreate
 
 ```ts
@@ -130,17 +190,32 @@ handleCreate(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: handleConvert
+### Function: openConvert
 
 ```ts
-handleConvert(...)
+openConvert(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
 | Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `handleConvert` before deleting. |
+| What breaks if removed | Search the repo for `openConvert` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: handleConvertSubmit
+
+```ts
+handleConvertSubmit(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `handleConvertSubmit` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -206,7 +281,7 @@ rg -n "QuotationsView" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **478**. Large view/route files are refactor candidates.
+Line count **1060**. Large view/route files are refactor candidates.
 
 ## Security impact
 
