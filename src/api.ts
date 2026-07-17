@@ -8,9 +8,22 @@ import {
   enqueueOfflineMutation,
   getConnectionState,
 } from './platforms/mobile/offline';
+import { isOfflineEntitled } from './platforms/mobile/online/seatStorage';
 import { clientLogger, ensureCorrelationId } from './lib/logger';
 
-const CACHEABLE_GET = [/^\/products(?:\?|$)/, /^\/vendors(?:\?|$)/, /^\/tenant\//];
+/** Service offline MVP: catalog + invoices + finance reads. */
+const CACHEABLE_GET = [
+  /^\/products(?:\?|$)/,
+  /^\/vendors(?:\?|$)/,
+  /^\/tenant\//,
+  /^\/invoices(?:\?|$|\/)/,
+  /^\/quotations(?:\?|$|\/)/,
+  /^\/invoice-finance(?:\?|$|\/)/,
+  /^\/price-lists(?:\?|$|\/)/,
+];
+
+/** Mutations allowed in the offline queue for service seats. */
+const QUEUEABLE_OFFLINE = [/^\/invoices(?:\?|$)/, /^\/invoice-finance\/payments(?:\?|$)/];
 
 function offlineCacheKey(path: string, tenantId: string | null): string {
   return `${tenantId || 'anon'}:${path}`;
@@ -241,11 +254,12 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
 
   const queueMutation = () => {
     const body = typeof options?.body === 'string' ? options.body : undefined;
+    const idempotencyKey = `idem_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     enqueueOfflineMutation({
       path: requestUrl,
       method,
       body,
-      headers: authHeaders,
+      headers: { ...authHeaders, 'X-Idempotency-Key': idempotencyKey },
       label: `${method} ${path}`,
     });
   };
@@ -257,6 +271,12 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
       if (hit != null) return hit;
     }
     if (method !== 'GET' && method !== 'HEAD') {
+      if (!isOfflineEntitled()) {
+        throw new Error('Offline not available — activate a service seat from Super Admin, or reconnect to go online.');
+      }
+      if (!QUEUEABLE_OFFLINE.some(re => re.test(path))) {
+        throw new Error('This action needs an internet connection.');
+      }
       queueMutation();
       throw new Error('You are offline — change queued and will sync when online.');
     }
@@ -309,6 +329,13 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
     if (hit != null) return hit;
   }
   if (method !== 'GET' && method !== 'HEAD') {
+    if (isMobileClient() && isOfflineEntitled() && QUEUEABLE_OFFLINE.some(re => re.test(path))) {
+      queueMutation();
+      throw new Error('Connection lost — change queued and will sync when online.');
+    }
+    if (isMobileClient() && !isOfflineEntitled()) {
+      throw new Error('Connection lost — activate a service offline seat to queue work, or reconnect.');
+    }
     queueMutation();
     throw new Error('Connection lost — change queued and will sync when online.');
   }
@@ -1064,6 +1091,8 @@ export const api = {
       tenantId: string;
       companyName: string;
       slug: string;
+      businessType?: string;
+      requiresSeat?: boolean;
       logoBase64: string | null;
       primaryColor: string;
       tagline: string | null;

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/app.ts` is part of Dhandho (DG-ERP). Approximate size: **583 lines**.
+`server/app.ts` is part of Dhandho (DG-ERP). Approximate size: **584 lines**.
 
 ## Business value
 
@@ -197,7 +197,7 @@ rg -n "app" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **583**. Large view/route files are refactor candidates.
+Line count **584**. Large view/route files are refactor candidates.
 
 ## Security impact
 

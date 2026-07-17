@@ -25,10 +25,13 @@ sequenceDiagram
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
-| `POST /api/mobile/redeem-invite` | Public (rate limited) | Exchange invite for tenant onboarding context |
-| `POST /api/mobile/heartbeat` | Public structure; device upsert when authed | Version policy + force sync |
+| `POST /api/mobile/redeem-invite` | Public (rate limited) | Exchange invite for tenant onboarding context (+ `requiresSeat` for service) |
+| `POST /api/mobile/activate-seat` | Public (rate limited) | Bind `DG-MS-…` seat to `deviceId` (service tenants only) |
+| `POST /api/mobile/heartbeat` | Public structure; device upsert when authed | Version policy + force sync + `seatValid` / `offlineEnabled` |
 | `POST /api/mobile/register-device` | Auth | Bind device id |
 | `POST/GET …/super-admin/tenants/:id/mobile-invite` | SA | Issue/list invites |
+| `GET/POST …/mobile-seats` | SA | List/issue offline seats (service only) |
+| `PUT …/mobile-seats/:seatId` | SA | Suspend / revoke / transfer / rotate |
 | `POST …/mobile-force-sync` | SA | Flip force-sync flag |
 | `PUT …/mobile-version` | SA | min/latest version policy |
 | `GET …/mobile-devices` | SA | Device inventory |
@@ -37,6 +40,7 @@ Client pieces: `src/platforms/mobile/online/*`, offline queue in `platforms/mobi
 
 :::tip
 Heartbeat every ~60s is how SA “reaches into” field devices without push infra.
+For **service** tenants, SA also issues offline **seats** (`DG-MS-…`) — on-prem-style device binding on a cloud tenant. See [docs/MOBILE.md](https://github.com/prathame/DG-ERP/blob/main/docs/MOBILE.md).
 :::
 
 ## On-prem (Electron + optional cloud license)

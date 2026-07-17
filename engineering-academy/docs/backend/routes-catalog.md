@@ -70,7 +70,7 @@ Defined in `PUBLIC_PATHS` inside `app.ts`:
 - Auth: login, forgot/reset password  
 - SA login, tenant-by-slug, health, manifest  
 - On-prem: activate, heartbeat, deactivate, provision, apply-settings, apply-notifications, mark-applied, mark-notifications-delivered  
-- Mobile: redeem-invite, heartbeat  
+- Mobile: redeem-invite, activate-seat, heartbeat  
 
 Everything else → Bearer JWT required.
 

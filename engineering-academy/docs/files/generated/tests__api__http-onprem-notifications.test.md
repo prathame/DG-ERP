@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`tests/api/http-onprem-notifications.test.ts` is part of Dhandho (DG-ERP). Approximate size: **185 lines**.
+`tests/api/http-onprem-notifications.test.ts` is part of Dhandho (DG-ERP). Approximate size: **189 lines**.
 
 ## Business value
 
@@ -94,7 +94,7 @@ rg -n "http-onprem-notifications.test" --glob '!node_modules' -g '*.ts' -g '*.ts
 
 ## Performance impact
 
-Line count **185**. Large view/route files are refactor candidates.
+Line count **189**. Large view/route files are refactor candidates.
 
 ## Security impact
 

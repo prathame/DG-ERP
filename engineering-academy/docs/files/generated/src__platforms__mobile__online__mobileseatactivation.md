@@ -1,10 +1,10 @@
 ---
-sidebar_label: "api.ts"
-title: "File src/api.ts"
-description: "Deep walkthrough of src/api.ts in DG-ERP / Dhandho"
+sidebar_label: "MobileSeatActivation.tsx"
+title: "File src/platforms/mobile/online/MobileSeatActivation.tsx"
+description: "Deep walkthrough of src/platforms/mobile/online/MobileSeatActivation.tsx in DG-ERP / Dhandho"
 ---
 
-# File walkthrough: `src/api.ts`
+# File walkthrough: `src/platforms/mobile/online/MobileSeatActivation.tsx`
 
 :::info Ownership context
 Auto-generated from the live source tree so **no file is invisible** during onboarding.
@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/api.ts` is part of Dhandho (DG-ERP). Approximate size: **1338 lines**.
+`src/platforms/mobile/online/MobileSeatActivation.tsx` is part of Dhandho (DG-ERP). Approximate size: **112 lines**.
 
 ## Business value
 
@@ -20,77 +20,76 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 ## Imports
 
-- `./lib/session`
-- `./platforms/shared`
-- `./platforms/mobile/online/isMobileClient`
-- `./platforms/mobile/offline`
-- `./platforms/mobile/online/seatStorage`
-- `./lib/logger`
+- `react`
+- `lucide-react`
+- `../../shared/apiBase`
+- `./mobileSync`
+- `./seatStorage`
 
 ## Exports and symbols
 
-**Exported names:** `DistributionRecord`, `DistributionBatch`, `DistributionBatchItem`, `DistributionBatchDetail`, `SaleRecord`, `ReplacementRecord`, `RewardRule`, `SaleBillData`, `DistributionBillData`, `invalidateCache`, `fetchApi`, `api`
+**Exported names:** `MobileSeatActivation`
 
 **Classes:** _none_
 
 ## Functions (4 detected)
 
-### Function: offlineCacheKey
+### Function: MobileSeatActivation
 
 ```ts
-offlineCacheKey(path: string, tenantId: string | null)
+MobileSeatActivation({ slug, companyName, onComplete, onSkip }: Props)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/api.ts`. Open the source and read the body. |
+| Purpose | Symbol in `src/platforms/mobile/online/MobileSeatActivation.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `offlineCacheKey` before deleting. |
+| What breaks if removed | Search the repo for `MobileSeatActivation` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: invalidateCache
+### Function: APP_VERSION
 
 ```ts
-invalidateCache(prefix?: string)
+APP_VERSION(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/api.ts`. Open the source and read the body. |
+| Purpose | Symbol in `src/platforms/mobile/online/MobileSeatActivation.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `invalidateCache` before deleting. |
+| What breaks if removed | Search the repo for `APP_VERSION` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: queueMutation
+### Function: activate
 
 ```ts
-queueMutation(...)
+activate(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/api.ts`. Open the source and read the body. |
+| Purpose | Symbol in `src/platforms/mobile/online/MobileSeatActivation.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `queueMutation` before deleting. |
+| What breaks if removed | Search the repo for `activate` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: msg
+### Function: data
 
 ```ts
-msg(...)
+data(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/api.ts`. Open the source and read the body. |
+| Purpose | Symbol in `src/platforms/mobile/online/MobileSeatActivation.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `msg` before deleting. |
+| What breaks if removed | Search the repo for `data` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -106,12 +105,12 @@ msg(...)
 
 ```bash
 # From DG-ERP repo root
-rg -n "api" --glob '!node_modules' -g '*.ts' -g '*.tsx'
+rg -n "MobileSeatActivation" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 ```
 
 ## Performance impact
 
-Line count **1338**. Large view/route files are refactor candidates.
+Line count **112**. Large view/route files are refactor candidates.
 
 ## Security impact
 
@@ -151,11 +150,11 @@ In-memory caches (authCache, GET Map) do **not** share across instances.
 
 ## Hands-on
 
-1. Open `src/api.ts` in the IDE.
+1. Open `src/platforms/mobile/online/MobileSeatActivation.tsx` in the IDE.
 2. Breakpoint the largest exported function.
 3. Trigger via UI or supertest.
 4. Write one sentence on why this file exists in the product narrative.
 
 ---
 
-*Generated by scripts/generate-file-deepdives.mjs · slug: `src__api`*
+*Generated by scripts/generate-file-deepdives.mjs · slug: `src__platforms__mobile__online__mobileseatactivation`*

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/super-admin/TenantListView.tsx` is part of Dhandho (DG-ERP). Approximate size: **981 lines**.
+`src/features/super-admin/TenantListView.tsx` is part of Dhandho (DG-ERP). Approximate size: **1008 lines**.
 
 ## Business value
 
@@ -176,7 +176,7 @@ rg -n "TenantListView" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **981**. Large view/route files are refactor candidates.
+Line count **1008**. Large view/route files are refactor candidates.
 
 ## Security impact
 

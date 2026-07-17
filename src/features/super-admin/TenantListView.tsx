@@ -52,6 +52,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
     companyName?: string;
     slug?: string;
     mobileInviteCode?: string;
+    mobileSeatKey?: string;
   } | null>(null);
   const [deleteTenantId, setDeleteTenantId] = useState<string | null>(null);
 
@@ -506,6 +507,7 @@ function CreateTenantModal({
     companyName?: string;
     slug?: string;
     mobileInviteCode?: string;
+    mobileSeatKey?: string;
   }) => void;
   createdCredentials: {
     email: string;
@@ -514,6 +516,7 @@ function CreateTenantModal({
     companyName?: string;
     slug?: string;
     mobileInviteCode?: string;
+    mobileSeatKey?: string;
   } | null;
 }) {
   const [form, setForm] = useState({
@@ -608,6 +611,7 @@ function CreateTenantModal({
         companyName: form.companyName,
         slug: data.slug || undefined,
         mobileInviteCode: data.mobileInviteCode || undefined,
+        mobileSeatKey: data.mobileSeatKey || undefined,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Creation failed');
@@ -720,6 +724,23 @@ function CreateTenantModal({
                   </button>
                 </div>
               )}
+              {createdCredentials.mobileSeatKey && (
+                <div className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl p-3">
+                  <div>
+                    <p className="text-xs text-amber-700 font-medium">Offline seat key (service)</p>
+                    <p className="text-sm font-bold tracking-wider text-gray-900 font-mono">
+                      {createdCredentials.mobileSeatKey}
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Activate on the phone for offline invoices</p>
+                  </div>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(createdCredentials.mobileSeatKey!)}
+                    className="p-1.5 hover:bg-amber-100 rounded-lg transition-colors"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <button
@@ -727,8 +748,11 @@ function CreateTenantModal({
                   const loginUrl = createdCredentials.slug
                     ? `${window.location.origin}/${createdCredentials.slug}`
                     : window.location.origin;
+                  const seatLine = createdCredentials.mobileSeatKey
+                    ? `\n4. Activate offline seat: ${createdCredentials.mobileSeatKey}`
+                    : '';
                   const mobileLine = createdCredentials.mobileInviteCode
-                    ? `\n\n📱 Mobile app:\n1. Download: ${window.location.origin}/download\n2. Enter invite code: ${createdCredentials.mobileInviteCode}\n   (or company code: ${createdCredentials.slug})\n3. Login with email/password below`
+                    ? `\n\n📱 Mobile app:\n1. Download: ${window.location.origin}/download\n2. Enter invite code: ${createdCredentials.mobileInviteCode}\n   (or company code: ${createdCredentials.slug})\n3. Login with email/password below${seatLine}`
                     : '';
                   const msg = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!${mobileLine}\n\nWeb login:\nURL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.`;
                   const phone = (createdCredentials.phone || '').replace(/[^0-9]/g, '');
@@ -747,8 +771,11 @@ function CreateTenantModal({
                     ? `${window.location.origin}/${createdCredentials.slug}`
                     : window.location.origin;
                   const subject = `Your ${createdCredentials.companyName || 'Dhandho'} Login Credentials`;
+                  const seatLine = createdCredentials.mobileSeatKey
+                    ? `\nOffline seat key: ${createdCredentials.mobileSeatKey}\n`
+                    : '';
                   const mobileLine = createdCredentials.mobileInviteCode
-                    ? `\n\nMobile app invite code: ${createdCredentials.mobileInviteCode}\nCompany code: ${createdCredentials.slug}\n`
+                    ? `\n\nMobile app invite code: ${createdCredentials.mobileInviteCode}\nCompany code: ${createdCredentials.slug}\n${seatLine}`
                     : '';
                   const body = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!${mobileLine}\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.\n\nRegards,\nDhandho Management`;
                   window.open(

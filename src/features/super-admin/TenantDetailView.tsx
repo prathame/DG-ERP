@@ -351,7 +351,7 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
         </div>
       </div>
 
-      <MobileTenantPanel tenantId={tenantId} phone={tenant.phone} />
+      <MobileTenantPanel tenantId={tenantId} phone={tenant.phone} businessType={tenant.businessType} />
 
       {/* Tenant Info */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">

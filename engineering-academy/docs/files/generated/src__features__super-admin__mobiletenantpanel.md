@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/super-admin/MobileTenantPanel.tsx` is part of Dhandho (DG-ERP). Approximate size: **242 lines**.
+`src/features/super-admin/MobileTenantPanel.tsx` is part of Dhandho (DG-ERP). Approximate size: **500 lines**.
 
 ## Business value
 
@@ -31,12 +31,12 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (7 detected)
+## Functions (9 detected)
 
 ### Function: MobileTenantPanel
 
 ```ts
-MobileTenantPanel({ tenantId, phone }: Props)
+MobileTenantPanel({ tenantId, phone, businessType }: Props)
 ```
 
 | Aspect | Detail |
@@ -74,6 +74,36 @@ issueInvite(...)
 | Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `issueInvite` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: issueSeat
+
+```ts
+issueSeat(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `issueSeat` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: updateSeat
+
+```ts
+updateSeat(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `updateSeat` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -154,7 +184,7 @@ rg -n "MobileTenantPanel" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **242**. Large view/route files are refactor candidates.
+Line count **500**. Large view/route files are refactor candidates.
 
 ## Security impact
 

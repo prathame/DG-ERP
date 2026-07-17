@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`tests/helpers.ts` is part of Dhandho (DG-ERP). Approximate size: **73 lines**.
+`tests/helpers.ts` is part of Dhandho (DG-ERP). Approximate size: **74 lines**.
 
 ## Business value
 
@@ -114,7 +114,7 @@ rg -n "helpers" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **73**. Large view/route files are refactor candidates.
+Line count **74**. Large view/route files are refactor candidates.
 
 ## Security impact
 

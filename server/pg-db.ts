@@ -1006,6 +1006,28 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_mobile_devices_tenant ON mobile_devices(tenant_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_mobile_devices_seen ON mobile_devices(last_seen)');
 
+    // Service-tenant mobile offline seats (on-prem-style device binding)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS mobile_seats (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        seat_key TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'active',
+        device_id TEXT,
+        device_platform TEXT,
+        app_version TEXT,
+        valid_until DATE,
+        last_seen TIMESTAMPTZ,
+        activated_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        created_by TEXT
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_mobile_seats_tenant ON mobile_seats(tenant_id)');
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_mobile_seats_device ON mobile_seats(tenant_id, device_id) WHERE device_id IS NOT NULL`,
+    );
+
     // Row Level Security (RLS) — DB-level tenant isolation safety net
     // RLS policies enforce tenant_id filtering at the DB level.
     // Table owner (our pool user) bypasses RLS — this is intentional.
@@ -1045,6 +1067,7 @@ export async function initSchema() {
       'tenant_invoices',
       'tenant_stats',
       'mobile_devices',
+      'mobile_seats',
     ];
     for (const table of rlsTables) {
       await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);

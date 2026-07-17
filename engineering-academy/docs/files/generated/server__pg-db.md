@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/pg-db.ts` is part of Dhandho (DG-ERP). Approximate size: **1156 lines**.
+`server/pg-db.ts` is part of Dhandho (DG-ERP). Approximate size: **1179 lines**.
 
 ## Business value
 
@@ -124,7 +124,7 @@ rg -n "pg-db" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **1156**. Large view/route files are refactor candidates.
+Line count **1179**. Large view/route files are refactor candidates.
 
 ## Security impact
 

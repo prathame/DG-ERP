@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/onprem.ts` is part of Dhandho (DG-ERP). Approximate size: **775 lines**.
+`server/routes/onprem.ts` is part of Dhandho (DG-ERP). Approximate size: **777 lines**.
 
 ## Business value
 
@@ -55,8 +55,9 @@ generateLicenseKey()
 ### Function: assertLocalOnpremOnly
 
 ```ts
-assertLocalOnpremOnly(req: { socket: { remoteAddress?: string } }, res: {
-  status: (n: number)
+assertLocalOnpremOnly(req: { socket: { remoteAddress?: string } },
+  res: {
+    status: (n: number)
 ```
 
 | Aspect | Detail |
@@ -204,7 +205,7 @@ rg -n "onprem" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **775**. Large view/route files are refactor candidates.
+Line count **777**. Large view/route files are refactor candidates.
 
 ## Security impact
 

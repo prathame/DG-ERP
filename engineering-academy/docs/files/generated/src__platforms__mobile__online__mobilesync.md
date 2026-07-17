@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/platforms/mobile/online/mobileSync.ts` is part of Dhandho (DG-ERP). Approximate size: **94 lines**.
+`src/platforms/mobile/online/mobileSync.ts` is part of Dhandho (DG-ERP). Approximate size: **106 lines**.
 
 ## Business value
 
@@ -25,6 +25,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `./companyStorage`
 - `../offline/cache`
 - `./isMobileClient`
+- `./seatStorage`
 
 ## Exports and symbols
 
@@ -155,7 +156,7 @@ rg -n "mobileSync" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **94**. Large view/route files are refactor candidates.
+Line count **106**. Large view/route files are refactor candidates.
 
 ## Security impact
 
