@@ -1,10 +1,10 @@
 ---
-sidebar_label: "pg-db.ts"
-title: "File server/pg-db.ts"
-description: "Deep walkthrough of server/pg-db.ts in DG-ERP / Dhandho"
+sidebar_label: "notifications.ts"
+title: "File server/routes/notifications.ts"
+description: "Deep walkthrough of server/routes/notifications.ts in DG-ERP / Dhandho"
 ---
 
-# File walkthrough: `server/pg-db.ts`
+# File walkthrough: `server/routes/notifications.ts`
 
 :::info Ownership context
 Auto-generated from the live source tree so **no file is invisible** during onboarding.
@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/pg-db.ts` is part of Dhandho (DG-ERP). Approximate size: **1136 lines**.
+`server/routes/notifications.ts` is part of Dhandho (DG-ERP). Approximate size: **313 lines**.
 
 ## Business value
 
@@ -20,90 +20,90 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 ## Imports
 
-- `pg`
-- `bcrypt`
-- `dotenv`
-- `./utils/logger`
+- `express`
+- `../pg-db`
+- `../middleware/auth`
+- `../utils/http-error`
 
 ## Exports and symbols
 
-**Exported names:** `SLOW_QUERY_MS`, `setTenantContext`, `withTenantClient`, `pool`, `loggedQuery`, `initSchema`, `seedPlatformData`, `initDatabase`
+**Exported names:** `NotificationDigest`
 
 **Classes:** _none_
 
 ## Functions (5 detected)
 
-### Function: setTenantContext
+### Function: todayBucket
 
 ```ts
-setTenantContext(client: import('pg')
+todayBucket()
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/pg-db.ts`. Open the source and read the body. |
+| Purpose | Symbol in `server/routes/notifications.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `setTenantContext` before deleting. |
+| What breaks if removed | Search the repo for `todayBucket` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: initSchema
+### Function: buildDigests
 
 ```ts
-initSchema()
+buildDigests(tenantId: string, businessType: string)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/pg-db.ts`. Open the source and read the body. |
+| Purpose | Symbol in `server/routes/notifications.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `initSchema` before deleting. |
+| What breaks if removed | Search the repo for `buildDigests` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: seedPlatformData
+### Function: t
 
 ```ts
-seedPlatformData()
+t(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/pg-db.ts`. Open the source and read the body. |
+| Purpose | Symbol in `server/routes/notifications.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `seedPlatformData` before deleting. |
+| What breaks if removed | Search the repo for `t` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: initDatabase
+### Function: tenant
 
 ```ts
-initDatabase()
+tenant(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/pg-db.ts`. Open the source and read the body. |
+| Purpose | Symbol in `server/routes/notifications.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `initDatabase` before deleting. |
+| What breaks if removed | Search the repo for `tenant` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: useSsl
+### Function: saRows
 
 ```ts
-useSsl(...)
+saRows(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/pg-db.ts`. Open the source and read the body. |
+| Purpose | Symbol in `server/routes/notifications.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `useSsl` before deleting. |
+| What breaks if removed | Search the repo for `saRows` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -119,12 +119,12 @@ useSsl(...)
 
 ```bash
 # From DG-ERP repo root
-rg -n "pg-db" --glob '!node_modules' -g '*.ts' -g '*.tsx'
+rg -n "notifications" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 ```
 
 ## Performance impact
 
-Line count **1136**. Large view/route files are refactor candidates.
+Line count **313**. Large view/route files are refactor candidates.
 
 ## Security impact
 
@@ -164,11 +164,11 @@ In-memory caches (authCache, GET Map) do **not** share across instances.
 
 ## Hands-on
 
-1. Open `server/pg-db.ts` in the IDE.
+1. Open `server/routes/notifications.ts` in the IDE.
 2. Breakpoint the largest exported function.
 3. Trigger via UI or supertest.
 4. Write one sentence on why this file exists in the product narrative.
 
 ---
 
-*Generated by scripts/generate-file-deepdives.mjs · slug: `server__pg-db`*
+*Generated by scripts/generate-file-deepdives.mjs · slug: `server__routes__notifications`*

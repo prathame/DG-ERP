@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/App.tsx` is part of Dhandho (DG-ERP). Approximate size: **1102 lines**.
+`src/App.tsx` is part of Dhandho (DG-ERP). Approximate size: **1089 lines**.
 
 ## Business value
 
@@ -420,7 +420,7 @@ rg -n "App" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **1102**. Large view/route files are refactor candidates.
+Line count **1089**. Large view/route files are refactor candidates.
 
 ## Security impact
 

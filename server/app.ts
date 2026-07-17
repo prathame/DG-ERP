@@ -43,6 +43,7 @@ import payrollRouter from './routes/payroll';
 import expensesRouter from './routes/expenses';
 import gstApiRouter from './routes/gst-api';
 import invoicesRouter from './routes/invoices';
+import notificationsRouter from './routes/notifications';
 import { logger, requestContext, type RequestLogContext } from './utils/logger';
 import { logAuthEvent } from './utils/http-error';
 import { getCachedAuth, setCachedAuth } from './utils/authCache';
@@ -537,6 +538,7 @@ export function createApp(): express.Application {
   app.use(ordersRouter);
   app.use(priceListsRouter);
   app.use(accountsRouter);
+  app.use(notificationsRouter);
 
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const correlationId =

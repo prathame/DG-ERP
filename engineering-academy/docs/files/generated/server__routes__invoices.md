@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/invoices.ts` is part of Dhandho (DG-ERP). Approximate size: **365 lines**.
+`server/routes/invoices.ts` is part of Dhandho (DG-ERP). Approximate size: **392 lines**.
 
 ## Business value
 
@@ -34,7 +34,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (5 detected)
+## Functions (6 detected)
 
 ### Function: v
 
@@ -62,6 +62,21 @@ c(...)
 | Purpose | Symbol in `server/routes/invoices.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `c` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: product
+
+```ts
+product(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/invoices.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `product` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -127,7 +142,7 @@ rg -n "invoices" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **365**. Large view/route files are refactor candidates.
+Line count **392**. Large view/route files are refactor candidates.
 
 ## Security impact
 

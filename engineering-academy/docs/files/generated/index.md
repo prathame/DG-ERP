@@ -10,7 +10,7 @@ description: Auto-generated walkthrough pages for every TS/TSX file in DG-ERP
 These pages ensure **zero skipped files**. Prefer curated chapters under [File Walkthrough](/files/) for narrative learning.
 :::
 
-## Server (52 files)
+## Server (53 files)
 
 - [`server/app.ts`](/files/generated/server__app)
 - [`server/index.ts`](/files/generated/server__index)
@@ -35,6 +35,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`server/routes/mapping.ts`](/files/generated/server__routes__mapping)
 - [`server/routes/masters.ts`](/files/generated/server__routes__masters)
 - [`server/routes/mobile.ts`](/files/generated/server__routes__mobile)
+- [`server/routes/notifications.ts`](/files/generated/server__routes__notifications)
 - [`server/routes/onprem.ts`](/files/generated/server__routes__onprem)
 - [`server/routes/orders.ts`](/files/generated/server__routes__orders)
 - [`server/routes/payroll.ts`](/files/generated/server__routes__payroll)
@@ -65,7 +66,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`server/utils/secret-crypto.ts`](/files/generated/server__utils__secret-crypto)
 - [`server/utils/tenant.ts`](/files/generated/server__utils__tenant)
 
-## Frontend (98 files)
+## Frontend (99 files)
 
 - [`src/App.tsx`](/files/generated/src__app)
 - [`src/api.ts`](/files/generated/src__api)
@@ -89,6 +90,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`src/components/ui/DateRangeFilter.tsx`](/files/generated/src__components__ui__daterangefilter)
 - [`src/components/ui/ErrorBoundary.tsx`](/files/generated/src__components__ui__errorboundary)
 - [`src/components/ui/LoadingSpinner.tsx`](/files/generated/src__components__ui__loadingspinner)
+- [`src/components/ui/NotificationCenter.tsx`](/files/generated/src__components__ui__notificationcenter)
 - [`src/components/ui/Pagination.tsx`](/files/generated/src__components__ui__pagination)
 - [`src/components/ui/PaidBadge.tsx`](/files/generated/src__components__ui__paidbadge)
 - [`src/components/ui/PasswordInput.tsx`](/files/generated/src__components__ui__passwordinput)
@@ -177,7 +179,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`electron/shared/constants.ts`](/files/generated/electron__shared__constants)
 - [`electron/shared/find-port.ts`](/files/generated/electron__shared__find-port)
 
-## Tests (51 files)
+## Tests (52 files)
 
 - [`tests/api/audit.test.ts`](/files/generated/tests__api__audit.test)
 - [`tests/api/auth.test.ts`](/files/generated/tests__api__auth.test)
@@ -194,6 +196,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`tests/api/http-auth.test.ts`](/files/generated/tests__api__http-auth.test)
 - [`tests/api/http-invoices-finance.test.ts`](/files/generated/tests__api__http-invoices-finance.test)
 - [`tests/api/http-mobile.test.ts`](/files/generated/tests__api__http-mobile.test)
+- [`tests/api/http-notifications.test.ts`](/files/generated/tests__api__http-notifications.test)
 - [`tests/api/http-vendors-finance-purchases.test.ts`](/files/generated/tests__api__http-vendors-finance-purchases.test)
 - [`tests/api/mapping.test.ts`](/files/generated/tests__api__mapping.test)
 - [`tests/api/masters.test.ts`](/files/generated/tests__api__masters.test)
@@ -231,4 +234,4 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`tests/unit/pii.test.ts`](/files/generated/tests__unit__pii.test)
 - [`tests/unit/price-resolve.test.ts`](/files/generated/tests__unit__price-resolve.test)
 
-**Total files documented:** 209
+**Total files documented:** 212

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/price-lists.ts` is part of Dhandho (DG-ERP). Approximate size: **287 lines**.
+`server/routes/price-lists.ts` is part of Dhandho (DG-ERP). Approximate size: **281 lines**.
 
 ## Business value
 
@@ -81,7 +81,7 @@ rg -n "price-lists" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **287**. Large view/route files are refactor candidates.
+Line count **281**. Large view/route files are refactor candidates.
 
 ## Security impact
 

@@ -60,6 +60,7 @@ export async function cleanupTestData(tenantId: string) {
     // payments before invoices — FK ON DELETE RESTRICT
     'invoice_payments',
     'standalone_invoices',
+    'tenant_notifications',
     'mobile_devices',
   ];
   for (const t of tables) {

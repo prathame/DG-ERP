@@ -1320,19 +1320,52 @@ router.get('/api/super-admin/tenants/:id/export', superAdminMiddleware, async (r
   }
 });
 
-// Push in-app notification to tenant
+// Push in-app notification to tenant (appears in tenant Bell feed)
 router.post('/api/super-admin/tenants/:id/notify', superAdminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { title, message, type = 'info' } = req.body;
     if (!title || !message) return res.status(400).json({ error: 'title and message required' });
-    // Store as a system notification in audit_log — tenant reads it on next load
+    const notifType = ['info', 'warning', 'success'].includes(type) ? type : 'info';
+    const tenant = (await pool.query('SELECT id FROM tenants WHERE id = $1', [id])).rows[0];
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const notifId = uid('TN');
+    await pool.query(
+      `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, expires_at)
+       VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
+      [notifId, id, String(title).slice(0, 200), String(message).slice(0, 2000), notifType],
+    );
     await pool.query(
       `INSERT INTO audit_log (tenant_id, action, entity_type, entity_id, details, user_id, user_name, created_at)
-       VALUES ($1,'SYSTEM_NOTIFICATION','notification','SYS',$2,'SA1','Super Admin',NOW())`,
-      [id, JSON.stringify({ title, message, type })],
+       VALUES ($1,'SYSTEM_NOTIFICATION','notification',$2,$3,'SA1','Super Admin',NOW())`,
+      [id, notifId, JSON.stringify({ title, message, type: notifType })],
     );
-    res.json({ ok: true });
+    res.json({ ok: true, id: notifId });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Broadcast the same message to all active tenants (control panel). */
+router.post('/api/super-admin/notifications/broadcast', superAdminMiddleware, async (req, res) => {
+  try {
+    const { title, message, type = 'info' } = req.body;
+    if (!title || !message) return res.status(400).json({ error: 'title and message required' });
+    const notifType = ['info', 'warning', 'success'].includes(type) ? type : 'info';
+    const tenants = (await pool.query(`SELECT id FROM tenants WHERE COALESCE(status, 'active') IN ('active', 'trial')`))
+      .rows as { id: string }[];
+    let sent = 0;
+    for (const t of tenants) {
+      const notifId = uid('TN');
+      await pool.query(
+        `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, expires_at)
+         VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
+        [notifId, t.id, String(title).slice(0, 200), String(message).slice(0, 2000), notifType],
+      );
+      sent++;
+    }
+    res.json({ ok: true, sent });
   } catch (err) {
     return handleApiError(req, res, err);
   }

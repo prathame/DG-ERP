@@ -867,6 +867,25 @@ export async function initSchema() {
     await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_igst NUMERIC(12,2) DEFAULT 0');
     await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS is_interstate BOOLEAN DEFAULT false');
 
+    // In-app notifications (Super Admin / control-panel pushes)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tenant_notifications (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'info',
+        source TEXT NOT NULL DEFAULT 'super_admin',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        read_at TIMESTAMPTZ,
+        expires_at TIMESTAMPTZ,
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_tn_tenant_unread ON tenant_notifications(tenant_id, read_at, created_at DESC)',
+    );
+
     // Invoice payments — partial/batch payments against standalone invoices
     await client.query(`
       CREATE TABLE IF NOT EXISTS invoice_payments (
@@ -1002,6 +1021,7 @@ export async function initSchema() {
       'staff_members',
       'staff_payments',
       'standalone_invoices',
+      'tenant_notifications',
       'tenant_invoices',
       'tenant_stats',
       'mobile_devices',
