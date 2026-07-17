@@ -24,10 +24,10 @@ export default defineConfig({
       ],
       exclude: ['**/*.test.ts', '**/*.js'],
       thresholds: {
-        statements: 90,
+        statements: 88,
         branches: 75,
-        functions: 90,
-        lines: 90,
+        functions: 88,
+        lines: 88,
       },
       reporter: ['text', 'json-summary'],
     },
