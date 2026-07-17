@@ -14,10 +14,12 @@ router.get('/api/categories', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const rows = (await pool.query('SELECT * FROM categories WHERE tenant_id = $1 ORDER BY name', [tenantId])).rows as Record<string, unknown>[];
-    res.json(rows.map((r) => ({ id: r.id, name: r.name })));
+    const rows = (await pool.query('SELECT * FROM categories WHERE tenant_id = $1 ORDER BY name', [tenantId]))
+      .rows as Record<string, unknown>[];
+    res.json(rows.map(r => ({ id: r.id, name: r.name })));
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -29,11 +31,17 @@ router.post('/api/categories', requireAdmin, async (req: AuthRequest, res) => {
     const { name } = req.body;
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'Category name is required' });
     const id = uid('CAT');
-    await pool.query('INSERT INTO categories (id, name, tenant_id) VALUES ($1, $2, $3)', [id, String(name).trim(), tenantId]);
-    const row = (await pool.query('SELECT * FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
+    await pool.query('INSERT INTO categories (id, name, tenant_id) VALUES ($1, $2, $3)', [
+      id,
+      String(name).trim(),
+      tenantId,
+    ]);
+    const row = (await pool.query('SELECT * FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0] as Record<string, unknown>;
     res.status(201).json({ id: row.id, name: row.name });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -44,12 +52,17 @@ router.put('/api/categories/:id', requireAdmin, async (req: AuthRequest, res) =>
 
     const { id } = req.params;
     const { name } = req.body;
-    const result = await pool.query('UPDATE categories SET name = COALESCE($1, name) WHERE id = $2 AND tenant_id = $3', [name, id, tenantId]);
+    const result = await pool.query(
+      'UPDATE categories SET name = COALESCE($1, name) WHERE id = $2 AND tenant_id = $3',
+      [name, id, tenantId],
+    );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Category not found' });
-    const row = (await pool.query('SELECT * FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown>;
+    const row = (await pool.query('SELECT * FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0] as Record<string, unknown>;
     res.json({ id: row.id, name: row.name });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -59,14 +72,21 @@ router.delete('/api/categories/:id', requireAdmin, async (req: AuthRequest, res)
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const exists = (await pool.query('SELECT 1 FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
+    const exists = (await pool.query('SELECT 1 FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0];
     if (!exists) return res.status(404).json({ error: 'Category not found' });
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query('UPDATE products SET category_id = NULL WHERE category_id = $1 AND tenant_id = $2', [id, tenantId]);
-      await client.query('UPDATE reward_rules SET category_id = NULL WHERE category_id = $1 AND tenant_id = $2', [id, tenantId]);
+      await client.query('UPDATE products SET category_id = NULL WHERE category_id = $1 AND tenant_id = $2', [
+        id,
+        tenantId,
+      ]);
+      await client.query('UPDATE reward_rules SET category_id = NULL WHERE category_id = $1 AND tenant_id = $2', [
+        id,
+        tenantId,
+      ]);
       await client.query('DELETE FROM categories WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('COMMIT');
     } catch (e) {
@@ -78,7 +98,8 @@ router.delete('/api/categories/:id', requireAdmin, async (req: AuthRequest, res)
 
     res.status(204).send();
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -89,10 +110,13 @@ router.get('/api/products', async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { search } = req.query;
+    const { parsePagination } = await import('../utils/pagination');
+    const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
     const jwtVendorId = req.user?.role === 'Vendor' ? (req.user.vendorId ?? null) : null;
     // Vendors only see products distributed to them (no full stock catalog IDOR)
     // Aggregate counts are vendor-scoped when jwtVendorId is set
     let sql: string;
+    let countSql: string;
     const params: string[] = [tenantId];
     if (jwtVendorId) {
       params.push(jwtVendorId);
@@ -120,6 +144,11 @@ router.get('/api/products', async (req: AuthRequest, res) => {
           SELECT 1 FROM product_distribution pd
           WHERE pd.product_id = p.id AND pd.tenant_id = $1 AND pd.vendor_id = $2
         )`;
+      countSql = `SELECT COUNT(*)::int AS c FROM products p
+        WHERE p.tenant_id = $1 AND EXISTS (
+          SELECT 1 FROM product_distribution pd
+          WHERE pd.product_id = p.id AND pd.tenant_id = $1 AND pd.vendor_id = $2
+        )`;
     } else if (req.user?.role === 'Vendor') {
       return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
     } else {
@@ -137,32 +166,91 @@ router.get('/api/products', async (req: AuthRequest, res) => {
         LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Distributed' AND tenant_id = $1 GROUP BY product_id) dc ON dc.product_id = p.id
         LEFT JOIN (SELECT product_id, COUNT(*) as cnt FROM product_distribution WHERE status='Sold' AND tenant_id = $1 GROUP BY product_id) ds ON ds.product_id = p.id
         WHERE p.tenant_id = $1`;
+      countSql = 'SELECT COUNT(*)::int AS c FROM products p WHERE p.tenant_id = $1';
     }
+    const countParams = [...params];
     if (typeof search === 'string' && search) {
       const nextIdx = params.length + 1;
-      sql += ` AND (p.name ILIKE $${nextIdx} OR p.barcode ILIKE $${nextIdx + 1} OR EXISTS (SELECT 1 FROM product_inventory pi2 WHERE pi2.product_id = p.id AND pi2.tenant_id = $1 AND pi2.barcode ILIKE $${nextIdx + 2}))`;
+      const searchClause = ` AND (p.name ILIKE $${nextIdx} OR p.barcode ILIKE $${nextIdx + 1} OR EXISTS (SELECT 1 FROM product_inventory pi2 WHERE pi2.product_id = p.id AND pi2.tenant_id = $1 AND pi2.barcode ILIKE $${nextIdx + 2}))`;
+      sql += searchClause;
+      countSql += searchClause;
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
-    sql += ' ORDER BY p.name';
+    const total = Number((await pool.query(countSql, countParams)).rows[0]?.c ?? 0);
+    const limIdx = params.length + 1;
+    sql += ` ORDER BY p.name LIMIT $${limIdx} OFFSET $${limIdx + 1}`;
+    params.push(String(limit), String(offset));
     const rows = (await pool.query(sql, params)).rows;
-    res.json((rows as Record<string, unknown>[]).map((r) => {
-      const invCount = Number(r.inv_stock) || 0;
-      const totalInv = Number(r.total_inv) || 0;
-      const fallbackStock = Number(r.stock) || 0;
-      const effectiveStock = totalInv > 0 ? invCount : fallbackStock;
-      const effectiveTotal = totalInv > 0 ? totalInv : fallbackStock;
-      return mapProduct({
-      ...r,
-      stock: effectiveStock,
-      totalInventory: effectiveTotal,
-      remainingInventory: effectiveStock,
-      soldCount: (r.sold_count as number) ?? 0,
-      withVendors: (r.with_vendors as number) ?? 0,
-      barcodeRange: (r.barcode_first && r.barcode_last) ? { first: r.barcode_first as string, last: r.barcode_last as string } : null,
-      barcodeUnitType: (r.barcode_unit_type as string) || 'piece',
-    }); }));
+    res.setHeader('X-Total-Count', String(total));
+    res.setHeader('X-Page', String(page));
+    res.setHeader('X-Limit', String(limit));
+    res.json(
+      (rows as Record<string, unknown>[]).map(r => {
+        const invCount = Number(r.inv_stock) || 0;
+        const totalInv = Number(r.total_inv) || 0;
+        const fallbackStock = Number(r.stock) || 0;
+        const effectiveStock = totalInv > 0 ? invCount : fallbackStock;
+        const effectiveTotal = totalInv > 0 ? totalInv : fallbackStock;
+        return mapProduct({
+          ...r,
+          stock: effectiveStock,
+          totalInventory: effectiveTotal,
+          remainingInventory: effectiveStock,
+          soldCount: (r.sold_count as number) ?? 0,
+          withVendors: (r.with_vendors as number) ?? 0,
+          barcodeRange:
+            r.barcode_first && r.barcode_last
+              ? { first: r.barcode_first as string, last: r.barcode_last as string }
+              : null,
+          barcodeUnitType: (r.barcode_unit_type as string) || 'piece',
+        });
+      }),
+    );
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/** Lightweight badge endpoint — avoids loading the full product catalog on shell boot. */
+router.get('/api/products/low-stock-count', async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const threshold = Math.min(100, Math.max(1, parseInt(String(req.query.threshold ?? '10'), 10) || 10));
+    if (req.user?.role === 'Vendor') {
+      const vendorId = req.user.vendorId;
+      if (!vendorId) return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
+      const { rows } = await pool.query(
+        `SELECT COUNT(*)::int AS c FROM (
+           SELECT p.id FROM products p
+           JOIN product_distribution pd ON pd.product_id = p.id AND pd.tenant_id = p.tenant_id AND pd.vendor_id = $2
+           WHERE p.tenant_id = $1
+           GROUP BY p.id
+           HAVING COUNT(*) FILTER (WHERE pd.status = 'Distributed') < $3
+         ) t`,
+        [tenantId, vendorId, threshold],
+      );
+      return res.json({ count: Number(rows[0]?.c ?? 0), threshold });
+    }
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM (
+         SELECT p.id,
+           CASE WHEN COALESCE(inv.total, 0) > 0 THEN COALESCE(inv.in_stock, 0) ELSE COALESCE(p.stock, 0) END AS remaining
+         FROM products p
+         LEFT JOIN (
+           SELECT product_id, COUNT(*) as total, COUNT(*) FILTER (WHERE status='InStock') as in_stock
+           FROM product_inventory WHERE tenant_id = $1 GROUP BY product_id
+         ) inv ON inv.product_id = p.id
+         WHERE p.tenant_id = $1
+       ) t WHERE remaining < $2`,
+      [tenantId, threshold],
+    );
+    res.json({ count: Number(rows[0]?.c ?? 0), threshold });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -175,17 +263,22 @@ router.get('/api/products/:id/barcode-details', async (req: AuthRequest, res) =>
     const jwtVendorId = vendorScopeId(req);
     if (req.user?.role === 'Vendor') {
       if (!jwtVendorId) return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
-      const allowed = (await pool.query(
-        'SELECT 1 FROM product_distribution WHERE product_id = $1 AND vendor_id = $2 AND tenant_id = $3 LIMIT 1',
-        [id, jwtVendorId, tenantId]
-      )).rows[0];
+      const allowed = (
+        await pool.query(
+          'SELECT 1 FROM product_distribution WHERE product_id = $1 AND vendor_id = $2 AND tenant_id = $3 LIMIT 1',
+          [id, jwtVendorId, tenantId],
+        )
+      ).rows[0];
       if (!allowed) return res.status(403).json({ error: 'Access denied for this product.' });
     }
-    const product = (await pool.query('SELECT id, name FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as { id: string; name: string } | undefined;
+    const product = (await pool.query('SELECT id, name FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0] as { id: string; name: string } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
     // Vendors only see barcodes distributed to them
     const rows = jwtVendorId
-      ? ((await pool.query(`
+      ? ((
+          await pool.query(
+            `
           SELECT COALESCE(pd.batch_id, pd.distribution_date::text) as batch_key,
                  MIN(pd.distribution_date)::text as add_date,
                  MIN(pd.barcode) as barcode_first, MAX(pd.barcode) as barcode_last, COUNT(*) as count
@@ -193,22 +286,33 @@ router.get('/api/products/:id/barcode-details', async (req: AuthRequest, res) =>
           WHERE pd.product_id = $1 AND pd.vendor_id = $2 AND pd.tenant_id = $3
           GROUP BY COALESCE(pd.batch_id, pd.distribution_date::text)
           ORDER BY add_date DESC
-        `, [id, jwtVendorId, tenantId])).rows as { add_date: string; barcode_first: string; barcode_last: string; count: number }[])
-      : ((await pool.query(`
+        `,
+            [id, jwtVendorId, tenantId],
+          )
+        ).rows as { add_date: string; barcode_first: string; barcode_last: string; count: number }[])
+      : ((
+          await pool.query(
+            `
           SELECT COALESCE(batch_id, created_at::date::text) as batch_key, MIN(created_at::date)::text as add_date, MIN(barcode) as barcode_first, MAX(barcode) as barcode_last, COUNT(*) as count
           FROM product_inventory
           WHERE product_id = $1 AND tenant_id = $2
           GROUP BY COALESCE(batch_id, created_at::date::text)
           ORDER BY add_date DESC
-        `, [id, tenantId])).rows as { add_date: string; barcode_first: string; barcode_last: string; count: number }[]);
-    res.json(rows.map((r) => ({
-      date: r.add_date,
-      barcodeFirst: r.barcode_first,
-      barcodeLast: r.barcode_last,
-      count: r.count,
-    })));
+        `,
+            [id, tenantId],
+          )
+        ).rows as { add_date: string; barcode_first: string; barcode_last: string; count: number }[]);
+    res.json(
+      rows.map(r => ({
+        date: r.add_date,
+        barcodeFirst: r.barcode_first,
+        barcodeLast: r.barcode_last,
+        count: r.count,
+      })),
+    );
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -220,26 +324,38 @@ router.get('/api/products/:id/barcodes', async (req: AuthRequest, res) => {
     const jwtVendorId = vendorScopeId(req);
     if (req.user?.role === 'Vendor') {
       if (!jwtVendorId) return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
-      const allowed = (await pool.query(
-        'SELECT 1 FROM product_distribution WHERE product_id = $1 AND vendor_id = $2 AND tenant_id = $3 LIMIT 1',
-        [id, jwtVendorId, tenantId]
-      )).rows[0];
+      const allowed = (
+        await pool.query(
+          'SELECT 1 FROM product_distribution WHERE product_id = $1 AND vendor_id = $2 AND tenant_id = $3 LIMIT 1',
+          [id, jwtVendorId, tenantId],
+        )
+      ).rows[0];
       if (!allowed) return res.status(403).json({ error: 'Access denied for this product.' });
     }
-    const product = (await pool.query('SELECT id, name, price FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as { id: string; name: string; price: number } | undefined;
+    const product = (
+      await pool.query('SELECT id, name, price FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])
+    ).rows[0] as { id: string; name: string; price: number } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
     const rows = jwtVendorId
-      ? ((await pool.query(
-          'SELECT barcode, status FROM product_distribution WHERE product_id = $1 AND vendor_id = $2 AND tenant_id = $3 ORDER BY barcode',
-          [id, jwtVendorId, tenantId]
-        )).rows as { barcode: string; status: string }[])
-      : ((await pool.query(
-          'SELECT barcode, status FROM product_inventory WHERE product_id = $1 AND tenant_id = $2 ORDER BY barcode',
-          [id, tenantId]
-        )).rows as { barcode: string; status: string }[]);
-    res.json({ product: { id: product.id, name: product.name, price: product.price }, barcodes: rows.map((r) => ({ barcode: r.barcode, status: r.status })) });
+      ? ((
+          await pool.query(
+            'SELECT barcode, status FROM product_distribution WHERE product_id = $1 AND vendor_id = $2 AND tenant_id = $3 ORDER BY barcode',
+            [id, jwtVendorId, tenantId],
+          )
+        ).rows as { barcode: string; status: string }[])
+      : ((
+          await pool.query(
+            'SELECT barcode, status FROM product_inventory WHERE product_id = $1 AND tenant_id = $2 ORDER BY barcode',
+            [id, tenantId],
+          )
+        ).rows as { barcode: string; status: string }[]);
+    res.json({
+      product: { id: product.id, name: product.name, price: product.price },
+      barcodes: rows.map(r => ({ barcode: r.barcode, status: r.status })),
+    });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -252,29 +368,41 @@ router.get('/api/products/verify/:barcode', async (req: AuthRequest, res) => {
     const { barcode } = req.params;
     const jwtVendorId = vendorScopeId(req);
 
-    const tenant = (await pool.query('SELECT vendor_portal_enabled, barcode_system_enabled FROM tenants WHERE id = $1', [tenantId])).rows[0] as Record<string, unknown> | undefined;
+    const tenant = (
+      await pool.query('SELECT vendor_portal_enabled, barcode_system_enabled FROM tenants WHERE id = $1', [tenantId])
+    ).rows[0] as Record<string, unknown> | undefined;
     const features = {
       vendorPortal: tenant?.vendor_portal_enabled !== false,
       barcodeSystem: tenant?.barcode_system_enabled !== false,
     };
 
-    const inv = (await pool.query(`
+    const inv = (
+      await pool.query(
+        `
       SELECT pi.barcode, pi.status, pi.created_at as added_at,
              p.id as product_id, p.name as product_name, p.price, p.description, p.warranty_months, p.hsn_code, p.gst_rate, p.warranty_applicable
       FROM product_inventory pi
       JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
       WHERE pi.barcode = $1 AND pi.tenant_id = $2
-    `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
+    `,
+        [barcode, tenantId],
+      )
+    ).rows[0] as Record<string, unknown> | undefined;
 
     if (!inv) return res.status(404).json({ error: 'Barcode not found', found: false });
 
-    const dist = (await pool.query(`
+    const dist = (
+      await pool.query(
+        `
       SELECT pd.vendor_id, pd.distribution_date, pd.status as dist_status, pd.discount_percent, pd.net_price, pd.gst_applied, pd.billed_price,
              v.name as vendor_name, v.phone as vendor_phone, v.contact_person
       FROM product_distribution pd
       LEFT JOIN vendors v ON pd.vendor_id = v.id AND v.tenant_id = $2
       WHERE pd.barcode = $1 AND pd.tenant_id = $2
-    `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
+    `,
+        [barcode, tenantId],
+      )
+    ).rows[0] as Record<string, unknown> | undefined;
 
     if (jwtVendorId) {
       if (!dist || dist.vendor_id !== jwtVendorId) {
@@ -282,23 +410,32 @@ router.get('/api/products/verify/:barcode', async (req: AuthRequest, res) => {
       }
     }
 
-    const sale = (await pool.query(`
+    const sale = (
+      await pool.query(
+        `
       SELECT ps.customer_name, ps.customer_phone, ps.customer_email, ps.purchase_date, ps.sale_price, ps.reward_points_earned,
              v.name as sold_by_vendor
       FROM product_sales ps
       LEFT JOIN vendors v ON ps.vendor_id = v.id AND v.tenant_id = $2
       WHERE ps.barcode = $1 AND ps.tenant_id = $2
-    `, [barcode, tenantId])).rows[0] as Record<string, unknown> | undefined;
+    `,
+        [barcode, tenantId],
+      )
+    ).rows[0] as Record<string, unknown> | undefined;
 
-    const warranty = (await pool.query(
-      'SELECT status, activation_date, expiry_date FROM warranties WHERE barcode = $1 AND tenant_id = $2 ORDER BY activation_date DESC LIMIT 1',
-      [barcode, tenantId]
-    )).rows[0] as Record<string, unknown> | undefined;
+    const warranty = (
+      await pool.query(
+        'SELECT status, activation_date, expiry_date FROM warranties WHERE barcode = $1 AND tenant_id = $2 ORDER BY activation_date DESC LIMIT 1',
+        [barcode, tenantId],
+      )
+    ).rows[0] as Record<string, unknown> | undefined;
 
-    const replacements = (await pool.query(
-      'SELECT id, old_barcode, new_barcode, reason, replaced_date as created_at FROM product_replacements WHERE (old_barcode = $1 OR new_barcode = $1) AND tenant_id = $2 ORDER BY replaced_date DESC',
-      [barcode, tenantId]
-    )).rows as Record<string, unknown>[];
+    const replacements = (
+      await pool.query(
+        'SELECT id, old_barcode, new_barcode, reason, replaced_date as created_at FROM product_replacements WHERE (old_barcode = $1 OR new_barcode = $1) AND tenant_id = $2 ORDER BY replaced_date DESC',
+        [barcode, tenantId],
+      )
+    ).rows as Record<string, unknown>[];
 
     const currentStatus = sale ? 'Sold' : dist ? (dist.dist_status as string) : (inv.status as string);
 
@@ -308,9 +445,13 @@ router.get('/api/products/verify/:barcode', async (req: AuthRequest, res) => {
       currentStatus,
       features,
       product: {
-        name: inv.product_name, price: inv.price, description: inv.description,
-        hsnCode: inv.hsn_code, gstRate: inv.gst_rate,
-        warrantyMonths: inv.warranty_months, warrantyApplicable: inv.warranty_applicable,
+        name: inv.product_name,
+        price: inv.price,
+        description: inv.description,
+        hsnCode: inv.hsn_code,
+        gstRate: inv.gst_rate,
+        warrantyMonths: inv.warranty_months,
+        warrantyApplicable: inv.warranty_applicable,
       },
       timeline: {
         addedToInventory: inv.added_at,
@@ -325,7 +466,9 @@ router.get('/api/products/verify/:barcode', async (req: AuthRequest, res) => {
         netPrice: dist.net_price,
         gstApplied: !!dist.gst_applied,
         billedPrice: dist.billed_price,
-        vendorName: dist.vendor_name, vendorPhone: dist.vendor_phone, contactPerson: dist.contact_person,
+        vendorName: dist.vendor_name,
+        vendorPhone: dist.vendor_phone,
+        contactPerson: dist.contact_person,
       };
       (result.timeline as Record<string, unknown>).distributed = dist.distribution_date;
     }
@@ -334,25 +477,36 @@ router.get('/api/products/verify/:barcode', async (req: AuthRequest, res) => {
       result.sale = {
         date: sale.purchase_date,
         salePrice: sale.sale_price,
-        soldByVendor: sale.sold_by_vendor, customerName: sale.customer_name, customerPhone: sale.customer_phone, customerEmail: sale.customer_email,
+        soldByVendor: sale.sold_by_vendor,
+        customerName: sale.customer_name,
+        customerPhone: sale.customer_phone,
+        customerEmail: sale.customer_email,
         rewardPointsEarned: sale.reward_points_earned,
       };
       (result.timeline as Record<string, unknown>).sold = sale.purchase_date;
     }
 
     if (warranty) {
-      result.warranty = { status: warranty.status, activationDate: warranty.activation_date, expiryDate: warranty.expiry_date };
+      result.warranty = {
+        status: warranty.status,
+        activationDate: warranty.activation_date,
+        expiryDate: warranty.expiry_date,
+      };
     }
 
     if (replacements.length > 0) {
-      result.replacements = replacements.map((r) => ({
-        oldBarcode: r.old_barcode, newBarcode: r.new_barcode, reason: r.reason, date: r.created_at,
+      result.replacements = replacements.map(r => ({
+        oldBarcode: r.old_barcode,
+        newBarcode: r.new_barcode,
+        reason: r.reason,
+        date: r.created_at,
       }));
     }
 
     res.json(result);
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -366,26 +520,38 @@ router.get('/api/products/by-barcode/:barcode', async (req: AuthRequest, res) =>
     const { barcode } = req.params;
     const jwtVendorId = vendorScopeId(req);
     if (jwtVendorId) {
-      const owned = (await pool.query(
-        'SELECT 1 FROM product_distribution WHERE barcode = $1 AND vendor_id = $2 AND tenant_id = $3 LIMIT 1',
-        [barcode, jwtVendorId, tenantId]
-      )).rows[0];
+      const owned = (
+        await pool.query(
+          'SELECT 1 FROM product_distribution WHERE barcode = $1 AND vendor_id = $2 AND tenant_id = $3 LIMIT 1',
+          [barcode, jwtVendorId, tenantId],
+        )
+      ).rows[0];
       if (!owned) return res.status(403).json({ error: 'Access denied for this barcode.' });
     }
 
-    let row = (await pool.query(`
+    let row = (
+      await pool.query(
+        `
       SELECT p.*,
       (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as inv_stock
       FROM products p
       JOIN product_inventory pi ON pi.product_id = p.id AND pi.barcode = $2 AND pi.status = 'InStock' AND pi.tenant_id = $1
       WHERE p.tenant_id = $1
-    `, [tenantId, barcode])).rows[0] as Record<string, unknown> | undefined;
+    `,
+        [tenantId, barcode],
+      )
+    ).rows[0] as Record<string, unknown> | undefined;
     if (!row) {
-      row = (await pool.query(`
+      row = (
+        await pool.query(
+          `
         SELECT p.*,
         (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as inv_stock
         FROM products p WHERE p.barcode = $2 AND p.tenant_id = $1
-      `, [tenantId, barcode])).rows[0] as Record<string, unknown> | undefined;
+      `,
+          [tenantId, barcode],
+        )
+      ).rows[0] as Record<string, unknown> | undefined;
     }
     if (!row) return res.status(404).json({ error: 'Product not found' });
     // Vendors must not see warehouse stock totals
@@ -395,7 +561,8 @@ router.get('/api/products/by-barcode/:barcode', async (req: AuthRequest, res) =>
     }
     res.json(mapProduct({ ...row, stock: (row.inv_stock as number) ?? row.stock ?? 0 }));
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -407,13 +574,17 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { items } = req.body as { items: Record<string, unknown>[] };
     if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items to import' });
+    const { assertBulkSize } = await import('../utils/pagination');
+    const bulkErr = assertBulkSize(items, 500);
+    if (bulkErr) return res.status(400).json({ error: bulkErr });
 
     // Validate all rows first — fail fast before any DB writes
     const errors: string[] = [];
     for (let i = 0; i < items.length; i++) {
       const r = items[i];
       if (!r.name || !String(r.name).trim()) errors.push(`Row ${i + 1}: name is required`);
-      if (r.hsnCode && !/^\d{4}(\d{2})?(\d{2})?$/.test(String(r.hsnCode).replace(/\s/g, ''))) errors.push(`Row ${i + 1} (${r.name}): HSN must be 4, 6, or 8 digits`);
+      if (r.hsnCode && !/^\d{4}(\d{2})?(\d{2})?$/.test(String(r.hsnCode).replace(/\s/g, '')))
+        errors.push(`Row ${i + 1} (${r.name}): HSN must be 4, 6, or 8 digits`);
     }
     if (errors.length) return res.status(400).json({ error: errors.join('; ') });
 
@@ -424,10 +595,12 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
 
     // ponytail: one SELECT to find all existing products instead of N selects
     const names = items.map(r => String(r.name).trim().toLowerCase());
-    const existingRows = (await client.query(
-      'SELECT id, name, stock FROM products WHERE tenant_id = $1 AND LOWER(name) = ANY($2::text[])',
-      [tenantId, names]
-    )).rows as { id: string; name: string; stock: number }[];
+    const existingRows = (
+      await client.query(
+        'SELECT id, name, stock FROM products WHERE tenant_id = $1 AND LOWER(name) = ANY($2::text[])',
+        [tenantId, names],
+      )
+    ).rows as { id: string; name: string; stock: number }[];
     const existingMap = new Map(existingRows.map(r => [r.name.toLowerCase(), r]));
 
     // Split into new vs existing
@@ -450,11 +623,14 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
 
     // Bulk UPDATE existing stock
     if (toUpdate.length > 0) {
-      await client.query(`
+      await client.query(
+        `
         UPDATE products SET stock = products.stock + v.qty
         FROM (SELECT unnest($1::text[]) AS id, unnest($2::int[]) AS qty) AS v
         WHERE products.id = v.id AND products.tenant_id = $3
-      `, [toUpdate.map(u => u.id), toUpdate.map(u => u.qty), tenantId]);
+      `,
+        [toUpdate.map(u => u.id), toUpdate.map(u => u.qty), tenantId],
+      );
     }
 
     // Bulk INSERT new products
@@ -469,16 +645,33 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
         const qty = Number(r.quantity) || 0;
         const productId = uid('P');
         productIds.push({ r, id: productId });
-        vals.push(`($${pIdx},$${pIdx+1},$${pIdx+2},$${pIdx+3},$${pIdx+4},$${pIdx+5},$${pIdx+6},$${pIdx+7},$${pIdx+8},$${pIdx+9},$${pIdx+10},$${pIdx+11},$${pIdx+12},$${pIdx+13},$${pIdx+14},$${pIdx+15},$${pIdx+16})`);
-        params.push(productId, name, null, r.description || null, Number(r.rewardPointsValue) || 0, null, null, 'Active',
-          Number(r.warrantyMonths) || 12, Number(r.price) || 0, qty, tenantId,
-          ps > 1 ? ps : 1, r.packName || (ps > 1 ? 'Box' : 'Piece'),
-          r.hsnCode || null, r.gstRate != null ? Number(r.gstRate) : 18, !!r.priceIncludesGst);
+        vals.push(
+          `($${pIdx},$${pIdx + 1},$${pIdx + 2},$${pIdx + 3},$${pIdx + 4},$${pIdx + 5},$${pIdx + 6},$${pIdx + 7},$${pIdx + 8},$${pIdx + 9},$${pIdx + 10},$${pIdx + 11},$${pIdx + 12},$${pIdx + 13},$${pIdx + 14},$${pIdx + 15},$${pIdx + 16})`,
+        );
+        params.push(
+          productId,
+          name,
+          null,
+          r.description || null,
+          Number(r.rewardPointsValue) || 0,
+          null,
+          null,
+          'Active',
+          Number(r.warrantyMonths) || 12,
+          Number(r.price) || 0,
+          qty,
+          tenantId,
+          ps > 1 ? ps : 1,
+          r.packName || (ps > 1 ? 'Box' : 'Piece'),
+          r.hsnCode || null,
+          r.gstRate != null ? Number(r.gstRate) : 18,
+          !!r.priceIncludesGst,
+        );
         pIdx += 17;
       }
       await client.query(
         `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst) VALUES ${vals.join(',')}`,
-        params
+        params,
       );
 
       // Generate barcodes per new product (still per-product since prefix varies)
@@ -488,28 +681,41 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
         const ps = Number(r.packSize) || 1;
         if (prefix && qty > 0) {
           const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, Math.min(qty, 10000));
-          const unitType = (ps > 1) ? 'box' : 'piece';
+          const unitType = ps > 1 ? 'box' : 'piece';
           const batchId = uid('B');
           const bVals: string[] = [];
           const bParams: unknown[] = [];
           let bIdx = 1;
           for (const bc of barcodes) {
-            bVals.push(`($${bIdx},$${bIdx+1},$${bIdx+2},$${bIdx+3},$${bIdx+4},$${bIdx+5},$${bIdx+6})`);
+            bVals.push(`($${bIdx},$${bIdx + 1},$${bIdx + 2},$${bIdx + 3},$${bIdx + 4},$${bIdx + 5},$${bIdx + 6})`);
             bParams.push(uid('I'), productId, bc, batchId, 'InStock', tenantId, unitType);
             bIdx += 7;
           }
-          if (bVals.length) await client.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type) VALUES ${bVals.join(',')}`, bParams);
+          if (bVals.length)
+            await client.query(
+              `INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type) VALUES ${bVals.join(',')}`,
+              bParams,
+            );
         }
       }
     }
     await client.query('COMMIT');
-    await logAudit(pool, tenantId, 'Batch Import', 'product', `batch-${Date.now()}`, `${created} created, ${stockAdded} stock added via CSV`);
+    await logAudit(
+      pool,
+      tenantId,
+      'Batch Import',
+      'product',
+      `batch-${Date.now()}`,
+      `${created} created, ${stockAdded} stock added via CSV`,
+    );
     res.status(201).json({ success: created + stockAdded, created, stockAdded, details, errors: [] });
   } catch (e) {
     await client.query('ROLLBACK');
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
     res.status(500).json({ error: 'Import failed — no products were added' });
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
 });
 
 router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
@@ -521,109 +727,190 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
     const limitErr = await checkPlanLimit(tenantId, 'products');
     if (limitErr) return res.status(403).json(limitErr);
 
-    const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, stock, rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix, packSize, packName, hsnCode, gstRate, barcodePerBox, priceIncludesGst } = req.body;
+    const {
+      name,
+      barcode,
+      description,
+      rewardPointsValue,
+      manufacturingDate,
+      batchNumber,
+      status,
+      warrantyMonths,
+      price,
+      stock,
+      rangeStart,
+      rangeEnd,
+      quantity,
+      barcodeMode,
+      barcodePrefix,
+      packSize,
+      packName,
+      hsnCode,
+      gstRate,
+      barcodePerBox,
+      priceIncludesGst,
+    } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Product name is required' });
-    if (hsnCode && !/^\d{4}(\d{2})?(\d{2})?$/.test(String(hsnCode).replace(/\s/g, ''))) return res.status(400).json({ error: 'HSN code must be 4, 6, or 8 digits' });
-    const duplicate = (await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [tenantId, name.trim()])).rows[0];
+    if (hsnCode && !/^\d{4}(\d{2})?(\d{2})?$/.test(String(hsnCode).replace(/\s/g, '')))
+      return res.status(400).json({ error: 'HSN code must be 4, 6, or 8 digits' });
+    const duplicate = (
+      await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [
+        tenantId,
+        name.trim(),
+      ])
+    ).rows[0];
     if (duplicate) return res.status(400).json({ error: `Product "${name}" already exists` });
     const id = uid('P');
     let invStock = 0;
     const mode = barcodeMode ?? 'prefix';
     const client = await pool.connect();
     try {
-    await client.query('BEGIN');
+      await client.query('BEGIN');
 
-    const insertProductRow = async () => {
-      await client.query(
-        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-        [id, name, null, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, 0, tenantId, packSize ?? 1, packName || 'Piece', hsnCode || null, gstRate ?? 18, !!priceIncludesGst]
-      );
-    };
-    const insertBarcodes = async (barcodes: string[]) => {
-      const batchId = uid('B');
-      // Batch check: verify no duplicates in one query
-      const existing = (await client.query(
-        'SELECT barcode FROM product_inventory WHERE barcode = ANY($1) AND tenant_id = $2',
-        [barcodes, tenantId]
-      )).rows;
-      if (existing.length > 0) {
-        throw new Error(`BARCODE_EXISTS:${(existing[0] as { barcode: string }).barcode}`);
-      }
-      // Batch insert all barcodes in one query
-      const unitType = barcodePerBox && (Number(packSize) || 1) > 1 ? 'box' : 'piece';
-      if (barcodes.length > 0) {
-        // Chunk at 5000 rows (7 params each = 35000 params per batch, safely under PG's 65535 limit)
-        const CHUNK = 5000;
-        let offset = 0;
-        while (offset < barcodes.length) {
-          const chunk = barcodes.slice(offset, offset + CHUNK);
-          const values: string[] = [];
-          const params: unknown[] = [];
-          let paramIdx = 1;
-          for (let i = 0; i < chunk.length; i++) {
-            values.push(`($${paramIdx},$${paramIdx+1},$${paramIdx+2},$${paramIdx+3},$${paramIdx+4},$${paramIdx+5},$${paramIdx+6})`);
-            params.push(`I${id}-${offset + i + 1}`, id, chunk[i], batchId, 'InStock', tenantId, unitType);
-            paramIdx += 7;
-          }
-          await client.query(`INSERT INTO product_inventory (id,product_id,barcode,batch_id,status,tenant_id,unit_type) VALUES ${values.join(',')}`, params);
-          offset += CHUNK;
+      const insertProductRow = async () => {
+        await client.query(
+          `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+          [
+            id,
+            name,
+            null,
+            description || null,
+            rewardPointsValue ?? 0,
+            manufacturingDate || null,
+            batchNumber || null,
+            status ?? 'Active',
+            warrantyMonths ?? 12,
+            price ?? 0,
+            0,
+            tenantId,
+            packSize ?? 1,
+            packName || 'Piece',
+            hsnCode || null,
+            gstRate ?? 18,
+            !!priceIncludesGst,
+          ],
+        );
+      };
+      const insertBarcodes = async (barcodes: string[]) => {
+        const batchId = uid('B');
+        // Batch check: verify no duplicates in one query
+        const existing = (
+          await client.query('SELECT barcode FROM product_inventory WHERE barcode = ANY($1) AND tenant_id = $2', [
+            barcodes,
+            tenantId,
+          ])
+        ).rows;
+        if (existing.length > 0) {
+          throw new Error(`BARCODE_EXISTS:${(existing[0] as { barcode: string }).barcode}`);
         }
-        invStock = barcodes.length;
-      }
-    };
+        // Batch insert all barcodes in one query
+        const unitType = barcodePerBox && (Number(packSize) || 1) > 1 ? 'box' : 'piece';
+        if (barcodes.length > 0) {
+          // Chunk at 5000 rows (7 params each = 35000 params per batch, safely under PG's 65535 limit)
+          const CHUNK = 5000;
+          let offset = 0;
+          while (offset < barcodes.length) {
+            const chunk = barcodes.slice(offset, offset + CHUNK);
+            const values: string[] = [];
+            const params: unknown[] = [];
+            let paramIdx = 1;
+            for (let i = 0; i < chunk.length; i++) {
+              values.push(
+                `($${paramIdx},$${paramIdx + 1},$${paramIdx + 2},$${paramIdx + 3},$${paramIdx + 4},$${paramIdx + 5},$${paramIdx + 6})`,
+              );
+              params.push(`I${id}-${offset + i + 1}`, id, chunk[i], batchId, 'InStock', tenantId, unitType);
+              paramIdx += 7;
+            }
+            await client.query(
+              `INSERT INTO product_inventory (id,product_id,barcode,batch_id,status,tenant_id,unit_type) VALUES ${values.join(',')}`,
+              params,
+            );
+            offset += CHUNK;
+          }
+          invStock = barcodes.length;
+        }
+      };
 
-    if (mode === 'prefix') {
-      const prefix = typeof barcodePrefix === 'string' ? barcodePrefix.trim() : '';
-      const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
-      // H5: must ROLLBACK before early return — connection is mid-transaction
-      if (!prefix) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'Barcode prefix is required (e.g. SP, PUMP, etc.)' });
+      if (mode === 'prefix') {
+        const prefix = typeof barcodePrefix === 'string' ? barcodePrefix.trim() : '';
+        const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
+        // H5: must ROLLBACK before early return — connection is mid-transaction
+        if (!prefix) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Barcode prefix is required (e.g. SP, PUMP, etc.)' });
+        }
+        const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, qty);
+        await insertProductRow();
+        await insertBarcodes(barcodes);
+      } else if (mode === 'auto') {
+        const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
+        const batchId = uid('B');
+        const base = `AUTO-${batchId}`;
+        const barcodes = Array.from({ length: qty }, (_, i) => `${base}-${String(i + 1).padStart(4, '0')}`);
+        await insertProductRow();
+        await insertBarcodes(barcodes);
+      } else if (
+        mode === 'range' &&
+        typeof rangeStart === 'string' &&
+        typeof rangeEnd === 'string' &&
+        rangeStart.trim() &&
+        rangeEnd.trim()
+      ) {
+        const barcodes = expandBarcodeRange(rangeStart.trim(), rangeEnd.trim());
+        if (barcodes.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Invalid barcode range' });
+        }
+        await insertProductRow();
+        await insertBarcodes(barcodes);
+      } else {
+        await client.query(
+          `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+          [
+            id,
+            name,
+            barcode || null,
+            description || null,
+            rewardPointsValue ?? 0,
+            manufacturingDate || null,
+            batchNumber || null,
+            status ?? 'Active',
+            warrantyMonths ?? 12,
+            price ?? 0,
+            stock ?? 0,
+            tenantId,
+            packSize ?? 1,
+            packName || 'Piece',
+            hsnCode || null,
+            gstRate ?? 18,
+            !!priceIncludesGst,
+          ],
+        );
+        invStock = stock ?? 0;
       }
-      const barcodes = await generateBarcodesFromPrefix(pool, tenantId, prefix, qty);
-      await insertProductRow();
-      await insertBarcodes(barcodes);
-    } else if (mode === 'auto') {
-      const qty = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), 10000);
-      const batchId = uid('B');
-      const base = `AUTO-${batchId}`;
-      const barcodes = Array.from({ length: qty }, (_, i) => `${base}-${String(i + 1).padStart(4, '0')}`);
-      await insertProductRow();
-      await insertBarcodes(barcodes);
-    } else if (mode === 'range' && typeof rangeStart === 'string' && typeof rangeEnd === 'string' && rangeStart.trim() && rangeEnd.trim()) {
-      const barcodes = expandBarcodeRange(rangeStart.trim(), rangeEnd.trim());
-      if (barcodes.length === 0) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'Invalid barcode range' });
-      }
-      await insertProductRow();
-      await insertBarcodes(barcodes);
-    } else {
-      await client.query(
-        `INSERT INTO products (id, name, barcode, description, reward_points_value, manufacturing_date, batch_number, status, warranty_months, price, stock, tenant_id, pack_size, pack_name, hsn_code, gst_rate, price_includes_gst) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-        [id, name, barcode || null, description || null, rewardPointsValue ?? 0, manufacturingDate || null, batchNumber || null, status ?? 'Active', warrantyMonths ?? 12, price ?? 0, stock ?? 0, tenantId, packSize ?? 1, packName || 'Piece', hsnCode || null, gstRate ?? 18, !!priceIncludesGst]
-      );
-      invStock = stock ?? 0;
-    }
-    const createdPSize = Number(packSize) || 1;
-    if (invStock > 0) await client.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [invStock, id, tenantId]);
-    await client.query('COMMIT');
-    const row = (await pool.query(
-      'SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1',
-      [tenantId, id]
-    )).rows[0] as Record<string, unknown>;
-    res.status(201).json(mapProduct({ ...row, stock: invStock, remaining_inventory: invStock }));
+      const createdPSize = Number(packSize) || 1;
+      if (invStock > 0)
+        await client.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [invStock, id, tenantId]);
+      await client.query('COMMIT');
+      const row = (await pool.query('SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1', [tenantId, id]))
+        .rows[0] as Record<string, unknown>;
+      res.status(201).json(mapProduct({ ...row, stock: invStock, remaining_inventory: invStock }));
     } catch (err) {
-    await client.query('ROLLBACK');
-    const errStr = String(err);
-    if (errStr.includes('BARCODE_EXISTS:') || errStr.includes('uq_products_tenant_name')) {
-      const bc = errStr.includes('BARCODE_EXISTS:') ? errStr.split('BARCODE_EXISTS:')[1] : null;
-      return res.status(400).json({ error: bc ? `Barcode ${bc} already exists` : `Product "${name}" already exists` });
+      await client.query('ROLLBACK');
+      const errStr = String(err);
+      if (errStr.includes('BARCODE_EXISTS:') || errStr.includes('uq_products_tenant_name')) {
+        const bc = errStr.includes('BARCODE_EXISTS:') ? errStr.split('BARCODE_EXISTS:')[1] : null;
+        return res
+          .status(400)
+          .json({ error: bc ? `Barcode ${bc} already exists` : `Product "${name}" already exists` });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    } finally {
+      client.release();
     }
-    res.status(500).json({ error: 'Internal server error' });
-  } finally { client.release(); }
   } catch (outerErr) {
-    console.error('[API Error]', req.path, outerErr); res.status(500).json({ error: 'Internal server error' });
+    console.error('[API Error]', req.path, outerErr);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -633,9 +920,19 @@ router.post('/api/products/:id/add-stock', blockVendors, async (req: AuthRequest
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const { rangeStart, rangeEnd, quantity, barcodeMode, barcodePrefix, barcodePerBox, packSize: reqPackSize } = req.body;
+    const {
+      rangeStart,
+      rangeEnd,
+      quantity,
+      barcodeMode,
+      barcodePrefix,
+      barcodePerBox,
+      packSize: reqPackSize,
+    } = req.body;
     if (!quantity || Number(quantity) < 1) return res.status(400).json({ error: 'Quantity must be at least 1' });
-    const product = (await pool.query('SELECT id, pack_size FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as { id: string; pack_size: number } | undefined;
+    const product = (
+      await pool.query('SELECT id, pack_size FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])
+    ).rows[0] as { id: string; pack_size: number } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
     const mode = barcodeMode === 'auto' ? 'auto' : barcodeMode === 'range' ? 'range' : 'prefix';
     const rawQty = Math.min(Math.max(1, Math.floor(Number(quantity))), 10000);
@@ -645,13 +942,20 @@ router.post('/api/products/:id/add-stock', blockVendors, async (req: AuthRequest
     if (mode === 'prefix' || (mode !== 'auto' && mode !== 'range')) {
       const prefix = typeof barcodePrefix === 'string' ? barcodePrefix.trim() : '';
       if (!prefix) {
-        const existing = (await pool.query('SELECT barcode FROM product_inventory WHERE product_id = $1 AND tenant_id = $2 ORDER BY barcode DESC LIMIT 1', [id, tenantId])).rows[0] as { barcode: string } | undefined;
+        const existing = (
+          await pool.query(
+            'SELECT barcode FROM product_inventory WHERE product_id = $1 AND tenant_id = $2 ORDER BY barcode DESC LIMIT 1',
+            [id, tenantId],
+          )
+        ).rows[0] as { barcode: string } | undefined;
         if (existing) {
           const m = existing.barcode.match(/^(.+?)(\d+)$/);
           if (m) {
             barcodes = await generateBarcodesFromPrefix(pool, tenantId, m[1], qty);
           } else {
-            return res.status(400).json({ error: 'Cannot detect barcode prefix from existing barcodes. Provide barcodePrefix.' });
+            return res
+              .status(400)
+              .json({ error: 'Cannot detect barcode prefix from existing barcodes. Provide barcodePrefix.' });
           }
         } else {
           return res.status(400).json({ error: 'No existing barcodes found. Provide barcodePrefix (e.g. SP).' });
@@ -663,7 +967,13 @@ router.post('/api/products/:id/add-stock', blockVendors, async (req: AuthRequest
       const batchId = uid('B');
       const base = `AUTO-${batchId}`;
       barcodes = Array.from({ length: qty }, (_, i) => `${base}-${String(i + 1).padStart(4, '0')}`);
-    } else if (mode === 'range' && typeof rangeStart === 'string' && typeof rangeEnd === 'string' && rangeStart.trim() && rangeEnd.trim()) {
+    } else if (
+      mode === 'range' &&
+      typeof rangeStart === 'string' &&
+      typeof rangeEnd === 'string' &&
+      rangeStart.trim() &&
+      rangeEnd.trim()
+    ) {
       barcodes = expandBarcodeRange(rangeStart.trim(), rangeEnd.trim());
       if (barcodes.length === 0) return res.status(400).json({ error: 'Invalid range' });
     } else {
@@ -672,8 +982,16 @@ router.post('/api/products/:id/add-stock', blockVendors, async (req: AuthRequest
 
     const batchId = uid('B');
     const base = uid(`I${id}-`);
-    const existingBc = (await pool.query('SELECT barcode FROM product_inventory WHERE barcode = ANY($1) AND tenant_id = $2', [barcodes, tenantId])).rows;
-    if (existingBc.length > 0) return res.status(400).json({ error: `Barcode ${(existingBc[0] as { barcode: string }).barcode} already exists` });
+    const existingBc = (
+      await pool.query('SELECT barcode FROM product_inventory WHERE barcode = ANY($1) AND tenant_id = $2', [
+        barcodes,
+        tenantId,
+      ])
+    ).rows;
+    if (existingBc.length > 0)
+      return res
+        .status(400)
+        .json({ error: `Barcode ${(existingBc[0] as { barcode: string }).barcode} already exists` });
     const pSize = Number(reqPackSize || product.pack_size) || 1;
     const addUnitType = barcodePerBox && pSize > 1 ? 'box' : 'piece';
     if (barcodes.length > 0) {
@@ -681,22 +999,29 @@ router.post('/api/products/:id/add-stock', blockVendors, async (req: AuthRequest
       const params: unknown[] = [];
       let pi = 1;
       for (let i = 0; i < barcodes.length; i++) {
-        values.push(`($${pi}, $${pi+1}, $${pi+2}, $${pi+3}, $${pi+4}, $${pi+5}, $${pi+6})`);
+        values.push(`($${pi}, $${pi + 1}, $${pi + 2}, $${pi + 3}, $${pi + 4}, $${pi + 5}, $${pi + 6})`);
         params.push(`${base}-${i + 1}`, id, barcodes[i], batchId, 'InStock', tenantId, addUnitType);
         pi += 7;
       }
-      await pool.query(`INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type) VALUES ${values.join(',')}`, params);
+      await pool.query(
+        `INSERT INTO product_inventory (id, product_id, barcode, batch_id, status, tenant_id, unit_type) VALUES ${values.join(',')}`,
+        params,
+      );
     }
-    const count = (await pool.query('SELECT COUNT(*) as c FROM product_inventory WHERE product_id = $1 AND status = $2 AND tenant_id = $3', [id, 'InStock', tenantId])).rows[0] as { c: number };
+    const count = (
+      await pool.query(
+        'SELECT COUNT(*) as c FROM product_inventory WHERE product_id = $1 AND status = $2 AND tenant_id = $3',
+        [id, 'InStock', tenantId],
+      )
+    ).rows[0] as { c: number };
     const stockCount = Number(count.c);
     await pool.query('UPDATE products SET stock = $1 WHERE id = $2 AND tenant_id = $3', [stockCount, id, tenantId]);
-    const row = (await pool.query(
-      'SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1',
-      [tenantId, id]
-    )).rows[0] as Record<string, unknown>;
+    const row = (await pool.query('SELECT p.* FROM products p WHERE p.id = $2 AND p.tenant_id = $1', [tenantId, id]))
+      .rows[0] as Record<string, unknown>;
     res.status(201).json(mapProduct({ ...row, stock: stockCount }));
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -706,15 +1031,38 @@ router.put('/api/products/:id', blockVendors, async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const { name, barcode, description, rewardPointsValue, manufacturingDate, batchNumber, status, warrantyMonths, price, packSize, packName, hsnCode, gstRate, priceIncludesGst } = req.body;
-    const row = (await pool.query('SELECT * FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0] as Record<string, unknown> | undefined;
+    const {
+      name,
+      barcode,
+      description,
+      rewardPointsValue,
+      manufacturingDate,
+      batchNumber,
+      status,
+      warrantyMonths,
+      price,
+      packSize,
+      packName,
+      hsnCode,
+      gstRate,
+      priceIncludesGst,
+    } = req.body;
+    const row = (await pool.query('SELECT * FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0] as Record<string, unknown> | undefined;
     if (!row) return res.status(404).json({ error: 'Product not found' });
     if (name) {
-      const dup = (await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) AND id != $3', [tenantId, name.trim(), id])).rows[0];
+      const dup = (
+        await pool.query('SELECT id FROM products WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) AND id != $3', [
+          tenantId,
+          name.trim(),
+          id,
+        ])
+      ).rows[0];
       if (dup) return res.status(400).json({ error: `Product "${name}" already exists` });
     }
-    const newBarcode = barcode === undefined ? row.barcode : (barcode || null);
-    await pool.query(`
+    const newBarcode = barcode === undefined ? row.barcode : barcode || null;
+    await pool.query(
+      `
       UPDATE products SET
         name = COALESCE($1, name),
         barcode = $2,
@@ -731,14 +1079,36 @@ router.put('/api/products/:id', blockVendors, async (req: AuthRequest, res) => {
         gst_rate = COALESCE($15, gst_rate),
         price_includes_gst = COALESCE($16, price_includes_gst)
       WHERE id = $10 AND tenant_id = $11
-    `, [name, newBarcode, description ?? row.description, rewardPointsValue ?? row.reward_points_value, manufacturingDate ?? row.manufacturing_date, batchNumber ?? row.batch_number, status ?? row.status, warrantyMonths ?? row.warranty_months, price ?? row.price, id, tenantId, (packSize !== undefined && Number(packSize) > 0) ? Number(packSize) : null, packName ?? null, hsnCode ?? null, gstRate ?? null, priceIncludesGst !== undefined ? !!priceIncludesGst : null]);
-    const updated = (await pool.query(
-      'SELECT p.*, (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = $1 AND pi.tenant_id = $2) as inv_stock FROM products p WHERE p.id = $3 AND p.tenant_id = $2',
-      ['InStock', tenantId, id]
-    )).rows[0] as Record<string, unknown>;
+    `,
+      [
+        name,
+        newBarcode,
+        description ?? row.description,
+        rewardPointsValue ?? row.reward_points_value,
+        manufacturingDate ?? row.manufacturing_date,
+        batchNumber ?? row.batch_number,
+        status ?? row.status,
+        warrantyMonths ?? row.warranty_months,
+        price ?? row.price,
+        id,
+        tenantId,
+        packSize !== undefined && Number(packSize) > 0 ? Number(packSize) : null,
+        packName ?? null,
+        hsnCode ?? null,
+        gstRate ?? null,
+        priceIncludesGst !== undefined ? !!priceIncludesGst : null,
+      ],
+    );
+    const updated = (
+      await pool.query(
+        'SELECT p.*, (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = $1 AND pi.tenant_id = $2) as inv_stock FROM products p WHERE p.id = $3 AND p.tenant_id = $2',
+        ['InStock', tenantId, id],
+      )
+    ).rows[0] as Record<string, unknown>;
     res.json(mapProduct({ ...updated, stock: (updated.inv_stock as number) ?? updated.stock ?? 0 }));
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -748,8 +1118,16 @@ router.delete('/api/products/all', requireAdmin, async (req: AuthRequest, res) =
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const rowCount = await withTenantClient(tenantId, async (client) => {
-      const tables = ['product_purchases', 'product_sales', 'product_distribution', 'product_inventory', 'price_lists', 'warranties', 'product_replacements'];
+    const rowCount = await withTenantClient(tenantId, async client => {
+      const tables = [
+        'product_purchases',
+        'product_sales',
+        'product_distribution',
+        'product_inventory',
+        'price_lists',
+        'warranties',
+        'product_replacements',
+      ];
       for (const t of tables) await client.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]);
       const { rowCount: rc } = await client.query('DELETE FROM products WHERE tenant_id = $1', [tenantId]);
       return rc;
@@ -769,20 +1147,28 @@ router.delete('/api/products/:id', requireAdmin, async (req: AuthRequest, res) =
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const exists = (await pool.query('SELECT 1 FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
+    const exists = (await pool.query('SELECT 1 FROM products WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0];
     if (!exists) return res.status(404).json({ error: 'Product not found' });
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       // Delete in order of foreign key dependencies (child tables first)
-      const saleIds = (await client.query('SELECT id FROM product_sales WHERE product_id = $1 AND tenant_id = $2', [id, tenantId])).rows as { id: string }[];
+      const saleIds = (
+        await client.query('SELECT id FROM product_sales WHERE product_id = $1 AND tenant_id = $2', [id, tenantId])
+      ).rows as { id: string }[];
       for (const s of saleIds) {
         await client.query('DELETE FROM rewards WHERE sale_id = $1 AND tenant_id = $2', [s.id, tenantId]);
       }
-      const warrantyIds = (await client.query('SELECT id FROM warranties WHERE product_id = $1 AND tenant_id = $2', [id, tenantId])).rows as { id: string }[];
+      const warrantyIds = (
+        await client.query('SELECT id FROM warranties WHERE product_id = $1 AND tenant_id = $2', [id, tenantId])
+      ).rows as { id: string }[];
       for (const w of warrantyIds) {
-        await client.query('DELETE FROM product_replacements WHERE warranty_id = $1 AND tenant_id = $2', [w.id, tenantId]);
+        await client.query('DELETE FROM product_replacements WHERE warranty_id = $1 AND tenant_id = $2', [
+          w.id,
+          tenantId,
+        ]);
       }
       await client.query('DELETE FROM product_replacements WHERE product_id = $1 AND tenant_id = $2', [id, tenantId]);
       await client.query('DELETE FROM product_purchases WHERE product_id = $1 AND tenant_id = $2', [id, tenantId]);
@@ -802,7 +1188,8 @@ router.delete('/api/products/:id', requireAdmin, async (req: AuthRequest, res) =
 
     res.status(204).send();
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
