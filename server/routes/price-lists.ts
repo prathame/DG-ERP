@@ -87,6 +87,86 @@ router.get('/api/price-lists/resolve', async (req, res) => {
   }
 });
 
+// Bulk import price rules (CSV) — resolve product/vendor by name
+router.post('/api/price-lists/bulk', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const rules = req.body?.rules;
+    if (!Array.isArray(rules) || rules.length === 0) {
+      return res.status(400).json({ error: 'rules array required' });
+    }
+    if (rules.length > 500) return res.status(400).json({ error: 'Maximum 500 rules per import' });
+
+    const products = (await pool.query('SELECT id, name FROM products WHERE tenant_id = $1', [tenantId])).rows as {
+      id: string;
+      name: string;
+    }[];
+    const vendors = (await pool.query('SELECT id, name FROM vendors WHERE tenant_id = $1', [tenantId])).rows as {
+      id: string;
+      name: string;
+    }[];
+    const productByName = new Map(products.map(p => [p.name.trim().toLowerCase(), p.id]));
+    const vendorByName = new Map(vendors.map(v => [v.name.trim().toLowerCase(), v.id]));
+
+    let success = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < rules.length; i++) {
+      const row = rules[i] as Record<string, unknown>;
+      const rowNum = i + 2; // header = row 1
+      const productName = String(row.productName || row.product || '').trim();
+      const vendorName = String(row.vendorName || row.vendor || '').trim();
+      const price = Number(row.price);
+      const minQty = Number(row.minQty ?? row.min_qty ?? 1) || 1;
+      const maxRaw = row.maxQty ?? row.max_qty;
+      const maxQty = maxRaw === '' || maxRaw == null || maxRaw === undefined ? null : Number(maxRaw);
+      const name = String(row.name || row.ruleName || '').trim() || 'Imported Price';
+
+      if (!productName) {
+        errors.push(`Row ${rowNum}: productName is required`);
+        continue;
+      }
+      const productId = productByName.get(productName.toLowerCase());
+      if (!productId) {
+        errors.push(`Row ${rowNum}: product "${productName}" not found — add it in Masters first`);
+        continue;
+      }
+      if (!price || price <= 0 || Number.isNaN(price)) {
+        errors.push(`Row ${rowNum}: price must be greater than 0`);
+        continue;
+      }
+      let vendorId: string | null = null;
+      if (vendorName) {
+        vendorId = vendorByName.get(vendorName.toLowerCase()) || null;
+        if (!vendorId) {
+          errors.push(`Row ${rowNum}: vendor "${vendorName}" not found`);
+          continue;
+        }
+      }
+      if (maxQty != null && (Number.isNaN(maxQty) || maxQty < minQty)) {
+        errors.push(`Row ${rowNum}: maxQty must be >= minQty`);
+        continue;
+      }
+
+      try {
+        const id = uid('PL');
+        await pool.query(
+          'INSERT INTO price_lists (id, tenant_id, name, product_id, vendor_id, min_qty, max_qty, price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+          [id, tenantId, name, productId, vendorId, minQty, maxQty, price],
+        );
+        success++;
+      } catch (err) {
+        errors.push(`Row ${rowNum}: ${(err as Error).message}`);
+      }
+    }
+
+    res.json({ success, errors });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
 // Create price rule
 router.post('/api/price-lists', blockVendors, async (req: AuthRequest, res) => {
   try {
@@ -110,17 +190,15 @@ router.post('/api/price-lists', blockVendors, async (req: AuthRequest, res) => {
         Number(price),
       ],
     );
-    res
-      .status(201)
-      .json({
-        id,
-        name: name || 'Custom Price',
-        productId,
-        vendorId,
-        minQty: Number(minQty) || 1,
-        maxQty: maxQty ? Number(maxQty) : null,
-        price: Number(price),
-      });
+    res.status(201).json({
+      id,
+      name: name || 'Custom Price',
+      productId,
+      vendorId,
+      minQty: Number(minQty) || 1,
+      maxQty: maxQty ? Number(maxQty) : null,
+      price: Number(price),
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }

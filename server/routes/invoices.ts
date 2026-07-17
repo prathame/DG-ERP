@@ -36,6 +36,8 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
         customerGstin: r.customer_gstin,
         customerAddress: r.customer_address,
         customerPhone: r.customer_phone,
+        partyType: (r.party_type as string) || null,
+        partyId: (r.party_id as string) || null,
         items: r.items,
         subtotal: Number(r.subtotal),
         taxTotal: Number(r.tax_total),
@@ -85,6 +87,8 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
       customerGstin,
       customerAddress,
       customerPhone,
+      partyType,
+      partyId,
       items,
       notes,
       terms,
@@ -94,6 +98,29 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
     } = req.body;
     if (!customerName) return res.status(400).json({ error: 'Customer name is required' });
     if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'Add at least one line item' });
+
+    let resolvedPartyType: string | null = null;
+    let resolvedPartyId: string | null = null;
+    if (partyType != null || partyId != null) {
+      if (partyType !== 'vendor' && partyType !== 'customer') {
+        return res.status(400).json({ error: 'partyType must be vendor or customer' });
+      }
+      if (!partyId || typeof partyId !== 'string') {
+        return res.status(400).json({ error: 'partyId is required when partyType is set' });
+      }
+      if (partyType === 'vendor') {
+        const v = (await pool.query('SELECT id FROM vendors WHERE id = $1 AND tenant_id = $2', [partyId, tenantId]))
+          .rows[0];
+        if (!v) return res.status(400).json({ error: 'Vendor not found' });
+      } else {
+        const c = (await pool.query('SELECT id FROM customers WHERE id = $1 AND tenant_id = $2', [partyId, tenantId]))
+          .rows[0];
+        if (!c) return res.status(400).json({ error: 'Customer not found' });
+      }
+      resolvedPartyType = partyType;
+      resolvedPartyId = partyId;
+    }
+
     // paid/cancelled only via status update or invoice-finance — never on create
     let createStatus = 'draft';
     if (status === 'sent' || status === 'unpaid') createStatus = 'sent';
@@ -117,8 +144,8 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
 
     const id = uid('INV');
     await pool.query(
-      `INSERT INTO standalone_invoices (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address, customer_phone, items, subtotal, tax_total, grand_total, notes, terms, status, invoice_date, due_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      `INSERT INTO standalone_invoices (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address, customer_phone, party_type, party_id, items, subtotal, tax_total, grand_total, notes, terms, status, invoice_date, due_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
       [
         id,
         tenantId,
@@ -127,6 +154,8 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
         customerGstin || null,
         customerAddress || null,
         customerPhone || null,
+        resolvedPartyType,
+        resolvedPartyId,
         JSON.stringify(lineItems),
         subtotal,
         taxTotal,

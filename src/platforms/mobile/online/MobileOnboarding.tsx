@@ -18,11 +18,7 @@ function normalizeSlug(raw: string): string {
 function looksLikeInvite(raw: string): boolean {
   const u = raw.trim().toUpperCase();
   // DG-M-XXXX-XXXX or DG-M-XXXX-XXXX-XXXX (48-bit)
-  return (
-    u.startsWith('DG-M-')
-    || /^[A-F0-9]{4}-[A-F0-9]{4}(-[A-F0-9]{4})?$/.test(u)
-    || u.includes('DG-M')
-  );
+  return u.startsWith('DG-M-') || /^[A-F0-9]{4}-[A-F0-9]{4}(-[A-F0-9]{4})?$/.test(u) || u.includes('DG-M');
 }
 
 interface Props {
@@ -57,10 +53,17 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code }),
         });
-        const data = await res.json();
+        const text = await res.text();
+        let data: { error?: string; slug?: string; companyName?: string } = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          throw new Error('Server returned an invalid response. Try again in a moment.');
+        }
         if (!res.ok) throw new Error(data.error || 'Invalid invite');
+        if (!data.slug) throw new Error('Invite worked but no company was returned.');
         saveCompanySlug(data.slug);
-        setCompanyPreview(data.companyName);
+        setCompanyPreview(data.companyName || null);
         onComplete(data.slug);
       } else {
         const clean = normalizeSlug(raw);
@@ -102,14 +105,20 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
         <div className="flex gap-2 mb-4">
           <button
             type="button"
-            onClick={() => { setMode('invite'); setError(''); }}
+            onClick={() => {
+              setMode('invite');
+              setError('');
+            }}
             className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors ${mode === 'invite' ? 'bg-brand text-white' : 'bg-white/5 text-gray-400'}`}
           >
             Invite code
           </button>
           <button
             type="button"
-            onClick={() => { setMode('slug'); setError(''); }}
+            onClick={() => {
+              setMode('slug');
+              setError('');
+            }}
             className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors ${mode === 'slug' ? 'bg-brand text-white' : 'bg-white/5 text-gray-400'}`}
           >
             Company code
@@ -125,7 +134,11 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
               {mode === 'invite' ? 'Invite code' : 'Company code'}
             </label>
             <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 focus-within:border-brand/60 transition-colors">
-              {mode === 'invite' ? <KeyRound size={18} className="text-gray-500 shrink-0" /> : <Building2 size={18} className="text-gray-500 shrink-0" />}
+              {mode === 'invite' ? (
+                <KeyRound size={18} className="text-gray-500 shrink-0" />
+              ) : (
+                <Building2 size={18} className="text-gray-500 shrink-0" />
+              )}
               <input
                 id="onboard-code"
                 autoFocus
@@ -133,7 +146,7 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
                 autoCorrect="off"
                 spellCheck={false}
                 value={value}
-                onChange={(e) => setValue(e.target.value)}
+                onChange={e => setValue(e.target.value)}
                 placeholder={mode === 'invite' ? 'DG-M-XXXX-XXXX-XXXX' : 'your-company'}
                 className="flex-1 bg-transparent py-3.5 text-white placeholder-gray-500 text-base outline-none min-h-[48px] font-mono tracking-wide"
               />
@@ -145,7 +158,11 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
             </p>
           </div>
 
-          {error && <p className="text-sm text-rose-400" role="alert">{error}</p>}
+          {error && (
+            <p className="text-sm text-rose-400" role="alert">
+              {error}
+            </p>
+          )}
           {companyPreview && <p className="text-sm text-emerald-400">Connected to {companyPreview}</p>}
 
           <button
@@ -153,7 +170,13 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
             disabled={submitting || !value.trim()}
             className="w-full py-4 bg-brand hover:bg-brand-dark text-white font-bold rounded-xl transition-colors disabled:opacity-40 flex items-center justify-center gap-2 min-h-[52px]"
           >
-            {submitting ? 'Checking…' : <>Continue <ArrowRight size={18} /></>}
+            {submitting ? (
+              'Checking…'
+            ) : (
+              <>
+                Continue <ArrowRight size={18} />
+              </>
+            )}
           </button>
         </form>
       </motion.div>

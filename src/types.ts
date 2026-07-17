@@ -1,5 +1,22 @@
-export type Tab = 'dashboard' | 'masters' | 'warranty' | 'rewards' | 'replacements' | 'inventory' | 'purchases' | 'sales' | 'distribution' | 'quotations' | 'orders' | 'invoices' | 'finance' | 'accounts' | 'analytics' | 'payroll' | 'verification' | 'settings';
-
+export type Tab =
+  | 'dashboard'
+  | 'masters'
+  | 'warranty'
+  | 'rewards'
+  | 'replacements'
+  | 'inventory'
+  | 'purchases'
+  | 'sales'
+  | 'distribution'
+  | 'quotations'
+  | 'orders'
+  | 'invoices'
+  | 'finance'
+  | 'accounts'
+  | 'analytics'
+  | 'payroll'
+  | 'verification'
+  | 'settings';
 
 export interface Product {
   id: string;
@@ -65,6 +82,7 @@ export interface Vendor {
   phone?: string;
   email?: string;
   address?: string;
+  gstNumber?: string | null;
   totalSales?: number;
   totalRewardPoints?: number;
 }

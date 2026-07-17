@@ -839,6 +839,12 @@ export async function initSchema() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_si_date ON standalone_invoices(tenant_id, invoice_date)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_si_tenant ON standalone_invoices(tenant_id, created_at DESC)');
+    // Stable party link for Invoice Finance (vendor/customer id) — name alone can split ledgers
+    await client.query(`ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS party_type TEXT`);
+    await client.query(`ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS party_id TEXT`);
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_si_party ON standalone_invoices(tenant_id, party_type, party_id)',
+    );
 
     // Invoice payments — partial/batch payments against standalone invoices
     await client.query(`
