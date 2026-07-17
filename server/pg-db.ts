@@ -36,13 +36,20 @@ export async function withTenantClient<T>(
   }
 }
 
+// Cloud production always TLS; on-prem embedded Postgres stays local (no TLS)
+const useSsl =
+  (process.env.NODE_ENV === 'production' && process.env.DEPLOYMENT_MODE !== 'onprem')
+  || process.env.DATABASE_SSL === 'true'
+  || !!process.env.DATABASE_URL?.includes('render.com')
+  || !!process.env.DATABASE_URL?.includes('neon.tech');
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: process.env.DATABASE_POOL_SIZE ? parseInt(process.env.DATABASE_POOL_SIZE, 10) : (process.env.NODE_ENV === 'production' ? 10 : 20),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
-  // M9 fix: use proper cert validation for managed DBs; only disable locally
-  ...(process.env.DATABASE_URL?.includes('render.com') || process.env.DATABASE_URL?.includes('neon.tech') || process.env.DATABASE_SSL === 'true'
+  // Production always uses TLS; rejectUnauthorized never disabled in prod (assertCriticalEnv)
+  ...(useSsl
     ? { ssl: { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false' } }
     : {}),
 });

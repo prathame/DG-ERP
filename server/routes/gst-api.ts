@@ -19,9 +19,14 @@ function fmtDate(iso: string): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
+/** Client-safe GST errors — never leak stack/SQL/paths. Internal details stay in logs. */
 function safeError(err: unknown): string {
   const msg = err instanceof Error ? err.message : 'Internal server error';
-  if (/GST API|IRN|EWB|E-way|not configured|already has|Batch not|required|Invalid|credentials|crypto|pincode|GSTIN|B2B/i.test(msg)) {
+  // Allow only short, expected validation/config messages (no DB/stack/path leakage)
+  if (/^(GST API|IRN|EWB|E-way bill|not configured|already has|Batch not|required|Invalid|credentials|crypto|pincode|GSTIN|B2B)/i.test(msg)
+      && msg.length < 160
+      && !/[\\/]\w+\.\w+/.test(msg)
+      && !/select\s|insert\s|update\s|relation\s/i.test(msg)) {
     return msg;
   }
   return 'Internal server error';

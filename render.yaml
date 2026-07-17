@@ -22,7 +22,10 @@ services:
         value: production
       - key: PORT
         value: 3001
-      # Set these manually in Render Dashboard → Environment:
+      - key: DATABASE_SSL
+        value: "true"
+      # REQUIRED — set in Render Dashboard → Environment before go-live:
       # SUPER_ADMIN_EMAIL=your-email@domain.com
-      # SUPER_ADMIN_PASSWORD=your-secure-password
+      # SUPER_ADMIN_PASSWORD=your-secure-password-min-12-chars
+      # ALLOWED_ORIGINS=https://dhandho.app,https://dg-erp.onrender.com
       # LOGTAIL_TOKEN=your-logtail-source-token (from betterstack.com)

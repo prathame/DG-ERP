@@ -1,12 +1,11 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { assertCriticalEnv } from './utils/env';
+assertCriticalEnv();
+
 import { initDatabase } from './pg-db';
 import { createApp } from './app';
-
-if (!process.env.DATABASE_URL) { console.error('❌ FATAL: DATABASE_URL environment variable is required'); process.exit(1); }
-if (!process.env.JWT_SECRET) { console.error('❌ FATAL: JWT_SECRET environment variable is required'); process.exit(1); }
-if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET.length < 32) { console.error('❌ FATAL: JWT_SECRET must be at least 32 characters in production'); process.exit(1); }
 
 const app = createApp();
 const PORT = process.env.PORT || 3001;
