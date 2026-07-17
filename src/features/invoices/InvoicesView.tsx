@@ -415,34 +415,28 @@ export function InvoicesView() {
         </div>
       ) : (
         <>
-          {/* Mobile cards */}
+          {/* Mobile cards — summary is a button; actions are siblings (no nested interactive) */}
           <div className="sm:hidden space-y-3">
             {invoices.map(inv => (
-              <div
-                key={inv.id}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3"
-                onClick={() => setSelectedInvoice(inv)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') setSelectedInvoice(inv);
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-mono font-semibold text-sm text-gray-900 truncate">{inv.invoiceNumber}</p>
-                    <p className="font-medium text-gray-800 truncate">{inv.customerName}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{formatDate(inv.invoiceDate)}</p>
-                  </div>
-                  <div className="text-right shrink-0 space-y-1">
-                    <p className="font-bold text-gray-900">₹{inv.grandTotal.toLocaleString()}</p>
-                    {statusBadge(inv.status)}
-                  </div>
-                </div>
-                <div
-                  className="flex items-center justify-end gap-1 border-t border-gray-50 pt-2"
-                  onClick={e => e.stopPropagation()}
+              <div key={inv.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setSelectedInvoice(inv)}
+                  className="w-full text-left p-4 space-y-2 hover:bg-gray-50/80 transition-colors"
                 >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-mono font-semibold text-sm text-gray-900 truncate">{inv.invoiceNumber}</p>
+                      <p className="font-medium text-gray-800 truncate">{inv.customerName}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{formatDate(inv.invoiceDate)}</p>
+                    </div>
+                    <div className="text-right shrink-0 space-y-1">
+                      <p className="font-bold text-gray-900">₹{inv.grandTotal.toLocaleString()}</p>
+                      {statusBadge(inv.status)}
+                    </div>
+                  </div>
+                </button>
+                <div className="flex items-center justify-end gap-1 border-t border-gray-50 px-3 pb-2">
                   <button
                     type="button"
                     onClick={() => printInvoice(inv)}
