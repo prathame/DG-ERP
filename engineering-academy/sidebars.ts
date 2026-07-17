@@ -68,6 +68,7 @@ const sidebars: SidebarsConfig = {
         'frontend/session-state',
         'frontend/features-catalog',
         'frontend/platforms',
+        'frontend/cloud-mobile',
         'frontend/i18n',
         'frontend/ui-kit',
         'frontend/patterns',

@@ -54,4 +54,5 @@ Offline Service Mobile uses a **different** Capacitor config (`capacitor.config.
 ## Related
 
 - [API → Service Cloud Seats](/api/service-cloud)
-- Manual cases: `tests/cases/service-cloud.md`
+- [Cloud Mobile UX](/frontend/cloud-mobile) — phone layout for the cloud SPA / online Capacitor shell
+- Manual cases: `tests/cases/service-cloud.md`, `tests/cases/cloud-mobile.md`

@@ -135,4 +135,5 @@ A user reports "I switched from Sales to Inventory and back, and my half-filled 
 - [API Client](/frontend/api-client)
 - [Authentication](/security/authentication)
 - [Session State](/frontend/session-state)
+- [Cloud Mobile UX](/frontend/cloud-mobile)
 - [Bundle Performance](/performance/bundle)

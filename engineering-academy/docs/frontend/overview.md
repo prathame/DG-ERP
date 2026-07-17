@@ -17,7 +17,7 @@ flowchart TB
   App[App.tsx<br/>tab router + session bootstrap] --> Features[features/*<br/>19 business modules]
   App --> Components[components/layout, components/ui]
   Features --> Api[api.ts<br/>fetchApi — the ONE network entry point]
-  Api --> Platforms[platforms/shared, desktop, mobile]
+  Api --> Platforms[platforms/shared, desktop, service-cloud, service-mobile]
   Platforms --> Offline[lib/offline/<br/>network, cache, queue]
   App --> I18n[i18n/ — en, hi, mr, gu]
   App --> Session[lib/session.ts — token/tenant persistence]
@@ -111,5 +111,6 @@ A user on a slow rural connection reports the app "flashes blank" briefly when s
 - [API Client](/frontend/api-client)
 - [App Shell](/frontend/app-shell)
 - [Platforms](/frontend/platforms)
+- [Cloud Mobile UX](/frontend/cloud-mobile)
 - [Features Catalog](/frontend/features-catalog)
 - [Folder Structure](/overview/folder-structure)
