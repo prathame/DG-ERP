@@ -21,7 +21,7 @@ How many primary client surfaces share the one Express API, and name them.
 <details>
 <summary>Answer</summary>
 
-**Four:** Web SPA, Electron Cloud, Electron On-Prem, and Service Mobile (Capacitor offline phone for service type only). Same React features where applicable; Service Mobile uses on-device PGlite + SA `DG-SM-` licenses. See [Product Surfaces](/architecture/four-surfaces).
+**Five:** Web SPA, Electron Cloud, Electron On-Prem, Service Cloud seats (online Electron/Capacitor + device slots), and Service Mobile (Capacitor offline phone for service type only). Same React features where applicable; Service Mobile uses on-device PGlite + SA `DG-SM-` licenses — do not mix with Service Cloud. See [Product Surfaces](/architecture/four-surfaces).
 
 </details>
 

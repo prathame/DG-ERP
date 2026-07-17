@@ -73,7 +73,11 @@ A second Python E2E script exists alongside `e2e_by_type.py`, covering additiona
 
 ## Manual test cases (`tests/cases/*.md`) — the fourth, human layer
 
-Not automated at all — markdown specs for a human QA pass, covering things genuinely hard to assert programmatically: `landing-page.md`, `multi-language.md`, `super-admin.md`, `cross-tenant.md`, `chatbot.md`, `service-mobile.md`, and others. These exist because some regressions (a broken layout, a mistranslated string, a confusing UX flow) are real risks the automated suites cannot catch, and pretending otherwise would be worse than admitting a human still needs to click through these before a significant release.
+Not automated at all — markdown specs for a human QA pass, covering things genuinely hard to assert programmatically: `landing-page.md`, `multi-language.md`, `super-admin.md`, `cross-tenant.md`, `chatbot.md`, `service-mobile.md`, `service-cloud.md`, `cloud-mobile.md`, and others. These exist because some regressions (a broken layout, a mistranslated string, a confusing UX flow) are real risks the automated suites cannot catch, and pretending otherwise would be worse than admitting a human still needs to click through these before a significant release.
+
+:::tip Cloud phone QA
+Before a release that touches `src/index.css`, `App.tsx`, shell navigation, or shared modals, run **`tests/cases/cloud-mobile.md`** on a 320–430px device (or DevTools). That suite is the release gate for phone layout — Vitest coverage gates do not include UI CSS. See [Cloud Mobile UX](/frontend/cloud-mobile).
+:::
 
 ## Running it yourself, locally
 

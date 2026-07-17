@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 interface Message {
   id: number;
@@ -76,6 +77,8 @@ export function ChatWidget() {
         .catch(() => {});
     }
   }, [open]);
+
+  useEscapeKey(() => setOpen(false), open);
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -211,10 +214,18 @@ export function ChatWidget() {
                   <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center text-xl">🤖</div>
                   <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-[#151619]" />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="font-bold">ERP Assistant</p>
-                  <p className="text-xs text-gray-400">Online — ask anything about your business</p>
+                  <p className="text-xs text-gray-400 truncate">Online — ask anything about your business</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="p-2.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-xl hover:bg-white/10 text-white/80 hover:text-white shrink-0"
+                  aria-label="Close chat"
+                >
+                  <X size={20} />
+                </button>
               </div>
 
               {/* Messages */}

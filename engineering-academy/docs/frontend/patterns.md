@@ -158,5 +158,6 @@ The `user` object's shape has grown organically over the product's life (see the
 ## Related reading
 
 - [App Shell](./app-shell.md) and [UI Kit](./ui-kit.md) — where several of these patterns are demonstrated at length.
+- [Cloud Mobile UX](./cloud-mobile.md) — safe areas, modal clamp, phone cards vs desktop tables (responsive, not mobile-first).
 - [Session & State](./session-state.md) — why permission props are threaded explicitly instead of read from a global store.
 - [../performance/bundle.md](../performance/bundle.md) — the chunking consequences of the `motion`/dynamic-import patterns described here.

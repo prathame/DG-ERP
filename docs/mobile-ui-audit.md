@@ -105,6 +105,15 @@ Desktop layouts were preserved via `sm:` / `lg:` gates and CSS scoped under `max
 - Some intentional 2-col metric strips stay 2-up by design
 - Offline Mobile / Capacitor APK must be rebuilt to pick up client CSS/layout changes
 - Full visual QA on physical iOS/Android still recommended
+- Automated coverage: Vitest gates target `server/utils` + `server/services` — UI/CSS changes are covered by manual cases in `tests/cases/cloud-mobile.md`
+
+## 7. Review follow-ups (post #77)
+
+| Finding | Severity | Fix |
+|---------|----------|-----|
+| Chat full-screen could not be dismissed | High | Header close + Escape |
+| Invoice mobile cards nested `role=button` around action buttons | Medium | Summary is a `<button>`; actions are siblings |
+| No mobile automated tests | Low | Knowledge cases + Escape contract unit test |
 
 ---
 
