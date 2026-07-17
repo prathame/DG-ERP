@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/invoices/InvoicesView.tsx` is part of Dhandho (DG-ERP). Approximate size: **1145 lines**.
+`src/features/invoices/InvoicesView.tsx` is part of Dhandho (DG-ERP). Approximate size: **1159 lines**.
 
 ## Business value
 
@@ -285,7 +285,7 @@ rg -n "InvoicesView" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **1145**. Large view/route files are refactor candidates.
+Line count **1159**. Large view/route files are refactor candidates.
 
 ## Security impact
 

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/lib/utils.ts` is part of Dhandho (DG-ERP). Approximate size: **318 lines**.
+`src/lib/utils.ts` is part of Dhandho (DG-ERP). Approximate size: **360 lines**.
 
 ## Business value
 
@@ -26,11 +26,11 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 ## Exports and symbols
 
-**Exported names:** `fetchImageAsDataUrl`, `bizTypeLabel`, `useTabLabel`, `cn`, `formatDate`, `resolveIrnQrPayload`, `PRINT_POPUP_BLOCKED`, `openPrintWindow`, `printBillInWindow`, `writePrintHtml`, `saveBillAsPdf`, `shareViaWhatsApp`, `shareViaEmail`, `formatSalesInvoiceText`, `formatDistributionChallanText`, `exportToCsv`
+**Exported names:** `fetchImageAsDataUrl`, `bizTypeLabel`, `useTabLabel`, `cn`, `formatDate`, `resolveIrnQrPayload`, `PRINT_POPUP_BLOCKED`, `openPrintWindow`, `withPrintPagination`, `printBillInWindow`, `writePrintHtml`, `saveBillAsPdf`, `shareViaWhatsApp`, `shareViaEmail`, `formatSalesInvoiceText`, `formatDistributionChallanText`, `exportToCsv`
 
 **Classes:** _none_
 
-## Functions (23 detected)
+## Functions (24 detected)
 
 ### Function: fetchImageAsDataUrl
 
@@ -148,6 +148,21 @@ applyPrintTitle(html: string, filename?: string)
 | Purpose | Symbol in `src/lib/utils.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `applyPrintTitle` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: withPrintPagination
+
+```ts
+withPrintPagination(html: string)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/lib/utils.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `withPrintPagination` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -414,7 +429,7 @@ rg -n "utils" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **318**. Large view/route files are refactor candidates.
+Line count **360**. Large view/route files are refactor candidates.
 
 ## Security impact
 

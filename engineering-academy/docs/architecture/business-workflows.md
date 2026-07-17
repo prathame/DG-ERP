@@ -102,9 +102,11 @@ This is a deliberate guard: converting a quotation isn't a simple field update, 
 `POST /:id/convert` (guarded by `blockVendors` — a Vendor can never trigger this) then, inside one transaction:
 
 1. Validates the quote is `status = 'Accepted'` and has a `vendor_id` (a quote with no vendor can't become a distribution, which is always vendor-scoped) — rejects with `400` otherwise, and specifically rejects re-conversion of an already-`Converted` quote.
-2. For each line item in the quote's `items` JSONB array, inserts a corresponding row into **`product_distribution`** (the same table the standalone Distribution module writes to) with a freshly generated `batch_id`.
+2. For each line item in the quote's `items` JSONB array, inserts a corresponding row into **`product_distribution`** (the same table the standalone Distribution module writes to) with a freshly generated `batch_id`. Line unit prices are the **frozen** quote `items[].price` values — convert does **not** call price-list resolve again. GST net/billed uses shared `unitPricesAfterDiscount` in `server/utils/price-resolve.ts` (same helper as quote create and distribution createBatch), including `products.price_includes_gst`.
 3. Updates the quotation itself: `status = 'Converted'`, `converted_batch_id = <the new batch>` — guarded with `WHERE status = 'Accepted'` in the same `UPDATE`, so a concurrent double-conversion attempt fails the row-count check (`converted.rowCount === 0` → rollback) rather than silently double-distributing stock.
 4. Writes an audit log entry (`logAudit`) recording exactly what was converted.
+
+Known product gaps (not bugs — deliberate backlog): no `PUT` to edit draft quote lines after create; no partial convert; `valid_until` is display-only (not auto-Expired); convert is distribution-only (no quote → standalone invoice for service tenants).
 
 :::tip Analogy
 Converting a quotation is like a **firing pin on a mechanical device** — quotations, orders, and distributions all read/write overlapping data, but the *transition* from "just a paper quote" to "actual stock has moved" is deliberately funneled through one narrow, transactional, audit-logged path. Every other status change is reversible paperwork; conversion is the one action with real physical/inventory consequences.
@@ -172,8 +174,8 @@ sequenceDiagram
 - **Payments** still attach to individual invoice ids; deleting an invoice with payments is blocked by `ON DELETE RESTRICT`.
 - **UI (service):** `InvoiceFinanceView` mirrors Distribution’s vendor cards; **New Invoice** reuses `CreateInvoiceModal` with party prefills.
 
-:::tip Quotations are not a substitute for price lists
-Quotations are one-off commercial documents. Price lists are reusable slabs (vendor-specific or general). Service billing can pull catalog rates from price lists on the invoice line; it does not replace the quotation → order → distribution pipeline used by goods tenants.
+:::tip Quotations vs price lists
+Quotations are one-off commercial documents. On create, line defaults use the same resolve chain as distribution (vendor slab → generic → inventory); the user may negotiate. Convert freezes the quote line price onto distribution — it does not re-resolve live price lists.
 :::
 
 ## Workflow 6: Price list resolve & bulk import
@@ -190,9 +192,21 @@ flowchart TB
     Names --> Insert["INSERT price_lists rows (insert-only)"]
 ```
 
+- **Shared helper:** `server/utils/price-resolve.ts` — `resolvePrice`, `hasExplicitUnitPrice`, `unitPricesAfterDiscount`. Used by `/api/price-lists/resolve`, distribution createBatch, and quotation create/convert. Keep call sites on this helper; do not re-copy the SQL.
 - **Resolve priority** (SQL `ORDER BY` vendor match first, then `min_qty DESC`): vendor slab → general slab → product default price.
 - **Bulk** accepts up to 500 rules per request; unknown product/vendor names become row errors, not a full abort.
-- **Invoice UI** currently mirrors resolve client-side (`resolveCatalogPrice` in `InvoicesView`); Distribution calls the server endpoint. Prefer the API if you change priority rules so the two paths cannot drift.
+- **UI tabs:** Price List Masters view splits **Generic** vs **Vendor/Client-specific** rules; create/export/print are scoped to the active tab.
+- **Invoice UI** currently mirrors resolve client-side (`resolveCatalogPrice` in `InvoicesView`); Distribution and Quotes call the server endpoint / helper. Prefer the API if you change priority rules so the two paths cannot drift.
+
+## Workflow 7: Multi-page bill print
+
+All bill HTML (sales invoice, distribution challan, quotation, price list, standalone invoice, payment history, accounts reports) goes through `printBillInWindow` / `writePrintHtml` / `saveBillAsPdf` in `src/lib/utils.ts`, which injects `withPrintPagination()` CSS:
+
+- `@page` A4 + table `thead` repeats on each page
+- Row / `.avoid-break` / `.print-end` keep line items and totals/bank/signature from splitting awkwardly
+- Templates in `src/lib/billTemplates.ts` wrap footers in `.print-end` and use a slim repeating banner in `thead` where needed
+
+Do not open a raw `window.print()` on bill HTML without that inject — long item lists will paginate incorrectly.
 
 ## How the goods workflows connect
 
@@ -226,8 +240,10 @@ Service path (parallel, no barcodes): `vendors/customers` → `standalone_invoic
 3. Deleting or modifying a distribution batch that already has an IRN/EWB without going through the documented cancel-first flow.
 4. Treating "GST rate" or "interstate" logic as a simple lookup rather than checking both the product's own HSN/GST configuration and the seller/buyer state codes at the point of sale.
 5. Creating standalone invoices without `partyType`/`partyId` when a master record exists — Finance will fall back to `name:` grouping and rename-splits return.
-6. Changing price-list resolve priority only in the invoice modal (or only in SQL) — keep `GET /api/price-lists/resolve` and any client mirror in sync.
+6. Changing price-list resolve priority only in the invoice modal (or only in SQL) — keep `GET /api/price-lists/resolve`, `server/utils/price-resolve.ts`, and any client mirror in sync.
 7. Assuming CSV bulk upserts — `/bulk` only inserts; re-imports duplicate rules.
+8. Re-resolving price lists on quotation convert — convert must freeze `items[].price` from the accepted quote.
+9. Printing bill HTML without `withPrintPagination` / `printBillInWindow` — multi-page item tables will break poorly.
 
 ## Interview question
 

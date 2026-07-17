@@ -10,7 +10,7 @@ description: Auto-generated walkthrough pages for every TS/TSX file in DG-ERP
 These pages ensure **zero skipped files**. Prefer curated chapters under [File Walkthrough](/files/) for narrative learning.
 :::
 
-## Server (50 files)
+## Server (51 files)
 
 - [`server/app.ts`](/files/generated/server__app)
 - [`server/index.ts`](/files/generated/server__index)
@@ -60,6 +60,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`server/utils/pagination.ts`](/files/generated/server__utils__pagination)
 - [`server/utils/pii.ts`](/files/generated/server__utils__pii)
 - [`server/utils/planLimits.ts`](/files/generated/server__utils__planlimits)
+- [`server/utils/price-resolve.ts`](/files/generated/server__utils__price-resolve)
 - [`server/utils/secret-crypto.ts`](/files/generated/server__utils__secret-crypto)
 - [`server/utils/tenant.ts`](/files/generated/server__utils__tenant)
 
@@ -175,7 +176,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`electron/shared/constants.ts`](/files/generated/electron__shared__constants)
 - [`electron/shared/find-port.ts`](/files/generated/electron__shared__find-port)
 
-## Tests (49 files)
+## Tests (50 files)
 
 - [`tests/api/audit.test.ts`](/files/generated/tests__api__audit.test)
 - [`tests/api/auth.test.ts`](/files/generated/tests__api__auth.test)
@@ -226,5 +227,6 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`tests/unit/offline-mobile.test.ts`](/files/generated/tests__unit__offline-mobile.test)
 - [`tests/unit/pagination.test.ts`](/files/generated/tests__unit__pagination.test)
 - [`tests/unit/pii.test.ts`](/files/generated/tests__unit__pii.test)
+- [`tests/unit/price-resolve.test.ts`](/files/generated/tests__unit__price-resolve.test)
 
-**Total files documented:** 205
+**Total files documented:** 207

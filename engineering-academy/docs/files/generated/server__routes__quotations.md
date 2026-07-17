@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/quotations.ts` is part of Dhandho (DG-ERP). Approximate size: **448 lines**.
+`server/routes/quotations.ts` is part of Dhandho (DG-ERP). Approximate size: **469 lines**.
 
 ## Business value
 
@@ -25,6 +25,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../pg-db`
 - `../utils/helpers`
 - `../utils/http-error`
+- `../utils/price-resolve`
 
 ## Exports and symbols
 
@@ -185,7 +186,7 @@ rg -n "quotations" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **448**. Large view/route files are refactor candidates.
+Line count **469**. Large view/route files are refactor candidates.
 
 ## Security impact
 

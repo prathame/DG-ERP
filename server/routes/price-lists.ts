@@ -1,5 +1,6 @@
 import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { resolvePrice } from '../utils/price-resolve';
 import { Router } from 'express';
 import { pool } from '../pg-db';
 import { blockVendors, AuthRequest } from '../middleware/auth';
@@ -55,33 +56,13 @@ router.get('/api/price-lists/resolve', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { productId, vendorId, quantity } = req.query;
     if (!productId) return res.status(400).json({ error: 'productId required' });
-    const qty = Number(quantity) || 1;
-
-    // Priority: vendor-specific slab > vendor-specific flat > general slab > general flat > product.price
-    const rules = (
-      await pool.query(
-        `
-      SELECT price, vendor_id, min_qty, max_qty FROM price_lists
-      WHERE tenant_id = $1 AND product_id = $2 AND is_active = true
-        AND (vendor_id = $3 OR vendor_id IS NULL)
-        AND min_qty <= $4 AND (max_qty IS NULL OR max_qty >= $4)
-      ORDER BY
-        CASE WHEN vendor_id = $3 THEN 0 ELSE 1 END,
-        min_qty DESC
-      LIMIT 1
-    `,
-        [tenantId, productId, vendorId || null, qty],
-      )
-    ).rows[0] as { price: number } | undefined;
-
-    if (rules) {
-      res.json({ price: Number(rules.price), source: 'price_list' });
-    } else {
-      const product = (
-        await pool.query('SELECT price FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])
-      ).rows[0] as { price: number } | undefined;
-      res.json({ price: Number(product?.price) || 0, source: 'default' });
-    }
+    const resolved = await resolvePrice(
+      tenantId,
+      String(productId),
+      vendorId ? String(vendorId) : null,
+      Number(quantity) || 1,
+    );
+    res.json(resolved);
   } catch (err) {
     return handleApiError(req, res, err);
   }

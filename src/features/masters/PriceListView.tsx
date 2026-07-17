@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Trash2, Tag, MessageCircle, Mail, Download, Upload, FileDown } from 'lucide-react';
 import {
@@ -15,6 +15,9 @@ import type { BillSettings, Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { session } from '../../lib/session';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
+
+type PriceTab = 'generic' | 'vendor';
 
 function esc(t: unknown): string {
   return String(t ?? '')
@@ -47,6 +50,10 @@ type TenantHeader = {
 
 export function PriceListView({ onBack }: { onBack: () => void }) {
   const { toast } = useToast();
+  const cfg = useBusinessConfig();
+  const partyLabel = cfg.labels.vendors; // Vendors | Customers | Clients
+  const isService = cfg.type === 'service';
+  const [tab, setTab] = useState<PriceTab>(isService ? 'generic' : 'vendor');
   const [rules, setRules] = useState<PriceRule[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -64,6 +71,27 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     maxQty: '',
     price: '',
   });
+
+  const tabRules = useMemo(
+    () => (tab === 'generic' ? rules.filter(r => !r.vendorId) : rules.filter(r => !!r.vendorId)),
+    [rules, tab],
+  );
+  const genericCount = rules.filter(r => !r.vendorId).length;
+  const vendorCount = rules.filter(r => !!r.vendorId).length;
+
+  const subtitle =
+    tab === 'generic'
+      ? isService
+        ? 'Catalog rates for all clients — used when no client-specific rule matches'
+        : `Quantity slabs for all ${partyLabel.toLowerCase()} (overrides product price)`
+      : isService
+        ? `Special rates for individual ${partyLabel.toLowerCase()}`
+        : `Rates for a specific ${partyLabel.toLowerCase().replace(/s$/, '')} (overrides generic + product price)`;
+
+  const openCreate = () => {
+    setForm({ name: '', productId: '', vendorId: '', minQty: '1', maxQty: '', price: '' });
+    setModalOpen(true);
+  };
 
   const load = () => {
     const userId = session.getUser()?.id;
@@ -106,14 +134,19 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
       toast('Product and price required', 'error');
       return;
     }
+    if (tab === 'vendor' && !form.vendorId) {
+      toast(`Select a ${partyLabel.replace(/s$/, '').toLowerCase()}`, 'error');
+      return;
+    }
+    const vendorId = tab === 'generic' ? undefined : form.vendorId || undefined;
     setSubmitting(true);
     try {
       await fetchApi('/price-lists', {
         method: 'POST',
         body: JSON.stringify({
-          name: form.name || `${form.vendorId ? 'Vendor' : 'Slab'} Price`,
+          name: form.name || (vendorId ? `${partyLabel.replace(/s$/, '')} rate` : 'Catalog rate'),
           productId: form.productId,
-          vendorId: form.vendorId || undefined,
+          vendorId,
           minQty: Number(form.minQty) || 1,
           maxQty: form.maxQty ? Number(form.maxQty) : undefined,
           price: Number(form.price),
@@ -141,12 +174,12 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   };
 
   const handleExportCsv = () => {
-    if (!rules.length) {
-      toast('No price rules to export', 'error');
+    if (!tabRules.length) {
+      toast('No price rules on this tab to export', 'error');
       return;
     }
     exportToCsv(
-      rules.map(r => ({
+      tabRules.map(r => ({
         productName: r.productName || '',
         vendorName: r.vendorName || '',
         minQty: r.minQty,
@@ -154,7 +187,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         price: r.price,
         name: r.name || '',
       })),
-      'price-list',
+      tab === 'generic' ? 'price-list-generic' : 'price-list-vendor',
     );
     toast('Price list CSV downloaded', 'success');
   };
@@ -163,12 +196,14 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const brand = bill?.primaryColor || '#F27D26';
 
   const generatePriceListText = (vendorFilter?: string) => {
-    const filtered = vendorFilter ? rules.filter(r => r.vendorId === vendorFilter || !r.vendorId) : rules;
-    const vendorName = vendorFilter ? vendors.find(v => v.id === vendorFilter)?.name || '' : 'All Products';
-    let text = `*${companyName} — Price List*\n`;
+    const source = tabRules;
+    const filtered = vendorFilter ? source.filter(r => r.vendorId === vendorFilter || !r.vendorId) : source;
+    const scopeLabel = tab === 'generic' ? 'Generic catalog' : `${partyLabel}-specific`;
+    const vendorName = vendorFilter ? vendors.find(v => v.id === vendorFilter)?.name || '' : '';
+    let text = `*${companyName} — Price List (${scopeLabel})*\n`;
     if (tenant.gstNumber) text += `GSTIN: ${tenant.gstNumber}\n`;
     if (tenant.phone) text += `Phone: ${tenant.phone}\n`;
-    if (vendorName !== 'All Products') text += `For: *${vendorName}*\n`;
+    if (vendorName) text += `For: *${vendorName}*\n`;
     text += `Date: ${new Date().toLocaleDateString('en-IN')}\n\n`;
 
     const byProduct: Record<string, typeof filtered> = {};
@@ -209,13 +244,15 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
       .map(s => esc(s))
       .join(' · ');
 
+    const scopeLabel =
+      tab === 'generic' ? (isService ? 'Generic catalog' : `All ${partyLabel}`) : `${partyLabel}-specific`;
     let rowsHtml = '';
-    for (const r of rules) {
+    for (const r of tabRules) {
       const base = products.find(p => p.id === r.productId);
       rowsHtml += `<tr>
         <td>${esc(r.productName)}</td>
         <td style="text-align:right">₹${(base?.price ?? 0).toLocaleString('en-IN')}</td>
-        <td><span class="chip ${r.vendorId ? 'chip-vendor' : 'chip-all'}">${esc(r.vendorId ? r.vendorName : 'All Vendors')}</span></td>
+        <td><span class="chip ${r.vendorId ? 'chip-vendor' : 'chip-all'}">${esc(r.vendorId ? r.vendorName : `All ${partyLabel}`)}</span></td>
         <td style="text-align:center">${r.minQty}${r.maxQty ? `–${r.maxQty}` : '+'}</td>
         <td class="price" style="text-align:right">₹${Number(r.price).toLocaleString('en-IN')}</td>
         <td class="muted">${esc(r.name || '—')}</td>
@@ -227,7 +264,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
 <meta charset="utf-8"/>
 <title>Price List — ${esc(companyName)}</title>
 <style>
-  @page { margin: 16mm; }
+  @page { margin: 12mm; size: A4; }
   * { box-sizing: border-box; }
   body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1f2937; margin: 0; padding: 0; }
   .page { max-width: 900px; margin: 0 auto; padding: 28px 32px; }
@@ -240,8 +277,11 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   .doc-title h2 { margin: 0; font-size: 16px; font-weight: 700; color: ${esc(brand)}; text-transform: uppercase; letter-spacing: 0.06em; }
   .doc-title .date { font-size: 12px; color: #6b7280; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { display: table-header-group; }
   thead th { background: ${esc(brand)}; color: #fff; text-align: left; padding: 10px 12px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+  .repeat-banner th { background: #fff !important; color: #111827 !important; border-bottom: 2px solid ${esc(brand)}; text-transform: none; letter-spacing: 0; font-size: 11px; }
   tbody td { padding: 9px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
+  tbody tr { break-inside: avoid; page-break-inside: avoid; }
   tbody tr:nth-child(even) { background: #fafafa; }
   .price { font-weight: 700; color: ${esc(brand)}; }
   .muted { color: #9ca3af; font-size: 11px; }
@@ -255,7 +295,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
 </style>
 </head><body>
 <div class="page">
-  <div class="header">
+  <div class="header avoid-break">
     ${logo ? `<div>${logo}</div>` : ''}
     <div class="header-text">
       <p class="company">${esc(companyName)}</p>
@@ -263,16 +303,20 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
       ${contactBits ? `<p class="meta">${contactBits}</p>` : ''}
     </div>
   </div>
-  <div class="doc-title">
-    <h2>Price List</h2>
+  <div class="doc-title avoid-break">
+    <h2>Price List — ${esc(scopeLabel)}</h2>
     <span class="date">${esc(dateStr)}</span>
   </div>
   <table>
     <thead>
+      <tr class="repeat-banner"><th colspan="6">
+        <span style="font-weight:800;color:${esc(brand)};">${esc(companyName)}</span>
+        <span style="float:right;font-weight:700;">Price List — ${esc(scopeLabel)}</span>
+      </th></tr>
       <tr>
         <th>Product / Item</th>
         <th style="text-align:right">Base Price</th>
-        <th>Vendor</th>
+        <th>${esc(partyLabel)}</th>
         <th style="text-align:center">Qty Range</th>
         <th style="text-align:right">Special Price</th>
         <th>Rule</th>
@@ -282,6 +326,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
       ${rowsHtml || `<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:24px">No price rules</td></tr>`}
     </tbody>
   </table>
+  <div class="print-end avoid-break">
   ${
     bill?.bankName || bill?.bankAccountNumber || bill?.bankUpiId
       ? `<div class="bank">
@@ -299,13 +344,14 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     <span>${esc(bill?.footerText || 'Prices subject to change without prior notice.')}</span>
     <span>${esc(companyName)}</span>
   </div>
+  </div>
 </div>
 </body></html>`;
   };
 
   const openPdf = () => {
-    if (!rules.length) {
-      toast('No price rules to print', 'error');
+    if (!tabRules.length) {
+      toast('No price rules on this tab to print', 'error');
       return;
     }
     const w = openPrintWindow();
@@ -324,10 +370,14 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
     );
 
   const grouped: Record<string, PriceRule[]> = products.reduce<Record<string, PriceRule[]>>((acc, p) => {
-    const matching = rules.filter(r => r.productId === p.id);
+    const matching = tabRules.filter(r => r.productId === p.id);
     if (matching.length > 0) acc[p.name] = matching;
     return acc;
   }, {});
+
+  const genericTabLabel = isService ? 'Generic (catalog)' : 'Generic (all)';
+  const vendorTabLabel = `${partyLabel}-specific`;
+  const partySingular = partyLabel.replace(/s$/, '');
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -337,7 +387,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         </button>
         <div className="flex-1 min-w-0">
           <h2 className="text-xl font-bold">Price List</h2>
-          <p className="text-sm text-gray-500">Set custom prices per vendor and quantity slabs</p>
+          <p className="text-sm text-gray-500">{subtitle}</p>
         </div>
         <button
           type="button"
@@ -349,7 +399,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         <button
           type="button"
           onClick={handleExportCsv}
-          disabled={!rules.length}
+          disabled={!tabRules.length}
           className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
         >
           <Download size={16} /> Export CSV
@@ -357,12 +407,12 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         <button
           type="button"
           onClick={openPdf}
-          disabled={!rules.length}
+          disabled={!tabRules.length}
           className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
         >
           <FileDown size={16} /> PDF / Print
         </button>
-        {rules.length > 0 && (
+        {tabRules.length > 0 && (
           <>
             <button
               type="button"
@@ -388,18 +438,56 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         )}
         <button
           type="button"
-          onClick={() => setModalOpen(true)}
+          onClick={openCreate}
           className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
         >
-          <Plus size={18} /> Add Price Rule
+          <Plus size={18} /> Add {tab === 'generic' ? 'Catalog' : partySingular} Rule
         </button>
       </div>
 
-      {rules.length === 0 ? (
+      <div className="flex gap-2">
+        {(isService
+          ? [
+              { id: 'generic' as const, label: genericTabLabel, count: genericCount },
+              { id: 'vendor' as const, label: vendorTabLabel, count: vendorCount },
+            ]
+          : [
+              { id: 'vendor' as const, label: vendorTabLabel, count: vendorCount },
+              { id: 'generic' as const, label: genericTabLabel, count: genericCount },
+            ]
+        ).map(t => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={cn(
+              'px-4 py-2 rounded-xl text-sm font-bold transition-colors',
+              tab === t.id ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+            )}
+          >
+            {t.label}
+            <span className={cn('ml-1.5 text-xs', tab === t.id ? 'text-white/80' : 'text-gray-400')}>({t.count})</span>
+          </button>
+        ))}
+      </div>
+
+      {tabRules.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
           <Tag size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="font-medium mb-2">No price rules yet</p>
-          <p className="text-sm mb-4">Add rules manually or import a CSV (product names must match Masters)</p>
+          <p className="font-medium mb-2">
+            {tab === 'generic'
+              ? isService
+                ? 'No catalog rates yet'
+                : `No all-${partyLabel.toLowerCase()} slabs yet`
+              : `No ${partyLabel.toLowerCase()}-specific rates yet`}
+          </p>
+          <p className="text-sm mb-4 max-w-md mx-auto">
+            {tab === 'generic'
+              ? isService
+                ? 'Add catalog prices here — they apply to every client unless a client-specific rule wins.'
+                : `Optional qty slabs for every ${partySingular.toLowerCase()}. Product master price is the fallback when empty.`
+              : `Override catalog / product price for one ${partySingular.toLowerCase()}.`}
+          </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <button
               type="button"
@@ -410,10 +498,10 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
             </button>
             <button
               type="button"
-              onClick={() => setModalOpen(true)}
+              onClick={openCreate}
               className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark"
             >
-              + Add Price Rule
+              + Add Rule
             </button>
           </div>
         </div>
@@ -437,7 +525,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                           rule.vendorId ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700',
                         )}
                       >
-                        {rule.vendorId ? rule.vendorName : 'All Vendors'}
+                        {rule.vendorId ? rule.vendorName : `All ${partyLabel}`}
                       </span>
                       <span className="text-sm text-gray-600">
                         Qty {rule.minQty}
@@ -458,14 +546,15 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
               </div>
             </div>
           ))}
-          {rules.filter(r => !grouped[r.productName]).length > 0 && (
+          {tabRules.filter(r => !grouped[r.productName]).length > 0 && (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-              {rules
+              {tabRules
                 .filter(r => !Object.values(grouped).flat().includes(r))
                 .map(rule => (
                   <div key={rule.id} className="flex items-center justify-between py-2">
                     <span className="text-sm">
-                      {rule.productName} — ₹{Number(rule.price).toLocaleString()} ({rule.vendorName || 'All'})
+                      {rule.productName} — ₹{Number(rule.price).toLocaleString()} (
+                      {rule.vendorName || `All ${partyLabel}`})
                     </span>
                     <button
                       type="button"
@@ -490,7 +579,14 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
               animate={{ opacity: 1, scale: 1 }}
               className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6"
             >
-              <h3 className="text-lg font-bold mb-4">Add Price Rule</h3>
+              <h3 className="text-lg font-bold mb-1">
+                {tab === 'generic' ? 'Add catalog rate' : `Add ${partySingular.toLowerCase()} rate`}
+              </h3>
+              <p className="text-xs text-gray-500 mb-4">
+                {tab === 'generic'
+                  ? `Applies to all ${partyLabel.toLowerCase()} when no specific rule matches.`
+                  : `Overrides catalog / product price for the selected ${partySingular.toLowerCase()}.`}
+              </p>
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Product *</label>
@@ -508,23 +604,23 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    Vendor (leave empty for all vendors)
-                  </label>
-                  <select
-                    value={form.vendorId}
-                    onChange={e => setForm({ ...form, vendorId: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
-                  >
-                    <option value="">All Vendors (general slab)</option>
-                    {vendors.map(v => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {tab === 'vendor' && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">{partySingular} *</label>
+                    <select
+                      value={form.vendorId}
+                      onChange={e => setForm({ ...form, vendorId: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
+                    >
+                      <option value="">Select {partySingular.toLowerCase()}</option>
+                      {vendors.map(v => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Min Qty</label>
@@ -601,7 +697,10 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
           itemLabel="price rules"
           columns={[
             { key: 'productName', label: 'Product Name', required: true },
-            { key: 'vendorName', label: 'Vendor Name (empty = all)' },
+            {
+              key: 'vendorName',
+              label: `${partySingular} Name (empty = generic / all)`,
+            },
             { key: 'minQty', label: 'Min Qty' },
             { key: 'maxQty', label: 'Max Qty' },
             { key: 'price', label: 'Price', required: true },

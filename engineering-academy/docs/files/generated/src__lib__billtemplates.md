@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/lib/billTemplates.ts` is part of Dhandho (DG-ERP). Approximate size: **595 lines**.
+`src/lib/billTemplates.ts` is part of Dhandho (DG-ERP). Approximate size: **821 lines**.
 
 ## Business value
 
@@ -24,11 +24,11 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 ## Exports and symbols
 
-**Exported names:** `esc`, `safeColor`, `safeImgSrc`, `placeOfSupplyLabel`, `buildDistributionBillSlice`, `generateSalesInvoiceHtml`, `generateDistributionChallanHtml`
+**Exported names:** `esc`, `safeColor`, `safeImgSrc`, `placeOfSupplyLabel`, `buildDistributionBillSlice`, `generateSalesInvoiceHtml`, `generateDistributionChallanHtml`, `QuotationBillInput`, `generateQuotationHtml`
 
 **Classes:** _none_
 
-## Functions (17 detected)
+## Functions (19 detected)
 
 ### Function: esc
 
@@ -153,6 +153,21 @@ generateDistributionChallanHtml(bill: DistributionBillData, options?: {
 | Purpose | Symbol in `src/lib/billTemplates.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `generateDistributionChallanHtml` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: generateQuotationHtml
+
+```ts
+generateQuotationHtml(q: QuotationBillInput, options?: { qrDataUrl?: string })
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/lib/billTemplates.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `generateQuotationHtml` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -292,6 +307,21 @@ vendorGstin(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: hasGst
+
+```ts
+hasGst(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/lib/billTemplates.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `hasGst` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 
 ## Execution flow
 
@@ -308,7 +338,7 @@ rg -n "billTemplates" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **595**. Large view/route files are refactor candidates.
+Line count **821**. Large view/route files are refactor candidates.
 
 ## Security impact
 

@@ -354,7 +354,7 @@ export function VendorFinanceView({
             </div>
             <table><thead><tr><th>Date</th><th>Method</th><th class="text-right">Amount</th><th>Reference</th><th>Notes</th></tr></thead>
             <tbody>${detail.payments.map((p: Record<string, unknown>) => `<tr><td>${esc(formatDate(p.paymentDate as string))}</td><td>${esc(p.paymentMethod)}</td><td class="text-right" style="font-weight:600">₹${Number(p.amount).toLocaleString()}</td><td>${esc(p.referenceNumber || '—')}</td><td>${esc(p.notes || '—')}</td></tr>`).join('')}</tbody></table>
-            <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${esc(companyName)}</div>
+            <div class="print-end avoid-break footer">Generated on ${new Date().toLocaleDateString('en-IN')} • ${esc(companyName)}</div>
             </body></html>`,
                 `Payment-History-${detail.vendor.name}`,
               );

@@ -3,6 +3,7 @@ import { blockVendors, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { hasExplicitUnitPrice, resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
 
 const router = Router();
 
@@ -69,17 +70,30 @@ router.post('/api/quotations', blockVendors, async (req: AuthRequest, res) => {
     }[] = [];
     for (const item of items) {
       const product = (
-        await pool.query('SELECT id, name, price FROM products WHERE id = $1 AND tenant_id = $2', [
+        await pool.query('SELECT id, name, price, price_includes_gst FROM products WHERE id = $1 AND tenant_id = $2', [
           item.productId,
           tenantId,
         ])
-      ).rows[0] as { id: string; name: string; price: number } | undefined;
+      ).rows[0] as { id: string; name: string; price: number; price_includes_gst: boolean } | undefined;
       if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
-      const price = item.customPrice ? Number(item.customPrice) : Number(product.price);
       const qty = Math.max(1, Number(item.quantity) || 1);
+      // Default: vendor slab → generic → inventory; explicit customPrice wins (negotiated)
+      const price = hasExplicitUnitPrice(item.customPrice)
+        ? Number(item.customPrice)
+        : (await resolvePrice(tenantId, item.productId, vendorId, qty)).price;
       const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
-      const lineNet = Math.round((price * qty * (100 - disc)) / 100);
-      const lineGst = item.withGst !== false ? Math.round((lineNet * rate) / 100) : 0;
+      const withGst = item.withGst !== false;
+      // Same GST math as distribution create + quote convert (inclusive MRP supported)
+      const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
+        basePrice: price,
+        discountPercent: disc,
+        withGst,
+        priceIncludesGst: !!product.price_includes_gst,
+        gstRate: rate,
+      });
+      const lineNet = Math.round(netPricePerUnit * qty * 100) / 100;
+      const lineTotal = Math.round(billedPricePerUnit * qty * 100) / 100;
+      const lineGst = Math.round((lineTotal - lineNet) * 100) / 100;
       subtotal += lineNet;
       resolvedItems.push({
         productId: product.id,
@@ -87,10 +101,10 @@ router.post('/api/quotations', blockVendors, async (req: AuthRequest, res) => {
         quantity: qty,
         price,
         discountPercent: disc,
-        withGst: item.withGst !== false,
+        withGst,
         lineNet,
         lineGst,
-        lineTotal: lineNet + lineGst,
+        lineTotal,
       });
     }
     const gstAmount = resolvedItems.reduce((s, i) => s + i.lineGst, 0);
@@ -323,20 +337,27 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
       for (const item of distItems) {
         const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
         const product = (
-          await client.query('SELECT id, name, price FROM products WHERE id = $1 AND tenant_id = $2', [
-            item.productId,
-            tenantId,
-          ])
-        ).rows[0] as { id: string; name: string; price: number } | undefined;
+          await client.query(
+            'SELECT id, name, price, price_includes_gst FROM products WHERE id = $1 AND tenant_id = $2',
+            [item.productId, tenantId],
+          )
+        ).rows[0] as { id: string; name: string; price: number; price_includes_gst: boolean } | undefined;
         if (!product) {
           await client.query('ROLLBACK');
           return res.status(404).json({ error: `Product not found: ${item.productId}` });
         }
-        const basePrice = item.customPrice ? Number(item.customPrice) : product.price;
+        // Freeze negotiated quote price — do not re-resolve price lists on convert
+        const basePrice =
+          item.customPrice !== null && item.customPrice !== undefined ? Number(item.customPrice) : product.price;
         const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
-        const netPricePerUnit = Math.round(((basePrice * (100 - disc)) / 100) * 100) / 100;
         const gstApplied = item.withGst !== false ? 1 : 0;
-        const billedPricePerUnit = gstApplied ? Math.round((netPricePerUnit * (100 + gstRate)) / 100) : netPricePerUnit;
+        const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
+          basePrice,
+          discountPercent: disc,
+          withGst: gstApplied === 1,
+          priceIncludesGst: !!product.price_includes_gst,
+          gstRate,
+        });
         productNames.push(product.name);
         unitRows.push({
           distId: '',

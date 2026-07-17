@@ -227,12 +227,14 @@ export function InvoicesView() {
       .title-text{font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
       .items th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:6px;text-align:center;font-weight:700;}
       .items td{padding:5px 6px;text-align:center;}.items .left{text-align:left;}.items .right{text-align:right;}
+      .items tbody tr{break-inside:avoid;page-break-inside:avoid;}
       .items .total-row{font-weight:700;background:#f0f0f0;}
       .grand-total{font-size:16px;font-weight:900;color:${color};}
       .footer-text{font-size:9px;color:#999;text-align:center;margin-top:8px;}
-      @media print{body{padding:10px;} @page{margin:8mm;}}
+      .repeat-banner th{background:#fff;border-bottom:2px solid ${color};text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
+      @media print{body{padding:10px;} @page{margin:10mm;} thead{display:table-header-group;}}
     </style></head><body>
-    <table class="outer">
+    <table class="outer avoid-break">
       <tr class="hdr">
         <td colspan="2" style="width:65%;">
           <div style="display:flex;align-items:center;gap:12px;">${logoHtml}<div>
@@ -295,9 +297,20 @@ export function InvoicesView() {
       </td></tr>
     </table>
     <table class="outer items" style="margin-top:-2px;">
-      <thead><tr><th style="width:30px;">Sr</th><th class="left">Description</th><th>HSN/SAC</th><th>Qty</th><th class="right">Rate</th>${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr></thead>
+      <thead>
+        <tr class="repeat-banner"><th colspan="${hasGst ? 8 : 6}">
+          <span style="font-weight:800;color:${color};">${esc(user.companyName || 'Dhandho')}</span>
+          <span style="float:right;font-weight:700;">${invPrefix}${esc(inv.invoiceNumber)}</span>
+        </th></tr>
+        <tr><th style="width:30px;">Sr</th><th class="left">Description</th><th>HSN/SAC</th><th>Qty</th><th class="right">Rate</th>${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr>
+      </thead>
       <tbody>
         ${inv.items.map((it, i) => `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td><td>${esc(it.hsnSac || '—')}</td><td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="print-end avoid-break">
+    <table class="outer items" style="margin-top:-2px;border-top:none;">
+      <tbody>
         <tr class="total-row"><td colspan="${hasGst ? 7 : 5}" class="right">Subtotal</td><td class="right">₹${inv.subtotal.toLocaleString()}</td></tr>
         ${
           hasGst
@@ -311,6 +324,7 @@ export function InvoicesView() {
     ${inv.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${esc(inv.notes)}</div>` : ''}
     ${bankHtml}${termsHtml}${sigHtml}
     <p class="footer-text">${footerText}</p>
+    </div>
     </body></html>`;
       printBillInWindow(w, html, `${hasGst ? 'Tax-Invoice' : 'Invoice'}-${inv.invoiceNumber}`);
     } catch (err) {
