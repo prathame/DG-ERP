@@ -40,16 +40,22 @@ export function SuperAdminLogin({ onLogin }: { onLogin: (user: SuperAdminUser) =
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center p-4">
+    <div
+      className="min-h-[100dvh] bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center px-4 py-8"
+      style={{
+        paddingTop: 'max(2rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 0px))',
+      }}
+    >
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
-        <div className="text-center mb-8">
+        <div className="text-center mb-6 sm:mb-8">
           <div className="inline-flex w-16 h-16 bg-brand rounded-2xl items-center justify-center font-bold text-2xl text-white mb-4">
             S
           </div>
           <h1 className="text-2xl font-bold text-white">Platform Admin</h1>
           <p className="text-gray-400 text-sm mt-1">Manage all tenants</p>
         </div>
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 sm:p-8 shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label>
@@ -57,7 +63,7 @@ export function SuperAdminLogin({ onLogin }: { onLogin: (user: SuperAdminUser) =
                 type="email"
                 required
                 value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                onChange={e => setForm({ ...form, email: e.target.value })}
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="admin@platform.com"
               />
@@ -67,7 +73,7 @@ export function SuperAdminLogin({ onLogin }: { onLogin: (user: SuperAdminUser) =
               <PasswordInput
                 required
                 value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                onChange={e => setForm({ ...form, password: e.target.value })}
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-brand focus:border-transparent"
                 placeholder="••••••••"
               />

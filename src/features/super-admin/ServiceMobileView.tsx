@@ -448,8 +448,8 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
           <p className="text-sm mt-1">Issue a DG-SM key, share it with staff, they activate on the phone app.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
             <thead className="bg-gray-50 text-left text-xs text-gray-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Company</th>

@@ -1063,8 +1063,8 @@ export function VendorFinanceView({
                     <h4 className="text-sm font-bold text-emerald-700 flex items-center gap-1.5 mb-2">
                       <Check size={16} /> Matched ({bankPreview.matched.length})
                     </h4>
-                    <div className="border border-gray-200 rounded-xl overflow-hidden">
-                      <table className="w-full text-sm">
+                    <div className="border border-gray-200 rounded-xl overflow-x-auto">
+                      <table className="w-full text-sm min-w-[560px]">
                         <thead>
                           <tr className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-400 uppercase">
                             <th className="px-3 py-2 text-left">Date</th>
@@ -1119,8 +1119,8 @@ export function VendorFinanceView({
                     <h4 className="text-sm font-bold text-amber-700 flex items-center gap-1.5 mb-2">
                       <AlertTriangle size={16} /> Unmatched ({bankPreview.unmatched.length})
                     </h4>
-                    <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50/30">
-                      <table className="w-full text-sm">
+                    <div className="border border-amber-200 rounded-xl overflow-x-auto bg-amber-50/30">
+                      <table className="w-full text-sm min-w-[360px]">
                         <thead>
                           <tr className="bg-amber-50 border-b border-amber-200 text-xs font-bold text-amber-600 uppercase">
                             <th className="px-3 py-2 text-left">Date</th>

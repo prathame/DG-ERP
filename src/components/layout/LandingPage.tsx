@@ -547,10 +547,13 @@ export function LandingPage() {
       {!shutterDone && <ShutterIntro onDone={handleShutterDone} />}
 
       {/* ── Nav ─────────────────────────────────────────────────────────────── */}
-      <nav className={`fixed top-0 inset-x-0 z-50 ${navBg} backdrop-blur-xl border-b ${border}`}>
+      <nav
+        className={`fixed top-0 inset-x-0 z-50 ${navBg} backdrop-blur-xl border-b ${border}`}
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
         <motion.div
           style={{ scale: navShrink }}
-          className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between"
+          className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2"
         >
           <div className="flex items-center gap-2.5">
             <img src="/icons/logo-full.png" alt="Dhando" className="h-8 w-auto object-contain" />
@@ -580,7 +583,7 @@ export function LandingPage() {
                   key={l.code}
                   type="button"
                   onClick={() => setLang(l.code)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white' : `${dark ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-gray-900'}`}`}
+                  className={`min-h-[36px] sm:min-h-0 px-2.5 py-1.5 sm:py-1 rounded-md text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white' : `${dark ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-gray-900'}`}`}
                 >
                   {l.label}
                 </button>
@@ -644,7 +647,7 @@ export function LandingPage() {
 
       {/* ── Hero ────────────────────────────────────────────────────────────── */}
       <section
-        className="relative pt-24 sm:pt-32 pb-16 sm:pb-24 px-4 sm:px-6 overflow-hidden"
+        className="relative pt-[calc(6rem+env(safe-area-inset-top,0px))] sm:pt-[calc(8rem+env(safe-area-inset-top,0px))] pb-16 sm:pb-24 px-4 sm:px-6 overflow-hidden"
         onMouseMove={handleMouseMove}
       >
         {/* Grid background */}

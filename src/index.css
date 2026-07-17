@@ -255,13 +255,35 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Modals nearly full-bleed on tablet/phone */
+  /* Modals: fit viewport width + height; scroll body; clear home indicator */
+  .fixed.inset-0 .max-w-sm,
+  .fixed.inset-0 .max-w-md,
   .fixed.inset-0 .max-w-lg,
   .fixed.inset-0 .max-w-xl,
-  .fixed.inset-0 .max-w-2xl {
+  .fixed.inset-0 .max-w-2xl,
+  .fixed.inset-0 .max-w-3xl,
+  .fixed.inset-0 .max-w-4xl {
     max-width: calc(100vw - 1.5rem) !important;
+    max-height: min(90dvh, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 1.5rem));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     margin-left: auto;
     margin-right: auto;
+  }
+
+  /* Form grids in overlays stack on tablet/phone (desktop unchanged) */
+  .fixed.inset-0 .grid.grid-cols-2,
+  .fixed.inset-0 .grid.grid-cols-3,
+  .fixed.inset-0 .grid.grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Bare tables inside white cards: allow horizontal scroll instead of clipping */
+  .app-mobile-content .rounded-2xl:has(> table),
+  .app-mobile-content .rounded-xl:has(> table),
+  .app-mobile-content .overflow-hidden:has(> table) {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -273,15 +295,47 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     gap: 0.75rem;
   }
 
-  /* Dense multi-column grids → one column on small phones */
+  /* Dense multi-column grids → single column on small phones */
+  .app-mobile-content .grid.grid-cols-2,
   .app-mobile-content .grid.grid-cols-3,
   .app-mobile-content .grid.grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Keep intentional 2-up metric/stat strips readable as 2 columns */
+  .app-mobile-content .grid.grid-cols-2.gap-3,
+  .app-mobile-content .grid.grid-cols-2.gap-4 {
     grid-template-columns: 1fr 1fr !important;
   }
 
   /* Full-width submit buttons */
   .app-mobile-content form button[type="submit"] {
     width: 100%;
+  }
+
+  /* Prefer always-visible row actions on touch (override hover-only toolbars) */
+  .app-mobile-content .group .opacity-0.group-hover\:opacity-100 {
+    opacity: 1 !important;
+  }
+
+  /* Prevent accidental page-wide horizontal scroll */
+  .app-shell,
+  .app-mobile-content {
+    overflow-x: clip;
+  }
+}
+
+/* Icon action buttons: square 44px hit area on phones without changing desktop */
+@media (max-width: 768px) {
+  .app-mobile-content button.p-1,
+  .app-mobile-content button.p-1\.5,
+  .fixed.inset-0 button.p-1,
+  .fixed.inset-0 button.p-1\.5 {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 

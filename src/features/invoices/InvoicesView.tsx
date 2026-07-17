@@ -414,78 +414,154 @@ export function InvoicesView() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50/80 border-b-2 border-gray-200">
-                <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-left">Invoice</th>
-                <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-left">Customer</th>
-                <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Date</th>
-                <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">Amount</th>
-                <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-center">Status</th>
-                <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {invoices.map(inv => (
-                <tr
-                  key={inv.id}
-                  className="hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => setSelectedInvoice(inv)}
+        <>
+          {/* Mobile cards */}
+          <div className="sm:hidden space-y-3">
+            {invoices.map(inv => (
+              <div
+                key={inv.id}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3"
+                onClick={() => setSelectedInvoice(inv)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') setSelectedInvoice(inv);
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono font-semibold text-sm text-gray-900 truncate">{inv.invoiceNumber}</p>
+                    <p className="font-medium text-gray-800 truncate">{inv.customerName}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{formatDate(inv.invoiceDate)}</p>
+                  </div>
+                  <div className="text-right shrink-0 space-y-1">
+                    <p className="font-bold text-gray-900">₹{inv.grandTotal.toLocaleString()}</p>
+                    {statusBadge(inv.status)}
+                  </div>
+                </div>
+                <div
+                  className="flex items-center justify-end gap-1 border-t border-gray-50 pt-2"
+                  onClick={e => e.stopPropagation()}
                 >
-                  <td className="px-4 py-3 font-mono font-medium text-sm">{inv.invoiceNumber}</td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{inv.customerName}</p>
-                    {inv.customerGstin && <p className="text-[10px] text-gray-400 font-mono">{inv.customerGstin}</p>}
-                  </td>
-                  <td className="px-4 py-3 text-center text-gray-600">{formatDate(inv.invoiceDate)}</td>
-                  <td className="px-4 py-3 text-right font-semibold">₹{inv.grandTotal.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-center">{statusBadge(inv.status)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => printInvoice(inv)}
-                        className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
-                        title="Print/PDF"
-                      >
-                        <Printer size={15} />
-                      </button>
-                      {inv.status === 'draft' && (
-                        <button
-                          type="button"
-                          onClick={() => handleStatus(inv, 'sent')}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
-                          title="Mark Sent"
-                        >
-                          <Send size={15} />
-                        </button>
-                      )}
-                      {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                        <button
-                          type="button"
-                          onClick={() => handleStatus(inv, 'paid')}
-                          className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                          title="Mark Paid"
-                        >
-                          <Check size={15} />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(inv)}
-                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
-                        title="Delete"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </td>
+                  <button
+                    type="button"
+                    onClick={() => printInvoice(inv)}
+                    className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
+                    title="Print/PDF"
+                    aria-label="Print invoice"
+                  >
+                    <Printer size={15} />
+                  </button>
+                  {inv.status === 'draft' && (
+                    <button
+                      type="button"
+                      onClick={() => handleStatus(inv, 'sent')}
+                      className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-lg"
+                      title="Mark Sent"
+                      aria-label="Mark sent"
+                    >
+                      <Send size={15} />
+                    </button>
+                  )}
+                  {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                    <button
+                      type="button"
+                      onClick={() => handleStatus(inv, 'paid')}
+                      className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                      title="Mark Paid"
+                      aria-label="Mark paid"
+                    >
+                      <Check size={15} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(inv)}
+                    className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg"
+                    title="Delete"
+                    aria-label="Delete invoice"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop / tablet table */}
+          <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
+              <thead>
+                <tr className="bg-gray-50/80 border-b-2 border-gray-200">
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-left">Invoice</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-left">Customer</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase">Date</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">Amount</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-center">Status</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {invoices.map(inv => (
+                  <tr
+                    key={inv.id}
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedInvoice(inv)}
+                  >
+                    <td className="px-4 py-3 font-mono font-medium text-sm">{inv.invoiceNumber}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900">{inv.customerName}</p>
+                      {inv.customerGstin && <p className="text-[10px] text-gray-400 font-mono">{inv.customerGstin}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-center text-gray-600">{formatDate(inv.invoiceDate)}</td>
+                    <td className="px-4 py-3 text-right font-semibold">₹{inv.grandTotal.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center">{statusBadge(inv.status)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => printInvoice(inv)}
+                          className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
+                          title="Print/PDF"
+                        >
+                          <Printer size={15} />
+                        </button>
+                        {inv.status === 'draft' && (
+                          <button
+                            type="button"
+                            onClick={() => handleStatus(inv, 'sent')}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                            title="Mark Sent"
+                          >
+                            <Send size={15} />
+                          </button>
+                        )}
+                        {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                          <button
+                            type="button"
+                            onClick={() => handleStatus(inv, 'paid')}
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                            title="Mark Paid"
+                          >
+                            <Check size={15} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(inv)}
+                          className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                          title="Delete"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* Create modal */}
