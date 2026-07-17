@@ -18,6 +18,11 @@ description: Online Capacitor + Cloud Electron for service cloud seats.
 
 [`/download`](/download) lists **Dhando Service Cloud (ONLINE)** separately from **Dhando Service Mobile (OFFLINE)**. Do not mix installers or licenses.
 
+While testing there are **no versioned GitHub releases** — Super Admin → Analytics sets one evergreen URL per app (`service_cloud_app_url` / `service_mobile_app_url`). Rebuild as often as you want; keep the same link and replace the file behind it. Public API: `GET /api/download-links`.
+
+Default Offline Mobile APK (when unset in `platform_config`):  
+`https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk`
+
 ## Builds
 
 ```bash

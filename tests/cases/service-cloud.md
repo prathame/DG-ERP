@@ -19,6 +19,8 @@ Online-only seats on a **service** cloud tenant. Clients: Cloud Electron + onlin
 | 13 | Browser not enrolled | Login in normal browser (no Electron/Capacitor) | No seat gate; claim with web client rejected |
 | 14 | Manufacturer tenant | Open manufacturer tenant detail | No Service cloud seats panel |
 | 15 | Not Service Mobile | Compare with Service Mobile licenses | No `DG-SM-` key; uses cloud tenant users |
-| 16 | Download page split | Open `/download` | **Service Cloud ONLINE** and **Service Mobile OFFLINE** are separate cards; copy says do not mix |
+| 16 | Download page split | Open `/download` | **Service Cloud ONLINE** and **Service Mobile OFFLINE** are separate cards; one evergreen URL each (no version list) |
+| 17 | Set download URL | SA → Analytics → paste Service Cloud URL → Save → open `/download` | Single Download button uses that URL |
+| 18 | Default Offline Mobile APK | Clear `service_mobile_app_url` (or fresh DB) → open `/download` | Offline Mobile Download uses GitHub evergreen APK URL without SA paste |
 
 **Automated:** `tests/api/http-service-cloud.test.ts` · `tests/unit/service-cloud-mode.test.ts`

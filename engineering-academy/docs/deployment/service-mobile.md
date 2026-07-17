@@ -34,6 +34,18 @@ npx cap open android   # sideload APK
 npx cap open ios       # TestFlight
 ```
 
+### Evergreen Android APK (testing)
+
+Public download uses one stable link (rebuilds overwrite the same GitHub release asset):
+
+`https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk`
+
+That URL is the code default for `service_mobile_app_url` / `/api/download-links` when Super Admin has not set an override. After `assembleDebug`, upload with:
+
+```bash
+gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clobber
+```
+
 ## Operator flow
 
 1. SA issues Service Mobile license  
