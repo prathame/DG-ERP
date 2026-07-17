@@ -11,14 +11,15 @@
    - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` (≥12 chars)
    - `ALLOWED_ORIGINS` — e.g. `https://dhandho.app,https://www.dhandho.app,https://dg-erp.onrender.com`
    - Optional: `LOGTAIL_TOKEN`, `PUBLIC_APP_URL=https://dhandho.app`
-3. Build: `npm ci && npm run build:prod`  
-   - Do **not** run `npm test` on Render. With `NODE_ENV=production`, `npm ci` omits `devDependencies` (`vitest` → `not found`), and Vitest must not hit the production database.  
-   - Run tests in GitHub Actions (`npm test` with a CI Postgres service).
+3. Build: `npm ci --include=dev && npm run build:prod`  
+   - `--include=dev` is required because Render sets `NODE_ENV=production`, which would skip build-time packages (`tailwindcss`, etc.).  
+   - Do **not** run `npm test` on Render (must not hit the production DB). Tests run in GitHub Actions.  
+   - `tailwindcss` is also listed under `dependencies` so production CSS builds resolve even if install flags change.
 4. Start: `npm start` (serves API + `dist/` on `PORT`)
 5. Health: `GET /api/health` → `{ ok: true, db: "up" }` (HTTP 503 if DB down)
 6. Configure Render health check path: `/api/health`
 
-If the Dashboard build command was customized, set it to match `render.yaml` (not `npm test`).
+If the Dashboard build command was customized, set it to match `render.yaml`.
 
 ## Rollback
 

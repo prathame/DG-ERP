@@ -9,10 +9,10 @@ services:
     name: dg-erp
     plan: free
     runtime: node
-    # Do NOT run `npm test` here: NODE_ENV=production skips devDependencies
-    # (vitest missing), and tests must not run against the production DB.
-    # Tests run in GitHub Actions CI instead.
-    buildCommand: npm ci && npm run build:prod
+    # Do NOT run `npm test` here: tests must not hit the production DB (CI runs them).
+    # --include=dev: NODE_ENV=production would otherwise omit build tools
+    # (tailwindcss, etc.) even when vite plugins are in dependencies.
+    buildCommand: npm ci --include=dev && npm run build:prod
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
