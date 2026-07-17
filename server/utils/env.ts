@@ -36,7 +36,9 @@ export function assertCriticalEnv(env: NodeJS.ProcessEnv = process.env): void {
     if (env.DATABASE_SSL === 'false') {
       fatal('DATABASE_SSL=false is not allowed in production — TLS is required');
     }
-    if (env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'false') {
+    // Managed hosts (Render/Neon) need rejectUnauthorized=false; still forbid it elsewhere.
+    const managedDb = env.RENDER === 'true' || /render\.com|neon\.tech/i.test(env.DATABASE_URL ?? '');
+    if (env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'false' && !managedDb) {
       fatal('DATABASE_SSL_REJECT_UNAUTHORIZED=false is not allowed in production');
     }
     if (!env.SUPER_ADMIN_EMAIL?.trim() || !env.SUPER_ADMIN_PASSWORD?.trim()) {

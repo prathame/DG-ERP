@@ -44,15 +44,29 @@ import expensesRouter from './routes/expenses';
 import gstApiRouter from './routes/gst-api';
 import invoicesRouter from './routes/invoices';
 import { logger } from './utils/logger';
+import { getCachedAuth, setCachedAuth } from './utils/authCache';
 
 const PUBLIC_PATHS = [
-  '/api/auth/login', '/api/auth/forgot-password', '/api/auth/reset-password',
-  '/api/super-admin/login', '/api/tenant/by-slug/', '/api/health',
+  '/api/auth/login',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+  '/api/super-admin/login',
+  '/api/tenant/by-slug/',
+  '/api/health',
   '/manifest.json',
-  '/api/onprem/activate', '/api/onprem/heartbeat', '/api/onprem/deactivate',
-  '/api/onprem/provision', '/api/onprem/apply-settings', '/api/onprem/mark-applied',
-  '/api/mobile/redeem-invite', '/api/mobile/heartbeat',
+  '/api/onprem/activate',
+  '/api/onprem/heartbeat',
+  '/api/onprem/deactivate',
+  '/api/onprem/provision',
+  '/api/onprem/apply-settings',
+  '/api/onprem/mark-applied',
+  '/api/mobile/redeem-invite',
+  '/api/mobile/heartbeat',
 ];
+
+function isPublicApiPath(apiRelativePath: string): boolean {
+  return PUBLIC_PATHS.some(p => apiRelativePath.startsWith(p.replace('/api', '')));
+}
 
 /** Build the Express app without listening — used by server entry and supertest. */
 export function createApp(): express.Application {
@@ -68,9 +82,8 @@ export function createApp(): express.Application {
   // Correlation ID on every request — clients get it on errors; details stay server-side
   app.use((req, res, next) => {
     const incoming = req.headers['x-correlation-id'];
-    const correlationId = (typeof incoming === 'string' && incoming.trim())
-      ? incoming.trim().slice(0, 64)
-      : crypto.randomUUID();
+    const correlationId =
+      typeof incoming === 'string' && incoming.trim() ? incoming.trim().slice(0, 64) : crypto.randomUUID();
     (req as express.Request & { correlationId?: string }).correlationId = correlationId;
     res.setHeader('X-Correlation-ID', correlationId);
     const origJson = res.json.bind(res);
@@ -85,32 +98,37 @@ export function createApp(): express.Application {
   });
 
   app.use(compression());
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        // Production builds load scripts from same origin only (no inline)
-        scriptSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'", "https://wa.me", "https://mail.google.com"],
-        objectSrc: ["'none'"],
-        baseUri: ["'self'"],
-        frameAncestors: ["'none'"],
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          // Production builds load scripts from same origin only (no inline)
+          scriptSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+          fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'", 'https://wa.me', 'https://mail.google.com'],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          frameAncestors: ["'none'"],
+        },
       },
-    },
-    crossOriginEmbedderPolicy: false,
-    frameguard: { action: 'deny' },
-    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
-    noSniff: true,
-    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-  }));
+      crossOriginEmbedderPolicy: false,
+      frameguard: { action: 'deny' },
+      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+      noSniff: true,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    }),
+  );
 
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS?.split(',') || (isProduction
-    ? [] // production must set ALLOWED_ORIGINS (assertCriticalEnv)
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002']))
-    .map((o) => o.trim())
+  const allowedOrigins = (
+    process.env.ALLOWED_ORIGINS?.split(',') ||
+    (isProduction
+      ? [] // production must set ALLOWED_ORIGINS (assertCriticalEnv)
+      : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'])
+  )
+    .map(o => o.trim())
     .filter(Boolean);
   // Capacitor / Ionic WebView origins for the mobile app
   const capacitorOrigins = new Set([
@@ -153,6 +171,21 @@ export function createApp(): express.Application {
   app.use('/api/backup/restore', express.json({ limit: '50mb' }));
   app.use(express.json({ limit: '2mb' }));
 
+  // Global API rate limit (authenticated + public) — auth endpoints have tighter limits below
+  if (!isTest) {
+    app.use(
+      '/api/',
+      rateLimit({
+        windowMs: 60 * 1000,
+        max: 300,
+        message: { error: 'Too many requests, please slow down' },
+        standardHeaders: true,
+        legacyHeaders: false,
+        skip: req => req.path === '/health',
+      }),
+    );
+  }
+
   app.use((req, _res, next) => {
     if (req.method === 'QUERY') {
       if (req.body && typeof req.body === 'object') {
@@ -164,33 +197,46 @@ export function createApp(): express.Application {
   });
 
   app.use('/api/', async (req, res, next) => {
-    if (PUBLIC_PATHS.some(p => req.path.startsWith(p.replace('/api', '')))) return next();
+    if (isPublicApiPath(req.path)) return next();
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) return res.status(401).json({ error: 'Authentication required' });
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as { tenantId?: string; userId?: string; role?: string; vendorId?: string | null; iat?: number };
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as {
+        tenantId?: string;
+        userId?: string;
+        role?: string;
+        vendorId?: string | null;
+        iat?: number;
+      };
       if (decoded.tenantId && decoded.userId) {
         req.headers['x-tenant-id'] = decoded.tenantId;
 
-        const userRow = await pool.query(
-          `SELECT u.password_changed_at, u.role, u.vendor_id, u.permissions, t.status, t.subscription_ends_at, t.trial_ends_at
-           FROM users u JOIN tenants t ON t.id = u.tenant_id
-           WHERE u.id = $1 AND u.tenant_id = $2`,
-          [decoded.userId, decoded.tenantId]
-        );
-        const row = userRow.rows[0] as { password_changed_at: Date | null; role: string; vendor_id: string | null; permissions: unknown; status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
+        let row = getCachedAuth(decoded.userId, decoded.tenantId, decoded.iat);
+        if (!row) {
+          const userRow = await pool.query(
+            `SELECT u.password_changed_at, u.role, u.vendor_id, u.permissions, t.status, t.subscription_ends_at, t.trial_ends_at
+             FROM users u JOIN tenants t ON t.id = u.tenant_id
+             WHERE u.id = $1 AND u.tenant_id = $2`,
+            [decoded.userId, decoded.tenantId],
+          );
+          row = userRow.rows[0] as typeof row;
+          if (row) setCachedAuth(decoded.userId, decoded.tenantId, decoded.iat, row);
+        }
 
         if (!row) return res.status(401).json({ error: 'User no longer exists. Please log in again.' });
 
         decoded.role = row.role;
         decoded.vendorId = row.vendor_id ?? undefined;
-        (decoded as { permissions?: Record<string, string> }).permissions = normalizePermissions(row.permissions, row.role);
+        (decoded as { permissions?: Record<string, string> }).permissions = normalizePermissions(
+          row.permissions,
+          row.role,
+        );
 
         if (row.status === 'suspended') return res.status(403).json({ error: 'Account suspended. Contact admin.' });
-        const expiresAt = row.status === 'trial' ? row.trial_ends_at
-                        : row.status === 'active' ? row.subscription_ends_at
-                        : null;
-        if (expiresAt && new Date(expiresAt).getTime() < Date.now()) return res.status(403).json({ error: 'Subscription expired. Contact admin to renew.' });
+        const expiresAt =
+          row.status === 'trial' ? row.trial_ends_at : row.status === 'active' ? row.subscription_ends_at : null;
+        if (expiresAt && new Date(expiresAt).getTime() < Date.now())
+          return res.status(403).json({ error: 'Subscription expired. Contact admin to renew.' });
 
         if (row.password_changed_at && decoded.iat && row.password_changed_at.getTime() / 1000 > decoded.iat) {
           return res.status(401).json({ error: 'Session expired after password change. Please log in again.' });
@@ -229,13 +275,16 @@ export function createApp(): express.Application {
   app.use('/api/auth/login', loginLimiter);
   app.use('/api/super-admin/login', loginLimiter);
   if (!isTest) {
-    app.use('/api/settings/change-password', rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 20,
-      message: { error: 'Too many password change attempts' },
-      standardHeaders: true,
-      legacyHeaders: false,
-    }));
+    app.use(
+      '/api/settings/change-password',
+      rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 20,
+        message: { error: 'Too many password change attempts' },
+        standardHeaders: true,
+        legacyHeaders: false,
+      }),
+    );
     const resetRequestLimiter = rateLimit({
       windowMs: 60 * 60 * 1000,
       max: 3,
@@ -244,24 +293,40 @@ export function createApp(): express.Application {
       legacyHeaders: false,
     });
     app.use('/api/auth/forgot-password', resetRequestLimiter);
-    app.use('/api/auth/reset-password', rateLimit({
-      windowMs: 60 * 60 * 1000,
-      max: 5,
-      message: { error: 'Too many reset attempts, try again later' },
-      standardHeaders: true,
-      legacyHeaders: false,
-    }));
-    app.use('/api/auth/signup', rateLimit({
-      windowMs: 60 * 60 * 1000,
-      max: 3,
-      message: { error: 'Too many signup attempts' },
-      standardHeaders: true,
-      legacyHeaders: false,
-    }));
+    app.use(
+      '/api/auth/reset-password',
+      rateLimit({
+        windowMs: 60 * 60 * 1000,
+        max: 5,
+        message: { error: 'Too many reset attempts, try again later' },
+        standardHeaders: true,
+        legacyHeaders: false,
+      }),
+    );
+    app.use(
+      '/api/auth/signup',
+      rateLimit({
+        windowMs: 60 * 60 * 1000,
+        max: 3,
+        message: { error: 'Too many signup attempts' },
+        standardHeaders: true,
+        legacyHeaders: false,
+      }),
+    );
+    app.use(
+      '/api/chatbot',
+      rateLimit({
+        windowMs: 60 * 1000,
+        max: 30,
+        message: { error: 'Too many chatbot requests, try again shortly' },
+        standardHeaders: true,
+        legacyHeaders: false,
+      }),
+    );
   }
 
   app.get('/manifest.json', async (req, res) => {
-    const slug = (typeof req.query.slug === 'string' && req.query.slug) ? req.query.slug.toLowerCase() : null;
+    const slug = typeof req.query.slug === 'string' && req.query.slug ? req.query.slug.toLowerCase() : null;
 
     let name = 'Dhandho Management';
     let shortName = 'Dhandho';
@@ -269,25 +334,33 @@ export function createApp(): express.Application {
 
     if (slug && slug !== 'admin' && slug !== 'privacy' && slug !== 'terms') {
       try {
-        const tenant = (await pool.query('SELECT company_name FROM tenants WHERE slug = $1', [slug])).rows[0] as { company_name: string } | undefined;
+        const tenant = (await pool.query('SELECT company_name FROM tenants WHERE slug = $1', [slug])).rows[0] as
+          { company_name: string } | undefined;
         if (tenant) {
           name = tenant.company_name;
           shortName = tenant.company_name.substring(0, 12);
           startUrl = `/${slug}`;
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     res.json({
-      name, short_name: shortName,
+      name,
+      short_name: shortName,
       description: 'ERP for Inventory, Sales, Distribution & Billing',
-      start_url: startUrl, display: 'standalone',
-      background_color: '#151619', theme_color: '#F27D26', orientation: 'any',
+      start_url: startUrl,
+      display: 'standalone',
+      background_color: '#151619',
+      theme_color: '#F27D26',
+      orientation: 'any',
       icons: [
         { src: '/icons/icon-192.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
         { src: '/icons/icon-512.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
       ],
-      categories: ['business', 'productivity'], lang: 'en',
+      categories: ['business', 'productivity'],
+      lang: 'en',
     });
   });
 
@@ -295,14 +368,25 @@ export function createApp(): express.Application {
     ? path.join(__dirname, '..', 'dist')
     : path.join(process.cwd(), 'dist');
   if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
+    app.use(
+      express.static(distPath, {
+        maxAge: isProduction ? '1y' : 0,
+        immutable: isProduction,
+        setHeaders(res, filePath) {
+          if (filePath.endsWith('index.html') || filePath.endsWith('sw.js') || filePath.endsWith('manifest.json')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
+        },
+      }),
+    );
   }
 
   if (process.env.REQUIRE_ELECTRON === 'true') {
     app.use((req, res, next) => {
       const isApi = req.path.startsWith('/api/');
       const isAdmin = req.path.startsWith('/admin');
-      const isElectron = req.headers['x-dg-client'] === 'electron-cloud' || req.headers['x-dg-client'] === 'electron-onprem';
+      const isElectron =
+        req.headers['x-dg-client'] === 'electron-cloud' || req.headers['x-dg-client'] === 'electron-onprem';
       const isOnPremLocal = process.env.DEPLOYMENT_MODE === 'onprem';
       if (isApi || isAdmin || isElectron || isOnPremLocal) return next();
       res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Dhandho — Download App</title>
@@ -322,8 +406,13 @@ export function createApp(): express.Application {
     });
   }
 
-  app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, message: 'API is running' });
+  app.get('/api/health', async (_req, res) => {
+    try {
+      await pool.query('SELECT 1');
+      res.json({ ok: true, db: 'up', message: 'API is running' });
+    } catch {
+      res.status(503).json({ ok: false, db: 'down', message: 'Database unavailable' });
+    }
   });
 
   app.use(superAdminRouter);
@@ -361,7 +450,8 @@ export function createApp(): express.Application {
   app.use(accountsRouter);
 
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    const correlationId = (req as express.Request & { correlationId?: string }).correlationId || res.getHeader('X-Correlation-ID');
+    const correlationId =
+      (req as express.Request & { correlationId?: string }).correlationId || res.getHeader('X-Correlation-ID');
     logger.error('Unhandled error', {
       correlationId,
       method: req.method,
@@ -378,7 +468,9 @@ export function createApp(): express.Application {
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      res.status(404).send(`Frontend not built. Run "npm run dev" for the dev server (port 3000) or "npm run build" then restart.`);
+      res
+        .status(404)
+        .send(`Frontend not built. Run "npm run dev" for the dev server (port 3000) or "npm run build" then restart.`);
     }
   });
 

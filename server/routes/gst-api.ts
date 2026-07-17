@@ -8,8 +8,13 @@ import { pool } from '../pg-db';
 import { splitGst, isValidGstin } from '../utils/helpers';
 import { encryptSecret } from '../utils/secret-crypto';
 import {
-  NicApiClient, buildIrnPayload, buildEwbPayload, loadGstCredentials,
-  isValidPin, resolveSupplyType, type GstApiMode,
+  NicApiClient,
+  buildIrnPayload,
+  buildEwbPayload,
+  loadGstCredentials,
+  isValidPin,
+  resolveSupplyType,
+  type GstApiMode,
 } from '../services/nic-api';
 
 const router = Router();
@@ -23,10 +28,14 @@ function fmtDate(iso: string): string {
 function safeError(err: unknown): string {
   const msg = err instanceof Error ? err.message : 'Internal server error';
   // Allow only short, expected validation/config messages (no DB/stack/path leakage)
-  if (/^(GST API|IRN|EWB|E-way bill|not configured|already has|Batch not|required|Invalid|credentials|crypto|pincode|GSTIN|B2B)/i.test(msg)
-      && msg.length < 160
-      && !/[\\/]\w+\.\w+/.test(msg)
-      && !/select\s|insert\s|update\s|relation\s/i.test(msg)) {
+  if (
+    /^(GST API|IRN|EWB|E-way bill|not configured|already has|Batch not|required|Invalid|credentials|crypto|pincode|GSTIN|B2B)/i.test(
+      msg,
+    ) &&
+    msg.length < 160 &&
+    !/[\\/]\w+\.\w+/.test(msg) &&
+    !/select\s|insert\s|update\s|relation\s/i.test(msg)
+  ) {
     return msg;
   }
   return 'Internal server error';
@@ -53,7 +62,10 @@ function resolvePins(
   const sellerPin = String(sellerPinIn || settingsPin || '').trim();
   const buyerPin = String(buyerPinIn || sellerPin || '').trim();
   if (mode === 'mock') {
-    return { sellerPin: isValidPin(sellerPin) ? sellerPin : '380001', buyerPin: isValidPin(buyerPin) ? buyerPin : '380001' };
+    return {
+      sellerPin: isValidPin(sellerPin) ? sellerPin : '380001',
+      buyerPin: isValidPin(buyerPin) ? buyerPin : '380001',
+    };
   }
   if (!isValidPin(sellerPin)) {
     return { error: 'Valid 6-digit seller pincode required (body.sellerPin or Settings → GST API).' };
@@ -68,10 +80,12 @@ router.get('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const row = (await pool.query(
-      'SELECT gst_api_mode, gst_api_gstin, gst_api_username, gst_api_client_id, gst_api_seller_pin FROM bill_settings WHERE tenant_id = $1',
-      [tenantId]
-    )).rows[0] as Record<string, string> | undefined;
+    const row = (
+      await pool.query(
+        'SELECT gst_api_mode, gst_api_gstin, gst_api_username, gst_api_client_id, gst_api_seller_pin FROM bill_settings WHERE tenant_id = $1',
+        [tenantId],
+      )
+    ).rows[0] as Record<string, string> | undefined;
     res.json({
       mode: row?.gst_api_mode || 'mock',
       gstin: row?.gst_api_gstin || '',
@@ -91,7 +105,8 @@ router.put('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { mode, gstin, username, password, clientId, clientSecret, sellerPin } = req.body;
     const validModes: GstApiMode[] = ['mock', 'sandbox', 'production'];
-    if (mode && !validModes.includes(mode)) return res.status(400).json({ error: 'Invalid mode. Use: mock, sandbox, production' });
+    if (mode && !validModes.includes(mode))
+      return res.status(400).json({ error: 'Invalid mode. Use: mock, sandbox, production' });
     if (gstin !== undefined && gstin !== '' && !isValidGstin(String(gstin))) {
       return res.status(400).json({ error: 'Invalid GSTIN' });
     }
@@ -99,24 +114,41 @@ router.put('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'sellerPin must be 6 digits' });
     }
 
-    await pool.query('INSERT INTO bill_settings (tenant_id) VALUES ($1) ON CONFLICT (tenant_id) DO NOTHING', [tenantId]);
+    await pool.query('INSERT INTO bill_settings (tenant_id) VALUES ($1) ON CONFLICT (tenant_id) DO NOTHING', [
+      tenantId,
+    ]);
 
     const updates: string[] = [];
     const params: unknown[] = [tenantId];
     let idx = 2;
-    if (mode !== undefined) { updates.push(`gst_api_mode=$${idx++}`); params.push(mode); }
-    if (gstin !== undefined) { updates.push(`gst_api_gstin=$${idx++}`); params.push(String(gstin).toUpperCase().trim()); }
-    if (username !== undefined) { updates.push(`gst_api_username=$${idx++}`); params.push(username); }
+    if (mode !== undefined) {
+      updates.push(`gst_api_mode=$${idx++}`);
+      params.push(mode);
+    }
+    if (gstin !== undefined) {
+      updates.push(`gst_api_gstin=$${idx++}`);
+      params.push(String(gstin).toUpperCase().trim());
+    }
+    if (username !== undefined) {
+      updates.push(`gst_api_username=$${idx++}`);
+      params.push(username);
+    }
     if (password !== undefined && password !== '') {
       updates.push(`gst_api_password=$${idx++}`);
       params.push(encryptSecret(String(password)));
     }
-    if (clientId !== undefined) { updates.push(`gst_api_client_id=$${idx++}`); params.push(clientId); }
+    if (clientId !== undefined) {
+      updates.push(`gst_api_client_id=$${idx++}`);
+      params.push(clientId);
+    }
     if (clientSecret !== undefined && clientSecret !== '') {
       updates.push(`gst_api_client_secret=$${idx++}`);
       params.push(encryptSecret(String(clientSecret)));
     }
-    if (sellerPin !== undefined) { updates.push(`gst_api_seller_pin=$${idx++}`); params.push(String(sellerPin).trim()); }
+    if (sellerPin !== undefined) {
+      updates.push(`gst_api_seller_pin=$${idx++}`);
+      params.push(String(sellerPin).trim());
+    }
 
     if (updates.length) {
       await pool.query(`UPDATE bill_settings SET ${updates.join(',')} WHERE tenant_id = $1`, params);
@@ -128,7 +160,7 @@ router.put('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
-router.post('/api/gst/irn/generate', blockVendors, async (req: AuthRequest, res) => {
+router.post('/api/gst/irn/generate', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
   const db = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -141,19 +173,23 @@ router.post('/api/gst/irn/generate', blockVendors, async (req: AuthRequest, res)
     const creds = (loaded as { ok: true; creds: import('../services/nic-api').GstApiCredentials }).creds;
 
     await db.query('BEGIN');
-    const locked = (await db.query(
-      `SELECT id, irn, vendor_id, distribution_date, net_price, gst_applied, product_id
+    const locked = (
+      await db.query(
+        `SELECT id, irn, vendor_id, distribution_date, net_price, gst_applied, product_id
        FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2 ORDER BY id FOR UPDATE`,
-      [batchId, tenantId]
-    )).rows as Record<string, unknown>[];
+        [batchId, tenantId],
+      )
+    ).rows as Record<string, unknown>[];
     if (locked.length === 0) {
       await db.query('ROLLBACK');
       return res.status(404).json({ error: 'Batch not found' });
     }
-    const existingIrn = locked.find((r) => r.irn);
+    const existingIrn = locked.find(r => r.irn);
     if (existingIrn?.irn) {
       await db.query('ROLLBACK');
-      return res.status(400).json({ error: 'Batch already has an IRN. Cancel it before regenerating.', irn: existingIrn.irn });
+      return res
+        .status(400)
+        .json({ error: 'Batch already has an IRN. Cancel it before regenerating.', irn: existingIrn.irn });
     }
 
     const [tenant, bs, products] = await Promise.all([
@@ -162,16 +198,18 @@ router.post('/api/gst/irn/generate', blockVendors, async (req: AuthRequest, res)
       db.query(
         `SELECT p.id, p.name as product_name, p.hsn_code, p.gst_rate as product_gst_rate, p.price as product_price
          FROM products p WHERE p.tenant_id = $1 AND p.id = ANY($2::text[])`,
-        [tenantId, locked.map((r) => r.product_id as string)]
+        [tenantId, locked.map(r => r.product_id as string)],
       ),
     ]);
     const prodMap = new Map(products.rows.map((p: Record<string, unknown>) => [p.id, p]));
 
     const vendorId = locked[0].vendor_id as string;
-    const vendor = (await db.query(
-      'SELECT name, address, gst_number FROM vendors WHERE id = $1 AND tenant_id = $2',
-      [vendorId, tenantId]
-    )).rows[0] as Record<string, string> | undefined;
+    const vendor = (
+      await db.query('SELECT name, address, gst_number FROM vendors WHERE id = $1 AND tenant_id = $2', [
+        vendorId,
+        tenantId,
+      ])
+    ).rows[0] as Record<string, string> | undefined;
     if (!vendor) {
       await db.query('ROLLBACK');
       return res.status(400).json({ error: 'Vendor not found for this batch' });
@@ -189,12 +227,7 @@ router.post('/api/gst/irn/generate', blockVendors, async (req: AuthRequest, res)
       return res.status(400).json({ error: 'Valid seller GSTIN required. Configure Settings → GST API.' });
     }
 
-    const pins = resolvePins(
-      creds.mode,
-      sellerPinIn,
-      buyerPinIn,
-      (bs.rows[0]?.gst_api_seller_pin as string) || '',
-    );
+    const pins = resolvePins(creds.mode, sellerPinIn, buyerPinIn, (bs.rows[0]?.gst_api_seller_pin as string) || '');
     if ('error' in pins) {
       await db.query('ROLLBACK');
       return res.status(400).json({ error: pins.error });
@@ -207,18 +240,31 @@ router.post('/api/gst/irn/generate', blockVendors, async (req: AuthRequest, res)
       return res.status(400).json({ error: 'Valid buyer GSTIN required for B2B e-invoice.' });
     }
 
-    let totalTaxable = 0, totalCgst = 0, totalSgst = 0, totalIgst = 0;
-    const lineItems = locked.map((pd) => {
+    let totalTaxable = 0,
+      totalCgst = 0,
+      totalSgst = 0,
+      totalIgst = 0;
+    const lineItems = locked.map(pd => {
       const p = prodMap.get(pd.product_id as string) as Record<string, unknown> | undefined;
       const taxable = Number(pd.net_price || p?.product_price) || 0;
       const rate = Number(p?.product_gst_rate) || 18;
-      const taxAmt = pd.gst_applied ? Math.round(taxable * rate / 100 * 100) / 100 : 0;
+      const taxAmt = pd.gst_applied ? Math.round(((taxable * rate) / 100) * 100) / 100 : 0;
       const { cgst, sgst, igst } = splitGst(taxAmt, sellerGstin, buyerGstin);
-      totalTaxable += taxable; totalCgst += cgst; totalSgst += sgst; totalIgst += igst;
+      totalTaxable += taxable;
+      totalCgst += cgst;
+      totalSgst += sgst;
+      totalIgst += igst;
       return {
-        hsnCode: String(p?.hsn_code || '9999'), productName: String(p?.product_name || 'Item'),
-        qty: 1, unitPrice: taxable, gstRate: rate,
-        taxable, cgst, sgst, igst, total: taxable + cgst + sgst + igst,
+        hsnCode: String(p?.hsn_code || '9999'),
+        productName: String(p?.product_name || 'Item'),
+        qty: 1,
+        unitPrice: taxable,
+        gstRate: rate,
+        taxable,
+        cgst,
+        sgst,
+        igst,
+        total: taxable + cgst + sgst + igst,
       };
     });
 
@@ -227,11 +273,23 @@ router.post('/api/gst/irn/generate', blockVendors, async (req: AuthRequest, res)
     const invoiceNo = `CH/${batchId.replace('D', '')}`;
 
     const payload = buildIrnPayload({
-      sellerGstin, sellerName: t.company_name, sellerAddr: t.address || '', sellerPin: pins.sellerPin,
-      buyerGstin, buyerName: vendor.name, buyerAddr: vendor.address || '', buyerPin: pins.buyerPin,
-      invoiceNo, invoiceDate: fmtDate(distDate), supplyType,
+      sellerGstin,
+      sellerName: t.company_name,
+      sellerAddr: t.address || '',
+      sellerPin: pins.sellerPin,
+      buyerGstin,
+      buyerName: vendor.name,
+      buyerAddr: vendor.address || '',
+      buyerPin: pins.buyerPin,
+      invoiceNo,
+      invoiceDate: fmtDate(distDate),
+      supplyType,
       items: lineItems,
-      totalTaxable, totalCgst, totalSgst, totalIgst, grandTotal,
+      totalTaxable,
+      totalCgst,
+      totalSgst,
+      totalIgst,
+      grandTotal,
     });
 
     const client = new NicApiClient(creds);
@@ -239,7 +297,7 @@ router.post('/api/gst/irn/generate', blockVendors, async (req: AuthRequest, res)
 
     await db.query(
       'UPDATE product_distribution SET irn=$1, irn_ack_no=$2, irn_ack_dt=$3, irn_qr=$4 WHERE batch_id=$5 AND tenant_id=$6',
-      [result.irn, result.ackNo, result.ackDt, result.signedQrCode || result.qrCode, batchId, tenantId]
+      [result.irn, result.ackNo, result.ackDt, result.signedQrCode || result.qrCode, batchId, tenantId],
     );
     await db.query('COMMIT');
     res.json({ ok: true, ...result, mode: creds.mode });
@@ -252,12 +310,21 @@ router.post('/api/gst/irn/generate', blockVendors, async (req: AuthRequest, res)
   }
 });
 
-router.post('/api/gst/ewb/generate', blockVendors, async (req: AuthRequest, res) => {
+router.post('/api/gst/ewb/generate', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
   const db = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { batchId, vehicleNo, distance, transportMode, transporterName, transporterId, sellerPin: sellerPinIn, buyerPin: buyerPinIn } = req.body;
+    const {
+      batchId,
+      vehicleNo,
+      distance,
+      transportMode,
+      transporterName,
+      transporterId,
+      sellerPin: sellerPinIn,
+      buyerPin: buyerPinIn,
+    } = req.body;
     if (!batchId) return res.status(400).json({ error: 'batchId required' });
     if (!vehicleNo) return res.status(400).json({ error: 'vehicleNo required' });
     if (!distance) return res.status(400).json({ error: 'distance (km) required' });
@@ -267,16 +334,18 @@ router.post('/api/gst/ewb/generate', blockVendors, async (req: AuthRequest, res)
     const creds = (loaded as { ok: true; creds: import('../services/nic-api').GstApiCredentials }).creds;
 
     await db.query('BEGIN');
-    const locked = (await db.query(
-      `SELECT id, ewb_number, vendor_id, distribution_date, net_price, gst_applied, product_id
+    const locked = (
+      await db.query(
+        `SELECT id, ewb_number, vendor_id, distribution_date, net_price, gst_applied, product_id
        FROM product_distribution WHERE batch_id = $1 AND tenant_id = $2 ORDER BY id FOR UPDATE`,
-      [batchId, tenantId]
-    )).rows as Record<string, unknown>[];
+        [batchId, tenantId],
+      )
+    ).rows as Record<string, unknown>[];
     if (locked.length === 0) {
       await db.query('ROLLBACK');
       return res.status(404).json({ error: 'Batch not found' });
     }
-    const existingEwb = locked.find((r) => r.ewb_number);
+    const existingEwb = locked.find(r => r.ewb_number);
     if (existingEwb?.ewb_number) {
       await db.query('ROLLBACK');
       return res.status(400).json({ error: 'Batch already has an E-way bill.', ewbNo: existingEwb.ewb_number });
@@ -288,16 +357,18 @@ router.post('/api/gst/ewb/generate', blockVendors, async (req: AuthRequest, res)
       db.query(
         `SELECT p.id, p.name as product_name, p.hsn_code, p.gst_rate as product_gst_rate, p.price as product_price
          FROM products p WHERE p.tenant_id = $1 AND p.id = ANY($2::text[])`,
-        [tenantId, locked.map((r) => r.product_id as string)]
+        [tenantId, locked.map(r => r.product_id as string)],
       ),
     ]);
     const prodMap = new Map(products.rows.map((p: Record<string, unknown>) => [p.id, p]));
 
     const vendorId = locked[0].vendor_id as string;
-    const vendor = (await db.query(
-      'SELECT name, address, gst_number FROM vendors WHERE id = $1 AND tenant_id = $2',
-      [vendorId, tenantId]
-    )).rows[0] as Record<string, string> | undefined;
+    const vendor = (
+      await db.query('SELECT name, address, gst_number FROM vendors WHERE id = $1 AND tenant_id = $2', [
+        vendorId,
+        tenantId,
+      ])
+    ).rows[0] as Record<string, string> | undefined;
     if (!vendor) {
       await db.query('ROLLBACK');
       return res.status(400).json({ error: 'Vendor not found for this batch' });
@@ -315,12 +386,7 @@ router.post('/api/gst/ewb/generate', blockVendors, async (req: AuthRequest, res)
       return res.status(400).json({ error: 'Valid seller GSTIN required. Configure Settings → GST API.' });
     }
 
-    const pins = resolvePins(
-      creds.mode,
-      sellerPinIn,
-      buyerPinIn,
-      (bs.rows[0]?.gst_api_seller_pin as string) || '',
-    );
+    const pins = resolvePins(creds.mode, sellerPinIn, buyerPinIn, (bs.rows[0]?.gst_api_seller_pin as string) || '');
     if ('error' in pins) {
       await db.query('ROLLBACK');
       return res.status(400).json({ error: pins.error });
@@ -330,27 +396,54 @@ router.post('/api/gst/ewb/generate', blockVendors, async (req: AuthRequest, res)
     const distDate = String(locked[0].distribution_date).slice(0, 10);
     const invoiceNo = `CH/${batchId.replace('D', '')}`;
 
-    let totalTaxable = 0, totalCgst = 0, totalSgst = 0, totalIgst = 0;
-    const lineItems = locked.map((pd) => {
+    let totalTaxable = 0,
+      totalCgst = 0,
+      totalSgst = 0,
+      totalIgst = 0;
+    const lineItems = locked.map(pd => {
       const p = prodMap.get(pd.product_id as string) as Record<string, unknown> | undefined;
       const taxable = Number(pd.net_price || p?.product_price) || 0;
       const rate = Number(p?.product_gst_rate) || 18;
-      const taxAmt = pd.gst_applied ? Math.round(taxable * rate / 100 * 100) / 100 : 0;
+      const taxAmt = pd.gst_applied ? Math.round(((taxable * rate) / 100) * 100) / 100 : 0;
       const { cgst, sgst, igst } = splitGst(taxAmt, sellerGstin, buyerGstin);
-      totalTaxable += taxable; totalCgst += cgst; totalSgst += sgst; totalIgst += igst;
+      totalTaxable += taxable;
+      totalCgst += cgst;
+      totalSgst += sgst;
+      totalIgst += igst;
       return {
-        productName: String(p?.product_name || 'Item'), hsnCode: String(p?.hsn_code || '9999'),
-        qty: 1, taxable, cgst, sgst, igst, total: taxable + cgst + sgst + igst,
+        productName: String(p?.product_name || 'Item'),
+        hsnCode: String(p?.hsn_code || '9999'),
+        qty: 1,
+        taxable,
+        cgst,
+        sgst,
+        igst,
+        total: taxable + cgst + sgst + igst,
       };
     });
 
     const payload = buildEwbPayload({
-      supplyType: 'O', subSupplyType: '1', docType: 'INV', docNo: invoiceNo, docDate: fmtDate(distDate),
-      sellerGstin, sellerName: t.company_name, sellerAddr: t.address || '', sellerPin: pins.sellerPin,
-      buyerGstin, buyerName: vendor.name, buyerAddr: vendor.address || '', buyerPin: pins.buyerPin,
+      supplyType: 'O',
+      subSupplyType: '1',
+      docType: 'INV',
+      docNo: invoiceNo,
+      docDate: fmtDate(distDate),
+      sellerGstin,
+      sellerName: t.company_name,
+      sellerAddr: t.address || '',
+      sellerPin: pins.sellerPin,
+      buyerGstin,
+      buyerName: vendor.name,
+      buyerAddr: vendor.address || '',
+      buyerPin: pins.buyerPin,
       items: lineItems,
-      totalTaxable, totalCgst, totalSgst, totalIgst, grandTotal: totalTaxable + totalCgst + totalSgst + totalIgst,
-      vehicleNo: String(vehicleNo).toUpperCase(), distance: Number(distance),
+      totalTaxable,
+      totalCgst,
+      totalSgst,
+      totalIgst,
+      grandTotal: totalTaxable + totalCgst + totalSgst + totalIgst,
+      vehicleNo: String(vehicleNo).toUpperCase(),
+      distance: Number(distance),
       transportMode: transportMode ? String(transportMode) : '1',
       transporterName: transporterName ? String(transporterName) : undefined,
       transporterId: transporterId ? String(transporterId) : undefined,
@@ -359,10 +452,11 @@ router.post('/api/gst/ewb/generate', blockVendors, async (req: AuthRequest, res)
     const client = new NicApiClient(creds);
     const result = await client.generateEwb(payload);
 
-    await db.query(
-      'UPDATE product_distribution SET ewb_number=$1 WHERE batch_id=$2 AND tenant_id=$3',
-      [result.ewbNo, batchId, tenantId]
-    );
+    await db.query('UPDATE product_distribution SET ewb_number=$1 WHERE batch_id=$2 AND tenant_id=$3', [
+      result.ewbNo,
+      batchId,
+      tenantId,
+    ]);
     await db.query('COMMIT');
     res.json({ ok: true, ...result, mode: creds.mode });
   } catch (err) {
@@ -380,7 +474,8 @@ router.post('/api/gst/irn/cancel', requireAdmin, async (req: AuthRequest, res) =
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { irn, reason, remark } = req.body;
     if (!irn) return res.status(400).json({ error: 'irn required' });
-    if (!reason) return res.status(400).json({ error: 'reason required (1=Duplicate, 2=OrderCancelled, 3=DataError, 4=Other)' });
+    if (!reason)
+      return res.status(400).json({ error: 'reason required (1=Duplicate, 2=OrderCancelled, 3=DataError, 4=Other)' });
 
     const loaded = await loadGstCredentials(pool, tenantId);
     if (!loaded.ok) return res.status(400).json({ error: (loaded as { ok: false; error: string }).error });
@@ -390,7 +485,7 @@ router.post('/api/gst/irn/cancel', requireAdmin, async (req: AuthRequest, res) =
 
     await pool.query(
       'UPDATE product_distribution SET irn=NULL, irn_ack_no=NULL, irn_ack_dt=NULL, irn_qr=NULL WHERE irn=$1 AND tenant_id=$2',
-      [irn, tenantId]
+      [irn, tenantId],
     );
 
     res.json({ ok: true });

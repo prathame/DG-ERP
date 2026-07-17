@@ -46,7 +46,7 @@ Each tenant is provisioned as one of five types. The type controls which tabs ar
 
 ## Tech Stack
 
-- **Frontend**: React 19, Vite 6, Tailwind CSS, Radix UI
+- **Frontend**: React 19, Vite 6, Tailwind CSS, Motion
 - **Backend**: Node.js, Express 4, PostgreSQL 16 (RLS per tenant)
 - **Auth**: JWT (HS256, 24h), bcrypt
 - **Desktop**: Electron (cloud wrapper + on-prem with embedded PostgreSQL)
@@ -65,7 +65,7 @@ Each tenant is provisioned as one of five types. The type controls which tabs ar
 
 ```bash
 git clone <repo>
-cd splender-inventry
+cd DG-ERP
 npm install
 
 # Create database
