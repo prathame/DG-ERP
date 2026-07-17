@@ -25,13 +25,10 @@ sequenceDiagram
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
-| `POST /api/mobile/redeem-invite` | Public (rate limited) | Exchange invite for tenant onboarding context (+ `requiresSeat` for service) |
-| `POST /api/mobile/activate-seat` | Public (rate limited) | Bind `DG-MS-…` seat to `deviceId` (service tenants only) |
-| `POST /api/mobile/heartbeat` | Public structure; device upsert when authed | Version policy + force sync + `seatValid` / `offlineEnabled` |
+| `POST /api/mobile/redeem-invite` | Public (rate limited) | Exchange invite for tenant onboarding context |
+| `POST /api/mobile/heartbeat` | Public structure; device upsert when authed | Version policy + force sync |
 | `POST /api/mobile/register-device` | Auth | Bind device id |
 | `POST/GET …/super-admin/tenants/:id/mobile-invite` | SA | Issue/list invites |
-| `GET/POST …/mobile-seats` | SA | List/issue offline seats (service only) |
-| `PUT …/mobile-seats/:seatId` | SA | Suspend / revoke / transfer / rotate |
 | `POST …/mobile-force-sync` | SA | Flip force-sync flag |
 | `PUT …/mobile-version` | SA | min/latest version policy |
 | `GET …/mobile-devices` | SA | Device inventory |
@@ -40,7 +37,6 @@ Client pieces: `src/platforms/mobile/online/*`, offline queue in `platforms/mobi
 
 :::tip
 Heartbeat every ~60s is how SA “reaches into” field devices without push infra.
-For **service** tenants, SA also issues offline **seats** (`DG-MS-…`) — on-prem-style device binding on a cloud tenant. See [docs/MOBILE.md](https://github.com/prathame/DG-ERP/blob/main/docs/MOBILE.md).
 :::
 
 ## On-prem (Electron + optional cloud license)
@@ -75,9 +71,6 @@ Localhost gates use `req.socket.remoteAddress`. Do not “fix” them by trustin
 1. Putting provision on a public internet URL without localhost gate  
 2. Building mobile against wrong `VITE_API_ORIGIN`  
 3. Forgetting rate limits on redeem-invite (invite stuffing)  
-4. Treating `localStorage` offline entitlement as authoritative after SA suspend/revoke (heartbeat is source of truth)  
-5. Activating a `DG-MS-…` seat without sending the onboarding `slug` (cross-tenant key mix-up)  
-6. Unconditional seat `device_id` update (two devices can both “succeed” without conditional `UPDATE … RETURNING`)  
 
 ## Interview question
 
@@ -90,7 +83,6 @@ Device polls heartbeat; server returns a flag derived from `tenants.mobile_force
 ## Related
 
 - [Four Surfaces](/architecture/four-surfaces)  
-- [Service Mobile Offline Seats](/architecture/mobile-service-seats)  
 - [Deployment: Mobile](/deployment/mobile)  
 - [Deployment: Electron](/deployment/electron)  
 - [Runbook: Mobile Sync](/runbooks/mobile-sync)  

@@ -77,19 +77,6 @@ Covered in full in [Multi-tenancy](./multi-tenancy.md) — `ALTER TABLE ... ENAB
 | **Single Express monolith** (chosen) | Runs identically hosted *and* embedded inside an offline Electron on-prem install; one deployable artifact; simple mental model for a small team/AI-agent workflow | Less independent scalability per-domain; a bug in one route file can theoretically affect the whole process's stability (mitigated by the global error-handling middleware) |
 | Microservices (per-domain services) | Independent scaling and deployment per domain | Cannot run "a service mesh" on a customer's offline laptop for the on-prem surface; massively more operational complexity for a team this size; network calls between services add latency and failure modes with no corresponding benefit at current scale |
 
-## Decision: Service offline seats on the cloud tenant (not a fleet product)
-
-Service business-type phones get stronger offline invoice/payment cache+queue than other tenants. Entitlement is a **seat** (`DG-MS-…`) bound to `deviceId` on the **same cloud service tenant**, validated on heartbeat — not a separate license fleet and not phone-local SQLite.
-
-| Option | Pros | Why rejected / chosen |
-|---|---|---|
-| **Seats on cloud service tenant** (chosen) | One SA panel, one Postgres, on-prem-like device binding without a second product | — |
-| Reuse `onprem_licenses` for phones | Familiar activate/heartbeat shape | On-prem assumes embedded Postgres + machine id; mixing cloud phones into that table confuses licensing and Bell delivery |
-| Separate “fleet” tenant / product | Clean isolation | Extra SA UX, billing, and sync for the same cloud data plane |
-| Phone SQLite offline ERP | True offline autonomy | Different product; out of scope for Capacitor cloud mobile |
-
-**Invariants** (activation race, slug match, one device ↔ one active seat, localStorage is not proof of entitlement) are documented in [Service Mobile Offline Seats](./mobile-service-seats.md).
-
 ## Decision: Accepted, documented `xlsx` (SheetJS) vulnerability
 
 The `xlsx` npm package has open CVEs with no registry-published fix (the maintainers ship fixes only via their own CDN, not npm). Rather than silently ignore or hastily replace it:
@@ -114,7 +101,6 @@ This is tracked as an accepted risk with a documented rationale — see [Securit
 | RLS enabled, not forced | Avoid silent zero-row failures on pooled connections | RLS is a safety net, not the primary tenant-isolation mechanism |
 | Monolith, not microservices | Must run offline on one customer machine | Less independent per-domain scalability |
 | Keep `xlsx` despite CVEs | No feature-complete replacement found | Documented, monitored, accepted risk |
-| Service seats on cloud tenant | Stronger offline for service without a fleet product | Heartbeat is source of truth; local flag is cache |
 
 ## Key concepts
 
@@ -138,7 +124,6 @@ This is tracked as an accepted risk with a documented rationale — see [Securit
 
 - [Multi-tenancy](./multi-tenancy.md)
 - [Four Surfaces](./four-surfaces.md)
-- [Service Mobile Offline Seats](./mobile-service-seats.md)
 - [Tech Stack](/overview/tech-stack)
 - [AI Origin Assumptions](/overview/ai-origin-assumptions)
 - [Security → Accepted Risks](/security/accepted-risks)

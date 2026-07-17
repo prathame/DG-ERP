@@ -6,7 +6,6 @@ import { session } from '../../../lib/session';
 import { getSavedCompanySlug } from './companyStorage';
 import { cacheClear } from '../offline/cache';
 import { isMobileClient } from './isMobileClient';
-import { setOfflineEntitled } from './seatStorage';
 
 const DEVICE_KEY = 'dg_mobile_device_id';
 const LAST_FORCE_KEY = 'dg_mobile_last_force_sync';
@@ -70,23 +69,12 @@ export async function mobileHeartbeat(): Promise<void> {
       forceUpdate?: boolean;
       updateAvailable?: boolean;
       latestVersion?: string | null;
-      offlineEnabled?: boolean;
-      seatValid?: boolean;
-      businessType?: string;
     };
-    if (typeof data.offlineEnabled === 'boolean') {
-      setOfflineEntitled(data.offlineEnabled);
-    } else if (data.businessType === 'service') {
-      setOfflineEntitled(!!data.seatValid);
-    }
     if (data.forceSyncAt) await applyForceSync(data.forceSyncAt);
     if (data.forceUpdate) {
       window.dispatchEvent(new CustomEvent('dg-mobile-force-update', { detail: data }));
     } else if (data.updateAvailable) {
       window.dispatchEvent(new CustomEvent('dg-mobile-update-available', { detail: data }));
-    }
-    if (data.businessType === 'service' && data.seatValid === false) {
-      window.dispatchEvent(new CustomEvent('dg-mobile-seat-invalid', { detail: data }));
     }
   } catch {
     /* offline */

@@ -20,7 +20,6 @@ export default defineConfig({
         'src/platforms/mobile/offline/cache.ts',
         'src/platforms/mobile/offline/queue.ts',
         'src/platforms/mobile/online/companyStorage.ts',
-        'src/platforms/mobile/online/seatStorage.ts',
       ],
       exclude: ['**/*.test.ts', '**/*.js'],
       thresholds: {

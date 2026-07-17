@@ -25,7 +25,6 @@ const sidebars: SidebarsConfig = {
         'architecture/multi-tenancy',
         'architecture/four-surfaces',
         'architecture/design-decisions',
-        'architecture/mobile-service-seats',
         'architecture/dependency-graph',
         'architecture/component-tree',
         'architecture/error-flow',

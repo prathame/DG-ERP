@@ -65,10 +65,6 @@ Some SME customers (particularly ones under Indian data-residency or connectivit
 
 ## Capacitor mobile — WebView plus an offline-tolerant network layer
 
-:::tip Service offline seats
-For **service** business type, offline writes are gated by a cloud **seat** (`DG-MS-…`) bound to `deviceId`. See [Service Mobile Offline Seats](/architecture/mobile-service-seats) — do not reuse `onprem_licenses` for phones.
-:::
-
 `capacitor.config.ts` wraps the `dist-mobile/` build (built with `vite build --mode mobile`, relative asset paths for `file://`/`capacitor://` loading) in a native WebView on Android/iOS. Unlike Electron On-Prem, mobile has **no local database** — it's a thin client against the same cloud API as web, but on a much less reliable network (cellular data, elevators, basements). That reliability gap is why mobile is the only surface with:
 
 - A **connection detector** (`src/platforms/mobile/offline/network.ts`, via `@capacitor/network`) that flags "offline" proactively instead of only discovering it on a failed fetch.
