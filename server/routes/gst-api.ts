@@ -128,7 +128,7 @@ router.put('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
-router.post('/api/gst/irn/generate', blockVendors, async (req: AuthRequest, res) => {
+router.post('/api/gst/irn/generate', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
   const db = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -252,7 +252,7 @@ router.post('/api/gst/irn/generate', blockVendors, async (req: AuthRequest, res)
   }
 });
 
-router.post('/api/gst/ewb/generate', blockVendors, async (req: AuthRequest, res) => {
+router.post('/api/gst/ewb/generate', requireAdmin, blockVendors, async (req: AuthRequest, res) => {
   const db = await pool.connect();
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
