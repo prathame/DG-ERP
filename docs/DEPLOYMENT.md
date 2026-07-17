@@ -18,6 +18,7 @@
 4. Start: `npm start` (serves API + `dist/` on `PORT`)
 5. Health: `GET /api/health` → `{ ok: true, db: "up" }` (HTTP 503 if DB down)
 6. Configure Render health check path: `/api/health`
+7. Postgres TLS: on Render, the app automatically uses `ssl.rejectUnauthorized: false` for managed DB hosts (avoids `Error: self-signed certificate`). TLS is still required.
 
 **Important:** If the Render Dashboard has a custom Build Command, it **overrides** `render.yaml`. Set it to:
 

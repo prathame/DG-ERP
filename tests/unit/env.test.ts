@@ -12,7 +12,7 @@ describe('assertCriticalEnv', () => {
     const { assertCriticalEnv } = await import('../../server/utils/env');
     assertCriticalEnv({ NODE_ENV: 'development', JWT_SECRET: 'x'.repeat(32) } as NodeJS.ProcessEnv);
     expect(exit).toHaveBeenCalledWith(1);
-    expect(err.mock.calls.some((c) => String(c[0]).includes('DATABASE_URL'))).toBe(true);
+    expect(err.mock.calls.some(c => String(c[0]).includes('DATABASE_URL'))).toBe(true);
   });
 
   it('exits in production when ALLOWED_ORIGINS missing', async () => {
@@ -54,6 +54,22 @@ describe('assertCriticalEnv', () => {
       ALLOWED_ORIGINS: 'https://dhandho.app',
       SUPER_ADMIN_EMAIL: 'a@b.com',
       SUPER_ADMIN_PASSWORD: 'longpassword1',
+    } as NodeJS.ProcessEnv);
+    expect(exit).not.toHaveBeenCalled();
+  });
+
+  it('allows rejectUnauthorized=false on Render managed Postgres', async () => {
+    const exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    const { assertCriticalEnv } = await import('../../server/utils/env');
+    assertCriticalEnv({
+      NODE_ENV: 'production',
+      RENDER: 'true',
+      DATABASE_URL: 'postgresql://u:StrongPass99@dpg-xxx.render.com/app',
+      JWT_SECRET: 'x'.repeat(32),
+      ALLOWED_ORIGINS: 'https://dhandho.app',
+      SUPER_ADMIN_EMAIL: 'a@b.com',
+      SUPER_ADMIN_PASSWORD: 'longpassword1',
+      DATABASE_SSL_REJECT_UNAUTHORIZED: 'false',
     } as NodeJS.ProcessEnv);
     expect(exit).not.toHaveBeenCalled();
   });
