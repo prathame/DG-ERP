@@ -1,0 +1,13 @@
+# Dependencies & build output
+node_modules/
+build/
+.docusaurus/
+.cache/
+
+# Local env (none required today — keep pattern)
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+*.log

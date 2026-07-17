@@ -27,5 +27,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "exclude": ["server/demo", "docs"]
+  "exclude": ["server/demo", "docs", "engineering-academy"]
 }

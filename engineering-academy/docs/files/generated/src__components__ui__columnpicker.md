@@ -1,0 +1,161 @@
+---
+sidebar_label: "ColumnPicker.tsx"
+title: "File src/components/ui/ColumnPicker.tsx"
+description: "Deep walkthrough of src/components/ui/ColumnPicker.tsx in DG-ERP / Dhandho"
+---
+
+# File walkthrough: `src/components/ui/ColumnPicker.tsx`
+
+:::info Ownership context
+Auto-generated from the live source tree so **no file is invisible** during onboarding.
+:::
+
+## Purpose
+
+`src/components/ui/ColumnPicker.tsx` is part of Dhandho (DG-ERP). Approximate size: **55 lines**.
+
+## Business value
+
+Ask: *If this file disappeared tomorrow, which user-facing workflow would break?*
+
+## Imports
+
+- `react`
+- `lucide-react`
+- `../../lib/utils`
+
+## Exports and symbols
+
+**Exported names:** `useColumnPicker`, `ColumnPickerButton`
+
+**Classes:** _none_
+
+## Functions (4 detected)
+
+### Function: useColumnPicker
+
+```ts
+useColumnPicker(storageKey: string, allColumns: { key: string; label: string; default?: boolean }[])
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/components/ui/ColumnPicker.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `useColumnPicker` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: ColumnPickerButton
+
+```ts
+ColumnPickerButton({ columns, visible, onToggle }: {
+  columns: { key: string; label: string }[];
+  visible: Set<string>;
+  onToggle: (key: string)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/components/ui/ColumnPicker.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `ColumnPickerButton` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: toggle
+
+```ts
+toggle(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/components/ui/ColumnPicker.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `toggle` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: show
+
+```ts
+show(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/components/ui/ColumnPicker.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `show` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+
+## Execution flow
+
+1. Module loaded by Node (`tsx`) or Vite.
+2. Top-level imports initialize dependencies.
+3. Callers import exported symbols.
+
+## Call hierarchy
+
+```bash
+# From DG-ERP repo root
+rg -n "ColumnPicker" --glob '!node_modules' -g '*.ts' -g '*.tsx'
+```
+
+## Performance impact
+
+Line count **55**. Large view/route files are refactor candidates.
+
+## Security impact
+
+Review for: tenant scoping, IDOR, secrets in logs, XSS, path traversal on backups.
+
+## Scalability
+
+In-memory caches (authCache, GET Map) do **not** share across instances.
+
+## Refactoring opportunities
+
+- Extract pure helpers for unit tests
+- Split modules larger than ~800 lines
+- Deduplicate GST math via shared SQL fragments
+
+## Common mistakes
+
+- Forgetting `tenant_id` in a new query
+- Trusting JWT role claims without live DB hydration
+- Putting secrets in `VITE_*` env vars
+- Returning raw DB errors to clients
+
+## Alternative implementations
+
+| Approach | Trade-off |
+| --- | --- |
+| Keep as-is | Fast to ship; harder to test |
+| Split module | Clearer ownership; more files |
+| Shared package | Reuse across surfaces; packaging cost |
+
+## Related academy pages
+
+- [File index](/files/)
+- [Generated index](/files/generated/)
+- [Architecture](/architecture/system-overview)
+- [Security threat model](/security/threat-model)
+
+## Hands-on
+
+1. Open `src/components/ui/ColumnPicker.tsx` in the IDE.
+2. Breakpoint the largest exported function.
+3. Trigger via UI or supertest.
+4. Write one sentence on why this file exists in the product narrative.
+
+---
+
+*Generated by scripts/generate-file-deepdives.mjs · slug: `src__components__ui__columnpicker`*
