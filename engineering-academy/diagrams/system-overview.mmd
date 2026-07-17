@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph Clients
+    WEB[Web SPA]
+    EC[Electron Cloud]
+    EO[Electron On-Prem]
+    MOB[Capacitor Mobile]
+  end
+  subgraph App
+    EXP[Express createApp]
+    RT[34 routers]
+  end
+  PG[(PostgreSQL 16)]
+  WEB --> EXP
+  EC --> EXP
+  MOB --> EXP
+  EO --> EXP
+  EXP --> RT --> PG
+  EO -.-> PG

@@ -1,0 +1,235 @@
+---
+sidebar_label: "vendors.ts"
+title: "File server/routes/vendors.ts"
+description: "Deep walkthrough of server/routes/vendors.ts in DG-ERP / Dhandho"
+---
+
+# File walkthrough: `server/routes/vendors.ts`
+
+:::info Ownership context
+Auto-generated from the live source tree so **no file is invisible** during onboarding.
+:::
+
+## Purpose
+
+`server/routes/vendors.ts` is part of Dhandho (DG-ERP). Approximate size: **409 lines**.
+
+## Business value
+
+Ask: *If this file disappeared tomorrow, which user-facing workflow would break?*
+
+## Imports
+
+- `express`
+- `../utils/planLimits`
+- `../middleware/auth`
+- `../pg-db`
+- `../utils/helpers`
+
+## Exports and symbols
+
+**Exported names:** _none detected_
+
+**Classes:** _none_
+
+## Functions (9 detected)
+
+### Function: vendorPortal
+
+```ts
+vendorPortal(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/vendors.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `vendorPortal` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: slug
+
+```ts
+slug(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/vendors.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `slug` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: dup
+
+```ts
+dup(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/vendors.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `dup` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: emailDup
+
+```ts
+emailDup(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/vendors.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `emailDup` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: existing
+
+```ts
+existing(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/vendors.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `existing` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: gstNum
+
+```ts
+gstNum(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/vendors.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `gstNum` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: duplicate
+
+```ts
+duplicate(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/vendors.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `duplicate` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: row
+
+```ts
+row(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/vendors.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `row` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: hasDistributions
+
+```ts
+hasDistributions(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/vendors.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `hasDistributions` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+
+## Execution flow
+
+1. Module loaded by Node (`tsx`) or Vite.
+2. Top-level imports initialize dependencies.
+3. Callers import exported symbols.
+
+## Call hierarchy
+
+```bash
+# From DG-ERP repo root
+rg -n "vendors" --glob '!node_modules' -g '*.ts' -g '*.tsx'
+```
+
+## Performance impact
+
+Line count **409**. Large view/route files are refactor candidates.
+
+## Security impact
+
+Review for: tenant scoping, IDOR, secrets in logs, XSS, path traversal on backups.
+
+## Scalability
+
+In-memory caches (authCache, GET Map) do **not** share across instances.
+
+## Refactoring opportunities
+
+- Extract pure helpers for unit tests
+- Split modules larger than ~800 lines
+- Deduplicate GST math via shared SQL fragments
+
+## Common mistakes
+
+- Forgetting `tenant_id` in a new query
+- Trusting JWT role claims without live DB hydration
+- Putting secrets in `VITE_*` env vars
+- Returning raw DB errors to clients
+
+## Alternative implementations
+
+| Approach | Trade-off |
+| --- | --- |
+| Keep as-is | Fast to ship; harder to test |
+| Split module | Clearer ownership; more files |
+| Shared package | Reuse across surfaces; packaging cost |
+
+## Related academy pages
+
+- [File index](/files/)
+- [Generated index](/files/generated/)
+- [Architecture](/architecture/system-overview)
+- [Security threat model](/security/threat-model)
+
+## Hands-on
+
+1. Open `server/routes/vendors.ts` in the IDE.
+2. Breakpoint the largest exported function.
+3. Trigger via UI or supertest.
+4. Write one sentence on why this file exists in the product narrative.
+
+---
+
+*Generated by scripts/generate-file-deepdives.mjs · slug: `server__routes__vendors`*
