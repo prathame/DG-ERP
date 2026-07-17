@@ -244,9 +244,45 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   }
 }
 
-/* PWA / Capacitor safe area for iPhone home indicator */
+/* PWA / Capacitor safe areas (notch, status bar, home indicator) */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Bottom tab bar content height (icons + labels), excluding home-indicator inset */
+  --app-bottom-nav: 4.5rem;
+}
+
+.safe-top {
+  padding-top: var(--safe-top);
+}
+
 .safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-bottom: var(--safe-bottom);
+}
+
+/* Sticky app header — class was referenced in App.tsx but never defined (status bar overlap) */
+.app-header-safe {
+  padding-top: calc(0.625rem + var(--safe-top));
+}
+
+/* Clear fixed bottom nav + home indicator so page content is not covered */
+.app-mobile-content {
+  padding-bottom: calc(var(--app-bottom-nav) + var(--safe-bottom) + 0.75rem);
+}
+
+@media (min-width: 640px) {
+  .app-header-safe {
+    padding-top: calc(1rem + var(--safe-top));
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-header-safe {
+    padding-top: 1rem;
+  }
+  .app-mobile-content {
+    padding-bottom: 2rem;
+  }
 }
 
 /* —— Mobile-friendly content density (phones + Capacitor) —— */
