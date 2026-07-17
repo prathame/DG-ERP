@@ -1694,76 +1694,82 @@ function Gstr3bView({ data }: { data: Record<string, unknown> }) {
       </div>
 
       <Section title="3.1 — Outward Supplies (Output Tax)">
-        <table className="w-full">
-          <thead>
-            <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-200">
-              <th className="py-2 px-3 text-left">Description</th>
-              <th className="py-2 px-3 text-right">CGST</th>
-              <th className="py-2 px-3 text-right">SGST</th>
-              <th className="py-2 px-3 text-right">IGST</th>
-              <th className="py-2 px-3 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Row
-              label={`Taxable Value: ₹${output.taxableValue.toLocaleString()}`}
-              cgst={output.cgst}
-              sgst={output.sgst}
-              igst={output.igst}
-              total={output.total}
-            />
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px]">
+            <thead>
+              <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-200">
+                <th className="py-2 px-3 text-left">Description</th>
+                <th className="py-2 px-3 text-right">CGST</th>
+                <th className="py-2 px-3 text-right">SGST</th>
+                <th className="py-2 px-3 text-right">IGST</th>
+                <th className="py-2 px-3 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <Row
+                label={`Taxable Value: ₹${output.taxableValue.toLocaleString()}`}
+                cgst={output.cgst}
+                sgst={output.sgst}
+                igst={output.igst}
+                total={output.total}
+              />
+            </tbody>
+          </table>
+        </div>
       </Section>
 
       <Section title="4 — Input Tax Credit (ITC)">
-        <table className="w-full">
-          <thead>
-            <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-200">
-              <th className="py-2 px-3 text-left">Source</th>
-              <th className="py-2 px-3 text-right">CGST</th>
-              <th className="py-2 px-3 text-right">SGST</th>
-              <th className="py-2 px-3 text-right">IGST</th>
-              <th className="py-2 px-3 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Row
-              label="From Purchases"
-              cgst={Math.round((itc.fromPurchases / 2) * 100) / 100}
-              sgst={Math.round((itc.fromPurchases / 2) * 100) / 100}
-              igst={0}
-              total={itc.fromPurchases}
-            />
-            <Row
-              label="From Expenses (eligible)"
-              cgst={Math.round((itc.fromExpenses / 2) * 100) / 100}
-              sgst={Math.round((itc.fromExpenses / 2) * 100) / 100}
-              igst={0}
-              total={itc.fromExpenses}
-            />
-            <Row label="Total ITC" cgst={itc.cgst} sgst={itc.sgst} igst={itc.igst} total={itc.total} bold />
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px]">
+            <thead>
+              <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-200">
+                <th className="py-2 px-3 text-left">Source</th>
+                <th className="py-2 px-3 text-right">CGST</th>
+                <th className="py-2 px-3 text-right">SGST</th>
+                <th className="py-2 px-3 text-right">IGST</th>
+                <th className="py-2 px-3 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <Row
+                label="From Purchases"
+                cgst={Math.round((itc.fromPurchases / 2) * 100) / 100}
+                sgst={Math.round((itc.fromPurchases / 2) * 100) / 100}
+                igst={0}
+                total={itc.fromPurchases}
+              />
+              <Row
+                label="From Expenses (eligible)"
+                cgst={Math.round((itc.fromExpenses / 2) * 100) / 100}
+                sgst={Math.round((itc.fromExpenses / 2) * 100) / 100}
+                igst={0}
+                total={itc.fromExpenses}
+              />
+              <Row label="Total ITC" cgst={itc.cgst} sgst={itc.sgst} igst={itc.igst} total={itc.total} bold />
+            </tbody>
+          </table>
+        </div>
       </Section>
 
       <Section title="6.1 — Net Tax Payable">
-        <table className="w-full">
-          <thead>
-            <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-200">
-              <th className="py-2 px-3 text-left">Head</th>
-              <th className="py-2 px-3 text-right">CGST</th>
-              <th className="py-2 px-3 text-right">SGST</th>
-              <th className="py-2 px-3 text-right">IGST</th>
-              <th className="py-2 px-3 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Row label="Output Tax" cgst={output.cgst} sgst={output.sgst} igst={0} total={output.total} />
-            <Row label="Less: ITC" cgst={itc.cgst} sgst={itc.sgst} igst={0} total={itc.total} />
-            <Row label="Net Payable" cgst={net.cgst} sgst={net.sgst} igst={net.igst} total={net.total} bold />
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px]">
+            <thead>
+              <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-200">
+                <th className="py-2 px-3 text-left">Head</th>
+                <th className="py-2 px-3 text-right">CGST</th>
+                <th className="py-2 px-3 text-right">SGST</th>
+                <th className="py-2 px-3 text-right">IGST</th>
+                <th className="py-2 px-3 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <Row label="Output Tax" cgst={output.cgst} sgst={output.sgst} igst={0} total={output.total} />
+              <Row label="Less: ITC" cgst={itc.cgst} sgst={itc.sgst} igst={0} total={itc.total} />
+              <Row label="Net Payable" cgst={net.cgst} sgst={net.sgst} igst={net.igst} total={net.total} bold />
+            </tbody>
+          </table>
+        </div>
         <p className="text-xs text-gray-400 mt-3">
           * IGST shown as 0 — inter-state transactions need manual adjustment. Verify with CA before filing.
         </p>

@@ -598,51 +598,53 @@ export function QuotationsView() {
                 Vendor: <strong>{selected.vendorName}</strong>
               </p>
             )}
-            <table className="w-full text-sm mb-4">
-              <thead>
-                <tr className="border-b border-gray-200 text-xs font-bold text-gray-400 uppercase">
-                  <th className="py-2 text-left">Product</th>
-                  <th className="py-2 text-right">Qty</th>
-                  <th className="py-2 text-right">Price</th>
-                  <th className="py-2 text-right">Disc%</th>
-                  <th className="py-2 text-right">Net</th>
-                  <th className="py-2 text-right">GST</th>
-                  <th className="py-2 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {selected.items.map((item, i) => {
-                  const converted = Number(item.convertedQty) || 0;
-                  const remaining = item.quantity - converted;
-                  return (
-                    <tr key={i}>
-                      <td className="py-2">
-                        {item.productName}
-                        {converted > 0 && (
-                          <span className="block text-xs text-gray-400">
-                            Converted {converted} · Remaining {remaining}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 text-right">{item.quantity}</td>
-                      <td className="py-2 text-right">₹{item.price.toLocaleString()}</td>
-                      <td className="py-2 text-right">{item.discountPercent}%</td>
-                      <td className="py-2 text-right">₹{item.lineNet.toLocaleString()}</td>
-                      <td className="py-2 text-right">₹{item.lineGst.toLocaleString()}</td>
-                      <td className="py-2 text-right font-bold">₹{item.lineTotal.toLocaleString()}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-gray-300 font-bold">
-                  <td colSpan={4}>Total</td>
-                  <td className="py-2 text-right">₹{selected.subtotal.toLocaleString()}</td>
-                  <td className="py-2 text-right">₹{selected.gstAmount.toLocaleString()}</td>
-                  <td className="py-2 text-right text-brand">₹{selected.total.toLocaleString()}</td>
-                </tr>
-              </tfoot>
-            </table>
+            <div className="overflow-x-auto -mx-1 mb-4">
+              <table className="w-full text-sm min-w-[560px]">
+                <thead>
+                  <tr className="border-b border-gray-200 text-xs font-bold text-gray-400 uppercase">
+                    <th className="py-2 text-left">Product</th>
+                    <th className="py-2 text-right">Qty</th>
+                    <th className="py-2 text-right">Price</th>
+                    <th className="py-2 text-right">Disc%</th>
+                    <th className="py-2 text-right">Net</th>
+                    <th className="py-2 text-right">GST</th>
+                    <th className="py-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {selected.items.map((item, i) => {
+                    const converted = Number(item.convertedQty) || 0;
+                    const remaining = item.quantity - converted;
+                    return (
+                      <tr key={i}>
+                        <td className="py-2">
+                          {item.productName}
+                          {converted > 0 && (
+                            <span className="block text-xs text-gray-400">
+                              Converted {converted} · Remaining {remaining}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 text-right">{item.quantity}</td>
+                        <td className="py-2 text-right">₹{item.price.toLocaleString()}</td>
+                        <td className="py-2 text-right">{item.discountPercent}%</td>
+                        <td className="py-2 text-right">₹{item.lineNet.toLocaleString()}</td>
+                        <td className="py-2 text-right">₹{item.lineGst.toLocaleString()}</td>
+                        <td className="py-2 text-right font-bold">₹{item.lineTotal.toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-300 font-bold">
+                    <td colSpan={4}>Total</td>
+                    <td className="py-2 text-right">₹{selected.subtotal.toLocaleString()}</td>
+                    <td className="py-2 text-right">₹{selected.gstAmount.toLocaleString()}</td>
+                    <td className="py-2 text-right text-brand">₹{selected.total.toLocaleString()}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
             {selected.notes && <p className="text-sm text-gray-500 italic">Notes: {selected.notes}</p>}
             {selected.convertedBatchId && (
               <p className="text-sm text-purple-600 font-medium mt-2">
@@ -993,7 +995,7 @@ export function QuotationsView() {
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
-              className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6"
+              className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto"
             >
               <h3 className="text-lg font-bold mb-1">{convertLabel}</h3>
               <p className="text-sm text-gray-500 mb-4">

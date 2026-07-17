@@ -602,7 +602,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6"
+              className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6 max-h-[90vh] overflow-y-auto"
             >
               <h3 className="text-lg font-bold mb-1">
                 {tab === 'generic' ? 'Add catalog rate' : `Add ${partySingular.toLowerCase()} rate`}

@@ -920,7 +920,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto p-6"
             >
               <h3 className="text-lg font-bold mb-4">New Purchase from Supplier</h3>
-              <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase">Supplier</label>
                   <select

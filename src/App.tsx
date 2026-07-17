@@ -808,7 +808,7 @@ export default function App() {
                     if (window.innerWidth < 1024) setIsSidebarOpen(false);
                   }}
                   className={cn(
-                    'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px]',
+                    'w-full flex items-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-lg transition-all text-[13px]',
                     activeTab === 'settings'
                       ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[9px]'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',

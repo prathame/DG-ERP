@@ -839,7 +839,7 @@ export function DistributionView({
                 setSelectedBatchId(null);
               }}
             />
-            <div className="absolute inset-4 lg:inset-6 lg:left-[calc(16rem+1.5rem)] bg-white overflow-y-auto rounded-2xl shadow-2xl">
+            <div className="absolute top-[max(1rem,env(safe-area-inset-top,0px))] bottom-[max(1rem,env(safe-area-inset-bottom,0px))] left-4 right-4 lg:inset-6 lg:left-[calc(16rem+1.5rem)] bg-white overflow-y-auto rounded-2xl shadow-2xl">
               {(() => {
                 const vendorBatches = batches.filter(b => b.vendorId === selectedVendorId);
                 const vendorName =
@@ -2390,7 +2390,7 @@ export function DistributionView({
       {batchPaymentModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setBatchPaymentModal(null)} />
-          <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+          <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <IndianRupee size={28} />
             </div>
