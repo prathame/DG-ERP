@@ -19,7 +19,7 @@ export async function setTenantContext(client: import('pg').PoolClient, tenantId
  */
 export async function withTenantClient<T>(
   tenantId: string,
-  fn: (client: import('pg').PoolClient) => Promise<T>
+  fn: (client: import('pg').PoolClient) => Promise<T>,
 ): Promise<T> {
   const client = await pool.connect();
   try {
@@ -37,25 +37,35 @@ export async function withTenantClient<T>(
 }
 
 // Cloud production always TLS; on-prem embedded Postgres stays local (no TLS)
+const dbUrl = process.env.DATABASE_URL ?? '';
+const isManagedCloudDb = process.env.RENDER === 'true' || /render\.com|neon\.tech/i.test(dbUrl);
+
 const useSsl =
-  (process.env.NODE_ENV === 'production' && process.env.DEPLOYMENT_MODE !== 'onprem')
-  || process.env.DATABASE_SSL === 'true'
-  || !!process.env.DATABASE_URL?.includes('render.com')
-  || !!process.env.DATABASE_URL?.includes('neon.tech');
+  (process.env.NODE_ENV === 'production' && process.env.DEPLOYMENT_MODE !== 'onprem') ||
+  process.env.DATABASE_SSL === 'true' ||
+  isManagedCloudDb;
+
+// Render/Neon terminate TLS with certs Node does not trust by default →
+// "Error: self-signed certificate" unless rejectUnauthorized is false.
+// Strict verification remains the default for other production hosts.
+const rejectUnauthorized = isManagedCloudDb
+  ? process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'true'
+  : process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false';
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: process.env.DATABASE_POOL_SIZE ? parseInt(process.env.DATABASE_POOL_SIZE, 10) : (process.env.NODE_ENV === 'production' ? 10 : 20),
+  max: process.env.DATABASE_POOL_SIZE
+    ? parseInt(process.env.DATABASE_POOL_SIZE, 10)
+    : process.env.NODE_ENV === 'production'
+      ? 10
+      : 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
-  // Production always uses TLS; rejectUnauthorized never disabled in prod (assertCriticalEnv)
-  ...(useSsl
-    ? { ssl: { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false' } }
-    : {}),
+  ...(useSsl ? { ssl: { rejectUnauthorized } } : {}),
 });
 
 // Swallow pool-level connection errors (e.g. PG shutting down while connections are open)
-pool.on('error', (err) => {
+pool.on('error', err => {
   if (process.env.DEPLOYMENT_MODE === 'onprem') return; // expected on app close
   console.error('Unexpected pool error:', err.message);
 });
@@ -409,23 +419,25 @@ export async function initSchema() {
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS inventory_tracking_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS multi_language_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ');
-    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS tab_config JSONB DEFAULT '${JSON.stringify({
-      dashboard:    { label: 'Dashboard',      visible: true },
-      inventory:    { label: 'Inventory',      visible: true },
-      purchases:    { label: 'Purchases',      visible: true },
-      distribution: { label: 'Distribution',   visible: true },
-      sales:        { label: 'Sales Entry',    visible: true },
-      verification: { label: 'Search / Verify', visible: true },
-      warranty:     { label: 'Warranty',        visible: true },
-      replacements: { label: 'Replacements',   visible: true },
-      rewards:      { label: 'Rewards',         visible: true },
-      finance:      { label: 'Finance',         visible: true },
-      quotations:   { label: 'Quotations',      visible: true },
-      accounts:     { label: 'Accounts',        visible: true },
-      reports:      { label: 'Reports',          visible: true },
-      chatbot:      { label: 'Chatbot',         visible: true },
-      settings:     { label: 'Settings',        visible: true },
-    })}'`);
+    await client.query(
+      `ALTER TABLE tenants ADD COLUMN IF NOT EXISTS tab_config JSONB DEFAULT '${JSON.stringify({
+        dashboard: { label: 'Dashboard', visible: true },
+        inventory: { label: 'Inventory', visible: true },
+        purchases: { label: 'Purchases', visible: true },
+        distribution: { label: 'Distribution', visible: true },
+        sales: { label: 'Sales Entry', visible: true },
+        verification: { label: 'Search / Verify', visible: true },
+        warranty: { label: 'Warranty', visible: true },
+        replacements: { label: 'Replacements', visible: true },
+        rewards: { label: 'Rewards', visible: true },
+        finance: { label: 'Finance', visible: true },
+        quotations: { label: 'Quotations', visible: true },
+        accounts: { label: 'Accounts', visible: true },
+        reports: { label: 'Reports', visible: true },
+        chatbot: { label: 'Chatbot', visible: true },
+        settings: { label: 'Settings', visible: true },
+      })}'`,
+    );
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS password_reset_tokens (
@@ -518,20 +530,28 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_tenant ON quotations(tenant_id)');
 
     // Add accounts + quotations tabs to existing tenants
-    await client.query(`UPDATE tenants SET tab_config = tab_config || '{"accounts":{"label":"Accounts","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'accounts'`);
-    await client.query(`UPDATE tenants SET tab_config = tab_config || '{"quotations":{"label":"Quotations","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'quotations'`);
+    await client.query(
+      `UPDATE tenants SET tab_config = tab_config || '{"accounts":{"label":"Accounts","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'accounts'`,
+    );
+    await client.query(
+      `UPDATE tenants SET tab_config = tab_config || '{"quotations":{"label":"Quotations","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'quotations'`,
+    );
 
     // Add purchases tab to existing tenants
-    await client.query(`UPDATE tenants SET tab_config = tab_config || '{"purchases":{"label":"Purchases","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'purchases'`);
+    await client.query(
+      `UPDATE tenants SET tab_config = tab_config || '{"purchases":{"label":"Purchases","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'purchases'`,
+    );
 
     // Vendor GSTIN for GST reports
-    await client.query("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gst_number TEXT");
+    await client.query('ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gst_number TEXT');
 
     // Add reports tab to existing tenants that don't have it
-    await client.query(`UPDATE tenants SET tab_config = tab_config || '{"reports":{"label":"Reports","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'reports'`);
+    await client.query(
+      `UPDATE tenants SET tab_config = tab_config || '{"reports":{"label":"Reports","visible":true}}'::jsonb WHERE tab_config IS NOT NULL AND NOT tab_config ? 'reports'`,
+    );
 
     // Pack size support
-    await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_size INTEGER DEFAULT 1");
+    await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_size INTEGER DEFAULT 1');
     await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_name TEXT DEFAULT 'Piece'");
 
     // Feature toggles for new modules
@@ -607,9 +627,11 @@ export async function initSchema() {
     await client.query("ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS unit_type TEXT DEFAULT 'piece'");
 
     // Dispatch tracking on distributions
-    await client.query("ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS dispatch_status TEXT DEFAULT 'pending'");
-    await client.query("ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS dispatched_by TEXT");
-    await client.query("ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMPTZ");
+    await client.query(
+      "ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS dispatch_status TEXT DEFAULT 'pending'",
+    );
+    await client.query('ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS dispatched_by TEXT');
+    await client.query('ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMPTZ');
 
     // Orders table
     await client.query(`
@@ -690,10 +712,18 @@ export async function initSchema() {
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_users_tenant_email ON users(tenant_id, LOWER(email))');
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_products_tenant_name ON products(tenant_id, LOWER(name))');
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_vendors_tenant_name ON vendors(tenant_id, LOWER(name))');
-    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_suppliers_tenant_name ON suppliers(tenant_id, LOWER(name))');
-    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_pi_tenant_barcode ON product_inventory(tenant_id, barcode)');
-    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_banks_tenant_acct ON banks(tenant_id, account_number) WHERE account_number IS NOT NULL');
-    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_quotations_tenant_num ON quotations(tenant_id, quotation_number)');
+    await client.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS uq_suppliers_tenant_name ON suppliers(tenant_id, LOWER(name))',
+    );
+    await client.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS uq_pi_tenant_barcode ON product_inventory(tenant_id, barcode)',
+    );
+    await client.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS uq_banks_tenant_acct ON banks(tenant_id, account_number) WHERE account_number IS NOT NULL',
+    );
+    await client.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS uq_quotations_tenant_num ON quotations(tenant_id, quotation_number)',
+    );
 
     // Missing performance indexes
     await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS price_includes_gst BOOLEAN DEFAULT false');
@@ -722,7 +752,9 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_pr_old_barcode ON product_replacements(tenant_id, old_barcode)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pr_tenant ON product_replacements(tenant_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_rewards_tenant ON rewards(tenant_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_prt_active ON password_reset_tokens(expires_at) WHERE used = false');
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_prt_active ON password_reset_tokens(expires_at) WHERE used = false',
+    );
     await client.query('CREATE INDEX IF NOT EXISTS idx_pi_batch ON product_inventory(tenant_id, batch_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customers_vendor ON customers(tenant_id, vendor_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_warranties_product ON warranties(tenant_id, product_id)');
@@ -813,19 +845,19 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_onprem_status ON onprem_licenses(status)');
 
     // Purchase invoice number for GSTR-2B reconciliation
-    await client.query("ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS invoice_number TEXT");
+    await client.query('ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS invoice_number TEXT');
 
     // Business type
     await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS business_type TEXT DEFAULT 'manufacturer'");
 
     // Backup settings
-    await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_enabled BOOLEAN DEFAULT false");
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_enabled BOOLEAN DEFAULT false');
     await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_frequency TEXT DEFAULT 'weekly'");
-    await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_interval_days INTEGER DEFAULT 7");
-    await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_last_at TIMESTAMPTZ");
-    await client.query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_email TEXT");
-    await client.query("ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_pushed_at TIMESTAMPTZ");
-    await client.query("ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_applied_at TIMESTAMPTZ");
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_interval_days INTEGER DEFAULT 7');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_last_at TIMESTAMPTZ');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_email TEXT');
+    await client.query('ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_pushed_at TIMESTAMPTZ');
+    await client.query('ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_applied_at TIMESTAMPTZ');
 
     // Mobile app (Capacitor) — Super Admin invite + force sync + device registry
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_invite_code TEXT`);
@@ -833,7 +865,9 @@ export async function initSchema() {
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_force_sync_at TIMESTAMPTZ`);
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_min_version TEXT`);
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_latest_version TEXT`);
-    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_mobile_invite ON tenants(mobile_invite_code) WHERE mobile_invite_code IS NOT NULL`);
+    await client.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_mobile_invite ON tenants(mobile_invite_code) WHERE mobile_invite_code IS NOT NULL`,
+    );
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS mobile_devices (
@@ -857,14 +891,38 @@ export async function initSchema() {
     // RLS protects against: direct DB access, SQL injection, developer mistakes.
     // To enforce RLS on owner too: ALTER TABLE ... FORCE ROW LEVEL SECURITY
     const rlsTables = [
-      'users', 'vendors', 'customers', 'products', 'product_inventory',
-      'product_distribution', 'product_sales', 'product_purchases',
-      'warranties', 'product_replacements', 'rewards', 'reward_rules',
-      'redemption_settings', 'banks', 'vendor_payments', 'vendor_reminder_settings',
-      'audit_log', 'categories', 'bill_settings', 'credit_debit_notes',
-      'price_lists', 'quotations', 'orders', 'suppliers', 'supplier_payments',
-      'expenses', 'staff_members', 'staff_payments', 'standalone_invoices',
-      'tenant_invoices', 'tenant_stats', 'mobile_devices',
+      'users',
+      'vendors',
+      'customers',
+      'products',
+      'product_inventory',
+      'product_distribution',
+      'product_sales',
+      'product_purchases',
+      'warranties',
+      'product_replacements',
+      'rewards',
+      'reward_rules',
+      'redemption_settings',
+      'banks',
+      'vendor_payments',
+      'vendor_reminder_settings',
+      'audit_log',
+      'categories',
+      'bill_settings',
+      'credit_debit_notes',
+      'price_lists',
+      'quotations',
+      'orders',
+      'suppliers',
+      'supplier_payments',
+      'expenses',
+      'staff_members',
+      'staff_payments',
+      'standalone_invoices',
+      'tenant_invoices',
+      'tenant_stats',
+      'mobile_devices',
     ];
     for (const table of rlsTables) {
       await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
@@ -900,26 +958,69 @@ export async function seedPlatformData() {
     const existing = await pool.query('SELECT id FROM super_admins WHERE email = $1', [superAdminEmail]);
     if (existing.rows.length === 0) {
       const hash = await bcrypt.hash(superAdminPassword, 12);
-      await pool.query(
-        'INSERT INTO super_admins (id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5)',
-        ['SA1', superAdminEmail, hash, 'Platform Owner', 'owner']
-      );
+      await pool.query('INSERT INTO super_admins (id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5)', [
+        'SA1',
+        superAdminEmail,
+        hash,
+        'Platform Owner',
+        'owner',
+      ]);
       console.log('  ✓ Super admin created: [REDACTED_EMAIL]');
     }
   }
 
   const plans = [
-    ['TRIAL', 'Trial', -1, -1, -1, -1, '{"warranty":true,"replacements":true,"rewards":true,"finance":true,"chatbot":true,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}', 0, 0],
-    ['BASIC', 'Basic', 50, 5, 3, 0, '{"warranty":false,"replacements":false,"rewards":false,"finance":true,"chatbot":false,"billCustomization":true,"multiLanguage":true,"vendorPortal":false,"barcodeSystem":false}', 499, 4999],
-    ['STANDARD', 'Standard', 200, 15, 10, 5000, '{"warranty":false,"replacements":false,"rewards":false,"finance":true,"chatbot":false,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}', 999, 9999],
-    ['PROFESSIONAL', 'Professional', -1, -1, -1, -1, '{"warranty":true,"replacements":true,"rewards":true,"finance":true,"chatbot":true,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}', 1999, 19999],
+    [
+      'TRIAL',
+      'Trial',
+      -1,
+      -1,
+      -1,
+      -1,
+      '{"warranty":true,"replacements":true,"rewards":true,"finance":true,"chatbot":true,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}',
+      0,
+      0,
+    ],
+    [
+      'BASIC',
+      'Basic',
+      50,
+      5,
+      3,
+      0,
+      '{"warranty":false,"replacements":false,"rewards":false,"finance":true,"chatbot":false,"billCustomization":true,"multiLanguage":true,"vendorPortal":false,"barcodeSystem":false}',
+      499,
+      4999,
+    ],
+    [
+      'STANDARD',
+      'Standard',
+      200,
+      15,
+      10,
+      5000,
+      '{"warranty":false,"replacements":false,"rewards":false,"finance":true,"chatbot":false,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}',
+      999,
+      9999,
+    ],
+    [
+      'PROFESSIONAL',
+      'Professional',
+      -1,
+      -1,
+      -1,
+      -1,
+      '{"warranty":true,"replacements":true,"rewards":true,"finance":true,"chatbot":true,"billCustomization":true,"multiLanguage":true,"vendorPortal":true,"barcodeSystem":true}',
+      1999,
+      19999,
+    ],
   ];
 
   for (const p of plans) {
     await pool.query(
       `INSERT INTO plans (id, name, max_products, max_vendors, max_users, max_barcodes, features, price_monthly, price_yearly)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO UPDATE SET name = $2, max_products = $3, max_vendors = $4, max_users = $5, max_barcodes = $6, features = $7`,
-      p
+      p,
     );
   }
   console.log('  ✓ Plans seeded (Trial, Basic, Standard, Professional)');
