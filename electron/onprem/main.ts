@@ -214,9 +214,10 @@ async function sendHeartbeat(): Promise<void> {
           } catch (e) {
             console.error('[sync] mark-notifications-delivered failed:', e);
           }
-          // Reload only for newly inserted rows after a successful cloud ack (avoids reload loops)
+          // Reload when new rows landed locally so Bell updates immediately.
+          // Ack failure must not hide already-inserted messages (next heartbeat retries ack).
           const inserted = applyNotifBody.inserted ?? applyNotifBody.applied ?? 0;
-          if (markedOk && inserted > 0) shouldReload = true;
+          if (inserted > 0) shouldReload = true;
         }
       } catch (err) {
         console.error('[sync] apply-notifications failed:', err);

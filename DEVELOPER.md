@@ -41,16 +41,13 @@ Browser / Electron window
 ```
 platforms/
 ├── shared/           # API URL helpers (all clients)
-├── mobile/
-│   ├── online/       # Capacitor bootstrap, onboarding, heartbeat
-│   └── offline/      # Queue, cache, OfflineBanner
 └── desktop/
     ├── online/       # Electron cloud (thin online client)
     └── offline/      # On-prem sync UI (OnlineStatus)
 ```
 
 Native Electron processes: `electron/cloud` = desktop·online, `electron/onprem` = desktop·offline.  
-See `src/platforms/README.md`, `electron/README.md`, and **`docs/MOBILE.md`**.
+See `src/platforms/README.md` and `electron/README.md`. There is no Capacitor phone app.
 
 ---
 
@@ -138,8 +135,8 @@ Middleware stack (applied per route):
 | `bill-settings.ts` | `/api/bill-settings` | PDF customization |
 | `dashboard.ts` | `/api/analytics` | overview, recent activity |
 | `onprem.ts` | `/api/onprem` | license activate/heartbeat/deactivate |
-| `mobile.ts` | `/api/mobile` | invite redeem, heartbeat, device register |
-| `super-admin.ts` | `/api/super-admin` | tenants, on-prem licenses, mobile invite/sync |
+| `notifications.ts` | `/api/notifications` | Bell feed, digests, SA notify (mounted before blockVendors) |
+| `super-admin.ts` | `/api/super-admin` | tenants, on-prem licenses, broadcast |
 | `admin.ts` | `/api/admin` | per-tenant admin tools |
 | `chatbot.ts` | `/api/chatbot` | AI assistant |
 | `mapping.ts` | `/api/mapping` | bank statement UPI→vendor matching |

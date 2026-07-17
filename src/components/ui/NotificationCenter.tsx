@@ -191,7 +191,8 @@ export function NotificationCenter({ onNavigate, canAccessTab }: Props) {
     try {
       await fetchApi('/notifications/read-all', { method: 'POST' });
     } catch {
-      /* ignore */
+      // Don't clear local unread state if the server write failed — next poll would resurrect them.
+      return;
     }
     setItems(prev => prev.map(i => (i.kind === 'admin_message' ? { ...i, read: true } : i)));
     const digests = items.filter(i => i.kind !== 'admin_message').map(i => i.id);
