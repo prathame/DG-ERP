@@ -84,6 +84,34 @@ describe('HTTP: service mobile seats', () => {
     expect(res.status).toBe(400);
   });
 
+  it('lists empty seats for manufacturer; 404 for unknown tenant', async () => {
+    const mfgList = await api()
+      .get(`/api/super-admin/tenants/${MFG}/mobile-seats`)
+      .set({ Authorization: `Bearer ${saToken}` });
+    expect(mfgList.status).toBe(200);
+    expect(mfgList.body.seats).toEqual([]);
+    expect(mfgList.body.businessType).toBe('manufacturer');
+
+    const missing = await api()
+      .get('/api/super-admin/tenants/T-DOES-NOT-EXIST/mobile-seats')
+      .set({ Authorization: `Bearer ${saToken}` });
+    expect(missing.status).toBe(404);
+  });
+
+  it('activate-seat validates seatKey and deviceId', async () => {
+    expect((await api().post('/api/mobile/activate-seat').send({ deviceId: 'dev_ok_01' })).status).toBe(400);
+    expect((await api().post('/api/mobile/activate-seat').send({ seatKey: 'DG-MS-NOPE', deviceId: 'x' })).status).toBe(
+      400,
+    );
+    expect(
+      (
+        await api()
+          .post('/api/mobile/activate-seat')
+          .send({ seatKey: 'DG-MS-DEAD-BEEF-00000000', deviceId: 'dev_missing_seat_01', slug: SLUG })
+      ).status,
+    ).toBe(404);
+  });
+
   it('manufacturer heartbeat has no offline entitlement', async () => {
     const hb = await api()
       .post('/api/mobile/heartbeat')
@@ -253,6 +281,84 @@ describe('HTTP: service mobile seats', () => {
       .send({ deviceId, platform: 'android', appVersion: '2.2.0' });
     expect(hb.body.seatValid).toBe(false);
     expect(hb.body.offlineEnabled).toBe(false);
+  });
+
+  it('SA seat update: validUntil, invalid status, empty body, missing seat', async () => {
+    const issue = await api()
+      .post(`/api/super-admin/tenants/${SVC}/mobile-seats`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({});
+    const seats = (
+      await api()
+        .get(`/api/super-admin/tenants/${SVC}/mobile-seats`)
+        .set({ Authorization: `Bearer ${saToken}` })
+    ).body.seats as { id: string; seatKey: string }[];
+    const seat = seats.find(s => s.seatKey === issue.body.seatKey)!;
+
+    const until = await api()
+      .put(`/api/super-admin/tenants/${SVC}/mobile-seats/${seat.id}`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({ validUntil: '2099-12-31' });
+    expect(until.status).toBe(200);
+    expect(String(until.body.seat.validUntil)).toContain('2099');
+
+    const clearUntil = await api()
+      .put(`/api/super-admin/tenants/${SVC}/mobile-seats/${seat.id}`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({ validUntil: '' });
+    expect(clearUntil.status).toBe(200);
+    expect(clearUntil.body.seat.validUntil).toBeNull();
+
+    const badStatus = await api()
+      .put(`/api/super-admin/tenants/${SVC}/mobile-seats/${seat.id}`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({ status: 'nope' });
+    expect(badStatus.status).toBe(400);
+
+    const empty = await api()
+      .put(`/api/super-admin/tenants/${SVC}/mobile-seats/${seat.id}`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({});
+    expect(empty.status).toBe(400);
+
+    const missing = await api()
+      .put(`/api/super-admin/tenants/${SVC}/mobile-seats/MS-DOES-NOT-EXIST`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({ clearDevice: true });
+    expect(missing.status).toBe(404);
+  });
+
+  it('rejects activate when company is suspended; allows re-bind same device', async () => {
+    const issue = await api()
+      .post(`/api/super-admin/tenants/${SVC}/mobile-seats`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({});
+    const deviceId = 'dev_seat_rebind_01';
+    const first = await api().post('/api/mobile/activate-seat').send({
+      seatKey: issue.body.seatKey,
+      slug: SLUG,
+      deviceId,
+      platform: 'android',
+    });
+    expect(first.status).toBe(200);
+    const again = await api().post('/api/mobile/activate-seat').send({
+      seatKey: issue.body.seatKey,
+      slug: SLUG,
+      deviceId,
+      platform: 'android',
+      appVersion: '2.3.0',
+    });
+    expect(again.status).toBe(200);
+
+    await pool.query(`UPDATE tenants SET status = 'suspended' WHERE id = $1`, [SVC]);
+    const suspended = await api().post('/api/mobile/activate-seat').send({
+      seatKey: issue.body.seatKey,
+      slug: SLUG,
+      deviceId: 'dev_seat_suspended_01',
+      platform: 'ios',
+    });
+    expect(suspended.status).toBe(403);
+    await pool.query(`UPDATE tenants SET status = 'active' WHERE id = $1`, [SVC]);
   });
 
   it('transfer clears device binding; rotateKey issues a new key', async () => {

@@ -36,3 +36,54 @@ describe('mobile companyStorage', () => {
     expect(a.startsWith('dev_')).toBe(true);
   });
 });
+
+describe('mobile seatStorage', () => {
+  let shim: ReturnType<typeof installBrowserShim>;
+
+  beforeEach(() => {
+    vi.resetModules();
+    shim = installBrowserShim();
+  });
+
+  afterEach(() => {
+    shim.resetStore();
+    vi.unstubAllGlobals();
+  });
+
+  it('saves, reads, and clears seat + entitlement flag', async () => {
+    const { getStoredSeat, saveStoredSeat, clearStoredSeat, isOfflineEntitled, setOfflineEntitled } =
+      await import('../../src/platforms/mobile/online/seatStorage');
+
+    expect(getStoredSeat()).toBeNull();
+    expect(isOfflineEntitled()).toBe(false);
+
+    saveStoredSeat({
+      seatKey: 'DG-MS-AAAA-BBBB-CCCC',
+      slug: 'acme-svc',
+      companyName: 'Acme',
+      activatedAt: '2026-01-01T00:00:00.000Z',
+      offlineEnabled: true,
+    });
+    expect(getStoredSeat()?.slug).toBe('acme-svc');
+    expect(isOfflineEntitled()).toBe(true);
+
+    setOfflineEntitled(false);
+    expect(isOfflineEntitled()).toBe(false);
+    expect(getStoredSeat()?.offlineEnabled).toBe(false);
+
+    setOfflineEntitled(true);
+    expect(isOfflineEntitled()).toBe(true);
+
+    clearStoredSeat();
+    expect(getStoredSeat()).toBeNull();
+    expect(isOfflineEntitled()).toBe(false);
+  });
+
+  it('returns null for corrupt or incomplete seat JSON', async () => {
+    const { getStoredSeat } = await import('../../src/platforms/mobile/online/seatStorage');
+    shim.localStorage.setItem('dg_mobile_seat_v1', '{bad');
+    expect(getStoredSeat()).toBeNull();
+    shim.localStorage.setItem('dg_mobile_seat_v1', JSON.stringify({ seatKey: 'DG-MS-X' }));
+    expect(getStoredSeat()).toBeNull();
+  });
+});

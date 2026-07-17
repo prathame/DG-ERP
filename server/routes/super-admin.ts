@@ -1391,11 +1391,16 @@ router.post('/api/super-admin/notifications/broadcast', superAdminMiddleware, as
     let sent = 0;
     for (const t of tenants) {
       const notifId = uid('TN');
-      await pool.query(
+      // Re-check tenant still exists (parallel tests / concurrent deletes can race the SELECT above).
+      const inserted = await pool.query(
         `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, expires_at)
-         VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
-        [notifId, t.id, safeTitle, safeBody, notifType],
+         SELECT $1, t.id, $2, $3, $4, 'super_admin', NOW() + INTERVAL '30 days'
+         FROM tenants t
+         WHERE t.id = $5 AND COALESCE(t.status, 'active') IN ('active', 'trial')
+         RETURNING id`,
+        [notifId, safeTitle, safeBody, notifType, t.id],
       );
+      if (!inserted.rowCount) continue;
       await logAudit(
         pool,
         t.id,
@@ -1415,11 +1420,15 @@ router.post('/api/super-admin/notifications/broadcast', superAdminMiddleware, as
     let onpremSent = 0;
     for (const lic of licenses) {
       const notifId = uid('OPN');
-      await pool.query(
+      const inserted = await pool.query(
         `INSERT INTO onprem_notifications (id, license_id, title, body, type, source, expires_at)
-         VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
-        [notifId, lic.id, safeTitle, safeBody, notifType],
+         SELECT $1, l.id, $2, $3, $4, 'super_admin', NOW() + INTERVAL '30 days'
+         FROM onprem_licenses l
+         WHERE l.id = $5 AND l.status = 'active'
+         RETURNING id`,
+        [notifId, safeTitle, safeBody, notifType, lic.id],
       );
+      if (!inserted.rowCount) continue;
       onpremSent++;
     }
     if (onpremSent > 0) {
