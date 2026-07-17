@@ -75,14 +75,117 @@ export function resolveIrnQrPayload(r: {
 }
 
 /** Shown when window.open is blocked (Electron / browser pop-up blocker). */
-export const PRINT_POPUP_BLOCKED = 'Pop-up blocked — allow pop-ups to print';
+export const PRINT_POPUP_BLOCKED = 'Could not open print preview — try again, or use the in-app Print / PDF button';
+
+function isNativeCapacitor(): boolean {
+  try {
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    return Boolean(cap?.isNativePlatform?.());
+  } catch {
+    return false;
+  }
+}
+
+const PRINT_OVERLAY_ID = 'dg-print-overlay';
+const PRINT_FRAME_ID = 'dg-print-frame';
+
+function escapeHtmlLite(s: string): string {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Close the in-app print/PDF preview (Capacitor / popup-blocked fallback). */
+export function closePrintOverlay(): void {
+  try {
+    document.getElementById(PRINT_OVERLAY_ID)?.remove();
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Fullscreen in-app preview — Capacitor WebView blocks window.open / system print popups.
+ * Returns the iframe's contentWindow so existing printBillInWindow() callers keep working.
+ */
+function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
+  closePrintOverlay();
+  const host = document.createElement('div');
+  host.id = PRINT_OVERLAY_ID;
+  host.setAttribute('role', 'dialog');
+  host.setAttribute('aria-label', 'Print preview');
+  host.style.cssText =
+    'position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#0f172a;';
+
+  const bar = document.createElement('div');
+  bar.className = 'no-print';
+  bar.style.cssText =
+    'display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));background:#111827;color:#fff;flex-shrink:0;';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'Close';
+  closeBtn.style.cssText =
+    'padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#fff;font-weight:600;font-size:13px;';
+  closeBtn.onclick = () => closePrintOverlay();
+
+  const title = document.createElement('div');
+  title.textContent = isNativeCapacitor() ? 'Preview → Print / PDF' : 'Print / PDF';
+  title.style.cssText = 'flex:1;font-weight:700;font-size:13px;text-align:center;line-height:1.2;';
+
+  const printBtn = document.createElement('button');
+  printBtn.type = 'button';
+  printBtn.textContent = 'Print / PDF';
+  printBtn.style.cssText =
+    'padding:8px 12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:13px;';
+  printBtn.onclick = () => {
+    const frame = document.getElementById(PRINT_FRAME_ID) as HTMLIFrameElement | null;
+    const w = frame?.contentWindow;
+    if (!w) return;
+    try {
+      w.focus();
+      w.print();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  bar.appendChild(closeBtn);
+  bar.appendChild(title);
+  bar.appendChild(printBtn);
+
+  const iframe = document.createElement('iframe');
+  iframe.id = PRINT_FRAME_ID;
+  iframe.title = 'Print preview';
+  iframe.style.cssText = 'flex:1;width:100%;border:0;background:#fff;';
+
+  host.appendChild(bar);
+  host.appendChild(iframe);
+  document.body.appendChild(host);
+
+  const win = iframe.contentWindow;
+  if (!win) return null;
+  try {
+    win.document.open();
+    win.document.write(
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Print</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${escapeHtmlLite(placeholder)}</p></body></html>`,
+    );
+    win.document.close();
+  } catch {
+    /* ignore */
+  }
+  return win;
+}
 
 /**
  * Open a print/preview window immediately.
  * Must be called synchronously from a click handler — never after await.
- * Avoids feature strings (width/height) which often make Electron return null.
+ * On Capacitor (and when pop-ups are blocked), uses an in-app preview instead of window.open.
  */
 export function openPrintWindow(placeholder = 'Preparing…'): Window | null {
+  // Capacitor Android/iOS: window.open is unreliable or opens a blank external browser.
+  if (isNativeCapacitor()) {
+    return openPrintOverlay(placeholder);
+  }
+
   let win: Window | null = null;
   try {
     win = window.open('', '_blank');
@@ -98,17 +201,18 @@ export function openPrintWindow(placeholder = 'Preparing…'): Window | null {
   }
   if (win) {
     try {
-      const safe = String(placeholder).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       win.document.open();
       win.document.write(
-        `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${safe}</p></body></html>`,
+        `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${escapeHtmlLite(placeholder)}</p></body></html>`,
       );
       win.document.close();
     } catch {
       /* ignore */
     }
+    return win;
   }
-  return win;
+  // Desktop pop-up blocked → same in-app preview
+  return openPrintOverlay(placeholder);
 }
 
 function applyPrintTitle(html: string, filename?: string): string {
@@ -204,15 +308,43 @@ function triggerPrintWhenReady(win: Window) {
 /** Write HTML into an already-opened print window and trigger print */
 export function printBillInWindow(win: Window, html: string, filename?: string, opts?: { autoPrint?: boolean }) {
   const titled = withPrintPagination(applyPrintTitle(html, filename));
-  win.document.open();
-  win.document.write(titled);
-  win.document.close();
+  try {
+    win.document.open();
+    win.document.write(titled);
+    win.document.close();
+  } catch {
+    // Overlay iframe may need a tick after first write
+    try {
+      win.document.documentElement.innerHTML = '';
+      win.document.write(titled);
+      win.document.close();
+    } catch {
+      /* ignore */
+    }
+  }
+  const usingOverlay = !!document.getElementById(PRINT_OVERLAY_ID);
   if (opts?.autoPrint === false) {
     try {
       win.focus();
     } catch {
       /* ignore */
     }
+    return;
+  }
+  // Keep overlay open so the user can tap Print / PDF again (Save as PDF on Android).
+  if (usingOverlay) {
+    try {
+      win.focus();
+    } catch {
+      /* ignore */
+    }
+    setTimeout(() => {
+      try {
+        win.print();
+      } catch {
+        /* ignore */
+      }
+    }, 450);
     return;
   }
   triggerPrintWhenReady(win);

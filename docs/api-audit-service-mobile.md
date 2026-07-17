@@ -54,8 +54,13 @@ Scope: Capacitor Offline Mobile (`VITE_DEPLOYMENT_MODE=service-mobile`) local PG
 - `engineering-academy/docs/deployment/service-mobile.md`
 - `docs/api-audit-service-mobile.md`
 
+## Print / PDF (Capacitor)
+
+`window.open` is blocked or useless in the Offline Mobile WebView, so Print/PDF showed “Pop-up blocked”.  
+`openPrintWindow()` now uses a fullscreen in-app preview with a **Print / PDF** button (system share sheet → Save as PDF).
+
 ## Remaining / ops
 
-- Rebuild Offline Mobile APK after merge for devices to pick up local API + login fix.
+- Rebuild Offline Mobile APK after merge for devices to pick up local API + login fix + print overlay.
 - Existing devices: log out and log in once so `businessType: service` is stored (or reopen app — session restore now defaults offline).
 - iOS build still requires Xcode on a Mac with the Capacitor iOS toolchain.
