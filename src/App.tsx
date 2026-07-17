@@ -727,24 +727,24 @@ export default function App() {
               isSidebarOpen ? 'w-[min(88vw,20rem)] translate-x-0 lg:w-60' : 'w-16 -translate-x-full lg:translate-x-0',
             )}
           >
-            <div className="min-h-14 lg:h-16 px-4 flex items-center justify-between border-b border-gray-100 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-3 lg:pt-0 lg:pb-0">
+            <div className="min-h-12 lg:h-16 px-3 lg:px-4 flex items-center justify-between border-b border-gray-100 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-2 lg:pt-0 lg:pb-0">
               {isSidebarOpen && (
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <img src="/icons/logo-full.png" alt="Dhando" className="h-8 w-auto object-contain shrink-0" />
-                  <span className="font-semibold text-gray-900 text-sm truncate">{user?.companyName}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <img src="/icons/logo-full.png" alt="Dhando" className="h-7 lg:h-8 w-auto object-contain shrink-0" />
+                  <span className="font-semibold text-gray-900 text-xs lg:text-sm truncate">{user?.companyName}</span>
                 </div>
               )}
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500"
+                className="p-2 min-w-[40px] min-h-[40px] lg:min-w-[44px] lg:min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500"
                 aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
               >
                 {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
               </button>
             </div>
 
-            <nav className="flex-1 px-3 py-3 overflow-y-auto">
+            <nav className="flex-1 px-2.5 lg:px-3 py-2 lg:py-3 overflow-y-auto">
               {navSections.map(section => {
                 const sectionItems = section.items.filter(i => i.show && canAccess(i.id));
                 if (!sectionItems.length) return null;
@@ -784,7 +784,7 @@ export default function App() {
                               if (window.innerWidth < 1024) setIsSidebarOpen(false);
                             }}
                             className={cn(
-                              'w-full flex items-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-lg transition-all text-[13px] group relative',
+                              'w-full flex items-center gap-2 px-2.5 lg:px-3 py-2 lg:py-2.5 min-h-[40px] lg:min-h-[44px] rounded-lg transition-all text-xs lg:text-[13px] group relative',
                               activeTab === item.id
                                 ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[9px]'
                                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
@@ -823,7 +823,7 @@ export default function App() {
                     if (window.innerWidth < 1024) setIsSidebarOpen(false);
                   }}
                   className={cn(
-                    'w-full flex items-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-lg transition-all text-[13px]',
+                    'w-full flex items-center gap-2 px-2.5 lg:px-3 py-2 lg:py-2.5 min-h-[40px] lg:min-h-[44px] rounded-lg transition-all text-xs lg:text-[13px]',
                     activeTab === 'settings'
                       ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[9px]'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
@@ -875,29 +875,29 @@ export default function App() {
                 </div>
               );
             })()}
-            <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100 px-3 sm:px-8 pb-2.5 sm:pb-4 flex items-center justify-between gap-2 app-header-safe">
-              <div className="flex items-center gap-2 min-w-0">
+            <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100 px-3 sm:px-8 pb-2 sm:pb-4 flex items-center justify-between gap-2 app-header-safe">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <button
                   type="button"
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-xl transition-colors lg:hidden shrink-0"
+                  className="p-2 min-w-[40px] min-h-[40px] lg:min-w-[44px] lg:min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors lg:hidden shrink-0"
                   aria-label="Open menu"
                 >
-                  <Menu size={22} />
+                  <Menu size={20} />
                 </button>
                 <div className="min-w-0">
-                  <h1 className="text-lg sm:text-2xl font-bold truncate leading-tight">{t(`nav.${activeTab}`)}</h1>
-                  <p className="text-[11px] text-gray-400 truncate sm:hidden">{user?.companyName}</p>
+                  <h1 className="text-base sm:text-2xl font-bold truncate leading-tight">{t(`nav.${activeTab}`)}</h1>
+                  <p className="text-[10px] text-gray-400 truncate sm:hidden leading-tight">{user?.companyName}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+              <div className="flex items-center gap-0.5 sm:gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setCmdOpen(true)}
-                  className="sm:hidden p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-xl text-gray-500"
+                  className="sm:hidden p-2 min-w-[40px] min-h-[40px] flex items-center justify-center hover:bg-gray-100 rounded-lg text-gray-500"
                   aria-label="Search"
                 >
-                  <Search size={20} />
+                  <Search size={18} />
                 </button>
                 <button
                   type="button"
@@ -936,7 +936,7 @@ export default function App() {
                       <p className="text-sm font-semibold">{user?.name ?? 'Guest'}</p>
                       <p className="text-xs text-gray-500">{user?.role ?? 'Not signed in'}</p>
                     </div>
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] border-2 border-white shadow-sm flex items-center justify-center text-white font-bold text-sm">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] border-2 border-white shadow-sm flex items-center justify-center text-white font-bold text-xs sm:text-sm">
                       {user?.name?.charAt(0) ?? '?'}
                     </div>
                   </button>
@@ -997,7 +997,7 @@ export default function App() {
               </div>
             </header>
 
-            <div className="app-mobile-content p-3 sm:p-6 lg:p-8">
+            <div className="app-mobile-content p-3 sm:p-4 lg:p-8">
               <ErrorBoundary key={tabKey} onReset={() => setTabKey(k => k + 1)}>
                 <Suspense fallback={<LazyFallback />}>
                   <div key={tabKey}>
@@ -1056,10 +1056,10 @@ export default function App() {
           </main>
           {/* Mobile bottom nav — primary destinations + More drawer */}
           <nav
-            className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 lg:hidden safe-bottom shadow-[0_-4px_24px_rgba(0,0,0,0.06)]"
+            className="app-bottom-nav fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 lg:hidden safe-bottom shadow-[0_-2px_16px_rgba(0,0,0,0.05)]"
             aria-label="Primary"
           >
-            <div className="flex items-stretch justify-around px-1 pt-1 pb-0.5">
+            <div className="flex items-stretch justify-around px-0.5 pt-0.5 pb-0">
               {mobileNavItems.map(item => {
                 const active = activeTab === item.id;
                 return (
@@ -1068,21 +1068,21 @@ export default function App() {
                     type="button"
                     onClick={() => setActiveTab(item.id as Tab)}
                     className={cn(
-                      'flex flex-1 flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-xl min-h-[52px] transition-colors',
+                      'flex flex-1 flex-col items-center justify-center gap-0 py-1.5 px-0.5 rounded-lg min-h-[44px] transition-colors',
                       active ? 'text-brand' : 'text-gray-400',
                     )}
                   >
                     <span
                       className={cn(
-                        'flex items-center justify-center w-10 h-8 rounded-xl transition-colors',
+                        'flex items-center justify-center w-9 h-7 rounded-lg transition-colors',
                         active && 'bg-brand/10',
                       )}
                     >
-                      <item.icon size={22} strokeWidth={active ? 2.5 : 2} />
+                      <item.icon size={18} strokeWidth={active ? 2.5 : 2} />
                     </span>
                     <span
                       className={cn(
-                        'text-[10px] leading-tight max-w-[4.5rem] truncate',
+                        'text-[10px] leading-tight max-w-[4.25rem] truncate',
                         active ? 'font-bold' : 'font-medium',
                       )}
                     >
@@ -1095,17 +1095,17 @@ export default function App() {
                 type="button"
                 onClick={() => setIsSidebarOpen(true)}
                 className={cn(
-                  'flex flex-1 flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-xl min-h-[52px] transition-colors',
+                  'flex flex-1 flex-col items-center justify-center gap-0 py-1.5 px-0.5 rounded-lg min-h-[44px] transition-colors',
                   mobileMoreActive || isSidebarOpen ? 'text-brand' : 'text-gray-400',
                 )}
               >
                 <span
                   className={cn(
-                    'flex items-center justify-center w-10 h-8 rounded-xl transition-colors',
+                    'flex items-center justify-center w-9 h-7 rounded-lg transition-colors',
                     (mobileMoreActive || isSidebarOpen) && 'bg-brand/10',
                   )}
                 >
-                  <Menu size={22} />
+                  <Menu size={18} />
                 </span>
                 <span
                   className={cn(
