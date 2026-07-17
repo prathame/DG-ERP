@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
+import { safeErrorMessage } from '../utils/pii';
 import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -87,8 +89,9 @@ router.post('/api/auth/login', async (req, res) => {
       vendorId: (row.vendor_id as string | null) ?? null,  // needed for server-side vendor scoping
     });
 
-    await logAudit(pool, row.tenant_id as string, 'LOGIN', 'user', row.id as string, `User logged in: ${row.email}`, row.id as string, row.name as string);
+    await logAudit(pool, row.tenant_id as string, 'LOGIN', 'user', row.id as string, 'User logged in', row.id as string, row.name as string);
 
+    // PII minimization: phone/address/gst come from GET /api/settings/profile after login
     res.json({
       token,
       tenantId: row.tenant_id,
@@ -97,8 +100,6 @@ router.post('/api/auth/login', async (req, res) => {
       id: row.id,
       email: row.email,
       name: row.name,
-      phone: row.phone,
-      address: row.address,
       role: row.role,
       permissions: (() => {
         const raw = typeof row.permissions === 'string' ? JSON.parse(row.permissions) : row.permissions;
@@ -112,7 +113,6 @@ router.post('/api/auth/login', async (req, res) => {
       vendorId: row.vendor_id ?? null,
       autoWhatsapp: !!(row.auto_whatsapp),
       defaultGstRate: Number(row.default_gst_rate) || 18,
-      gstNumber: row.gst_number ?? null,
       vendorPortalEnabled: row.vendor_portal_enabled !== false,
       barcodeSystemEnabled: row.barcode_system_enabled !== false,
       multiLanguageEnabled: row.multi_language_enabled !== false,
@@ -147,7 +147,7 @@ router.post('/api/auth/login', async (req, res) => {
       })(),
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, safeErrorMessage(err)); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -172,7 +172,7 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
     })();
     res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, permissions: normalizedPerms, vendorId: row.vendor_id ?? null, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, businessType: (row.business_type as string) || 'manufacturer', vendorPortalEnabled: row.vendor_portal_enabled !== false, barcodeSystemEnabled: row.barcode_system_enabled !== false, multiLanguageEnabled: row.multi_language_enabled !== false, inventoryTrackingEnabled: row.inventory_tracking_enabled !== false, tabConfig: typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : (row.tab_config ?? null) });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, safeErrorMessage(err)); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -203,7 +203,7 @@ router.put('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
 
     res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, address: row.address, role: row.role, companyName: row.company_name, autoWhatsapp: !!(row.auto_whatsapp), defaultGstRate: Number(row.default_gst_rate) || 18, gstNumber: row.gst_number ?? null, vendorPortalEnabled: row.vendor_portal_enabled !== false, barcodeSystemEnabled: row.barcode_system_enabled !== false, multiLanguageEnabled: row.multi_language_enabled !== false });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, safeErrorMessage(err)); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -228,7 +228,7 @@ router.put('/api/settings/change-password', authMiddleware, async (req: AuthRequ
     await logAudit(pool, tenantId!, 'PASSWORD_CHANGE', 'user', userId, 'Password changed — all sessions invalidated', userId, req.user?.name);
     res.json({ ok: true, message: 'Password changed. Please log in again.' });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, safeErrorMessage(err)); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -244,13 +244,12 @@ router.post('/api/auth/forgot-password', async (req, res) => {
       ? (resetParams.push(resetSlug.toLowerCase()), `AND t.slug = $${resetParams.length}`)
       : '';
     const user = (await pool.query(
-      `SELECT u.id, u.email, u.tenant_id FROM users u JOIN tenants t ON t.id = u.tenant_id WHERE LOWER(u.email) = LOWER($1) ${resetSlugClause} LIMIT 1`,
+      `SELECT u.id, u.email, u.name, u.tenant_id FROM users u JOIN tenants t ON t.id = u.tenant_id WHERE LOWER(u.email) = LOWER($1) ${resetSlugClause} LIMIT 1`,
       resetParams
-    )).rows[0] as { id: string; email: string; tenant_id: string } | undefined;
+    )).rows[0] as { id: string; email: string; name: string; tenant_id: string } | undefined;
     // Always return success to prevent email enumeration
     if (!user) return res.json({ ok: true, message: 'If this email exists, a reset link has been generated' });
 
-    const crypto = await import('crypto');
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes
 
@@ -259,7 +258,7 @@ router.post('/api/auth/forgot-password', async (req, res) => {
       [uid('PRT'), email, user.tenant_id, token, expiresAt]
     );
 
-    await logAudit(pool, user.tenant_id, 'PASSWORD_RESET_REQUEST', 'user', user.id, `Password reset requested for ${email}`, user.id, email);
+    await logAudit(pool, user.tenant_id, 'PASSWORD_RESET_REQUEST', 'user', user.id, 'Password reset requested', user.id, user.name);
 
     // Token stored — retrievable by authenticated admin via GET /api/admin/reset-tokens
     // or super-admin via GET /api/super-admin/reset-tokens.
@@ -267,7 +266,7 @@ router.post('/api/auth/forgot-password', async (req, res) => {
     // leaking to anyone who guesses a valid email address.
     res.json({ ok: true, message: 'Reset token generated. Contact your admin or support to retrieve it.' });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, safeErrorMessage(err)); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -279,7 +278,7 @@ router.post('/api/auth/reset-password', async (req, res) => {
     if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
     const resetToken = (await pool.query(
-      'SELECT * FROM password_reset_tokens WHERE token = $1 AND used = false AND expires_at > NOW()',
+      'SELECT id, email, tenant_id FROM password_reset_tokens WHERE token = $1 AND used = false AND expires_at > NOW()',
       [token]
     )).rows[0] as { id: string; email: string; tenant_id: string } | undefined;
 
@@ -290,11 +289,11 @@ router.post('/api/auth/reset-password', async (req, res) => {
     await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
     await pool.query("DELETE FROM password_reset_tokens WHERE used = true OR expires_at < NOW()");
 
-    await logAudit(pool, resetToken.tenant_id, 'PASSWORD_RESET', 'user', null as unknown as string, `Password reset for ${resetToken.email}`, undefined, resetToken.email);
+    await logAudit(pool, resetToken.tenant_id, 'PASSWORD_RESET', 'user', undefined, 'Password reset completed');
 
     res.json({ ok: true, message: 'Password has been reset successfully' });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, safeErrorMessage(err)); res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -317,11 +316,60 @@ router.put('/api/admin/reset-user-password', authMiddleware, async (req: AuthReq
     const newHash = bcrypt.hashSync(newPassword, 12);
     await pool.query('UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2 AND tenant_id = $3', [newHash, userId, tenantId]);
 
-    await logAudit(pool, tenantId, 'ADMIN_PASSWORD_RESET', 'user', userId, `Admin reset password for ${user.email}`, req.user?.userId, req.user?.name);
+    await logAudit(pool, tenantId, 'ADMIN_PASSWORD_RESET', 'user', userId, 'Admin reset password for user', req.user?.userId, req.user?.name);
 
-    res.json({ ok: true, message: `Password reset for ${user.email}` });
+    res.json({ ok: true, message: 'Password has been reset' });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, safeErrorMessage(err)); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/** Self-service account deletion — anonymizes the user row (keeps FK integrity). */
+router.delete('/api/auth/me', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.tenantId;
+    const userId = req.user?.userId;
+    if (!tenantId || !userId) return res.status(401).json({ error: 'Authentication required' });
+    const { password } = req.body || {};
+    if (!password || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Password confirmation required' });
+    }
+
+    const row = (await pool.query(
+      'SELECT id, password_hash, role FROM users WHERE id = $1 AND tenant_id = $2',
+      [userId, tenantId]
+    )).rows[0] as { id: string; password_hash: string; role: string } | undefined;
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    if (!bcrypt.compareSync(password, row.password_hash)) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+    if (row.role === 'Admin' || row.role === 'Super Admin') {
+      const admins = (await pool.query(
+        `SELECT COUNT(*)::int AS c FROM users WHERE tenant_id = $1 AND role IN ('Admin', 'Super Admin') AND id <> $2`,
+        [tenantId, userId]
+      )).rows[0] as { c: number };
+      if (admins.c < 1) {
+        return res.status(400).json({ error: 'Cannot delete the last admin — transfer ownership or delete the company via Super Admin' });
+      }
+    }
+
+    const anonEmail = `deleted-${userId.toLowerCase()}@invalid.local`;
+    await pool.query(
+      `UPDATE users SET
+         email = $1,
+         name = 'Deleted User',
+         phone = NULL,
+         address = NULL,
+         gst_number = NULL,
+         password_hash = $2,
+         password_changed_at = NOW()
+       WHERE id = $3 AND tenant_id = $4`,
+      [anonEmail, bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12), userId, tenantId]
+    );
+    await logAudit(pool, tenantId, 'DELETE', 'user', userId, 'User self-deleted / anonymized', userId, 'Deleted User');
+    res.json({ ok: true, message: 'Account deleted' });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, safeErrorMessage(err)); res.status(500).json({ error: 'Internal server error' });
   }
 });
 

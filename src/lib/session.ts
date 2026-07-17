@@ -9,6 +9,22 @@ function scopedKey(key: string): string {
   return `${key}${getSessionSlug()}`;
 }
 
+/**
+ * Persist only what the SPA needs for auth/nav. Phone, address, and GST stay
+ * off localStorage (XSS-readable) — load those via GET /api/settings/profile.
+ */
+function sanitizeUserForStorage(user: unknown): Record<string, unknown> {
+  const u = (user && typeof user === 'object') ? user as Record<string, unknown> : {};
+  const {
+    phone: _phone,
+    address: _address,
+    gstNumber: _gst,
+    gst_number: _gst2,
+    ...rest
+  } = u;
+  return rest;
+}
+
 export const session = {
   getToken: () => localStorage.getItem(scopedKey('auth_token')),
   setToken: (token: string) => localStorage.setItem(scopedKey('auth_token'), token),
@@ -23,7 +39,9 @@ export const session = {
     const raw = localStorage.getItem(scopedKey('dhandho_user'));
     return raw ? JSON.parse(raw) : null;
   },
-  setUser: (user: unknown) => localStorage.setItem(scopedKey('dhandho_user'), JSON.stringify(user)),
+  setUser: (user: unknown) => {
+    localStorage.setItem(scopedKey('dhandho_user'), JSON.stringify(sanitizeUserForStorage(user)));
+  },
 
   clearAll: () => {
     session.removeToken();

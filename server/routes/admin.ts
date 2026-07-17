@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { checkPlanLimit } from '../utils/planLimits';
@@ -51,13 +52,12 @@ router.get('/api/admin/users', async (req, res) => {
     const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [jwtUser.userId, tenantId])).rows[0] as { role: string } | undefined;
     if (!admin || !isAdmin(admin.role)) return res.status(403).json({ error: 'Admin access required' });
 
-    const rows = (await pool.query('SELECT id, email, name, phone, address, role, company_name, permissions, vendor_id FROM users WHERE tenant_id = $1 ORDER BY name', [tenantId])).rows as Record<string, unknown>[];
+    // Minimal fields for user management UI — no phone/address in list
+    const rows = (await pool.query('SELECT id, email, name, role, company_name, permissions, vendor_id FROM users WHERE tenant_id = $1 ORDER BY name', [tenantId])).rows as Record<string, unknown>[];
     res.json(rows.map((r) => ({
       id: r.id,
       email: r.email,
       name: r.name,
-      phone: r.phone,
-      address: r.address,
       role: r.role,
       companyName: r.company_name,
       permissions: normalizePermissions(r.permissions ?? null, r.role as string),
@@ -199,6 +199,57 @@ router.put('/api/admin/users/:id', async (req, res) => {
       permissions: normalizePermissions(row.permissions ?? null, row.role as string),
       vendorId: row.vendor_id ?? null,
     });
+  } catch (err) {
+    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/** Admin anonymizes a user (keeps FK integrity on sales/audit). */
+router.delete('/api/admin/users/:id', async (req, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+
+    const { id } = req.params;
+    const jwtUser = (req as unknown as Record<string, unknown>).user as { userId?: string; role?: string; name?: string } | undefined;
+    if (!jwtUser?.userId) return res.status(401).json({ error: 'Authentication required' });
+    if (id === jwtUser.userId) return res.status(400).json({ error: 'Use account settings to delete your own account' });
+
+    const admin = (await pool.query('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [jwtUser.userId, tenantId])).rows[0] as { role: string } | undefined;
+    if (!admin || !isAdmin(admin.role)) return res.status(403).json({ error: 'Admin access required' });
+
+    const target = (await pool.query(
+      'SELECT id, role FROM users WHERE id = $1 AND tenant_id = $2',
+      [id, tenantId]
+    )).rows[0] as { id: string; role: string } | undefined;
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    if (target.role === 'Admin' || target.role === 'Super Admin') {
+      const admins = (await pool.query(
+        `SELECT COUNT(*)::int AS c FROM users WHERE tenant_id = $1 AND role IN ('Admin', 'Super Admin') AND id <> $2`,
+        [tenantId, id]
+      )).rows[0] as { c: number };
+      if (admins.c < 1) {
+        return res.status(400).json({ error: 'Cannot delete the last admin' });
+      }
+    }
+
+    const anonEmail = `deleted-${id.toLowerCase()}@invalid.local`;
+    await pool.query(
+      `UPDATE users SET
+         email = $1,
+         name = 'Deleted User',
+         phone = NULL,
+         address = NULL,
+         gst_number = NULL,
+         password_hash = $2,
+         password_changed_at = NOW(),
+         vendor_id = NULL
+       WHERE id = $3 AND tenant_id = $4`,
+      [anonEmail, bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12), id, tenantId]
+    );
+    await logAudit(pool, tenantId, 'DELETE', 'user', id, 'Admin anonymized user', jwtUser.userId, jwtUser.name);
+    res.json({ ok: true, message: 'User deleted' });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
   }
