@@ -160,7 +160,8 @@ router.post('/api/onprem/mark-applied', onpremLimiter, async (req, res) => {
 // ── Tab config endpoint — read local tenant tab_config for heartbeat sync ─────
 router.get('/api/onprem/tab-config', async (req, res) => {
   try {
-    const ip = req.ip || req.socket.remoteAddress || '';
+    // Use socket peer address — ignore X-Forwarded-For (trust proxy bypass)
+    const ip = req.socket.remoteAddress || '';
     if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip)) return res.status(403).json({ error: 'Localhost only' });
     const licenseKey = req.headers['x-license-key'] as string;
     if (!licenseKey) return res.status(400).json({ error: 'Missing license key' });
@@ -179,7 +180,8 @@ router.get('/api/onprem/tab-config', async (req, res) => {
 // ── Apply settings pushed from cloud (tab config, feature toggles) ────────────
 router.post('/api/onprem/apply-settings', async (req, res) => {
   try {
-    const ip = req.ip || req.socket.remoteAddress || '';
+    // Use socket peer address — ignore X-Forwarded-For (trust proxy bypass)
+    const ip = req.socket.remoteAddress || '';
     if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip)) return res.status(403).json({ error: 'Localhost only' });
     const { licenseKey, settings } = req.body as { licenseKey: string; settings: Record<string, unknown> };
 
@@ -250,8 +252,8 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
 // ── On-prem local provision (called by Electron after wizard, localhost only) ──
 router.post('/api/onprem/provision', async (req, res) => {
   try {
-    // Only allow from localhost — this endpoint must never be exposed publicly
-    const ip = req.ip || req.socket.remoteAddress || '';
+    // Only allow from localhost — use socket peer (ignore X-Forwarded-For)
+    const ip = req.socket.remoteAddress || '';
     if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip)) {
       return res.status(403).json({ error: 'Localhost only' });
     }

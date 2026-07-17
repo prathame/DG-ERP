@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
@@ -64,27 +65,53 @@ export function createApp(): express.Application {
     app.set('trust proxy', 1);
   }
 
+  // Correlation ID on every request — clients get it on errors; details stay server-side
+  app.use((req, res, next) => {
+    const incoming = req.headers['x-correlation-id'];
+    const correlationId = (typeof incoming === 'string' && incoming.trim())
+      ? incoming.trim().slice(0, 64)
+      : crypto.randomUUID();
+    (req as express.Request & { correlationId?: string }).correlationId = correlationId;
+    res.setHeader('X-Correlation-ID', correlationId);
+    const origJson = res.json.bind(res);
+    res.json = ((body: unknown) => {
+      if (res.statusCode >= 500) {
+        logger.error('API 500 response', { correlationId, method: req.method, path: req.path });
+        return origJson({ error: 'Internal server error', correlationId });
+      }
+      return origJson(body as Parameters<typeof origJson>[0]);
+    }) as typeof res.json;
+    next();
+  });
+
   app.use(compression());
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        // Production builds load scripts from same origin only (no inline)
+        scriptSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "https:"],
         connectSrc: ["'self'", "https://wa.me", "https://mail.google.com"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        frameAncestors: ["'none'"],
       },
     },
     crossOriginEmbedderPolicy: false,
     frameguard: { action: 'deny' },
     hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    noSniff: true,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
 
-  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || (isProduction
-    ? ['https://dhandho.app', 'https://dg-erp.onrender.com']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002']);
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS?.split(',') || (isProduction
+    ? [] // production must set ALLOWED_ORIGINS (assertCriticalEnv)
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002']))
+    .map((o) => o.trim())
+    .filter(Boolean);
   // Capacitor / Ionic WebView origins for the mobile app
   const capacitorOrigins = new Set([
     'capacitor://localhost',
@@ -97,14 +124,16 @@ export function createApp(): express.Application {
     if (origin && (allowedOrigins.includes(origin) || capacitorOrigins.has(origin))) {
       res.header('Access-Control-Allow-Origin', origin);
     }
+    // Never reflect * — unlisted origins get no Allow-Origin header
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Tenant-ID');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Tenant-ID, X-Correlation-ID');
     res.header('Access-Control-Allow-Credentials', 'true');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
   });
 
-  if (!isTest) {
+  // Verbose request logging is debug-only (never production)
+  if (!isTest && !isProduction) {
     app.use((req, res, next) => {
       if (!req.originalUrl.startsWith('/api/')) return next();
       const start = Date.now();
@@ -114,7 +143,6 @@ export function createApp(): express.Application {
         const tenant = (req.headers['x-tenant-id'] as string)?.slice(0, 8) || '—';
         const icon = status >= 500 ? '💥' : status >= 400 ? '⚠️' : status >= 300 ? '↩️' : '✅';
         const method = req.method.padEnd(7);
-        // Redact query tokens — never log Authorization headers
         const safeUrl = req.originalUrl.replace(/([?&](?:token|access_token|refresh_token)=)[^&]+/gi, '$1[REDACTED]');
         console.log(`${icon} ${method}${safeUrl}  →  ${status}  (${ms}ms)  tenant:${tenant}`);
       });
@@ -189,15 +217,47 @@ export function createApp(): express.Application {
 
   app.use('/api/', enforceModulePermissions);
 
-  const loginMax = isTest ? 1000 : (isProduction ? 10 : 50);
-  const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: loginMax, message: { error: 'Too many login attempts, try again in 15 minutes' }, standardHeaders: true, legacyHeaders: false });
+  // Auth rate limits: ≥5 login attempts / minute / IP; ≥3 password-reset requests / hour / IP
+  const loginMax = isTest ? 1000 : 5;
+  const loginLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: loginMax,
+    message: { error: 'Too many login attempts, try again in 1 minute' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
   app.use('/api/auth/login', loginLimiter);
   app.use('/api/super-admin/login', loginLimiter);
   if (!isTest) {
-    app.use('/api/settings/change-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many password change attempts' } }));
-    app.use('/api/auth/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many reset requests, try again in 15 minutes' } }));
-    app.use('/api/auth/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many reset attempts' } }));
-    app.use('/api/auth/signup', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many signup attempts' } }));
+    app.use('/api/settings/change-password', rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 20,
+      message: { error: 'Too many password change attempts' },
+      standardHeaders: true,
+      legacyHeaders: false,
+    }));
+    const resetRequestLimiter = rateLimit({
+      windowMs: 60 * 60 * 1000,
+      max: 3,
+      message: { error: 'Too many reset requests, try again in 1 hour' },
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+    app.use('/api/auth/forgot-password', resetRequestLimiter);
+    app.use('/api/auth/reset-password', rateLimit({
+      windowMs: 60 * 60 * 1000,
+      max: 5,
+      message: { error: 'Too many reset attempts, try again later' },
+      standardHeaders: true,
+      legacyHeaders: false,
+    }));
+    app.use('/api/auth/signup', rateLimit({
+      windowMs: 60 * 60 * 1000,
+      max: 3,
+      message: { error: 'Too many signup attempts' },
+      standardHeaders: true,
+      legacyHeaders: false,
+    }));
   }
 
   app.get('/manifest.json', async (req, res) => {
@@ -301,8 +361,15 @@ export function createApp(): express.Application {
   app.use(accountsRouter);
 
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    logger.error('Unhandled error', { method: req.method, path: req.path, error: err.message, stack: isProduction ? undefined : err.stack });
-    res.status(500).json({ error: 'Internal server error' });
+    const correlationId = (req as express.Request & { correlationId?: string }).correlationId || res.getHeader('X-Correlation-ID');
+    logger.error('Unhandled error', {
+      correlationId,
+      method: req.method,
+      path: req.path,
+      error: err.message,
+      stack: isProduction ? undefined : err.stack,
+    });
+    res.status(500).json({ error: 'Internal server error', correlationId });
   });
 
   app.get('*', (req, res, next) => {
