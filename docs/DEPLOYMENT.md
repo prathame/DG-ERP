@@ -19,7 +19,13 @@
 5. Health: `GET /api/health` → `{ ok: true, db: "up" }` (HTTP 503 if DB down)
 6. Configure Render health check path: `/api/health`
 
-If the Dashboard build command was customized, set it to match `render.yaml`.
+**Important:** If the Render Dashboard has a custom Build Command, it **overrides** `render.yaml`. Set it to:
+
+```text
+npm ci --include=dev && npm run build:prod
+```
+
+Do not use bare `npm ci && npm run build:prod` — with `NODE_ENV=production` that omits `devDependencies` and can fail on `husky` / Tailwind.
 
 ## Rollback
 
