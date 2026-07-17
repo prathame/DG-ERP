@@ -25,6 +25,8 @@ app.use(helmet({
     },
   },
   crossOriginEmbedderPolicy: false,
+  // Capacitor/Electron call the JSON API cross-origin — default CORP same-origin would block them
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
   frameguard: { action: 'deny' },
   hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
   noSniff: true,
@@ -49,6 +51,7 @@ app.use(helmet({
 ### Non-CSP helmet options
 
 - **`crossOriginEmbedderPolicy: false`** — explicitly *disabled*. The default `COEP` header can break cross-origin resource loading (fonts, images from third-party CDNs) unless every one of those resources also opts in with `Cross-Origin-Resource-Policy` — which this app's dependencies (Google Fonts, WhatsApp links) don't necessarily set. Disabling it is a pragmatic call: the isolation benefits of COEP (mainly relevant for `SharedArrayBuffer`-using apps) don't apply here, and leaving it on would risk silently broken fonts/images in production.
+- **`crossOriginResourcePolicy: { policy: 'cross-origin' }`** — Helmet's default `same-origin` CORP would block Capacitor WebViews (`https://localhost` / `capacitor://localhost`) and Electron from reading `/api/*` JSON even when CORS allows them. The API is intentionally readable cross-origin by those app shells.
 - **`hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }`** — a full one-year `Strict-Transport-Security` header with subdomain inclusion and preload-list eligibility. Once a browser sees this header once, it refuses to ever connect to this domain (or any subdomain) over plain HTTP again for a year, even if a user explicitly types `http://` — closing off SSL-stripping downgrade attacks. `preload: true` is an aggressive setting — submitting the domain to the browser vendors' HSTS preload list means *even a user's very first visit* is HTTPS-only, with the caveat that reverting is slow (removal from the preload list can take months to propagate).
 - **`noSniff: true`** — sends `X-Content-Type-Options: nosniff`, preventing browsers from trying to guess ("sniff") a resource's type from its content rather than trusting the server's declared `Content-Type`. Blocks a specific old attack where a file uploaded/served as `.txt` but containing HTML/JS could be sniffed and executed as a script by a permissive browser.
 - **`referrerPolicy: { policy: 'strict-origin-when-cross-origin' }`** — when a user clicks a link that leaves Dhandho (or a page makes a cross-origin request), the browser sends only the origin (`https://tenant.dhandho.app`), not the full path/query string, to the destination — preventing a leaked URL from revealing, say, a tenant slug embedded deep in a path to an unrelated third party.

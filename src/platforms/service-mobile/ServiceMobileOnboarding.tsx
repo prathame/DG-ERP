@@ -35,7 +35,6 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
     }
     setBusy(true);
     try {
-      await getLocalDb();
       const machineId = await getOrCreateDeviceId();
       const osInfo =
         typeof navigator !== 'undefined'
@@ -51,6 +50,12 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
         setError(result.error || 'Activation failed');
         return;
       }
+      try {
+        await getLocalDb();
+      } catch {
+        setError('Could not open local database on this phone. Free some storage and try again.');
+        return;
+      }
       saveLicense({
         licenseKey: result.licenseKey || key,
         companyName: result.companyName,
@@ -63,8 +68,13 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
       setCompanyName(result.companyName);
       // Always offer file restore — we do not store backups in the cloud
       setStep('restore');
-    } catch {
-      setError('Cannot reach activation server. Go online and try again.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/abort|timeout/i.test(msg)) {
+        setError('Activation timed out. Check internet and try again.');
+      } else {
+        setError('Cannot reach activation server. Go online and try again.');
+      }
     } finally {
       setBusy(false);
     }

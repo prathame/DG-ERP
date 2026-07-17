@@ -26,12 +26,21 @@ function cloudOrigin(): string {
   return 'https://dg-erp.onrender.com';
 }
 
+function abortAfter(ms: number): AbortSignal {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms);
+  }
+  const c = new AbortController();
+  setTimeout(() => c.abort(), ms);
+  return c.signal;
+}
+
 async function cloudPost<T>(path: string, body: Record<string, unknown>): Promise<{ status: number; data: T }> {
   const r = await fetch(`${cloudOrigin()}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(20000),
+    signal: abortAfter(20000),
   });
   const data = (await r.json().catch(() => ({}))) as T;
   return { status: r.status, data };

@@ -46,6 +46,10 @@ That URL is the code default for `service_mobile_app_url` / `/api/download-links
 gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clobber
 ```
 
+## Activation (cloud)
+
+Phone calls `POST /api/service-mobile/activate` on `VITE_API_ORIGIN` (baked into the APK). Capacitor WebView origins (`https://localhost`, `capacitor://localhost`, …) must be on the cloud CORS allowlist — see [Headers & CSP](/security/headers-and-csp). Without that, the app shows “Cannot reach activation server” even when the API is up.
+
 ## Operator flow
 
 1. SA issues Service Mobile license  
