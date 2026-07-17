@@ -17,6 +17,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 9 | Phone lost restore | SA Unbind → new phone activate → Restore from **their** backup file | Same company data; wrong license key cannot decrypt |
 | 10 | Cloud backup API | POST `/api/service-mobile/backup` | 410 Gone |
 | 11 | Sideload / TestFlight | Install APK or TestFlight build | App opens; onboarding works |
+| 11c | Safe areas / no overlap | Open setup + main app on notched phone | Status bar and bottom nav do not cover title, buttons, or form fields |
 | 11b | Public download link | Open `/download` → Offline Mobile Download | Hits evergreen GitHub APK (`…/releases/download/offline-mobile/offline-mobile-service-debug.apk`) unless SA overrode URL |
 | 12 | Download page | Open `/download` | **Service Mobile OFFLINE** card present; distinct from Service Cloud ONLINE |
 

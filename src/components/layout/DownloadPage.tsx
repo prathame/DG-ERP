@@ -48,10 +48,13 @@ export function DownloadPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-white">
-      <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/10 backdrop-blur-xl bg-black/40">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2">
+    <div className="min-h-[100dvh] bg-[#09090B] text-white">
+      <nav
+        className="fixed top-0 inset-x-0 z-50 border-b border-white/10 backdrop-blur-xl bg-black/40"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+          <a href="/" className="flex items-center gap-2 min-w-0">
             <img
               src="/icons/logo-full.png"
               alt="Dhando"
@@ -59,19 +62,31 @@ export function DownloadPage() {
               style={{ filter: 'drop-shadow(0 0 8px rgba(242,125,38,0.3))' }}
             />
           </a>
-          <a href="/" className="text-sm text-white/50 hover:text-white transition-colors">
-            ← Back to home
+          <a href="/" className="text-sm text-white/50 hover:text-white transition-colors shrink-0">
+            ← Back
           </a>
         </div>
       </nav>
 
-      <div className="max-w-3xl mx-auto px-4 pt-28 pb-20">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-14">
+      <div
+        className="max-w-3xl mx-auto px-4 pb-20"
+        style={{
+          paddingTop: 'calc(5.5rem + env(safe-area-inset-top, 0px))',
+          paddingBottom: 'max(5rem, calc(2rem + env(safe-area-inset-bottom, 0px)))',
+        }}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-10 sm:mb-14"
+        >
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-brand/30 bg-brand/10 text-brand text-xs font-bold mb-6">
             <Download size={12} /> Download Dhando
           </div>
-          <h1 className="text-4xl sm:text-5xl font-bold mb-4">Get the App</h1>
-          <p className="text-white/50 text-lg">Testing builds — one stable URL each. No versioned releases.</p>
+          <h1 className="text-3xl sm:text-5xl font-bold mb-4 leading-tight">Get the App</h1>
+          <p className="text-white/50 text-base sm:text-lg px-1">
+            Testing builds — one stable URL each. No versioned releases.
+          </p>
         </motion.div>
 
         {loading && (
@@ -93,10 +108,10 @@ export function DownloadPage() {
               animate={{ opacity: 1, y: 0 }}
               className="rounded-2xl border border-sky-500/25 bg-sky-500/5 overflow-hidden"
             >
-              <div className="px-6 py-5 border-b border-white/10">
+              <div className="px-4 sm:px-6 py-5 border-b border-white/10">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <Cloud size={18} className="text-sky-400" />
-                  <span className="font-bold text-lg">Dhando Service Cloud</span>
+                  <Cloud size={18} className="text-sky-400 shrink-0" />
+                  <span className="font-bold text-base sm:text-lg">Dhando Service Cloud</span>
                   <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-full font-bold">
                     ONLINE
                   </span>
@@ -105,7 +120,7 @@ export function DownloadPage() {
                   Cloud seats for service tenants. Needs internet. One live session company-wide.
                 </p>
               </div>
-              <div className="px-6 py-4 space-y-3">
+              <div className="px-4 sm:px-6 py-4 space-y-3">
                 {links?.serviceCloudAppUrl ? (
                   <DownloadButton href={links.serviceCloudAppUrl} label="Download Service Cloud app" accent="sky" />
                 ) : (
@@ -128,10 +143,10 @@ export function DownloadPage() {
               transition={{ delay: 0.05 }}
               className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 overflow-hidden"
             >
-              <div className="px-6 py-5 border-b border-white/10">
+              <div className="px-4 sm:px-6 py-5 border-b border-white/10">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <Smartphone size={18} className="text-emerald-400" />
-                  <span className="font-bold text-lg">Dhando Service Mobile</span>
+                  <Smartphone size={18} className="text-emerald-400 shrink-0" />
+                  <span className="font-bold text-base sm:text-lg">Dhando Service Mobile</span>
                   <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
                     OFFLINE
                   </span>
@@ -140,7 +155,7 @@ export function DownloadPage() {
                   Phone-only offline ERP. Separate from Service Cloud seats above.
                 </p>
               </div>
-              <div className="px-6 py-4 space-y-3">
+              <div className="px-4 sm:px-6 py-4 space-y-3">
                 {links?.serviceMobileAppUrl ? (
                   <DownloadButton
                     href={links.serviceMobileAppUrl}

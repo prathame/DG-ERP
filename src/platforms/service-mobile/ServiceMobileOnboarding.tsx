@@ -135,14 +135,20 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+    <div
+      className="min-h-[100dvh] bg-gradient-to-b from-emerald-50 to-white flex items-start sm:items-center justify-center px-4 py-6 overflow-y-auto"
+      style={{
+        paddingTop: 'max(1.5rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))',
+      }}
+    >
+      <div className="w-full max-w-md bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 space-y-4 my-auto">
         <div className="text-center space-y-2">
           <div className="mx-auto w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
             <Smartphone size={24} />
           </div>
           <h1 className="text-xl font-bold text-gray-900">Offline Mobile setup</h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 leading-snug">
             Service business type — data stays on this phone. We do not store your backups in the cloud.
           </p>
         </div>
