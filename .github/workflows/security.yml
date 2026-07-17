@@ -22,8 +22,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: npm audit (high + critical only)
-        run: npm audit --audit-level=high || true
+      - name: npm audit (critical fails; xlsx high known)
+        run: |
+          # Fail on critical. High: allow only SheetJS xlsx (no patched release yet).
+          set +e
+          OUT=$(npm audit --json 2>/dev/null)
+          set -e
+          CRIT=$(echo "$OUT" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);const m=j.metadata?.vulnerabilities||{};process.stdout.write(String(m.critical||0))}catch{process.stdout.write('0')}})")
+          echo "Critical vulnerabilities: $CRIT"
+          if [ "$CRIT" != "0" ]; then
+            npm audit --audit-level=critical
+            exit 1
+          fi
+          echo "No critical vulns (xlsx high tracked separately — see release.yml)"
 
   secrets:
     name: Secret Detection

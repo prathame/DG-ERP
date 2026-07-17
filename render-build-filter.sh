@@ -9,7 +9,8 @@ if [ -z "$changed_files" ]; then
   exit 0
 fi
 
-non_doc_changes=$(echo "$changed_files" | grep -v '\.md$' | grep -v 'LICENSE' | grep -v '\.txt$')
+# Skip only root docs — keep public/robots.txt (and similar) deployable
+non_doc_changes=$(echo "$changed_files" | grep -v '\.md$' | grep -v '^LICENSE$' | grep -v '^DEVELOPER\.md$' | grep -Ev '^(README|CHANGELOG|CONTRIBUTING)\.md$')
 
 if [ -z "$non_doc_changes" ]; then
   echo "=> Only documentation files changed, skipping deploy:"
