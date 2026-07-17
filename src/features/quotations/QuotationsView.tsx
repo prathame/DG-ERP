@@ -25,7 +25,18 @@ import {
 } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { BillSettings, Product, Vendor } from '../../types';
-import { useToast, LoadingSpinner } from '../../components/ui';
+import {
+  useToast,
+  LoadingSpinner,
+  AppModal,
+  ModalActions,
+  ModalActionButton,
+  FormGrid,
+  FormField,
+  formControlClass,
+  LineItemCard,
+  type LineItemCardField,
+} from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
 import { session } from '../../lib/session';
@@ -734,17 +745,34 @@ export function QuotationsView() {
       {/* Create Quotation Modal */}
       <AnimatePresence>
         {modalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto p-6"
-            >
-              <h3 className="text-lg font-bold mb-4">{editingId ? 'Edit Draft Quotation' : 'New Quotation'}</h3>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Vendor / Customer</label>
+          <AppModal
+            title={editingId ? 'Edit Draft Quotation' : 'New Quotation'}
+            onClose={() => {
+              setModalOpen(false);
+              resetForm();
+            }}
+            zIndex={100}
+            size="lg"
+            footer={
+              <ModalActions>
+                <ModalActionButton
+                  variant="ghost"
+                  onClick={() => {
+                    setModalOpen(false);
+                    resetForm();
+                  }}
+                >
+                  Cancel
+                </ModalActionButton>
+                <ModalActionButton variant="primary" disabled={submitting} onClick={handleCreate}>
+                  {submitting ? 'Saving…' : editingId ? 'Save Changes' : 'Create Quotation'}
+                </ModalActionButton>
+              </ModalActions>
+            }
+          >
+            <div className="space-y-4">
+              <FormGrid>
+                <FormField label="Vendor / Customer">
                   <select
                     value={form.vendorId}
                     onChange={e => {
@@ -762,7 +790,7 @@ export function QuotationsView() {
                         }
                       });
                     }}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                    className={formControlClass}
                   >
                     <option value="">Select or type below</option>
                     {vendors
@@ -773,48 +801,172 @@ export function QuotationsView() {
                         </option>
                       ))}
                   </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Customer Name</label>
+                </FormField>
+                <FormField label="Customer Name">
                   <input
                     value={form.customerName}
                     onChange={e => setForm({ ...form, customerName: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                    className={formControlClass}
                     placeholder="If not a vendor"
                   />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Phone</label>
+                </FormField>
+                <FormField label="Phone">
                   <input
+                    type="tel"
                     value={form.customerPhone}
                     onChange={e => setForm({ ...form, customerPhone: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                    className={formControlClass}
                   />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Date</label>
+                </FormField>
+                <FormField label="Date">
                   <input
                     type="date"
                     value={form.date}
                     onChange={e => setForm({ ...form, date: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                    className={formControlClass}
                   />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Valid Until</label>
+                </FormField>
+                <FormField label="Valid Until">
                   <input
                     type="date"
                     value={form.validUntil}
                     onChange={e => setForm({ ...form, validUntil: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                    className={formControlClass}
                   />
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 mb-2">
-                Defaults: vendor/client price list → generic → inventory. Edit any line to negotiate; saved quote keeps
-                that price on convert.
+                </FormField>
+              </FormGrid>
+              <p className="text-xs text-gray-500">
+                Defaults: vendor/client price list → generic → inventory. Edit any line to negotiate.
               </p>
-              <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
+
+              <div className="sm:hidden space-y-3">
+                {rows.map((row, idx) => {
+                  const p = products.find(x => x.id === row.productId);
+                  const { total: lineTotal } = lineAmounts(row);
+                  const qFields: LineItemCardField[] = [
+                    {
+                      key: 'product',
+                      label: 'Product',
+                      wide: true,
+                      node: (
+                        <select
+                          value={row.productId}
+                          onChange={e => {
+                            const pid = e.target.value;
+                            const sel = products.find(x => x.id === pid);
+                            setRows(
+                              rows.map((r, i) =>
+                                i === idx
+                                  ? {
+                                      ...r,
+                                      productId: pid,
+                                      customPrice: sel ? String(sel.price) : '',
+                                    }
+                                  : r,
+                              ),
+                            );
+                            if (pid) resolveQuoteRowPrice(idx, pid, form.vendorId, row.quantity || 1);
+                          }}
+                          className={formControlClass}
+                        >
+                          <option value="">Select</option>
+                          {products.map(pr => (
+                            <option key={pr.id} value={pr.id}>
+                              {pr.name} (₹{pr.price.toLocaleString()})
+                            </option>
+                          ))}
+                        </select>
+                      ),
+                    },
+                    {
+                      key: 'qty',
+                      label: 'Quantity',
+                      node: (
+                        <input
+                          type="number"
+                          min={1}
+                          inputMode="numeric"
+                          value={row.quantity || ''}
+                          onChange={e => {
+                            const newQty = parseInt(e.target.value) || 0;
+                            setRows(rows.map((r, i) => (i === idx ? { ...r, quantity: newQty } : r)));
+                            if (row.productId && newQty > 0) {
+                              resolveQuoteRowPrice(idx, row.productId, form.vendorId, newQty);
+                            }
+                          }}
+                          className={formControlClass}
+                        />
+                      ),
+                    },
+                    {
+                      key: 'price',
+                      label: 'Price',
+                      node: (
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={row.customPrice}
+                          onChange={e =>
+                            setRows(rows.map((r, i) => (i === idx ? { ...r, customPrice: e.target.value } : r)))
+                          }
+                          placeholder={p ? `₹${p.price}` : '—'}
+                          className={formControlClass}
+                        />
+                      ),
+                    },
+                    {
+                      key: 'disc',
+                      label: 'Discount %',
+                      node: (
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          inputMode="decimal"
+                          value={row.discount || ''}
+                          onChange={e =>
+                            setRows(
+                              rows.map((r, i) => (i === idx ? { ...r, discount: parseFloat(e.target.value) || 0 } : r)),
+                            )
+                          }
+                          className={formControlClass}
+                        />
+                      ),
+                    },
+                    {
+                      key: 'gst',
+                      label: 'GST',
+                      node: (
+                        <label className="flex items-center gap-2 min-h-11 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={row.withGst}
+                            onChange={e =>
+                              setRows(rows.map((r, i) => (i === idx ? { ...r, withGst: e.target.checked } : r)))
+                            }
+                            className="rounded w-5 h-5"
+                          />
+                          Include GST
+                        </label>
+                      ),
+                    },
+                  ];
+                  return (
+                    <div key={idx}>
+                      <LineItemCard
+                        index={idx}
+                        title={p?.name || `Item ${idx + 1}`}
+                        amountLabel={lineTotal > 0 ? `₹${lineTotal.toLocaleString()}` : undefined}
+                        canRemove={rows.length > 1}
+                        onRemove={() => setRows(rows.filter((_, i) => i !== idx))}
+                        fields={qFields}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="hidden sm:block border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="bg-gray-50">
                     <tr className="text-xs font-bold text-gray-400 uppercase">
@@ -939,53 +1091,33 @@ export function QuotationsView() {
                   </tbody>
                 </table>
               </div>
+
               <button
                 type="button"
                 onClick={() =>
                   setRows([...rows, { productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }])
                 }
-                className="text-sm font-bold text-brand mb-4"
+                className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
               >
                 + Add Product
               </button>
-              <div className="bg-gray-50 rounded-xl p-4 mb-4 flex items-center justify-between">
-                <span className="text-sm text-gray-600">
-                  {totals.items} items • Net ₹{totals.net.toLocaleString()} • GST ₹{totals.gst.toLocaleString()}
+              <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-xs sm:text-sm text-gray-600">
+                  {totals.items} items · Net ₹{totals.net.toLocaleString()} · GST ₹{totals.gst.toLocaleString()}
                 </span>
-                <span className="text-lg font-bold text-brand">Total: ₹{totals.total.toLocaleString()}</span>
+                <span className="text-lg font-bold text-brand tabular-nums">₹{totals.total.toLocaleString()}</span>
               </div>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">Notes</label>
+              <FormField label="Notes">
                 <textarea
                   value={form.notes}
                   onChange={e => setForm({ ...form, notes: e.target.value })}
                   rows={2}
-                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg text-sm"
+                  className={cn(formControlClass, 'min-h-[4.5rem]')}
                   placeholder="Terms, conditions, remarks..."
                 />
-              </div>
-              <div className="flex gap-3 mt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setModalOpen(false);
-                    resetForm();
-                  }}
-                  className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreate}
-                  disabled={submitting}
-                  className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60"
-                >
-                  {submitting ? 'Saving...' : editingId ? 'Save Changes' : 'Create Quotation'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
+              </FormField>
+            </div>
+          </AppModal>
         )}
       </AnimatePresence>
       <AnimatePresence>

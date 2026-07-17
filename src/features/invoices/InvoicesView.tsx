@@ -13,7 +13,20 @@ import {
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
 import { fetchApi } from '../../api';
-import { useToast, LoadingSpinner } from '../../components/ui';
+import {
+  useToast,
+  LoadingSpinner,
+  AppModal,
+  ModalActions,
+  ModalActionButton,
+  FormSection,
+  FormGrid,
+  FormField,
+  formControlClass,
+  MobileStepper,
+  LineItemCard,
+  type LineItemCardField,
+} from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { session } from '../../lib/session';
@@ -762,6 +775,9 @@ export function CreateInvoiceModal({
     }
     return '';
   });
+  /** Phone stepper only; desktop shows all sections. */
+  const [step, setStep] = useState(0);
+  const INVOICE_STEPS = ['Party', 'Items', 'Review'];
   const resolveTokenRef = useRef<Record<number, number>>({});
 
   const pricingVendorId = partyKey.startsWith('vendor:') ? partyKey.slice('vendor:'.length) : null;
@@ -944,11 +960,13 @@ export function CreateInvoiceModal({
   const handleSubmit = async (status: 'draft' | 'sent') => {
     if (!form.customerName.trim()) {
       toast('Customer name is required', 'error');
+      setStep(0);
       return;
     }
     const validRows = rows.filter(r => r.description.trim() && r.rate > 0);
     if (!validRows.length) {
       toast('Add at least one line item', 'error');
+      setStep(1);
       return;
     }
     setSubmitting(true);
@@ -982,124 +1000,363 @@ export function CreateInvoiceModal({
     }
   };
 
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        onClick={e => e.stopPropagation()}
-        className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
-      >
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-bold">New Invoice</h3>
-            <p className="text-sm text-gray-500 font-mono">{invoiceNumber}</p>
-          </div>
-          <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="p-6 space-y-4">
-          {/* Customer info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 sm:col-span-1">
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Customer / Vendor *</label>
-              <select
-                value={partyKey}
-                onChange={e => selectParty(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand bg-white"
-              >
-                <option value="">Select vendor or client</option>
-                {parties.map(p => (
-                  <option key={p.key} value={p.key}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Customer Name *</label>
-              <input
-                value={form.customerName}
-                onChange={e => {
-                  setPartyKey('');
-                  setForm({ ...form, customerName: e.target.value });
-                }}
-                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
-                placeholder="Or type a new name"
-                list="invoice-party-names"
-              />
-              <datalist id="invoice-party-names">
-                {parties.map(p => (
-                  <option key={p.key} value={p.name} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">GSTIN</label>
-              <input
-                value={form.customerGstin}
-                onChange={e => setForm({ ...form, customerGstin: e.target.value.toUpperCase() })}
-                maxLength={15}
-                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand font-mono"
-                placeholder="Optional"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Address</label>
-              <input
-                value={form.customerAddress}
-                onChange={e => setForm({ ...form, customerAddress: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
-                placeholder="Street, City, State"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Phone</label>
-              <input
-                type="tel"
-                value={form.customerPhone}
-                onChange={e => setForm({ ...form, customerPhone: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
-                placeholder="Optional"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Invoice Date</label>
-              <input
-                type="date"
-                value={form.invoiceDate}
-                onChange={e => setForm({ ...form, invoiceDate: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Due Date</label>
-              <input
-                type="date"
-                value={form.dueDate}
-                onChange={e => setForm({ ...form, dueDate: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
-              />
-            </div>
-          </div>
+  const goNext = () => {
+    if (step === 0 && !form.customerName.trim()) {
+      toast('Customer name is required', 'error');
+      return;
+    }
+    if (step === 1) {
+      const validRows = rows.filter(r => r.description.trim() && r.rate > 0);
+      if (!validRows.length) {
+        toast('Add at least one line item', 'error');
+        return;
+      }
+    }
+    setStep(s => Math.min(2, s + 1));
+  };
 
-          {/* Line items */}
-          <div>
-            <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Line Items</label>
-            <p className="text-xs text-gray-400 mb-2">
-              Pick from Masters items / Price List, or choose Custom to type freely
-            </p>
-            <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+  const productSelectOptions = (qty: number) =>
+    products.map(p => {
+      const listPrice = resolveCatalogPrice(p, priceRules, pricingVendorId, qty || 1);
+      const fromList = priceRules.some(r => r.productId === p.id && (!r.vendorId || r.vendorId === pricingVendorId));
+      return (
+        <option key={p.id} value={p.id}>
+          {p.name} — ₹{listPrice.toLocaleString()}
+          {fromList ? ' (price list)' : ''}
+        </option>
+      );
+    });
+
+  const renderLineItemFields = (row: InvoiceLineRow, idx: number): LineItemCardField[] => {
+    const catalogPrice =
+      row.productId && products.find(p => p.id === row.productId)
+        ? resolveCatalogPrice(
+            products.find(p => p.id === row.productId)!,
+            priceRules,
+            pricingVendorId,
+            row.qty || 1,
+          )
+        : null;
+    return [
+      {
+        key: 'product',
+        label: 'Product',
+        wide: true as const,
+        node: (
+          <select
+            value={row.productId}
+            onChange={e => applyCatalogItem(idx, e.target.value)}
+            className={formControlClass}
+          >
+            <option value="">Custom item</option>
+            {productSelectOptions(row.qty || 1)}
+          </select>
+        ),
+      },
+      {
+        key: 'description',
+        label: 'Description',
+        wide: true as const,
+        node: (
+          <>
+            <input
+              value={row.description}
+              onChange={e => setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))}
+              className={formControlClass}
+              placeholder={row.productId ? 'Description (editable)' : 'Type custom service or item'}
+            />
+            {catalogPrice != null && row.rate !== catalogPrice && (
+              <p className="text-[10px] text-amber-600 mt-1">
+                Rate edited from price list ₹{catalogPrice.toLocaleString()}
+              </p>
+            )}
+          </>
+        ),
+      },
+      {
+        key: 'hsn',
+        label: 'HSN/SAC',
+        node: (
+          <input
+            value={row.hsnSac}
+            onChange={e => {
+              const v = e.target.value;
+              const hint = suggestHsnRate(v);
+              setRows(
+                rows.map((r, i) =>
+                  i === idx
+                    ? {
+                        ...r,
+                        hsnSac: v,
+                        ...(hint && r.gstPercent === 18 ? { gstPercent: hint.rate } : {}),
+                      }
+                    : r,
+                ),
+              );
+            }}
+            className={cn(formControlClass, 'font-mono')}
+            placeholder="9983"
+          />
+        ),
+      },
+      {
+        key: 'qty',
+        label: 'Quantity',
+        node: (
+          <input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={row.qty || ''}
+            onChange={e => updateRowQty(idx, parseInt(e.target.value) || 0)}
+            className={formControlClass}
+          />
+        ),
+      },
+      {
+        key: 'rate',
+        label: 'Rate',
+        node: (
+          <input
+            type="number"
+            min={0}
+            inputMode="decimal"
+            value={row.rate || ''}
+            onChange={e =>
+              setRows(rows.map((r, i) => (i === idx ? { ...r, rate: parseFloat(e.target.value) || 0 } : r)))
+            }
+            className={formControlClass}
+          />
+        ),
+      },
+      {
+        key: 'disc',
+        label: 'Discount %',
+        node: (
+          <input
+            type="number"
+            min={0}
+            max={100}
+            inputMode="decimal"
+            value={row.discountPercent || ''}
+            onChange={e =>
+              setRows(
+                rows.map((r, i) =>
+                  i === idx
+                    ? {
+                        ...r,
+                        discountPercent: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)),
+                      }
+                    : r,
+                ),
+              )
+            }
+            className={formControlClass}
+            placeholder="0"
+          />
+        ),
+      },
+      {
+        key: 'gst',
+        label: 'GST %',
+        node: (
+          <input
+            type="number"
+            min={0}
+            max={28}
+            inputMode="numeric"
+            value={row.gstPercent}
+            onChange={e =>
+              setRows(rows.map((r, i) => (i === idx ? { ...r, gstPercent: parseInt(e.target.value) || 0 } : r)))
+            }
+            className={formControlClass}
+          />
+        ),
+      },
+    ];
+  };
+
+  const totalsBar = (
+    <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
+      <div className="text-xs sm:text-sm text-gray-600 min-w-0">
+        Subtotal: ₹{totals.subtotal.toLocaleString()}
+        <span className="hidden xs:inline"> • </span>
+        <br className="sm:hidden" />
+        Tax: ₹{totals.tax.toLocaleString()}
+      </div>
+      <div className="text-lg sm:text-xl font-bold text-brand shrink-0 tabular-nums">
+        ₹{totals.grand.toLocaleString()}
+      </div>
+    </div>
+  );
+
+  const footer = (
+    <>
+      {/* Phone stepper actions */}
+      <div className="sm:hidden">
+        <ModalActions>
+          {step === 0 ? (
+            <ModalActionButton variant="ghost" onClick={onClose}>
+              Cancel
+            </ModalActionButton>
+          ) : (
+            <ModalActionButton variant="ghost" onClick={() => setStep(s => Math.max(0, s - 1))}>
+              Back
+            </ModalActionButton>
+          )}
+          {step < 2 ? (
+            <ModalActionButton variant="primary" onClick={goNext}>
+              Next
+            </ModalActionButton>
+          ) : (
+            <>
+              <ModalActionButton variant="secondary" disabled={submitting} onClick={() => handleSubmit('draft')}>
+                {submitting ? 'Saving…' : 'Save Draft'}
+              </ModalActionButton>
+              <ModalActionButton variant="primary" disabled={submitting} onClick={() => handleSubmit('sent')}>
+                {submitting ? 'Saving…' : 'Create & Send'}
+              </ModalActionButton>
+            </>
+          )}
+        </ModalActions>
+      </div>
+      {/* Desktop actions */}
+      <div className="hidden sm:block">
+        <ModalActions>
+          <ModalActionButton variant="ghost" onClick={onClose}>
+            Cancel
+          </ModalActionButton>
+          <ModalActionButton variant="secondary" disabled={submitting} onClick={() => handleSubmit('draft')}>
+            {submitting ? 'Saving…' : 'Save as Draft'}
+          </ModalActionButton>
+          <ModalActionButton variant="primary" disabled={submitting} onClick={() => handleSubmit('sent')}>
+            {submitting ? 'Saving…' : 'Create & Send'}
+          </ModalActionButton>
+        </ModalActions>
+      </div>
+    </>
+  );
+
+  return (
+    <AppModal
+      title="New Invoice"
+      subtitle={<span className="font-mono">{invoiceNumber}</span>}
+      onClose={onClose}
+      footer={footer}
+      size="lg"
+    >
+      <div className="space-y-4">
+        <MobileStepper
+          className="sm:hidden"
+          steps={INVOICE_STEPS}
+          current={step}
+          onStepClick={i => {
+            if (i <= step) setStep(i);
+          }}
+        />
+
+        {/* Step 0 — Party */}
+        <div className={cn(step !== 0 && 'hidden', 'sm:block space-y-4')}>
+          <FormSection title="Customer" description="Select a party or type a new customer">
+            <FormGrid>
+              <FormField label="Customer / Vendor" required className="sm:col-span-2">
+                <select value={partyKey} onChange={e => selectParty(e.target.value)} className={formControlClass}>
+                  <option value="">Select vendor or client</option>
+                  {parties.map(p => (
+                    <option key={p.key} value={p.key}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label="Customer Name" required>
+                <input
+                  value={form.customerName}
+                  onChange={e => {
+                    setPartyKey('');
+                    setForm({ ...form, customerName: e.target.value });
+                  }}
+                  className={formControlClass}
+                  placeholder="Or type a new name"
+                  list="invoice-party-names"
+                />
+                <datalist id="invoice-party-names">
+                  {parties.map(p => (
+                    <option key={p.key} value={p.name} />
+                  ))}
+                </datalist>
+              </FormField>
+              <FormField label="GSTIN">
+                <input
+                  value={form.customerGstin}
+                  onChange={e => setForm({ ...form, customerGstin: e.target.value.toUpperCase() })}
+                  maxLength={15}
+                  className={cn(formControlClass, 'font-mono')}
+                  placeholder="Optional"
+                />
+              </FormField>
+              <FormField label="Address" className="sm:col-span-2">
+                <input
+                  value={form.customerAddress}
+                  onChange={e => setForm({ ...form, customerAddress: e.target.value })}
+                  className={formControlClass}
+                  placeholder="Street, City, State"
+                />
+              </FormField>
+              <FormField label="Phone">
+                <input
+                  type="tel"
+                  value={form.customerPhone}
+                  onChange={e => setForm({ ...form, customerPhone: e.target.value })}
+                  className={formControlClass}
+                  placeholder="Optional"
+                />
+              </FormField>
+              <FormField label="Invoice Date">
+                <input
+                  type="date"
+                  value={form.invoiceDate}
+                  onChange={e => setForm({ ...form, invoiceDate: e.target.value })}
+                  className={formControlClass}
+                />
+              </FormField>
+              <FormField label="Due Date">
+                <input
+                  type="date"
+                  value={form.dueDate}
+                  onChange={e => setForm({ ...form, dueDate: e.target.value })}
+                  className={formControlClass}
+                />
+              </FormField>
+            </FormGrid>
+          </FormSection>
+        </div>
+
+        {/* Step 1 — Items */}
+        <div className={cn(step !== 1 && 'hidden', 'sm:block space-y-3')}>
+          <FormSection title="Line Items" description="Pick from Masters / Price List, or choose Custom">
+            {/* Mobile cards */}
+            <div className="sm:hidden space-y-3">
+              {rows.map((row, idx) => {
+                const taxable = lineTaxable(row.qty, row.rate, row.discountPercent);
+                const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
+                return (
+                  <div key={idx}>
+                    <LineItemCard
+                      index={idx}
+                      title={row.description || `Item ${idx + 1}`}
+                      amountLabel={taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString()}` : undefined}
+                      canRemove={rows.length > 1}
+                      onRemove={() => setRows(rows.filter((_, i) => i !== idx))}
+                      fields={renderLineItemFields(row, idx)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden sm:block border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
               <table className="w-full text-sm min-w-[720px]">
                 <thead className="bg-gray-50">
                   <tr className="text-xs font-bold text-gray-400 uppercase">
@@ -1135,18 +1392,7 @@ export function CreateInvoiceModal({
                             className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
                           >
                             <option value="">Custom item</option>
-                            {products.map(p => {
-                              const listPrice = resolveCatalogPrice(p, priceRules, pricingVendorId, row.qty || 1);
-                              const fromList = priceRules.some(
-                                r => r.productId === p.id && (!r.vendorId || r.vendorId === pricingVendorId),
-                              );
-                              return (
-                                <option key={p.id} value={p.id}>
-                                  {p.name} — ₹{listPrice.toLocaleString()}
-                                  {fromList ? ' (price list)' : ''}
-                                </option>
-                              );
-                            })}
+                            {productSelectOptions(row.qty || 1)}
                           </select>
                           <input
                             value={row.description}
@@ -1252,7 +1498,8 @@ export function CreateInvoiceModal({
                             <button
                               type="button"
                               onClick={() => setRows(rows.filter((_, i) => i !== idx))}
-                              className="text-rose-400 hover:text-rose-600"
+                              className="text-rose-400 hover:text-rose-600 min-h-9 min-w-9"
+                              aria-label="Remove line"
                             >
                               ×
                             </button>
@@ -1264,71 +1511,49 @@ export function CreateInvoiceModal({
                 </tbody>
               </table>
             </div>
+
             <button
               type="button"
               onClick={() => setRows([...rows, emptyRow()])}
-              className="text-sm font-bold text-brand mt-2"
+              className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
             >
               + Add Line
             </button>
-          </div>
+            <div className={cn(step !== 1 && 'max-sm:hidden')}>{totalsBar}</div>
+          </FormSection>
+        </div>
 
-          {/* Totals */}
-          <div className="bg-gray-50 rounded-xl p-4 flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              Subtotal: ₹{totals.subtotal.toLocaleString()} • Tax: ₹{totals.tax.toLocaleString()}
-            </div>
-            <div className="text-xl font-bold text-brand">₹{totals.grand.toLocaleString()}</div>
+        {/* Step 2 — Review */}
+        <div className={cn(step !== 2 && 'hidden', 'sm:block space-y-4')}>
+          <div className="sm:hidden space-y-2 text-sm">
+            <p className="font-medium text-gray-800">{form.customerName || '—'}</p>
+            <p className="text-xs text-gray-500">
+              {rows.filter(r => r.description.trim()).length} item(s) · Invoice date {form.invoiceDate || '—'}
+            </p>
           </div>
-
-          {/* Notes & Terms */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Notes</label>
+          {totalsBar}
+          <FormGrid>
+            <FormField label="Notes">
               <textarea
                 value={form.notes}
                 onChange={e => setForm({ ...form, notes: e.target.value })}
-                rows={2}
-                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand text-sm"
+                rows={3}
+                className={cn(formControlClass, 'min-h-[5rem]')}
                 placeholder="Payment terms, bank details..."
               />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Terms & Conditions</label>
+            </FormField>
+            <FormField label="Terms & Conditions">
               <textarea
                 value={form.terms}
                 onChange={e => setForm({ ...form, terms: e.target.value })}
-                rows={2}
-                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand text-sm"
+                rows={3}
+                className={cn(formControlClass, 'min-h-[5rem]')}
                 placeholder="E&OE, goods once sold..."
               />
-            </div>
-          </div>
+            </FormField>
+          </FormGrid>
         </div>
-
-        {/* Actions */}
-        <div className="p-6 border-t border-gray-100 flex gap-3">
-          <button type="button" onClick={onClose} className="px-4 py-2.5 border border-gray-200 rounded-xl font-medium">
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSubmit('draft')}
-            disabled={submitting}
-            className="flex-1 py-2.5 border border-gray-200 rounded-xl font-bold disabled:opacity-60"
-          >
-            {submitting ? 'Saving...' : 'Save as Draft'}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSubmit('sent')}
-            disabled={submitting}
-            className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60"
-          >
-            {submitting ? 'Saving...' : 'Create & Send'}
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </AppModal>
   );
 }

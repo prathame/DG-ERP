@@ -723,56 +723,65 @@ export default function App() {
           <aside
             className={cn(
               'bg-white border-r border-gray-200 transition-transform duration-300 flex flex-col z-50 shadow-xl lg:shadow-none',
-              'fixed lg:relative inset-y-0 left-0',
+              'fixed lg:relative inset-y-0 left-0 h-[100dvh] max-h-[100dvh]',
               isSidebarOpen ? 'w-[min(88vw,20rem)] translate-x-0 lg:w-60' : 'w-16 -translate-x-full lg:translate-x-0',
             )}
           >
-            <div className="min-h-12 lg:h-16 px-3 lg:px-4 flex items-center justify-between border-b border-gray-100 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-2 lg:pt-0 lg:pb-0">
+            {/* Sticky brand / profile */}
+            <div className="shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 border-b border-gray-100 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-2.5 lg:h-16 lg:pt-0 lg:pb-0">
               {isSidebarOpen && (
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <img src="/icons/logo-full.png" alt="Dhando" className="h-7 lg:h-8 w-auto object-contain shrink-0" />
-                  <span className="font-semibold text-gray-900 text-xs lg:text-sm truncate">{user?.companyName}</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 text-xs lg:text-sm truncate leading-tight">
+                      {user?.companyName}
+                    </p>
+                    {user?.name ? (
+                      <p className="text-[10px] text-gray-400 truncate leading-tight lg:hidden">{user.name}</p>
+                    ) : null}
+                  </div>
                 </div>
               )}
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="p-2 min-w-[40px] min-h-[40px] lg:min-w-[44px] lg:min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500"
+                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors cursor-pointer text-gray-500 shrink-0"
                 aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
               >
                 {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
               </button>
             </div>
 
-            <nav className="flex-1 px-2.5 lg:px-3 py-2 lg:py-3 overflow-y-auto">
+            {/* Scrollable menu */}
+            <nav className="flex-1 min-h-0 px-2.5 lg:px-3 py-2 lg:py-3 overflow-y-auto overscroll-contain">
               {navSections.map(section => {
                 const sectionItems = section.items.filter(i => i.show && canAccess(i.id));
                 if (!sectionItems.length) return null;
                 const isCollapsed = section.label ? collapsedSections.has(section.label) : false;
                 const hasActiveChild = sectionItems.some(i => activeTab === i.id);
                 return (
-                  <div key={section.label || '_top'} className={section.label ? 'mt-3' : ''}>
+                  <div key={section.label || '_top'} className={section.label ? 'mt-2 first:mt-0' : ''}>
                     {isSidebarOpen && section.label && (
                       <button
                         type="button"
                         onClick={() => toggleSection(section.label)}
-                        className="w-full flex items-center justify-between px-3 py-1.5 mb-0.5 rounded-lg hover:bg-gray-100 transition-colors group"
+                        className="w-full flex items-center justify-between px-2.5 py-1.5 mb-0.5 rounded-lg hover:bg-gray-50 transition-colors min-h-9"
                       >
                         <span
                           className={cn(
-                            'text-[11px] font-bold uppercase tracking-wider',
-                            hasActiveChild ? 'text-brand' : 'text-gray-600',
+                            'text-[10px] font-bold uppercase tracking-wider',
+                            hasActiveChild ? 'text-brand' : 'text-gray-500',
                           )}
                         >
                           {section.label}
                         </span>
                         <ChevronDown
                           size={14}
-                          className={cn('text-gray-500 transition-transform', isCollapsed ? '-rotate-90' : '')}
+                          className={cn('text-gray-400 transition-transform', isCollapsed ? '-rotate-90' : '')}
                         />
                       </button>
                     )}
-                    {!isSidebarOpen && section.label && <div className="my-2 mx-2 border-t border-gray-100" />}
+                    {!isSidebarOpen && section.label && <div className="my-1.5 mx-2 border-t border-gray-100" />}
                     {(!isCollapsed || !isSidebarOpen) && (
                       <div className="space-y-0.5">
                         {sectionItems.map(item => (
@@ -784,14 +793,14 @@ export default function App() {
                               if (window.innerWidth < 1024) setIsSidebarOpen(false);
                             }}
                             className={cn(
-                              'w-full flex items-center gap-2 px-2.5 lg:px-3 py-2 lg:py-2.5 min-h-[40px] lg:min-h-[44px] rounded-lg transition-all text-xs lg:text-[13px] group relative',
+                              'w-full flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px] group relative',
                               activeTab === item.id
-                                ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[9px]'
+                                ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
                                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                             )}
                           >
                             <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} className="shrink-0" />
-                            {isSidebarOpen && <span>{item.label}</span>}
+                            {isSidebarOpen && <span className="truncate">{item.label}</span>}
                             {!isSidebarOpen && (
                               <span className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                                 {item.label}
@@ -806,47 +815,49 @@ export default function App() {
               })}
             </nav>
 
-            {/* Offline Mobile: no chatbot (floating help widget / sidebar). */}
-            {!serviceMobile && tv('chatbot') && (
-              <div className="px-3 pt-1">
-                <Suspense fallback={null}>
-                  <ChatWidget />
-                </Suspense>
-              </div>
-            )}
-            {canAccess('settings') && (
-              <div className="px-3 pb-2 border-t border-gray-100 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('settings');
-                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                  }}
-                  className={cn(
-                    'w-full flex items-center gap-2 px-2.5 lg:px-3 py-2 lg:py-2.5 min-h-[40px] lg:min-h-[44px] rounded-lg transition-all text-xs lg:text-[13px]',
-                    activeTab === 'settings'
-                      ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[9px]'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-                  )}
-                >
-                  <Settings size={18} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
-                  {isSidebarOpen && <span>{t('nav.settings')}</span>}
-                </button>
-              </div>
-            )}
-            {((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)
-              ?.deploymentMode === 'onprem' && (
-              <div className="px-3 pb-2 border-t border-gray-100 pt-2">
-                <OnlineStatus collapsed={!isSidebarOpen} />
-              </div>
-            )}
-            {isSidebarOpen && (
-              <div className="px-3 pb-3 text-center">
-                <p className="text-[10px] text-gray-400">
-                  Powered by <span className="text-gray-500 font-semibold">Dhandho</span>
-                </p>
-              </div>
-            )}
+            {/* Pinned footer: chatbot (cloud), settings, status */}
+            <div className="shrink-0 border-t border-gray-100 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] lg:pb-2">
+              {!serviceMobile && tv('chatbot') && (
+                <div className="px-3 pt-2">
+                  <Suspense fallback={null}>
+                    <ChatWidget />
+                  </Suspense>
+                </div>
+              )}
+              {canAccess('settings') && (
+                <div className="px-2.5 lg:px-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('settings');
+                      if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                    }}
+                    className={cn(
+                      'w-full flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px]',
+                      activeTab === 'settings'
+                        ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                    )}
+                  >
+                    <Settings size={18} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
+                    {isSidebarOpen && <span>{t('nav.settings')}</span>}
+                  </button>
+                </div>
+              )}
+              {((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)
+                ?.deploymentMode === 'onprem' && (
+                <div className="px-3 pt-2">
+                  <OnlineStatus collapsed={!isSidebarOpen} />
+                </div>
+              )}
+              {isSidebarOpen && (
+                <div className="px-3 pt-2 pb-1 text-center">
+                  <p className="text-[10px] text-gray-400">
+                    Powered by <span className="text-gray-500 font-semibold">Dhandho</span>
+                  </p>
+                </div>
+              )}
+            </div>
           </aside>
 
           {/* Main Content */}
@@ -875,26 +886,30 @@ export default function App() {
                 </div>
               );
             })()}
-            <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100 px-3 sm:px-8 pb-2 sm:pb-4 flex items-center justify-between gap-2 app-header-safe">
-              <div className="flex items-center gap-1.5 min-w-0">
+            <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100 px-3 sm:px-8 pb-2.5 sm:pb-4 flex items-center justify-between gap-2 app-header-safe">
+              <div className="flex items-center gap-2 min-w-0">
                 <button
                   type="button"
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="p-2 min-w-[40px] min-h-[40px] lg:min-w-[44px] lg:min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors lg:hidden shrink-0"
+                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors lg:hidden shrink-0"
                   aria-label="Open menu"
                 >
                   <Menu size={20} />
                 </button>
                 <div className="min-w-0">
-                  <h1 className="text-base sm:text-2xl font-bold truncate leading-tight">{t(`nav.${activeTab}`)}</h1>
-                  <p className="text-[10px] text-gray-400 truncate sm:hidden leading-tight">{user?.companyName}</p>
+                  <h1 className="text-base sm:text-2xl font-bold truncate leading-tight tracking-tight">
+                    {t(`nav.${activeTab}`)}
+                  </h1>
+                  <p className="text-[10px] text-gray-400 truncate sm:hidden leading-tight mt-0.5">
+                    {user?.companyName}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-0.5 sm:gap-3 shrink-0">
+              <div className="flex items-center gap-1 sm:gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setCmdOpen(true)}
-                  className="sm:hidden p-2 min-w-[40px] min-h-[40px] flex items-center justify-center hover:bg-gray-100 rounded-lg text-gray-500"
+                  className="sm:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg text-gray-500"
                   aria-label="Search"
                 >
                   <Search size={18} />

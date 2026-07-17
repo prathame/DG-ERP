@@ -4,7 +4,20 @@ import { ShoppingBag, Plus, ArrowLeft, Search, IndianRupee, Trash2, Receipt } fr
 import { cn, formatDate, exportToCsv, useTabLabel } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
-import { useToast, LoadingSpinner, PaidBadge, isBillFullyPaid } from '../../components/ui';
+import {
+  useToast,
+  LoadingSpinner,
+  PaidBadge,
+  isBillFullyPaid,
+  AppModal,
+  ModalActions,
+  ModalActionButton,
+  FormGrid,
+  FormField,
+  formControlClass,
+  LineItemCard,
+  type LineItemCardField,
+} from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
 
@@ -912,21 +925,29 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
       {/* New Purchase Modal */}
       <AnimatePresence>
         {modalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto p-6"
-            >
-              <h3 className="text-lg font-bold mb-4">New Purchase from Supplier</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Supplier</label>
+          <AppModal
+            title="New Purchase from Supplier"
+            onClose={() => setModalOpen(false)}
+            zIndex={100}
+            size="lg"
+            footer={
+              <ModalActions>
+                <ModalActionButton variant="ghost" onClick={() => setModalOpen(false)}>
+                  Cancel
+                </ModalActionButton>
+                <ModalActionButton variant="primary" disabled={submitting} onClick={handleCreatePurchase}>
+                  {submitting ? 'Saving…' : `Record Purchase (${purchaseTotals.items})`}
+                </ModalActionButton>
+              </ModalActions>
+            }
+          >
+            <div className="space-y-4">
+              <FormGrid className="sm:grid-cols-3">
+                <FormField label="Supplier" required>
                   <select
                     value={purchaseForm.supplierId}
                     onChange={e => setPurchaseForm({ ...purchaseForm, supplierId: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                    className={formControlClass}
                   >
                     <option value="">Select supplier</option>
                     {suppliers.map(s => (
@@ -935,27 +956,184 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Invoice No.</label>
+                </FormField>
+                <FormField label="Invoice No.">
                   <input
                     value={purchaseForm.invoiceNumber}
                     onChange={e => setPurchaseForm({ ...purchaseForm, invoiceNumber: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand font-mono"
+                    className={cn(formControlClass, 'font-mono')}
                     placeholder="e.g. INV-001"
                   />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Date</label>
+                </FormField>
+                <FormField label="Date">
                   <input
                     type="date"
                     value={purchaseForm.date}
                     onChange={e => setPurchaseForm({ ...purchaseForm, date: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                    className={formControlClass}
                   />
-                </div>
+                </FormField>
+              </FormGrid>
+
+              {/* Mobile line cards */}
+              <div className="sm:hidden space-y-3">
+                {purchaseRows.map((row, idx) => {
+                  const p = products.find(x => x.id === row.productId);
+                  const ps = p?.packSize ?? 1;
+                  const hasPack = ps > 1;
+                  const actualQty = hasPack ? row.packs * ps + row.loosePieces : row.quantity;
+                  const cost = row.costPrice ? parseFloat(row.costPrice) : (p?.price ?? 0);
+                  const gross = cost * (actualQty || 0);
+                  const gst = row.withGst ? Math.round((gross * defaultGstRate) / 100) : 0;
+                  const billed = gross + gst;
+                  const fields: LineItemCardField[] = [
+                    {
+                      key: 'product',
+                      label: 'Product',
+                      wide: true,
+                      node: (
+                        <select
+                          value={row.productId}
+                          onChange={e =>
+                            setPurchaseRows(
+                              purchaseRows.map((r, i) => (i === idx ? { ...r, productId: e.target.value } : r)),
+                            )
+                          }
+                          className={formControlClass}
+                        >
+                          <option value="">Select product</option>
+                          {products.map(pr => (
+                            <option key={pr.id} value={pr.id}>
+                              {pr.name} (₹{pr.price.toLocaleString()})
+                            </option>
+                          ))}
+                        </select>
+                      ),
+                    },
+                  ];
+                  if (hasPack) {
+                    fields.push(
+                      {
+                        key: 'packs',
+                        label: p?.packName || 'Packs',
+                        node: (
+                          <input
+                            type="number"
+                            min={0}
+                            inputMode="numeric"
+                            value={row.packs || ''}
+                            onChange={e =>
+                              setPurchaseRows(
+                                purchaseRows.map((r, i) =>
+                                  i === idx ? { ...r, packs: parseInt(e.target.value) || 0 } : r,
+                                ),
+                              )
+                            }
+                            className={formControlClass}
+                          />
+                        ),
+                      },
+                      {
+                        key: 'loose',
+                        label: 'Loose pcs',
+                        node: (
+                          <input
+                            type="number"
+                            min={0}
+                            inputMode="numeric"
+                            value={row.loosePieces || ''}
+                            onChange={e =>
+                              setPurchaseRows(
+                                purchaseRows.map((r, i) =>
+                                  i === idx ? { ...r, loosePieces: parseInt(e.target.value) || 0 } : r,
+                                ),
+                              )
+                            }
+                            className={formControlClass}
+                          />
+                        ),
+                      },
+                    );
+                  } else {
+                    fields.push({
+                      key: 'qty',
+                      label: 'Quantity',
+                      node: (
+                        <input
+                          type="number"
+                          min={1}
+                          inputMode="numeric"
+                          value={row.quantity || ''}
+                          onChange={e =>
+                            setPurchaseRows(
+                              purchaseRows.map((r, i) =>
+                                i === idx ? { ...r, quantity: parseInt(e.target.value) || 0 } : r,
+                              ),
+                            )
+                          }
+                          className={formControlClass}
+                        />
+                      ),
+                    });
+                  }
+                  fields.push(
+                    {
+                      key: 'cost',
+                      label: 'Cost Price',
+                      node: (
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          inputMode="decimal"
+                          value={row.costPrice}
+                          onChange={e =>
+                            setPurchaseRows(
+                              purchaseRows.map((r, i) => (i === idx ? { ...r, costPrice: e.target.value } : r)),
+                            )
+                          }
+                          placeholder={p ? `₹${p.price}` : '—'}
+                          className={formControlClass}
+                        />
+                      ),
+                    },
+                    {
+                      key: 'gst',
+                      label: 'GST',
+                      node: (
+                        <label className="flex items-center gap-2 min-h-11 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={row.withGst}
+                            onChange={e =>
+                              setPurchaseRows(
+                                purchaseRows.map((r, i) => (i === idx ? { ...r, withGst: e.target.checked } : r)),
+                              )
+                            }
+                            className="rounded text-brand w-5 h-5"
+                          />
+                          Include GST
+                        </label>
+                      ),
+                    },
+                  );
+                  return (
+                    <div key={idx}>
+                      <LineItemCard
+                        index={idx}
+                        title={p?.name || `Product ${idx + 1}`}
+                        amountLabel={billed > 0 ? `₹${billed.toLocaleString()}` : undefined}
+                        canRemove={purchaseRows.length > 1}
+                        onRemove={() => setPurchaseRows(purchaseRows.filter((_, i) => i !== idx))}
+                        fields={fields}
+                      />
+                    </div>
+                  );
+                })}
               </div>
-              <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
+
+              {/* Desktop table */}
+              <div className="hidden sm:block border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="bg-gray-50">
                     <tr className="text-xs font-bold text-gray-400 uppercase">
@@ -1102,6 +1280,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                   </tbody>
                 </table>
               </div>
+
               <button
                 type="button"
                 onClick={() =>
@@ -1110,48 +1289,33 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
                     { productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true },
                   ])
                 }
-                className="text-sm font-bold text-brand mb-4"
+                className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
               >
                 + Add Product
               </button>
-              <div className="bg-gray-50 rounded-xl p-4 mb-4 flex items-center justify-between flex-wrap gap-2">
-                <span className="text-sm text-gray-600">
-                  {purchaseTotals.items} items • Gross ₹{purchaseTotals.gross.toLocaleString()} • GST ₹
+              <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between flex-wrap gap-2">
+                <span className="text-xs sm:text-sm text-gray-600">
+                  {purchaseTotals.items} items · Gross ₹{purchaseTotals.gross.toLocaleString()} · GST ₹
                   {purchaseTotals.gst.toLocaleString()}
                 </span>
-                <span className="text-lg font-bold text-brand">Total: ₹{purchaseTotals.billed.toLocaleString()}</span>
+                <span className="text-lg font-bold text-brand tabular-nums">
+                  ₹{purchaseTotals.billed.toLocaleString()}
+                </span>
               </div>
-              <div className="mb-4">
-                <label className="text-xs font-bold text-gray-400 uppercase">Amount Paid (₹)</label>
+              <FormField label="Amount Paid (₹)">
                 <input
                   type="number"
                   min={0}
                   step={0.01}
+                  inputMode="decimal"
                   value={purchaseForm.amountPaid}
                   onChange={e => setPurchaseForm({ ...purchaseForm, amountPaid: e.target.value })}
                   placeholder="0"
-                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
+                  className={formControlClass}
                 />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreatePurchase}
-                  disabled={submitting}
-                  className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60"
-                >
-                  {submitting ? 'Saving...' : `Record Purchase (${purchaseTotals.items} Items)`}
-                </button>
-              </div>
-            </motion.div>
-          </div>
+              </FormField>
+            </div>
+          </AppModal>
         )}
       </AnimatePresence>
 
