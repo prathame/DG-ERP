@@ -205,6 +205,8 @@ describe('utils/logger', () => {
     const flush = vi.fn().mockResolvedValue(undefined);
     vi.resetModules();
     process.env.LOGTAIL_TOKEN = 'x'.repeat(32);
+    // Test default min level is warn — lower it so info reaches Logtail
+    process.env.LOG_LEVEL = 'debug';
     vi.doMock('@logtail/node', () => ({
       Logtail: class {
         info = info;
@@ -214,6 +216,7 @@ describe('utils/logger', () => {
       },
     }));
     const { logger: ltLogger } = await import('../../server/utils/logger');
+    ltLogger.setLevel('debug');
     ltLogger.info('i', { k: 1 });
     ltLogger.warn('w', { k: 2 });
     ltLogger.error('e');
@@ -223,6 +226,7 @@ describe('utils/logger', () => {
     expect(error).toHaveBeenCalled();
     expect(flush).toHaveBeenCalled();
     delete process.env.LOGTAIL_TOKEN;
+    delete process.env.LOG_LEVEL;
     vi.doUnmock('@logtail/node');
     vi.resetModules();
   });
