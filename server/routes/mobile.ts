@@ -32,9 +32,10 @@ function optionalJwt(req: { headers: { authorization?: string } }): { tenantId?:
 
 const router = Router();
 
+/** 48-bit invite: DG-M-XXXX-XXXX-XXXX */
 function genInviteCode(): string {
-  const part = crypto.randomBytes(4).toString('hex').toUpperCase();
-  return `DG-M-${part.slice(0, 4)}-${part.slice(4)}`;
+  const part = crypto.randomBytes(6).toString('hex').toUpperCase();
+  return `DG-M-${part.slice(0, 4)}-${part.slice(4, 8)}-${part.slice(8)}`;
 }
 
 function cmpVersion(a: string, b: string): number {
@@ -47,12 +48,41 @@ function cmpVersion(a: string, b: string): number {
   return 0;
 }
 
+const VERSION_RE = /^\d+(\.\d+){0,3}$/;
+
+function normalizeVersion(v: unknown): string | null {
+  if (v == null || v === '') return null;
+  const s = String(v).trim();
+  if (s.length > 32 || !VERSION_RE.test(s)) {
+    throw Object.assign(new Error('Invalid version — use digits and dots only (e.g. 2.2.0)'), { status: 400 });
+  }
+  return s;
+}
+
+function assertDeviceId(deviceId: unknown): string {
+  if (!deviceId || typeof deviceId !== 'string') {
+    throw Object.assign(new Error('deviceId required'), { status: 400 });
+  }
+  const id = deviceId.trim();
+  if (id.length < 4 || id.length > 128) {
+    throw Object.assign(new Error('deviceId must be 4–128 characters'), { status: 400 });
+  }
+  return id;
+}
+
 async function issueInvite(tenantId: string, daysValid = 30) {
-  let code = genInviteCode();
-  for (let i = 0; i < 5; i++) {
-    const clash = (await pool.query('SELECT id FROM tenants WHERE mobile_invite_code = $1', [code])).rows[0];
-    if (!clash) break;
+  let code = '';
+  let unique = false;
+  for (let i = 0; i < 8; i++) {
     code = genInviteCode();
+    const clash = (await pool.query('SELECT id FROM tenants WHERE mobile_invite_code = $1', [code])).rows[0];
+    if (!clash) {
+      unique = true;
+      break;
+    }
+  }
+  if (!unique || !code) {
+    throw new Error('Could not allocate a unique mobile invite code');
   }
   const expires = new Date(Date.now() + daysValid * 24 * 60 * 60 * 1000).toISOString();
   await pool.query(
@@ -87,7 +117,6 @@ router.post('/api/mobile/redeem-invite', mobileLimiter, async (req, res) => {
     }
 
     res.json({
-      tenantId: row.id,
       slug: row.slug,
       companyName: row.company_name,
       logoBase64: row.logo_base64,
@@ -103,9 +132,13 @@ router.post('/api/mobile/redeem-invite', mobileLimiter, async (req, res) => {
 // ── Heartbeat: force-sync + version policy. Device upsert requires JWT. ───────
 router.post('/api/mobile/heartbeat', mobileLimiter, async (req, res) => {
   try {
-    const { deviceId, platform, appVersion, slug } = req.body || {};
-    if (!deviceId || typeof deviceId !== 'string') {
-      return res.status(400).json({ error: 'deviceId required' });
+    const { platform, appVersion, slug } = req.body || {};
+    let deviceId: string;
+    try {
+      deviceId = assertDeviceId(req.body?.deviceId);
+    } catch (err) {
+      const e = err as Error & { status?: number };
+      return res.status(e.status || 400).json({ error: e.message });
     }
 
     const jwtUser = optionalJwt(req);
@@ -135,8 +168,10 @@ router.post('/api/mobile/heartbeat', mobileLimiter, async (req, res) => {
 
     if (!t) return res.status(404).json({ error: 'Tenant not found' });
 
+    const isAuthed = !!(authedTenantId && authedTenantId === tid);
+
     // Register / refresh device only when authenticated for that tenant
-    if (authedTenantId && authedTenantId === tid) {
+    if (isAuthed) {
       const id = `MD${crypto.randomBytes(8).toString('hex')}`;
       await pool.query(
         `INSERT INTO mobile_devices (id, tenant_id, user_id, device_id, platform, app_version, last_seen)
@@ -158,7 +193,7 @@ router.post('/api/mobile/heartbeat', mobileLimiter, async (req, res) => {
 
     res.json({
       ok: true,
-      tenantStatus: t.status,
+      ...(isAuthed ? { tenantStatus: t.status } : {}),
       forceSyncAt: t.mobile_force_sync_at ? new Date(t.mobile_force_sync_at as string).toISOString() : null,
       updateAvailable,
       forceUpdate,
@@ -172,13 +207,19 @@ router.post('/api/mobile/heartbeat', mobileLimiter, async (req, res) => {
 });
 
 // ── Auth: explicit device register after login ────────────────────────────────
-router.post('/api/mobile/register-device', async (req, res) => {
+router.post('/api/mobile/register-device', mobileLimiter, async (req, res) => {
   try {
     const auth = req as AuthRequest;
     const tenantId = auth.user?.tenantId;
     if (!tenantId) return res.status(401).json({ error: 'Unauthorized' });
-    const { deviceId, platform, appVersion } = req.body || {};
-    if (!deviceId) return res.status(400).json({ error: 'deviceId required' });
+    const { platform, appVersion } = req.body || {};
+    let deviceId: string;
+    try {
+      deviceId = assertDeviceId(req.body?.deviceId);
+    } catch (err) {
+      const e = err as Error & { status?: number };
+      return res.status(e.status || 400).json({ error: e.message });
+    }
     const id = `MD${crypto.randomBytes(8).toString('hex')}`;
     await pool.query(
       `INSERT INTO mobile_devices (id, tenant_id, user_id, device_id, platform, app_version, last_seen)
@@ -272,13 +313,21 @@ router.post('/api/super-admin/tenants/:id/mobile-force-sync', superAdminMiddlewa
 
 router.put('/api/super-admin/tenants/:id/mobile-version', superAdminMiddleware, async (req, res) => {
   try {
-    const { minVersion, latestVersion } = req.body || {};
+    let minVersion: string | null;
+    let latestVersion: string | null;
+    try {
+      minVersion = normalizeVersion(req.body?.minVersion);
+      latestVersion = normalizeVersion(req.body?.latestVersion);
+    } catch (err) {
+      const e = err as Error & { status?: number };
+      return res.status(e.status || 400).json({ error: e.message });
+    }
     const r = await pool.query(
       `UPDATE tenants SET mobile_min_version = $1, mobile_latest_version = $2 WHERE id = $3 RETURNING id`,
-      [minVersion || null, latestVersion || null, req.params.id]
+      [minVersion, latestVersion, req.params.id]
     );
     if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found' });
-    res.json({ ok: true, minVersion: minVersion || null, latestVersion: latestVersion || null });
+    res.json({ ok: true, minVersion, latestVersion });
   } catch (e) {
     console.error('mobile-version:', (e as Error).message);
     res.status(500).json({ error: 'Internal server error' });

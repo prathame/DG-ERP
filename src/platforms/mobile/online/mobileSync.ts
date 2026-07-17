@@ -9,7 +9,8 @@ import { isMobileClient } from './isMobileClient';
 
 const DEVICE_KEY = 'dg_mobile_device_id';
 const LAST_FORCE_KEY = 'dg_mobile_last_force_sync';
-const APP_VERSION = '2.2.0';
+const APP_VERSION =
+  (import.meta.env.VITE_APP_VERSION as string | undefined)?.trim() || '2.2.0';
 const HEARTBEAT_MS = 60_000;
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -17,7 +18,10 @@ let timer: ReturnType<typeof setInterval> | null = null;
 export function getMobileDeviceId(): string {
   let id = localStorage.getItem(DEVICE_KEY);
   if (!id) {
-    id = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    id = `dev_${hex}`;
     localStorage.setItem(DEVICE_KEY, id);
   }
   return id;

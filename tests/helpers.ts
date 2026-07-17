@@ -21,6 +21,7 @@ export async function cleanupTestData(tenantId: string) {
     'products', 'vendor_payments', 'vendor_reminder_settings', 'price_lists',
     'customers', 'vendors', 'users', 'quotations', 'orders', 'banks', 'expenses',
     'staff_members', 'staff_payments', 'standalone_invoices', 'invoice_payments',
+    'mobile_devices',
   ];
   for (const t of tables) {
     await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]).catch(() => {});
