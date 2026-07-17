@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 
 import { pool } from './pg-db';
+import { DEFAULT_SERVICE_MOBILE_APP_URL } from './download-defaults';
 import { enforceModulePermissions, normalizePermissions } from './middleware/permissions';
 
 import superAdminRouter from './routes/super-admin';
@@ -519,7 +520,7 @@ export function createApp(): express.Application {
       for (const r of rows) cfg[r.key] = r.value;
       res.json({
         serviceCloudAppUrl: cfg.service_cloud_app_url || null,
-        serviceMobileAppUrl: cfg.service_mobile_app_url || null,
+        serviceMobileAppUrl: cfg.service_mobile_app_url || DEFAULT_SERVICE_MOBILE_APP_URL,
         desktopAppUrl: cfg.desktop_app_url || null,
       });
     } catch (err) {

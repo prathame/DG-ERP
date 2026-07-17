@@ -7,6 +7,7 @@ import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
 import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
 import { logAudit } from '../utils/helpers';
+import { DEFAULT_SERVICE_MOBILE_APP_URL } from '../download-defaults';
 
 const router = Router();
 
@@ -978,7 +979,7 @@ router.get('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       latestOnpremVersion: cfg['latest_onprem_version'] || null,
       minOnpremVersion: cfg['min_onprem_version'] || null,
       serviceCloudAppUrl: cfg['service_cloud_app_url'] || null,
-      serviceMobileAppUrl: cfg['service_mobile_app_url'] || null,
+      serviceMobileAppUrl: cfg['service_mobile_app_url'] || DEFAULT_SERVICE_MOBILE_APP_URL,
       desktopAppUrl: cfg['desktop_app_url'] || null,
       cloudVersion: process.env.npm_package_version || process.env.CLOUD_VERSION || '2.1.0',
       onpremVersions: versions,

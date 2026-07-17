@@ -417,7 +417,7 @@ function VersionControlPanel() {
           <input
             value={serviceMobileUrl}
             onChange={e => setServiceMobileUrl(e.target.value)}
-            placeholder="https://…/dhandho-service-mobile.apk"
+            placeholder="https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk"
             className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
           />
         </div>
