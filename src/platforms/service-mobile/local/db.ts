@@ -2,10 +2,33 @@
  * PGlite local database for Service Mobile (source of truth on device).
  */
 import { PGlite } from '@electric-sql/pglite';
-import { SERVICE_MOBILE_SCHEMA_SQL } from './schema';
+import { SERVICE_MOBILE_MIGRATIONS_SQL, SERVICE_MOBILE_SCHEMA_SQL } from './schema';
 
 let db: PGlite | null = null;
 let ready: Promise<PGlite> | null = null;
+
+/** Run each ALTER separately so one failure does not skip the rest (and is logged). */
+async function runMigrations(instance: PGlite): Promise<void> {
+  const statements = SERVICE_MOBILE_MIGRATIONS_SQL.split(';')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const failures: string[] = [];
+  for (const sql of statements) {
+    try {
+      await instance.exec(`${sql};`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      failures.push(`${sql.slice(0, 72)}… → ${msg}`);
+      console.warn('[service-mobile] migration statement failed:', sql.slice(0, 100), err);
+    }
+  }
+  if (failures.length) {
+    console.warn(
+      `[service-mobile] ${failures.length}/${statements.length} migration statement(s) failed — app will continue; some features may error until DB is reset`,
+      failures,
+    );
+  }
+}
 
 export async function getLocalDb(): Promise<PGlite> {
   if (db) return db;
@@ -13,6 +36,7 @@ export async function getLocalDb(): Promise<PGlite> {
     ready = (async () => {
       const instance = await PGlite.create('idb://dhandho-service-mobile');
       await instance.exec(SERVICE_MOBILE_SCHEMA_SQL);
+      await runMigrations(instance);
       db = instance;
       return instance;
     })();
@@ -66,6 +90,9 @@ export async function dumpLocalDb(): Promise<Uint8Array> {
     'tenant_notifications',
     'staff_members',
     'staff_payments',
+    'suppliers',
+    'product_purchases',
+    'supplier_payments',
     'audit_log',
   ];
   const payload: Record<string, unknown[]> = {};
@@ -99,6 +126,9 @@ const RESTORE_TABLE_ALLOWLIST = new Set([
   'tenant_notifications',
   'staff_members',
   'staff_payments',
+  'suppliers',
+  'product_purchases',
+  'supplier_payments',
   'audit_log',
   'sm_meta',
 ]);
@@ -114,6 +144,7 @@ export async function restoreLocalDbFromJson(bytes: Uint8Array): Promise<void> {
   if (!parsed.tables) throw new Error('Invalid backup format');
   const d = await getLocalDb();
   await d.exec(SERVICE_MOBILE_SCHEMA_SQL);
+  await runMigrations(d);
   for (const [table, rows] of Object.entries(parsed.tables)) {
     if (!RESTORE_TABLE_ALLOWLIST.has(table) || !IDENT.test(table)) continue;
     if (!rows?.length) continue;

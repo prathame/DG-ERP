@@ -9,6 +9,7 @@ import {
   fetchImageAsDataUrl,
   openPrintWindow,
   printBillInWindow,
+  closePrintOverlay,
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
 import { fetchApi } from '../../api';
@@ -184,13 +185,17 @@ export function InvoicesView() {
   );
 
   const printInvoice = async (inv: Invoice) => {
-    // Open sync with the click — await before window.open gets blocked (Electron / pop-up blockers)
-    const w = openPrintWindow();
+    // Open sync with the click — await before window.open gets blocked (Electron / pop-up blockers).
+    // On Capacitor this opens an in-app preview (window.open is not available).
+    const w = openPrintWindow('Preparing invoice…');
     if (!w) {
       toast(PRINT_POPUP_BLOCKED, 'error');
       return;
     }
     try {
+      if (!Array.isArray(inv.items)) {
+        throw new Error('Invoice has no line items to print');
+      }
       const user = session.getUser() || {};
       const bs = billSettings;
       const color = /^#[0-9a-fA-F]{3,8}$/.test(String(bs.primaryColor || '')) ? String(bs.primaryColor) : '#F27D26';
@@ -358,6 +363,8 @@ export function InvoicesView() {
       } catch {
         /* ignore */
       }
+      // Capacitor uses an in-app overlay; window.close() does not remove it.
+      closePrintOverlay();
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
     }
   };
