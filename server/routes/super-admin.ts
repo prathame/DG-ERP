@@ -977,6 +977,9 @@ router.get('/api/super-admin/version-config', superAdminMiddleware, async (req, 
     res.json({
       latestOnpremVersion: cfg['latest_onprem_version'] || null,
       minOnpremVersion: cfg['min_onprem_version'] || null,
+      serviceCloudAppUrl: cfg['service_cloud_app_url'] || null,
+      serviceMobileAppUrl: cfg['service_mobile_app_url'] || null,
+      desktopAppUrl: cfg['desktop_app_url'] || null,
       cloudVersion: process.env.npm_package_version || process.env.CLOUD_VERSION || '2.1.0',
       onpremVersions: versions,
     });
@@ -987,18 +990,45 @@ router.get('/api/super-admin/version-config', superAdminMiddleware, async (req, 
 
 router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, res) => {
   try {
-    const { latestOnpremVersion, minOnpremVersion } = req.body;
-    if (latestOnpremVersion !== undefined) {
+    const { latestOnpremVersion, minOnpremVersion, serviceCloudAppUrl, serviceMobileAppUrl, desktopAppUrl } =
+      req.body as {
+        latestOnpremVersion?: string | null;
+        minOnpremVersion?: string | null;
+        serviceCloudAppUrl?: string | null;
+        serviceMobileAppUrl?: string | null;
+        desktopAppUrl?: string | null;
+      };
+
+    const upsert = async (key: string, value: string | null) => {
       await pool.query(
         'INSERT INTO platform_config (key, value, updated_at) VALUES ($1,$2,NOW()) ON CONFLICT (key) DO UPDATE SET value=$2, updated_at=NOW()',
-        ['latest_onprem_version', latestOnpremVersion || null],
+        [key, value],
       );
+    };
+    const normalizeUrl = (raw: string | null | undefined): string | null | undefined => {
+      if (raw === undefined) return undefined;
+      if (raw == null || raw === '') return null;
+      const url = String(raw).trim();
+      if (url.length > 500) throw new Error('URL too long');
+      if (!/^https?:\/\//i.test(url)) throw new Error('URL must start with http:// or https://');
+      return url;
+    };
+
+    if (latestOnpremVersion !== undefined) {
+      await upsert('latest_onprem_version', latestOnpremVersion || null);
     }
     if (minOnpremVersion !== undefined) {
-      await pool.query(
-        'INSERT INTO platform_config (key, value, updated_at) VALUES ($1,$2,NOW()) ON CONFLICT (key) DO UPDATE SET value=$2, updated_at=NOW()',
-        ['min_onprem_version', minOnpremVersion || null],
-      );
+      await upsert('min_onprem_version', minOnpremVersion || null);
+    }
+    try {
+      const cloud = normalizeUrl(serviceCloudAppUrl);
+      const mobile = normalizeUrl(serviceMobileAppUrl);
+      const desktop = normalizeUrl(desktopAppUrl);
+      if (cloud !== undefined) await upsert('service_cloud_app_url', cloud);
+      if (mobile !== undefined) await upsert('service_mobile_app_url', mobile);
+      if (desktop !== undefined) await upsert('desktop_app_url', desktop);
+    } catch (e) {
+      return res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid URL' });
     }
     res.json({ ok: true });
   } catch (err) {

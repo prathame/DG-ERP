@@ -6,8 +6,20 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
-  Cloud, Monitor, BarChart3, Users, IndianRupee, TrendingUp, RefreshCw,
-  Wifi, WifiOff, AlertTriangle, CheckCircle, Package, Zap, Clock,
+  Cloud,
+  Monitor,
+  BarChart3,
+  Users,
+  IndianRupee,
+  TrendingUp,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
+  CheckCircle,
+  Package,
+  Zap,
+  Clock,
 } from 'lucide-react';
 import { cn, bizTypeLabel } from '../../lib/utils';
 import { session } from '../../lib/session';
@@ -15,9 +27,20 @@ import { session } from '../../lib/session';
 type Mode = 'cloud' | 'onprem';
 
 // ── Shared UI pieces ───────────────────────────────────────────────────────────
-function StatCard({ label, value, sub, icon: Icon, color = 'text-brand', badge }: {
-  label: string; value: string | number; sub?: string;
-  icon: typeof BarChart3; color?: string; badge?: { text: string; color: string };
+function StatCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  color = 'text-brand',
+  badge,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  icon: typeof BarChart3;
+  color?: string;
+  badge?: { text: string; color: string };
 }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -25,9 +48,13 @@ function StatCard({ label, value, sub, icon: Icon, color = 'text-brand', badge }
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{label}</p>
         <Icon size={18} className={color} />
       </div>
-      <p className={cn("text-2xl font-bold", color)}>{value}</p>
+      <p className={cn('text-2xl font-bold', color)}>{value}</p>
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
-      {badge && <span className={cn("inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full", badge.color)}>{badge.text}</span>}
+      {badge && (
+        <span className={cn('inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full', badge.color)}>
+          {badge.text}
+        </span>
+      )}
     </div>
   );
 }
@@ -41,13 +68,23 @@ function SectionHeader({ title, sub }: { title: string; sub?: string }) {
   );
 }
 
-function BarRow({ label, value, max, color = 'bg-brand' }: { label: string; value: number; max: number; color?: string }) {
+function BarRow({
+  label,
+  value,
+  max,
+  color = 'bg-brand',
+}: {
+  label: string;
+  value: number;
+  max: number;
+  color?: string;
+}) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div className="flex items-center gap-3">
       <span className="text-sm text-gray-600 w-28 truncate shrink-0">{label}</span>
       <div className="flex-1 bg-gray-100 rounded-full h-2">
-        <div className={cn("h-2 rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
+        <div className={cn('h-2 rounded-full transition-all', color)} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-sm font-bold w-8 text-right">{value}</span>
     </div>
@@ -67,7 +104,9 @@ function CloudAnalytics() {
     if (r.ok) setData(await r.json());
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   if (loading) return <div className="py-12 text-center text-gray-400 text-sm">Loading cloud analytics...</div>;
   if (!data) return <div className="py-12 text-center text-gray-400 text-sm">Failed to load</div>;
@@ -90,14 +129,36 @@ function CloudAnalytics() {
       <div>
         <SectionHeader title="Key Metrics" sub="Revenue and subscription health" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="MRR" value={`₹${Number(data.mrr || 0).toLocaleString()}`} icon={IndianRupee} color="text-emerald-600"
-            sub="Monthly recurring revenue" badge={{ text: 'Monthly', color: 'bg-emerald-50 text-emerald-700' }} />
-          <StatCard label="Total Tenants" value={totalTenants} icon={Users} color="text-blue-600"
-            sub={`${active} active · ${trial} trial`} />
-          <StatCard label="Active This Week" value={Number(data.activeThisWeek) || 0} icon={TrendingUp} color="text-brand"
-            sub="Logged in last 7 days" />
-          <StatCard label="Churned (30d)" value={Number(data.churn30d) || 0} icon={AlertTriangle} color="text-rose-500"
-            sub="Suspended this month" badge={Number(data.churn30d) > 0 ? { text: 'Watch', color: 'bg-rose-50 text-rose-600' } : undefined} />
+          <StatCard
+            label="MRR"
+            value={`₹${Number(data.mrr || 0).toLocaleString()}`}
+            icon={IndianRupee}
+            color="text-emerald-600"
+            sub="Monthly recurring revenue"
+            badge={{ text: 'Monthly', color: 'bg-emerald-50 text-emerald-700' }}
+          />
+          <StatCard
+            label="Total Tenants"
+            value={totalTenants}
+            icon={Users}
+            color="text-blue-600"
+            sub={`${active} active · ${trial} trial`}
+          />
+          <StatCard
+            label="Active This Week"
+            value={Number(data.activeThisWeek) || 0}
+            icon={TrendingUp}
+            color="text-brand"
+            sub="Logged in last 7 days"
+          />
+          <StatCard
+            label="Churned (30d)"
+            value={Number(data.churn30d) || 0}
+            icon={AlertTriangle}
+            color="text-rose-500"
+            sub="Suspended this month"
+            badge={Number(data.churn30d) > 0 ? { text: 'Watch', color: 'bg-rose-50 text-rose-600' } : undefined}
+          />
         </div>
       </div>
 
@@ -111,9 +172,14 @@ function CloudAnalytics() {
             <div className="flex items-end gap-1.5 h-24 mt-2">
               {growth.map(g => (
                 <div key={g.month} className="flex-1 flex flex-col items-center gap-1 group">
-                  <span className="text-[9px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">{g.count}</span>
-                  <div className="w-full bg-blue-500/80 rounded-t hover:bg-blue-600 transition-colors"
-                    style={{ height: `${(Number(g.count) / maxGrowth) * 64}px` }} title={`${g.month}: ${g.count} new`} />
+                  <span className="text-[9px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {g.count}
+                  </span>
+                  <div
+                    className="w-full bg-blue-500/80 rounded-t hover:bg-blue-600 transition-colors"
+                    style={{ height: `${(Number(g.count) / maxGrowth) * 64}px` }}
+                    title={`${g.month}: ${g.count} new`}
+                  />
                   <p className="text-[9px] text-gray-400">{g.month.slice(5)}</p>
                 </div>
               ))}
@@ -125,9 +191,14 @@ function CloudAnalytics() {
           <SectionHeader title="Plan Distribution" sub="Tenants per plan" />
           <div className="space-y-3 mt-2">
             {planDist.map(p => (
-              <React.Fragment key={p.name}><BarRow label={p.name || 'Unknown'} value={Number(p.count)}
-                max={Math.max(...planDist.map(x => Number(x.count)), 1)}
-                color={p.name === 'Trial' ? 'bg-amber-400' : p.name === 'Standard' ? 'bg-blue-500' : 'bg-purple-500'} /></React.Fragment>
+              <React.Fragment key={p.name}>
+                <BarRow
+                  label={p.name || 'Unknown'}
+                  value={Number(p.count)}
+                  max={Math.max(...planDist.map(x => Number(x.count)), 1)}
+                  color={p.name === 'Trial' ? 'bg-amber-400' : p.name === 'Standard' ? 'bg-blue-500' : 'bg-purple-500'}
+                />
+              </React.Fragment>
             ))}
           </div>
         </div>
@@ -137,29 +208,32 @@ function CloudAnalytics() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
         <SectionHeader title="Feature Adoption" sub={`Across ${total} tenants — which features are enabled`} />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
-          {features && [
-            { key: 'barcode', label: 'Barcode System' },
-            { key: 'inventory', label: 'Inventory Tracking' },
-            { key: 'vendor_portal', label: 'Vendor Portal' },
-            { key: 'multilang', label: 'Multi-Language' },
-            { key: 'quotations', label: 'Quotations' },
-            { key: 'accounts', label: 'Accounts' },
-            { key: 'purchases', label: 'Purchases' },
-            { key: 'chatbot', label: 'AI Chatbot' },
-          ].map(({ key, label }) => {
-            const count = Number(features[key]) || 0;
-            const pct = Math.round((count / total) * 100);
-            return (
-              <div key={key} className="bg-gray-50 rounded-xl p-3">
-                <p className="text-xs text-gray-500 mb-1">{label}</p>
-                <p className="text-lg font-bold">{pct}%</p>
-                <div className="w-full bg-gray-200 rounded-full h-1 mt-1.5">
-                  <div className="bg-brand h-1 rounded-full" style={{ width: `${pct}%` }} />
+          {features &&
+            [
+              { key: 'barcode', label: 'Barcode System' },
+              { key: 'inventory', label: 'Inventory Tracking' },
+              { key: 'vendor_portal', label: 'Vendor Portal' },
+              { key: 'multilang', label: 'Multi-Language' },
+              { key: 'quotations', label: 'Quotations' },
+              { key: 'accounts', label: 'Accounts' },
+              { key: 'purchases', label: 'Purchases' },
+              { key: 'chatbot', label: 'AI Chatbot' },
+            ].map(({ key, label }) => {
+              const count = Number(features[key]) || 0;
+              const pct = Math.round((count / total) * 100);
+              return (
+                <div key={key} className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-500 mb-1">{label}</p>
+                  <p className="text-lg font-bold">{pct}%</p>
+                  <div className="w-full bg-gray-200 rounded-full h-1 mt-1.5">
+                    <div className="bg-brand h-1 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    {count}/{total} tenants
+                  </p>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">{count}/{total} tenants</p>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       </div>
 
@@ -169,23 +243,33 @@ function CloudAnalytics() {
           <SectionHeader title="Top Tenants by Revenue" />
         </div>
         <table className="w-full text-sm">
-          <thead><tr className="bg-gray-50 border-b border-gray-100">
-            <th className="px-4 py-2 text-left text-xs font-bold text-gray-400 uppercase">Company</th>
-            <th className="px-4 py-2 text-center text-xs font-bold text-gray-400 uppercase">Type</th>
-            <th className="px-4 py-2 text-right text-xs font-bold text-gray-400 uppercase">Revenue</th>
-            <th className="px-4 py-2 text-center text-xs font-bold text-gray-400 uppercase">Users</th>
-            <th className="px-4 py-2 text-center text-xs font-bold text-gray-400 uppercase">Status</th>
-          </tr></thead>
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-100">
+              <th className="px-4 py-2 text-left text-xs font-bold text-gray-400 uppercase">Company</th>
+              <th className="px-4 py-2 text-center text-xs font-bold text-gray-400 uppercase">Type</th>
+              <th className="px-4 py-2 text-right text-xs font-bold text-gray-400 uppercase">Revenue</th>
+              <th className="px-4 py-2 text-center text-xs font-bold text-gray-400 uppercase">Users</th>
+              <th className="px-4 py-2 text-center text-xs font-bold text-gray-400 uppercase">Status</th>
+            </tr>
+          </thead>
           <tbody className="divide-y divide-gray-50">
             {topTenants.map((t, i) => (
               <tr key={i} className="hover:bg-gray-50">
                 <td className="px-4 py-2.5 font-medium">{t.company_name as string}</td>
-                <td className="px-4 py-2.5 text-center text-xs text-gray-500">{bizTypeLabel(t.business_type as string, t.company_name as string)}</td>
-                <td className="px-4 py-2.5 text-right font-bold text-emerald-600">₹{Number(t.revenue || 0).toLocaleString()}</td>
+                <td className="px-4 py-2.5 text-center text-xs text-gray-500">
+                  {bizTypeLabel(t.business_type as string, t.company_name as string)}
+                </td>
+                <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
+                  ₹{Number(t.revenue || 0).toLocaleString()}
+                </td>
                 <td className="px-4 py-2.5 text-center text-gray-500">{String(t.users ?? 0)}</td>
                 <td className="px-4 py-2.5 text-center">
-                  <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full",
-                    t.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>
+                  <span
+                    className={cn(
+                      'text-xs font-bold px-2 py-0.5 rounded-full',
+                      t.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700',
+                    )}
+                  >
                     {t.status as string}
                   </span>
                 </td>
@@ -200,43 +284,79 @@ function CloudAnalytics() {
 
 // ── Version Control Panel ──────────────────────────────────────────────────────
 function VersionControlPanel() {
-  const [cfg, setCfg] = useState<{ latestOnpremVersion: string | null; minOnpremVersion: string | null; cloudVersion: string; onpremVersions: { version: string; count: string; latest_seen: string }[] } | null>(null);
+  const [cfg, setCfg] = useState<{
+    latestOnpremVersion: string | null;
+    minOnpremVersion: string | null;
+    serviceCloudAppUrl: string | null;
+    serviceMobileAppUrl: string | null;
+    desktopAppUrl: string | null;
+    cloudVersion: string;
+    onpremVersions: { version: string; count: string; latest_seen: string }[];
+  } | null>(null);
   const [latest, setLatest] = useState('');
   const [min, setMin] = useState('');
+  const [serviceCloudUrl, setServiceCloudUrl] = useState('');
+  const [serviceMobileUrl, setServiceMobileUrl] = useState('');
+  const [desktopUrl, setDesktopUrl] = useState('');
   const [saving, setSaving] = useState(false);
-  const { toast } = { toast: (msg: string, type: string) => console.log(type, msg) }; // inline fallback
 
   const load = async () => {
-    const r = await fetch('/api/super-admin/version-config', { headers: { Authorization: `Bearer ${session.getToken()}` } });
+    const r = await fetch('/api/super-admin/version-config', {
+      headers: { Authorization: `Bearer ${session.getToken()}` },
+    });
     if (r.ok) {
       const d = await r.json();
       setCfg(d);
       setLatest(d.latestOnpremVersion || '');
       setMin(d.minOnpremVersion || '');
+      setServiceCloudUrl(d.serviceCloudAppUrl || '');
+      setServiceMobileUrl(d.serviceMobileAppUrl || '');
+      setDesktopUrl(d.desktopAppUrl || '');
     }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const save = async () => {
     setSaving(true);
     const r = await fetch('/api/super-admin/version-config', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.getToken()}` },
-      body: JSON.stringify({ latestOnpremVersion: latest || null, minOnpremVersion: min || null }),
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.getToken()}` },
+      body: JSON.stringify({
+        latestOnpremVersion: latest || null,
+        minOnpremVersion: min || null,
+        serviceCloudAppUrl: serviceCloudUrl || null,
+        serviceMobileAppUrl: serviceMobileUrl || null,
+        desktopAppUrl: desktopUrl || null,
+      }),
     });
-    if (r.ok) { alert('Version config saved — on-prem apps pick up on next heartbeat (up to 15 min)'); load(); }
+    if (r.ok) {
+      alert(
+        'Saved. Download page (/download) uses these evergreen URLs — overwrite the file on rebuild, keep the same link.',
+      );
+      load();
+    } else {
+      const err = await r.json().catch(() => ({}));
+      alert((err as { error?: string }).error || 'Save failed');
+    }
     setSaving(false);
   };
 
   if (!cfg) return null;
 
   const versionList = cfg.onpremVersions || [];
-  const needing = latest ? versionList.filter(v => v.version !== latest && v.version !== 'Unknown').reduce((s, v) => s + Number(v.count), 0) : 0;
+  const needing = latest
+    ? versionList.filter(v => v.version !== latest && v.version !== 'Unknown').reduce((s, v) => s + Number(v.count), 0)
+    : 0;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-bold flex items-center gap-2"><Zap size={16} className="text-purple-500" /> Version Control</h3>
+          <h3 className="font-bold flex items-center gap-2">
+            <Zap size={16} className="text-purple-500" /> Version Control
+          </h3>
           <p className="text-xs text-gray-400 mt-0.5">Manage what version on-prem customers run</p>
         </div>
         <div className="text-right">
@@ -249,7 +369,13 @@ function VersionControlPanel() {
       {versionList.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {versionList.map(v => (
-            <div key={v.version} className={cn("rounded-xl p-3 text-center border", v.version === latest ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-gray-50')}>
+            <div
+              key={v.version}
+              className={cn(
+                'rounded-xl p-3 text-center border',
+                v.version === latest ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-gray-50',
+              )}
+            >
               <p className="text-xs text-gray-500 mb-0.5">v{v.version}</p>
               <p className="text-lg font-bold">{v.count}</p>
               <p className="text-[10px] text-gray-400">install{Number(v.count) !== 1 ? 's' : ''}</p>
@@ -262,29 +388,80 @@ function VersionControlPanel() {
       {needing > 0 && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
           <AlertTriangle size={14} className="text-amber-500 shrink-0" />
-          <p className="text-sm text-amber-700">{needing} installation{needing !== 1 ? 's' : ''} not on latest version</p>
+          <p className="text-sm text-amber-700">
+            {needing} installation{needing !== 1 ? 's' : ''} not on latest version
+          </p>
         </div>
       )}
+
+      {/* Evergreen download URLs — testing (no versioned releases) */}
+      <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-4 space-y-3">
+        <div>
+          <h4 className="text-sm font-bold text-gray-800">App download URLs (testing)</h4>
+          <p className="text-xs text-gray-500 mt-0.5">
+            One stable link per app on <code className="bg-white px-1 rounded">/download</code>. Rebuild as often as you
+            want — keep the same URL, replace the file behind it. Do not mix Online vs Offline links.
+          </p>
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Service Cloud (ONLINE)</label>
+          <input
+            value={serviceCloudUrl}
+            onChange={e => setServiceCloudUrl(e.target.value)}
+            placeholder="https://…/dhandho-service-cloud.apk"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Service Mobile (OFFLINE)</label>
+          <input
+            value={serviceMobileUrl}
+            onChange={e => setServiceMobileUrl(e.target.value)}
+            placeholder="https://…/dhandho-service-mobile.apk"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Desktop (optional)</label>
+          <input
+            value={desktopUrl}
+            onChange={e => setDesktopUrl(e.target.value)}
+            placeholder="https://…/dhandho-desktop.dmg"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+        </div>
+      </div>
 
       {/* Version inputs */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-bold text-gray-400 uppercase">Latest Version (optional update)</label>
-          <input value={latest} onChange={e => setLatest(e.target.value)} placeholder="e.g. 2.2.0"
-            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+          <input
+            value={latest}
+            onChange={e => setLatest(e.target.value)}
+            placeholder="e.g. 2.2.0"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
           <p className="text-[10px] text-gray-400 mt-1">Shows update notification in customer app</p>
         </div>
         <div>
           <label className="text-xs font-bold text-gray-400 uppercase">Minimum Version (force update)</label>
-          <input value={min} onChange={e => setMin(e.target.value)} placeholder="e.g. 2.0.0"
-            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand" />
+          <input
+            value={min}
+            onChange={e => setMin(e.target.value)}
+            placeholder="e.g. 2.0.0"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
           <p className="text-[10px] text-gray-400 mt-1">Blocks app until customer updates</p>
         </div>
       </div>
 
-      <button onClick={save} disabled={saving}
-        className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 disabled:opacity-50">
-        {saving ? 'Saving...' : 'Save & Push to All On-Prem Installs'}
+      <button
+        onClick={save}
+        disabled={saving}
+        className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 disabled:opacity-50"
+      >
+        {saving ? 'Saving...' : 'Save download links & on-prem version config'}
       </button>
     </div>
   );
@@ -303,7 +480,9 @@ function OnPremAnalytics() {
     if (r.ok) setData(await r.json());
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   if (loading) return <div className="py-12 text-center text-gray-400 text-sm">Loading on-prem analytics...</div>;
   if (!data) return <div className="py-12 text-center text-gray-400 text-sm">Failed to load</div>;
@@ -317,8 +496,10 @@ function OnPremAnalytics() {
   const maxBiz = Math.max(...bizTypes.map(b => Number(b.count)), 1);
 
   const BIZ_COLORS: Record<string, string> = {
-    manufacturer: 'bg-purple-500', dealer: 'bg-emerald-500',
-    retail: 'bg-blue-500', service: 'bg-orange-500',
+    manufacturer: 'bg-purple-500',
+    dealer: 'bg-emerald-500',
+    retail: 'bg-blue-500',
+    service: 'bg-orange-500',
   };
 
   return (
@@ -330,15 +511,41 @@ function OnPremAnalytics() {
       <div>
         <SectionHeader title="License Health" sub="Real-time status of all on-prem installations" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Total Licenses" value={total} icon={Monitor} color="text-purple-600"
-            sub={`${statusRows.find(s => s.status === 'active')?.count || 0} active`} />
-          <StatCard label="Online Now" value={Number(data.online) || 0} icon={Wifi} color="text-emerald-600"
-            sub="Heartbeat < 70 min ago" badge={{ text: `${total > 0 ? Math.round((Number(data.online)/total)*100) : 0}% connected`, color: 'bg-emerald-50 text-emerald-700' }} />
-          <StatCard label="Offline" value={Number(data.offline) || 0} icon={WifiOff} color="text-gray-400"
-            sub="Not seen recently" />
-          <StatCard label="Expiring Soon" value={Number(data.expiringSoon) || 0} icon={AlertTriangle}
+          <StatCard
+            label="Total Licenses"
+            value={total}
+            icon={Monitor}
+            color="text-purple-600"
+            sub={`${statusRows.find(s => s.status === 'active')?.count || 0} active`}
+          />
+          <StatCard
+            label="Online Now"
+            value={Number(data.online) || 0}
+            icon={Wifi}
+            color="text-emerald-600"
+            sub="Heartbeat < 70 min ago"
+            badge={{
+              text: `${total > 0 ? Math.round((Number(data.online) / total) * 100) : 0}% connected`,
+              color: 'bg-emerald-50 text-emerald-700',
+            }}
+          />
+          <StatCard
+            label="Offline"
+            value={Number(data.offline) || 0}
+            icon={WifiOff}
+            color="text-gray-400"
+            sub="Not seen recently"
+          />
+          <StatCard
+            label="Expiring Soon"
+            value={Number(data.expiringSoon) || 0}
+            icon={AlertTriangle}
             color={Number(data.expiringSoon) > 0 ? 'text-amber-500' : 'text-gray-400'}
-            sub="Within 30 days" badge={Number(data.expiringSoon) > 0 ? { text: 'Action needed', color: 'bg-amber-50 text-amber-600' } : undefined} />
+            sub="Within 30 days"
+            badge={
+              Number(data.expiringSoon) > 0 ? { text: 'Action needed', color: 'bg-amber-50 text-amber-600' } : undefined
+            }
+          />
         </div>
       </div>
 
@@ -355,7 +562,7 @@ function OnPremAnalytics() {
               { label: 'Lifetime', value: Number(expiry?.lifetime) || 0, color: 'bg-blue-500' },
             ].map(e => (
               <div key={e.label} className="flex items-center gap-3">
-                <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", e.color)} />
+                <div className={cn('w-2.5 h-2.5 rounded-full shrink-0', e.color)} />
                 <span className="text-sm text-gray-600 flex-1">{e.label}</span>
                 <span className="text-sm font-bold">{e.value}</span>
               </div>
@@ -368,7 +575,16 @@ function OnPremAnalytics() {
           <div className="space-y-3 mt-2">
             {statusRows.map(s => (
               <div key={s.status} className="flex items-center gap-3">
-                <CheckCircle size={14} className={s.status === 'active' ? 'text-emerald-500' : s.status === 'suspended' ? 'text-amber-500' : 'text-rose-500'} />
+                <CheckCircle
+                  size={14}
+                  className={
+                    s.status === 'active'
+                      ? 'text-emerald-500'
+                      : s.status === 'suspended'
+                        ? 'text-amber-500'
+                        : 'text-rose-500'
+                  }
+                />
                 <span className="text-sm text-gray-600 flex-1 capitalize">{s.status}</span>
                 <span className="text-sm font-bold">{s.count}</span>
               </div>
@@ -386,14 +602,16 @@ function OnPremAnalytics() {
           ) : (
             <div className="space-y-3 mt-2">
               {versions.map(v => (
-                <React.Fragment key={v.version}><BarRow label={`v${v.version}`} value={Number(v.count)} max={maxVer}
-                  color="bg-purple-500" /></React.Fragment>
+                <React.Fragment key={v.version}>
+                  <BarRow label={`v${v.version}`} value={Number(v.count)} max={maxVer} color="bg-purple-500" />
+                </React.Fragment>
               ))}
             </div>
           )}
           {versions.length > 1 && (
             <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
-              <AlertTriangle size={11} /> {versions.length - 1} version{versions.length - 1 !== 1 ? 's' : ''} behind latest — consider pushing update
+              <AlertTriangle size={11} /> {versions.length - 1} version{versions.length - 1 !== 1 ? 's' : ''} behind
+              latest — consider pushing update
             </p>
           )}
         </div>
@@ -402,16 +620,24 @@ function OnPremAnalytics() {
           <SectionHeader title="Business Type Distribution" sub="What kind of businesses use on-prem" />
           <div className="space-y-3 mt-2">
             {bizTypes.map(b => (
-              <React.Fragment key={b.type}><BarRow label={b.type.charAt(0).toUpperCase() + b.type.slice(1)}
-                value={Number(b.count)} max={maxBiz}
-                color={BIZ_COLORS[b.type] || 'bg-gray-400'} /></React.Fragment>
+              <React.Fragment key={b.type}>
+                <BarRow
+                  label={b.type.charAt(0).toUpperCase() + b.type.slice(1)}
+                  value={Number(b.count)}
+                  max={maxBiz}
+                  color={BIZ_COLORS[b.type] || 'bg-gray-400'}
+                />
+              </React.Fragment>
             ))}
           </div>
           {bizTypes.length > 0 && (
             <div className="flex gap-2 flex-wrap mt-4">
               {bizTypes.map(b => (
-                <span key={b.type} className="text-[10px] bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5 capitalize">
-                  {b.type}: {Math.round((Number(b.count)/total)*100)}%
+                <span
+                  key={b.type}
+                  className="text-[10px] bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5 capitalize"
+                >
+                  {b.type}: {Math.round((Number(b.count) / total) * 100)}%
                 </span>
               ))}
             </div>
@@ -431,20 +657,32 @@ export function SAAnalyticsView() {
       {/* Header + Toggle */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold flex items-center gap-2"><BarChart3 size={22} /> Platform Analytics</h2>
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <BarChart3 size={22} /> Platform Analytics
+          </h2>
           <p className="text-sm text-gray-500 mt-0.5">
-            {mode === 'cloud' ? 'SaaS business metrics — MRR, growth, feature adoption' : 'Deployment health — versions, expiry, license distribution'}
+            {mode === 'cloud'
+              ? 'SaaS business metrics — MRR, growth, feature adoption'
+              : 'Deployment health — versions, expiry, license distribution'}
           </p>
         </div>
         <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl">
-          <button onClick={() => setMode('cloud')}
-            className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all",
-              mode === 'cloud' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+          <button
+            onClick={() => setMode('cloud')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all',
+              mode === 'cloud' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
             <Cloud size={14} /> Cloud
           </button>
-          <button onClick={() => setMode('onprem')}
-            className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all",
-              mode === 'onprem' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+          <button
+            onClick={() => setMode('onprem')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all',
+              mode === 'onprem' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
             <Monitor size={14} /> On-Prem
           </button>
         </div>
