@@ -6,6 +6,8 @@ import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { splitGst, isValidGstin } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
+import { logger } from '../utils/logger';
 import { encryptSecret } from '../utils/secret-crypto';
 import {
   NicApiClient,
@@ -94,8 +96,7 @@ router.get('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
       sellerPin: row?.gst_api_seller_pin || '',
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -155,8 +156,7 @@ router.put('/api/gst/settings', requireAdmin, async (req: AuthRequest, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -302,9 +302,10 @@ router.post('/api/gst/irn/generate', requireAdmin, blockVendors, async (req: Aut
     await db.query('COMMIT');
     res.json({ ok: true, ...result, mode: creds.mode });
   } catch (err) {
-    await db.query('ROLLBACK').catch(() => {});
-    console.error(`💥 IRN generate failed:`, (err as Error).message);
-    res.status(500).json({ error: safeError(err) });
+    await db.query('ROLLBACK').catch(rbErr => {
+      logger.warn('IRN generate rollback failed', { error: rbErr instanceof Error ? rbErr.message : String(rbErr) });
+    });
+    return handleApiError(req, res, err, 'IRN generate failed', { publicMessage: safeError(err) });
   } finally {
     db.release();
   }
@@ -460,9 +461,10 @@ router.post('/api/gst/ewb/generate', requireAdmin, blockVendors, async (req: Aut
     await db.query('COMMIT');
     res.json({ ok: true, ...result, mode: creds.mode });
   } catch (err) {
-    await db.query('ROLLBACK').catch(() => {});
-    console.error(`💥 EWB generate failed:`, (err as Error).message);
-    res.status(500).json({ error: safeError(err) });
+    await db.query('ROLLBACK').catch(rbErr => {
+      logger.warn('EWB generate rollback failed', { error: rbErr instanceof Error ? rbErr.message : String(rbErr) });
+    });
+    return handleApiError(req, res, err, 'EWB generate failed', { publicMessage: safeError(err) });
   } finally {
     db.release();
   }
@@ -490,8 +492,7 @@ router.post('/api/gst/irn/cancel', requireAdmin, async (req: AuthRequest, res) =
 
     res.json({ ok: true });
   } catch (err) {
-    console.error(`💥 IRN cancel failed:`, (err as Error).message);
-    res.status(500).json({ error: safeError(err) });
+    return handleApiError(req, res, err, 'IRN cancel failed', { publicMessage: safeError(err) });
   }
 });
 

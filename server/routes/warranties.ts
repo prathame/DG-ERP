@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
 
 const router = Router();
 
@@ -13,7 +14,7 @@ router.get('/api/warranties', async (req: AuthRequest, res) => {
     const today = new Date().toISOString().slice(0, 10);
     await pool.query(
       "UPDATE warranties SET status = 'Expired' WHERE tenant_id = $1 AND expiry_date < $2 AND status != 'Expired'",
-      [tenantId, today]
+      [tenantId, today],
     );
 
     const { search, status, vendorId } = req.query;
@@ -22,7 +23,8 @@ router.get('/api/warranties', async (req: AuthRequest, res) => {
     if (req.user?.role === 'Vendor' && !scoped) {
       return res.status(403).json({ error: 'Vendor account is not linked to a vendor profile.' });
     }
-    let sql = 'SELECT w.*, p.name as product_name FROM warranties w LEFT JOIN products p ON w.product_id = p.id AND p.tenant_id = $1';
+    let sql =
+      'SELECT w.*, p.name as product_name FROM warranties w LEFT JOIN products p ON w.product_id = p.id AND p.tenant_id = $1';
     const params: (string | number)[] = [tenantId];
     let paramIdx = 2;
 
@@ -58,13 +60,20 @@ router.get('/api/warranties', async (req: AuthRequest, res) => {
 
     const { rows } = await pool.query(sql, params);
     const warranties = rows.map((r: Record<string, unknown>) => ({
-      id: r.id, productId: r.product_id, productName: r.product_name ?? null, barcode: r.barcode,
-      replacedBarcode: r.replaced_barcode ?? null, customerName: r.customer_name, customerPhone: r.customer_phone,
-      activationDate: r.activation_date, expiryDate: r.expiry_date, status: r.status,
+      id: r.id,
+      productId: r.product_id,
+      productName: r.product_name ?? null,
+      barcode: r.barcode,
+      replacedBarcode: r.replaced_barcode ?? null,
+      customerName: r.customer_name,
+      customerPhone: r.customer_phone,
+      activationDate: r.activation_date,
+      expiryDate: r.expiry_date,
+      status: r.status,
     }));
     res.json({ data: warranties, total, page, totalPages: Math.ceil(total / limit) });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -80,12 +89,19 @@ router.post('/api/warranties', blockVendors, async (req: AuthRequest, res) => {
     const activationDate = new Date().toISOString().slice(0, 10);
     // H9 fix: look up product via product_inventory.barcode (unit-level),
     // not products.barcode (product-level, often null or the first barcode only)
-    const invRow = (await pool.query(
-      'SELECT pi.product_id FROM product_inventory pi WHERE pi.barcode = $1 AND pi.tenant_id = $2 LIMIT 1',
-      [barcode, tenantId]
-    )).rows[0] as { product_id: string } | undefined;
+    const invRow = (
+      await pool.query(
+        'SELECT pi.product_id FROM product_inventory pi WHERE pi.barcode = $1 AND pi.tenant_id = $2 LIMIT 1',
+        [barcode, tenantId],
+      )
+    ).rows[0] as { product_id: string } | undefined;
     const product = invRow
-      ? (await pool.query('SELECT id, warranty_months FROM products WHERE id = $1 AND tenant_id = $2', [invRow.product_id, tenantId])).rows[0] as { id: string; warranty_months: number } | undefined
+      ? ((
+          await pool.query('SELECT id, warranty_months FROM products WHERE id = $1 AND tenant_id = $2', [
+            invRow.product_id,
+            tenantId,
+          ])
+        ).rows[0] as { id: string; warranty_months: number } | undefined)
       : undefined;
     const warrantyMonths = product?.warranty_months ?? 24;
     const now = new Date();
@@ -96,12 +112,10 @@ router.post('/api/warranties', blockVendors, async (req: AuthRequest, res) => {
     await pool.query(
       `INSERT INTO warranties (id, tenant_id, product_id, barcode, customer_name, customer_phone, activation_date, expiry_date, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active')`,
-      [id, tenantId, product.id, barcode, customerName, customerPhone, activationDate, expiryStr]
+      [id, tenantId, product.id, barcode, customerName, customerPhone, activationDate, expiryStr],
     );
 
-    const row = (await pool.query(
-      'SELECT * FROM warranties WHERE id = $1 AND tenant_id = $2', [id, tenantId]
-    )).rows[0];
+    const row = (await pool.query('SELECT * FROM warranties WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
     res.status(201).json({
       id: row.id,
       productId: row.product_id,
@@ -113,7 +127,7 @@ router.post('/api/warranties', blockVendors, async (req: AuthRequest, res) => {
       status: row.status,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -125,7 +139,8 @@ router.put('/api/warranties/:id', blockVendors, async (req: AuthRequest, res) =>
     const { id } = req.params;
     const { customerName, customerPhone, status, replacedBarcode } = req.body;
     const effectiveStatus = status === 'Expired' ? undefined : status;
-    const wantsReplace = replacedBarcode !== undefined && typeof replacedBarcode === 'string' && replacedBarcode.trim() !== '';
+    const wantsReplace =
+      replacedBarcode !== undefined && typeof replacedBarcode === 'string' && replacedBarcode.trim() !== '';
 
     // Update non-replacement fields first (never set replaced_barcode until stock txn succeeds)
     const result = await pool.query(
@@ -134,23 +149,28 @@ router.put('/api/warranties/:id', blockVendors, async (req: AuthRequest, res) =>
          customer_phone = COALESCE($2, customer_phone),
          status = COALESCE($3, status)
        WHERE id = $4 AND tenant_id = $5`,
-      [customerName ?? null, customerPhone ?? null, effectiveStatus ?? null, id, tenantId]
+      [customerName ?? null, customerPhone ?? null, effectiveStatus ?? null, id, tenantId],
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Warranty not found' });
 
     if (wantsReplace) {
-      const w = (await pool.query(
-        'SELECT * FROM warranties WHERE id = $1 AND tenant_id = $2', [id, tenantId]
-      )).rows[0] as { barcode: string; product_id: string; customer_name: string; customer_phone: string; replaced_barcode?: string };
+      const w = (await pool.query('SELECT * FROM warranties WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+        .rows[0] as {
+        barcode: string;
+        product_id: string;
+        customer_name: string;
+        customer_phone: string;
+        replaced_barcode?: string;
+      };
       const newBc = String(replacedBarcode).trim();
       const oldBc = w.barcode;
       if (w.replaced_barcode) {
         return res.status(400).json({ error: 'Warranty already has a replacement barcode' });
       }
 
-      const prod = (await pool.query(
-        'SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [w.product_id, tenantId]
-      )).rows[0] as { name: string } | undefined;
+      const prod = (
+        await pool.query('SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [w.product_id, tenantId])
+      ).rows[0] as { name: string } | undefined;
 
       const repId = uid('REP');
       const replacedDate = new Date().toISOString().slice(0, 10);
@@ -160,44 +180,60 @@ router.put('/api/warranties/:id', blockVendors, async (req: AuthRequest, res) =>
         const [firstBc, secondBc] = [oldBc, newBc].sort();
         await wClient.query(
           `SELECT 1 FROM product_distribution WHERE barcode = ANY($1::text[]) AND tenant_id = $2 FOR UPDATE`,
-          [[firstBc, secondBc], tenantId]
+          [[firstBc, secondBc], tenantId],
         );
         await wClient.query(
           `SELECT 1 FROM product_sales WHERE barcode = ANY($1::text[]) AND tenant_id = $2 FOR UPDATE`,
-          [[firstBc, secondBc], tenantId]
+          [[firstBc, secondBc], tenantId],
         );
         await wClient.query(
           `SELECT 1 FROM product_inventory WHERE barcode = ANY($1::text[]) AND tenant_id = $2 FOR UPDATE`,
-          [[firstBc, secondBc], tenantId]
+          [[firstBc, secondBc], tenantId],
         );
 
-        const existingRep = (await wClient.query(
-          'SELECT 1 FROM product_replacements WHERE old_barcode = $1 AND tenant_id = $2 LIMIT 1',
-          [oldBc, tenantId]
-        )).rows[0];
+        const existingRep = (
+          await wClient.query('SELECT 1 FROM product_replacements WHERE old_barcode = $1 AND tenant_id = $2 LIMIT 1', [
+            oldBc,
+            tenantId,
+          ])
+        ).rows[0];
         if (existingRep) {
           await wClient.query('ROLLBACK');
           return res.status(400).json({ error: 'Replacement already recorded for this barcode' });
         }
 
-        const sale = (await wClient.query(
-          'SELECT vendor_id FROM product_sales WHERE barcode = $1 AND tenant_id = $2', [oldBc, tenantId]
-        )).rows[0] as { vendor_id: string } | undefined;
-        const distOld = (await wClient.query(
-          'SELECT vendor_id, status FROM product_distribution WHERE barcode = $1 AND tenant_id = $2', [oldBc, tenantId]
-        )).rows[0] as { vendor_id: string; status: string } | undefined;
+        const sale = (
+          await wClient.query('SELECT vendor_id FROM product_sales WHERE barcode = $1 AND tenant_id = $2', [
+            oldBc,
+            tenantId,
+          ])
+        ).rows[0] as { vendor_id: string } | undefined;
+        const distOld = (
+          await wClient.query(
+            'SELECT vendor_id, status FROM product_distribution WHERE barcode = $1 AND tenant_id = $2',
+            [oldBc, tenantId],
+          )
+        ).rows[0] as { vendor_id: string; status: string } | undefined;
         const repVendorId = sale?.vendor_id ?? distOld?.vendor_id ?? 'OWNER';
 
-        const distNew = (await wClient.query(
-          'SELECT vendor_id, status FROM product_distribution WHERE barcode = $1 AND tenant_id = $2', [newBc, tenantId]
-        )).rows[0] as { vendor_id: string; status: string } | undefined;
-        const invNew = repVendorId === 'OWNER'
-          ? (await wClient.query(
-              'SELECT status FROM product_inventory WHERE barcode = $1 AND tenant_id = $2', [newBc, tenantId]
-            )).rows[0] as { status: string } | undefined
-          : null;
-        const newValid = (distNew?.vendor_id === repVendorId && distNew.status === 'Distributed')
-          || (repVendorId === 'OWNER' && invNew?.status === 'InStock');
+        const distNew = (
+          await wClient.query(
+            'SELECT vendor_id, status FROM product_distribution WHERE barcode = $1 AND tenant_id = $2',
+            [newBc, tenantId],
+          )
+        ).rows[0] as { vendor_id: string; status: string } | undefined;
+        const invNew =
+          repVendorId === 'OWNER'
+            ? ((
+                await wClient.query('SELECT status FROM product_inventory WHERE barcode = $1 AND tenant_id = $2', [
+                  newBc,
+                  tenantId,
+                ])
+              ).rows[0] as { status: string } | undefined)
+            : null;
+        const newValid =
+          (distNew?.vendor_id === repVendorId && distNew.status === 'Distributed') ||
+          (repVendorId === 'OWNER' && invNew?.status === 'InStock');
         if (!newValid || distOld?.status === 'Damaged' || distOld?.status === 'Replaced') {
           await wClient.query('ROLLBACK');
           return res.status(400).json({ error: 'Replacement barcode is not valid for this warranty claim' });
@@ -206,36 +242,56 @@ router.put('/api/warranties/:id', blockVendors, async (req: AuthRequest, res) =>
         await wClient.query(
           `INSERT INTO product_replacements (id, tenant_id, old_barcode, new_barcode, warranty_id, product_id, product_name, customer_name, customer_phone, replaced_date, reason, vendor_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-          [repId, tenantId, oldBc, newBc, id, w.product_id, prod?.name ?? null, w.customer_name, w.customer_phone, replacedDate, 'Warranty claim', repVendorId]
+          [
+            repId,
+            tenantId,
+            oldBc,
+            newBc,
+            id,
+            w.product_id,
+            prod?.name ?? null,
+            w.customer_name,
+            w.customer_phone,
+            replacedDate,
+            'Warranty claim',
+            repVendorId,
+          ],
         );
-        await wClient.query("UPDATE product_distribution SET status = 'Damaged' WHERE barcode = $1 AND tenant_id = $2", [oldBc, tenantId]);
-        await wClient.query("UPDATE product_distribution SET status = 'Replaced' WHERE barcode = $1 AND tenant_id = $2", [newBc, tenantId]);
+        await wClient.query(
+          "UPDATE product_distribution SET status = 'Damaged' WHERE barcode = $1 AND tenant_id = $2",
+          [oldBc, tenantId],
+        );
+        await wClient.query(
+          "UPDATE product_distribution SET status = 'Replaced' WHERE barcode = $1 AND tenant_id = $2",
+          [newBc, tenantId],
+        );
         if (repVendorId === 'OWNER') {
-          await wClient.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2", [newBc, tenantId]);
+          await wClient.query("UPDATE product_inventory SET status = 'Sold' WHERE barcode = $1 AND tenant_id = $2", [
+            newBc,
+            tenantId,
+          ]);
         }
         await wClient.query(
           'UPDATE warranties SET replaced_barcode = $1, status = COALESCE($2, status) WHERE id = $3 AND tenant_id = $4',
-          [newBc, effectiveStatus ?? 'Replaced', id, tenantId]
+          [newBc, effectiveStatus ?? 'Replaced', id, tenantId],
         );
         await wClient.query('COMMIT');
       } catch (txErr) {
         await wClient.query('ROLLBACK');
-        console.error('Warranty replacement failed', txErr);
-        return res.status(500).json({ error: 'Replacement failed' });
+        return handleApiError(req, res, txErr, 'Warranty replacement failed', { publicMessage: 'Replacement failed' });
       } finally {
         wClient.release();
       }
     } else if (replacedBarcode !== undefined && (replacedBarcode === null || replacedBarcode === '')) {
       // Explicit clear only when no stock txn needed
-      await pool.query(
-        'UPDATE warranties SET replaced_barcode = NULL WHERE id = $1 AND tenant_id = $2',
-        [id, tenantId]
-      );
+      await pool.query('UPDATE warranties SET replaced_barcode = NULL WHERE id = $1 AND tenant_id = $2', [
+        id,
+        tenantId,
+      ]);
     }
 
-    const row = (await pool.query(
-      'SELECT * FROM warranties WHERE id = $1 AND tenant_id = $2', [id, tenantId]
-    )).rows[0] as Record<string, unknown>;
+    const row = (await pool.query('SELECT * FROM warranties WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0] as Record<string, unknown>;
 
     res.json({
       id: row.id,
@@ -249,7 +305,7 @@ router.put('/api/warranties/:id', blockVendors, async (req: AuthRequest, res) =>
       status: row.status,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -259,14 +315,11 @@ router.delete('/api/warranties/:id', blockVendors, async (req: AuthRequest, res)
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const result = await pool.query(
-      'DELETE FROM warranties WHERE id = $1 AND tenant_id = $2',
-      [id, tenantId]
-    );
+    const result = await pool.query('DELETE FROM warranties WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Warranty not found' });
     res.status(204).send();
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 

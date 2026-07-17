@@ -43,8 +43,11 @@ import payrollRouter from './routes/payroll';
 import expensesRouter from './routes/expenses';
 import gstApiRouter from './routes/gst-api';
 import invoicesRouter from './routes/invoices';
-import { logger } from './utils/logger';
+import { logger, requestContext, type RequestLogContext } from './utils/logger';
+import { logAuthEvent } from './utils/http-error';
 import { getCachedAuth, setCachedAuth } from './utils/authCache';
+
+const SLOW_API_MS = Number(process.env.SLOW_API_MS || 500);
 
 const PUBLIC_PATHS = [
   '/api/auth/login',
@@ -79,22 +82,53 @@ export function createApp(): express.Application {
     app.set('trust proxy', 1);
   }
 
-  // Correlation ID on every request — clients get it on errors; details stay server-side
+  // Correlation ID + AsyncLocalStorage request context on every request
   app.use((req, res, next) => {
     const incoming = req.headers['x-correlation-id'];
     const correlationId =
       typeof incoming === 'string' && incoming.trim() ? incoming.trim().slice(0, 64) : crypto.randomUUID();
     (req as express.Request & { correlationId?: string }).correlationId = correlationId;
     res.setHeader('X-Correlation-ID', correlationId);
+
+    const ctx: RequestLogContext = {
+      requestId: correlationId,
+      correlationId,
+      traceId: correlationId,
+      method: req.method,
+      path: req.path,
+      url: req.originalUrl?.replace(/([?&](?:token|access_token|refresh_token|password|otp)=)[^&]+/gi, '$1[REDACTED]'),
+      ip: req.ip || req.socket?.remoteAddress,
+      userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'].slice(0, 200) : undefined,
+      tenantId: typeof req.headers['x-tenant-id'] === 'string' ? req.headers['x-tenant-id'] : undefined,
+    };
+
+    // Sanitize 500 bodies so stack traces / SQL never reach clients.
+    // Preserve a plain { error: string } public message from handleApiError; strip everything else.
     const origJson = res.json.bind(res);
     res.json = ((body: unknown) => {
       if (res.statusCode >= 500) {
-        logger.error('API 500 response', { correlationId, method: req.method, path: req.path });
-        return origJson({ error: 'Internal server error', correlationId });
+        const errMsg =
+          body &&
+          typeof body === 'object' &&
+          !Array.isArray(body) &&
+          typeof (body as { error?: unknown }).error === 'string'
+            ? String((body as { error: string }).error).slice(0, 300)
+            : 'Internal server error';
+        // Chatbot uses { text }; preserve that shape for the UI
+        if (
+          body &&
+          typeof body === 'object' &&
+          'text' in (body as object) &&
+          typeof (body as { text?: unknown }).text === 'string'
+        ) {
+          return origJson({ text: (body as { text: string }).text, correlationId });
+        }
+        return origJson({ error: errMsg || 'Internal server error', correlationId });
       }
       return origJson(body as Parameters<typeof origJson>[0]);
     }) as typeof res.json;
-    next();
+
+    requestContext.run(ctx, () => next());
   });
 
   app.use(compression());
@@ -150,19 +184,57 @@ export function createApp(): express.Application {
     next();
   });
 
-  // Verbose request logging is debug-only (never production)
-  if (!isTest && !isProduction) {
+  // Structured HTTP access log for every API request (prod + dev; skipped in tests)
+  if (!isTest) {
     app.use((req, res, next) => {
       if (!req.originalUrl.startsWith('/api/')) return next();
+      // Skip noisy health checks at INFO; log only when unhealthy via handler
+      if (req.path === '/health' || req.path === '/api/health') return next();
       const start = Date.now();
+      const startBytes = typeof res.getHeader === 'function' ? 0 : 0;
+      void startBytes;
       res.on('finish', () => {
-        const ms = Date.now() - start;
+        const durationMs = Date.now() - start;
         const status = res.statusCode;
-        const tenant = (req.headers['x-tenant-id'] as string)?.slice(0, 8) || '—';
-        const icon = status >= 500 ? '💥' : status >= 400 ? '⚠️' : status >= 300 ? '↩️' : '✅';
-        const method = req.method.padEnd(7);
-        const safeUrl = req.originalUrl.replace(/([?&](?:token|access_token|refresh_token)=)[^&]+/gi, '$1[REDACTED]');
-        console.log(`${icon} ${method}${safeUrl}  →  ${status}  (${ms}ms)  tenant:${tenant}`);
+        const r = req as express.Request & { correlationId?: string; user?: { userId?: string }; tenantId?: string };
+        const contentLength = res.getHeader('content-length');
+        const responseSize =
+          typeof contentLength === 'string' || typeof contentLength === 'number' ? Number(contentLength) : undefined;
+        const store = requestContext.getStore();
+        if (store) {
+          store.userId = r.user?.userId ?? store.userId;
+          store.tenantId =
+            r.tenantId ||
+            (typeof req.headers['x-tenant-id'] === 'string' ? req.headers['x-tenant-id'] : store.tenantId);
+        }
+        const payload = {
+          method: req.method,
+          url: req.originalUrl.replace(
+            /([?&](?:token|access_token|refresh_token|password|otp)=)[^&]+/gi,
+            '$1[REDACTED]',
+          ),
+          path: req.path,
+          statusCode: status,
+          durationMs,
+          responseSize,
+          requestId: r.correlationId,
+          correlationId: r.correlationId,
+          userId: r.user?.userId,
+          tenantId: r.tenantId || (req.headers['x-tenant-id'] as string | undefined),
+          ip: req.ip || req.socket?.remoteAddress,
+          userAgent:
+            typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'].slice(0, 200) : undefined,
+          query: Object.keys(req.query || {}).length ? Object.keys(req.query) : undefined,
+        };
+        if (status >= 500) {
+          logger.error('HTTP request', payload);
+        } else if (status >= 400) {
+          logger.warn('HTTP request', payload);
+        } else if (durationMs >= SLOW_API_MS) {
+          logger.warn('Slow HTTP request', { ...payload, thresholdMs: SLOW_API_MS });
+        } else {
+          logger.info('HTTP request', payload);
+        }
       });
       next();
     });
@@ -255,7 +327,16 @@ export function createApp(): express.Application {
       }
       (req as unknown as Record<string, unknown>).user = decoded;
       (req as unknown as Record<string, unknown>).tenantId = decoded.tenantId;
-    } catch {
+      const store = requestContext.getStore();
+      if (store) {
+        store.userId = decoded.userId;
+        store.tenantId = decoded.tenantId ?? store.tenantId;
+      }
+    } catch (err) {
+      const name = err instanceof Error ? err.name : 'Error';
+      const reason =
+        name === 'TokenExpiredError' ? 'expired_token' : name === 'JsonWebTokenError' ? 'invalid_token' : 'auth_failed';
+      logAuthEvent('Authentication failed', req, { reason, errorName: name }, 'warn');
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
     next();
@@ -341,8 +422,11 @@ export function createApp(): express.Application {
           shortName = tenant.company_name.substring(0, 12);
           startUrl = `/${slug}`;
         }
-      } catch {
-        /* ignore */
+      } catch (err) {
+        logger.warn('Manifest tenant lookup failed', {
+          slug,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 
@@ -406,11 +490,16 @@ export function createApp(): express.Application {
     });
   }
 
-  app.get('/api/health', async (_req, res) => {
+  app.get('/api/health', async (req, res) => {
     try {
       await pool.query('SELECT 1');
       res.json({ ok: true, db: 'up', message: 'API is running' });
-    } catch {
+    } catch (err) {
+      logger.fatal('Health check database unavailable', {
+        correlationId: (req as express.Request & { correlationId?: string }).correlationId,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
       res.status(503).json({ ok: false, db: 'down', message: 'Database unavailable' });
     }
   });
@@ -452,14 +541,23 @@ export function createApp(): express.Application {
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const correlationId =
       (req as express.Request & { correlationId?: string }).correlationId || res.getHeader('X-Correlation-ID');
+    const user = (req as express.Request & { user?: { userId?: string }; tenantId?: string }).user;
+    const tenantId = (req as express.Request & { tenantId?: string }).tenantId;
     logger.error('Unhandled error', {
       correlationId,
+      requestId: correlationId,
       method: req.method,
       path: req.path,
+      url: req.originalUrl,
+      userId: user?.userId,
+      tenantId,
       error: err.message,
-      stack: isProduction ? undefined : err.stack,
+      stack: err.stack,
+      cause: 'cause' in err ? err.cause : undefined,
     });
-    res.status(500).json({ error: 'Internal server error', correlationId });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error', correlationId });
+    }
   });
 
   app.get('*', (req, res, next) => {

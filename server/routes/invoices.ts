@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
 
 const router = Router();
 
@@ -48,8 +49,7 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
       })),
     );
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -70,8 +70,7 @@ router.get('/api/invoices/next-number', async (req: AuthRequest, res) => {
         : `${now.getFullYear() - 1}-${now.getFullYear().toString().slice(2)}`;
     res.json({ number: `INV/${fy}/${String(count).padStart(4, '0')}` });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -149,8 +148,7 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
     );
     res.status(201).json({ id, invoiceNumber, grandTotal });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -219,8 +217,7 @@ router.put('/api/invoices/:id/status', blockVendors, async (req: AuthRequest, re
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   } finally {
     client.release();
   }
@@ -265,8 +262,7 @@ router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) =
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   } finally {
     client.release();
   }

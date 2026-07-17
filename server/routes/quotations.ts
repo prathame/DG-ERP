@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { blockVendors, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
 
 const router = Router();
 
@@ -40,8 +41,7 @@ router.get('/api/quotations', async (req, res) => {
       })),
     );
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -163,8 +163,7 @@ router.post('/api/quotations', blockVendors, async (req: AuthRequest, res) => {
       notes,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -196,8 +195,7 @@ router.get('/api/quotations/:id', async (req, res) => {
       convertedBatchId: row.converted_batch_id,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -237,8 +235,7 @@ router.put('/api/quotations/:id/status', blockVendors, async (req: AuthRequest, 
     if (result.rowCount === 0) return res.status(404).json({ error: 'Quotation not found' });
     res.json({ ok: true, status });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -255,8 +252,7 @@ router.delete('/api/quotations/:id', blockVendors, async (req: AuthRequest, res)
     if (result.rowCount === 0) return res.status(400).json({ error: 'Can only delete Draft or Rejected quotations' });
     res.json({ ok: true });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -444,8 +440,7 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
       client.release();
     }
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 

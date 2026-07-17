@@ -3,6 +3,7 @@ import { checkPlanLimit } from '../utils/planLimits';
 import { blockVendors, requireAdmin, AuthRequest, assertVendorLinked, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, hashPassword, logAudit, isValidPhone, isValidEmail, isValidGstin } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
 
 const router = Router();
 
@@ -50,8 +51,7 @@ router.get('/api/vendors', async (req: AuthRequest, res) => {
     res.setHeader('X-Limit', String(limit));
     res.json(list);
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -176,8 +176,9 @@ router.post('/api/vendors/bulk', blockVendors, async (req: AuthRequest, res) => 
     res.json({ success, errors: [], credentials });
   } catch (e) {
     await client.query('ROLLBACK');
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
-    res.status(500).json({ error: 'Import failed — no vendors were added' });
+    return handleApiError(req, res, e, 'Vendor import failed', {
+      publicMessage: 'Import failed — no vendors were added',
+    });
   } finally {
     client.release();
   }
@@ -273,8 +274,7 @@ router.post('/api/vendors', blockVendors, async (req: AuthRequest, res) => {
       credentials,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -315,8 +315,7 @@ router.put('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) => {
       gstNumber: row.gst_number ?? null,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -343,8 +342,7 @@ router.delete('/api/vendors/all', requireAdmin, async (req: AuthRequest, res) =>
     res.json({ deleted: rowCount });
   } catch (e) {
     await client.query('ROLLBACK');
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
-    res.status(500).json({ error: 'Failed to delete vendors' });
+    return handleApiError(req, res, e, 'Vendor bulk delete failed', { publicMessage: 'Failed to delete vendors' });
   } finally {
     client.release();
   }
@@ -400,8 +398,7 @@ router.delete('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) =>
       client.release();
     }
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
