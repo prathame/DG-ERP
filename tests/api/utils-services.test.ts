@@ -20,7 +20,9 @@ import {
 const TENANT = 'T-TEST-UTILS';
 
 beforeAll(async () => {
-  if (!process.env.JWT_SECRET) process.env.JWT_SECRET = 'test-secret-for-vitest-at-least-32-chars!!';
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is required for tests');
+  }
   await cleanupTestData(TENANT);
   await pool.query(
     `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status)
@@ -166,7 +168,7 @@ describe('utils/logger', () => {
     const error = vi.fn();
     const flush = vi.fn().mockResolvedValue(undefined);
     vi.resetModules();
-    process.env.LOGTAIL_TOKEN = 'test-logtail-token';
+    process.env.LOGTAIL_TOKEN = 'x'.repeat(32);
     vi.doMock('@logtail/node', () => ({
       Logtail: class {
         info = info;

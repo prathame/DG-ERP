@@ -1,12 +1,22 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = 'postgresql://postgres:1234@localhost:5432/splendor_erp_test';
+/**
+ * Tests require DATABASE_URL + JWT_SECRET from the environment
+ * (local `.env`, CI workflow env, or shell exports). No fallback secrets in source.
+ */
+function requireEnv(name: string): string {
+  const v = process.env[name]?.trim();
+  if (!v) {
+    throw new Error(
+      `${name} is required for tests. Copy .env.example → .env (or set CI env) before running vitest.`,
+    );
+  }
+  return v;
 }
-if (!process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = 'test-secret-key-for-automated-tests';
-}
+
+requireEnv('DATABASE_URL');
+requireEnv('JWT_SECRET');
 
 export async function setup() {
   const { initDatabase } = await import('../server/pg-db');
