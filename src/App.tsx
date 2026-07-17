@@ -707,7 +707,7 @@ export default function App() {
               isSidebarOpen ? 'w-[min(88vw,20rem)] translate-x-0 lg:w-60' : 'w-16 -translate-x-full lg:translate-x-0',
             )}
           >
-            <div className="h-14 lg:h-16 px-4 flex items-center justify-between border-b border-gray-100 pt-[env(safe-area-inset-top)] lg:pt-0">
+            <div className="min-h-14 lg:h-16 px-4 flex items-center justify-between border-b border-gray-100 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-3 lg:pt-0 lg:pb-0">
               {isSidebarOpen && (
                 <div className="flex items-center gap-2.5 min-w-0">
                   <img src="/icons/logo-full.png" alt="Dhando" className="h-8 w-auto object-contain shrink-0" />
@@ -854,7 +854,7 @@ export default function App() {
                 </div>
               );
             })()}
-            <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100 px-3 sm:px-8 py-2.5 sm:py-4 flex items-center justify-between gap-2 app-header-safe">
+            <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100 px-3 sm:px-8 pb-2.5 sm:pb-4 flex items-center justify-between gap-2 app-header-safe">
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   type="button"
@@ -976,7 +976,7 @@ export default function App() {
               </div>
             </header>
 
-            <div className="app-mobile-content p-3 sm:p-6 lg:p-8 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:pb-8">
+            <div className="app-mobile-content p-3 sm:p-6 lg:p-8">
               <ErrorBoundary key={tabKey} onReset={() => setTabKey(k => k + 1)}>
                 <Suspense fallback={<LazyFallback />}>
                   <div key={tabKey}>

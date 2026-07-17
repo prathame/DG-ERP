@@ -13,6 +13,10 @@
   --primary: #F27D26;
   --ink: #151619;
   --bg: #F8F9FA;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 html.dark {
@@ -249,6 +253,34 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* Sticky app header clears notch / Dynamic Island (App.tsx) */
+.app-header-safe {
+  padding-top: calc(0.625rem + var(--safe-top));
+}
+
+@media (min-width: 640px) {
+  .app-header-safe {
+    padding-top: calc(1rem + var(--safe-top));
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-header-safe {
+    padding-top: 1rem;
+  }
+}
+
+/* Clear fixed bottom nav + home indicator */
+.app-mobile-content {
+  padding-bottom: calc(4.5rem + var(--safe-bottom) + 0.75rem);
+}
+
+@media (min-width: 1024px) {
+  .app-mobile-content {
+    padding-bottom: 2rem;
+  }
+}
+
 /* —— Mobile-friendly content density (phones + Capacitor) —— */
 @media (max-width: 1023px) {
   .app-shell main {
@@ -262,7 +294,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .fixed.inset-0 .max-w-xl,
   .fixed.inset-0 .max-w-2xl,
   .fixed.inset-0 .max-w-3xl,
-  .fixed.inset-0 .max-w-4xl {
+  .fixed.inset-0 .max-w-4xl,
+  .fixed.inset-0 .max-w-5xl,
+  .fixed.inset-0 .max-w-6xl,
+  .fixed.inset-0 .max-w-7xl {
     max-width: calc(100vw - 1.5rem) !important;
     max-height: min(90dvh, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 1.5rem));
     overflow-y: auto;
