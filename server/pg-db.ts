@@ -720,6 +720,9 @@ export async function initSchema() {
 
     // Performance indexes
     await client.query('CREATE INDEX IF NOT EXISTS idx_pr_old_barcode ON product_replacements(tenant_id, old_barcode)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_pr_tenant ON product_replacements(tenant_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_rewards_tenant ON rewards(tenant_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_prt_active ON password_reset_tokens(expires_at) WHERE used = false');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pi_batch ON product_inventory(tenant_id, batch_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_customers_vendor ON customers(tenant_id, vendor_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_warranties_product ON warranties(tenant_id, product_id)');

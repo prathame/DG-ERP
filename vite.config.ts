@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
     // Relative assets required for Capacitor file:// / capacitor:// WebView
     base: isMobile ? './' : '/',
     plugins: [react(), tailwindcss()],
-resolve: {
+    resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },

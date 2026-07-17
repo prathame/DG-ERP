@@ -1,21 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion } from 'motion/react';
 import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import type { Tab } from '../../types';
-import { CustomerMasterView } from './CustomerMasterView';
-import { VendorMasterView } from './VendorMasterView';
-import { BankMasterView } from './BankMasterView';
-import { VendorCustomerMappingView } from './VendorCustomerMappingView';
-import { RewardRulesView } from './RewardRulesView';
-import { PriceListView } from './PriceListView';
-import { StaffMasterView } from './StaffMasterView';
+import { LoadingSpinner } from '../../components/ui';
+
+const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
+const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
+const BankMasterView = lazy(() => import('./BankMasterView').then(m => ({ default: m.BankMasterView })));
+const VendorCustomerMappingView = lazy(() => import('./VendorCustomerMappingView').then(m => ({ default: m.VendorCustomerMappingView })));
+const RewardRulesView = lazy(() => import('./RewardRulesView').then(m => ({ default: m.RewardRulesView })));
+const PriceListView = lazy(() => import('./PriceListView').then(m => ({ default: m.PriceListView })));
+const StaffMasterView = lazy(() => import('./StaffMasterView').then(m => ({ default: m.StaffMasterView })));
 
 export type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList' | 'staff';
 
-export function MastersView({ setActiveTab, user, businessType = 'manufacturer' }: { setActiveTab: (tab: Tab) => void; user?: Record<string, unknown> | null; businessType?: string }) {
+const MasterFallback = () => <div className="flex items-center justify-center py-16"><LoadingSpinner size="lg" /></div>;
+
+export function MastersView({ setActiveTab, user, businessType: _businessType = 'manufacturer' }: { setActiveTab: (tab: Tab) => void; user?: Record<string, unknown> | null; businessType?: string }) {
   const cfg = useBusinessConfig();
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
   const isDirectSell = cfg.type === 'dealer' || cfg.type === 'retail';
@@ -54,13 +58,13 @@ export function MastersView({ setActiveTab, user, businessType = 'manufacturer' 
     }
   };
 
-  if (selectedMaster === 'customer') return <CustomerMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} user={user} />;
-  if (selectedMaster === 'vendor') return <VendorMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} />;
-  if (selectedMaster === 'bank') return <BankMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} />;
-  if (selectedMaster === 'mapping') return <VendorCustomerMappingView onBack={() => setSelectedMaster(null)} />;
-  if (selectedMaster === 'rewardRules') return <RewardRulesView onBack={() => setSelectedMaster(null)} />;
-  if (selectedMaster === 'priceList') return <PriceListView onBack={() => setSelectedMaster(null)} />;
-  if (selectedMaster === 'staff') return <StaffMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} />;
+  if (selectedMaster === 'customer') return <Suspense fallback={<MasterFallback />}><CustomerMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} user={user} /></Suspense>;
+  if (selectedMaster === 'vendor') return <Suspense fallback={<MasterFallback />}><VendorMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} /></Suspense>;
+  if (selectedMaster === 'bank') return <Suspense fallback={<MasterFallback />}><BankMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} /></Suspense>;
+  if (selectedMaster === 'mapping') return <Suspense fallback={<MasterFallback />}><VendorCustomerMappingView onBack={() => setSelectedMaster(null)} /></Suspense>;
+  if (selectedMaster === 'rewardRules') return <Suspense fallback={<MasterFallback />}><RewardRulesView onBack={() => setSelectedMaster(null)} /></Suspense>;
+  if (selectedMaster === 'priceList') return <Suspense fallback={<MasterFallback />}><PriceListView onBack={() => setSelectedMaster(null)} /></Suspense>;
+  if (selectedMaster === 'staff') return <Suspense fallback={<MasterFallback />}><StaffMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} /></Suspense>;
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 gap-6">

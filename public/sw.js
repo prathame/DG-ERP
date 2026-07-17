@@ -1,4 +1,5 @@
-const CACHE_NAME = 'dg-erp-v1';
+// Bump on each production deploy so clients drop stale shell caches
+const CACHE_NAME = 'dg-erp-v2.2.0';
 const OFFLINE_URL = '/offline.html';
 
 // Install — cache essential assets

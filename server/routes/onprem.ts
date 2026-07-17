@@ -135,25 +135,43 @@ router.post('/api/onprem/deactivate', onpremLimiter, async (req, res) => {
 
 // ── Mark settings as applied (called by Electron after local apply succeeds) ──
 router.post('/api/onprem/mark-applied', onpremLimiter, async (req, res) => {
-  const licenseKey = (req.body as { licenseKey?: string })?.licenseKey;
+  const body = req.body as { licenseKey?: string; machineId?: string };
+  const licenseKey = body?.licenseKey;
   if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });
   try {
+    const lic = (await pool.query(
+      `SELECT id, status, machine_id FROM onprem_licenses WHERE license_key = $1`,
+      [licenseKey]
+    )).rows[0] as { id: string; status: string; machine_id: string | null } | undefined;
+    if (!lic || lic.status !== 'active') {
+      return res.status(404).json({ error: 'Invalid or inactive license' });
+    }
+    if (body.machineId && lic.machine_id && body.machineId !== lic.machine_id) {
+      return res.status(403).json({ error: 'Machine mismatch' });
+    }
     // Clear forceSyncAt so the device does not re-apply/reload on every heartbeat
-    await pool.query(
+    const updated = await pool.query(
       `UPDATE onprem_licenses
        SET settings_applied_at = NOW(),
            settings = COALESCE(settings, '{}'::jsonb) - 'forceSyncAt'
-       WHERE license_key = $1`,
+       WHERE license_key = $1 AND status = 'active'
+       RETURNING id`,
       [licenseKey]
     );
+    if (!updated.rows[0]) return res.status(404).json({ error: 'Invalid or inactive license' });
     res.json({ ok: true });
   } catch (err) {
     console.error('mark-applied failed:', (err as Error).message);
-    // Fallback: still stamp applied even if jsonb strip fails
+    // Fallback: still stamp applied even if jsonb strip fails (active licenses only)
     try {
-      await pool.query('UPDATE onprem_licenses SET settings_applied_at=NOW() WHERE license_key=$1', [licenseKey]);
+      const fb = await pool.query(
+        `UPDATE onprem_licenses SET settings_applied_at=NOW() WHERE license_key=$1 AND status='active' RETURNING id`,
+        [licenseKey]
+      );
+      if (!fb.rows[0]) return res.status(404).json({ error: 'Invalid or inactive license' });
+      return res.status(500).json({ ok: false, error: 'Partial apply failure' });
     } catch { /* ignore */ }
-    res.json({ ok: false });
+    res.status(500).json({ ok: false, error: 'Internal server error' });
   }
 });
 

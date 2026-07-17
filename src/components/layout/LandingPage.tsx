@@ -95,12 +95,12 @@ function EnquiryForm({ dark }: { dark: boolean }) {
       <h3 className="font-bold text-lg mb-1">Start Free Trial</h3>
       <p className={`text-sm mb-5 ${dark ? 'text-white/40' : 'text-gray-500'}`}>No credit card. Setup in 5 minutes.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-        <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={inp} placeholder="Your name *" />
-        <input required value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className={inp} placeholder="+91 98765 43210 *" />
-        <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={inp} placeholder="Email (optional)" />
-        <input value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} className={inp} placeholder="Business name" />
+        <input required aria-label="Your name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={inp} placeholder="Your name *" />
+        <input required aria-label="Phone number" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className={inp} placeholder="+91 98765 43210 *" />
+        <input type="email" aria-label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={inp} placeholder="Email (optional)" />
+        <input aria-label="Business name" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} className={inp} placeholder="Business name" />
       </div>
-      <textarea rows={3} value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} className={`${inp} resize-none mb-4`} placeholder="Tell us about your business..." />
+      <textarea rows={3} aria-label="Message" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} className={`${inp} resize-none mb-4`} placeholder="Tell us about your business..." />
       <button type="submit" disabled={sending} className="w-full py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-60">
         <Send size={16} /> {sending ? 'Sending...' : 'Get Started Free'}
       </button>

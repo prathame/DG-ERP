@@ -44,6 +44,7 @@ import expensesRouter from './routes/expenses';
 import gstApiRouter from './routes/gst-api';
 import invoicesRouter from './routes/invoices';
 import { logger } from './utils/logger';
+import { getCachedAuth, setCachedAuth } from './utils/authCache';
 
 const PUBLIC_PATHS = [
   '/api/auth/login', '/api/auth/forgot-password', '/api/auth/reset-password',
@@ -53,6 +54,10 @@ const PUBLIC_PATHS = [
   '/api/onprem/provision', '/api/onprem/apply-settings', '/api/onprem/mark-applied',
   '/api/mobile/redeem-invite', '/api/mobile/heartbeat',
 ];
+
+function isPublicApiPath(apiRelativePath: string): boolean {
+  return PUBLIC_PATHS.some((p) => apiRelativePath.startsWith(p.replace('/api', '')));
+}
 
 /** Build the Express app without listening — used by server entry and supertest. */
 export function createApp(): express.Application {
@@ -153,6 +158,18 @@ export function createApp(): express.Application {
   app.use('/api/backup/restore', express.json({ limit: '50mb' }));
   app.use(express.json({ limit: '2mb' }));
 
+  // Global API rate limit (authenticated + public) — auth endpoints have tighter limits below
+  if (!isTest) {
+    app.use('/api/', rateLimit({
+      windowMs: 60 * 1000,
+      max: 300,
+      message: { error: 'Too many requests, please slow down' },
+      standardHeaders: true,
+      legacyHeaders: false,
+      skip: (req) => req.path === '/health',
+    }));
+  }
+
   app.use((req, _res, next) => {
     if (req.method === 'QUERY') {
       if (req.body && typeof req.body === 'object') {
@@ -164,7 +181,7 @@ export function createApp(): express.Application {
   });
 
   app.use('/api/', async (req, res, next) => {
-    if (PUBLIC_PATHS.some(p => req.path.startsWith(p.replace('/api', '')))) return next();
+    if (isPublicApiPath(req.path)) return next();
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) return res.status(401).json({ error: 'Authentication required' });
     try {
@@ -172,13 +189,17 @@ export function createApp(): express.Application {
       if (decoded.tenantId && decoded.userId) {
         req.headers['x-tenant-id'] = decoded.tenantId;
 
-        const userRow = await pool.query(
-          `SELECT u.password_changed_at, u.role, u.vendor_id, u.permissions, t.status, t.subscription_ends_at, t.trial_ends_at
-           FROM users u JOIN tenants t ON t.id = u.tenant_id
-           WHERE u.id = $1 AND u.tenant_id = $2`,
-          [decoded.userId, decoded.tenantId]
-        );
-        const row = userRow.rows[0] as { password_changed_at: Date | null; role: string; vendor_id: string | null; permissions: unknown; status: string; subscription_ends_at: string | null; trial_ends_at: string | null } | undefined;
+        let row = getCachedAuth(decoded.userId, decoded.tenantId, decoded.iat);
+        if (!row) {
+          const userRow = await pool.query(
+            `SELECT u.password_changed_at, u.role, u.vendor_id, u.permissions, t.status, t.subscription_ends_at, t.trial_ends_at
+             FROM users u JOIN tenants t ON t.id = u.tenant_id
+             WHERE u.id = $1 AND u.tenant_id = $2`,
+            [decoded.userId, decoded.tenantId]
+          );
+          row = userRow.rows[0] as typeof row;
+          if (row) setCachedAuth(decoded.userId, decoded.tenantId, decoded.iat, row);
+        }
 
         if (!row) return res.status(401).json({ error: 'User no longer exists. Please log in again.' });
 
@@ -258,6 +279,13 @@ export function createApp(): express.Application {
       standardHeaders: true,
       legacyHeaders: false,
     }));
+    app.use('/api/chatbot', rateLimit({
+      windowMs: 60 * 1000,
+      max: 30,
+      message: { error: 'Too many chatbot requests, try again shortly' },
+      standardHeaders: true,
+      legacyHeaders: false,
+    }));
   }
 
   app.get('/manifest.json', async (req, res) => {
@@ -295,7 +323,15 @@ export function createApp(): express.Application {
     ? path.join(__dirname, '..', 'dist')
     : path.join(process.cwd(), 'dist');
   if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      maxAge: isProduction ? '1y' : 0,
+      immutable: isProduction,
+      setHeaders(res, filePath) {
+        if (filePath.endsWith('index.html') || filePath.endsWith('sw.js') || filePath.endsWith('manifest.json')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    }));
   }
 
   if (process.env.REQUIRE_ELECTRON === 'true') {
@@ -322,8 +358,13 @@ export function createApp(): express.Application {
     });
   }
 
-  app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, message: 'API is running' });
+  app.get('/api/health', async (_req, res) => {
+    try {
+      await pool.query('SELECT 1');
+      res.json({ ok: true, db: 'up', message: 'API is running' });
+    } catch {
+      res.status(503).json({ ok: false, db: 'down', message: 'Database unavailable' });
+    }
   });
 
   app.use(superAdminRouter);

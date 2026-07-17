@@ -797,7 +797,17 @@ router.get('/api/super-admin/tenants/:id/export', superAdminMiddleware, async (r
     await Promise.all(tables.map(async t => {
       try {
         const { rows } = await pool.query(`SELECT * FROM ${t} WHERE tenant_id=$1`, [id]);
-        backup[t] = rows;
+        // Never ship GST API secrets in exports (encrypted or legacy plaintext)
+        if (t === 'bill_settings') {
+          backup[t] = rows.map((r) => {
+            const row = { ...(r as Record<string, unknown>) };
+            if (row.gst_api_password) row.gst_api_password = '[REDACTED]';
+            if (row.gst_api_client_secret) row.gst_api_client_secret = '[REDACTED]';
+            return row;
+          });
+        } else {
+          backup[t] = rows;
+        }
       } catch { backup[t] = []; }
     }));
 
@@ -833,13 +843,17 @@ router.post('/api/super-admin/tenants/:id/notify', superAdminMiddleware, async (
 // ── Super-admin: list active reset tokens (support tool) ─────────────────────
 router.get('/api/super-admin/reset-tokens', superAdminMiddleware, async (req, res) => {
   try {
+    // Never return full reset tokens — preview only (full token only at create time)
     const rows = await pool.query(`
-      SELECT prt.id, prt.email, prt.tenant_id, prt.token, prt.expires_at, t.company_name
+      SELECT prt.id, prt.email, prt.tenant_id,
+             LEFT(prt.token, 8) || '…' AS token_preview,
+             prt.expires_at, t.company_name
       FROM password_reset_tokens prt
       JOIN tenants t ON t.id = prt.tenant_id
       WHERE prt.used = false AND prt.expires_at > NOW()
       ORDER BY prt.expires_at DESC
     `);
+    res.setHeader('Cache-Control', 'no-store');
     res.json(rows.rows);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

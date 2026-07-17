@@ -126,17 +126,41 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
           {(mode === 'forgot' || mode === 'reset') && (
             <button type="button" onClick={() => { setMode('login'); setError(''); setSuccessMessage(''); }} className="text-sm text-gray-400 hover:text-white mb-4 flex items-center gap-1">&larr; Back to login</button>
           )}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" aria-busy={submitting}>
             {mode !== 'reset' && (
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label><input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="you@example.com" /></div>
+              <div>
+                <label htmlFor="login-email" className="text-xs font-bold text-gray-400 uppercase block mb-1">Email</label>
+                <input id="login-email" type="email" autoComplete="username" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="you@example.com" />
+              </div>
             )}
             {mode === 'login' && (
-              <div><label className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label><PasswordInput required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" /></div>
+              <div>
+                <label htmlFor="login-password" className="text-xs font-bold text-gray-400 uppercase block mb-1">Password</label>
+                <PasswordInput id="login-password" autoComplete="current-password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" />
+              </div>
+            )}
+            {mode === 'reset' && (
+              <>
+                <div>
+                  <label htmlFor="reset-token" className="text-xs font-bold text-gray-400 uppercase block mb-1">Reset token</label>
+                  <input id="reset-token" type="text" autoComplete="one-time-code" required value={resetToken} onChange={(e) => setResetToken(e.target.value)} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="Paste reset token" />
+                </div>
+                <div>
+                  <label htmlFor="reset-password" className="text-xs font-bold text-gray-400 uppercase block mb-1">New password</label>
+                  <PasswordInput id="reset-password" autoComplete="new-password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" />
+                </div>
+                <div>
+                  <label htmlFor="reset-password-confirm" className="text-xs font-bold text-gray-400 uppercase block mb-1">Confirm password</label>
+                  <PasswordInput id="reset-password-confirm" autoComplete="new-password" required value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:border-transparent" style={{ '--tw-ring-color': accentColor } as React.CSSProperties} placeholder="••••••••" />
+                </div>
+              </>
             )}
             {mode === 'forgot' && <p className="text-xs text-gray-500">Enter your email and we'll send you a password reset. Contact your admin if you don't receive it.</p>}
-            {successMessage && <p className="text-sm text-emerald-400">{successMessage}</p>}
-            {error && <p className="text-sm text-rose-400">{error}</p>}
-            <button type="submit" disabled={submitting} className="w-full py-4 text-white rounded-xl font-bold text-lg transition-colors disabled:opacity-60" style={{ backgroundColor: accentColor }}>
+            <div aria-live="polite" aria-atomic="true">
+              {successMessage && <p className="text-sm text-emerald-400" role="status">{successMessage}</p>}
+              {error && <p className="text-sm text-rose-400" role="alert">{error}</p>}
+            </div>
+            <button type="submit" disabled={submitting} aria-busy={submitting} className="w-full py-4 text-white rounded-xl font-bold text-lg transition-colors disabled:opacity-60" style={{ backgroundColor: accentColor }}>
               {submitting ? 'Please wait...' : mode === 'login' ? 'Login' : mode === 'forgot' ? 'Send Reset Request' : 'Reset Password'}
             </button>
           </form>

@@ -71,7 +71,7 @@ jobs:
           echo "Clean"
 
       - name: npm audit (critical only)
-        run: npm audit --audit-level=critical || true
+        run: npm audit --audit-level=critical
 
       - name: Bundle size check
         run: |

@@ -30,7 +30,7 @@ export function generateToken(payload: object): string {
 
 export const generateSuperAdminToken = generateToken;
 
-export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   // H1: global auth in index.ts already attached live role/vendorId — do not clobber with JWT claims
   if (req.user?.userId && req.tenantId) {
     return next();
@@ -41,22 +41,23 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET!, { algorithms: ['HS256'] }) as JwtPayload;
-    req.user = decoded;
-    req.tenantId = decoded.tenantId;
 
     if (decoded.userId && decoded.tenantId) {
-      // Re-read live role so demotions take effect even on this fallback path
-      pool.query(
-        'SELECT role, vendor_id, password_changed_at FROM users WHERE id=$1 AND tenant_id=$2',
-        [decoded.userId, decoded.tenantId]
-      ).then(r => {
-        const row = r.rows[0] as { role: string; vendor_id: string | null; password_changed_at: Date | null } | undefined;
-        if (row && req.user) {
-          req.user.role = row.role;
-          req.user.vendorId = row.vendor_id ?? undefined;
+      // Await live role so demotions apply before the handler runs
+      try {
+        const r = await pool.query(
+          'SELECT role, vendor_id FROM users WHERE id=$1 AND tenant_id=$2',
+          [decoded.userId, decoded.tenantId]
+        );
+        const row = r.rows[0] as { role: string; vendor_id: string | null } | undefined;
+        if (row) {
+          decoded.role = row.role;
+          decoded.vendorId = row.vendor_id ?? undefined;
         }
-      }).catch(() => {});
+      } catch { /* keep JWT claims if DB briefly unavailable */ }
     }
+    req.user = decoded;
+    req.tenantId = decoded.tenantId;
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });

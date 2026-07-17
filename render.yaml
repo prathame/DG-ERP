@@ -9,8 +9,9 @@ services:
     name: dg-erp
     plan: free
     runtime: node
-    buildCommand: npm install && npm run build:prod
+    buildCommand: npm ci && npm test && npm run build:prod
     startCommand: npm start
+    healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -24,8 +25,13 @@ services:
         value: 3001
       - key: DATABASE_SSL
         value: "true"
-      # REQUIRED — set in Render Dashboard → Environment before go-live:
-      # SUPER_ADMIN_EMAIL=your-email@domain.com
-      # SUPER_ADMIN_PASSWORD=your-secure-password-min-12-chars
-      # ALLOWED_ORIGINS=https://dhandho.app,https://dg-erp.onrender.com
-      # LOGTAIL_TOKEN=your-logtail-source-token (from betterstack.com)
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: LOGTAIL_TOKEN
+        sync: false
+      - key: PUBLIC_APP_URL
+        value: https://dhandho.app

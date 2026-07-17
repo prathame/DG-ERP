@@ -7,9 +7,40 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    name: Tests on main
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: dhandho_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dhandho_test
+      JWT_SECRET: test-jwt-secret-for-ci-only-not-production
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run tests with coverage
+        run: npx vitest run --coverage
+
   build:
     name: Build + TypeScript + Bundle
     runs-on: ubuntu-latest
+    needs: test
 
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +54,7 @@ jobs:
         run: npm ci
 
       - name: TypeScript — zero errors
-        run: npx tsc --noEmit 2>&1 | grep -v "canvas.tsx" | grep "error TS" | tee /tmp/ts-errors.txt; [ ! -s /tmp/ts-errors.txt ]
+        run: npx tsc --noEmit
 
       - name: Build frontend
         run: npm run build

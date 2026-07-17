@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-Sitemap: https://dg-erp.onrender.com/sitemap.xml
+Sitemap: https://dhandho.app/sitemap.xml
