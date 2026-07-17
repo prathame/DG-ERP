@@ -402,27 +402,11 @@ router.post('/api/service-cloud/session/acquire', authMiddleware, publicLimiter,
     ).rows[0];
     if (!slot) return res.status(403).json({ error: 'Device not claimed — call claim-device first' });
 
-    // Expire stale
-    await pool.query(`DELETE FROM service_cloud_sessions WHERE expires_at <= NOW()`);
-
-    const current = (await pool.query(`SELECT * FROM service_cloud_sessions WHERE tenant_id=$1`, [user.tenantId]))
-      .rows[0] as Record<string, unknown> | undefined;
-
-    if (current && current.machine_id !== machineId) {
-      return res.status(409).json({
-        ok: false,
-        busy: true,
-        holder: {
-          userId: current.user_id,
-          userName: current.user_name,
-          client: current.client,
-          expiresAt: current.expires_at,
-        },
-      });
-    }
+    // Expire stale, then claim lock atomically: only upsert when free or same machine.
+    await pool.query(`DELETE FROM service_cloud_sessions WHERE tenant_id=$1 AND expires_at <= NOW()`, [user.tenantId]);
 
     const expires = new Date(Date.now() + IDLE_MS);
-    await pool.query(
+    const claimed = await pool.query(
       `INSERT INTO service_cloud_sessions (tenant_id, user_id, machine_id, client, user_name, heartbeat_at, expires_at)
        VALUES ($1,$2,$3,$4,$5,NOW(),$6)
        ON CONFLICT (tenant_id) DO UPDATE SET
@@ -431,11 +415,31 @@ router.post('/api/service-cloud/session/acquire', authMiddleware, publicLimiter,
          client=EXCLUDED.client,
          user_name=EXCLUDED.user_name,
          heartbeat_at=NOW(),
-         expires_at=EXCLUDED.expires_at`,
+         expires_at=EXCLUDED.expires_at
+       WHERE service_cloud_sessions.machine_id = EXCLUDED.machine_id
+       RETURNING tenant_id, expires_at`,
       [user.tenantId, user.userId, machineId, client, user.name || 'User', expires.toISOString()],
     );
+
+    if (!claimed.rows[0]) {
+      const current = (await pool.query(`SELECT * FROM service_cloud_sessions WHERE tenant_id=$1`, [user.tenantId]))
+        .rows[0] as Record<string, unknown> | undefined;
+      return res.status(409).json({
+        ok: false,
+        busy: true,
+        holder: current
+          ? {
+              userId: current.user_id,
+              userName: current.user_name,
+              client: current.client,
+              expiresAt: current.expires_at,
+            }
+          : null,
+      });
+    }
+
     await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1`, [slot.id]);
-    res.json({ ok: true, busy: false, expiresAt: expires.toISOString() });
+    res.json({ ok: true, busy: false, expiresAt: claimed.rows[0].expires_at });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -448,14 +452,14 @@ router.post('/api/service-cloud/session/heartbeat', authMiddleware, publicLimite
     const { machineId } = req.body as { machineId?: string };
     if (!machineId) return res.status(400).json({ error: 'machineId required' });
 
-    await pool.query(`DELETE FROM service_cloud_sessions WHERE expires_at <= NOW()`);
+    await pool.query(`DELETE FROM service_cloud_sessions WHERE tenant_id=$1 AND expires_at <= NOW()`, [user.tenantId]);
     const current = (await pool.query(`SELECT * FROM service_cloud_sessions WHERE tenant_id=$1`, [user.tenantId]))
       .rows[0] as Record<string, unknown> | undefined;
 
     if (!current) {
       return res.status(409).json({ ok: false, busy: false, needAcquire: true });
     }
-    if (current.machine_id !== machineId) {
+    if (current.machine_id !== machineId || current.user_id !== user.userId) {
       return res.status(409).json({
         ok: false,
         busy: true,
@@ -468,10 +472,11 @@ router.post('/api/service-cloud/session/heartbeat', authMiddleware, publicLimite
       });
     }
     const expires = new Date(Date.now() + IDLE_MS);
-    await pool.query(`UPDATE service_cloud_sessions SET heartbeat_at=NOW(), expires_at=$1 WHERE tenant_id=$2`, [
-      expires.toISOString(),
-      user.tenantId,
-    ]);
+    await pool.query(
+      `UPDATE service_cloud_sessions SET heartbeat_at=NOW(), expires_at=$1
+       WHERE tenant_id=$2 AND user_id=$3 AND machine_id=$4`,
+      [expires.toISOString(), user.tenantId, user.userId, machineId],
+    );
     res.json({ ok: true, busy: false, expiresAt: expires.toISOString() });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -483,10 +488,17 @@ router.post('/api/service-cloud/session/release', authMiddleware, publicLimiter,
     const user = (req as { user?: { userId?: string; tenantId?: string } }).user;
     if (!user?.userId || !user.tenantId) return res.status(401).json({ error: 'Unauthorized' });
     const { machineId } = req.body as { machineId?: string };
-    await pool.query(`DELETE FROM service_cloud_sessions WHERE tenant_id=$1 AND ($2::text IS NULL OR machine_id=$2)`, [
-      user.tenantId,
-      machineId || null,
-    ]);
+    if (!machineId) return res.status(400).json({ error: 'machineId required' });
+    // Only the holder can release — no takeover via foreign release
+    const deleted = await pool.query(
+      `DELETE FROM service_cloud_sessions
+       WHERE tenant_id=$1 AND user_id=$2 AND machine_id=$3
+       RETURNING tenant_id`,
+      [user.tenantId, user.userId, machineId],
+    );
+    if (!deleted.rows[0]) {
+      return res.status(403).json({ error: 'Not the active session holder' });
+    }
     res.json({ ok: true });
   } catch (err) {
     return handleApiError(req, res, err);

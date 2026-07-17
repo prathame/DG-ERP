@@ -370,13 +370,17 @@ export function GuideView() {
             </div>
           </Step>
 
-          <Step n={3} title="Staff use Cloud Electron or online mobile">
+          <Step n={3} title="Staff download the online apps">
             <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
               <p>
-                Desktop: Cloud Electron (
+                Public page <code className="bg-gray-200 px-1 rounded">/download</code> →{' '}
+                <strong>Dhando Service Cloud (ONLINE)</strong> — not the emerald Offline Mobile card
+              </p>
+              <p>
+                Desktop: Cloud Electron from that section (
                 <code className="bg-gray-200 px-1 rounded font-mono">npm run build:electron:cloud</code>)
               </p>
-              <p>Mobile: online Capacitor shell (not the offline Service Mobile APK)</p>
+              <p>Mobile: online Capacitor / APK from SA (never the DG-SM offline installer)</p>
               <p>If someone else holds the session, the app freezes until they leave or idle out — no takeover</p>
               <p>No internet → app freezes (not offline ERP)</p>
             </div>

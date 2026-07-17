@@ -11,6 +11,7 @@ const USER_A = 'U-SC-A';
 const USER_B = 'U-SC-B';
 const MACHINE_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const MACHINE_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const MACHINE_C = 'cccccccccccccccccccccccccccccccc';
 
 describe('HTTP: service-cloud seats', () => {
   const saToken = () => createSuperAdminToken();
@@ -58,6 +59,14 @@ describe('HTTP: service-cloud seats', () => {
     await cleanupTestData(TENANT);
   });
 
+  it('rejects invalid access mode', async () => {
+    const bad = await api()
+      .put(`/api/super-admin/tenants/${TENANT}/service-cloud/access-mode`)
+      .set({ Authorization: `Bearer ${saToken()}` })
+      .send({ clientAccessMode: 'tablet' });
+    expect(bad.status).toBe(400);
+  });
+
   it('SA sets access mode and device slots', async () => {
     const mode = await api()
       .put(`/api/super-admin/tenants/${TENANT}/service-cloud/access-mode`)
@@ -84,6 +93,31 @@ describe('HTTP: service-cloud seats', () => {
     expect(slotsB.status).toBe(200);
   });
 
+  it('SA create user with slots', async () => {
+    const created = await api()
+      .post(`/api/super-admin/tenants/${TENANT}/service-cloud/users`)
+      .set({ Authorization: `Bearer ${saToken()}` })
+      .send({
+        name: 'Carol',
+        email: 'c@sc.test',
+        password: 'password12',
+        mobileSlots: 0,
+        desktopSlots: 1,
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.userId).toBeTruthy();
+    const carol = (created.body.users as { email: string; desktopSlots: number }[]).find(u => u.email === 'c@sc.test');
+    expect(carol?.desktopSlots).toBe(1);
+  });
+
+  it('blocks web clients from claim-device', async () => {
+    const claim = await api()
+      .post('/api/service-cloud/claim-device')
+      .set({ Authorization: `Bearer ${tokenA()}` })
+      .send({ machineId: MACHINE_A, client: 'web' });
+    expect(claim.status).toBe(403);
+  });
+
   it('claim-device binds slot; second machine needs another slot', async () => {
     const claim = await api()
       .post('/api/service-cloud/claim-device')
@@ -97,9 +131,17 @@ describe('HTTP: service-cloud seats', () => {
       .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
       .send({ machineId: MACHINE_B, label: 'Laptop B' });
     expect(claim2.status).toBe(403);
+
+    // Re-claim same machine is idempotent
+    const again = await api()
+      .post('/api/service-cloud/claim-device')
+      .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
+      .send({ machineId: MACHINE_A });
+    expect(again.status).toBe(200);
+    expect(again.body.alreadyBound).toBe(true);
   });
 
-  it('company-wide session: second user gets busy until release', async () => {
+  it('company-wide session: second user gets busy until holder releases', async () => {
     const acq = await api()
       .post('/api/service-cloud/session/acquire')
       .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
@@ -107,7 +149,6 @@ describe('HTTP: service-cloud seats', () => {
     expect(acq.status).toBe(200);
     expect(acq.body.ok).toBe(true);
 
-    // Bob needs a mobile claim first
     const claimB = await api()
       .post('/api/service-cloud/claim-device')
       .set({ Authorization: `Bearer ${tokenB()}`, 'X-DG-Client': 'capacitor-cloud' })
@@ -122,6 +163,40 @@ describe('HTTP: service-cloud seats', () => {
     expect(busy.body.busy).toBe(true);
     expect(busy.body.holder.userName).toBe('Alice');
 
+    // Non-holder cannot release
+    const steal = await api()
+      .post('/api/service-cloud/session/release')
+      .set({ Authorization: `Bearer ${tokenB()}`, 'X-DG-Client': 'capacitor-cloud' })
+      .send({ machineId: MACHINE_B });
+    expect(steal.status).toBe(403);
+
+    const relMissing = await api()
+      .post('/api/service-cloud/session/release')
+      .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
+      .send({});
+    expect(relMissing.status).toBe(400);
+
+    const hb = await api()
+      .post('/api/service-cloud/session/heartbeat')
+      .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
+      .send({ machineId: MACHINE_A });
+    expect(hb.status).toBe(200);
+    expect(hb.body.ok).toBe(true);
+
+    // Wrong user cannot heartbeat even with stolen machineId knowledge
+    const hbSteal = await api()
+      .post('/api/service-cloud/session/heartbeat')
+      .set({ Authorization: `Bearer ${tokenB()}`, 'X-DG-Client': 'capacitor-cloud' })
+      .send({ machineId: MACHINE_A });
+    expect(hbSteal.status).toBe(409);
+
+    const status = await api()
+      .get('/api/service-cloud/session/status')
+      .set({ Authorization: `Bearer ${tokenB()}` });
+    expect(status.status).toBe(200);
+    expect(status.body.applicable).toBe(true);
+    expect(status.body.busy).toBe(true);
+
     const rel = await api()
       .post('/api/service-cloud/session/release')
       .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
@@ -133,6 +208,36 @@ describe('HTTP: service-cloud seats', () => {
       .set({ Authorization: `Bearer ${tokenB()}`, 'X-DG-Client': 'capacitor-cloud' })
       .send({ machineId: MACHINE_B });
     expect(acqB.status).toBe(200);
+
+    await api()
+      .post('/api/service-cloud/session/release')
+      .set({ Authorization: `Bearer ${tokenB()}`, 'X-DG-Client': 'capacitor-cloud' })
+      .send({ machineId: MACHINE_B });
+  });
+
+  it('atomic acquire: concurrent second machine stays busy', async () => {
+    await api()
+      .post('/api/service-cloud/session/acquire')
+      .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
+      .send({ machineId: MACHINE_A });
+
+    const [r1, r2] = await Promise.all([
+      api()
+        .post('/api/service-cloud/session/acquire')
+        .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
+        .send({ machineId: MACHINE_A }),
+      api()
+        .post('/api/service-cloud/session/acquire')
+        .set({ Authorization: `Bearer ${tokenB()}`, 'X-DG-Client': 'capacitor-cloud' })
+        .send({ machineId: MACHINE_B }),
+    ]);
+    expect(r1.status).toBe(200);
+    expect(r2.status).toBe(409);
+
+    await api()
+      .post('/api/service-cloud/session/release')
+      .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
+      .send({ machineId: MACHINE_A });
   });
 
   it('SA unbind frees slot for a new machine', async () => {
@@ -151,12 +256,30 @@ describe('HTTP: service-cloud seats', () => {
       .set({ Authorization: `Bearer ${saToken()}` });
     expect(unbind.status).toBe(200);
 
-    const MACHINE_C = 'cccccccccccccccccccccccccccccccc';
     const claim = await api()
       .post('/api/service-cloud/claim-device')
       .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
       .send({ machineId: MACHINE_C });
     expect(claim.status).toBe(200);
+  });
+
+  it('mobile-only mode rejects desktop claim', async () => {
+    await api()
+      .put(`/api/super-admin/tenants/${TENANT}/service-cloud/access-mode`)
+      .set({ Authorization: `Bearer ${saToken()}` })
+      .send({ clientAccessMode: 'mobile' });
+
+    const desk = await api()
+      .post('/api/service-cloud/claim-device')
+      .set({ Authorization: `Bearer ${tokenA()}`, 'X-DG-Client': 'electron-cloud' })
+      .send({ machineId: 'dddddddddddddddddddddddddddddddd' });
+    expect(desk.status).toBe(403);
+
+    // restore both for cleanliness
+    await api()
+      .put(`/api/super-admin/tenants/${TENANT}/service-cloud/access-mode`)
+      .set({ Authorization: `Bearer ${saToken()}` })
+      .send({ clientAccessMode: 'both' });
   });
 
   it('rejects manufacturer tenants', async () => {

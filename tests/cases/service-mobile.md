@@ -16,6 +16,6 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 9 | Phone lost restore | SA Unbind → new phone activate → Restore from **their** backup file | Same company data; wrong license key cannot decrypt |
 | 10 | Cloud backup API | POST `/api/service-mobile/backup` | 410 Gone |
 | 11 | Sideload / TestFlight | Install APK or TestFlight build | App opens; onboarding works |
-| 12 | Download page | Open `/download` | Offline Mobile App section present |
+| 12 | Download page | Open `/download` | **Service Mobile OFFLINE** card present; distinct from Service Cloud ONLINE |
 
 **Automated:** `tests/api/http-service-mobile.test.ts` (license lifecycle; cloud backup disabled).
