@@ -73,6 +73,7 @@ const PUBLIC_PATHS = [
   '/api/service-mobile/mark-applied',
   '/api/service-mobile/mark-notifications-delivered',
   '/api/service-mobile/backup',
+  '/api/download-links',
 ];
 
 function isPublicApiPath(apiRelativePath: string): boolean {
@@ -502,6 +503,28 @@ export function createApp(): express.Application {
         stack: err instanceof Error ? err.stack : undefined,
       });
       res.status(503).json({ ok: false, db: 'down', message: 'Database unavailable' });
+    }
+  });
+
+  /** Public evergreen download links (testing — one URL per app, overwrite file on rebuild). */
+  app.get('/api/download-links', async (_req, res) => {
+    try {
+      const rows = (
+        await pool.query(
+          `SELECT key, value FROM platform_config
+           WHERE key IN ('service_cloud_app_url', 'service_mobile_app_url', 'desktop_app_url')`,
+        )
+      ).rows as { key: string; value: string | null }[];
+      const cfg: Record<string, string | null> = {};
+      for (const r of rows) cfg[r.key] = r.value;
+      res.json({
+        serviceCloudAppUrl: cfg.service_cloud_app_url || null,
+        serviceMobileAppUrl: cfg.service_mobile_app_url || null,
+        desktopAppUrl: cfg.desktop_app_url || null,
+      });
+    } catch (err) {
+      logger.error('download-links failed', { error: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ error: 'Failed to load download links' });
     }
   });
 
