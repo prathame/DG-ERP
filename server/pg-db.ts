@@ -980,53 +980,19 @@ export async function initSchema() {
        WHERE delivered_at IS NULL`,
     );
 
-    // Mobile app (Capacitor) — Super Admin invite + force sync + device registry
-    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_invite_code TEXT`);
-    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_invite_expires_at TIMESTAMPTZ`);
-    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_force_sync_at TIMESTAMPTZ`);
-    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_min_version TEXT`);
-    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_latest_version TEXT`);
-    await client.query(
-      `CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_mobile_invite ON tenants(mobile_invite_code) WHERE mobile_invite_code IS NOT NULL`,
-    );
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS mobile_devices (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        user_id TEXT,
-        device_id TEXT NOT NULL,
-        platform TEXT DEFAULT 'unknown',
-        app_version TEXT,
-        last_seen TIMESTAMPTZ DEFAULT NOW(),
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE (tenant_id, device_id)
-      )
-    `);
-    await client.query('CREATE INDEX IF NOT EXISTS idx_mobile_devices_tenant ON mobile_devices(tenant_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_mobile_devices_seen ON mobile_devices(last_seen)');
-
-    // Service-tenant mobile offline seats (on-prem-style device binding)
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS mobile_seats (
-        id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        seat_key TEXT NOT NULL UNIQUE,
-        status TEXT NOT NULL DEFAULT 'active',
-        device_id TEXT,
-        device_platform TEXT,
-        app_version TEXT,
-        valid_until DATE,
-        last_seen TIMESTAMPTZ,
-        activated_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        created_by TEXT
-      )
-    `);
-    await client.query('CREATE INDEX IF NOT EXISTS idx_mobile_seats_tenant ON mobile_seats(tenant_id)');
-    await client.query(
-      `CREATE INDEX IF NOT EXISTS idx_mobile_seats_device ON mobile_seats(tenant_id, device_id) WHERE device_id IS NOT NULL`,
-    );
+    // Capacitor mobile removed — drop leftover table/columns from older deploys (idempotent).
+    await client.query(`DROP TABLE IF EXISTS mobile_seats CASCADE`);
+    await client.query(`DROP TABLE IF EXISTS mobile_devices CASCADE`);
+    await client.query(`DROP INDEX IF EXISTS idx_tenants_mobile_invite`);
+    for (const col of [
+      'mobile_invite_code',
+      'mobile_invite_expires_at',
+      'mobile_force_sync_at',
+      'mobile_min_version',
+      'mobile_latest_version',
+    ]) {
+      await client.query(`ALTER TABLE tenants DROP COLUMN IF EXISTS ${col}`);
+    }
 
     // Row Level Security (RLS) — DB-level tenant isolation safety net
     // RLS policies enforce tenant_id filtering at the DB level.
@@ -1066,8 +1032,6 @@ export async function initSchema() {
       'tenant_notifications',
       'tenant_invoices',
       'tenant_stats',
-      'mobile_devices',
-      'mobile_seats',
     ];
     for (const table of rlsTables) {
       await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);

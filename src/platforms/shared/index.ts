@@ -1,7 +1,1 @@
-export {
-  isNativeApp,
-  getApiOrigin,
-  getApiBase,
-  resolveApiUrl,
-  installNativeApiFetch,
-} from './apiBase';
+export { getApiOrigin, getApiBase, resolveApiUrl } from './apiBase';

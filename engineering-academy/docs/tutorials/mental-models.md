@@ -60,10 +60,9 @@ flowchart TB
   Code --> Cloud[Cloud Web — Render, browser]
   Code --> ElecCloud[Electron Cloud wrapper — ~20MB, opens the live URL]
   Code --> ElecOnprem[Electron On-Prem — ~180MB, embedded Postgres + full server]
-  Code --> Mobile[Capacitor Mobile — Android/iOS, talks to Cloud API]
 ```
 
-The same `server/index.ts` boots identically whether it's Render's container or an embedded process inside the on-prem Electron app (`DATABASE_URL` just points at a different Postgres). The same React bundle renders in a browser tab, inside an Electron `BrowserWindow`, or inside a Capacitor WebView — `src/platforms/` exists specifically to isolate the small amount of code that *does* differ per surface (API origin resolution, offline queueing, native bootstrap) from the 95% that doesn't. See [Deployment → Electron](/deployment/electron) and [Deployment → Mobile](/deployment/mobile).
+The same `server/index.ts` boots identically whether it's Render's container or an embedded process inside the on-prem Electron app (`DATABASE_URL` just points at a different Postgres). The same React bundle renders in a browser tab, inside an Electron `BrowserWindow`, — `src/platforms/` exists specifically to isolate the small amount of code that *does* differ per surface (API origin resolution, offline queueing, native bootstrap) from the 95% that doesn't. See [Deployment → Electron](/deployment/electron).
 
 ## 6. Business type is a data-driven feature flag, not a code fork
 

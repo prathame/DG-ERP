@@ -21,7 +21,7 @@ flowchart TB
     Router --> Public["Public routes"]
     Router --> Auth["Authenticated app shell"]
     Router --> SA["Super Admin app"]
-    Router --> Onboard["Mobile onboarding<br/>(Capacitor only)"]
+    Router --> Onboard["Mobile onboarding<br/>(Electron only)"]
 
     Public --> LandingPage
     Public --> LoginScreen
@@ -121,7 +121,7 @@ There is **no global state library** — each view fetches its own data on mount
 
 Two `platforms/` components are mounted at the very top of the tree, wrapping everything else, precisely because connectivity/environment awareness needs to be global rather than per-feature:
 
-- **`OfflineBanner`** (`platforms/mobile/offline`) — shown when the Capacitor app detects no connectivity.
+- **`OfflineBanner`** (`platforms/desktop/offline`) — shown when the Electron app detects no connectivity.
 - **`OnlineStatus`** (`platforms/desktop/offline`) — shown on the on-prem Electron build, reflecting license/heartbeat sync state.
 
 Both are no-ops (render `null`) on surfaces where they don't apply (e.g., `OnlineStatus` has nothing to show on a plain web browser tab) — the same component tree renders correctly on every surface without `if (surface === ...)` branches scattered through feature code.

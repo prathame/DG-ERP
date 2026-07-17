@@ -61,8 +61,6 @@ export async function cleanupTestData(tenantId: string) {
     'invoice_payments',
     'standalone_invoices',
     'tenant_notifications',
-    'mobile_seats',
-    'mobile_devices',
   ];
   for (const t of tables) {
     await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]).catch(() => {});

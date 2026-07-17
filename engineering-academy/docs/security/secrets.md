@@ -10,7 +10,7 @@ description: Environment variables, AES-256-GCM encryption for GST credentials, 
 Vite inlines every environment variable prefixed `VITE_` directly into the built JavaScript bundle at build time — anyone who opens dev tools and reads the shipped `.js` file can see it in plaintext. This is *by design* in Vite (it's how client code accesses build-time config at all), but it means:
 
 > [!CAUTION]
-> **`VITE_*` variables are not secrets. They ship to every browser, every Capacitor APK, every Electron installer.** `.env.mobile.example` in this repo documents this explicitly: `# See .env.mobile.example — only public-safe VITE_* values.` The mobile build's env file only ever contains things like `VITE_ANDROID_STORE_URL` and `VITE_APP_VERSION` — a store URL or version string leaking is a non-event; a GST API secret leaking is a breach.
+> **`VITE_*` variables are not secrets. They ship to every browser, every Electron installer.** Only public-safe `VITE_*` values belong in client env files; a GST API secret leaking is a breach.
 
 Every genuinely sensitive value in this codebase — `JWT_SECRET`, `DATABASE_URL`, GST NIC API credentials, `SUPER_ADMIN_PASSWORD` — is a **server-only** environment variable, read via `process.env.X` in Node code that never runs in the browser. There is no code path in `server/` that echoes these back to a client response, and CI includes a grep-based check (referenced in the security audit) that fails the build if a secret-looking key ever gets a `VITE_` prefix.
 

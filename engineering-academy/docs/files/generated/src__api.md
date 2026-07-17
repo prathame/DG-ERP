@@ -22,9 +22,6 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 - `./lib/session`
 - `./platforms/shared`
-- `./platforms/mobile/online/isMobileClient`
-- `./platforms/mobile/offline`
-- `./platforms/mobile/online/seatStorage`
 - `./lib/logger`
 
 ## Exports and symbols

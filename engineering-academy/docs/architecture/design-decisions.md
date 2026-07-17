@@ -53,13 +53,13 @@ The auth token is stored in `localStorage` (via `src/lib/session.ts`, slug-scope
 
 | Option | Pros | Why rejected (for now) |
 |---|---|---|
-| **`localStorage` + Bearer header** (chosen) | Simple to implement identically across all four surfaces (a cookie's domain/SameSite rules get genuinely awkward across a Capacitor WebView, an Electron `file://`-adjacent context, and a hosted web origin); trivially portable token handling in `api.ts` | Readable by any JavaScript running on the page — a successful XSS attack can steal the token |
-| httpOnly cookie | Immune to JavaScript-based token theft | Cookie behavior differs meaningfully across browser, Electron, and Capacitor WebView contexts (domain scoping, `SameSite`, whether the "cookie jar" is even shared the way you'd expect); would need surface-specific handling, undermining the "one API contract for four clients" simplicity |
+| **`localStorage` + Bearer header** (chosen) | Simple to implement identically across web and Electron surfaces (a cookie's domain/SameSite rules get genuinely awkward across an Electron `file://`-adjacent context, and a hosted web origin); trivially portable token handling in `api.ts` | Readable by any JavaScript running on the page — a successful XSS attack can steal the token |
+| httpOnly cookie | Immune to JavaScript-based token theft | Cookie behavior differs meaningfully across browser and Electron contexts (domain scoping, `SameSite`, whether the "cookie jar" is even shared the way you'd expect); would need surface-specific handling, undermining the "one API contract for four clients" simplicity |
 
 **Accepted trade-off, explicitly documented**: this is a known, named risk, not an oversight. It is mitigated — not eliminated — by: a strict CSP (`helmet()` in `app.ts`, disallowing inline scripts in production), sanitizing what's actually persisted in `localStorage` (`sanitizeUserForStorage()` strips phone/address/GST fields before they're ever written), a 24-hour token expiry, and password-change-invalidates-existing-sessions logic. See [Security → Accepted Risks](/security/accepted-risks) for the full write-up and the conditions under which this decision should be revisited.
 
 :::warning Don't "fix" this in isolation
-Switching to httpOnly cookies without solving the cross-surface cookie-scoping problem (particularly for Capacitor and Electron) would likely just trade one class of bug for another, more subtle one (silently broken auth on one surface). If you want to revisit this decision, it needs a surface-by-surface design, not a single PR.
+Switching to httpOnly cookies without solving the cross-surface cookie-scoping problem (particularly for Electron) would likely just trade one class of bug for another, more subtle one (silently broken auth on one surface). If you want to revisit this decision, it needs a surface-by-surface design, not a single PR.
 :::
 
 ## Decision: Business-type presets over a generic workflow builder
@@ -76,19 +76,6 @@ Covered in full in [Multi-tenancy](./multi-tenancy.md) — `ALTER TABLE ... ENAB
 |---|---|---|
 | **Single Express monolith** (chosen) | Runs identically hosted *and* embedded inside an offline Electron on-prem install; one deployable artifact; simple mental model for a small team/AI-agent workflow | Less independent scalability per-domain; a bug in one route file can theoretically affect the whole process's stability (mitigated by the global error-handling middleware) |
 | Microservices (per-domain services) | Independent scaling and deployment per domain | Cannot run "a service mesh" on a customer's offline laptop for the on-prem surface; massively more operational complexity for a team this size; network calls between services add latency and failure modes with no corresponding benefit at current scale |
-
-## Decision: Service offline seats on the cloud tenant (not a fleet product)
-
-Service business-type phones get stronger offline invoice/payment cache+queue than other tenants. Entitlement is a **seat** (`DG-MS-…`) bound to `deviceId` on the **same cloud service tenant**, validated on heartbeat — not a separate license fleet and not phone-local SQLite.
-
-| Option | Pros | Why rejected / chosen |
-|---|---|---|
-| **Seats on cloud service tenant** (chosen) | One SA panel, one Postgres, on-prem-like device binding without a second product | — |
-| Reuse `onprem_licenses` for phones | Familiar activate/heartbeat shape | On-prem assumes embedded Postgres + machine id; mixing cloud phones into that table confuses licensing and Bell delivery |
-| Separate “fleet” tenant / product | Clean isolation | Extra SA UX, billing, and sync for the same cloud data plane |
-| Phone SQLite offline ERP | True offline autonomy | Different product; out of scope for Capacitor cloud mobile |
-
-**Invariants** (activation race, slug match, one device ↔ one active seat, localStorage is not proof of entitlement) are documented in [Service Mobile Offline Seats](./mobile-service-seats.md).
 
 ## Decision: Accepted, documented `xlsx` (SheetJS) vulnerability
 
@@ -114,7 +101,6 @@ This is tracked as an accepted risk with a documented rationale — see [Securit
 | RLS enabled, not forced | Avoid silent zero-row failures on pooled connections | RLS is a safety net, not the primary tenant-isolation mechanism |
 | Monolith, not microservices | Must run offline on one customer machine | Less independent per-domain scalability |
 | Keep `xlsx` despite CVEs | No feature-complete replacement found | Documented, monitored, accepted risk |
-| Service seats on cloud tenant | Stronger offline for service without a fleet product | Heartbeat is source of truth; local flag is cache |
 
 ## Key concepts
 
@@ -126,7 +112,7 @@ This is tracked as an accepted risk with a documented rationale — see [Securit
 
 1. Proposing to "just add" React Router, an ORM, or a migrations framework without first reading why they were rejected — you may be about to reintroduce a previously-solved-around constraint.
 2. Treating an accepted risk as unaddressed technical debt to silently "clean up."
-3. Assuming a decision made for the cloud surface (like httpOnly cookies) is a safe drop-in without checking how it behaves on Electron and Capacitor too.
+3. Assuming a decision made for the cloud surface (like httpOnly cookies) is a safe drop-in without checking how it behaves on Electron too.
 
 ## Interview question
 
@@ -138,7 +124,6 @@ This is tracked as an accepted risk with a documented rationale — see [Securit
 
 - [Multi-tenancy](./multi-tenancy.md)
 - [Four Surfaces](./four-surfaces.md)
-- [Service Mobile Offline Seats](./mobile-service-seats.md)
 - [Tech Stack](/overview/tech-stack)
 - [AI Origin Assumptions](/overview/ai-origin-assumptions)
 - [Security → Accepted Risks](/security/accepted-risks)

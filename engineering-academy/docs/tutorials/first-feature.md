@@ -38,7 +38,7 @@ Also add `pinned_notes` to the `rlsTables` array at the bottom of `initSchema()`
 ```ts
 const rlsTables = [
   'users', 'vendors', /* ...existing entries... */, 'standalone_invoices',
-  'tenant_invoices', 'tenant_stats', 'mobile_devices',
+  'tenant_invoices', 'tenant_stats', 
   'pinned_notes', // ← add this
 ];
 ```

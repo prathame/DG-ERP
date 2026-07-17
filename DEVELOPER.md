@@ -41,55 +41,16 @@ Browser / Electron window
 ```
 platforms/
 ├── shared/           # API URL helpers (all clients)
-├── mobile/
-│   ├── online/       # Capacitor bootstrap, onboarding, heartbeat
-│   └── offline/      # Queue, cache, OfflineBanner
 └── desktop/
     ├── online/       # Electron cloud (thin online client)
     └── offline/      # On-prem sync UI (OnlineStatus)
 ```
 
 Native Electron processes: `electron/cloud` = desktop·online, `electron/onprem` = desktop·offline.  
-See `src/platforms/README.md`, `electron/README.md`, and **`docs/MOBILE.md`**.
+See `src/platforms/README.md` and `electron/README.md`. There is no Capacitor phone app.
 
 ---
 
-## Mobile App (Capacitor)
-
-Product + operator guide: [`docs/MOBILE.md`](docs/MOBILE.md).
-
-### Runtime
-- Build: `npm run build:mobile` → `dist-mobile/` → `npx cap sync`
-- Detect client: `isMobileClient()` = Capacitor native **or** `VITE_MOBILE=1` / `mode=mobile`
-- API host: `VITE_API_ORIGIN` (required in WebView); fetch patched by `installNativeApiFetch`
-
-### Onboarding (Super Admin driven)
-1. `POST /api/super-admin/tenants` auto-calls `issueInvite` → `mobileInviteCode`
-2. Share via WhatsApp includes `{origin}/download` + invite
-3. App: `MobileOnboarding` → `POST /api/mobile/redeem-invite` **or** slug via `GET /api/tenant/by-slug/:slug`
-4. Persist slug (`companyStorage`) → `/{slug}` login; **Change company** clears it
-
-### Sync / push (analogous to on-prem heartbeat)
-| Mechanism | API | Client |
-|-----------|-----|--------|
-| Device register | `POST /api/mobile/heartbeat` | `mobileSync.ts` every 60s |
-| Force sync | `POST …/mobile-force-sync` | Clears offline cache + `location.reload()` |
-| Version policy | `PUT …/mobile-version` | `forceUpdate` / `updateAvailable` events |
-| Device list | `GET …/mobile-devices` | SA `MobileTenantPanel` |
-
-### Key files
-| Path | Role |
-|------|------|
-| `server/routes/mobile.ts` | Redeem, heartbeat, SA invite/sync/devices |
-| `src/platforms/mobile/online/*` | Bootstrap, onboarding, sync |
-| `src/platforms/mobile/offline/*` | Cache, queue, banner |
-| `src/features/super-admin/MobileTenantPanel.tsx` | SA UI |
-| `src/components/layout/DownloadPage.tsx` | `/download` mobile + desktop links |
-
-### Public paths
-`/api/mobile/redeem-invite`, `/api/mobile/heartbeat` are in `PUBLIC_PATHS` (`server/app.ts`). Heartbeat still accepts optional Bearer to attach `user_id`.
-
----
 
 ## Business Type System
 
@@ -174,8 +135,8 @@ Middleware stack (applied per route):
 | `bill-settings.ts` | `/api/bill-settings` | PDF customization |
 | `dashboard.ts` | `/api/analytics` | overview, recent activity |
 | `onprem.ts` | `/api/onprem` | license activate/heartbeat/deactivate |
-| `mobile.ts` | `/api/mobile` | invite redeem, heartbeat, device register |
-| `super-admin.ts` | `/api/super-admin` | tenants, on-prem licenses, mobile invite/sync |
+| `notifications.ts` | `/api/notifications` | Bell feed, digests, SA notify (mounted before blockVendors) |
+| `super-admin.ts` | `/api/super-admin` | tenants, on-prem licenses, broadcast |
 | `admin.ts` | `/api/admin` | per-tenant admin tools |
 | `chatbot.ts` | `/api/chatbot` | AI assistant |
 | `mapping.ts` | `/api/mapping` | bank statement UPI→vendor matching |
@@ -290,8 +251,6 @@ Manual test cases in `tests/cases/` — one markdown file per feature area.
 | `npm start` | Express serving `dist/` (production) |
 | `npm run lint` | TypeScript type check (no emit) |
 | `npm test` | Vitest unit tests |
-| `npm run build:mobile` | Capacitor web bundle → `dist-mobile/` |
-| `npm run cap:sync` | build:mobile + `cap sync` |
 | `npm run cap:android` / `cap:ios` | Sync + open native IDE |
 | `npm run electron:cloud:dev` | Cloud Electron (dev) |
 | `npm run electron:onprem:dev` | On-prem Electron (dev, needs server running) |
@@ -319,9 +278,7 @@ The Express server serves the React `dist/` at `/` and the API at `/api/*`. No s
 | `server/index.ts` | Express app, middleware, route registration |
 | `server/utils/tenant.ts` | Tenant lifecycle (provision, delete, stats) |
 | `server/routes/super-admin.ts` | PRESETS object — authoritative tab configs per business type |
-| `docs/MOBILE.md` | Mobile product + API + build documentation |
-| `src/platforms/` | Mobile/desktop · online/offline client layout |
-| `server/routes/mobile.ts` | Mobile invite / heartbeat / devices |
+| `src/platforms/` | Shared API base + Electron desktop helpers |
 | `src/lib/businessTypeConfig.ts` | Frontend per-type feature flags |
 | `src/lib/billTemplates.ts` | PDF bill HTML (sales, distribution, invoice, quotation) |
 | `src/api.ts` | Typed API client |

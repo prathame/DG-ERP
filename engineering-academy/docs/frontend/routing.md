@@ -84,7 +84,7 @@ This is a legitimate question a router library would answer well, so it's worth 
 >
 > 1. **There genuinely aren't many routes.** The entire public surface is: static pages, `/admin`, `/{slug}`. Everything past login is not URL-addressable by design — see the callout below on *why that's actually intentional*, not an oversight.
 > 2. **`activeTab` needed to already exist as permission-gated state** (see [app-shell.md](./app-shell.md)'s `canAccess`/`getAccess`). A router's `<Route>` tree would just be a thin wrapper generating the same conditional renders `App.tsx` already does with `{canAccess(activeTab) && activeTab === 'x' && <X />}`. Introducing a router doesn't remove the permission-gating logic; it just adds an abstraction on top of it.
-> 3. **Multi-target constraint.** The same `src/` ships inside a Capacitor WebView (`capacitor://localhost`) and an Electron `BrowserWindow` (custom protocol handling, `file://`-adjacent quirks in some configs). Deep-linking behavior of a general-purpose router (matching `/products/:id`, redirect components, nested layouts) buys little when the shell explicitly does **not** want per-tab deep URLs (see below), while it does add a dependency whose edge cases (history mode vs hash mode, base path handling across three different hosting mechanisms) must be re-verified on all three targets.
+> 3. **Multi-target constraint.** The same `src/` ships inside an Electron `BrowserWindow` (custom protocol handling, `file://`-adjacent quirks in some configs). Deep-linking behavior of a general-purpose router (matching `/products/:id`, redirect components, nested layouts) buys little when the shell explicitly does **not** want per-tab deep URLs (see below), while it does add a dependency whose edge cases (history mode vs hash mode, base path handling across browser and Electron hosting) must be re-verified on both targets.
 > 4. **Bundle size discipline.** The project enforces a 256 KB gzip budget on the main chunk (see [../performance/bundle.md](../performance/bundle.md)). React Router itself is small, but it's one more thing competing for that budget on a project that already ships `motion`, `lucide-react`, and `xlsx` as separate vendor chunks.
 
 > [!IMPORTANT]
@@ -106,7 +106,6 @@ The honest verdict: this is the right call **for this product's shape today** (f
 
 ## How this interacts with mobile & desktop
 
-- **Capacitor (mobile):** the WebView's origin is `capacitor://localhost`. `history.pushState`/`popstate` work identically to a normal browser — no native navigation stack is involved. The Android hardware back button is wired separately in `src/platforms/mobile/online/bootstrap.ts` via `App.addListener('backButton', ...)`, which calls `window.history.back()` — routing back into the same `popstate` handler above. See [platforms.md](./platforms.md).
 - **Electron (desktop):** loads the same built `dist/index.html`; pathname-based tenant slug matching works the same way once a URL like `/acme-electronics?desktop=1` is loaded. The `?desktop=1` query flag (see `ElectronSlugEntry` in `App.tsx`) is how the Electron shell prompts an operator for their company slug on first launch, before any tenant is known.
 
 ## Quiz

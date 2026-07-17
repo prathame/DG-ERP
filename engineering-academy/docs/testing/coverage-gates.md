@@ -17,10 +17,6 @@ coverage: {
   include: [
     'server/utils/**/*.ts',
     'server/services/**/*.ts',
-    'server/routes/mobile.ts',
-    'src/platforms/mobile/offline/cache.ts',
-    'src/platforms/mobile/offline/queue.ts',
-    'src/platforms/mobile/online/companyStorage.ts',
   ],
   exclude: ['**/*.test.ts', '**/*.js'],
   thresholds: {
@@ -46,9 +42,6 @@ This does **not** mean routes are untested — recall [API Integration Testing](
 1. **Route files are large and heterogeneous** (validation branches, GST math, PDF generation triggers, audit logging, WhatsApp message formatting) — a single numeric threshold across a 400-line route file tends to either be trivially satisfiable (happy-path tests hit most lines) while missing important edge cases, or to force writing low-value tests just to hit an arbitrary branch count.
 2. **`server/utils/**` and `server/services/**` are exactly the opposite** — small, focused, pure-ish modules (`pii.ts`, `pagination.ts`, `helpers.ts`, `secret-crypto.ts`, `nic-api.ts`) where every branch genuinely matters and 90/75% is both achievable and meaningful. A bug in `redactPii`'s regex, or in `splitGst`'s tax-split math (in `helpers.ts`), has an outsized, hard-to-notice blast radius precisely because it's used everywhere and rarely re-verified by eye.
 3. **`server/routes/mobile.ts` earns an explicit exception to the "routes aren't scoped" rule** — mobile onboarding (invite redemption, heartbeat, device registry) is public-path-heavy (see [Mobile deployment](/deployment/mobile)) and security-sensitive in a way that benefits from strict, numerically-enforced coverage more than most route files do.
-4. **The three specific `src/platforms/mobile/*` files** (`cache.ts`, `queue.ts`, `companyStorage.ts`) are the offline-mutation-queue logic — exactly the kind of edge-case-heavy, easy-to-subtly-break logic (see [Lab: Offline Queue](/labs/lab-offline-queue)) that benefits from a hard coverage floor, because a regression here silently drops user data rather than throwing a visible error.
-
-**The takeaway:** coverage scope here is a curated list of "code where a coverage regression is a real, likely-costly bug," not a blanket policy. When you add a new file, ask whether it belongs in this list by the same criteria — small, focused, high-blast-radius-if-wrong, and reasonably testable without heroics — rather than assuming "more coverage everywhere" is automatically better.
 
 ## Where thresholds are enforced in CI
 

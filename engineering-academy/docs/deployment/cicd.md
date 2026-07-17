@@ -76,7 +76,7 @@ Spins up a real `postgres:16` service container (`POSTGRES_DB: dhandho_test`), t
 - run: npx vitest run --coverage
 ```
 
-Coverage thresholds are enforced by `vitest.config.ts`, **not** by a separate CI assertion — the `vitest run --coverage` command itself fails the process if any threshold isn't met, per the config's `coverage.thresholds` block (statements 90%, branches 75%, functions 90%, lines 90%, scoped to `server/utils/**`, `server/services/**`, `server/routes/mobile.ts`, and three specific `src/platforms/mobile/*` files — see [Coverage Gates](/testing/coverage-gates) for exactly why this scope and not "everything").
+Coverage thresholds are enforced by `vitest.config.ts`, **not** by a separate CI assertion — the `vitest run --coverage` command itself fails the process if any threshold isn't met, per the config's `coverage.thresholds` block (scoped to `server/utils/**` and `server/services/**` — see [Coverage Gates](/testing/coverage-gates)).
 
 ### `quality` job
 

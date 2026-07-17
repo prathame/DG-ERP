@@ -14,7 +14,6 @@ graph TD
         ErrorBoundary[ErrorBoundary]
         LoadingSpinner[LoadingSpinner]
         Skeleton[Skeleton / TableSkeleton / DashboardSkeleton]
-        OfflineBanner[OfflineBanner]
         OnlineStatus[OnlineStatus]
     end
     subgraph "Input"
@@ -53,12 +52,6 @@ The universal `Suspense` fallback (`LazyFallback` in `App.tsx` wraps it) and the
 ### `Skeleton`, `TableSkeleton`, `DashboardSkeleton`
 
 Layout-shaped placeholder blocks (gray animated rectangles matching the eventual content's dimensions) used where a spinner would cause a jarring layout jump once real data arrives — e.g., a data table that renders as a skeleton with the right number of rows/columns while `api.products.list()` resolves. This is the classic "perceived performance" trick: users tolerate the same real load time better when the loading state visually previews the coming layout instead of showing an unrelated spinner.
-
-### `OfflineBanner` (re-exported from `platforms/mobile/offline`) and `OnlineStatus` (re-exported from `platforms/desktop/offline`)
-
-Both are documented in depth in [platforms.md](./platforms.md); they're included in the `components/ui` public export surface (`index.ts`) purely for import convenience, even though their implementation lives under `platforms/`.
-
-## Input components
 
 ### `SearchSelect`
 
@@ -191,7 +184,6 @@ Generates printable barcode labels (leaning on `jsbarcode`, bundled in the `vend
 
 ```1:8:src/components/ui/index.ts
 export { ToastProvider, ToastContext, useToast } from './Toast';
-export { OfflineBanner } from '../../platforms/mobile/offline';
 export { LoadingSpinner } from './LoadingSpinner';
 export { DateRangeFilter } from './DateRangeFilter';
 export { PaginationControls } from './Pagination';

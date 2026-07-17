@@ -80,7 +80,7 @@ app.use((req, res, next) => {
 });
 ```
 
-This is roughly 15 lines of hand-written middleware instead of `app.use(cors({...}))`. The reasoning mirrors the "why hand-roll routing" decision in [../frontend/routing.md](../frontend/routing.md) — the actual requirement (an **explicit allowlist**, with a **separate, hardcoded set** for Capacitor's non-HTTP origin schemes like `capacitor://localhost`) is simple enough that a well-understood 15-line middleware is easier to audit line-by-line than to configure correctly through a third-party library's options object, and it removes one more dependency from the security-critical path.
+This is roughly 15 lines of hand-written middleware instead of `app.use(cors({...}))`. The reasoning mirrors the "why hand-roll routing" decision in [../frontend/routing.md](../frontend/routing.md) — the actual requirement (an **explicit allowlist**, for browser and Electron origins) is simple enough that a well-understood 15-line middleware is easier to audit line-by-line than to configure correctly through a third-party library's options object, and it removes one more dependency from the security-critical path.
 
 ### Why an explicit allowlist matters here specifically
 
@@ -88,7 +88,7 @@ This is roughly 15 lines of hand-written middleware instead of `app.use(cors({..
 // Never reflect * — unlisted origins get no Allow-Origin header
 ```
 
-The comment states the actual security property directly: **an unrecognized `Origin` header gets no `Access-Control-Allow-Origin` header at all**, not a wildcard `*` and not a reflected copy of whatever the request claimed. Combined with `Access-Control-Allow-Credentials: true` (required so the browser will actually send the `Authorization` header cross-origin from the SPA's own domain to the API's), reflecting `*` would be a critical CORS misconfiguration — browsers refuse to honor `Access-Control-Allow-Credentials: true` alongside a literal `*`, but a *reflected* origin combined with credentials would effectively let **any website on the internet** make authenticated, credentialed requests against a logged-in user's Dhandho session. The allowlist closes this off entirely: only origins the operator has explicitly configured via `ALLOWED_ORIGINS` (plus the fixed Capacitor scheme set) ever get a matching `Allow-Origin` response.
+The comment states the actual security property directly: **an unrecognized `Origin` header gets no `Access-Control-Allow-Origin` header at all**, not a wildcard `*` and not a reflected copy of whatever the request claimed. Combined with `Access-Control-Allow-Credentials: true` (required so the browser will actually send the `Authorization` header cross-origin from the SPA's own domain to the API's), reflecting `*` would be a critical CORS misconfiguration — browsers refuse to honor `Access-Control-Allow-Credentials: true` alongside a literal `*`, but a *reflected* origin combined with credentials would effectively let **any website on the internet** make authenticated, credentialed requests against a logged-in user's Dhandho session. The allowlist closes this off entirely: only origins the operator has explicitly configured via `ALLOWED_ORIGINS`  ever get a matching `Allow-Origin` response.
 
 ```mermaid
 sequenceDiagram

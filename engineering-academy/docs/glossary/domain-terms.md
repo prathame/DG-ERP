@@ -50,7 +50,7 @@ Dhandho's domain language is a mix of retail/distribution business vocabulary (v
 | **Route-level guard** | The *second*, independent authorization layer — `requireRole()`, `requireAdmin()`, `blockVendors()` — checked inside individual route handlers regardless of module permission outcome. | `server/middleware/auth.ts` |
 | **`vendorScopeId()` / `assertVendorAccess()`** | Data-level (row-level) scoping functions that prevent one vendor from accessing another vendor's data within the same tenant — the IDOR defense beneath the module/route layers. | `server/middleware/auth.ts` |
 | **`manualChunks`** | Vite build config that explicitly assigns specific large/situational dependencies (React, Motion, scanner libs, `xlsx`, icons) to their own downloadable chunks, independent of feature-based code splitting. | `vite.config.ts` |
-| **Platform seam** | The `src/platforms/{shared,desktop,mobile}` boundary that lets the same feature code run across Web/Electron/Capacitor without each feature file needing its own platform-detection branches. | `src/platforms/` |
+| **Platform seam** | The `src/platforms/{shared,desktop}` boundary that lets the same feature code run across Web/Electron without each feature file needing its own platform-detection branches. | `src/platforms/` |
 | **Offline queue** | Mobile-only durable storage of pending mutations made while offline, flushed once connectivity returns — not present on Web/Electron, which assume continuous connectivity. | `src/lib/offline/queue.ts` |
 
 ## Where business language and code language diverge

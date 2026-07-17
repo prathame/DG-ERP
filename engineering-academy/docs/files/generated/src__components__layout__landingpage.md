@@ -21,7 +21,6 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 ## Imports
 
 - `react`
-- `../../platforms/mobile/offline`
 - `motion/react`
 - `./ShutterIntro`
 - `./DeskIllustration`

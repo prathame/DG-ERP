@@ -141,7 +141,6 @@ If you add a new route file with a URL prefix that isn't in `PATH_MODULE`, `enfo
 | `/api/auth/signup` | 3 req/hour per IP | Endpoint is actually disabled (`410 Gone`) but still rate-limited defensively |
 | `/api/settings/change-password` | 20 req/15min per IP | Prevents password-change abuse on a compromised session |
 | `/api/chatbot` | 30 req/min per IP | Cost/abuse control on the NLQ endpoint |
-| `/api/onprem/*`, `/api/mobile/*` public endpoints | 60 req/15min per IP | These are public (no JWT) — rate limiting is the *only* abuse control before license/invite-code validation |
 
 All rate limits are disabled (`isTest` check) under Vitest so integration tests don't trip them.
 
@@ -166,7 +165,7 @@ A small, unusual accommodation: some HTTP clients (certain mobile/offline sync l
 
 ## Rejected alternative: URL versioning
 
-`/api/v1/...`, `/api/v2/...` was considered and rejected in favor of implicit versioning by release. **Rationale:** the frontend web app, the Capacitor mobile app, and the Electron on-prem app are all built from the same monorepo and released together for the cloud deployment; on-prem installs lag behind but pull a *whole new build*, not a mix-and-match of old frontend against new API version. There has never been a requirement to serve two API versions simultaneously to different clients at the same time. Introducing `/v1/` now would be pure ceremony — a real cost (every route path gets longer, every doc reference needs a version) for a versioning problem that doesn't exist yet. If a genuine multi-version need appears (e.g. an on-prem customer refuses to update for a year while cloud API evolves incompatibly), that's the trigger to revisit this.
+`/api/v1/...`, `/api/v2/...` was considered and rejected in favor of implicit versioning by release. **Rationale:** the frontend web app, the client mobile app, and the Electron on-prem app are all built from the same monorepo and released together for the cloud deployment; on-prem installs lag behind but pull a *whole new build*, not a mix-and-match of old frontend against new API version. There has never been a requirement to serve two API versions simultaneously to different clients at the same time. Introducing `/v1/` now would be pure ceremony — a real cost (every route path gets longer, every doc reference needs a version) for a versioning problem that doesn't exist yet. If a genuine multi-version need appears (e.g. an on-prem customer refuses to update for a year while cloud API evolves incompatibly), that's the trigger to revisit this.
 
 ## Common mistakes
 

@@ -27,7 +27,7 @@ Dhandho sells operational clarity to Indian SMEs: stock, distribution, GST bills
 
 ## Why this architecture serves the business
 
-Four surfaces (web, Electron cloud, Electron on-prem, Capacitor) share one Express+Postgres brain so features are not rewritten per channel.
+Three surfaces (web, Electron cloud, Electron on-prem) share one Express+Postgres brain so features are not rewritten per channel.
 
 \`\`\`mermaid
 flowchart LR
@@ -359,7 +359,6 @@ See [/runbooks](/runbooks).
 | Cloud | Render via \`render.yaml\` |
 | Containers | Dockerfile multi-stage + compose |
 | Desktop | electron-builder cloud/onprem |
-| Mobile | Capacitor \`dist-mobile\` |
 
 ## Render footgun
 

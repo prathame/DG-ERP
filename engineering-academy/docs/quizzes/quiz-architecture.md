@@ -21,7 +21,7 @@ How many primary client surfaces share the one Express API, and name them.
 <details>
 <summary>Answer</summary>
 
-**Four:** Web SPA (browser), Electron Cloud (desktop shell hitting the hosted API), Electron On-Prem (desktop shell with an embedded local Postgres), and Capacitor Mobile (Android/iOS wrapper). All four ship the *same* React codebase from `src/` — the differences live entirely in `src/platforms/`. See [System Overview](/architecture/system-overview).
+**Three:** Web SPA (browser), Electron Cloud (hosted API), Electron On-Prem (embedded local Postgres). Same `src/` React app; differences live in `src/platforms/` and `electron/`. Capacitor mobile was removed. See [Product Surfaces](/architecture/four-surfaces).
 
 </details>
 

@@ -205,18 +205,7 @@ The header Bell loads `GET /api/notifications` — a **merged feed**, not a toas
 
 Anti-noise: digests capped (≤6); client dismisses digests in `localStorage`; soft chime only when a *new* high-priority unread id appears and sound is unmuted. Poll every 5 minutes while focused.
 
-## Workflow 8: Service mobile offline seats
-
-Service tenants get stronger Capacitor offline (invoice/payment queue) via **seats on the cloud tenant**:
-
-1. SA issues `DG-MS-…` (auto on create-tenant, or Mobile panel).
-2. Phone activates with `{ seatKey, slug, deviceId }` → bind (slug match, conditional update, one seat per device).
-3. Heartbeat returns `seatValid` / `offlineEnabled`; client `isOfflineEntitled()` gates the queue.
-4. SA suspend / revoke / clearDevice / rotateKey takes effect on next online heartbeat.
-
-Full invariants, logging, and tests: [Service Mobile Offline Seats](/architecture/mobile-service-seats).
-
-## Workflow 9: Multi-page bill print
+## Workflow 8: Multi-page bill print
 
 All bill HTML (sales invoice, distribution challan, quotation, price list, standalone invoice, payment history, accounts reports) goes through `printBillInWindow` / `writePrintHtml` / `saveBillAsPdf` in `src/lib/utils.ts`, which injects `withPrintPagination()` CSS:
 

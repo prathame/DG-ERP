@@ -181,7 +181,7 @@ Per-tenant configuration: user profile, password change, bill customization (log
 
 ## Super Admin
 
-**`features/super-admin/*`** — `SuperAdminApp`, `TenantsView`/`TenantListView`/`TenantDetailView`, `PlanManagementView`, `SAAnalyticsView`, `OnPremView`, `SuperAdminBilling`, `SuperAdminAuditLog`, `MobileTenantPanel`, `GuideView`
+**`features/super-admin/*`** — `SuperAdminApp`, `TenantsView`/`TenantListView`/`TenantDetailView`, `PlanManagementView`, `SAAnalyticsView`, `OnPremView`, `SuperAdminBilling`, `SuperAdminAuditLog`, `GuideView`
 
 This is a **separate application**, not a tenant feature — it's Dhandho-the-company's internal tool for running Dhandho-the-product: provisioning new tenants, managing subscription plans, viewing cross-tenant analytics, managing on-prem license activations, and — notably — **impersonating a tenant admin** for support purposes (a short-lived, audited token; see [../security/authentication.md](../security/authentication.md)). It's gated entirely separately from tenant RBAC, via `superAdminMiddleware` and the `/admin` route in `App.tsx` (see [app-shell.md](./app-shell.md)).
 

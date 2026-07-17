@@ -50,8 +50,6 @@ tests/
 │   ├── authCache.test.ts
 │   ├── env.test.ts
 │   ├── impersonation-token.test.ts
-│   ├── mobile-onboarding.test.ts
-│   └── offline-mobile.test.ts
 ├── api/                     # Layer 2 — Supertest + real Postgres
 │   ├── auth.test.ts
 │   ├── products.test.ts

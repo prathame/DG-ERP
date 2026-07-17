@@ -15,7 +15,6 @@ Dhandho is a multi-tenant ERP SaaS for Indian SMEs (inventory, distribution, GST
 | **Cloud web** | React 19 SPA (Vite 6) + Express 4 API + PostgreSQL |
 | **Desktop cloud** | Electron wrapper around cloud URL |
 | **Desktop on-prem** | Electron + embedded PostgreSQL + local Express |
-| **Mobile** | Capacitor (Android/iOS) against cloud API |
 
 Hosting: Render (`render.yaml`). Live: [dhandho.app](https://dhandho.app).
 
@@ -35,7 +34,6 @@ Hosting: Render (`render.yaml`). Live: [dhandho.app](https://dhandho.app).
 | Logging | Structured logger + optional Logtail |
 | Tests | Vitest + supertest; Python E2E on release tags |
 | Desktop | Electron + electron-builder; embedded-postgres (on-prem) |
-| Mobile | Capacitor 8 |
 
 **Not used:** Next.js, React Router, Radix UI (README mention is stale).
 
@@ -59,7 +57,6 @@ server/
   routes/                 — domain routers (~30)
   utils/                  — env, tenant, barcode, pii, …
 electron/                 — cloud + onprem mains
-android/ ios/             — Capacitor native projects
 tests/                    — Vitest API/unit + Python e2e + cases/
 docs/                     — product & architecture docs
 .github/workflows/        — CI (lint, build, PR, security, release)
@@ -73,7 +70,6 @@ docs/                     — product & architecture docs
 flowchart TB
   subgraph clients [Clients]
     Web[Web SPA]
-    Cap[Capacitor Mobile]
     ElecC[Electron Cloud]
     ElecO[Electron On-Prem]
   end
@@ -148,7 +144,6 @@ Public paths include: auth login/reset, super-admin login, health, tenant-by-slu
 
 ## State Management
 
-No Redux/Zustand. Local React state in `App.tsx` + feature views; `session` helper for token/user; optional offline queue on mobile (`platforms/mobile/offline`).
 
 ---
 
@@ -165,7 +160,6 @@ See `.env.example`. Critical: `DATABASE_URL`, `JWT_SECRET` (≥32 prod), `SUPER_
 | `npm run dev` / `server` / `dev:all` | Local Vite + API |
 | `npm run build` | Vite → `dist/` |
 | `npm start` | Express serves API + static |
-| `npm run build:mobile` | Capacitor web assets |
 | `npm run build:electron:*` | Desktop installers |
 
 Render: `render.yaml` — Node web + Postgres. SPA fallback for non-API routes.
@@ -177,7 +171,6 @@ Render: `render.yaml` — Node web + Postgres. SPA fallback for non-API routes.
 1. JWT in `localStorage` (XSS risk; mitigated by production CSP)
 2. SPA tab routing (no deep-linkable module URLs)
 3. Per-request DB auth revalidation (correctness over latency; cacheable with short TTL)
-4. Monolithic `package.json` mixes server, Vite, Electron, Capacitor deps
 5. Dual domain history: `dhandho.app` vs `dg-erp.onrender.com`
 
 ---

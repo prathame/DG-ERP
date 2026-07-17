@@ -85,7 +85,6 @@ The function is one giant sequence of `await client.query(...)` calls, roughly i
 flowchart TD
     A["Platform tables:\nsuper_admins, plans, tenants,\ntenant_stats"] --> B["Tenant-scoped core tables:\nusers, vendors, customers, products,\nproduct_inventory, product_distribution,\nproduct_sales, warranties, product_replacements,\nrewards, reward_rules, redemption_settings,\nbanks, vendor_payments, audit_log,\ncategories, bill_settings"]
     B --> C["ALTER TABLE ... ADD COLUMN IF NOT EXISTS\n(schema evolution without migrations)"]
-    C --> D["Feature-area tables added over time:\npassword_reset_tokens, suppliers,\nproduct_purchases, supplier_payments,\nquotations, expenses, staff_members,\nstaff_payments, tenant_invoices, orders,\ncredit_debit_notes, price_lists,\nstandalone_invoices, invoice_payments,\nplatform_config, onprem_licenses,\nmobile_devices"]
     D --> E["Performance indexes\n(CREATE INDEX IF NOT EXISTS, ~40 total)"]
     E --> F["UNIQUE constraints\n(duplicate prevention at DB level)"]
     F --> G["Row Level Security:\nENABLE ROW LEVEL SECURITY +\nCREATE POLICY on ~30 tables"]
