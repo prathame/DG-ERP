@@ -1,9 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = 'postgresql://postgres:1234@localhost:5432/splendor_erp_test';
-}
-if (!process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = 'test-secret-key-for-automated-tests';
+// Secrets must come from env (.env / CI). See tests/globalSetup.ts.
+if (!process.env.DATABASE_URL || !process.env.JWT_SECRET) {
+  throw new Error('DATABASE_URL and JWT_SECRET are required for tests (set via .env or CI).');
 }

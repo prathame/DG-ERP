@@ -71,21 +71,22 @@ npm install
 # Create database
 createdb dhandho
 
-# Create .env
-cat > .env << EOF
-DATABASE_URL=postgresql://localhost:5432/dhandho
-JWT_SECRET=local-dev-secret-change-in-prod
-SUPER_ADMIN_EMAIL=admin@dhandho.in
-SUPER_ADMIN_PASSWORD=admin123
-PORT=3001
-VITE_API_URL=http://localhost:3001
-EOF
+# Secrets: copy the template and fill in your own values (never commit .env)
+cp .env.example .env
+# Edit .env — set DATABASE_URL, JWT_SECRET (≥32 chars), SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD
 
 # Start (server + frontend hot-reload)
 npm run dev:all
 ```
 
 Open `http://localhost:3000` — super admin at `/super-admin`.
+
+### Security — secrets & rotation
+
+- **Never commit** `.env`, `.env.local`, `.env.mobile`, or any file with real credentials. Only `.env.example` / `.env.mobile.example` (placeholders) belong in git.
+- **Client bundle (`VITE_*`)**: only public-safe values (API origin, store URLs, app version). Never put `JWT_SECRET`, database URLs, GST passwords, or Logtail tokens in `VITE_*` vars — Vite embeds them in the browser.
+- **No Supabase / Stripe / Mongo secrets** in this codebase today; if you add them later, service-role / secret keys stay server-side only.
+- **If a secret was ever hardcoded or committed**, assume it is compromised: **rotate it immediately** (new `JWT_SECRET`, DB password, SA password, API keys). Old values can remain recoverable from git history even after the file is deleted.
 
 ### Production Build
 
@@ -132,18 +133,13 @@ Capacitor app for **cloud** tenants. Full guide: [`docs/MOBILE.md`](docs/MOBILE.
 4. Heartbeat registers the device; SA can **Force sync** and set version policy
 
 ```bash
-# .env.mobile — VITE_MOBILE=1, VITE_API_ORIGIN=https://your-api.host
+cp .env.mobile.example .env.mobile   # set VITE_API_ORIGIN to your cloud API (public URL only)
 npm run build:mobile
 npm run cap:sync
 npm run cap:android   # or cap:ios
 ```
 
-Optional store links on `/download`:
-
-```bash
-VITE_ANDROID_STORE_URL=https://play.google.com/store/apps/details?id=app.dhandho.mobile
-VITE_IOS_STORE_URL=https://apps.apple.com/app/idXXXXXXXX
-```
+Optional store links: set `VITE_ANDROID_STORE_URL` / `VITE_IOS_STORE_URL` in `.env.mobile` (see `.env.mobile.example`).
 
 ---
 

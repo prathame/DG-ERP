@@ -7,17 +7,23 @@
  *
  *   STRESS_BASE_URL=http://localhost:3001   (required — no default)
  *   STRESS_SA_EMAIL=admin@example.com       (required)
- *   STRESS_SA_PASSWORD=secret               (required)
+ *   STRESS_SA_PASSWORD=…                    (required)
+ *   STRESS_TENANT_PASSWORD=…                (optional; random if unset)
  *   STRESS_ALLOW_DESTRUCTIVE=true           (required to actually run)
  *
  * Run: STRESS_BASE_URL=http://localhost:3001 STRESS_SA_EMAIL=... STRESS_SA_PASSWORD=... STRESS_ALLOW_DESTRUCTIVE=true npx tsx tests/stress-test.ts
  */
+
+import crypto from 'crypto';
 
 const BASE = process.env.STRESS_BASE_URL ?? '';
 const SUPER_ADMIN = {
   email:    process.env.STRESS_SA_EMAIL    ?? '',
   password: process.env.STRESS_SA_PASSWORD ?? '',
 };
+const TENANT_PASSWORD =
+  process.env.STRESS_TENANT_PASSWORD?.trim()
+  || crypto.randomBytes(12).toString('base64url');
 
 if (!BASE || !SUPER_ADMIN.email || !SUPER_ADMIN.password) {
   console.error('❌ STRESS_BASE_URL, STRESS_SA_EMAIL and STRESS_SA_PASSWORD must be set.');
@@ -62,20 +68,25 @@ async function setup() {
   const tenant = await api('/api/super-admin/tenants', {
     method: 'POST',
     token: saToken,
-    body: JSON.stringify({ companyName: `Stress Test ${Date.now()}`, adminEmail: `stress${Date.now()}@test.com`, adminName: 'Stress Tester', phone: '9999999999', plan: 'TRIAL', password: 'stress@123' }),
+    body: JSON.stringify({
+      companyName: `Stress Test ${Date.now()}`,
+      adminEmail: `stress${Date.now()}@test.com`,
+      adminName: 'Stress Tester',
+      phone: '9999999999',
+      plan: 'TRIAL',
+      password: TENANT_PASSWORD,
+    }),
   });
   if (!tenant.ok) { fail(`Tenant creation failed: ${JSON.stringify(tenant.data)}`); process.exit(1); }
   tenantId = tenant.data.tenantId;
   pass(`Test tenant created: ${tenantId}`);
 
-  // Login as tenant
-  const login = await api('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email: `stress${Date.now().toString().slice(0, -3)}@test.com`, password: 'stress@123' }),
-  });
-  // Use the token from tenant creation since email has timestamp
+  // Login as tenant (use email returned from create)
   const email = tenant.data.adminEmail;
-  const login2 = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password: 'stress@123' }) });
+  const login2 = await api('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password: TENANT_PASSWORD }),
+  });
   if (!login2.ok) { fail(`Tenant login failed: ${JSON.stringify(login2.data)}`); process.exit(1); }
   tenantToken = login2.data.token;
   pass('Tenant logged in');

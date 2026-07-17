@@ -22,5 +22,6 @@ server/**/*.js.map
 
 # Environment (secrets — never commit)
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
+!.env.mobile.example

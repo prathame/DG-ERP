@@ -4,7 +4,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 
 beforeAll(() => {
-  if (!process.env.JWT_SECRET) process.env.JWT_SECRET = 'test-secret-for-vitest-at-least-32-chars!!';
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is required for tests');
+  }
 });
 
 describe('secret-crypto', () => {

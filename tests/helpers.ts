@@ -2,7 +2,10 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { pool } from '../server/pg-db';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-automated-tests';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is required for tests');
+}
 
 export function createTestToken(payload: { userId: string; tenantId: string; email: string; role: string; name: string }) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '1h', algorithm: 'HS256' } as jwt.SignOptions);

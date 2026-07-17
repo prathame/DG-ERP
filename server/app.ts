@@ -114,7 +114,9 @@ export function createApp(): express.Application {
         const tenant = (req.headers['x-tenant-id'] as string)?.slice(0, 8) || '—';
         const icon = status >= 500 ? '💥' : status >= 400 ? '⚠️' : status >= 300 ? '↩️' : '✅';
         const method = req.method.padEnd(7);
-        console.log(`${icon} ${method}${req.originalUrl}  →  ${status}  (${ms}ms)  tenant:${tenant}`);
+        // Redact query tokens — never log Authorization headers
+        const safeUrl = req.originalUrl.replace(/([?&](?:token|access_token|refresh_token)=)[^&]+/gi, '$1[REDACTED]');
+        console.log(`${icon} ${method}${safeUrl}  →  ${status}  (${ms}ms)  tenant:${tenant}`);
       });
       next();
     });

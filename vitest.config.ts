@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globalSetup: './tests/globalSetup.ts',
+    setupFiles: ['./tests/setup.ts'],
     // Prefer .ts over stale compiled .js siblings under server/
     server: {
       deps: {
