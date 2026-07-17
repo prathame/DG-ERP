@@ -9,7 +9,10 @@ services:
     name: dg-erp
     plan: free
     runtime: node
-    buildCommand: npm ci && npm test && npm run build:prod
+    # Do NOT run `npm test` here: NODE_ENV=production skips devDependencies
+    # (vitest missing), and tests must not run against the production DB.
+    # Tests run in GitHub Actions CI instead.
+    buildCommand: npm ci && npm run build:prod
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
