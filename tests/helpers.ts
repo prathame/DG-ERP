@@ -57,8 +57,9 @@ export async function cleanupTestData(tenantId: string) {
     'expenses',
     'staff_members',
     'staff_payments',
-    'standalone_invoices',
+    // payments before invoices — FK ON DELETE RESTRICT
     'invoice_payments',
+    'standalone_invoices',
     'mobile_devices',
   ];
   for (const t of tables) {

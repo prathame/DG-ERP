@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/dashboard.ts` is part of Dhandho (DG-ERP). Approximate size: **417 lines**.
+`server/routes/dashboard.ts` is part of Dhandho (DG-ERP). Approximate size: **587 lines**.
 
 ## Business value
 
@@ -22,6 +22,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 - `express`
 - `../pg-db`
+- `../utils/http-error`
 - `../middleware/auth`
 
 ## Exports and symbols
@@ -108,7 +109,7 @@ rg -n "dashboard" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **417**. Large view/route files are refactor candidates.
+Line count **587**. Large view/route files are refactor candidates.
 
 ## Security impact
 

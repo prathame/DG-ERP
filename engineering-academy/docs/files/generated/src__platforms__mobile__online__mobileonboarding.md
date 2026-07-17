@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/platforms/mobile/online/MobileOnboarding.tsx` is part of Dhandho (DG-ERP). Approximate size: **163 lines**.
+`src/platforms/mobile/online/MobileOnboarding.tsx` is part of Dhandho (DG-ERP). Approximate size: **186 lines**.
 
 ## Business value
 
@@ -111,7 +111,7 @@ rg -n "MobileOnboarding" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **163**. Large view/route files are refactor candidates.
+Line count **186**. Large view/route files are refactor candidates.
 
 ## Security impact
 

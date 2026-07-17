@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/components/layout/LoginScreen.tsx` is part of Dhandho (DG-ERP). Approximate size: **187 lines**.
+`src/components/layout/LoginScreen.tsx` is part of Dhandho (DG-ERP). Approximate size: **370 lines**.
 
 ## Business value
 
@@ -96,7 +96,7 @@ rg -n "LoginScreen" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **187**. Large view/route files are refactor candidates.
+Line count **370**. Large view/route files are refactor candidates.
 
 ## Security impact
 

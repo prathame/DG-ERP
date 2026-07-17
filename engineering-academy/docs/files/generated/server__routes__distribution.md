@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/distribution.ts` is part of Dhandho (DG-ERP). Approximate size: **1523 lines**.
+`server/routes/distribution.ts` is part of Dhandho (DG-ERP). Approximate size: **2053 lines**.
 
 ## Business value
 
@@ -24,6 +24,8 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../middleware/auth`
 - `../pg-db`
 - `../utils/helpers`
+- `../utils/http-error`
+- `../utils/price-resolve`
 
 ## Exports and symbols
 
@@ -484,7 +486,7 @@ rg -n "distribution" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **1523**. Large view/route files are refactor candidates.
+Line count **2053**. Large view/route files are refactor candidates.
 
 ## Security impact
 

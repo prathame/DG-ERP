@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/components/ui/CommandPalette.tsx` is part of Dhandho (DG-ERP). Approximate size: **112 lines**.
+`src/components/ui/CommandPalette.tsx` is part of Dhandho (DG-ERP). Approximate size: **167 lines**.
 
 ## Business value
 
@@ -36,7 +36,11 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 ### Function: CommandPalette
 
 ```ts
-CommandPalette({ items, onSelect, onClose }: {
+CommandPalette({
+  items,
+  onSelect,
+  onClose,
+}: {
   items: PaletteItem[];
   onSelect: (id: string)
 ```
@@ -66,7 +70,7 @@ rg -n "CommandPalette" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **112**. Large view/route files are refactor candidates.
+Line count **167**. Large view/route files are refactor candidates.
 
 ## Security impact
 

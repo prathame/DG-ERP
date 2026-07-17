@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/main.tsx` is part of Dhandho (DG-ERP). Approximate size: **24 lines**.
+`src/main.tsx` is part of Dhandho (DG-ERP). Approximate size: **34 lines**.
 
 ## Business value
 
@@ -25,6 +25,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `./App.tsx`
 - `./i18n`
 - `./platforms`
+- `./lib/logger`
 
 ## Exports and symbols
 
@@ -51,7 +52,7 @@ rg -n "main" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **24**. Large view/route files are refactor candidates.
+Line count **34**. Large view/route files are refactor candidates.
 
 ## Security impact
 

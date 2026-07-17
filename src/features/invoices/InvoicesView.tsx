@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, FileText, Trash2, Download, Send, Check, X, Printer } from 'lucide-react';
 import {
@@ -17,6 +17,7 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { session } from '../../lib/session';
 import { api } from '../../api';
+import type { Product } from '../../types';
 
 function esc(t: unknown): string {
   return String(t ?? '')
@@ -36,6 +37,10 @@ type Invoice = {
   items: LineItem[];
   subtotal: number;
   taxTotal: number;
+  taxCgst?: number;
+  taxSgst?: number;
+  taxIgst?: number;
+  isInterstate?: boolean;
   grandTotal: number;
   notes?: string;
   terms?: string;
@@ -49,18 +54,68 @@ type LineItem = {
   qty: number;
   rate: number;
   gstPercent: number;
+  discountPercent?: number;
+  productId?: string;
   taxable: number;
   tax: number;
   total: number;
 };
 
-const emptyRow = (): { description: string; hsnSac: string; qty: number; rate: number; gstPercent: number } => ({
+type InvoiceLineRow = {
+  description: string;
+  hsnSac: string;
+  qty: number;
+  rate: number;
+  gstPercent: number;
+  discountPercent: number;
+  /** Empty = custom line; otherwise Masters product id (price from price list when available) */
+  productId: string;
+};
+
+type PriceRule = {
+  id: string;
+  productId: string;
+  vendorId?: string;
+  minQty: number;
+  maxQty: number | null;
+  price: number;
+  isActive: boolean;
+};
+
+const emptyRow = (): InvoiceLineRow => ({
   description: '',
   hsnSac: '',
   qty: 1,
   rate: 0,
   gstPercent: 18,
+  discountPercent: 0,
+  productId: '',
 });
+
+function lineTaxable(qty: number, rate: number, discountPercent: number): number {
+  const disc = Math.min(100, Math.max(0, discountPercent || 0));
+  return Math.round((((qty || 0) * (rate || 0) * (100 - disc)) / 100) * 100) / 100;
+}
+
+/** Mirror server /price-lists/resolve: vendor slab > general slab > product.price */
+function resolveCatalogPrice(product: Product, rules: PriceRule[], vendorId: string | null, qty: number): number {
+  const q = qty > 0 ? qty : 1;
+  const candidates = rules.filter(
+    r =>
+      r.isActive !== false &&
+      r.productId === product.id &&
+      r.minQty <= q &&
+      (r.maxQty == null || r.maxQty >= q) &&
+      (!r.vendorId || (vendorId && r.vendorId === vendorId)),
+  );
+  candidates.sort((a, b) => {
+    const aV = vendorId && a.vendorId === vendorId ? 0 : 1;
+    const bV = vendorId && b.vendorId === vendorId ? 0 : 1;
+    if (aV !== bV) return aV - bV;
+    return b.minQty - a.minQty;
+  });
+  return candidates[0]?.price ?? product.price ?? 0;
+}
 
 export function InvoicesView() {
   const { toast } = useToast();
@@ -173,7 +228,12 @@ export function InvoicesView() {
           : '';
 
       const hasGst = inv.taxTotal > 0;
-      const halfGst = Math.round(inv.taxTotal / 2);
+      const useIgst = inv.isInterstate === true || (typeof inv.taxIgst === 'number' && inv.taxIgst > 0);
+      const taxCgst = typeof inv.taxCgst === 'number' ? inv.taxCgst : Math.round(inv.taxTotal / 2);
+      const taxSgst = typeof inv.taxSgst === 'number' ? inv.taxSgst : Math.round((inv.taxTotal - taxCgst) * 100) / 100;
+      const taxIgst = typeof inv.taxIgst === 'number' ? inv.taxIgst : inv.taxTotal;
+      const showDiscCol = inv.items.some(it => (it.discountPercent || 0) > 0);
+      const itemColspan = (hasGst ? 8 : 6) + (showDiscCol ? 1 : 0);
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${invPrefix}${esc(inv.invoiceNumber)}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
@@ -185,12 +245,14 @@ export function InvoicesView() {
       .title-text{font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
       .items th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:6px;text-align:center;font-weight:700;}
       .items td{padding:5px 6px;text-align:center;}.items .left{text-align:left;}.items .right{text-align:right;}
+      .items tbody tr{break-inside:avoid;page-break-inside:avoid;}
       .items .total-row{font-weight:700;background:#f0f0f0;}
       .grand-total{font-size:16px;font-weight:900;color:${color};}
       .footer-text{font-size:9px;color:#999;text-align:center;margin-top:8px;}
-      @media print{body{padding:10px;} @page{margin:8mm;}}
+      .repeat-banner th{background:#fff;border-bottom:2px solid ${color};text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
+      @media print{body{padding:10px;} @page{margin:10mm;} thead{display:table-header-group;}}
     </style></head><body>
-    <table class="outer">
+    <table class="outer avoid-break">
       <tr class="hdr">
         <td colspan="2" style="width:65%;">
           <div style="display:flex;align-items:center;gap:12px;">${logoHtml}<div>
@@ -253,22 +315,41 @@ export function InvoicesView() {
       </td></tr>
     </table>
     <table class="outer items" style="margin-top:-2px;">
-      <thead><tr><th style="width:30px;">Sr</th><th class="left">Description</th><th>HSN/SAC</th><th>Qty</th><th class="right">Rate</th>${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr></thead>
+      <thead>
+        <tr class="repeat-banner"><th colspan="${itemColspan}">
+          <span style="font-weight:800;color:${color};">${esc(user.companyName || 'Dhandho')}</span>
+          <span style="float:right;font-weight:700;">${invPrefix}${esc(inv.invoiceNumber)}</span>
+        </th></tr>
+        <tr><th style="width:30px;">Sr</th><th class="left">Description</th><th>HSN/SAC</th><th>Qty</th><th class="right">Rate</th>${showDiscCol ? '<th class="right">Disc%</th>' : ''}${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr>
+      </thead>
       <tbody>
-        ${inv.items.map((it, i) => `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td><td>${esc(it.hsnSac || '—')}</td><td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`).join('')}
-        <tr class="total-row"><td colspan="${hasGst ? 7 : 5}" class="right">Subtotal</td><td class="right">₹${inv.subtotal.toLocaleString()}</td></tr>
+        ${inv.items
+          .map((it, i) => {
+            const disc = it.discountPercent || 0;
+            return `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td><td>${esc(it.hsnSac || '—')}</td><td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${showDiscCol ? `<td class="right">${disc > 0 ? `${disc}%` : '—'}</td>` : ''}${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`;
+          })
+          .join('')}
+      </tbody>
+    </table>
+    <div class="print-end avoid-break">
+    <table class="outer items" style="margin-top:-2px;border-top:none;">
+      <tbody>
+        <tr class="total-row"><td colspan="${itemColspan - 1}" class="right">Subtotal</td><td class="right">₹${inv.subtotal.toLocaleString()}</td></tr>
         ${
           hasGst
-            ? `<tr><td colspan="7" class="right">CGST</td><td class="right">₹${halfGst.toLocaleString()}</td></tr>
-        <tr><td colspan="7" class="right">SGST</td><td class="right">₹${(inv.taxTotal - halfGst).toLocaleString()}</td></tr>`
+            ? useIgst
+              ? `<tr><td colspan="${itemColspan - 1}" class="right">IGST</td><td class="right">₹${Number(taxIgst).toLocaleString()}</td></tr>`
+              : `<tr><td colspan="${itemColspan - 1}" class="right">CGST</td><td class="right">₹${Number(taxCgst).toLocaleString()}</td></tr>
+        <tr><td colspan="${itemColspan - 1}" class="right">SGST</td><td class="right">₹${Number(taxSgst).toLocaleString()}</td></tr>`
             : ''
         }
-        <tr class="total-row"><td colspan="${hasGst ? 7 : 5}" class="right"><span class="grand-total">Grand Total</span></td><td class="right"><span class="grand-total">₹${inv.grandTotal.toLocaleString()}</span></td></tr>
+        <tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><span class="grand-total">Grand Total</span></td><td class="right"><span class="grand-total">₹${inv.grandTotal.toLocaleString()}</span></td></tr>
       </tbody>
     </table>
     ${inv.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${esc(inv.notes)}</div>` : ''}
     ${bankHtml}${termsHtml}${sigHtml}
     <p class="footer-text">${footerText}</p>
+    </div>
     </body></html>`;
       printBillInWindow(w, html, `${hasGst ? 'Tax-Invoice' : 'Invoice'}-${inv.invoiceNumber}`);
     } catch (err) {
@@ -547,32 +628,232 @@ export function InvoicesView() {
   );
 }
 
+export type InvoicePartyPrefill = {
+  partyType?: 'vendor' | 'customer' | null;
+  partyId?: string | null;
+  customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  customerGstin?: string;
+};
+
+type InvoiceParty = {
+  key: string; // vendor:ID | customer:ID
+  label: string;
+  name: string;
+  phone: string;
+  address: string;
+  gstin: string;
+  partyType: 'vendor' | 'customer';
+  partyId: string;
+};
+
 // Create Invoice Modal
-function CreateInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function CreateInvoiceModal({
+  onClose,
+  onCreated,
+  initialParty,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+  initialParty?: InvoicePartyPrefill | null;
+}) {
   const { toast } = useToast();
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [form, setForm] = useState({
-    customerName: '',
-    customerGstin: '',
-    customerAddress: '',
-    customerPhone: '',
+    customerName: initialParty?.customerName || '',
+    customerGstin: initialParty?.customerGstin || '',
+    customerAddress: initialParty?.customerAddress || '',
+    customerPhone: initialParty?.customerPhone || '',
     invoiceDate: new Date().toISOString().slice(0, 10),
     dueDate: '',
     notes: '',
     terms: '',
   });
-  const [rows, setRows] = useState([emptyRow()]);
+  const [rows, setRows] = useState<InvoiceLineRow[]>([emptyRow()]);
   const [submitting, setSubmitting] = useState(false);
+  const [parties, setParties] = useState<InvoiceParty[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [priceRules, setPriceRules] = useState<PriceRule[]>([]);
+  const [partyKey, setPartyKey] = useState(() => {
+    if (initialParty?.partyType && initialParty?.partyId) {
+      return `${initialParty.partyType}:${initialParty.partyId}`;
+    }
+    return '';
+  });
+  const resolveTokenRef = useRef<Record<number, number>>({});
+
+  const pricingVendorId = partyKey.startsWith('vendor:') ? partyKey.slice('vendor:'.length) : null;
+
+  /** Prefer server resolve; fall back to client catalog rules. */
+  const resolveRowPrice = (idx: number, productId: string, vendorId: string | null, quantity: number) => {
+    if (!productId || quantity <= 0) return;
+    const token = (resolveTokenRef.current[idx] = (resolveTokenRef.current[idx] || 0) + 1);
+    const qs = new URLSearchParams({
+      productId,
+      quantity: String(quantity),
+    });
+    if (vendorId) qs.set('vendorId', vendorId);
+    fetch(`/api/price-lists/resolve?${qs}`, {
+      headers: {
+        Authorization: `Bearer ${session.getToken()}`,
+        'X-Tenant-ID': session.getTenantId() || '',
+      },
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (resolveTokenRef.current[idx] !== token) return;
+        if (!d || typeof d.price !== 'number') return;
+        setRows(prev => {
+          const row = prev[idx];
+          if (!row || row.productId !== productId || (row.qty || 0) !== quantity) return prev;
+          return prev.map((r, i) => (i === idx ? { ...r, rate: d.price } : r));
+        });
+      })
+      .catch(() => {
+        const p = products.find(x => x.id === productId);
+        if (!p) return;
+        const rate = resolveCatalogPrice(p, priceRules, vendorId, quantity);
+        setRows(prev => {
+          const row = prev[idx];
+          if (!row || row.productId !== productId) return prev;
+          return prev.map((r, i) => (i === idx ? { ...r, rate } : r));
+        });
+      });
+  };
 
   useEffect(() => {
     fetchApi<{ number: string }>('/invoices/next-number')
       .then(r => setInvoiceNumber(r.number))
       .catch(() => {});
-  }, []);
+    Promise.all([api.vendors.list(), api.customers.list(), api.products.list(), fetchApi<PriceRule[]>('/price-lists')])
+      .then(([vendors, customers, productList, rules]) => {
+        const fromVendors: InvoiceParty[] = vendors
+          .filter(v => v.id !== 'OWNER')
+          .map(v => ({
+            key: `vendor:${v.id}`,
+            label: `${v.name} (Vendor)`,
+            name: v.name,
+            phone: v.phone || '',
+            address: v.address || '',
+            gstin: v.gstNumber || '',
+            partyType: 'vendor' as const,
+            partyId: v.id,
+          }));
+        const fromCustomers: InvoiceParty[] = customers.map(c => ({
+          key: `customer:${c.id}`,
+          label: `${c.name} (Client)`,
+          name: c.name,
+          phone: c.phone || '',
+          address: c.address || '',
+          gstin: '',
+          partyType: 'customer' as const,
+          partyId: c.id,
+        }));
+        const list = [...fromVendors, ...fromCustomers].sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+        );
+        setParties(list);
+        setProducts(productList);
+        setPriceRules(rules.filter(r => r.isActive !== false));
+        // If opened from Finance with a party id, ensure fields filled once list loads
+        if (initialParty?.partyType && initialParty?.partyId) {
+          const key = `${initialParty.partyType}:${initialParty.partyId}`;
+          const party = list.find(p => p.key === key);
+          if (party) {
+            setPartyKey(key);
+            setForm(f => ({
+              ...f,
+              customerName: party.name || f.customerName,
+              customerPhone: party.phone || f.customerPhone,
+              customerAddress: party.address || f.customerAddress,
+              customerGstin: party.gstin || f.customerGstin,
+            }));
+          }
+        }
+      })
+      .catch(() => {
+        setParties([]);
+        setProducts([]);
+        setPriceRules([]);
+      });
+  }, [initialParty?.partyType, initialParty?.partyId]);
+
+  const selectParty = (key: string) => {
+    setPartyKey(key);
+    if (!key) return;
+    const party = parties.find(p => p.key === key);
+    if (!party) return;
+    setForm(f => ({
+      ...f,
+      customerName: party.name,
+      customerPhone: party.phone || f.customerPhone,
+      customerAddress: party.address || f.customerAddress,
+      customerGstin: party.gstin || f.customerGstin,
+    }));
+    // Re-price catalog lines when vendor party changes (vendor-specific price list)
+    const vendorId = party.partyType === 'vendor' ? party.partyId : null;
+    const nextRows = rows.map(r => {
+      if (!r.productId) return r;
+      const p = products.find(x => x.id === r.productId);
+      if (!p) return r;
+      return { ...r, rate: resolveCatalogPrice(p, priceRules, vendorId, r.qty) };
+    });
+    setRows(nextRows);
+    nextRows.forEach((r, i) => {
+      if (r.productId) resolveRowPrice(i, r.productId, vendorId, r.qty || 1);
+    });
+  };
+
+  const applyCatalogItem = (idx: number, productId: string) => {
+    if (!productId) {
+      setRows(rows.map((r, i) => (i === idx ? { ...emptyRow(), qty: r.qty || 1 } : r)));
+      return;
+    }
+    const p = products.find(x => x.id === productId);
+    if (!p) return;
+    const qty = rows[idx]?.qty || 1;
+    const rate = resolveCatalogPrice(p, priceRules, pricingVendorId, qty);
+    const hint = p.hsnCode ? suggestHsnRate(p.hsnCode) : null;
+    setRows(
+      rows.map((r, i) =>
+        i === idx
+          ? {
+              ...r,
+              productId: p.id,
+              description: p.name,
+              hsnSac: p.hsnCode || r.hsnSac || '',
+              qty,
+              rate,
+              gstPercent: p.gstRate ?? hint?.rate ?? r.gstPercent ?? 18,
+            }
+          : r,
+      ),
+    );
+    resolveRowPrice(idx, p.id, pricingVendorId, qty);
+  };
+
+  const updateRowQty = (idx: number, qty: number) => {
+    setRows(
+      rows.map((r, i) => {
+        if (i !== idx) return r;
+        const next = { ...r, qty };
+        if (r.productId) {
+          const p = products.find(x => x.id === r.productId);
+          if (p) next.rate = resolveCatalogPrice(p, priceRules, pricingVendorId, qty);
+        }
+        return next;
+      }),
+    );
+    const row = rows[idx];
+    if (row?.productId && qty > 0) {
+      resolveRowPrice(idx, row.productId, pricingVendorId, qty);
+    }
+  };
 
   const totals = rows.reduce(
     (acc, r) => {
-      const taxable = (r.qty || 0) * (r.rate || 0);
+      const taxable = lineTaxable(r.qty, r.rate, r.discountPercent);
       const tax = Math.round(((taxable * (r.gstPercent || 0)) / 100) * 100) / 100;
       return { subtotal: acc.subtotal + taxable, tax: acc.tax + tax, grand: acc.grand + taxable + tax };
     },
@@ -591,9 +872,25 @@ function CreateInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCre
     }
     setSubmitting(true);
     try {
+      const selected = parties.find(p => p.key === partyKey);
       await fetchApi('/invoices', {
         method: 'POST',
-        body: JSON.stringify({ ...form, invoiceNumber, items: validRows, status }),
+        body: JSON.stringify({
+          ...form,
+          invoiceNumber,
+          items: validRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId }) => ({
+            description,
+            hsnSac,
+            qty,
+            rate,
+            gstPercent,
+            discountPercent: discountPercent || 0,
+            ...(productId ? { productId } : {}),
+          })),
+          status,
+          partyType: selected?.partyType || null,
+          partyId: selected?.partyId || null,
+        }),
       });
       toast(`Invoice ${invoiceNumber} created`, 'success');
       onCreated();
@@ -631,14 +928,38 @@ function CreateInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCre
         <div className="p-6 space-y-4">
           {/* Customer info */}
           <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 sm:col-span-1">
+              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Customer / Vendor *</label>
+              <select
+                value={partyKey}
+                onChange={e => selectParty(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand bg-white"
+              >
+                <option value="">Select vendor or client</option>
+                {parties.map(p => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Customer Name *</label>
               <input
                 value={form.customerName}
-                onChange={e => setForm({ ...form, customerName: e.target.value })}
+                onChange={e => {
+                  setPartyKey('');
+                  setForm({ ...form, customerName: e.target.value });
+                }}
                 className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand"
-                placeholder="Company or person name"
+                placeholder="Or type a new name"
+                list="invoice-party-names"
               />
+              <datalist id="invoice-party-names">
+                {parties.map(p => (
+                  <option key={p.key} value={p.name} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label className="text-xs font-bold text-gray-400 uppercase block mb-1">GSTIN</label>
@@ -693,15 +1014,19 @@ function CreateInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCre
 
           {/* Line items */}
           <div>
-            <label className="text-xs font-bold text-gray-400 uppercase block mb-2">Line Items</label>
-            <div className="border border-gray-200 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
+            <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Line Items</label>
+            <p className="text-xs text-gray-400 mb-2">
+              Pick from Masters items / Price List, or choose Custom to type freely
+            </p>
+            <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+              <table className="w-full text-sm min-w-[720px]">
                 <thead className="bg-gray-50">
                   <tr className="text-xs font-bold text-gray-400 uppercase">
-                    <th className="px-3 py-2 text-left">Description</th>
+                    <th className="px-3 py-2 text-left min-w-[200px]">Item</th>
                     <th className="px-3 py-2 w-24">HSN/SAC</th>
                     <th className="px-3 py-2 w-16">Qty</th>
                     <th className="px-3 py-2 w-24">Rate</th>
+                    <th className="px-3 py-2 w-16">Disc%</th>
                     <th className="px-3 py-2 w-16">GST%</th>
                     <th className="px-3 py-2 w-24 text-right">Total</th>
                     <th className="px-3 py-2 w-8"></th>
@@ -709,19 +1034,52 @@ function CreateInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCre
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {rows.map((row, idx) => {
-                    const taxable = (row.qty || 0) * (row.rate || 0);
+                    const taxable = lineTaxable(row.qty, row.rate, row.discountPercent);
                     const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
+                    const catalogPrice =
+                      row.productId && products.find(p => p.id === row.productId)
+                        ? resolveCatalogPrice(
+                            products.find(p => p.id === row.productId)!,
+                            priceRules,
+                            pricingVendorId,
+                            row.qty || 1,
+                          )
+                        : null;
                     return (
                       <tr key={idx}>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2 space-y-1.5">
+                          <select
+                            value={row.productId}
+                            onChange={e => applyCatalogItem(idx, e.target.value)}
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                          >
+                            <option value="">Custom item</option>
+                            {products.map(p => {
+                              const listPrice = resolveCatalogPrice(p, priceRules, pricingVendorId, row.qty || 1);
+                              const fromList = priceRules.some(
+                                r => r.productId === p.id && (!r.vendorId || r.vendorId === pricingVendorId),
+                              );
+                              return (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} — ₹{listPrice.toLocaleString()}
+                                  {fromList ? ' (price list)' : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
                           <input
                             value={row.description}
                             onChange={e =>
                               setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))
                             }
                             className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
-                            placeholder="Service or item"
+                            placeholder={row.productId ? 'Description (editable)' : 'Type custom service or item'}
                           />
+                          {catalogPrice != null && row.rate !== catalogPrice && (
+                            <p className="text-[10px] text-amber-600">
+                              Rate edited from price list ₹{catalogPrice.toLocaleString()}
+                            </p>
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           <input
@@ -750,11 +1108,7 @@ function CreateInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCre
                             type="number"
                             min={1}
                             value={row.qty || ''}
-                            onChange={e =>
-                              setRows(
-                                rows.map((r, i) => (i === idx ? { ...r, qty: parseInt(e.target.value) || 0 } : r)),
-                              )
-                            }
+                            onChange={e => updateRowQty(idx, parseInt(e.target.value) || 0)}
                             className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
                           />
                         </td>
@@ -769,6 +1123,28 @@ function CreateInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCre
                               )
                             }
                             className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={row.discountPercent || ''}
+                            onChange={e =>
+                              setRows(
+                                rows.map((r, i) =>
+                                  i === idx
+                                    ? {
+                                        ...r,
+                                        discountPercent: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)),
+                                      }
+                                    : r,
+                                ),
+                              )
+                            }
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                            placeholder="0"
                           />
                         </td>
                         <td className="px-3 py-2">

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/app.ts` is part of Dhandho (DG-ERP). Approximate size: **428 lines**.
+`server/app.ts` is part of Dhandho (DG-ERP). Approximate size: **577 lines**.
 
 ## Business value
 
@@ -64,6 +64,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `./routes/gst-api`
 - `./routes/invoices`
 - `./utils/logger`
+- `./utils/http-error`
 - `./utils/authCache`
 
 ## Exports and symbols
@@ -72,7 +73,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (6 detected)
+## Functions (7 detected)
 
 ### Function: isPublicApiPath
 
@@ -100,21 +101,6 @@ createApp()
 | Purpose | Symbol in `server/app.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `createApp` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
-### Function: correlationId
-
-```ts
-correlationId(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `server/app.ts`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `correlationId` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -149,17 +135,47 @@ tenant(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: slug
+### Function: correlationId
 
 ```ts
-slug(...)
+correlationId(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
 | Purpose | Symbol in `server/app.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `slug` before deleting. |
+| What breaks if removed | Search the repo for `correlationId` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: user
+
+```ts
+user(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/app.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `user` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: tenantId
+
+```ts
+tenantId(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/app.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `tenantId` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -180,7 +196,7 @@ rg -n "app" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **428**. Large view/route files are refactor candidates.
+Line count **577**. Large view/route files are refactor candidates.
 
 ## Security impact
 

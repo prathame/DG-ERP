@@ -6,7 +6,28 @@ import { handleApiError } from '../utils/http-error';
 
 const router = Router();
 
-// Client-wise summary: total invoiced, paid, outstanding
+/** partyKey: vendor:ID | customer:ID | name:DisplayName (legacy unlinked invoices) */
+export function parsePartyKey(raw: string): {
+  partyType: 'vendor' | 'customer' | null;
+  partyId: string | null;
+  clientName: string | null;
+  partyKey: string;
+} {
+  const key = decodeURIComponent(raw || '').trim();
+  if (key.startsWith('vendor:') || key.startsWith('customer:')) {
+    const i = key.indexOf(':');
+    const partyType = key.slice(0, i) as 'vendor' | 'customer';
+    const partyId = key.slice(i + 1).trim();
+    if (!partyId) {
+      return { partyType: null, partyId: null, clientName: '', partyKey: 'name:' };
+    }
+    return { partyType, partyId, clientName: null, partyKey: `${partyType}:${partyId}` };
+  }
+  const name = key.startsWith('name:') ? key.slice(5) : key;
+  return { partyType: null, partyId: null, clientName: name, partyKey: `name:${name}` };
+}
+
+// Client-wise summary: prefer stable party_id grouping; fall back to customer_name
 router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -15,10 +36,19 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
     const rows = (
       await pool.query(
         `
-      SELECT si.customer_name, si.customer_phone,
-        COUNT(si.id) as invoice_count,
-        SUM(si.grand_total) as total_invoiced,
-        COALESCE(SUM(ip.paid), 0) as total_paid
+      SELECT
+        CASE
+          WHEN si.party_type IS NOT NULL AND si.party_id IS NOT NULL
+            THEN si.party_type || ':' || si.party_id
+          ELSE 'name:' || si.customer_name
+        END AS party_key,
+        MAX(si.party_type) AS party_type,
+        MAX(si.party_id) AS party_id,
+        MAX(si.customer_name) AS customer_name,
+        MAX(si.customer_phone) AS customer_phone,
+        COUNT(si.id) AS invoice_count,
+        SUM(si.grand_total) AS total_invoiced,
+        COALESCE(SUM(ip.paid), 0) AS total_paid
       FROM standalone_invoices si
       LEFT JOIN (
         SELECT invoice_id, SUM(amount) as paid
@@ -26,7 +56,7 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
         GROUP BY invoice_id
       ) ip ON si.id = ip.invoice_id
       WHERE si.tenant_id = $1 AND si.status != 'cancelled'
-      GROUP BY si.customer_name, si.customer_phone
+      GROUP BY 1
       ORDER BY (SUM(si.grand_total) - COALESCE(SUM(ip.paid), 0)) DESC
     `,
         [tenantId],
@@ -35,6 +65,9 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
 
     res.json(
       rows.map((r: Record<string, unknown>) => ({
+        partyKey: r.party_key as string,
+        partyType: (r.party_type as string) || null,
+        partyId: (r.party_id as string) || null,
         clientName: r.customer_name as string,
         clientPhone: (r.customer_phone as string) || null,
         invoiceCount: Number(r.invoice_count) || 0,
@@ -48,46 +81,90 @@ router.get('/api/invoice-finance/summary', blockVendors, async (req: AuthRequest
   }
 });
 
-// Invoices for a specific client + payment history per invoice
+// Invoices for a party key (vendor:ID / customer:ID / name:… or plain name for legacy)
 router.get('/api/invoice-finance/client/:clientName', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const clientName = decodeURIComponent(req.params.clientName);
+    const { partyType, partyId, clientName, partyKey } = parsePartyKey(req.params.clientName);
 
-    const invoices = (
-      await pool.query(
-        `
-      SELECT si.id, si.invoice_number, si.invoice_date, si.due_date,
-        si.grand_total, si.subtotal, si.tax_total, si.status, si.notes,
-        COALESCE(SUM(ip.amount), 0) as paid
-      FROM standalone_invoices si
-      LEFT JOIN invoice_payments ip ON si.id = ip.invoice_id AND ip.tenant_id = $1
-      WHERE si.tenant_id = $1 AND si.customer_name = $2 AND si.status != 'cancelled'
-      GROUP BY si.id ORDER BY si.invoice_date DESC
-    `,
-        [tenantId, clientName],
-      )
-    ).rows;
+    let invoices;
+    let payments;
+    if (partyType && partyId) {
+      invoices = (
+        await pool.query(
+          `
+        SELECT si.id, si.invoice_number, si.invoice_date, si.due_date,
+          si.grand_total, si.subtotal, si.tax_total, si.status, si.notes,
+          si.customer_name, si.customer_phone, si.customer_gstin, si.customer_address,
+          si.party_type, si.party_id,
+          COALESCE(SUM(ip.amount), 0) as paid
+        FROM standalone_invoices si
+        LEFT JOIN invoice_payments ip ON si.id = ip.invoice_id AND ip.tenant_id = $1
+        WHERE si.tenant_id = $1 AND si.party_type = $2 AND si.party_id = $3 AND si.status != 'cancelled'
+        GROUP BY si.id ORDER BY si.invoice_date DESC
+      `,
+          [tenantId, partyType, partyId],
+        )
+      ).rows;
+      payments = (
+        await pool.query(
+          `
+        SELECT ip.*, si.invoice_number
+        FROM invoice_payments ip
+        JOIN standalone_invoices si ON ip.invoice_id = si.id AND si.tenant_id = $1
+        WHERE ip.tenant_id = $1 AND si.party_type = $2 AND si.party_id = $3
+        ORDER BY ip.payment_date DESC, ip.created_at DESC
+      `,
+          [tenantId, partyType, partyId],
+        )
+      ).rows;
+    } else {
+      invoices = (
+        await pool.query(
+          `
+        SELECT si.id, si.invoice_number, si.invoice_date, si.due_date,
+          si.grand_total, si.subtotal, si.tax_total, si.status, si.notes,
+          si.customer_name, si.customer_phone, si.customer_gstin, si.customer_address,
+          si.party_type, si.party_id,
+          COALESCE(SUM(ip.amount), 0) as paid
+        FROM standalone_invoices si
+        LEFT JOIN invoice_payments ip ON si.id = ip.invoice_id AND ip.tenant_id = $1
+        WHERE si.tenant_id = $1 AND si.customer_name = $2
+          AND (si.party_type IS NULL OR si.party_id IS NULL)
+          AND si.status != 'cancelled'
+        GROUP BY si.id ORDER BY si.invoice_date DESC
+      `,
+          [tenantId, clientName],
+        )
+      ).rows;
+      payments = (
+        await pool.query(
+          `
+        SELECT ip.*, si.invoice_number
+        FROM invoice_payments ip
+        JOIN standalone_invoices si ON ip.invoice_id = si.id AND si.tenant_id = $1
+        WHERE ip.tenant_id = $1 AND si.customer_name = $2
+          AND (si.party_type IS NULL OR si.party_id IS NULL)
+        ORDER BY ip.payment_date DESC, ip.created_at DESC
+      `,
+          [tenantId, clientName],
+        )
+      ).rows;
+    }
 
-    const payments = (
-      await pool.query(
-        `
-      SELECT ip.*, si.invoice_number
-      FROM invoice_payments ip
-      JOIN standalone_invoices si ON ip.invoice_id = si.id AND si.tenant_id = $1
-      WHERE ip.tenant_id = $1 AND si.customer_name = $2
-      ORDER BY ip.payment_date DESC, ip.created_at DESC
-    `,
-        [tenantId, clientName],
-      )
-    ).rows;
-
+    const displayName = (invoices[0]?.customer_name as string) || clientName || partyId || 'Client';
     const totalInvoiced = invoices.reduce((s, r) => s + (Number(r.grand_total) || 0), 0);
     const totalPaid = invoices.reduce((s, r) => s + (Number(r.paid) || 0), 0);
 
     res.json({
-      clientName,
+      partyKey,
+      partyType,
+      partyId,
+      clientName: displayName,
+      clientPhone: (invoices[0]?.customer_phone as string) || null,
+      customerGstin: (invoices[0]?.customer_gstin as string) || null,
+      customerAddress: (invoices[0]?.customer_address as string) || null,
       totalInvoiced,
       totalPaid,
       balance: totalInvoiced - totalPaid,

@@ -320,6 +320,8 @@ const BACKUP_COLUMN_ALLOWLIST: Record<string, Set<string>> = {
     'customer_phone',
     'customer_email',
     'customer_address',
+    'party_type',
+    'party_id',
     'status',
     'grand_total',
     'notes',

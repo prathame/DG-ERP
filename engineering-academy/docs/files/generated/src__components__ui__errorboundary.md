@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/components/ui/ErrorBoundary.tsx` is part of Dhandho (DG-ERP). Approximate size: **50 lines**.
+`src/components/ui/ErrorBoundary.tsx` is part of Dhandho (DG-ERP). Approximate size: **59 lines**.
 
 ## Business value
 
@@ -22,6 +22,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 - `react`
 - `lucide-react`
+- `../../lib/logger`
 
 ## Exports and symbols
 
@@ -48,7 +49,7 @@ rg -n "ErrorBoundary" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **50**. Large view/route files are refactor candidates.
+Line count **59**. Large view/route files are refactor candidates.
 
 ## Security impact
 

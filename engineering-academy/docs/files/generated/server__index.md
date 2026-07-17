@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/index.ts` is part of Dhandho (DG-ERP). Approximate size: **32 lines**.
+`server/index.ts` is part of Dhandho (DG-ERP). Approximate size: **57 lines**.
 
 ## Business value
 
@@ -24,6 +24,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `./utils/env`
 - `./pg-db`
 - `./app`
+- `./utils/logger`
 
 ## Exports and symbols
 
@@ -31,9 +32,23 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (0 detected)
+## Functions (1 detected)
 
-_No function declarations matched the static scanner._
+### Function: shutdown
+
+```ts
+shutdown(signal: string)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/index.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `shutdown` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 
 ## Execution flow
 
@@ -50,7 +65,7 @@ rg -n "index" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **32**. Large view/route files are refactor candidates.
+Line count **57**. Large view/route files are refactor candidates.
 
 ## Security impact
 

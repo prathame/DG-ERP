@@ -1,12 +1,12 @@
 ---
 sidebar_label: Business Workflows
 title: Business Workflows — Following the Data
-description: Four real, end-to-end workflows traced through the actual code — sale to warranty, quote to distribution, purchase to barcode stock, and E-Invoice IRN generation.
+description: End-to-end workflows traced through the actual code — purchase/sale/quote/IRN for goods, plus party-linked service invoices and price-list resolve.
 ---
 
 # Business Workflows
 
-Architecture diagrams tell you the shape of the system. This page tells you what actually happens, table by table and endpoint by endpoint, for the four workflows that matter most to a physical-goods tenant (Manufacturer/Dealer/Retail). If you're going to break something in your first month, it'll be one of these — read this before you touch `sales.ts`, `distribution.ts`, `purchases.ts`, or `quotations.ts`.
+Architecture diagrams tell you the shape of the system. This page tells you what actually happens, table by table and endpoint by endpoint, for the workflows that matter most. Workflows 1–4 are the physical-goods path (Manufacturer/Dealer/Retail). Workflows 5–6 cover **standalone invoices / Invoice Finance** and **price lists** (service tenants and any type that uses those tabs).
 
 :::info Ground truth
 Every step below is read from the actual route handlers, not inferred. Table and column names are exact.
@@ -70,9 +70,9 @@ Walking the real logic in `server/routes/sales.ts`:
 Adding a new side effect to the sale flow (e.g., a loyalty-tier upgrade, a notification) *after* the existing `COMMIT` instead of inside the same transaction. If that new step needs to be atomic with the sale (i.e., "never record a sale without also doing X"), it belongs inside the transaction, before `COMMIT`. If it's a best-effort, non-critical side effect (e.g., sending a WhatsApp receipt), it's correctly done *after* commit — exactly the pattern used for the reward-notification WhatsApp send elsewhere in the codebase.
 :::
 
-## Workflow 3: Quote → order → distribution conversion
+## Workflow 3: Quote → convert (distribution or invoice)
 
-Quotations are a **draft state machine** that only becomes real inventory movement at one specific, guarded transition: `POST /api/quotations/:id/convert`.
+Quotations are a **draft state machine**. Real fulfillment happens only at `POST /api/quotations/:id/convert`.
 
 ```mermaid
 stateDiagram-v2
@@ -81,33 +81,25 @@ stateDiagram-v2
     Sent --> Accepted
     Sent --> Rejected
     Draft --> Expired
-    Accepted --> Converted: POST /convert (creates distribution batch)
+    Sent --> Expired
+    Accepted --> Converted: full convert
+    Accepted --> Accepted: partial convert remaining qty
     Rejected --> [*]
     Expired --> [*]
     Converted --> [*]
 ```
 
-The status field itself **cannot** be set to `'Converted'` via the generic `PUT` status-update endpoint — the route explicitly rejects that:
-
-```ts
-if (status === 'Converted') {
-  return res.status(400).json({
-    error: 'Use POST /api/quotations/:id/convert to convert (creates distribution)',
-  });
-}
-```
-
-This is a deliberate guard: converting a quotation isn't a simple field update, it's a **multi-table transaction** that must not be reachable via a lighter-weight endpoint that doesn't do the actual work.
-
-`POST /:id/convert` (guarded by `blockVendors` — a Vendor can never trigger this) then, inside one transaction:
-
-1. Validates the quote is `status = 'Accepted'` and has a `vendor_id` (a quote with no vendor can't become a distribution, which is always vendor-scoped) — rejects with `400` otherwise, and specifically rejects re-conversion of an already-`Converted` quote.
-2. For each line item in the quote's `items` JSONB array, inserts a corresponding row into **`product_distribution`** (the same table the standalone Distribution module writes to) with a freshly generated `batch_id`.
-3. Updates the quotation itself: `status = 'Converted'`, `converted_batch_id = <the new batch>` — guarded with `WHERE status = 'Accepted'` in the same `UPDATE`, so a concurrent double-conversion attempt fails the row-count check (`converted.rowCount === 0` → rollback) rather than silently double-distributing stock.
-4. Writes an audit log entry (`logAudit`) recording exactly what was converted.
+- **`PUT /api/quotations/:id`** — edit header + lines while status is `Draft` only (reuses create resolve + GST math).
+- **Auto-expire** — on list/detail/status/convert, `Draft`/`Sent` with `valid_until < today` become `Expired`.
+- **Status `Converted`** is never set via the status PUT — only via `/convert`.
+- **Partial convert** — optional body `{ items: [{ productId, quantity }] }`. Each line tracks `convertedQty` in JSONB; status stays `Accepted` until remaining qty is 0, then `Converted`.
+- **Convert target by `tenants.business_type`:**
+  - **service** → creates `standalone_invoices` (frozen prices), sets `converted_invoice_id`
+  - **goods** → creates `product_distribution` batch (needs `vendor_id`), sets `converted_batch_id`
+- Convert freezes quote `items[].price` (no re-resolve). GST uses `unitPricesAfterDiscount` / `price_includes_gst`.
 
 :::tip Analogy
-Converting a quotation is like a **firing pin on a mechanical device** — quotations, orders, and distributions all read/write overlapping data, but the *transition* from "just a paper quote" to "actual stock has moved" is deliberately funneled through one narrow, transactional, audit-logged path. Every other status change is reversible paperwork; conversion is the one action with real physical/inventory consequences.
+Converting a quotation is like a **firing pin** — the transition from paperwork to stock movement or a billed invoice is deliberately funneled through one narrow, transactional, audit-logged path.
 :::
 
 ## Workflow 4: Distribution → E-Invoice IRN generation
@@ -146,7 +138,67 @@ Key correctness details:
 A bug in the e-invoice payload builder isn't a UI glitch — it's a document a tenant might submit to the Indian government under their own GSTIN. Treat changes to `distribution.ts`'s e-invoice logic, and to `gst-api.ts`/`nic-api.ts`, with the same review rigor as changes to money-moving code, because functionally, it is exactly that plus a compliance dimension.
 :::
 
-## How the four workflows connect
+## Workflow 5: Service invoice → party-linked ledger
+
+Service (and other) tenants bill via `standalone_invoices` instead of barcode sales. The critical correctness rule: **group collections by a stable party id, not by the typed display name**.
+
+```mermaid
+sequenceDiagram
+    participant User as Admin
+    participant Inv as POST /api/invoices
+    participant Fin as GET /api/invoice-finance/summary
+    participant PG as PostgreSQL
+
+    User->>Inv: Create invoice (customerName, partyType, partyId, items)
+    Inv->>PG: Validate vendor/customer exists for tenant
+    Inv->>PG: INSERT standalone_invoices (party_type, party_id, customer_name, totals…)
+    Inv-->>User: { id, grandTotal }
+    User->>Fin: Open Invoice Finance
+    Fin->>PG: GROUP BY party_type:party_id (else name:customer_name)
+    Fin-->>User: Client cards with partyKey, balance
+    User->>Fin: Drill into vendor:V-1 / New Invoice (prefill)
+```
+
+- **Create** (`invoices.ts`): optional `partyType` + `partyId` validated; status only `draft` or `sent` on create. Lines support `discountPercent` and optional `productId` (server `resolvePrice` when rate omitted). Tax split: `tax_cgst`/`tax_sgst`/`tax_igst` + `is_interstate` via seller vs buyer GSTIN state codes (`server/utils/gst-place.ts`).
+- **Summary** (`invoice-finance.ts`): `partyKey` = `vendor:ID` \| `customer:ID` \| `name:…`. Renaming `customer_name` on a later invoice **does not** split the card when `party_id` matches.
+- **Payments** still attach to individual invoice ids; deleting an invoice with payments is blocked by `ON DELETE RESTRICT`.
+- **UI (service):** `InvoiceFinanceView` mirrors Distribution’s vendor cards; **New Invoice** reuses `CreateInvoiceModal` with party prefills.
+- **Credit/debit notes** (`accounts.ts`): free-text `reference_invoice` plus optional `reference_type` (`invoice`|`distribution`|`quotation`) + `reference_id` (link only — no stock reverse).
+
+:::tip Quotations vs price lists
+Quotations are one-off commercial documents. On create, line defaults use the same resolve chain as distribution (vendor slab → generic → inventory); the user may negotiate. Convert freezes the quote line price onto distribution — it does not re-resolve live price lists.
+:::
+
+## Workflow 6: Price list resolve & bulk import
+
+```mermaid
+flowchart TB
+    Need["Need a unit price for product + optional vendor + qty"] --> Resolve["GET /api/price-lists/resolve"]
+    Resolve --> V{"Matching active rule?"}
+    V -->|"vendor_id = vendor, best min_qty"| VendorSlab["source: price_list"]
+    V -->|"vendor_id IS NULL, best min_qty"| GeneralSlab["source: price_list"]
+    V -->|"none"| ProductPrice["source: default → products.price"]
+    CSV["CSV upload in Masters"] --> Bulk["POST /api/price-lists/bulk"]
+    Bulk --> Names["Resolve productName / vendorName → ids"]
+    Names --> Insert["INSERT price_lists rows (insert-only)"]
+```
+
+- **Shared helper:** `server/utils/price-resolve.ts` — `resolvePrice`, `hasExplicitUnitPrice`, `unitPricesAfterDiscount`. Used by `/api/price-lists/resolve`, distribution createBatch, quotation create/convert, and invoice create when `productId` is set. Keep call sites on this helper; do not re-copy the SQL.
+- **Resolve priority** (SQL `ORDER BY` vendor match first, then `min_qty DESC`): vendor slab → general slab → product default price. Active date window: `valid_from`/`valid_to` (null = open-ended).
+- **Bulk** accepts up to 500 rules; **upserts** on `(tenant, product, vendor null-safe, min_qty)` — re-import updates price/max/dates instead of duplicating.
+- **UI tabs:** Price List Masters view splits **Generic** vs **Vendor/Client-specific** rules; create/export/print are scoped to the active tab.
+
+## Workflow 7: Multi-page bill print
+
+All bill HTML (sales invoice, distribution challan, quotation, price list, standalone invoice, payment history, accounts reports) goes through `printBillInWindow` / `writePrintHtml` / `saveBillAsPdf` in `src/lib/utils.ts`, which injects `withPrintPagination()` CSS:
+
+- `@page` A4 + table `thead` repeats on each page
+- Row / `.avoid-break` / `.print-end` keep line items and totals/bank/signature from splitting awkwardly
+- Templates in `src/lib/billTemplates.ts` wrap footers in `.print-end` and use a slim repeating banner in `thead` where needed
+
+Do not open a raw `window.print()` on bill HTML without that inject — long item lists will paginate incorrectly.
+
+## How the goods workflows connect
 
 ```mermaid
 flowchart LR
@@ -158,7 +210,10 @@ flowchart LR
     Inventory --> Sale
     Sale --> Warranty[("warranties<br/>auto-created")]
     Warranty --> Replacement["Replacement<br/>(under warranty)"]
+    PriceList[("price_lists")] -.->|"resolve"| Dist
 ```
+
+Service path (parallel, no barcodes): `vendors/customers` → `standalone_invoices` (+ optional price list on lines) → `invoice_payments`, summarized by `partyKey`.
 
 ## Key concepts
 
@@ -166,6 +221,7 @@ flowchart LR
 - **State transitions with real consequences are funneled through narrow, transactional, guarded endpoints** — quotation conversion and IRN-bearing batch deletion are the clearest examples.
 - **Row locks (`FOR UPDATE`) prevent double-selling** the same physical barcode.
 - **GST compliance logic is business-critical**, not incidental — errors have real regulatory consequences for the tenant.
+- **Service ledgers key on party id** — never rely on display name alone for Invoice Finance grouping.
 
 ## Common mistakes
 
@@ -173,6 +229,13 @@ flowchart LR
 2. Adding a sale-flow side effect after the transaction commits when it actually needs atomicity with the sale.
 3. Deleting or modifying a distribution batch that already has an IRN/EWB without going through the documented cancel-first flow.
 4. Treating "GST rate" or "interstate" logic as a simple lookup rather than checking both the product's own HSN/GST configuration and the seller/buyer state codes at the point of sale.
+5. Creating standalone invoices without `partyType`/`partyId` when a master record exists — Finance will fall back to `name:` grouping and rename-splits return.
+6. Changing price-list resolve priority only in the invoice modal (or only in SQL) — keep `GET /api/price-lists/resolve`, `server/utils/price-resolve.ts`, and any client mirror in sync.
+7. Ignoring date windows on price rules — resolve filters `valid_from`/`valid_to` against `CURRENT_DATE`.
+8. Re-resolving price lists on quotation convert — convert must freeze `items[].price` from the accepted quote.
+9. Printing bill HTML without `withPrintPagination` / `printBillInWindow` — multi-page item tables will break poorly.
+10. Showing Convert on Draft quotations — API requires `Accepted`; UI must match.
+11. Assuming credit-note `reference_id` reverses inventory — it is an audit link only.
 
 ## Interview question
 

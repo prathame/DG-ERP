@@ -116,9 +116,28 @@ A pre-sale pipeline: a `Quotation` (Draft → Sent → Accepted) can be converte
 
 **`features/invoices/InvoicesView.tsx`, `features/finance/InvoiceFinanceView.tsx`**
 
-For the `service` business type (consultants, agencies) that don't move physical inventory, `InvoicesView` provides **standalone billing** — invoices not tied to a barcode/product record at all (`standalone_invoices` table), and `InvoiceFinanceView` tracks payment collection against those invoices per client. This is the `financeView: 'invoice'` branch of the `businessType` config mentioned above — the direct alternative to `VendorFinanceView` for tenants that sell services, not distributed goods.
+For the `service` business type (consultants, agencies) that don't move physical inventory, `InvoicesView` provides **standalone billing** — invoices not tied to a barcode/product record (`standalone_invoices` table). `InvoiceFinanceView` is the `financeView: 'invoice'` branch of `businessType` — the alternative to `VendorFinanceView` for tenants that sell services, not distributed goods.
 
-**Business value:** the same ERP serves a manufacturer *and* a service consultancy by swapping which finance module is active, rather than requiring an entirely separate product.
+What the UI actually does today:
+
+| Surface | Behavior |
+|---|---|
+| **Invoices (all types with the tab)** | Create modal picks a **vendor or customer** party; stores `party_type` + `party_id`. Line items can be catalog products; rate prefers price-list resolve (vendor slab → general slab → `product.price`). Custom free-text lines still allowed. |
+| **Invoice Finance (service)** | Distribution-style **client cards** from `GET /api/invoice-finance/summary`, keyed by `partyKey` (`vendor:ID` \| `customer:ID` \| legacy `name:DisplayName`). Drill-down loads invoices/payments for that key. **New Invoice** from client detail opens `CreateInvoiceModal` with party prefills. |
+
+:::warning Shared modal coupling
+Finance imports `CreateInvoiceModal` from `InvoicesView` today. Prefer extracting the modal if you grow either feature — otherwise Finance and Invoices stay coupled at the module boundary.
+:::
+
+**Business value:** the same ERP serves a manufacturer *and* a service consultancy by swapping which finance module is active; party links keep one client's ledger together even when the typed display name changes.
+
+## Price Lists (Masters)
+
+**`features/masters/PriceListView.tsx`**
+
+Quantity-slab pricing rules (`price_lists`): optional `vendor_id` (null = applies to all vendors). Used by Distribution (server `GET /api/price-lists/resolve`) and by the invoice create modal (client-side mirror of the same priority). Masters UI supports CSV import (`POST /api/price-lists/bulk` resolves product/vendor by name), CSV export, and branded PDF/print via bill settings.
+
+**Business value:** one place to maintain dealer rates and volume breaks without hard-coding prices into every distribution or invoice line.
 
 ## Vendor Finance
 
@@ -173,6 +192,7 @@ This is a **separate application**, not a tenant feature — it's Dhandho-the-co
 1. Name two features whose *component* is shared but whose *vocabulary* differs based on `businessType`, and explain what config drives that difference.
 2. Why does the "Quotations & Orders" tab render two views through one local toggle component instead of being two separate sidebar entries?
 3. Why is the Super Admin app's authentication and authorization completely separate from tenant RBAC, rather than "Super Admin" simply being the highest permission level within a tenant?
+4. Why does Invoice Finance group by `partyKey` instead of `customer_name`, and what are the three key shapes?
 
 <details>
 <summary>Answers</summary>
@@ -180,6 +200,7 @@ This is a **separate application**, not a tenant feature — it's Dhandho-the-co
 1. `DistributionView` is labeled "Dispatch" for a manufacturer and functions closer to a sales flow for a dealer; `VendorFinanceView`/`InvoiceFinanceView` swap entirely based on `financeView: 'vendor' | 'invoice'`. Both are driven by the per-tenant `BusinessConfig` returned from `useBusinessConfig()` in `src/lib/businessTypeConfig.ts`.
 2. To avoid growing the sidebar past a comfortable size for a feature pair that's conceptually one workflow (quote → order); the toggle keeps related screens visually grouped under one tab.
 3. Because a Super Admin operates across *all* tenants — a role that must never be assignable via any tenant's own user-management screen (that would let a compromised or malicious tenant admin grant themselves platform-wide access). Keeping it a fully separate auth system (`superAdminMiddleware`, its own login, its own JWT role check) means tenant RBAC bugs can never escalate into platform-level access.
+4. Display names change; party ids do not. Keys are `vendor:<id>`, `customer:<id>`, and legacy `name:<display>` for invoices created without a party link.
 
 </details>
 

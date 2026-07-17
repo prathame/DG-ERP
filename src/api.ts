@@ -800,6 +800,9 @@ export const api = {
     summary: () =>
       fetchApi<
         {
+          partyKey: string;
+          partyType: 'vendor' | 'customer' | null;
+          partyId: string | null;
           clientName: string;
           clientPhone: string | null;
           invoiceCount: number;
@@ -808,9 +811,16 @@ export const api = {
           balance: number;
         }[]
       >('/invoice-finance/summary'),
-    client: (clientName: string) =>
+    /** partyKey: vendor:ID | customer:ID | name:DisplayName (or plain name for legacy) */
+    client: (partyKey: string) =>
       fetchApi<{
+        partyKey: string;
+        partyType: 'vendor' | 'customer' | null;
+        partyId: string | null;
         clientName: string;
+        clientPhone: string | null;
+        customerGstin?: string | null;
+        customerAddress?: string | null;
         totalInvoiced: number;
         totalPaid: number;
         balance: number;
@@ -835,7 +845,7 @@ export const api = {
           referenceNumber?: string;
           notes?: string;
         }[];
-      }>(`/invoice-finance/client/${encodeURIComponent(clientName)}`),
+      }>(`/invoice-finance/client/${encodeURIComponent(partyKey)}`),
     recordPayment: (data: {
       invoiceId: string;
       amount: number;

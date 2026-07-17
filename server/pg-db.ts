@@ -583,6 +583,7 @@ export async function initSchema() {
       )
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_quotations_tenant ON quotations(tenant_id)');
+    await client.query('ALTER TABLE quotations ADD COLUMN IF NOT EXISTS converted_invoice_id TEXT');
 
     // Add accounts + quotations tabs to existing tenants
     await client.query(
@@ -740,6 +741,11 @@ export async function initSchema() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_cdn_tenant ON credit_debit_notes(tenant_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_cdn_type ON credit_debit_notes(tenant_id, note_type)');
+    await client.query('ALTER TABLE credit_debit_notes ADD COLUMN IF NOT EXISTS reference_type TEXT');
+    await client.query('ALTER TABLE credit_debit_notes ADD COLUMN IF NOT EXISTS reference_id TEXT');
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_cdn_ref ON credit_debit_notes(tenant_id, reference_type, reference_id)',
+    );
 
     // Price Lists — customer-wise + slab pricing
     await client.query(`
@@ -760,6 +766,17 @@ export async function initSchema() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_pl_tenant ON price_lists(tenant_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pl_product ON price_lists(tenant_id, product_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_pl_vendor ON price_lists(tenant_id, vendor_id)');
+    await client.query('ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS valid_from DATE');
+    await client.query('ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS valid_to DATE');
+    // Natural key for bulk upsert (NULL vendor → empty string). Skip if legacy duplicates exist.
+    await client.query(`
+      DO $$ BEGIN
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_price_lists_natural
+        ON price_lists (tenant_id, product_id, COALESCE(vendor_id, ''), min_qty);
+      EXCEPTION WHEN unique_violation OR OTHERS THEN
+        NULL;
+      END $$;
+    `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(tenant_id, status)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_orders_vendor ON orders(tenant_id, vendor_id)');
 
@@ -839,6 +856,16 @@ export async function initSchema() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_si_date ON standalone_invoices(tenant_id, invoice_date)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_si_tenant ON standalone_invoices(tenant_id, created_at DESC)');
+    // Stable party link for Invoice Finance (vendor/customer id) — name alone can split ledgers
+    await client.query(`ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS party_type TEXT`);
+    await client.query(`ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS party_id TEXT`);
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_si_party ON standalone_invoices(tenant_id, party_type, party_id)',
+    );
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_cgst NUMERIC(12,2) DEFAULT 0');
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_sgst NUMERIC(12,2) DEFAULT 0');
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_igst NUMERIC(12,2) DEFAULT 0');
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS is_interstate BOOLEAN DEFAULT false');
 
     // Invoice payments — partial/batch payments against standalone invoices
     await client.query(`

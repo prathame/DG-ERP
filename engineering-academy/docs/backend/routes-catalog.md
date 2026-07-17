@@ -37,7 +37,7 @@ flowchart TB
 | `vendors.ts` | `/api/vendors` | `distribution` | Dealers; bulk import |
 | `banks.ts` | `/api/banks` | `accounts` | Admin bank master |
 | `finance.ts` | `/api/vendor-finance` | `finance` | Receivables, reminders, bank statement |
-| `invoice-finance.ts` | `/api/invoice-finance` | `finance` | Service-biz collections |
+| `invoice-finance.ts` | `/api/invoice-finance` | `finance` | Party-keyed collections (`partyKey`); payments against standalone invoices |
 | `onprem.ts` | `/api/onprem/*`, `/api/super-admin/onprem` | public + SA | License activate/heartbeat; localhost provision |
 | `mobile.ts` | `/api/mobile/*`, SA mobile invites | public + auth | Invite redeem, heartbeat, devices |
 | `auth.ts` | `/api/auth/*`, `/api/settings/profile` | public / self | Login, reset, profile, self-delete |
@@ -50,14 +50,14 @@ flowchart TB
 | `payroll.ts` | `/api/staff`, `/api/payroll` | `accounts` | Staff + salary (creates expense) |
 | `expenses.ts` | `/api/expenses` | `accounts` | P&L feed |
 | `gst-api.ts` | `/api/gst/*` | `accounts` | NIC IRN/EWB settings + generate |
-| `invoices.ts` | `/api/invoices` | `sales` | Standalone (non-inventory) invoices |
+| `invoices.ts` | `/api/invoices` | `sales` | Standalone invoices; optional `partyType`/`partyId` on create |
 | `chatbot.ts` | `/api/chatbot` | `dashboard` | Rule-based NLQ; 30/min limiter |
 | `bill-settings.ts` | `/api/settings/bill` | `settings` | Bill branding |
 | `reports.ts` | `/api/reports/*` | `accounts` | Registers + GSTR-1; `blockVendors` |
 | `purchases.ts` | `/api/purchases`, `/api/suppliers`, `/api/supplier-finance` | `purchases` | Stock-creating purchase batches |
 | `quotations.ts` | `/api/quotations` | `quotations` | Status machine + convert |
 | `orders.ts` | `/api/orders` | `orders` | Fulfill → distribution |
-| `price-lists.ts` | `/api/price-lists` | `inventory` | Resolve slabs |
+| `price-lists.ts` | `/api/price-lists` | `inventory` | Slabs + `/resolve` + `/bulk` name import |
 | `accounts.ts` | `/api/accounts/*`, `/api/gstr3b`, `/api/gstr2b` | `accounts` | P&L, BS, CF, ledger; `blockVendors` |
 
 **Count:** 34 routers imported in `app.ts` (matches the table).

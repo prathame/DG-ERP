@@ -1,7 +1,11 @@
 import type { SaleBillData, DistributionBillData } from '../api';
 
 export function esc(text: unknown): string {
-  return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 export function safeColor(c: string | null | undefined): string {
@@ -16,17 +20,43 @@ export function safeImgSrc(src: unknown): string {
 }
 
 const STATE_NAMES: Record<string, string> = {
-  '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh',
-  '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh',
-  '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh', '13': 'Nagaland', '14': 'Manipur',
-  '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal',
-  '20': 'Jharkhand', '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh',
-  '24': 'Gujarat', '27': 'Maharashtra', '29': 'Karnataka', '32': 'Kerala', '33': 'Tamil Nadu',
-  '36': 'Telangana', '37': 'Andhra Pradesh',
+  '01': 'Jammu & Kashmir',
+  '02': 'Himachal Pradesh',
+  '03': 'Punjab',
+  '04': 'Chandigarh',
+  '05': 'Uttarakhand',
+  '06': 'Haryana',
+  '07': 'Delhi',
+  '08': 'Rajasthan',
+  '09': 'Uttar Pradesh',
+  '10': 'Bihar',
+  '11': 'Sikkim',
+  '12': 'Arunachal Pradesh',
+  '13': 'Nagaland',
+  '14': 'Manipur',
+  '15': 'Mizoram',
+  '16': 'Tripura',
+  '17': 'Meghalaya',
+  '18': 'Assam',
+  '19': 'West Bengal',
+  '20': 'Jharkhand',
+  '21': 'Odisha',
+  '22': 'Chhattisgarh',
+  '23': 'Madhya Pradesh',
+  '24': 'Gujarat',
+  '27': 'Maharashtra',
+  '29': 'Karnataka',
+  '32': 'Kerala',
+  '33': 'Tamil Nadu',
+  '36': 'Telangana',
+  '37': 'Andhra Pradesh',
 };
 
 export function placeOfSupplyLabel(buyerGstin?: string | null, sellerGstin?: string | null): string {
-  const code = String(buyerGstin || sellerGstin || '24').trim().toUpperCase().slice(0, 2);
+  const code = String(buyerGstin || sellerGstin || '24')
+    .trim()
+    .toUpperCase()
+    .slice(0, 2);
   return `${STATE_NAMES[code] || 'Gujarat'} (${code || '24'})`;
 }
 
@@ -42,7 +72,10 @@ export function buildDistributionBillSlice(
   items: DistributionBillData['items'],
   totalValue: number,
 ): DistributionBillData {
-  const groups: Record<string, { productName: string; barcodes: string[]; originalPrice: number; discountPercent: number; netPrice: number }> = {};
+  const groups: Record<
+    string,
+    { productName: string; barcodes: string[]; originalPrice: number; discountPercent: number; netPrice: number }
+  > = {};
   for (const item of items) {
     const key = item.productName;
     if (!groups[key]) {
@@ -82,9 +115,13 @@ export function buildDistributionBillSlice(
   };
 }
 
-export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst?: boolean; qrDataUrl?: string }): string {
+export function generateSalesInvoiceHtml(
+  bill: SaleBillData,
+  options?: { showGst?: boolean; qrDataUrl?: string },
+): string {
   const showGst = options?.showGst ?? true;
-  const billConfig = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
+  const billConfig =
+    ((bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined) ?? {};
   const color = safeColor(billConfig.primaryColor as string);
   const logoHtml = billConfig.logoBase64
     ? `<img src="${safeImgSrc(billConfig.logoBase64)}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
@@ -96,7 +133,9 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   const showBarcode = billConfig.showBarcode !== false;
   const footerText = (billConfig.footerText as string) || 'Powered by Dhandho Management';
 
-  const warrantySection = (showWarranty && bill.warranty) ? `
+  const warrantySection =
+    showWarranty && bill.warranty
+      ? `
     <div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
       <strong style="color:#166534;">Warranty Information</strong>
       <table style="width:100%;margin-top:8px;font-size:13px;">
@@ -105,21 +144,30 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
         <tr><td style="color:#6b7280;">Activation</td><td>${fmtDate(bill.warranty.activationDate)}</td>
             <td style="color:#6b7280;">Expiry</td><td>${fmtDate(bill.warranty.expiryDate)}</td></tr>
       </table>
-    </div>` : '';
+    </div>`
+      : '';
 
   const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
-  const upiQrSection = billConfig.bankUpiId ? (() => {
-    const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
-    const qrUrl = options?.qrDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
-    return `<div style="text-align:center;">
+  const upiQrSection = billConfig.bankUpiId
+    ? (() => {
+        const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
+        const qrUrl =
+          options?.qrDataUrl ||
+          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
+        return `<div style="text-align:center;">
       <img src="${qrUrl}" style="width:120px;height:120px;" />
       <p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p>
     </div>`;
-  })() : '';
-  const bankSection = hasBankDetails || upiQrSection ? `
+      })()
+    : '';
+  const bankSection =
+    hasBankDetails || upiQrSection
+      ? `
     <div style="margin-top:20px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
-        ${hasBankDetails ? `<div style="flex:1;">
+        ${
+          hasBankDetails
+            ? `<div style="flex:1;">
           <strong style="font-size:13px;">Bank Details</strong>
           <table style="width:100%;margin-top:8px;font-size:12px;">
             ${billConfig.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
@@ -128,27 +176,34 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
             ${billConfig.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
             ${billConfig.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
           </table>
-        </div>` : ''}
+        </div>`
+            : ''
+        }
         ${upiQrSection}
       </div>
-    </div>` : '';
+    </div>`
+      : '';
 
-  const tcSection = billConfig.termsAndConditions ? `
+  const tcSection = billConfig.termsAndConditions
+    ? `
     <div style="margin-top:16px;font-size:11px;">
       <strong>Terms & Conditions:</strong>
       <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${esc(billConfig.termsAndConditions)}</p>
-    </div>` : '';
+    </div>`
+    : '';
 
-  const sigSection = billConfig.signatoryName ? `
+  const sigSection = billConfig.signatoryName
+    ? `
     <div style="margin-top:40px;text-align:right;">
       ${billConfig.signatureBase64 ? `<img src="${safeImgSrc(billConfig.signatureBase64)}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}
       <p style="font-weight:600;font-size:13px;">${esc(billConfig.signatoryName)}</p>
       ${billConfig.signatoryDesignation ? `<p style="font-size:11px;color:#6b7280;">${esc(billConfig.signatoryDesignation)}</p>` : ''}
-    </div>` : '';
+    </div>`
+    : '';
 
   const gstRate = bill.gstRate || 18;
   const basePrice = Number(bill.salePrice);
-  const gstAmount = showGst ? Math.round(basePrice * gstRate / 100) : 0;
+  const gstAmount = showGst ? Math.round((basePrice * gstRate) / 100) : 0;
   const halfGst = Math.round(gstAmount / 2);
   const grandTotal = basePrice + gstAmount;
   const sellerGstin = String((bill as unknown as Record<string, unknown>).companyGstin || billConfig.gstNumber || '');
@@ -157,17 +212,45 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
 
   const numberToWords = (n: number): string => {
     if (n === 0) return 'Zero';
-    const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
-    const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    const ones = [
+      '',
+      'One',
+      'Two',
+      'Three',
+      'Four',
+      'Five',
+      'Six',
+      'Seven',
+      'Eight',
+      'Nine',
+      'Ten',
+      'Eleven',
+      'Twelve',
+      'Thirteen',
+      'Fourteen',
+      'Fifteen',
+      'Sixteen',
+      'Seventeen',
+      'Eighteen',
+      'Nineteen',
+    ];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
     const convert = (num: number): string => {
       if (num < 20) return ones[num];
       if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? ' ' + ones[num % 10] : '');
       if (num < 1000) return ones[Math.floor(num / 100)] + ' Hundred' + (num % 100 ? ' and ' + convert(num % 100) : '');
-      if (num < 100000) return convert(Math.floor(num / 1000)) + ' Thousand' + (num % 1000 ? ' ' + convert(num % 1000) : '');
-      if (num < 10000000) return convert(Math.floor(num / 100000)) + ' Lakh' + (num % 100000 ? ' ' + convert(num % 100000) : '');
+      if (num < 100000)
+        return convert(Math.floor(num / 1000)) + ' Thousand' + (num % 1000 ? ' ' + convert(num % 1000) : '');
+      if (num < 10000000)
+        return convert(Math.floor(num / 100000)) + ' Lakh' + (num % 100000 ? ' ' + convert(num % 100000) : '');
       return convert(Math.floor(num / 10000000)) + ' Crore' + (num % 10000000 ? ' ' + convert(num % 10000000) : '');
     };
-    return convert(Math.round(n)) + ' Rupees and ' + String(Math.round((n % 1) * 100) || '00').padStart(2, '0') + ' Paisa Only';
+    return (
+      convert(Math.round(n)) +
+      ' Rupees and ' +
+      String(Math.round((n % 1) * 100) || '00').padStart(2, '0') +
+      ' Paisa Only'
+    );
   };
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Invoice'} - ${esc(invPrefix)}${esc(bill.id)}</title>
@@ -185,7 +268,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   .cust-label{font-weight:700;width:100px;color:#555;}
   .items th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:6px 6px;text-align:center;font-weight:700;}
   .items td{padding:5px 6px;text-align:center;}
-  .items tr{page-break-inside:avoid;}
+  .items tbody tr{break-inside:avoid;page-break-inside:avoid;}
   .items .left{text-align:left;}
   .items .right{text-align:right;}
   .items .total-row{font-weight:700;background:#f0f0f0;}
@@ -195,9 +278,10 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   .bank-label{font-weight:600;color:#555;width:90px;}
   .footer-text{font-size:9px;color:#999;text-align:center;margin-top:8px;}
   .reward-badge{display:inline-block;margin:8px auto;padding:6px 16px;background:#fef3c7;border:1px solid #fcd34d;border-radius:20px;font-size:12px;font-weight:600;color:#92400e;}
-  @media print{body{padding:10px;} @page{margin:8mm;} .no-print{display:none;}}
+  .repeat-banner th{background:#fff;border-bottom:2px solid ${color};text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
+  @media print{body{padding:10px;} @page{margin:10mm;} thead{display:table-header-group;} .no-print{display:none;}}
 </style></head><body>
-<table class="outer">
+<table class="outer avoid-break">
   <tr class="hdr" style="border-bottom:2px solid ${color};">
     <td colspan="2" style="width:65%;">
       <div style="display:flex;align-items:center;gap:10px;">
@@ -238,7 +322,12 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
   </tr>
 </table>
 <table class="outer items">
-  <thead><tr>
+  <thead>
+    <tr class="repeat-banner"><th colspan="${5 + (showBarcode ? 1 : 0) + (showGst && bill.hsnCode ? 1 : 0) + (showGst ? 2 : 0)}">
+      <span style="font-weight:800;color:${color};">${esc(bill.company.name)}</span>
+      <span style="float:right;font-weight:700;">${esc(invPrefix)}${esc(bill.id)}</span>
+    </th></tr>
+    <tr>
     <th style="width:30px;">Sr.</th>
     ${showBarcode ? '<th>Barcode</th>' : ''}
     <th class="left">Name of Product / Service</th>
@@ -262,6 +351,7 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
     <tr class="total-row"><td></td>${showBarcode ? '<td></td>' : ''}<td class="right"><strong>Total</strong></td>${showGst && bill.hsnCode ? '<td></td>' : ''}<td><strong>1</strong></td><td></td><td class="right"><strong>${basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>${showGst ? `<td></td><td class="right"><strong>${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>` : ''}<td class="right" style="font-weight:900;">${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
   </tbody>
 </table>
+<div class="print-end avoid-break">
 <table class="outer">
   <tr>
     <td style="width:55%;border-right:2px solid ${color};vertical-align:top;padding:8px;">
@@ -271,8 +361,12 @@ export function generateSalesInvoiceHtml(bill: SaleBillData, options?: { showGst
     <td style="padding:0;">
       <table style="width:100%;">
         <tr><td class="summary-label" style="padding:3px 8px;">Taxable Amount</td><td class="right" style="padding:3px 8px;">${basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
-        ${showGst ? `<tr><td style="padding:3px 8px;">Add : CGST</td><td class="right" style="padding:3px 8px;">${halfGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
-        <tr><td style="padding:3px 8px;">Add : SGST</td><td class="right" style="padding:3px 8px;">${(gstAmount - halfGst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>` : ''}
+        ${
+          showGst
+            ? `<tr><td style="padding:3px 8px;">Add : CGST</td><td class="right" style="padding:3px 8px;">${halfGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
+        <tr><td style="padding:3px 8px;">Add : SGST</td><td class="right" style="padding:3px 8px;">${(gstAmount - halfGst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>`
+            : ''
+        }
         <tr><td style="padding:3px 8px;">Total Tax</td><td class="right" style="padding:3px 8px;">${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
         <tr><td style="padding:4px 8px;font-weight:700;">Total Amount After Tax</td><td class="right grand-total" style="padding:4px 8px;">₹${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
       </table>
@@ -285,14 +379,18 @@ ${showRewards && bill.rewardPointsEarned > 0 ? `<div style="text-align:center;">
 <table class="outer" style="margin-top:-1px;">
   <tr>
     <td style="width:55%;padding:8px 12px;border-right:2px solid ${color};vertical-align:top;">
-      ${hasBankDetails ? `<div style="font-weight:700;font-size:11px;margin-bottom:6px;">Bank Details</div>
+      ${
+        hasBankDetails
+          ? `<div style="font-weight:700;font-size:11px;margin-bottom:6px;">Bank Details</div>
       <table class="bank-section">
         ${billConfig.bankAccountName ? `<tr><td class="bank-label">Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
         ${billConfig.bankName ? `<tr><td class="bank-label">Branch</td><td>${esc(billConfig.bankName)}${billConfig.bankBranch ? ', ' + esc(billConfig.bankBranch) : ''}</td></tr>` : ''}
         ${billConfig.bankAccountNumber ? `<tr><td class="bank-label">Acc. Number</td><td style="font-family:monospace;">${esc(billConfig.bankAccountNumber)}</td></tr>` : ''}
         ${billConfig.bankIfsc ? `<tr><td class="bank-label">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
         ${billConfig.bankUpiId ? `<tr><td class="bank-label">UPI ID</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
-      </table>` : ''}
+      </table>`
+          : ''
+      }
       ${upiQrSection ? `<div style="margin-top:6px;">${upiQrSection}<div style="font-size:9px;color:#666;text-align:center;">Pay using UPI</div></div>` : ''}
     </td>
     <td style="vertical-align:top;padding:8px 12px;">
@@ -303,23 +401,32 @@ ${showRewards && bill.rewardPointsEarned > 0 ? `<div style="text-align:center;">
     </td>
   </tr>
 </table>
-${tcSection ? `<table class="outer" style="margin-top:-1px;"><tr><td style="padding:6px 12px;font-size:10px;">
+${
+  tcSection
+    ? `<table class="outer" style="margin-top:-1px;"><tr><td style="padding:6px 12px;font-size:10px;">
   <div style="font-weight:700;margin-bottom:4px;">Terms and Conditions</div>
   <div style="color:#555;white-space:pre-line;">${esc(billConfig.termsAndConditions)}</div>
-</td></tr></table>` : ''}
+</td></tr></table>`
+    : ''
+}
 <div class="footer-text">${esc(footerText)}</div>
+</div>
 </body></html>`;
 }
 
-export function generateDistributionChallanHtml(bill: DistributionBillData, options?: {
-  showGst?: boolean;
-  fullyPaid?: boolean;
-  qrDataUrl?: string;
-  irnQrDataUrl?: string;
-}): string {
+export function generateDistributionChallanHtml(
+  bill: DistributionBillData,
+  options?: {
+    showGst?: boolean;
+    fullyPaid?: boolean;
+    qrDataUrl?: string;
+    irnQrDataUrl?: string;
+  },
+): string {
   const showGst = options?.showGst ?? true;
   const fullyPaid = options?.fullyPaid ?? false;
-  const billConfig = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined ?? {};
+  const billConfig =
+    ((bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined) ?? {};
   const color = safeColor(billConfig.primaryColor as string);
   const logoHtml = billConfig.logoBase64
     ? `<img src="${safeImgSrc(billConfig.logoBase64)}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
@@ -332,22 +439,33 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   const irnAckNo = bill.irnAckNo || '';
   const irnAckDt = bill.irnAckDt || '';
   const irnQrPayload = bill.irnQr || '';
-  const irnQrSrc = options?.irnQrDataUrl
-    || (irnQrPayload ? `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(irnQrPayload)}` : '');
+  const irnQrSrc =
+    options?.irnQrDataUrl ||
+    (irnQrPayload
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(irnQrPayload)}`
+      : '');
 
   const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
-  const upiQrSection = billConfig.bankUpiId ? (() => {
-    const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
-    const qrUrl = options?.qrDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
-    return `<div style="text-align:center;">
+  const upiQrSection = billConfig.bankUpiId
+    ? (() => {
+        const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
+        const qrUrl =
+          options?.qrDataUrl ||
+          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
+        return `<div style="text-align:center;">
       <img src="${qrUrl}" style="width:120px;height:120px;" />
       <p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p>
     </div>`;
-  })() : '';
-  const bankSection = hasBankDetails || upiQrSection ? `
+      })()
+    : '';
+  const bankSection =
+    hasBankDetails || upiQrSection
+      ? `
     <div style="margin-top:20px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
-        ${hasBankDetails ? `<div style="flex:1;">
+        ${
+          hasBankDetails
+            ? `<div style="flex:1;">
           <strong style="font-size:13px;">Bank Details</strong>
           <table style="width:100%;margin-top:8px;font-size:12px;">
             ${billConfig.bankAccountName ? `<tr><td style="color:#6b7280;width:120px;">Account Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
@@ -356,46 +474,82 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
             ${billConfig.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
             ${billConfig.bankUpiId ? `<tr><td style="color:#6b7280;">UPI</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
           </table>
-        </div>` : ''}
+        </div>`
+            : ''
+        }
         ${upiQrSection}
       </div>
-    </div>` : '';
+    </div>`
+      : '';
 
-  const tcSection = billConfig.termsAndConditions ? `
+  const tcSection = billConfig.termsAndConditions
+    ? `
     <div style="margin-top:16px;font-size:11px;">
       <strong>Terms & Conditions:</strong>
       <p style="white-space:pre-line;color:#6b7280;margin-top:4px;">${esc(billConfig.termsAndConditions)}</p>
-    </div>` : '';
+    </div>`
+    : '';
 
   const gstRate = bill.gstRate || 18;
   const netVal = bill.totalValue;
   // Prefer stored billed totals when available (matches books); else exclusive calc on net
-  const billedFromItems = bill.groupedItems?.reduce((s, g) => {
-    const line = Number((g as Record<string, unknown>).billedLineTotal ?? g.lineTotal) || 0;
-    return s + line;
-  }, 0) ?? 0;
+  const billedFromItems =
+    bill.groupedItems?.reduce((s, g) => {
+      const line = Number((g as Record<string, unknown>).billedLineTotal ?? g.lineTotal) || 0;
+      return s + line;
+    }, 0) ?? 0;
   const gstAmount = showGst
-    ? (billedFromItems > netVal ? Math.round(billedFromItems - netVal) : Math.round(netVal * gstRate / 100))
+    ? billedFromItems > netVal
+      ? Math.round(billedFromItems - netVal)
+      : Math.round((netVal * gstRate) / 100)
     : 0;
   const halfGst = Math.round(gstAmount / 2);
   const grandTotal = netVal + gstAmount;
-  const vendorGstin = (bill.vendor as Record<string, unknown>).gstNumber as string || '';
+  const vendorGstin = ((bill.vendor as Record<string, unknown>).gstNumber as string) || '';
   const sellerGstin = String(billConfig.gstNumber || (bill as unknown as Record<string, unknown>).companyGstin || '');
   const posLabel = placeOfSupplyLabel(vendorGstin, sellerGstin);
 
   const numberToWords = (n: number): string => {
     if (n === 0) return 'Zero';
-    const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
-    const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    const ones = [
+      '',
+      'One',
+      'Two',
+      'Three',
+      'Four',
+      'Five',
+      'Six',
+      'Seven',
+      'Eight',
+      'Nine',
+      'Ten',
+      'Eleven',
+      'Twelve',
+      'Thirteen',
+      'Fourteen',
+      'Fifteen',
+      'Sixteen',
+      'Seventeen',
+      'Eighteen',
+      'Nineteen',
+    ];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
     const convert = (num: number): string => {
       if (num < 20) return ones[num];
       if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? ' ' + ones[num % 10] : '');
       if (num < 1000) return ones[Math.floor(num / 100)] + ' Hundred' + (num % 100 ? ' and ' + convert(num % 100) : '');
-      if (num < 100000) return convert(Math.floor(num / 1000)) + ' Thousand' + (num % 1000 ? ' ' + convert(num % 1000) : '');
-      if (num < 10000000) return convert(Math.floor(num / 100000)) + ' Lakh' + (num % 100000 ? ' ' + convert(num % 100000) : '');
+      if (num < 100000)
+        return convert(Math.floor(num / 1000)) + ' Thousand' + (num % 1000 ? ' ' + convert(num % 1000) : '');
+      if (num < 10000000)
+        return convert(Math.floor(num / 100000)) + ' Lakh' + (num % 100000 ? ' ' + convert(num % 100000) : '');
       return convert(Math.floor(num / 10000000)) + ' Crore' + (num % 10000000 ? ' ' + convert(num % 10000000) : '');
     };
-    return convert(Math.round(n)) + ' Rupees and ' + String(Math.round((n % 1) * 100) || '00').padStart(2, '0') + ' Paisa Only';
+    return (
+      convert(Math.round(n)) +
+      ' Rupees and ' +
+      String(Math.round((n % 1) * 100) || '00').padStart(2, '0') +
+      ' Paisa Only'
+    );
   };
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Challan'} - ${esc(chPrefix)}${esc(bill.challanId)}</title>
@@ -415,7 +569,7 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   .cust-label{font-weight:700;width:100px;color:#555;}
   .items th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:6px 6px;text-align:center;font-weight:700;}
   .items td{padding:5px 6px;text-align:center;}
-  .items tr{page-break-inside:avoid;}
+  .items tbody tr{break-inside:avoid;page-break-inside:avoid;}
   .items .left{text-align:left;}
   .items .right{text-align:right;}
   .items .total-row{font-weight:700;background:#f0f0f0;}
@@ -427,8 +581,9 @@ export function generateDistributionChallanHtml(bill: DistributionBillData, opti
   .sig-section{margin-top:0;}
   .sig-section td{border:none;padding:6px 12px;vertical-align:bottom;height:60px;}
   .footer-text{font-size:9px;color:#999;text-align:center;margin-top:8px;}
+  .repeat-banner th{background:#fff;border-bottom:2px solid ${color};text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
   .paid-stamp{position:absolute;top:80px;right:40px;padding:8px 14px;border:3px solid #059669;color:#059669;background:#ecfdf5;border-radius:8px;font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;transform:rotate(-12deg);}
-  @media print{body{padding:10px;} @page{margin:8mm;} .no-print{display:none;}}
+  @media print{body{padding:10px;} @page{margin:10mm;} thead{display:table-header-group;} .no-print{display:none;}}
 </style></head><body>
 <div style="position:relative;">
 ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
@@ -487,17 +642,26 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
         ${irnAckNo ? `<tr class="cust-row"><td class="cust-label">Ack No.</td><td><strong style="font-family:monospace;">${esc(irnAckNo)}</strong></td></tr>` : ''}
         ${irnAckDt ? `<tr class="cust-row"><td class="cust-label">Ack Date</td><td>${esc(irnAckDt)}</td></tr>` : ''}
       </table>
-      ${irnQrSrc ? `<div style="padding:8px;text-align:center;border-top:1px solid #eee;">
+      ${
+        irnQrSrc
+          ? `<div style="padding:8px;text-align:center;border-top:1px solid #eee;">
         <img src="${irnQrSrc}" style="width:120px;height:120px;" alt="E-Invoice QR" />
         <div style="font-size:9px;color:#666;margin-top:2px;font-weight:600;">e-Invoice QR</div>
-      </div>` : ''}
+      </div>`
+          : ''
+      }
     </td>
   </tr>
 </table>
 
 <!-- Item Table -->
 <table class="outer items">
-  <thead><tr>
+  <thead>
+    <tr class="repeat-banner"><th colspan="${showGst ? 9 : 6}">
+      <span style="font-weight:800;color:${color};">${esc(bill.company.name)}</span>
+      <span style="float:right;font-weight:700;">${esc(chPrefix)}${esc(bill.challanId)}</span>
+    </th></tr>
+    <tr>
     <th style="width:30px;">Sr.<br>No.</th>
     <th class="left">Name of Product / Service</th>
     ${showGst ? '<th>HSN / SAC</th>' : ''}
@@ -507,24 +671,30 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
     ${showGst ? `<th colspan="2">${vendorGstin ? 'CGST' : 'IGST'}</th>` : ''}
     <th>Total</th>
   </tr>
-  ${showGst ? `<tr>
+  ${
+    showGst
+      ? `<tr>
     <th></th><th></th>${showGst ? '<th></th>' : ''}<th></th><th></th><th></th>
     <th>%</th><th>Amount</th><th></th>
-  </tr>` : ''}</thead>
+  </tr>`
+      : ''
+  }</thead>
   <tbody>
-  ${bill.groupedItems.map((g) => {
-    const lineGst = showGst ? Math.round(g.lineTotal * gstRate / 100) : 0;
-    return `<tr>
+  ${bill.groupedItems
+    .map(g => {
+      const lineGst = showGst ? Math.round((g.lineTotal * gstRate) / 100) : 0;
+      return `<tr>
       <td>${g.sno}</td>
       <td class="left"><strong>${esc(g.productName)}</strong>${(g as Record<string, unknown>).packQuantity ? ` <span style="font-size:9px;color:#666;">${esc((g as Record<string, unknown>).packQuantity)}</span>` : ''}</td>
-      ${showGst ? `<td>${esc((g as Record<string, unknown>).hsnCode as string || '-')}</td>` : ''}
+      ${showGst ? `<td>${esc(((g as Record<string, unknown>).hsnCode as string) || '-')}</td>` : ''}
       <td>${g.quantity}</td>
       <td class="right">${g.netPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
       <td class="right">${g.lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
       ${showGst ? `<td>${gstRate}.00</td><td class="right">${lineGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>` : ''}
       <td class="right" style="font-weight:700;">${(g.lineTotal + lineGst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
     </tr>`;
-  }).join('')}
+    })
+    .join('')}
   <tr class="total-row">
     <td></td><td class="right"><strong>Total</strong></td>
     ${showGst ? '<td></td>' : ''}
@@ -537,6 +707,7 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
   </tbody>
 </table>
 
+<div class="print-end avoid-break">
 <!-- Summary: Total in Words + Tax Breakdown -->
 <table class="outer">
   <tr class="summary-row">
@@ -547,11 +718,14 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
     <td style="padding:0;">
       <table style="width:100%;">
         <tr><td class="summary-label" style="padding:3px 8px;">Taxable Amount</td><td class="right" style="padding:3px 8px;">${netVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
-        ${showGst ? (vendorGstin
-          ? `<tr><td style="padding:3px 8px;">Add : CGST</td><td class="right" style="padding:3px 8px;">${halfGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
+        ${
+          showGst
+            ? vendorGstin
+              ? `<tr><td style="padding:3px 8px;">Add : CGST</td><td class="right" style="padding:3px 8px;">${halfGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
              <tr><td style="padding:3px 8px;">Add : SGST</td><td class="right" style="padding:3px 8px;">${(gstAmount - halfGst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>`
-          : `<tr><td style="padding:3px 8px;">Add : IGST</td><td class="right" style="padding:3px 8px;">${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>`
-        ) : ''}
+              : `<tr><td style="padding:3px 8px;">Add : IGST</td><td class="right" style="padding:3px 8px;">${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>`
+            : ''
+        }
         <tr><td style="padding:3px 8px;">Total Tax</td><td class="right" style="padding:3px 8px;">${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
         <tr><td style="padding:4px 8px;font-weight:700;">Total Amount After Tax</td><td class="right grand-total" style="padding:4px 8px;">₹${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
       </table>
@@ -564,14 +738,18 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
 <table class="outer" style="margin-top:-1px;">
   <tr>
     <td style="width:55%;padding:8px 12px;border-right:2px solid ${color};vertical-align:top;">
-      ${hasBankDetails ? `<div style="font-weight:700;font-size:11px;margin-bottom:6px;">Bank Details</div>
+      ${
+        hasBankDetails
+          ? `<div style="font-weight:700;font-size:11px;margin-bottom:6px;">Bank Details</div>
       <table class="bank-section">
         ${billConfig.bankAccountName ? `<tr><td class="bank-label">Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
         ${billConfig.bankName ? `<tr><td class="bank-label">Branch</td><td>${esc(billConfig.bankName)}${billConfig.bankBranch ? ', ' + esc(billConfig.bankBranch) : ''}</td></tr>` : ''}
         ${billConfig.bankAccountNumber ? `<tr><td class="bank-label">Acc. Number</td><td style="font-family:monospace;">${esc(billConfig.bankAccountNumber)}</td></tr>` : ''}
         ${billConfig.bankIfsc ? `<tr><td class="bank-label">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
         ${billConfig.bankUpiId ? `<tr><td class="bank-label">UPI ID</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
-      </table>` : ''}
+      </table>`
+          : ''
+      }
       ${upiQrSection ? `<div style="margin-top:6px;">${upiQrSection}<div style="font-size:9px;color:#666;text-align:center;">Pay using UPI</div></div>` : ''}
     </td>
     <td style="vertical-align:top;padding:8px 12px;">
@@ -583,12 +761,227 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
   </tr>
 </table>
 
-${tcSection ? `<table class="outer" style="margin-top:-1px;"><tr><td style="padding:6px 12px;font-size:10px;">
+${
+  tcSection
+    ? `<table class="outer" style="margin-top:-1px;"><tr><td style="padding:6px 12px;font-size:10px;">
   <div style="font-weight:700;margin-bottom:4px;">Terms and Conditions</div>
   <div style="color:#555;white-space:pre-line;">${esc(billConfig.termsAndConditions)}</div>
-</td></tr></table>` : ''}
+</td></tr></table>`
+    : ''
+}
 
 <div class="footer-text">${esc(footerText)}</div>
+</div>
+</div>
+</body></html>`;
+}
+
+/** Quotation print — same branding header as invoices / challans (bill settings). */
+export type QuotationBillInput = {
+  quotationNumber: string;
+  quotationDate: string;
+  validUntil?: string | null;
+  status: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
+  vendorName?: string | null;
+  items: {
+    productName: string;
+    quantity: number;
+    price: number;
+    discountPercent: number;
+    withGst: boolean;
+    lineNet: number;
+    lineGst: number;
+    lineTotal: number;
+  }[];
+  subtotal: number;
+  gstRate: number;
+  gstAmount: number;
+  total: number;
+  notes?: string | null;
+  company: {
+    name: string;
+    phone?: string | null;
+    address?: string | null;
+    gstNumber?: string | null;
+    email?: string | null;
+  };
+  billSettings?: Record<string, unknown> | null;
+};
+
+export function generateQuotationHtml(q: QuotationBillInput, options?: { qrDataUrl?: string }): string {
+  const billConfig = q.billSettings || {};
+  const color = safeColor(billConfig.primaryColor as string);
+  const logoHtml = billConfig.logoBase64
+    ? `<img src="${safeImgSrc(billConfig.logoBase64)}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
+    : `<div style="width:48px;height:48px;background:${color};border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:20px;">${esc((q.company.name || 'C').substring(0, 1).toUpperCase())}</div>`;
+  const tagline = (billConfig.tagline as string) || '';
+  const footerText = (billConfig.footerText as string) || 'Powered by Dhandho Management';
+  const hasGst = (q.gstAmount || 0) > 0;
+  const halfGst = Math.round((q.gstAmount || 0) / 2);
+  const billTo = q.customerName || q.vendorName || 'Customer';
+
+  const hasBankDetails = billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName;
+  const upiQrSection = billConfig.bankUpiId
+    ? (() => {
+        const upiLink = `upi://pay?pa=${encodeURIComponent(String(billConfig.bankUpiId))}&pn=${encodeURIComponent(String(billConfig.bankAccountName || 'Business'))}&cu=INR`;
+        const qrUrl =
+          options?.qrDataUrl ||
+          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiLink)}`;
+        return `<div style="text-align:center;">
+      <img src="${qrUrl}" style="width:120px;height:120px;" />
+      <p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p>
+    </div>`;
+      })()
+    : '';
+  const bankHtml =
+    hasBankDetails || upiQrSection
+      ? `<div style="margin-top:16px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">${
+          hasBankDetails
+            ? `<div style="flex:1;"><strong style="font-size:12px;">Bank Details</strong><table style="width:100%;margin-top:6px;font-size:11px;">${
+                billConfig.bankAccountName
+                  ? `<tr><td style="color:#6b7280;width:100px;">Account Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>`
+                  : ''
+              }${
+                billConfig.bankAccountNumber
+                  ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(billConfig.bankAccountNumber)}</td></tr>`
+                  : ''
+              }${
+                billConfig.bankName
+                  ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(billConfig.bankName)}${
+                      billConfig.bankBranch ? `, ${esc(billConfig.bankBranch)}` : ''
+                    }</td></tr>`
+                  : ''
+              }${
+                billConfig.bankIfsc
+                  ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>`
+                  : ''
+              }</table></div>`
+            : ''
+        }${upiQrSection}</div></div>`
+      : '';
+
+  const sigSrc =
+    typeof billConfig.signatureBase64 === 'string' && billConfig.signatureBase64.startsWith('data:image/')
+      ? billConfig.signatureBase64
+      : '';
+  const sigHtml =
+    billConfig.signatoryName || sigSrc
+      ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;"><div style="text-align:center;">${
+          sigSrc ? `<img src="${sigSrc}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'
+        }<p style="font-size:11px;border-top:1px solid #999;padding-top:4px;">${esc(
+          String(billConfig.signatoryName || ''),
+        )}${
+          billConfig.signatoryDesignation
+            ? `<br/><span style="font-size:10px;color:#666;">${esc(String(billConfig.signatoryDesignation))}</span>`
+            : ''
+        }</p></div></div>`
+      : '';
+
+  const termsHtml = billConfig.termsAndConditions
+    ? `<div style="margin-top:16px;font-size:10px;color:#666;"><strong>Terms & Conditions:</strong><br/><span style="white-space:pre-line;">${esc(billConfig.termsAndConditions)}</span></div>`
+    : '';
+
+  const rowsHtml = q.items
+    .map(
+      (it, i) => `<tr>
+      <td>${i + 1}</td>
+      <td class="left">${esc(it.productName)}</td>
+      <td>${it.quantity}</td>
+      <td class="right">₹${Number(it.price).toLocaleString('en-IN')}</td>
+      <td class="right">${it.discountPercent || 0}%</td>
+      <td class="right">₹${Number(it.lineNet).toLocaleString('en-IN')}</td>
+      ${hasGst ? `<td class="right">₹${Number(it.lineGst).toLocaleString('en-IN')}</td>` : ''}
+      <td class="right">₹${Number(it.lineTotal).toLocaleString('en-IN')}</td>
+    </tr>`,
+    )
+    .join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quotation — ${esc(q.quotationNumber)}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
+  table{border-collapse:collapse;}.outer{border:2px solid ${color};width:100%;}.outer td,.outer th{border:1px solid #ccc;padding:4px 8px;font-size:11px;}
+  .hdr{border-bottom:2px solid ${color};}.hdr td{border:none;padding:8px 12px;vertical-align:top;}
+  .tagline{background:${color};color:white;text-align:center;padding:4px;font-size:11px;font-weight:600;letter-spacing:1px;}
+  .title-row td{padding:6px 12px;font-size:12px;border-bottom:2px solid ${color};}
+  .gstin-text{font-family:monospace;font-weight:700;font-size:13px;}
+  .title-text{font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
+  .items th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:6px;text-align:center;font-weight:700;}
+  .items td{padding:5px 6px;text-align:center;}.items .left{text-align:left;}.items .right{text-align:right;}
+  .items tbody tr{break-inside:avoid;page-break-inside:avoid;}
+  .items .total-row{font-weight:700;background:#f0f0f0;}
+  .grand-total{font-size:16px;font-weight:900;color:${color};}
+  .footer-text{font-size:9px;color:#999;text-align:center;margin-top:8px;}
+  .repeat-banner th{background:#fff;border-bottom:2px solid ${color};text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
+  @media print{body{padding:10px;} @page{margin:10mm;} thead{display:table-header-group;}}
+</style></head><body>
+<table class="outer avoid-break">
+  <tr class="hdr">
+    <td colspan="2" style="width:65%;">
+      <div style="display:flex;align-items:center;gap:12px;">${logoHtml}<div>
+        <div style="font-size:18px;font-weight:800;color:${color};">${esc(q.company.name || 'Dhandho')}</div>
+        ${q.company.address ? `<div style="font-size:10px;color:#555;margin-top:2px;">${esc(q.company.address)}</div>` : ''}
+        ${q.company.phone ? `<div style="font-size:10px;color:#555;">Ph: ${esc(q.company.phone)}</div>` : ''}
+        ${q.company.email ? `<div style="font-size:10px;color:#555;">${esc(q.company.email)}</div>` : ''}
+      </div></div>
+    </td>
+    <td colspan="2" style="text-align:right;width:35%;">
+      <div class="title-text" style="color:${color};">QUOTATION</div>
+      <div style="font-size:11px;margin-top:4px;"><strong>${esc(q.quotationNumber)}</strong></div>
+      <div style="font-size:10px;color:#555;">Date: ${fmtDate(q.quotationDate)}</div>
+      ${q.validUntil ? `<div style="font-size:10px;color:#555;">Valid until: ${fmtDate(q.validUntil)}</div>` : ''}
+    </td>
+  </tr>
+  ${tagline ? `<tr><td colspan="4" class="tagline">${esc(tagline)}</td></tr>` : ''}
+  <tr class="title-row">
+    <td colspan="2">${q.company.gstNumber ? `<span class="gstin-text">GSTIN: ${esc(q.company.gstNumber)}</span>` : ''}</td>
+    <td colspan="2" style="text-align:right;font-size:11px;font-weight:700;color:#555;">${esc(q.status)}</td>
+  </tr>
+  <tr><td colspan="4" style="padding:8px 12px;">
+    <strong style="font-size:10px;color:#555;">QUOTE TO:</strong><br/>
+    <strong>${esc(billTo)}</strong>
+    ${q.customerPhone ? `<br/><span style="font-size:10px;">Ph: ${esc(q.customerPhone)}</span>` : ''}
+    ${q.customerEmail ? `<br/><span style="font-size:10px;">${esc(q.customerEmail)}</span>` : ''}
+  </td></tr>
+</table>
+<table class="outer items" style="margin-top:-2px;">
+  <thead>
+    <tr class="repeat-banner"><th colspan="${hasGst ? 8 : 7}">
+      <span style="font-weight:800;color:${color};">${esc(q.company.name || 'Dhandho')}</span>
+      <span style="float:right;font-weight:700;">QUOTATION ${esc(q.quotationNumber)}</span>
+    </th></tr>
+    <tr>
+    <th style="width:30px;">Sr</th>
+    <th class="left">Product</th>
+    <th>Qty</th>
+    <th class="right">Rate</th>
+    <th class="right">Disc%</th>
+    <th class="right">Net</th>
+    ${hasGst ? '<th class="right">GST</th>' : ''}
+    <th class="right">Amount</th>
+  </tr></thead>
+  <tbody>
+    ${rowsHtml}
+  </tbody>
+</table>
+<div class="print-end avoid-break">
+<table class="outer items" style="margin-top:-2px;border-top:none;">
+  <tbody>
+    <tr class="total-row"><td colspan="${hasGst ? 7 : 6}" class="right">Subtotal</td><td class="right">₹${Number(q.subtotal).toLocaleString('en-IN')}</td></tr>
+    ${
+      hasGst
+        ? `<tr><td colspan="7" class="right">CGST (${q.gstRate / 2}%)</td><td class="right">₹${halfGst.toLocaleString('en-IN')}</td></tr>
+    <tr><td colspan="7" class="right">SGST (${q.gstRate / 2}%)</td><td class="right">₹${(q.gstAmount - halfGst).toLocaleString('en-IN')}</td></tr>`
+        : ''
+    }
+    <tr class="total-row"><td colspan="${hasGst ? 7 : 6}" class="right"><span class="grand-total">Grand Total</span></td><td class="right"><span class="grand-total">₹${Number(q.total).toLocaleString('en-IN')}</span></td></tr>
+  </tbody>
+</table>
+${q.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${esc(q.notes)}</div>` : ''}
+${bankHtml}${termsHtml}${sigHtml}
+<p class="footer-text">${esc(footerText)}</p>
 </div>
 </body></html>`;
 }

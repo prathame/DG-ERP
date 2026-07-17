@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/admin.ts` is part of Dhandho (DG-ERP). Approximate size: **259 lines**.
+`server/routes/admin.ts` is part of Dhandho (DG-ERP). Approximate size: **341 lines**.
 
 ## Business value
 
@@ -25,6 +25,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `crypto`
 - `../pg-db`
 - `../utils/helpers`
+- `../utils/http-error`
 - `../utils/planLimits`
 
 ## Exports and symbols
@@ -201,7 +202,7 @@ rg -n "admin" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **259**. Large view/route files are refactor candidates.
+Line count **341**. Large view/route files are refactor candidates.
 
 ## Security impact
 

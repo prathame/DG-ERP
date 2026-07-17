@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/auth.ts` is part of Dhandho (DG-ERP). Approximate size: **377 lines**.
+`server/routes/auth.ts` is part of Dhandho (DG-ERP). Approximate size: **569 lines**.
 
 ## Business value
 
@@ -25,7 +25,8 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `crypto`
 - `../pg-db`
 - `../utils/helpers`
-- `../utils/pii`
+- `../utils/http-error`
+- `../utils/logger`
 - `../middleware/auth`
 
 ## Exports and symbols
@@ -34,22 +35,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (8 detected)
-
-### Function: slugClause
-
-```ts
-slugClause(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `slugClause` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+## Functions (6 detected)
 
 ### Function: row
 
@@ -111,21 +97,6 @@ user(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: resetSlugClause
-
-```ts
-resetSlugClause(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `resetSlugClause` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
 ### Function: resetToken
 
 ```ts
@@ -172,7 +143,7 @@ rg -n "auth" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **377**. Large view/route files are refactor candidates.
+Line count **569**. Large view/route files are refactor candidates.
 
 ## Security impact
 

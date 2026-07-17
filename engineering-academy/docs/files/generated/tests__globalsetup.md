@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`tests/globalSetup.ts` is part of Dhandho (DG-ERP). Approximate size: **29 lines**.
+`tests/globalSetup.ts` is part of Dhandho (DG-ERP). Approximate size: **25 lines**.
 
 ## Business value
 
@@ -24,11 +24,11 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 ## Exports and symbols
 
-**Exported names:** `setup`, `teardown`
+**Exported names:** `setup`
 
 **Classes:** _none_
 
-## Functions (3 detected)
+## Functions (2 detected)
 
 ### Function: requireEnv
 
@@ -60,21 +60,6 @@ setup()
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: teardown
-
-```ts
-teardown()
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `tests/globalSetup.ts`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `teardown` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
 
 ## Execution flow
 
@@ -91,7 +76,7 @@ rg -n "globalSetup" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **29**. Large view/route files are refactor candidates.
+Line count **25**. Large view/route files are refactor candidates.
 
 ## Security impact
 

@@ -1,5 +1,6 @@
 import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { resolvePrice } from '../utils/price-resolve';
 import { Router } from 'express';
 import { pool } from '../pg-db';
 import { blockVendors, AuthRequest } from '../middleware/auth';
@@ -40,6 +41,8 @@ router.get('/api/price-lists', async (req, res) => {
         minQty: Number(r.min_qty) || 1,
         maxQty: r.max_qty ? Number(r.max_qty) : null,
         price: Number(r.price) || 0,
+        validFrom: r.valid_from || null,
+        validTo: r.valid_to || null,
         isActive: r.is_active !== false,
       })),
     );
@@ -55,33 +58,109 @@ router.get('/api/price-lists/resolve', async (req, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { productId, vendorId, quantity } = req.query;
     if (!productId) return res.status(400).json({ error: 'productId required' });
-    const qty = Number(quantity) || 1;
+    const resolved = await resolvePrice(
+      tenantId,
+      String(productId),
+      vendorId ? String(vendorId) : null,
+      Number(quantity) || 1,
+    );
+    res.json(resolved);
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
 
-    // Priority: vendor-specific slab > vendor-specific flat > general slab > general flat > product.price
-    const rules = (
-      await pool.query(
-        `
-      SELECT price, vendor_id, min_qty, max_qty FROM price_lists
-      WHERE tenant_id = $1 AND product_id = $2 AND is_active = true
-        AND (vendor_id = $3 OR vendor_id IS NULL)
-        AND min_qty <= $4 AND (max_qty IS NULL OR max_qty >= $4)
-      ORDER BY
-        CASE WHEN vendor_id = $3 THEN 0 ELSE 1 END,
-        min_qty DESC
-      LIMIT 1
-    `,
-        [tenantId, productId, vendorId || null, qty],
-      )
-    ).rows[0] as { price: number } | undefined;
-
-    if (rules) {
-      res.json({ price: Number(rules.price), source: 'price_list' });
-    } else {
-      const product = (
-        await pool.query('SELECT price FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])
-      ).rows[0] as { price: number } | undefined;
-      res.json({ price: Number(product?.price) || 0, source: 'default' });
+// Bulk import price rules (CSV) — resolve product/vendor by name
+router.post('/api/price-lists/bulk', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const rules = req.body?.rules;
+    if (!Array.isArray(rules) || rules.length === 0) {
+      return res.status(400).json({ error: 'rules array required' });
     }
+    if (rules.length > 500) return res.status(400).json({ error: 'Maximum 500 rules per import' });
+
+    const products = (await pool.query('SELECT id, name FROM products WHERE tenant_id = $1', [tenantId])).rows as {
+      id: string;
+      name: string;
+    }[];
+    const vendors = (await pool.query('SELECT id, name FROM vendors WHERE tenant_id = $1', [tenantId])).rows as {
+      id: string;
+      name: string;
+    }[];
+    const productByName = new Map(products.map(p => [p.name.trim().toLowerCase(), p.id]));
+    const vendorByName = new Map(vendors.map(v => [v.name.trim().toLowerCase(), v.id]));
+
+    let success = 0;
+    let updated = 0;
+    let inserted = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < rules.length; i++) {
+      const row = rules[i] as Record<string, unknown>;
+      const rowNum = i + 2; // header = row 1
+      const productName = String(row.productName || row.product || '').trim();
+      const vendorName = String(row.vendorName || row.vendor || '').trim();
+      const price = Number(row.price);
+      const minQty = Number(row.minQty ?? row.min_qty ?? 1) || 1;
+      const maxRaw = row.maxQty ?? row.max_qty;
+      const maxQty = maxRaw === '' || maxRaw == null || maxRaw === undefined ? null : Number(maxRaw);
+      const name = String(row.name || row.ruleName || '').trim() || 'Imported Price';
+      const vfRaw = row.validFrom ?? row.valid_from;
+      const vtRaw = row.validTo ?? row.valid_to;
+      const validFrom = vfRaw === '' || vfRaw == null || vfRaw === undefined ? null : String(vfRaw).slice(0, 10);
+      const validTo = vtRaw === '' || vtRaw == null || vtRaw === undefined ? null : String(vtRaw).slice(0, 10);
+
+      if (!productName) {
+        errors.push(`Row ${rowNum}: productName is required`);
+        continue;
+      }
+      const productId = productByName.get(productName.toLowerCase());
+      if (!productId) {
+        errors.push(`Row ${rowNum}: product "${productName}" not found — add it in Masters first`);
+        continue;
+      }
+      if (!price || price <= 0 || Number.isNaN(price)) {
+        errors.push(`Row ${rowNum}: price must be greater than 0`);
+        continue;
+      }
+      let vendorId: string | null = null;
+      if (vendorName) {
+        vendorId = vendorByName.get(vendorName.toLowerCase()) || null;
+        if (!vendorId) {
+          errors.push(`Row ${rowNum}: vendor "${vendorName}" not found`);
+          continue;
+        }
+      }
+      if (maxQty != null && (Number.isNaN(maxQty) || maxQty < minQty)) {
+        errors.push(`Row ${rowNum}: maxQty must be >= minQty`);
+        continue;
+      }
+
+      try {
+        const upd = await pool.query(
+          `UPDATE price_lists SET name = $1, max_qty = $2, price = $3, valid_from = $4, valid_to = $5
+           WHERE tenant_id = $6 AND product_id = $7 AND min_qty = $8 AND vendor_id IS NOT DISTINCT FROM $9`,
+          [name, maxQty, price, validFrom, validTo, tenantId, productId, minQty, vendorId],
+        );
+        if ((upd.rowCount ?? 0) > 0) {
+          updated++;
+        } else {
+          const id = uid('PL');
+          await pool.query(
+            'INSERT INTO price_lists (id, tenant_id, name, product_id, vendor_id, min_qty, max_qty, price, valid_from, valid_to) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+            [id, tenantId, name, productId, vendorId, minQty, maxQty, price, validFrom, validTo],
+          );
+          inserted++;
+        }
+        success++;
+      } catch (err) {
+        errors.push(`Row ${rowNum}: ${(err as Error).message}`);
+      }
+    }
+
+    res.json({ success, updated, inserted, errors });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -92,13 +171,16 @@ router.post('/api/price-lists', blockVendors, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { name, productId, vendorId, minQty, maxQty, price } = req.body;
+    const { name, productId, vendorId, minQty, maxQty, price, validFrom, validTo } = req.body;
     if (!productId) return res.status(400).json({ error: 'Product is required' });
     if (!price || Number(price) <= 0) return res.status(400).json({ error: 'Price must be greater than 0' });
 
+    const vf = validFrom === '' || validFrom == null || validFrom === undefined ? null : String(validFrom).slice(0, 10);
+    const vt = validTo === '' || validTo == null || validTo === undefined ? null : String(validTo).slice(0, 10);
+
     const id = uid('PL');
     await pool.query(
-      'INSERT INTO price_lists (id, tenant_id, name, product_id, vendor_id, min_qty, max_qty, price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+      'INSERT INTO price_lists (id, tenant_id, name, product_id, vendor_id, min_qty, max_qty, price, valid_from, valid_to) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [
         id,
         tenantId,
@@ -108,19 +190,21 @@ router.post('/api/price-lists', blockVendors, async (req: AuthRequest, res) => {
         Number(minQty) || 1,
         maxQty ? Number(maxQty) : null,
         Number(price),
+        vf,
+        vt,
       ],
     );
-    res
-      .status(201)
-      .json({
-        id,
-        name: name || 'Custom Price',
-        productId,
-        vendorId,
-        minQty: Number(minQty) || 1,
-        maxQty: maxQty ? Number(maxQty) : null,
-        price: Number(price),
-      });
+    res.status(201).json({
+      id,
+      name: name || 'Custom Price',
+      productId,
+      vendorId,
+      minQty: Number(minQty) || 1,
+      maxQty: maxQty ? Number(maxQty) : null,
+      price: Number(price),
+      validFrom: vf,
+      validTo: vt,
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -131,7 +215,7 @@ router.put('/api/price-lists/:id', blockVendors, async (req: AuthRequest, res) =
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const { name, minQty, maxQty, price, isActive } = req.body;
+    const { name, minQty, maxQty, price, isActive, validFrom, validTo } = req.body;
     const updates: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
@@ -151,6 +235,14 @@ router.put('/api/price-lists/:id', blockVendors, async (req: AuthRequest, res) =
       if (Number(price) <= 0) return res.status(400).json({ error: 'Price must be greater than 0' });
       updates.push(`price = $${idx++}`);
       params.push(Number(price));
+    }
+    if (validFrom !== undefined) {
+      updates.push(`valid_from = $${idx++}`);
+      params.push(validFrom === '' || validFrom == null ? null : String(validFrom).slice(0, 10));
+    }
+    if (validTo !== undefined) {
+      updates.push(`valid_to = $${idx++}`);
+      params.push(validTo === '' || validTo == null ? null : String(validTo).slice(0, 10));
     }
     if (isActive !== undefined) {
       updates.push(`is_active = $${idx++}`);

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/utils/planLimits.ts` is part of Dhandho (DG-ERP). Approximate size: **53 lines**.
+`server/utils/planLimits.ts` is part of Dhandho (DG-ERP). Approximate size: **57 lines**.
 
 ## Business value
 
@@ -21,6 +21,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 ## Imports
 
 - `../pg-db`
+- `./logger`
 
 ## Exports and symbols
 
@@ -33,8 +34,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 ### Function: checkPlanLimit
 
 ```ts
-checkPlanLimit(tenantId: string,
-  resource: Resource)
+checkPlanLimit(tenantId: string, resource: Resource)
 ```
 
 | Aspect | Detail |
@@ -62,7 +62,7 @@ rg -n "planLimits" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **53**. Large view/route files are refactor candidates.
+Line count **57**. Large view/route files are refactor candidates.
 
 ## Security impact
 

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/products.ts` is part of Dhandho (DG-ERP). Approximate size: **1197 lines**.
+`server/routes/products.ts` is part of Dhandho (DG-ERP). Approximate size: **1184 lines**.
 
 ## Business value
 
@@ -23,6 +23,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `express`
 - `../pg-db`
 - `../utils/helpers`
+- `../utils/http-error`
 - `../utils/barcode`
 - `../middleware/auth`
 - `../utils/planLimits`
@@ -396,7 +397,7 @@ rg -n "products" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **1197**. Large view/route files are refactor candidates.
+Line count **1184**. Large view/route files are refactor candidates.
 
 ## Security impact
 

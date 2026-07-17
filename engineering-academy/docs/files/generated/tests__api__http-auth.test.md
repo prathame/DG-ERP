@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`tests/api/http-auth.test.ts` is part of Dhandho (DG-ERP). Approximate size: **81 lines**.
+`tests/api/http-auth.test.ts` is part of Dhandho (DG-ERP). Approximate size: **79 lines**.
 
 ## Business value
 
@@ -50,7 +50,7 @@ rg -n "http-auth.test" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **81**. Large view/route files are refactor candidates.
+Line count **79**. Large view/route files are refactor candidates.
 
 ## Security impact
 

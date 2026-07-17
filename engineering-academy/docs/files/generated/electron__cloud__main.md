@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`electron/cloud/main.ts` is part of Dhandho (DG-ERP). Approximate size: **97 lines**.
+`electron/cloud/main.ts` is part of Dhandho (DG-ERP). Approximate size: **96 lines**.
 
 ## Business value
 
@@ -22,6 +22,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 - `electron`
 - `path`
+- `../shared/constants`
 
 ## Exports and symbols
 
@@ -62,7 +63,7 @@ rg -n "main" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **97**. Large view/route files are refactor candidates.
+Line count **96**. Large view/route files are refactor candidates.
 
 ## Security impact
 

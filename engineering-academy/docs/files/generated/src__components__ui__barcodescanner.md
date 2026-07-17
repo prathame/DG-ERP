@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/components/ui/BarcodeScanner.tsx` is part of Dhandho (DG-ERP). Approximate size: **89 lines**.
+`src/components/ui/BarcodeScanner.tsx` is part of Dhandho (DG-ERP). Approximate size: **103 lines**.
 
 ## Business value
 
@@ -92,7 +92,7 @@ rg -n "BarcodeScanner" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **89**. Large view/route files are refactor candidates.
+Line count **103**. Large view/route files are refactor candidates.
 
 ## Security impact
 

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/api.ts` is part of Dhandho (DG-ERP). Approximate size: **1242 lines**.
+`src/api.ts` is part of Dhandho (DG-ERP). Approximate size: **1302 lines**.
 
 ## Business value
 
@@ -24,6 +24,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `./platforms/shared`
 - `./platforms/mobile/online/isMobileClient`
 - `./platforms/mobile/offline`
+- `./lib/logger`
 
 ## Exports and symbols
 
@@ -109,7 +110,7 @@ rg -n "api" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **1242**. Large view/route files are refactor candidates.
+Line count **1302**. Large view/route files are refactor candidates.
 
 ## Security impact
 

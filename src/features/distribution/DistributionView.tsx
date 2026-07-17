@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Package,
@@ -477,6 +477,35 @@ export function DistributionView({
   const removeDistRow = (idx: number) => setDistRows(distRows.filter((_, i) => i !== idx));
   const updateDistRow = (idx: number, field: string, value: string | number | boolean) =>
     setDistRows(prev => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+
+  /** Ignore stale resolve responses when vendor/product/qty changes quickly. */
+  const resolveTokenRef = useRef<Record<number, number>>({});
+
+  /** Apply price-list resolve into a dist row (vendor slab → generic → product). */
+  const resolveDistRowPrice = (idx: number, productId: string, vendor: string, quantity: number) => {
+    if (!productId || !vendor || quantity <= 0) return;
+    const token = (resolveTokenRef.current[idx] = (resolveTokenRef.current[idx] || 0) + 1);
+    fetch(
+      `/api/price-lists/resolve?productId=${encodeURIComponent(productId)}&vendorId=${encodeURIComponent(vendor)}&quantity=${quantity}`,
+      {
+        headers: {
+          Authorization: `Bearer ${session.getToken()}`,
+          'X-Tenant-ID': session.getTenantId() || '',
+        },
+      },
+    )
+      .then(r => r.json())
+      .then(d => {
+        if (resolveTokenRef.current[idx] !== token) return;
+        if (!d || typeof d.price !== 'number') return;
+        setDistRows(prev => {
+          const row = prev[idx];
+          if (!row || row.productId !== productId || (row.quantity || 0) !== quantity) return prev;
+          return prev.map((r, i) => (i === idx ? { ...r, customPrice: String(d.price) } : r));
+        });
+      })
+      .catch(() => {});
+  };
 
   const defaultGstRate = ((user as Record<string, unknown>)?.defaultGstRate as number) ?? 18;
   const distTotals = distRows.reduce(
@@ -1413,7 +1442,16 @@ export function DistributionView({
                   </label>
                   <select
                     value={distVendorId}
-                    onChange={e => setDistVendorId(e.target.value)}
+                    onChange={e => {
+                      const nextVendor = e.target.value;
+                      setDistVendorId(nextVendor);
+                      // Re-price catalog lines for the new dealer (real-world price list switch)
+                      distRows.forEach((row, idx) => {
+                        if (row.productId && nextVendor && (row.quantity || 0) > 0) {
+                          resolveDistRowPrice(idx, row.productId, nextVendor, row.quantity || 1);
+                        }
+                      });
+                    }}
                     className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                   >
                     <option value="">{isDirectSell ? 'Select customer' : 'Select vendor'}</option>
@@ -1505,20 +1543,7 @@ export function DistributionView({
                                   );
                                 }
                                 if (pid && distVendorId) {
-                                  fetch(
-                                    `/api/price-lists/resolve?productId=${pid}&vendorId=${distVendorId}&quantity=${row.quantity || 1}`,
-                                    {
-                                      headers: {
-                                        Authorization: `Bearer ${session.getToken()}`,
-                                        'X-Tenant-ID': session.getTenantId() || '',
-                                      },
-                                    },
-                                  )
-                                    .then(r => r.json())
-                                    .then(d => {
-                                      if (d.source === 'price_list') updateDistRow(idx, 'customPrice', String(d.price));
-                                    })
-                                    .catch(() => {});
+                                  resolveDistRowPrice(idx, pid, distVendorId, row.quantity || 1);
                                 }
                               }}
                             />
@@ -1535,21 +1560,7 @@ export function DistributionView({
                                   const newQty = v === '' ? 0 : parseInt(v, 10);
                                   updateDistRow(idx, 'quantity', newQty);
                                   if (row.productId && distVendorId && newQty > 0) {
-                                    fetch(
-                                      `/api/price-lists/resolve?productId=${row.productId}&vendorId=${distVendorId}&quantity=${newQty}`,
-                                      {
-                                        headers: {
-                                          Authorization: `Bearer ${session.getToken()}`,
-                                          'X-Tenant-ID': session.getTenantId() || '',
-                                        },
-                                      },
-                                    )
-                                      .then(r => r.json())
-                                      .then(d => {
-                                        if (d.source === 'price_list')
-                                          updateDistRow(idx, 'customPrice', String(d.price));
-                                      })
-                                      .catch(() => {});
+                                    resolveDistRowPrice(idx, row.productId, distVendorId, newQty);
                                   }
                                 }}
                                 className="w-16 min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
@@ -1600,15 +1611,22 @@ export function DistributionView({
                               onChange={e => {
                                 const checked = e.target.checked;
                                 updateDistRow(idx, 'withGst', checked);
+                                // Adjust from current line price (may be price-list), not master inventory
                                 if (inclGst && p) {
-                                  const origPrice = p.price;
-                                  if (!checked)
+                                  const current = parseFloat(String(row.customPrice)) || Number(p.price) || 0;
+                                  if (!checked) {
                                     updateDistRow(
                                       idx,
                                       'customPrice',
-                                      String(Math.round(origPrice / (1 + defaultGstRate / 100))),
+                                      String(Math.round((current / (1 + defaultGstRate / 100)) * 100) / 100),
                                     );
-                                  else updateDistRow(idx, 'customPrice', String(origPrice));
+                                  } else {
+                                    updateDistRow(
+                                      idx,
+                                      'customPrice',
+                                      String(Math.round(current * (1 + defaultGstRate / 100) * 100) / 100),
+                                    );
+                                  }
                                 }
                               }}
                               className="rounded text-brand"

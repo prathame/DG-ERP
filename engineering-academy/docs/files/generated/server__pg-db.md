@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/pg-db.ts` is part of Dhandho (DG-ERP). Approximate size: **1034 lines**.
+`server/pg-db.ts` is part of Dhandho (DG-ERP). Approximate size: **1116 lines**.
 
 ## Business value
 
@@ -23,10 +23,11 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `pg`
 - `bcrypt`
 - `dotenv`
+- `./utils/logger`
 
 ## Exports and symbols
 
-**Exported names:** `setTenantContext`, `withTenantClient`, `pool`, `initSchema`, `seedPlatformData`, `initDatabase`
+**Exported names:** `SLOW_QUERY_MS`, `setTenantContext`, `withTenantClient`, `pool`, `loggedQuery`, `initSchema`, `seedPlatformData`, `initDatabase`
 
 **Classes:** _none_
 
@@ -123,7 +124,7 @@ rg -n "pg-db" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **1034**. Large view/route files are refactor candidates.
+Line count **1116**. Large view/route files are refactor candidates.
 
 ## Security impact
 

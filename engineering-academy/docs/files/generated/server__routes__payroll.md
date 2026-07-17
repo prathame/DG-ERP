@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/payroll.ts` is part of Dhandho (DG-ERP). Approximate size: **278 lines**.
+`server/routes/payroll.ts` is part of Dhandho (DG-ERP). Approximate size: **467 lines**.
 
 ## Business value
 
@@ -24,6 +24,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../middleware/auth`
 - `../pg-db`
 - `../utils/helpers`
+- `../utils/http-error`
 
 ## Exports and symbols
 
@@ -124,7 +125,7 @@ rg -n "payroll" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **278**. Large view/route files are refactor candidates.
+Line count **467**. Large view/route files are refactor candidates.
 
 ## Security impact
 

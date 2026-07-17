@@ -56,7 +56,7 @@ Same inventory backbone as Manufacturer, but the "vendor" is renamed "Customer" 
 | Finance label | "Dealer Payments" |
 | Feature flags | warranty ❌, rewards ❌, customerTracking ❌; eWayBill ✅, gstSplit ✅ |
 
-**Example customer**: an FMCG or hardware wholesale distributor. They care about slab pricing (see [Price Lists](/architecture/business-workflows)) and E-Way Bills for high-value shipments, not warranty tracking.
+**Example customer**: an FMCG or hardware wholesale distributor. They care about slab pricing (see [Price list resolve](/architecture/business-workflows#workflow-6-price-list-resolve--bulk-import)) and E-Way Bills for high-value shipments, not warranty tracking.
 
 ### 3. Retail Shop
 
@@ -100,14 +100,14 @@ Every module below is a `src/features/<name>/` folder on the frontend and one or
 | **Purchases** | `features/purchases` | `purchases.ts` | `suppliers`, `product_purchases`, `supplier_payments` | Supplier master, purchase batches that create barcoded stock, cost tracking, GSTR-2B invoice-number matching |
 | **Distribution** | `features/distribution` | `distribution.ts` | `product_distribution` | Dispatch stock to vendors, batch-level payment tracking, custom pricing, E-Invoice/E-Way Bill JSON, CSV import |
 | **Sales** | `features/sales` | `sales.ts` | `product_sales`, `warranties` | POS-style sale entry by barcode scan, auto-creates a `warranties` row from `product.warranty_months` |
-| **Standalone Invoices** | `features/invoices` | `invoices.ts` | `standalone_invoices` | Non-inventory billing (services/jobs), 3 PDF presets, Draft→Sent→Paid status flow |
-| **Invoice Finance** | `features/finance` | `invoice-finance.ts` | `invoice_payments` | Partial/batch payment tracking against standalone invoices |
+| **Standalone Invoices** | `features/invoices` | `invoices.ts` | `standalone_invoices` | Non-inventory billing (services/jobs); optional `party_type`/`party_id` link to vendor or customer; catalog lines from products + price list; Draft→Sent→Paid |
+| **Invoice Finance** | `features/finance` | `invoice-finance.ts` | `invoice_payments` | Client cards grouped by stable `partyKey` (`vendor:ID` / `customer:ID` / legacy `name:…`); partial payments; service UX can open New Invoice with party prefills |
 | **Quotes & Orders** | `features/quotations`, `features/orders` | `quotations.ts`, `orders.ts` | `quotations`, `orders` | Draft quotes → WhatsApp share → convert to a distribution batch (see [Business Workflows](/architecture/business-workflows)) |
 | **Finance (vendor)** | `features/finance` | `finance.ts` | `vendor_payments` | Vendor receivables, batch-level payments, age-wise outstanding, bulk WhatsApp reminders |
 | **Accounts** | `features/accounts` | `accounts.ts` | derived from sales/purchases/expenses | P&L, Balance Sheet, Cash Flow, Ledger, Day Book, Credit/Debit Notes |
 | **Payroll** | `features/payroll` | `payroll.ts` | `staff_members`, `staff_payments` | Staff directory, salary/advance/bonus, WhatsApp notification, CSV import |
 | **Expenses** | (in Accounts) | `expenses.ts` | `expenses` | 12 categories, feeds P&L, ITC-eligible flag |
-| **Price Lists** | `features/masters` | `price-lists.ts` | `price_lists` | Vendor-wise + quantity-slab pricing, auto-applied at distribution time |
+| **Price Lists** | `features/masters` | `price-lists.ts` | `price_lists` | Vendor-specific or general quantity slabs; resolve at distribution + invoice create; CSV bulk import/export + branded PDF/print |
 | **Reports** | (in Accounts) | `reports.ts` | cross-table aggregates | Sales/distribution registers, outstanding, GSTR-2B/3B exports |
 | **Rewards** | `features/rewards` | `rewards.ts` | `rewards`, `reward_rules`, `redemption_settings` | Customer reward points, earn on sale, redeem via QR |
 | **Warranty** | `features/warranty` | `warranties.ts` | `warranties` | Serial/barcode-linked warranty with expiry alerts |
@@ -130,7 +130,7 @@ erDiagram
     warranties ||--o| product_replacements : "may trigger"
 ```
 
-Service tenants skip the entire left half of this diagram and go straight to `standalone_invoices` → `invoice_payments`.
+Service tenants skip the entire left half of this diagram and go straight to `standalone_invoices` → `invoice_payments`. Invoice Finance groups those invoices by **party link** when present (`party_type` + `party_id`), so renaming a client on a later invoice does not split their ledger — see [Business Workflows → Service invoice ledger](/architecture/business-workflows#workflow-5-service-invoice--party-linked-ledger).
 
 ## Key concepts
 

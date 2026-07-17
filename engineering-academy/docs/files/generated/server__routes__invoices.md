@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/invoices.ts` is part of Dhandho (DG-ERP). Approximate size: **276 lines**.
+`server/routes/invoices.ts` is part of Dhandho (DG-ERP). Approximate size: **365 lines**.
 
 ## Business value
 
@@ -24,6 +24,9 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../middleware/auth`
 - `../pg-db`
 - `../utils/helpers`
+- `../utils/http-error`
+- `../utils/price-resolve`
+- `../utils/gst-place`
 
 ## Exports and symbols
 
@@ -31,19 +34,64 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (2 detected)
+## Functions (5 detected)
 
-### Function: taxable
+### Function: v
 
 ```ts
-taxable(...)
+v(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
 | Purpose | Symbol in `server/routes/invoices.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `taxable` before deleting. |
+| What breaks if removed | Search the repo for `v` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: c
+
+```ts
+c(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/invoices.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `c` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: bs
+
+```ts
+bs(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/invoices.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `bs` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: t
+
+```ts
+t(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/invoices.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `t` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -79,7 +127,7 @@ rg -n "invoices" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **276**. Large view/route files are refactor candidates.
+Line count **365**. Large view/route files are refactor candidates.
 
 ## Security impact
 
