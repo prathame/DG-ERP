@@ -1,5 +1,16 @@
 /** Map local snake_case rows → API camelCase shapes used by the UI. */
 
+function parseJsonArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export function mapVendor(r: Record<string, unknown>) {
   return {
     id: r.id,
@@ -50,7 +61,7 @@ export function mapBank(r: Record<string, unknown>) {
 }
 
 export function mapInvoice(r: Record<string, unknown>) {
-  const items = typeof r.items === 'string' ? JSON.parse(r.items as string) : r.items || [];
+  const items = parseJsonArray(r.items);
   return {
     id: r.id,
     invoiceNumber: r.invoice_number ?? r.invoiceNumber,
@@ -120,7 +131,7 @@ export function mapExpense(r: Record<string, unknown>) {
 }
 
 export function mapQuotation(r: Record<string, unknown>) {
-  const items = typeof r.items === 'string' ? JSON.parse(r.items as string) : r.items || [];
+  const items = parseJsonArray(r.items);
   return {
     id: r.id,
     quoteNumber: r.quote_number,
@@ -134,7 +145,7 @@ export function mapQuotation(r: Record<string, unknown>) {
 }
 
 export function mapOrder(r: Record<string, unknown>) {
-  const items = typeof r.items === 'string' ? JSON.parse(r.items as string) : r.items || [];
+  const items = parseJsonArray(r.items);
   return {
     id: r.id,
     orderNumber: r.order_number,

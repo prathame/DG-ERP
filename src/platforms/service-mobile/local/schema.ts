@@ -206,6 +206,9 @@ CREATE TABLE IF NOT EXISTS invoice_payments (
   amount NUMERIC NOT NULL,
   payment_date DATE,
   method TEXT,
+  payment_method TEXT,
+  reference_number TEXT,
+  notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -324,6 +327,9 @@ ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT 0;
 ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS valid_from DATE;
 ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS valid_to DATE;
+ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS payment_method TEXT;
+ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS reference_number TEXT;
+ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS notes TEXT;
 `;
 
 export const SERVICE_TAB_PRESET: Record<string, { label: string; visible: boolean }> = {

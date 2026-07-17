@@ -22,6 +22,18 @@ describe('service-mobile local mappers', () => {
     expect(inv.items).toEqual([]);
   });
 
+  it('tolerates corrupt invoice items JSON without throwing', () => {
+    const inv = mapInvoice({
+      id: 'INV-bad',
+      invoice_number: 'X',
+      customer_name: 'Z',
+      items: '{not-json',
+      grand_total: 10,
+    });
+    expect(inv.items).toEqual([]);
+    expect(inv.grandTotal).toBe(10);
+  });
+
   it('maps supplier fields for PurchasesView', () => {
     const s = mapSupplier({
       id: 'S-1',

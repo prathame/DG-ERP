@@ -9,6 +9,7 @@ import {
   fetchImageAsDataUrl,
   openPrintWindow,
   printBillInWindow,
+  closePrintOverlay,
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
 import { fetchApi } from '../../api';
@@ -362,6 +363,8 @@ export function InvoicesView() {
       } catch {
         /* ignore */
       }
+      // Capacitor uses an in-app overlay; window.close() does not remove it.
+      closePrintOverlay();
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
     }
   };

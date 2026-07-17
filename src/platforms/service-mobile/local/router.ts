@@ -46,6 +46,33 @@ async function listTable(table: string, tid: string, order = 'created_at DESC') 
   return rows;
 }
 
+async function syncInvoicePaidStatus(tenantId: string, invoiceId: string) {
+  const { rows: invRows } = await localQuery(
+    `SELECT COALESCE(grand_total, total, 0) AS grand_total, status
+     FROM standalone_invoices WHERE id=$1 AND tenant_id=$2`,
+    [invoiceId, tenantId],
+  );
+  const inv = invRows[0] as { grand_total: number; status: string } | undefined;
+  if (!inv) return;
+  const { rows: sumRows } = await localQuery(
+    `SELECT COALESCE(SUM(amount),0) AS t FROM invoice_payments WHERE invoice_id=$1 AND tenant_id=$2`,
+    [invoiceId, tenantId],
+  );
+  const paid = Number((sumRows[0] as { t: number }).t) || 0;
+  const grand = Number(inv.grand_total) || 0;
+  if (paid >= grand - 0.001 && grand > 0) {
+    await localQuery(`UPDATE standalone_invoices SET status='paid' WHERE id=$1 AND tenant_id=$2`, [
+      invoiceId,
+      tenantId,
+    ]);
+  } else if (inv.status === 'paid') {
+    await localQuery(`UPDATE standalone_invoices SET status='sent' WHERE id=$1 AND tenant_id=$2`, [
+      invoiceId,
+      tenantId,
+    ]);
+  }
+}
+
 export async function handleLocalApiRequest(
   method: string,
   rawPath: string,
@@ -831,6 +858,25 @@ export async function handleLocalApiRequest(
       const totalInvoiced = mapped.reduce((s, i) => s + i.grandTotal, 0);
       const totalPaid = mapped.reduce((s, i) => s + i.paid, 0);
       const first = invoices[0] as Record<string, unknown> | undefined;
+
+      let paySql = `
+        SELECT ip.*, si.invoice_number
+        FROM invoice_payments ip
+        JOIN standalone_invoices si ON ip.invoice_id = si.id AND si.tenant_id = $1
+        WHERE ip.tenant_id = $1`;
+      const payParams: unknown[] = [tid];
+      if (raw.startsWith('vendor:') || raw.startsWith('customer:')) {
+        const [ptype, pid] = raw.split(':');
+        paySql += ` AND si.party_type=$2 AND si.party_id=$3`;
+        payParams.push(ptype, pid);
+      } else {
+        const name = raw.startsWith('name:') ? raw.slice(5) : raw;
+        paySql += ` AND COALESCE(si.customer_name, si.client_name)=$2`;
+        payParams.push(name);
+      }
+      paySql += ` ORDER BY ip.payment_date DESC NULLS LAST, ip.created_at DESC`;
+      const { rows: payRows } = await localQuery(paySql, payParams);
+
       return json(200, {
         partyKey: raw,
         partyType: first?.party_type || null,
@@ -843,7 +889,16 @@ export async function handleLocalApiRequest(
         totalPaid,
         balance: totalInvoiced - totalPaid,
         invoices: mapped,
-        payments: [],
+        payments: payRows.map(r => ({
+          id: r.id,
+          invoiceId: r.invoice_id,
+          invoiceNumber: r.invoice_number,
+          amount: Number(r.amount) || 0,
+          paymentDate: r.payment_date,
+          paymentMethod: r.payment_method || r.method || 'Cash',
+          referenceNumber: r.reference_number || null,
+          notes: r.notes || null,
+        })),
       });
     }
 
@@ -853,16 +908,70 @@ export async function handleLocalApiRequest(
       ctx.path === '/invoice-finance' ||
       ctx.path === '/invoice-finance/payments'
     ) {
-      if (ctx.method === 'GET') return json(200, await listTable('invoice_payments', tid!));
+      if (ctx.method === 'GET') {
+        const rows = await listTable('invoice_payments', tid!);
+        return json(
+          200,
+          rows.map(r => ({
+            id: r.id,
+            invoiceId: r.invoice_id,
+            amount: Number(r.amount) || 0,
+            paymentDate: r.payment_date,
+            paymentMethod: r.payment_method || r.method || 'Cash',
+            referenceNumber: r.reference_number || null,
+            notes: r.notes || null,
+          })),
+        );
+      }
       if (ctx.method === 'POST') {
         const b = ctx.body as Record<string, unknown>;
-        const id = uid('IP');
-        await localQuery(
-          `INSERT INTO invoice_payments (id, tenant_id, invoice_id, amount, payment_date, method) VALUES ($1,$2,$3,$4,$5,$6)`,
-          [id, tid, b.invoiceId ?? null, b.amount, b.paymentDate ?? null, b.paymentMethod ?? b.method ?? null],
+        const invoiceId = String(b.invoiceId || '');
+        const payAmt = Number(b.amount);
+        if (!invoiceId || !(payAmt > 0)) {
+          return json(400, { error: 'Invoice ID and positive amount required' });
+        }
+        const { rows: invRows } = await localQuery(
+          `SELECT id, COALESCE(grand_total, total, 0) AS grand_total
+           FROM standalone_invoices WHERE id=$1 AND tenant_id=$2 AND COALESCE(status,'') != 'cancelled'`,
+          [invoiceId, tid],
         );
-        return json(201, { id, ok: true });
+        if (!invRows[0]) return json(404, { error: 'Invoice not found' });
+        const { rows: paidRows } = await localQuery(
+          `SELECT COALESCE(SUM(amount),0) AS t FROM invoice_payments WHERE invoice_id=$1 AND tenant_id=$2`,
+          [invoiceId, tid],
+        );
+        const alreadyPaid = Number((paidRows[0] as { t: number }).t) || 0;
+        const remaining = Number((invRows[0] as { grand_total: number }).grand_total) - alreadyPaid;
+        if (payAmt > remaining + 0.001) {
+          return json(400, {
+            error: `Payment exceeds remaining balance (₹${Math.max(0, remaining).toFixed(2)})`,
+          });
+        }
+        const id = uid('IP');
+        const pDate = (b.paymentDate as string) || new Date().toISOString().slice(0, 10);
+        const method = (b.paymentMethod as string) || (b.method as string) || 'Cash';
+        await localQuery(
+          `INSERT INTO invoice_payments
+             (id, tenant_id, invoice_id, amount, payment_date, method, payment_method, reference_number, notes)
+           VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8)`,
+          [id, tid, invoiceId, payAmt, pDate, method, b.referenceNumber ?? null, b.notes ?? null],
+        );
+        await syncInvoicePaidStatus(tid!, invoiceId);
+        return json(201, { id, invoiceId, amount: payAmt, paymentDate: pDate, paymentMethod: method });
       }
+    }
+    const invPayDel = ctx.path.match(/^\/invoice-finance\/payments\/([^/]+)$/);
+    if (invPayDel && ctx.method === 'DELETE') {
+      const payId = invPayDel[1]!;
+      const { rows } = await localQuery(`SELECT id, invoice_id FROM invoice_payments WHERE id=$1 AND tenant_id=$2`, [
+        payId,
+        tid,
+      ]);
+      if (!rows[0]) return json(404, { error: 'Payment not found' });
+      const invoiceId = String((rows[0] as { invoice_id: string }).invoice_id);
+      await localQuery(`DELETE FROM invoice_payments WHERE id=$1 AND tenant_id=$2`, [payId, tid]);
+      await syncInvoicePaidStatus(tid!, invoiceId);
+      return json(200, { ok: true });
     }
 
     // Banks
@@ -972,26 +1081,125 @@ export async function handleLocalApiRequest(
       );
       return json(201, mapPriceRule(rows[0] as Record<string, unknown>));
     }
+    if (ctx.path === '/price-lists/bulk' && ctx.method === 'POST') {
+      const rules = (ctx.body as { rules?: unknown })?.rules;
+      if (!Array.isArray(rules) || rules.length === 0) {
+        return json(400, { error: 'rules array required' });
+      }
+      if (rules.length > 500) return json(400, { error: 'Maximum 500 rules per import' });
+      const { rows: products } = await localQuery<{ id: string; name: string }>(
+        `SELECT id, name FROM products WHERE tenant_id=$1`,
+        [tid],
+      );
+      const { rows: vendors } = await localQuery<{ id: string; name: string }>(
+        `SELECT id, name FROM vendors WHERE tenant_id=$1`,
+        [tid],
+      );
+      const productByName = new Map(products.map(p => [String(p.name).trim().toLowerCase(), String(p.id)]));
+      const vendorByName = new Map(vendors.map(v => [String(v.name).trim().toLowerCase(), String(v.id)]));
+      let success = 0;
+      let updated = 0;
+      let inserted = 0;
+      const errors: string[] = [];
+      for (let i = 0; i < rules.length; i++) {
+        const row = rules[i] as Record<string, unknown>;
+        const rowNum = i + 2;
+        const productName = String(row.productName || row.product || '').trim();
+        const vendorName = String(row.vendorName || row.vendor || '').trim();
+        const price = Number(row.price);
+        const minQty = Number(row.minQty ?? row.min_qty ?? 1) || 1;
+        const maxRaw = row.maxQty ?? row.max_qty;
+        const maxQty = maxRaw === '' || maxRaw == null ? null : Number(maxRaw);
+        const name = String(row.name || row.ruleName || '').trim() || 'Imported Price';
+        const vfRaw = row.validFrom ?? row.valid_from;
+        const vtRaw = row.validTo ?? row.valid_to;
+        const validFrom = vfRaw === '' || vfRaw == null ? null : String(vfRaw).slice(0, 10);
+        const validTo = vtRaw === '' || vtRaw == null ? null : String(vtRaw).slice(0, 10);
+        if (!productName) {
+          errors.push(`Row ${rowNum}: productName is required`);
+          continue;
+        }
+        const productId = productByName.get(productName.toLowerCase());
+        if (!productId) {
+          errors.push(`Row ${rowNum}: product "${productName}" not found — add it in Masters first`);
+          continue;
+        }
+        if (!price || price <= 0 || Number.isNaN(price)) {
+          errors.push(`Row ${rowNum}: price must be greater than 0`);
+          continue;
+        }
+        let vendorId: string | null = null;
+        if (vendorName) {
+          vendorId = vendorByName.get(vendorName.toLowerCase()) || null;
+          if (!vendorId) {
+            errors.push(`Row ${rowNum}: vendor "${vendorName}" not found`);
+            continue;
+          }
+        }
+        if (maxQty != null && (Number.isNaN(maxQty) || maxQty < minQty)) {
+          errors.push(`Row ${rowNum}: maxQty must be >= minQty`);
+          continue;
+        }
+        try {
+          const existing = await localQuery(
+            `SELECT id FROM price_lists
+             WHERE tenant_id=$1 AND product_id=$2 AND min_qty=$3
+               AND vendor_id IS NOT DISTINCT FROM $4 LIMIT 1`,
+            [tid, productId, minQty, vendorId],
+          );
+          if (existing.rows[0]) {
+            await localQuery(
+              `UPDATE price_lists SET name=$1, max_qty=$2, price=$3, valid_from=$4, valid_to=$5
+               WHERE id=$6 AND tenant_id=$7`,
+              [name, maxQty, price, validFrom, validTo, existing.rows[0].id, tid],
+            );
+            updated++;
+          } else {
+            await localQuery(
+              `INSERT INTO price_lists
+                 (id, tenant_id, name, product_id, vendor_id, min_qty, max_qty, price, valid_from, valid_to, is_active)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true)`,
+              [uid('PL'), tid, name, productId, vendorId, minQty, maxQty, price, validFrom, validTo],
+            );
+            inserted++;
+          }
+          success++;
+        } catch (err) {
+          errors.push(`Row ${rowNum}: ${err instanceof Error ? err.message : 'failed'}`);
+        }
+      }
+      return json(200, { success, updated, inserted, errors });
+    }
     const priceListMatch = ctx.path.match(/^\/price-lists\/([^/]+)$/);
-    if (priceListMatch) {
+    if (priceListMatch && priceListMatch[1] !== 'bulk') {
       const id = priceListMatch[1]!;
       if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
         const b = ctx.body as Record<string, unknown>;
+        // Only overwrite optional fields when the key is present (avoid wiping vendor/dates).
         await localQuery(
           `UPDATE price_lists SET
-             name=COALESCE($1,name), product_id=COALESCE($2,product_id), vendor_id=$3,
-             min_qty=COALESCE($4,min_qty), max_qty=$5, price=COALESCE($6,price),
-             valid_from=$7, valid_to=$8
-           WHERE id=$9 AND tenant_id=$10`,
+             name=COALESCE($1,name),
+             product_id=COALESCE($2,product_id),
+             vendor_id=CASE WHEN $3::boolean THEN $4 ELSE vendor_id END,
+             min_qty=COALESCE($5,min_qty),
+             max_qty=CASE WHEN $6::boolean THEN $7 ELSE max_qty END,
+             price=COALESCE($8,price),
+             valid_from=CASE WHEN $9::boolean THEN $10 ELSE valid_from END,
+             valid_to=CASE WHEN $11::boolean THEN $12 ELSE valid_to END
+           WHERE id=$13 AND tenant_id=$14`,
           [
             b.name ?? null,
             b.productId ?? null,
-            b.vendorId ?? null,
+            'vendorId' in b,
+            'vendorId' in b ? (b.vendorId ?? null) : null,
             b.minQty != null ? Number(b.minQty) : null,
-            b.maxQty ?? null,
+            'maxQty' in b,
+            'maxQty' in b ? (b.maxQty ?? null) : null,
             b.price != null ? Number(b.price) : null,
-            b.validFrom ?? null,
-            b.validTo ?? null,
+            'validFrom' in b,
+            'validFrom' in b ? (b.validFrom ?? null) : null,
+            'validTo' in b,
+            'validTo' in b ? (b.validTo ?? null) : null,
             id,
             tid,
           ],

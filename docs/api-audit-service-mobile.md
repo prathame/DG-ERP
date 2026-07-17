@@ -63,8 +63,17 @@ Removed from Offline Mobile UI (`ChatWidget` gated off; tab preset `chatbot.visi
 `window.open` is blocked or useless in the Offline Mobile WebView, so Print/PDF showed “Pop-up blocked”.  
 `openPrintWindow()` now uses a fullscreen in-app preview with a **Print / PDF** button (system share sheet → Save as PDF).
 
+## Bugbot follow-ups (fixed)
+
+- Invoice Finance client detail returns real `payments`; DELETE payment + auto `paid`/`sent` status sync
+- Safe JSON parse for invoice/quote/order `items`
+- Per-statement migration logging (no silent all-or-nothing skip)
+- Print error closes Capacitor overlay (`closePrintOverlay`)
+- `POST /price-lists/bulk` + PUT that does not wipe omitted vendor/dates
+
 ## Remaining / ops
 
 - Rebuild Offline Mobile APK after merge for devices to pick up local API + login fix + print overlay.
 - Existing devices: log out and log in once so `businessType: service` is stored (or reopen app — session restore now defaults offline).
 - iOS build still requires Xcode on a Mac with the Capacitor iOS toolchain.
+
