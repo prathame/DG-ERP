@@ -56,8 +56,12 @@ function resolveMinLevel(): LogLevel {
 
 let minLevel: LogLevel = resolveMinLevel();
 
-const LOGTAIL_TOKEN = process.env.LOGTAIL_TOKEN;
-const logtail = LOGTAIL_TOKEN ? new Logtail(LOGTAIL_TOKEN) : null;
+const LOGTAIL_TOKEN = process.env.LOGTAIL_TOKEN?.trim();
+/** Regional ingest host from Better Stack source settings, e.g. https://sXXXX.eu-nbg-2.betterstackdata.com */
+const LOGTAIL_ENDPOINT = process.env.LOGTAIL_ENDPOINT?.trim();
+const logtail = LOGTAIL_TOKEN
+  ? new Logtail(LOGTAIL_TOKEN, LOGTAIL_ENDPOINT ? { endpoint: LOGTAIL_ENDPOINT } : undefined)
+  : null;
 
 if (logtail && !IS_TEST) {
   console.log(
@@ -65,6 +69,7 @@ if (logtail && !IS_TEST) {
       level: 'info',
       msg: 'Logtail connected',
       service: SERVICE_NAME,
+      endpoint: LOGTAIL_ENDPOINT || 'https://in.logs.betterstack.com',
       ts: new Date().toISOString(),
     }),
   );
