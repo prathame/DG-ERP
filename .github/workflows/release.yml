@@ -89,7 +89,7 @@ jobs:
           ls -lh dist-electron/onprem/*.dmg
 
       - name: Upload Cloud DMG (arm64)
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: dist-electron/cloud/Dhandho-*-arm64.dmg
           name: Dhandho ${{ github.ref_name }}
@@ -113,7 +113,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Cloud DMG (x64)
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist-electron/cloud/Dhandho-[0-9]*.dmg
@@ -121,7 +121,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload On-Prem DMGs
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: dist-electron/onprem/*.dmg
         env:
