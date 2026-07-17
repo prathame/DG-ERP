@@ -63,11 +63,10 @@ The tenant shell already had bottom nav, drawer sidebar, and partial safe-area h
 
 ## 6. Remaining mobile issues
 
-- Distribution / Purchases / Quotations / Warranty: still dense tables (scroll helps; card UIs not yet per view)
+- Distribution / Purchases / Quotations / Warranty: dense line-item tables still use horizontal scroll (not full card UIs)
 - Accounts report tables beyond GSTR sections may still need card summaries
 - Landscape tablets: mostly OK; not specially tuned
-- Chat widget full-screen: verify safe-area on device
-- Some `grid-cols-2` metric strips forced to stay 2-col — intentional; rare 2-col forms in content may still feel tight
+- Some `grid-cols-2` metric strips stay 2-col by design — rare non-metric 2-col forms in content may still feel tight
 - Offline Mobile APK must be rebuilt to pick up client CSS/layout changes
 
 ## Rules honored
