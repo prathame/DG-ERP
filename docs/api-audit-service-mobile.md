@@ -60,8 +60,8 @@ Removed from Offline Mobile UI (`ChatWidget` gated off; tab preset `chatbot.visi
 
 ## Print / PDF (Capacitor)
 
-`window.open` is blocked or useless in the Offline Mobile WebView, so Print/PDF showed “Pop-up blocked”.  
-`openPrintWindow()` now uses a fullscreen in-app preview with a **Print / PDF** button (system share sheet → Save as PDF).
+`window.open` is blocked in the Offline Mobile WebView, and Android WebView ignores `window.print()`.  
+`openPrintWindow()` uses a fullscreen in-app preview; **Print / PDF** calls `@capgo/capacitor-printer` (`Printer.printHtml`) so the system print sheet opens (Save as PDF).
 
 ## Bugbot follow-ups (fixed)
 
