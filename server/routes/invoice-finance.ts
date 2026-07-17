@@ -7,7 +7,7 @@ import { handleApiError } from '../utils/http-error';
 const router = Router();
 
 /** partyKey: vendor:ID | customer:ID | name:DisplayName (legacy unlinked invoices) */
-function parsePartyKey(raw: string): {
+export function parsePartyKey(raw: string): {
   partyType: 'vendor' | 'customer' | null;
   partyId: string | null;
   clientName: string | null;
@@ -17,7 +17,10 @@ function parsePartyKey(raw: string): {
   if (key.startsWith('vendor:') || key.startsWith('customer:')) {
     const i = key.indexOf(':');
     const partyType = key.slice(0, i) as 'vendor' | 'customer';
-    const partyId = key.slice(i + 1);
+    const partyId = key.slice(i + 1).trim();
+    if (!partyId) {
+      return { partyType: null, partyId: null, clientName: '', partyKey: 'name:' };
+    }
     return { partyType, partyId, clientName: null, partyKey: `${partyType}:${partyId}` };
   }
   const name = key.startsWith('name:') ? key.slice(5) : key;
