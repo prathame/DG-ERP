@@ -198,29 +198,34 @@ export function MastersView({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="grid grid-cols-1 md:grid-cols-2 gap-6"
+      className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6"
     >
       {masters.map(m => (
         <button
           key={m.id}
           type="button"
           onClick={() => handleMasterClick(m.id)}
-          className="w-full text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+          className="w-full text-left bg-white p-3.5 sm:p-6 rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className={cn('p-4 rounded-2xl transition-transform group-hover:scale-110', m.bg)}>
-                <m.icon className={m.color} size={28} />
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <div
+                className={cn(
+                  'p-2.5 sm:p-4 rounded-xl sm:rounded-2xl transition-transform group-hover:scale-110 shrink-0',
+                  m.bg,
+                )}
+              >
+                <m.icon className={m.color} size={22} />
               </div>
-              <div>
-                <h3 className="font-bold text-lg">{m.name}</h3>
-                <p className="text-sm text-gray-500">
+              <div className="min-w-0">
+                <h3 className="font-bold text-base sm:text-lg truncate">{m.name}</h3>
+                <p className="text-xs sm:text-sm text-gray-500 truncate">
                   {typeof m.count === 'number' ? `${m.count} records found` : 'View & manage mapping'}
                 </p>
               </div>
             </div>
-            <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-brand group-hover:text-white transition-colors">
-              <Plus size={20} />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-brand group-hover:text-white transition-colors shrink-0">
+              <Plus size={18} />
             </div>
           </div>
         </button>

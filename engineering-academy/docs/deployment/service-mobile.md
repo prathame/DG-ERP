@@ -50,6 +50,10 @@ gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clo
 
 Capacitor uses edge-to-edge WebViews. The shell CSS (`app-header-safe`, `--safe-top` / `--safe-bottom`, bottom-nav clearance) must keep the status bar and home indicator from covering headers, CTAs, and forms. Rebuild the APK after layout CSS changes.
 
+## Mobile UI density
+
+Offline Mobile sets `html.dg-mobile-dense` (see `src/main.tsx`) for compact type, card padding, header, and bottom nav. Desktop/web builds are unchanged.
+
 ## Local ERP APIs
 
 On-device PGlite implements the same `/api/*` paths the cloud UI uses (vendors, invoices, purchases/suppliers, staff, accounts P&L, invoice-finance, etc.). Responses are camelCase. Login must include `businessType: service` or Finance falls back to manufacturer Vendor Finance.

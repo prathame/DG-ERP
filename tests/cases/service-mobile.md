@@ -14,6 +14,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5c | businessType | After login, Finance tab | Invoice Finance (clients), not Vendor “Distributed Value” |
 | 5d | Print / PDF | Invoices → Print / PDF (or Quotes / Price List) | In-app preview opens; Print / PDF uses system sheet (Save as PDF). No “Pop-up blocked” |
 | 5e | No chatbot | Any screen (sidebar / floating help) | No “May I help you?” widget; chatbot not in Offline Mobile |
+| 5f | UI density | Masters hub, Invoices, bottom nav | Smaller titles/body than desktop web; compact header + tab bar; forms not oversized |
 | 6 | Hard sync settings | SA push tab/settings → phone Sync / wait heartbeat | Settings applied; force sync reloads UI |
 | 7 | SA Bell | SA notify on license → phone online | Message appears in in-app Bell |
 | 8 | Local backup file | Settings → Save Backup File | JSON file downloads to phone; nothing stored on our cloud |

@@ -377,17 +377,18 @@ export function InvoicesView() {
     );
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <FileText size={22} /> {invoicesLabel}
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-6">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-xl font-bold flex items-center gap-1.5">
+            <FileText size={18} className="shrink-0 sm:hidden" />
+            <FileText size={22} className="shrink-0 hidden sm:block" /> {invoicesLabel}
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-xs sm:text-sm text-gray-500">
             {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <select
             value={pdfStyle}
             onChange={e => {
@@ -395,7 +396,7 @@ export function InvoicesView() {
               setPdfStyle(v);
               localStorage.setItem('dg_inv_style', v);
             }}
-            className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-brand"
+            className="px-2 sm:px-3 py-2 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm bg-white focus:ring-2 focus:ring-brand"
           >
             <option value="modern">Modern</option>
             <option value="classic">Classic (Tally)</option>
@@ -404,9 +405,10 @@ export function InvoicesView() {
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 bg-brand text-white rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-brand/20"
           >
-            <Plus size={18} /> New Invoice
+            <Plus size={16} /> <span className="sm:hidden">New</span>
+            <span className="hidden sm:inline">New Invoice</span>
           </button>
         </div>
       </div>

@@ -237,14 +237,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   }
 }
 
-/* Touch-friendly tap targets */
+/* Touch targets — phone web only (not Offline Mobile dense mode; see dg-mobile-dense) */
 @media (max-width: 768px) {
-  button, a[role="button"], select {
+  html:not(.dg-mobile-dense) button,
+  html:not(.dg-mobile-dense) a[role="button"],
+  html:not(.dg-mobile-dense) select {
     min-height: 44px;
   }
-  input:not([type="checkbox"]):not([type="radio"]), textarea {
+  html:not(.dg-mobile-dense) input:not([type="checkbox"]):not([type="radio"]),
+  html:not(.dg-mobile-dense) textarea {
     min-height: 44px;
-    font-size: 16px !important; /* prevent iOS zoom on focus */
+    font-size: 16px !important; /* prevent iOS Safari zoom on focus */
   }
 }
 
@@ -256,6 +259,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   --app-bottom-nav: 4.5rem;
 }
 
+html.dg-mobile-dense {
+  --app-bottom-nav: 3.75rem;
+  font-size: 15px;
+}
+
 .safe-top {
   padding-top: var(--safe-top);
 }
@@ -264,9 +272,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   padding-bottom: var(--safe-bottom);
 }
 
-/* Sticky app header — class was referenced in App.tsx but never defined (status bar overlap) */
+/* Sticky app header clears notch / Dynamic Island (App.tsx) */
 .app-header-safe {
-  padding-top: calc(0.625rem + var(--safe-top));
+  padding-top: calc(0.5rem + var(--safe-top));
 }
 
 /* Clear fixed bottom nav + home indicator so page content is not covered */
@@ -276,7 +284,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 @media (min-width: 640px) {
   .app-header-safe {
-    padding-top: calc(1rem + var(--safe-top));
+    padding-top: calc(0.75rem + var(--safe-top));
   }
 }
 
@@ -289,32 +297,111 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   }
 }
 
-/* Sticky app header clears notch / Dynamic Island (App.tsx) */
-.app-header-safe {
-  padding-top: calc(0.625rem + var(--safe-top));
+/*
+ * Offline Mobile / Capacitor density — phone-native type + spacing
+ * (Bizkit / Invoice Ninja–inspired compact chrome without a new UI kit)
+ */
+html.dg-mobile-dense .app-mobile-content {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+  padding-top: 0.5rem;
 }
 
-@media (min-width: 640px) {
-  .app-header-safe {
-    padding-top: calc(1rem + var(--safe-top));
+html.dg-mobile-dense .app-mobile-content .text-3xl {
+  font-size: 1.35rem !important;
+  line-height: 1.25 !important;
+}
+html.dg-mobile-dense .app-mobile-content .text-2xl {
+  font-size: 1.25rem !important;
+  line-height: 1.3 !important;
+}
+html.dg-mobile-dense .app-mobile-content .text-xl {
+  font-size: 1.05rem !important;
+  line-height: 1.35 !important;
+}
+html.dg-mobile-dense .app-mobile-content .text-lg {
+  font-size: 0.95rem !important;
+  line-height: 1.35 !important;
+}
+html.dg-mobile-dense .app-mobile-content .text-base {
+  font-size: 0.875rem !important;
+  line-height: 1.4 !important;
+}
+html.dg-mobile-dense .app-mobile-content .text-sm {
+  font-size: 0.8125rem !important;
+}
+
+html.dg-mobile-dense .app-mobile-content .p-8 {
+  padding: 1rem !important;
+}
+html.dg-mobile-dense .app-mobile-content .p-6 {
+  padding: 0.875rem !important;
+}
+html.dg-mobile-dense .app-mobile-content .p-5 {
+  padding: 0.75rem !important;
+}
+html.dg-mobile-dense .app-mobile-content .px-6 {
+  padding-left: 0.875rem !important;
+  padding-right: 0.875rem !important;
+}
+html.dg-mobile-dense .app-mobile-content .py-6 {
+  padding-top: 0.875rem !important;
+  padding-bottom: 0.875rem !important;
+}
+html.dg-mobile-dense .app-mobile-content .gap-6 {
+  gap: 0.75rem !important;
+}
+html.dg-mobile-dense .app-mobile-content .gap-4 {
+  gap: 0.625rem !important;
+}
+html.dg-mobile-dense .app-mobile-content .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.875rem !important;
+}
+html.dg-mobile-dense .app-mobile-content .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.625rem !important;
+}
+html.dg-mobile-dense .app-mobile-content .rounded-2xl {
+  border-radius: 0.75rem !important;
+}
+html.dg-mobile-dense .app-mobile-content .rounded-3xl {
+  border-radius: 1rem !important;
+}
+
+/* Forms: compact on Android Capacitor; 16px only for iOS Safari zoom */
+html.dg-mobile-dense input:not([type="checkbox"]):not([type="radio"]),
+html.dg-mobile-dense textarea,
+html.dg-mobile-dense select {
+  min-height: 40px;
+  font-size: 14px !important;
+}
+@supports (-webkit-touch-callout: none) {
+  html.dg-mobile-dense input:not([type="checkbox"]):not([type="radio"]),
+  html.dg-mobile-dense textarea {
+    font-size: 16px !important;
   }
 }
 
-@media (min-width: 1024px) {
-  .app-header-safe {
-    padding-top: 1rem;
-  }
+/* Primary actions keep usable hit area; icon chips stay compact */
+html.dg-mobile-dense .app-bottom-nav button,
+html.dg-mobile-dense .app-mobile-content form button[type="submit"],
+html.dg-mobile-dense .app-mobile-content button.bg-brand,
+html.dg-mobile-dense .fixed.inset-0 button.bg-brand {
+  min-height: 44px;
+}
+html.dg-mobile-dense .app-mobile-content button.p-1,
+html.dg-mobile-dense .app-mobile-content button.p-1\.5,
+html.dg-mobile-dense .fixed.inset-0 button.p-1,
+html.dg-mobile-dense .fixed.inset-0 button.p-1\.5 {
+  min-width: 36px;
+  min-height: 36px;
 }
 
-/* Clear fixed bottom nav + home indicator */
-.app-mobile-content {
-  padding-bottom: calc(4.5rem + var(--safe-bottom) + 0.75rem);
-}
-
-@media (min-width: 1024px) {
-  .app-mobile-content {
-    padding-bottom: 2rem;
-  }
+/* More drawer denser rows */
+html.dg-mobile-dense aside nav button {
+  min-height: 40px;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.8125rem;
 }
 
 /* —— Mobile-friendly content density (phones + Capacitor) —— */
@@ -396,14 +483,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   }
 }
 
-/* Icon action buttons: square 44px hit area on phones without changing desktop */
+/* Icon action buttons: square hit area on phones without changing desktop */
 @media (max-width: 768px) {
-  .app-mobile-content button.p-1,
-  .app-mobile-content button.p-1\.5,
-  .fixed.inset-0 button.p-1,
-  .fixed.inset-0 button.p-1\.5 {
+  html:not(.dg-mobile-dense) .app-mobile-content button.p-1,
+  html:not(.dg-mobile-dense) .app-mobile-content button.p-1\.5,
+  html:not(.dg-mobile-dense) .fixed.inset-0 button.p-1,
+  html:not(.dg-mobile-dense) .fixed.inset-0 button.p-1\.5 {
     min-width: 44px;
     min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  html.dg-mobile-dense .app-mobile-content button.p-1,
+  html.dg-mobile-dense .app-mobile-content button.p-1\.5,
+  html.dg-mobile-dense .fixed.inset-0 button.p-1,
+  html.dg-mobile-dense .fixed.inset-0 button.p-1\.5 {
     display: inline-flex;
     align-items: center;
     justify-content: center;
