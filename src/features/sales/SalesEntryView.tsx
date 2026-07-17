@@ -179,8 +179,8 @@ export function SalesEntryView({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6">
           <h3 className="font-bold text-lg">1. Scan / Enter Barcode</h3>
-          <div className="flex gap-3">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap gap-3">
+            <div className="relative flex-1 min-w-[12rem]">
               <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
@@ -196,7 +196,7 @@ export function SalesEntryView({
               <button
                 type="button"
                 onClick={() => setScannerOpen(true)}
-                className="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 flex items-center gap-2"
+                className="shrink-0 px-4 py-3 min-h-[44px] bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 flex items-center gap-2"
                 title="Scan with camera"
               >
                 <Camera size={18} />
@@ -207,7 +207,7 @@ export function SalesEntryView({
               type="button"
               onClick={() => handleValidate()}
               disabled={validating}
-              className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:opacity-60"
+              className="shrink-0 flex-1 sm:flex-none px-6 py-3 min-h-[44px] bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:opacity-60"
             >
               {validating ? 'Checking...' : 'Verify'}
             </button>

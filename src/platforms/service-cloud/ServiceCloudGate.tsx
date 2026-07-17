@@ -86,8 +86,8 @@ export function ServiceCloudGate({ enabled, children }: Props) {
         {children}
       </div>
       {frozen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-6 text-center">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 p-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-6 text-center max-h-[85dvh] overflow-y-auto">
             {state.kind === 'loading' && (
               <>
                 <p className="text-lg font-bold text-gray-900">Connecting…</p>

@@ -610,28 +610,30 @@ export function InvoicesView() {
                   </button>
                 </div>
               </div>
-              <table className="w-full text-sm mb-4">
-                <thead>
-                  <tr className="border-b border-gray-200 text-xs text-gray-400 uppercase">
-                    <th className="py-2 text-left">Item</th>
-                    <th className="py-2 text-right">Qty</th>
-                    <th className="py-2 text-right">Rate</th>
-                    <th className="py-2 text-right">GST</th>
-                    <th className="py-2 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedInvoice.items.map((it, i) => (
-                    <tr key={i} className="border-b border-gray-50">
-                      <td className="py-2">{it.description}</td>
-                      <td className="py-2 text-right">{it.qty}</td>
-                      <td className="py-2 text-right">₹{Number(it.rate).toLocaleString()}</td>
-                      <td className="py-2 text-right">{it.gstPercent}%</td>
-                      <td className="py-2 text-right font-medium">₹{Number(it.total).toLocaleString()}</td>
+              <div className="overflow-x-auto mb-4">
+                <table className="w-full text-sm min-w-[420px]">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-xs text-gray-400 uppercase">
+                      <th className="py-2 text-left">Item</th>
+                      <th className="py-2 text-right">Qty</th>
+                      <th className="py-2 text-right">Rate</th>
+                      <th className="py-2 text-right">GST</th>
+                      <th className="py-2 text-right">Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {selectedInvoice.items.map((it, i) => (
+                      <tr key={i} className="border-b border-gray-50">
+                        <td className="py-2">{it.description}</td>
+                        <td className="py-2 text-right">{it.qty}</td>
+                        <td className="py-2 text-right">₹{Number(it.rate).toLocaleString()}</td>
+                        <td className="py-2 text-right">{it.gstPercent}%</td>
+                        <td className="py-2 text-right font-medium">₹{Number(it.total).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               <div className="text-right space-y-1 mb-4">
                 <p className="text-sm text-gray-500">Subtotal: ₹{selectedInvoice.subtotal.toLocaleString()}</p>
                 <p className="text-sm text-gray-500">Tax: ₹{selectedInvoice.taxTotal.toLocaleString()}</p>
