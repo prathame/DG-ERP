@@ -334,6 +334,16 @@ router.put('/api/invoices/:id/status', blockVendors, async (req: AuthRequest, re
       [status, req.params.id, tenantId],
     );
     await client.query('COMMIT');
+    await logAudit(
+      pool,
+      tenantId,
+      'Invoice Status Changed',
+      'invoice',
+      req.params.id as string,
+      `${inv.status} → ${status}`,
+      req.user?.userId,
+      req.user?.name,
+    );
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -352,11 +362,11 @@ router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) =
 
     await client.query('BEGIN');
     const inv = (
-      await client.query('SELECT id, status FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
-        req.params.id,
-        tenantId,
-      ])
-    ).rows[0] as { id: string; status: string } | undefined;
+      await client.query(
+        'SELECT id, status, invoice_number FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+        [req.params.id, tenantId],
+      )
+    ).rows[0] as { id: string; status: string; invoice_number: string } | undefined;
     if (!inv) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Invoice not found' });
@@ -379,6 +389,16 @@ router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) =
 
     await client.query('DELETE FROM standalone_invoices WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
     await client.query('COMMIT');
+    await logAudit(
+      pool,
+      tenantId,
+      'Invoice Deleted',
+      'invoice',
+      req.params.id as string,
+      `${inv.invoice_number} (${inv.status})`,
+      req.user?.userId,
+      req.user?.name,
+    );
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK');

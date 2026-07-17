@@ -1,4 +1,4 @@
-import { uid } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { resolvePrice } from '../utils/price-resolve';
 import { Router } from 'express';
@@ -160,6 +160,19 @@ router.post('/api/price-lists/bulk', blockVendors, async (req: AuthRequest, res)
       }
     }
 
+    if (success > 0) {
+      await logAudit(
+        pool,
+        tenantId,
+        'Price Lists Bulk Import',
+        'price_list',
+        undefined,
+        `${success} ok (${inserted} new, ${updated} updated), ${errors.length} error(s)`,
+        req.user?.userId,
+        req.user?.name,
+      );
+    }
+
     res.json({ success, updated, inserted, errors });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -179,12 +192,13 @@ router.post('/api/price-lists', blockVendors, async (req: AuthRequest, res) => {
     const vt = validTo === '' || validTo == null || validTo === undefined ? null : String(validTo).slice(0, 10);
 
     const id = uid('PL');
+    const ruleName = name || 'Custom Price';
     await pool.query(
       'INSERT INTO price_lists (id, tenant_id, name, product_id, vendor_id, min_qty, max_qty, price, valid_from, valid_to) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [
         id,
         tenantId,
-        name || 'Custom Price',
+        ruleName,
         productId,
         vendorId || null,
         Number(minQty) || 1,
@@ -194,9 +208,19 @@ router.post('/api/price-lists', blockVendors, async (req: AuthRequest, res) => {
         vt,
       ],
     );
+    await logAudit(
+      pool,
+      tenantId,
+      'Price List Created',
+      'price_list',
+      id,
+      `${ruleName} — ₹${Number(price)}`,
+      req.user?.userId,
+      req.user?.name,
+    );
     res.status(201).json({
       id,
-      name: name || 'Custom Price',
+      name: ruleName,
       productId,
       vendorId,
       minQty: Number(minQty) || 1,
@@ -255,6 +279,16 @@ router.put('/api/price-lists/:id', blockVendors, async (req: AuthRequest, res) =
       params,
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Price rule not found' });
+    await logAudit(
+      pool,
+      tenantId,
+      'Price List Updated',
+      'price_list',
+      req.params.id as string,
+      updates.join(', '),
+      req.user?.userId,
+      req.user?.name,
+    );
     res.json({ ok: true });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -271,6 +305,16 @@ router.delete('/api/price-lists/:id', blockVendors, async (req: AuthRequest, res
       tenantId,
     ]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Price rule not found' });
+    await logAudit(
+      pool,
+      tenantId,
+      'Price List Deleted',
+      'price_list',
+      req.params.id as string,
+      'Price rule deleted',
+      req.user?.userId,
+      req.user?.name,
+    );
     res.status(204).send();
   } catch (err) {
     return handleApiError(req, res, err);
