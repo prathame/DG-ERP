@@ -123,25 +123,6 @@ On first launch shows a wizard: enter the license key issued by super admin → 
 
 ---
 
-## Mobile App (Android / iOS)
-
-Capacitor app for **cloud** tenants. Full guide: [`docs/MOBILE.md`](docs/MOBILE.md).
-
-1. Super Admin creates tenant → gets invite `DG-M-XXXX-XXXX`
-2. Customer installs from [`/download`](https://dg-erp.onrender.com/download)
-3. App onboarding: invite code (or company slug) → login
-4. Heartbeat registers the device; SA can **Force sync** and set version policy
-
-```bash
-cp .env.mobile.example .env.mobile   # set VITE_API_ORIGIN to your cloud API (public URL only)
-npm run build:mobile
-npm run cap:sync
-npm run cap:android   # or cap:ios
-```
-
-Optional store links: set `VITE_ANDROID_STORE_URL` / `VITE_IOS_STORE_URL` in `.env.mobile` (see `.env.mobile.example`).
-
----
 
 ## Downloads page
 

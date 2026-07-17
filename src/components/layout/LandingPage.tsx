@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { OfflineBanner } from '../../platforms/mobile/offline';
 import {
   motion,
   useInView,
@@ -541,7 +540,6 @@ export function LandingPage() {
 
   return (
     <div className={`min-h-screen ${bg} ${text} overflow-x-hidden`}>
-      <OfflineBanner />
       <CustomCursor />
       {/* Mouse-follow hero light */}
       <motion.div className="pointer-events-none fixed inset-0 z-30" style={{ background: mouseLight }} />

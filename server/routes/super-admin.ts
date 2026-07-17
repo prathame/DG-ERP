@@ -316,20 +316,6 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       bType,
       result.tenantId,
     ]);
-    // Auto-issue mobile invite (non-fatal — tenant create must still succeed)
-    let mobileInviteCode: string | undefined;
-    let mobileInviteExpiresAt: string | undefined;
-    try {
-      const { issueInvite } = await import('./mobile');
-      const mobileInvite = await issueInvite(result.tenantId, 30);
-      mobileInviteCode = mobileInvite.code;
-      mobileInviteExpiresAt = mobileInvite.expiresAt;
-    } catch (inviteErr) {
-      logger.warn('Mobile invite after tenant create failed', {
-        error: inviteErr instanceof Error ? inviteErr.message : String(inviteErr),
-        stack: inviteErr instanceof Error ? inviteErr.stack : undefined,
-      });
-    }
     await logAudit(
       pool,
       result.tenantId,
@@ -346,8 +332,6 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       adminEmail,
       companyName,
       tempPassword: result.credentials.password,
-      mobileInviteCode,
-      mobileInviteExpiresAt,
       businessType: bType,
     });
   } catch (err) {
@@ -1387,7 +1371,9 @@ router.post('/api/super-admin/notifications/broadcast', superAdminMiddleware, as
           'Super Admin',
         );
         sent++;
-      } catch { /* skip tenants with constraint issues (e.g. test tenants) */ }
+      } catch {
+        /* skip tenants with constraint issues (e.g. test tenants) */
+      }
     }
     // Also queue for active on-prem licenses (delivered on next heartbeat / hard sync)
     const licenses = (await pool.query(`SELECT id FROM onprem_licenses WHERE status = 'active'`)).rows as {

@@ -51,7 +51,6 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
     phone?: string;
     companyName?: string;
     slug?: string;
-    mobileInviteCode?: string;
   } | null>(null);
   const [deleteTenantId, setDeleteTenantId] = useState<string | null>(null);
 
@@ -499,21 +498,13 @@ function CreateTenantModal({
   createdCredentials,
 }: {
   onClose: () => void;
-  onCreated: (creds: {
-    email: string;
-    password: string;
-    phone?: string;
-    companyName?: string;
-    slug?: string;
-    mobileInviteCode?: string;
-  }) => void;
+  onCreated: (creds: { email: string; password: string; phone?: string; companyName?: string; slug?: string }) => void;
   createdCredentials: {
     email: string;
     password: string;
     phone?: string;
     companyName?: string;
     slug?: string;
-    mobileInviteCode?: string;
   } | null;
 }) {
   const [form, setForm] = useState({
@@ -607,7 +598,6 @@ function CreateTenantModal({
         phone: form.phone || undefined,
         companyName: form.companyName,
         slug: data.slug || undefined,
-        mobileInviteCode: data.mobileInviteCode || undefined,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Creation failed');
@@ -703,23 +693,6 @@ function CreateTenantModal({
                   </button>
                 </div>
               )}
-              {createdCredentials.mobileInviteCode && (
-                <div className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-xl p-3">
-                  <div>
-                    <p className="text-xs text-orange-600 font-medium">Mobile invite code</p>
-                    <p className="text-sm font-bold tracking-wider text-gray-900">
-                      {createdCredentials.mobileInviteCode}
-                    </p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">Enter this in the Dhandho mobile app</p>
-                  </div>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(createdCredentials.mobileInviteCode!)}
-                    className="p-1.5 hover:bg-orange-100 rounded-lg transition-colors"
-                  >
-                    <Copy size={14} />
-                  </button>
-                </div>
-              )}
             </div>
             <div className="flex gap-3">
               <button
@@ -727,10 +700,7 @@ function CreateTenantModal({
                   const loginUrl = createdCredentials.slug
                     ? `${window.location.origin}/${createdCredentials.slug}`
                     : window.location.origin;
-                  const mobileLine = createdCredentials.mobileInviteCode
-                    ? `\n\n📱 Mobile app:\n1. Download: ${window.location.origin}/download\n2. Enter invite code: ${createdCredentials.mobileInviteCode}\n   (or company code: ${createdCredentials.slug})\n3. Login with email/password below`
-                    : '';
-                  const msg = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!${mobileLine}\n\nWeb login:\nURL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.`;
+                  const msg = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!\n\nWeb login:\nURL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.`;
                   const phone = (createdCredentials.phone || '').replace(/[^0-9]/g, '');
                   window.open(
                     `https://wa.me/${phone ? (phone.startsWith('91') ? phone : '91' + phone) : ''}?text=${encodeURIComponent(msg)}`,
@@ -747,10 +717,7 @@ function CreateTenantModal({
                     ? `${window.location.origin}/${createdCredentials.slug}`
                     : window.location.origin;
                   const subject = `Your ${createdCredentials.companyName || 'Dhandho'} Login Credentials`;
-                  const mobileLine = createdCredentials.mobileInviteCode
-                    ? `\n\nMobile app invite code: ${createdCredentials.mobileInviteCode}\nCompany code: ${createdCredentials.slug}\n`
-                    : '';
-                  const body = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!${mobileLine}\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.\n\nRegards,\nDhandho Management`;
+                  const body = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.\n\nRegards,\nDhandho Management`;
                   window.open(
                     `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(createdCredentials.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
                     '_blank',

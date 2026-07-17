@@ -54,42 +54,6 @@ See `src/platforms/README.md`, `electron/README.md`, and **`docs/MOBILE.md`**.
 
 ---
 
-## Mobile App (Capacitor)
-
-Product + operator guide: [`docs/MOBILE.md`](docs/MOBILE.md).
-
-### Runtime
-- Build: `npm run build:mobile` → `dist-mobile/` → `npx cap sync`
-- Detect client: `isMobileClient()` = Capacitor native **or** `VITE_MOBILE=1` / `mode=mobile`
-- API host: `VITE_API_ORIGIN` (required in WebView); fetch patched by `installNativeApiFetch`
-
-### Onboarding (Super Admin driven)
-1. `POST /api/super-admin/tenants` auto-calls `issueInvite` → `mobileInviteCode`
-2. Share via WhatsApp includes `{origin}/download` + invite
-3. App: `MobileOnboarding` → `POST /api/mobile/redeem-invite` **or** slug via `GET /api/tenant/by-slug/:slug`
-4. Persist slug (`companyStorage`) → `/{slug}` login; **Change company** clears it
-
-### Sync / push (analogous to on-prem heartbeat)
-| Mechanism | API | Client |
-|-----------|-----|--------|
-| Device register | `POST /api/mobile/heartbeat` | `mobileSync.ts` every 60s |
-| Force sync | `POST …/mobile-force-sync` | Clears offline cache + `location.reload()` |
-| Version policy | `PUT …/mobile-version` | `forceUpdate` / `updateAvailable` events |
-| Device list | `GET …/mobile-devices` | SA `MobileTenantPanel` |
-
-### Key files
-| Path | Role |
-|------|------|
-| `server/routes/mobile.ts` | Redeem, heartbeat, SA invite/sync/devices |
-| `src/platforms/mobile/online/*` | Bootstrap, onboarding, sync |
-| `src/platforms/mobile/offline/*` | Cache, queue, banner |
-| `src/features/super-admin/MobileTenantPanel.tsx` | SA UI |
-| `src/components/layout/DownloadPage.tsx` | `/download` mobile + desktop links |
-
-### Public paths
-`/api/mobile/redeem-invite`, `/api/mobile/heartbeat` are in `PUBLIC_PATHS` (`server/app.ts`). Heartbeat still accepts optional Bearer to attach `user_id`.
-
----
 
 ## Business Type System
 
@@ -290,8 +254,6 @@ Manual test cases in `tests/cases/` — one markdown file per feature area.
 | `npm start` | Express serving `dist/` (production) |
 | `npm run lint` | TypeScript type check (no emit) |
 | `npm test` | Vitest unit tests |
-| `npm run build:mobile` | Capacitor web bundle → `dist-mobile/` |
-| `npm run cap:sync` | build:mobile + `cap sync` |
 | `npm run cap:android` / `cap:ios` | Sync + open native IDE |
 | `npm run electron:cloud:dev` | Cloud Electron (dev) |
 | `npm run electron:onprem:dev` | On-prem Electron (dev, needs server running) |

@@ -31,8 +31,6 @@ import {
 import { cn, bizTypeLabel } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
 import { session } from '../../lib/session';
-import { MobileTenantPanel } from './MobileTenantPanel';
-
 interface TenantDetail {
   id: string;
   companyName: string;
@@ -350,8 +348,6 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
           )}
         </div>
       </div>
-
-      <MobileTenantPanel tenantId={tenantId} phone={tenant.phone} />
 
       {/* Tenant Info */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">

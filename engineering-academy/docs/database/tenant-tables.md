@@ -104,7 +104,6 @@ Warranty expiry is **not** enforced by a scheduled job — it's checked lazily o
 | Table | Purpose | Notable columns |
 |---|---|---|
 | `audit_log` | Append-only-in-practice action trail | `SERIAL id` (only non-composite-PK tenant table, since it's never joined as a FK target), `action`, `entity_type`, `details` (PII-redacted before insert) |
-| `mobile_devices` | Capacitor app device registry | `UNIQUE(tenant_id, device_id)`, `last_seen` |
 | `password_reset_tokens` | Short-lived reset tokens | `expires_at`, `used`, cleaned up opportunistically on each use |
 
 ## Uniqueness worth memorizing
