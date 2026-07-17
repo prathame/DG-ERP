@@ -26,6 +26,7 @@ interface LoginResult {
     barcodeSystemEnabled?: boolean;
     multiLanguageEnabled?: boolean;
     vendorPortalEnabled?: boolean;
+    businessType?: string;
     tabConfig?: Record<string, { label: string; visible: boolean }> | null;
   };
 }
@@ -127,6 +128,7 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
             barcodeSystemEnabled: (r as Record<string, unknown>).barcodeSystemEnabled as boolean,
             multiLanguageEnabled: (r as Record<string, unknown>).multiLanguageEnabled as boolean,
             vendorPortalEnabled: (r as Record<string, unknown>).vendorPortalEnabled as boolean,
+            businessType: (r as Record<string, unknown>).businessType as string | undefined,
             tabConfig: (r as Record<string, unknown>).tabConfig as Record<
               string,
               { label: string; visible: boolean }

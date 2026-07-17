@@ -50,6 +50,12 @@ gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clo
 
 Capacitor uses edge-to-edge WebViews. The shell CSS (`app-header-safe`, `--safe-top` / `--safe-bottom`, bottom-nav clearance) must keep the status bar and home indicator from covering headers, CTAs, and forms. Rebuild the APK after layout CSS changes.
 
+## Local ERP APIs
+
+On-device PGlite implements the same `/api/*` paths the cloud UI uses (vendors, invoices, purchases/suppliers, staff, accounts P&L, invoice-finance, etc.). Responses are camelCase. Login must include `businessType: service` or Finance falls back to manufacturer Vendor Finance.
+
+See `docs/api-audit-service-mobile.md`.
+
 ## Activation (cloud)
 
 Phone calls `POST /api/service-mobile/activate` on `VITE_API_ORIGIN` (baked into the APK). Capacitor WebView origins (`https://localhost`, `capacitor://localhost`, …) must be on the cloud CORS allowlist — see [Headers & CSP](/security/headers-and-csp). Without that, the app shows “Cannot reach activation server” even when the API is up.

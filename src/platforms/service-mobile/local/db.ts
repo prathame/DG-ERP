@@ -2,7 +2,7 @@
  * PGlite local database for Service Mobile (source of truth on device).
  */
 import { PGlite } from '@electric-sql/pglite';
-import { SERVICE_MOBILE_SCHEMA_SQL } from './schema';
+import { SERVICE_MOBILE_MIGRATIONS_SQL, SERVICE_MOBILE_SCHEMA_SQL } from './schema';
 
 let db: PGlite | null = null;
 let ready: Promise<PGlite> | null = null;
@@ -13,6 +13,11 @@ export async function getLocalDb(): Promise<PGlite> {
     ready = (async () => {
       const instance = await PGlite.create('idb://dhandho-service-mobile');
       await instance.exec(SERVICE_MOBILE_SCHEMA_SQL);
+      try {
+        await instance.exec(SERVICE_MOBILE_MIGRATIONS_SQL);
+      } catch {
+        /* older PGlite may not support every ALTER — ignore */
+      }
       db = instance;
       return instance;
     })();
@@ -66,6 +71,9 @@ export async function dumpLocalDb(): Promise<Uint8Array> {
     'tenant_notifications',
     'staff_members',
     'staff_payments',
+    'suppliers',
+    'product_purchases',
+    'supplier_payments',
     'audit_log',
   ];
   const payload: Record<string, unknown[]> = {};
@@ -99,6 +107,9 @@ const RESTORE_TABLE_ALLOWLIST = new Set([
   'tenant_notifications',
   'staff_members',
   'staff_payments',
+  'suppliers',
+  'product_purchases',
+  'supplier_payments',
   'audit_log',
   'sm_meta',
 ]);

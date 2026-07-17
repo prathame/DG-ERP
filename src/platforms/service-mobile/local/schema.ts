@@ -132,14 +132,70 @@ CREATE TABLE IF NOT EXISTS standalone_invoices (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   invoice_number TEXT,
+  customer_name TEXT,
   client_name TEXT,
   client_id TEXT,
-  status TEXT DEFAULT 'unpaid',
+  customer_gstin TEXT,
+  customer_address TEXT,
+  customer_phone TEXT,
+  party_type TEXT,
+  party_id TEXT,
+  status TEXT DEFAULT 'draft',
   items JSONB DEFAULT '[]',
   subtotal NUMERIC DEFAULT 0,
   tax NUMERIC DEFAULT 0,
+  tax_total NUMERIC DEFAULT 0,
+  tax_cgst NUMERIC DEFAULT 0,
+  tax_sgst NUMERIC DEFAULT 0,
+  tax_igst NUMERIC DEFAULT 0,
+  is_interstate BOOLEAN DEFAULT false,
+  grand_total NUMERIC DEFAULT 0,
   total NUMERIC DEFAULT 0,
+  notes TEXT,
+  terms TEXT,
   invoice_date DATE,
+  due_date DATE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS suppliers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  contact_person TEXT,
+  phone TEXT,
+  email TEXT,
+  address TEXT,
+  gst_number TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS product_purchases (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  batch_id TEXT,
+  product_id TEXT,
+  barcode TEXT,
+  supplier_id TEXT,
+  purchase_date DATE,
+  cost_price NUMERIC DEFAULT 0,
+  gst_applied BOOLEAN DEFAULT false,
+  billed_price NUMERIC DEFAULT 0,
+  discount_percent NUMERIC DEFAULT 0,
+  qty NUMERIC DEFAULT 1,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS supplier_payments (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  supplier_id TEXT,
+  amount NUMERIC NOT NULL,
+  payment_date DATE,
+  payment_method TEXT DEFAULT 'Cash',
+  reference_number TEXT,
+  notes TEXT,
+  batch_id TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -157,7 +213,14 @@ CREATE TABLE IF NOT EXISTS price_lists (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  items JSONB DEFAULT '[]',
+  product_id TEXT,
+  vendor_id TEXT,
+  min_qty INTEGER DEFAULT 1,
+  max_qty INTEGER,
+  price NUMERIC DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  valid_from DATE,
+  valid_to DATE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -185,6 +248,11 @@ CREATE TABLE IF NOT EXISTS staff_members (
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   phone TEXT,
+  role TEXT,
+  address TEXT,
+  salary NUMERIC DEFAULT 0,
+  joining_date DATE,
+  status TEXT DEFAULT 'active',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -192,7 +260,9 @@ CREATE TABLE IF NOT EXISTS staff_payments (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   staff_id TEXT,
+  staff_name TEXT,
   amount NUMERIC NOT NULL,
+  payment_type TEXT DEFAULT 'salary',
   payment_date DATE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -217,6 +287,43 @@ CREATE TABLE IF NOT EXISTS sm_meta (
 INSERT INTO plans (id, name, max_products, max_vendors, max_users, max_barcodes, features, price_monthly, price_yearly, is_active)
 VALUES ('LOCAL', 'Service Mobile License', -1, -1, 1, -1, '{}', 0, 0, true)
 ON CONFLICT (id) DO NOTHING;
+`;
+
+/** Migrations for existing PGlite installs (CREATE TABLE IF NOT EXISTS alone is not enough). */
+export const SERVICE_MOBILE_MIGRATIONS_SQL = `
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS customer_name TEXT;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS customer_gstin TEXT;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS customer_address TEXT;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS customer_phone TEXT;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS party_type TEXT;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS party_id TEXT;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_total NUMERIC DEFAULT 0;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_cgst NUMERIC DEFAULT 0;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_sgst NUMERIC DEFAULT 0;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_igst NUMERIC DEFAULT 0;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS is_interstate BOOLEAN DEFAULT false;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS grand_total NUMERIC DEFAULT 0;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS terms TEXT;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS due_date DATE;
+ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS role TEXT;
+ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS salary NUMERIC DEFAULT 0;
+ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS joining_date DATE;
+ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS staff_name TEXT;
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'salary';
+ALTER TABLE banks ADD COLUMN IF NOT EXISTS account_name TEXT;
+ALTER TABLE banks ADD COLUMN IF NOT EXISTS bank_name TEXT;
+ALTER TABLE banks ADD COLUMN IF NOT EXISTS branch TEXT;
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS product_id TEXT;
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS vendor_id TEXT;
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS min_qty INTEGER DEFAULT 1;
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS max_qty INTEGER;
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT 0;
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS valid_from DATE;
+ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS valid_to DATE;
 `;
 
 export const SERVICE_TAB_PRESET: Record<string, { label: string; visible: boolean }> = {

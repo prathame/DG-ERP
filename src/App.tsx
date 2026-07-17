@@ -299,8 +299,20 @@ export default function App() {
     autoWhatsapp?: boolean;
   } | null>(() => {
     try {
-      const u = session.getUser();
-      if (u?.companyName) document.title = `${u.companyName} — Dhandho`;
+      const u = session.getUser() as
+        | (Record<string, unknown> & {
+            id: string;
+            email: string;
+            name: string;
+            companyName?: string;
+          })
+        | null;
+      if (!u) return null;
+      if (u.companyName) document.title = `${u.companyName} — Dhandho`;
+      // Offline Mobile sessions created before businessType was persisted defaulted Finance to manufacturer.
+      if (serviceMobile && !u.businessType) {
+        return { ...u, businessType: 'service' } as typeof u;
+      }
       return u;
     } catch {
       return null;
@@ -364,6 +376,8 @@ export default function App() {
     companyName?: string;
     vendorId?: string | null;
     autoWhatsapp?: boolean;
+    businessType?: string;
+    tabConfig?: Record<string, { label: string; visible: boolean }> | null;
   }) => {
     setUser(u);
     if (u.companyName) document.title = `${u.companyName} — Dhandho`;
