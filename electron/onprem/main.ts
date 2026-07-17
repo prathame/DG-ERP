@@ -194,7 +194,6 @@ async function sendHeartbeat(): Promise<void> {
         };
         console.log(`[sync] apply-notifications → ${applyNotifRes.status}`, applyNotifBody);
         if (applyNotifRes.ok && applyNotifBody.ids?.length) {
-          let markedOk = false;
           try {
             const markNotifRes = await fetch(`${CLOUD_API}/api/onprem/mark-notifications-delivered`, {
               method: 'POST',
@@ -210,7 +209,9 @@ async function sendHeartbeat(): Promise<void> {
               `[sync] mark-notifications-delivered → ${CLOUD_API} status=${markNotifRes.status}`,
               markNotifBody,
             );
-            markedOk = markNotifRes.ok;
+            if (!markNotifRes.ok) {
+              console.warn('[sync] cloud ack failed — local Bell already updated; will retry on next heartbeat');
+            }
           } catch (e) {
             console.error('[sync] mark-notifications-delivered failed:', e);
           }
