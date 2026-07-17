@@ -20,10 +20,11 @@ Complete test case suite for the Splendor ERP application. Each file covers a sp
 | 14 | [chatbot.md](chatbot.md) | Chatbot | 7 | Low |
 | 15 | [cross-tenant.md](cross-tenant.md) | Cross-Tenant Isolation | 7 | Critical |
 | 16 | [edge-cases.md](edge-cases.md) | Edge Cases | 10 | Medium |
+| 17 | [service-mobile.md](service-mobile.md) | Service Mobile (offline phone) | 12 | Critical |
 
 ---
 
-**Total:** see each file for exact counts. Capacitor / phone-app cases were removed with the mobile product.
+**Total:** see each file for exact counts. Service Mobile is the offline Capacitor phone product (service type only).
 
 **Product docs:** [`DEVELOPER.md`](../../DEVELOPER.md) · [`README.md`](../../README.md)
 

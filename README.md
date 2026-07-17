@@ -50,7 +50,7 @@ Each tenant is provisioned as one of five types. The type controls which tabs ar
 - **Backend**: Node.js, Express 4, PostgreSQL 16 (RLS per tenant)
 - **Auth**: JWT (HS256, 24h), bcrypt
 - **Desktop**: Electron (cloud wrapper + on-prem with embedded PostgreSQL)
-- **Clients**: Responsive web (phone browser OK) + Electron cloud + Electron on-prem
+- **Clients**: Responsive web + Electron cloud + Electron on-prem + Service Mobile (offline Capacitor, service type only)
 - **Hosting**: Render (cloud), self-hosted (on-prem)
 
 ---
@@ -130,6 +130,7 @@ Public URL: **`/download`**
 
 | Section | What |
 |---------|------|
+| Service Mobile | Offline phone (APK sideload / TestFlight) — `DG-SM-` license |
 | On-Prem desktop | Electron offline installers |
 | Cloud desktop | Electron online installers |
 
@@ -153,7 +154,7 @@ Accessible at `/admin` (or `/super-admin` depending on deploy) with the platform
 | Doc | Contents |
 |-----|----------|
 | [`DEVELOPER.md`](DEVELOPER.md) | Architecture, routes, Electron, platforms |
-| [`src/platforms/README.md`](src/platforms/README.md) | Shared + Electron desktop helpers |
+| [`src/platforms/README.md`](src/platforms/README.md) | Shared, Electron, Service Mobile |
 | [`electron/README.md`](electron/README.md) | Electron cloud vs on-prem |
 | Super Admin → **Guide** | Operator how-tos inside the product |
 

@@ -980,7 +980,7 @@ export async function initSchema() {
        WHERE delivered_at IS NULL`,
     );
 
-    // Capacitor mobile removed — drop leftover table/columns from older deploys (idempotent).
+    // Capacitor cloud-mobile removed — drop leftover table/columns from older deploys (idempotent).
     await client.query(`DROP TABLE IF EXISTS mobile_seats CASCADE`);
     await client.query(`DROP TABLE IF EXISTS mobile_devices CASCADE`);
     await client.query(`DROP INDEX IF EXISTS idx_tenants_mobile_invite`);
@@ -993,6 +993,68 @@ export async function initSchema() {
     ]) {
       await client.query(`ALTER TABLE tenants DROP COLUMN IF EXISTS ${col}`);
     }
+
+    // Service Mobile (offline phone) — separate from on-prem desktop licenses
+    // business_type always service; max_users always 1 (1 license = 1 user = 1 device)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS service_mobile_licenses (
+        id TEXT PRIMARY KEY,
+        license_key TEXT UNIQUE NOT NULL,
+        company_name TEXT NOT NULL,
+        business_type TEXT NOT NULL DEFAULT 'service',
+        admin_email TEXT,
+        max_users INT NOT NULL DEFAULT 1,
+        valid_until DATE,
+        status TEXT DEFAULT 'active',
+        machine_id TEXT,
+        machine_os TEXT,
+        app_version TEXT,
+        last_seen TIMESTAMPTZ,
+        settings JSONB DEFAULT '{}',
+        settings_pushed_at TIMESTAMPTZ,
+        settings_applied_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        created_by TEXT
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_key ON service_mobile_licenses(license_key)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sm_status ON service_mobile_licenses(status)');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS service_mobile_notifications (
+        id TEXT PRIMARY KEY,
+        license_id TEXT NOT NULL REFERENCES service_mobile_licenses(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'info',
+        source TEXT NOT NULL DEFAULT 'super_admin',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        expires_at TIMESTAMPTZ,
+        delivered_at TIMESTAMPTZ
+      )
+    `);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_sm_notif_pending
+       ON service_mobile_notifications(license_id, created_at)
+       WHERE delivered_at IS NULL`,
+    );
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS service_mobile_backups (
+        id TEXT PRIMARY KEY,
+        license_id TEXT NOT NULL REFERENCES service_mobile_licenses(id) ON DELETE CASCADE,
+        ciphertext BYTEA NOT NULL,
+        nonce TEXT NOT NULL,
+        wrap TEXT,
+        byte_size INT NOT NULL DEFAULT 0,
+        app_version TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_sm_backups_license
+       ON service_mobile_backups(license_id, created_at DESC)`,
+    );
 
     // Row Level Security (RLS) — DB-level tenant isolation safety net
     // RLS policies enforce tenant_id filtering at the DB level.

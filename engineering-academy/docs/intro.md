@@ -16,7 +16,7 @@ This portal exists so you never need to ask the original author: *“Where does 
 
 **Product:** [Dhandho](https://dhandho.app) (repo: [prathame/DG-ERP](https://github.com/prathame/DG-ERP), npm name `splendor-erp`)  
 **Domain:** GST-aware business management for Indian SMEs — inventory, distribution, sales, accounts, payroll, warranties, rewards.  
-**Surfaces:** Web SPA · Electron cloud · Electron on-prem. Phone users use the responsive web app.
+**Surfaces:** Web SPA · Electron cloud · Electron on-prem · Service Mobile (offline Capacitor, service type only).
 
 :::tip How to use this academy
 Treat chapters like a **bootcamp**, not a wiki dump. Do the labs. Fail the quizzes. Trace one request from browser to Postgres with the debugger. That is how ownership sticks.

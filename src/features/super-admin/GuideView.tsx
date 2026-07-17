@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Users,
   Rocket,
+  Smartphone,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -285,6 +286,55 @@ export function GuideView() {
           <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
             <p className="text-sm text-emerald-800 font-medium">
               ✅ On-prem customer is live. They own their data. You manage license remotely when they're online.
+            </p>
+          </div>
+        </div>
+      </Section>
+
+      {/* Onboard Service Mobile */}
+      <Section title="Onboard a Service Mobile Customer" icon={Smartphone} color="bg-emerald-600" defaultOpen>
+        <p className="text-sm text-gray-600">
+          Field service business on a phone — offline-first like on-prem, service features only. One license binds one
+          phone. Encrypted backups upload on hard sync; restore only on the same license after unbind.
+        </p>
+
+        <div className="space-y-4">
+          <Step n={1} title="Issue a Service Mobile key">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
+              <p>
+                Super Admin → Tenants → <strong>Service Mobile</strong> → Issue license
+              </p>
+              <p>• Company name · optional admin email · optional expiry</p>
+              <p>
+                • Business type is always <strong>service</strong> · max <strong>1 user / 1 device</strong>
+              </p>
+              <p>
+                • Copy key — starts with <code className="bg-gray-200 px-1 rounded font-mono">DG-SM-</code>
+              </p>
+            </div>
+          </Step>
+
+          <Step n={2} title="Staff activate on phone">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
+              <p>Install sideload APK (Android) or TestFlight build (iOS)</p>
+              <p>Enter license key while online → phone binds to that key</p>
+              <p>After that, day-to-day work is offline on the device</p>
+            </div>
+          </Step>
+
+          <Step n={3} title="Phone lost or damaged">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
+              <p>
+                Service Mobile detail → <strong>Unbind device</strong>
+              </p>
+              <p>Staff install app on new phone → same key → restore last encrypted backup</p>
+              <p>Backup cannot be restored onto a different company&apos;s license</p>
+            </div>
+          </Step>
+
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+            <p className="text-sm text-emerald-800 font-medium">
+              This is separate from desktop On-Prem licenses. Do not mix DG- and DG-SM- keys.
             </p>
           </div>
         </div>

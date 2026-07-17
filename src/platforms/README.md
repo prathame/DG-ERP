@@ -1,26 +1,10 @@
 # Platforms
 
-Client code is split by **where it runs** and **how it talks to the server**.
+| Path | Surface |
+|------|---------|
+| `shared/` | API base URL helpers (web + Electron) |
+| `desktop/online/` | Electron cloud |
+| `desktop/offline/` | Electron on-prem UI chrome |
+| `service-mobile/` | Capacitor offline **service** phone app |
 
-```
-platforms/
-├── shared/          # API URL helpers (all clients)
-└── desktop/         # Electron helpers
-    ├── online/      # Cloud wrapper marker
-    └── offline/     # On-prem OnlineStatus UI
-```
-
-| Path | Runtime | Mode | Notes |
-|------|---------|------|--------|
-| `desktop/online` | Electron `electron/cloud` | Online | Loads hosted web app; no local DB |
-| `desktop/offline` | Electron `electron/onprem` | Offline | Embedded Postgres; `OnlineStatus` for license sync |
-| `shared` | All | — | `apiBase` (`resolveApiUrl` / optional `VITE_API_ORIGIN`) |
-
-Native Electron processes live under repo-root `electron/` (see `electron/README.md`):
-
-- `electron/cloud` → **desktop · online**
-- `electron/onprem` → **desktop · offline**
-
-Feature screens stay in `src/features/` — they are shared across web and Electron.
-
-There is **no Capacitor / phone app** in this codebase.
+There is no cloud Capacitor / invite-queue mobile product. Phone offline ERP is **Service Mobile** only (see `service-mobile/README.md`).

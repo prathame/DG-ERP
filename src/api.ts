@@ -1,6 +1,8 @@
 import { session } from './lib/session';
 import { resolveApiUrl } from './platforms/shared';
 import { clientLogger, ensureCorrelationId } from './lib/logger';
+import { isServiceMobileMode } from './platforms/service-mobile/mode';
+import { handleLocalApiRequest } from './platforms/service-mobile/local/router';
 
 export interface DistributionRecord {
   id: string;
@@ -223,6 +225,18 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   // App paths are like `/products` — always resolve via `/api/...`
   const requestUrl = resolveApiUrl(`/api${path.startsWith('/') ? path : `/${path}`}`);
   const started = Date.now();
+
+  // Service Mobile: ERP traffic → on-device PGlite API (license/sync stays on cloud.ts)
+  if (isServiceMobileMode()) {
+    const headers = { 'Content-Type': 'application/json', ...authHeaders, ...options?.headers };
+    const bodyText =
+      options?.body == null ? null : typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+    const localRes = await handleLocalApiRequest(method, requestUrl, headers, bodyText);
+    if (localRes) {
+      return await handleResponse<T>(localRes, path, method, tenantId, correlationId, started);
+    }
+    // null → cloud path (should not happen for /api ERP); fall through to fetch
+  }
 
   // Retry network blips only (TypeError). Never retry on 4xx/5xx.
   // GETs: up to 3 attempts (safe). Mutations: 1 retry only — reduces duplicate

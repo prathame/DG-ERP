@@ -1,6 +1,7 @@
 node_modules/
 build/
 dist/
+dist-service-mobile/
 dist-electron/
 android/.gradle/
 android/app/build/
@@ -23,3 +24,4 @@ server/**/*.js.map
 .env
 .env.*
 !.env.example
+!.env.service-mobile.example

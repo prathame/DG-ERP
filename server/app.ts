@@ -23,6 +23,7 @@ import banksRouter from './routes/banks';
 import financeRouter from './routes/finance';
 import invoiceFinanceRouter from './routes/invoice-finance';
 import onpremRouter from './routes/onprem';
+import serviceMobileRouter from './routes/service-mobile';
 import authRouter from './routes/auth';
 import adminRouter from './routes/admin';
 import dashboardRouter from './routes/dashboard';
@@ -65,6 +66,12 @@ const PUBLIC_PATHS = [
   '/api/onprem/apply-notifications',
   '/api/onprem/mark-applied',
   '/api/onprem/mark-notifications-delivered',
+  '/api/service-mobile/activate',
+  '/api/service-mobile/heartbeat',
+  '/api/service-mobile/deactivate',
+  '/api/service-mobile/mark-applied',
+  '/api/service-mobile/mark-notifications-delivered',
+  '/api/service-mobile/backup',
 ];
 
 function isPublicApiPath(apiRelativePath: string): boolean {
@@ -510,6 +517,7 @@ export function createApp(): express.Application {
   app.use(financeRouter);
   app.use(invoiceFinanceRouter);
   app.use(onpremRouter);
+  app.use(serviceMobileRouter);
   app.use(authRouter);
   app.use(adminRouter);
   app.use(dashboardRouter);
