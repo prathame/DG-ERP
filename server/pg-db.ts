@@ -1056,6 +1056,48 @@ export async function initSchema() {
        ON service_mobile_backups(license_id, created_at DESC)`,
     );
 
+    // Service cloud seats (online) — access mode + device slots + single-tenant session
+    // Only meaningful when tenants.business_type = 'service'
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS client_access_mode TEXT`);
+    // client_access_mode: mobile | desktop | both | NULL (unset / N/A)
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS service_cloud_device_slots (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL,
+        device_kind TEXT NOT NULL CHECK (device_kind IN ('mobile', 'desktop')),
+        machine_id TEXT,
+        label TEXT,
+        bound_at TIMESTAMPTZ,
+        last_seen TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        FOREIGN KEY (user_id, tenant_id) REFERENCES users(id, tenant_id) ON DELETE CASCADE
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_sc_slots_tenant ON service_cloud_device_slots(tenant_id)`);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_sc_slots_user ON service_cloud_device_slots(tenant_id, user_id)`,
+    );
+    await client.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_sc_slots_machine
+       ON service_cloud_device_slots(tenant_id, machine_id)
+       WHERE machine_id IS NOT NULL`,
+    );
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS service_cloud_sessions (
+        tenant_id TEXT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL,
+        machine_id TEXT NOT NULL,
+        client TEXT NOT NULL CHECK (client IN ('mobile', 'desktop', 'web')),
+        user_name TEXT,
+        heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMPTZ NOT NULL
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_sc_sessions_expires ON service_cloud_sessions(expires_at)`);
+
     // Row Level Security (RLS) — DB-level tenant isolation safety net
     // RLS policies enforce tenant_id filtering at the DB level.
     // Table owner (our pool user) bypasses RLS — this is intentional.

@@ -135,7 +135,11 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
   };
 
   const unbind = async (id: string) => {
-    if (!confirm('Unbind this phone? Staff can activate the same key on a new device and restore backup.')) {
+    if (
+      !confirm(
+        'Unbind this phone? Staff can activate the same key on a new device and restore from THEIR backup file (we do not store backups).',
+      )
+    ) {
       return;
     }
     const r = await fetch(`/api/super-admin/service-mobile/${id}/unbind`, {
@@ -266,10 +270,6 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
             <div>
               <p className="text-xs text-gray-400">App version</p>
               <p className="font-medium">{selected.appVersion || '—'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Latest backup</p>
-              <p className="font-medium">{timeAgo(selected.latestBackupAt)}</p>
             </div>
             <div>
               <p className="text-xs text-gray-400">Valid until</p>
@@ -446,7 +446,6 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Device</th>
                 <th className="px-4 py-3 font-medium">Last seen</th>
-                <th className="px-4 py-3 font-medium">Backup</th>
               </tr>
             </thead>
             <tbody>
@@ -481,7 +480,6 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-500">{timeAgo(lic.lastSeen)}</td>
-                  <td className="px-4 py-3 text-gray-500">{timeAgo(lic.latestBackupAt)}</td>
                 </tr>
               ))}
             </tbody>

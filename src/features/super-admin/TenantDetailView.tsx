@@ -31,6 +31,7 @@ import {
 import { cn, bizTypeLabel } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
 import { session } from '../../lib/session';
+import { ServiceCloudSeatsPanel } from './ServiceCloudSeatsPanel';
 interface TenantDetail {
   id: string;
   companyName: string;
@@ -570,6 +571,8 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
         tenant={tenant as unknown as Record<string, unknown>}
         onSaved={fetchTenant}
       />
+
+      {tenant.businessType === 'service' && <ServiceCloudSeatsPanel tenantId={tenantId} />}
 
       {/* Users Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">

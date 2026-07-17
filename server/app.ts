@@ -24,6 +24,7 @@ import financeRouter from './routes/finance';
 import invoiceFinanceRouter from './routes/invoice-finance';
 import onpremRouter from './routes/onprem';
 import serviceMobileRouter from './routes/service-mobile';
+import serviceCloudRouter from './routes/service-cloud';
 import authRouter from './routes/auth';
 import adminRouter from './routes/admin';
 import dashboardRouter from './routes/dashboard';
@@ -518,6 +519,7 @@ export function createApp(): express.Application {
   app.use(invoiceFinanceRouter);
   app.use(onpremRouter);
   app.use(serviceMobileRouter);
+  app.use(serviceCloudRouter);
   app.use(authRouter);
   app.use(adminRouter);
   app.use(dashboardRouter);

@@ -295,7 +295,7 @@ export function GuideView() {
       <Section title="Onboard a Service Mobile Customer" icon={Smartphone} color="bg-emerald-600" defaultOpen>
         <p className="text-sm text-gray-600">
           Field service business on a phone — offline-first like on-prem, service features only. One license binds one
-          phone. Encrypted backups upload on hard sync; restore only on the same license after unbind.
+          phone. Staff keep their own backup files (we do not store ERP data). Restore from file after unbind.
         </p>
 
         <div className="space-y-4">
@@ -327,14 +327,64 @@ export function GuideView() {
               <p>
                 Service Mobile detail → <strong>Unbind device</strong>
               </p>
-              <p>Staff install app on new phone → same key → restore last encrypted backup</p>
-              <p>Backup cannot be restored onto a different company&apos;s license</p>
+              <p>Staff install app on new phone → same key → restore from their backup file (Downloads / Gmail)</p>
+              <p>We do not store backups — if they lost the file, data cannot be recovered from us</p>
             </div>
           </Step>
 
           <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
             <p className="text-sm text-emerald-800 font-medium">
               This is separate from desktop On-Prem licenses. Do not mix DG- and DG-SM- keys.
+            </p>
+          </div>
+        </div>
+      </Section>
+
+      {/* Service cloud seats (online) */}
+      <Section title="Onboard Service Cloud Seats (online)" icon={Users} color="bg-sky-600">
+        <p className="text-sm text-gray-600">
+          Online-only seats on the same cloud tenant for <strong>service</strong> businesses. Capacitor phone and/or
+          Cloud Electron desktop. One live session company-wide; idle releases after 5 minutes. Separate from offline
+          Service Mobile (DG-SM).
+        </p>
+
+        <div className="space-y-4">
+          <Step n={1} title="Open the cloud service tenant">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
+              <p>
+                Super Admin → Tenants → open a <strong>service</strong> cloud tenant
+              </p>
+              <p>
+                Use the <strong>Service cloud seats</strong> panel (not Service Mobile licenses)
+              </p>
+            </div>
+          </Step>
+
+          <Step n={2} title="Set access mode + users + device slots">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
+              <p>
+                Access mode: <strong>mobile</strong> / <strong>desktop</strong> / <strong>both</strong> (SA only)
+              </p>
+              <p>Create users with credentials; set mobile slots and desktop slots per user</p>
+              <p>Devices bind on first install; SA can unbind a lost phone/laptop</p>
+            </div>
+          </Step>
+
+          <Step n={3} title="Staff use Cloud Electron or online mobile">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
+              <p>
+                Desktop: Cloud Electron (
+                <code className="bg-gray-200 px-1 rounded font-mono">npm run build:electron:cloud</code>)
+              </p>
+              <p>Mobile: online Capacitor shell (not the offline Service Mobile APK)</p>
+              <p>If someone else holds the session, the app freezes until they leave or idle out — no takeover</p>
+              <p>No internet → app freezes (not offline ERP)</p>
+            </div>
+          </Step>
+
+          <div className="bg-sky-50 border border-sky-100 rounded-xl p-4">
+            <p className="text-sm text-sky-800 font-medium">
+              Do not mix with DG-SM offline licenses. Browser login is not enrolled in device seats for v1.
             </p>
           </div>
         </div>

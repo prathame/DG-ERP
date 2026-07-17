@@ -1,12 +1,13 @@
 /**
- * Heartbeat / hard sync for Service Mobile — settings, Bell, force sync, then encrypted backup.
+ * Heartbeat / hard sync for Service Mobile — settings, Bell, force sync.
+ * ERP data is never uploaded; scheduled backups are local files on the phone only.
  */
-import { heartbeat, markApplied, markNotificationsDelivered, uploadBackup } from './cloud';
+import { heartbeat, markApplied, markNotificationsDelivered } from './cloud';
 import { loadLicense } from './licenseStore';
 import { getOrCreateDeviceId } from './deviceId';
-import { localQuery, dumpLocalDb } from './local/db';
-import { encryptBackup } from './local/crypto';
+import { localQuery } from './local/db';
 import { serviceMobileAppVersion } from './mode';
+import { runScheduledLocalBackupIfDue } from './localBackup';
 
 let lastForceSyncAt: string | null = null;
 let syncTimer: ReturnType<typeof setInterval> | null = null;
@@ -78,26 +79,11 @@ async function applyNotifications(
   return applied;
 }
 
-async function pushEncryptedBackup(): Promise<void> {
-  const lic = loadLicense();
-  if (!lic) return;
-  const machineId = await getOrCreateDeviceId();
-  const dump = await dumpLocalDb();
-  const enc = await encryptBackup(dump, lic.licenseKey);
-  await uploadBackup({
-    licenseKey: lic.licenseKey,
-    machineId,
-    ciphertext: enc.ciphertext,
-    nonce: enc.nonce,
-    wrap: enc.wrap,
-    appVersion: serviceMobileAppVersion(),
-  });
-}
-
 export type SyncResult = {
   ok: boolean;
   licenseValid?: boolean;
   reloaded?: boolean;
+  localBackupSaved?: boolean;
   error?: string;
 };
 
@@ -147,17 +133,18 @@ export async function runServiceMobileSync(): Promise<SyncResult> {
       if (forceSyncAt) lastForceSyncAt = forceSyncAt;
     }
 
-    // Encrypted backup after successful sync (disaster recovery B)
+    // User-owned local file only — never upload ERP data to our cloud
+    let localBackupSaved = false;
     try {
-      await pushEncryptedBackup();
+      localBackupSaved = await runScheduledLocalBackupIfDue();
     } catch {
-      /* offline backup skip is fine */
+      /* skip if user dismisses download / offline quirks */
     }
 
     if (shouldReload && typeof window !== 'undefined') {
       window.location.reload();
     }
-    return { ok: true, licenseValid: true, reloaded: shouldReload };
+    return { ok: true, licenseValid: true, reloaded: shouldReload, localBackupSaved };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Sync failed' };
   }

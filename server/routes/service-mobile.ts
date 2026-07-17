@@ -113,10 +113,6 @@ router.post('/api/service-mobile/activate', smLimiter, async (req, res) => {
         ? JSON.parse(lic.settings as string)
         : (lic.settings as Record<string, unknown>) || {};
 
-    const backupExists = (
-      await pool.query(`SELECT 1 FROM service_mobile_backups WHERE license_id = $1 LIMIT 1`, [lic.id])
-    ).rows[0];
-
     res.json({
       valid: true,
       licenseKey,
@@ -127,7 +123,8 @@ router.post('/api/service-mobile/activate', smLimiter, async (req, res) => {
       adminEmail: lic.admin_email || null,
       settings,
       tabConfig: (settings.tabConfig as typeof SERVICE_TAB_PRESET) || SERVICE_TAB_PRESET,
-      hasBackup: Boolean(backupExists),
+      // We do not store Offline Mobile ERP data — staff keep their own backup files
+      hasBackup: false,
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -208,13 +205,6 @@ router.post('/api/service-mobile/heartbeat', smLimiter, async (req, res) => {
       }));
     }
 
-    const backupRow = (
-      await pool.query(
-        `SELECT created_at FROM service_mobile_backups WHERE license_id = $1 ORDER BY created_at DESC LIMIT 1`,
-        [lic.id],
-      )
-    ).rows[0] as { created_at: string } | undefined;
-
     res.json({
       licenseValid: isValid && isMachineMatch,
       licenseStatus: lic.status,
@@ -225,7 +215,6 @@ router.post('/api/service-mobile/heartbeat', smLimiter, async (req, res) => {
       forceUpdate,
       settings: lic.settings || {},
       pendingNotifications,
-      latestBackupAt: backupRow?.created_at ? new Date(backupRow.created_at).toISOString() : null,
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -318,145 +307,26 @@ router.post('/api/service-mobile/mark-notifications-delivered', smLimiter, async
   }
 });
 
-/** Upload encrypted backup blob (same-tenant restore only). Keeps last 3. */
-router.post('/api/service-mobile/backup', smLimiter, async (req, res) => {
-  try {
-    const { licenseKey, machineId, ciphertext, nonce, wrap, appVersion } = req.body as {
-      licenseKey?: string;
-      machineId?: string;
-      ciphertext?: string;
-      nonce?: string;
-      wrap?: string;
-      appVersion?: string;
-    };
-    if (!licenseKey || !machineId || !ciphertext || !nonce) {
-      return res.status(400).json({ error: 'licenseKey, machineId, ciphertext, nonce required' });
-    }
-    const lic = (
-      await pool.query(`SELECT id, status, machine_id FROM service_mobile_licenses WHERE license_key = $1`, [
-        licenseKey,
-      ])
-    ).rows[0] as { id: string; status: string; machine_id: string | null } | undefined;
-    if (!lic || lic.status !== 'active') {
-      return res.status(404).json({ error: 'Invalid or inactive license' });
-    }
-    if (!lic.machine_id || lic.machine_id !== machineId) {
-      return res.status(403).json({ error: 'Device mismatch' });
-    }
-
-    let buf: Buffer;
-    try {
-      buf = Buffer.from(ciphertext, 'base64');
-    } catch {
-      return res.status(400).json({ error: 'Invalid ciphertext encoding' });
-    }
-    if (buf.length === 0 || buf.length > 40 * 1024 * 1024) {
-      return res.status(400).json({ error: 'Backup size out of range' });
-    }
-
-    const id = uid('SMB');
-    await pool.query(
-      `INSERT INTO service_mobile_backups (id, license_id, ciphertext, nonce, wrap, byte_size, app_version)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [
-        id,
-        lic.id,
-        buf,
-        String(nonce).slice(0, 128),
-        wrap ? String(wrap).slice(0, 512) : null,
-        buf.length,
-        appVersion || null,
-      ],
-    );
-
-    // Retain last 3 backups per license
-    await pool.query(
-      `DELETE FROM service_mobile_backups
-       WHERE license_id = $1
-         AND id NOT IN (
-           SELECT id FROM service_mobile_backups
-           WHERE license_id = $1
-           ORDER BY created_at DESC
-           LIMIT 3
-         )`,
-      [lic.id],
-    );
-
-    logger.info('Service mobile backup stored', { licenseId: lic.id, bytes: buf.length });
-    res.status(201).json({ ok: true, id, byteSize: buf.length });
-  } catch (err) {
-    return handleApiError(req, res, err);
-  }
+/** Cloud ERP backups disabled — staff keep files on-device / their own Gmail. */
+router.post('/api/service-mobile/backup', smLimiter, (_req, res) => {
+  res.status(410).json({
+    error:
+      'Offline Mobile backups are not stored on our servers. Export a backup file on the phone (Settings) and keep it yourself.',
+  });
 });
 
-/** Download latest backup for the same bound license only. */
-router.post('/api/service-mobile/backup/latest', smLimiter, async (req, res) => {
-  try {
-    const { licenseKey, machineId } = req.body as { licenseKey?: string; machineId?: string };
-    if (!licenseKey || !machineId) {
-      return res.status(400).json({ error: 'licenseKey and machineId required' });
-    }
-    const lic = (
-      await pool.query(`SELECT id, status, machine_id FROM service_mobile_licenses WHERE license_key = $1`, [
-        licenseKey,
-      ])
-    ).rows[0] as { id: string; status: string; machine_id: string | null } | undefined;
-    if (!lic || lic.status !== 'active') {
-      return res.status(404).json({ error: 'Invalid or inactive license' });
-    }
-    if (!lic.machine_id || lic.machine_id !== machineId) {
-      return res.status(403).json({ error: 'Device mismatch — restore only on the active device for this license' });
-    }
-
-    const row = (
-      await pool.query(
-        `SELECT id, ciphertext, nonce, wrap, byte_size, app_version, created_at
-         FROM service_mobile_backups
-         WHERE license_id = $1
-         ORDER BY created_at DESC
-         LIMIT 1`,
-        [lic.id],
-      )
-    ).rows[0] as
-      | {
-          id: string;
-          ciphertext: Buffer;
-          nonce: string;
-          wrap: string | null;
-          byte_size: number;
-          app_version: string | null;
-          created_at: string;
-        }
-      | undefined;
-
-    if (!row) return res.status(404).json({ error: 'No backup for this license' });
-
-    res.json({
-      id: row.id,
-      ciphertext: Buffer.from(row.ciphertext).toString('base64'),
-      nonce: row.nonce,
-      wrap: row.wrap,
-      byteSize: row.byte_size,
-      appVersion: row.app_version,
-      createdAt: new Date(row.created_at).toISOString(),
-    });
-  } catch (err) {
-    return handleApiError(req, res, err);
-  }
+router.post('/api/service-mobile/backup/latest', smLimiter, (_req, res) => {
+  res.status(410).json({
+    error: 'No cloud backups. Restore from your Offline Mobile backup file on the phone.',
+  });
 });
 
 // ── Super Admin ───────────────────────────────────────────────────────────────
 
 router.get('/api/super-admin/service-mobile', superAdminMiddleware, async (req, res) => {
   try {
-    const rows = (
-      await pool.query(
-        `SELECT l.*,
-                (SELECT MAX(b.created_at) FROM service_mobile_backups b WHERE b.license_id = l.id) AS latest_backup_at
-         FROM service_mobile_licenses l
-         ORDER BY l.created_at DESC`,
-      )
-    ).rows as Record<string, unknown>[];
+    const rows = (await pool.query(`SELECT l.* FROM service_mobile_licenses l ORDER BY l.created_at DESC`))
+      .rows as Record<string, unknown>[];
     const now = Date.now();
     res.json(rows.map(r => mapLicense(r, now)));
   } catch (err) {

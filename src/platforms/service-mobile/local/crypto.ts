@@ -1,7 +1,7 @@
 /**
- * Encrypt/decrypt local DB dumps for cloud backup (same-tenant only on server).
- * Key material: PBKDF2(licenseKey) — NOT machineId, so restore works after SA unbind
- * onto a new phone (same DG-SM- key). Server still requires bound machine for download.
+ * Encrypt/decrypt local DB dumps for user-owned backup files.
+ * Key material: PBKDF2(licenseKey) — restore on a new phone with the same DG-SM- key.
+ * Files stay on the staff device / their Gmail — we do not store them.
  */
 
 function b64(bytes: ArrayBuffer | Uint8Array): string {

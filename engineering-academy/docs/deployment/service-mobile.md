@@ -1,12 +1,12 @@
 ---
 sidebar_label: Service Mobile
 title: Service Mobile (offline phone)
-description: Capacitor iOS/Android offline ERP for service business type — SA licenses, PGlite, hard sync, encrypted backup.
+description: Capacitor iOS/Android offline ERP for service business type — SA licenses, PGlite, local user-owned backups.
 ---
 
 # Service Mobile
 
-Offline **phone** surface for **`business_type=service` only**. Not desktop on-prem, and not the removed cloud Capacitor invite-queue product.
+Offline **phone** surface for **`business_type=service` only**. Not desktop on-prem.
 
 ## Shape
 
@@ -14,10 +14,14 @@ Offline **phone** surface for **`business_type=service` only**. Not desktop on-p
 |-------|--------|
 | Shell | Capacitor (`android/`, `ios/`), build `dist-service-mobile` |
 | Local data | PGlite (IndexedDB) — source of truth |
-| Cloud | License activate / heartbeat / hard sync / encrypted backup only |
-| SA | Tenants → **Service Mobile** (separate from On-Prem) |
+| Cloud | License activate / heartbeat / hard sync / Bell only — **no ERP backup storage** |
+| SA | Tenants → **Service Mobile** |
 | Keys | `DG-SM-…` — **1 license = 1 user = 1 device** |
-| Disaster recovery | Encrypted backup on sync; restore **same license only** after unbind + re-activate |
+| Disaster recovery | Staff export encrypted backup **file** on the phone; restore that file after unbind |
+
+## Policy: we do not store business data
+
+Offline Mobile backups are **user-owned**. The phone saves a file (and may open a mailto to the staff Gmail so they can attach it). Cloud backup upload/download APIs return **410**.
 
 ## Build & distribute (v1)
 
@@ -34,17 +38,12 @@ npx cap open ios       # TestFlight
 
 1. SA issues Service Mobile license  
 2. Staff activates with key (needs internet once)  
-3. Optional restore backup → or set admin password (local provision)  
-4. Work offline; when online, heartbeat applies settings/Bell and uploads backup  
-5. Lost phone: SA **Unbind** → new phone activate → **Restore backup**
-
-## Code map
-
-- Cloud: [`server/routes/service-mobile.ts`](/files/server/routes)  
-- Client: [`src/platforms/service-mobile/`](/frontend/platforms)  
-- Manual cases: `tests/cases/service-mobile.md`
+3. Optional: restore from their backup file → or set admin password (fresh)  
+4. Work offline; when online, heartbeat applies settings/Bell  
+5. Settings → Auto Backup (daily / weekly / monthly) saves a file on the phone  
+6. Lost phone: SA **Unbind** → new phone activate → **Restore from backup file**
 
 ## Related
 
 - [Product Surfaces](/architecture/four-surfaces)
-- [On-Prem API](/api/mobile-onprem) (desktop parallel)
+- Manual cases: `tests/cases/service-mobile.md`

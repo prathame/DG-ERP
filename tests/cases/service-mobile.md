@@ -1,6 +1,6 @@
 # Service Mobile — Manual / E2E Cases
 
-Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. Local PGlite is source of truth.
+Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. Local PGlite is source of truth. **We do not store ERP backups on our servers.**
 
 | # | Case | Steps | Expected |
 |---|------|-------|----------|
@@ -11,10 +11,11 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5 | Offline ERP | Airplane mode → create client + invoice | Persists locally; no cloud ERP calls |
 | 6 | Hard sync settings | SA push tab/settings → phone Sync / wait heartbeat | Settings applied; force sync reloads UI |
 | 7 | SA Bell | SA notify on license → phone online | Message appears in in-app Bell |
-| 8 | Backup upload | Phone online after data entry | SA shows latest backup timestamp |
-| 9 | Phone lost restore | SA Unbind → new phone activate → Restore backup | Same company data; wrong license cannot restore |
-| 10 | Unbound backup blocked | Unbind then try backup upload without activate | 403 Device mismatch |
+| 8 | Local backup file | Settings → Save Backup File | JSON file downloads to phone; nothing stored on our cloud |
+| 8b | Auto backup schedule | Settings → Auto Backup → daily / weekly / monthly (+ optional Gmail) | When due, saves file on phone; Gmail only opens mail app (staff attach file) |
+| 9 | Phone lost restore | SA Unbind → new phone activate → Restore from **their** backup file | Same company data; wrong license key cannot decrypt |
+| 10 | Cloud backup API | POST `/api/service-mobile/backup` | 410 Gone |
 | 11 | Sideload / TestFlight | Install APK or TestFlight build | App opens; onboarding works |
-| 12 | Download page | Open `/download` | Service Mobile section present |
+| 12 | Download page | Open `/download` | Offline Mobile App section present |
 
-**Automated:** `tests/api/http-service-mobile.test.ts` (license lifecycle + backup scoping).
+**Automated:** `tests/api/http-service-mobile.test.ts` (license lifecycle; cloud backup disabled).

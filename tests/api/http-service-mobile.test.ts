@@ -111,55 +111,34 @@ describe('HTTP: service-mobile licenses', () => {
     expect(ack.status).toBe(200);
   });
 
-  it('backup upload/download is same-license + same-device only', async () => {
+  it('cloud ERP backup endpoints are disabled (410) — staff keep local files', async () => {
     await pool.query(`UPDATE service_mobile_licenses SET machine_id=$1 WHERE id=$2`, [MACHINE_B, LICENSE_ID]);
 
-    const cipher = Buffer.from('fake-encrypted-db').toString('base64');
-    const up = await api().post('/api/service-mobile/backup').send({
-      licenseKey: LICENSE_KEY,
-      machineId: MACHINE_B,
-      ciphertext: cipher,
-      nonce: 'nonce-test-1',
-      wrap: 'wrap-test',
-      appVersion: '1.0.1',
-    });
-    expect(up.status).toBe(201);
-
-    const otherDevice = await api().post('/api/service-mobile/backup/latest').send({
-      licenseKey: LICENSE_KEY,
-      machineId: MACHINE_A,
-    });
-    expect(otherDevice.status).toBe(403);
-
-    const ok = await api().post('/api/service-mobile/backup/latest').send({
-      licenseKey: LICENSE_KEY,
-      machineId: MACHINE_B,
-    });
-    expect(ok.status).toBe(200);
-    expect(ok.body.ciphertext).toBe(cipher);
-    expect(ok.body.nonce).toBe('nonce-test-1');
-  });
-
-  it('backup rejected while license unbound', async () => {
-    await pool.query(`UPDATE service_mobile_licenses SET machine_id=NULL WHERE id=$1`, [LICENSE_ID]);
     const up = await api()
       .post('/api/service-mobile/backup')
       .send({
         licenseKey: LICENSE_KEY,
-        machineId: MACHINE_A,
+        machineId: MACHINE_B,
         ciphertext: Buffer.from('x').toString('base64'),
         nonce: 'n',
       });
-    expect(up.status).toBe(403);
+    expect(up.status).toBe(410);
 
     const dl = await api().post('/api/service-mobile/backup/latest').send({
       licenseKey: LICENSE_KEY,
-      machineId: MACHINE_A,
+      machineId: MACHINE_B,
     });
-    expect(dl.status).toBe(403);
+    expect(dl.status).toBe(410);
 
-    // Re-bind for remaining tests
-    await pool.query(`UPDATE service_mobile_licenses SET machine_id=$1 WHERE id=$2`, [MACHINE_B, LICENSE_ID]);
+    const act = await api().post('/api/service-mobile/activate').send({
+      licenseKey: LICENSE_KEY,
+      machineId: MACHINE_B,
+      appVersion: '1.0.1',
+    });
+    // Already bound to MACHINE_B — may 200 or 403 depending on prior tests; hasBackup must stay false
+    if (act.status === 200) {
+      expect(act.body.hasBackup).toBe(false);
+    }
   });
 
   it('force-sync stamps settings.forceSyncAt', async () => {

@@ -6,13 +6,19 @@ export {
   heartbeat,
   markApplied,
   markNotificationsDelivered,
-  uploadBackup,
-  downloadLatestBackup,
   type ServiceMobileActivateResult,
 } from './cloud';
 export { ServiceMobileOnboarding } from './ServiceMobileOnboarding';
 export { runServiceMobileSync, startServiceMobileHeartbeat, stopServiceMobileHeartbeat } from './sync';
-export { restoreSameTenantBackup } from './restore';
+export { restoreFromLocalBackupFile, restoreSameTenantBackup } from './restore';
+export {
+  exportLocalBackupNow,
+  loadLocalBackupSettings,
+  saveLocalBackupSettings,
+  restoreFromLocalBackupJson,
+  type LocalBackupSettings,
+  type BackupFrequency,
+} from './localBackup';
 export { getLocalDb } from './local/db';
 export { isLocalProvisioned, getLocalSlug, provisionLocalTenant } from './local/provision';
 export { handleLocalApiRequest } from './local/router';
