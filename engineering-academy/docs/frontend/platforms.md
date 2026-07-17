@@ -236,6 +236,8 @@ This component is rendered in `App.tsx`'s sidebar **only** when `window.electron
 > [!NOTE]
 > **Why on-prem specifically?** An on-prem deployment runs against a **local embedded Postgres** (see `embedded-postgres` in `package.json` and [../performance/database.md](../performance/database.md)) inside a factory/warehouse with genuinely no reliable internet — the whole point of choosing on-prem over cloud. `OnlineStatus` is the operator-facing answer to "is my local data in sync with the cloud master," including a license expiry countdown, because an expired on-prem license needs a visible warning well before it becomes a blocking error.
 
+**SA Bell bridge (Electron main, not React):** cloud heartbeat may return `pendingNotifications`. `electron/onprem/main.ts` writes them into the local Bell via localhost `apply-notifications`, then acks `mark-notifications-delivered` (machine-bound). Digests stay local; only Super Admin pushes use this path. See [Workflow 7](/architecture/business-workflows#workflow-7-quiet-notification-center).
+
 ## Trade-offs
 
 | Choice | Benefit | Cost |

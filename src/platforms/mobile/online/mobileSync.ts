@@ -6,11 +6,11 @@ import { session } from '../../../lib/session';
 import { getSavedCompanySlug } from './companyStorage';
 import { cacheClear } from '../offline/cache';
 import { isMobileClient } from './isMobileClient';
+import { setOfflineEntitled } from './seatStorage';
 
 const DEVICE_KEY = 'dg_mobile_device_id';
 const LAST_FORCE_KEY = 'dg_mobile_last_force_sync';
-const APP_VERSION =
-  (import.meta.env.VITE_APP_VERSION as string | undefined)?.trim() || '2.2.0';
+const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined)?.trim() || '2.2.0';
 const HEARTBEAT_MS = 60_000;
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -20,7 +20,7 @@ export function getMobileDeviceId(): string {
   if (!id) {
     const bytes = new Uint8Array(12);
     crypto.getRandomValues(bytes);
-    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
     id = `dev_${hex}`;
     localStorage.setItem(DEVICE_KEY, id);
   }
@@ -65,26 +65,41 @@ export async function mobileHeartbeat(): Promise<void> {
       body: JSON.stringify(body),
     });
     if (!res.ok) return;
-    const data = await res.json() as {
+    const data = (await res.json()) as {
       forceSyncAt?: string | null;
       forceUpdate?: boolean;
       updateAvailable?: boolean;
       latestVersion?: string | null;
+      offlineEnabled?: boolean;
+      seatValid?: boolean;
+      businessType?: string;
     };
+    if (typeof data.offlineEnabled === 'boolean') {
+      setOfflineEntitled(data.offlineEnabled);
+    } else if (data.businessType === 'service') {
+      setOfflineEntitled(!!data.seatValid);
+    }
     if (data.forceSyncAt) await applyForceSync(data.forceSyncAt);
     if (data.forceUpdate) {
       window.dispatchEvent(new CustomEvent('dg-mobile-force-update', { detail: data }));
     } else if (data.updateAvailable) {
       window.dispatchEvent(new CustomEvent('dg-mobile-update-available', { detail: data }));
     }
-  } catch { /* offline */ }
+    if (data.businessType === 'service' && data.seatValid === false) {
+      window.dispatchEvent(new CustomEvent('dg-mobile-seat-invalid', { detail: data }));
+    }
+  } catch {
+    /* offline */
+  }
 }
 
 export function startMobileHeartbeat(): void {
   if (!isMobileClient()) return;
   void mobileHeartbeat();
   if (timer) clearInterval(timer);
-  timer = setInterval(() => { void mobileHeartbeat(); }, HEARTBEAT_MS);
+  timer = setInterval(() => {
+    void mobileHeartbeat();
+  }, HEARTBEAT_MS);
 }
 
 export function stopMobileHeartbeat(): void {

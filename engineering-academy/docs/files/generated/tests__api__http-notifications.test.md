@@ -1,10 +1,10 @@
 ---
-sidebar_label: "MobileTenantPanel.tsx"
-title: "File src/features/super-admin/MobileTenantPanel.tsx"
-description: "Deep walkthrough of src/features/super-admin/MobileTenantPanel.tsx in DG-ERP / Dhandho"
+sidebar_label: "http-notifications.test.ts"
+title: "File tests/api/http-notifications.test.ts"
+description: "Deep walkthrough of tests/api/http-notifications.test.ts in DG-ERP / Dhandho"
 ---
 
-# File walkthrough: `src/features/super-admin/MobileTenantPanel.tsx`
+# File walkthrough: `tests/api/http-notifications.test.ts`
 
 :::info Ownership context
 Auto-generated from the live source tree so **no file is invisible** during onboarding.
@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/super-admin/MobileTenantPanel.tsx` is part of Dhandho (DG-ERP). Approximate size: **500 lines**.
+`tests/api/http-notifications.test.ts` is part of Dhandho (DG-ERP). Approximate size: **220 lines**.
 
 ## Business value
 
@@ -20,150 +20,121 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 ## Imports
 
-- `react`
-- `lucide-react`
-- `../../lib/session`
-- `../../components/ui`
+- `vitest`
+- `bcrypt`
+- `../helpers`
+- `../http`
+- `../../server/utils/helpers`
 
 ## Exports and symbols
 
-**Exported names:** `MobileTenantPanel`
+**Exported names:** _none detected_
 
 **Classes:** _none_
 
-## Functions (9 detected)
+## Functions (7 detected)
 
-### Function: MobileTenantPanel
+### Function: admin
 
 ```ts
-MobileTenantPanel({ tenantId, phone, businessType }: Props)
+admin(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `MobileTenantPanel` before deleting. |
+| What breaks if removed | Search the repo for `admin` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: auth
+### Function: admin2
 
 ```ts
-auth(...)
+admin2(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `auth` before deleting. |
+| What breaks if removed | Search the repo for `admin2` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: issueInvite
+### Function: row
 
 ```ts
-issueInvite(...)
+row(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `issueInvite` before deleting. |
+| What breaks if removed | Search the repo for `row` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: issueSeat
+### Function: hasPl
 
 ```ts
-issueSeat(...)
+hasPl(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `issueSeat` before deleting. |
+| What breaks if removed | Search the repo for `hasPl` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: updateSeat
+### Function: digests
 
 ```ts
-updateSeat(...)
+digests(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `updateSeat` before deleting. |
+| What breaks if removed | Search the repo for `digests` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: forceSync
+### Function: kinds
 
 ```ts
-forceSync(...)
+kinds(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `forceSync` before deleting. |
+| What breaks if removed | Search the repo for `kinds` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: saveVersions
+### Function: overdue
 
 ```ts
-saveVersions(...)
+overdue(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `saveVersions` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
-### Function: waShare
-
-```ts
-waShare(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `waShare` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
-### Function: p
-
-```ts
-p(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `src/features/super-admin/MobileTenantPanel.tsx`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `p` before deleting. |
+| What breaks if removed | Search the repo for `overdue` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -179,12 +150,12 @@ p(...)
 
 ```bash
 # From DG-ERP repo root
-rg -n "MobileTenantPanel" --glob '!node_modules' -g '*.ts' -g '*.tsx'
+rg -n "http-notifications.test" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 ```
 
 ## Performance impact
 
-Line count **500**. Large view/route files are refactor candidates.
+Line count **220**. Large view/route files are refactor candidates.
 
 ## Security impact
 
@@ -224,11 +195,11 @@ In-memory caches (authCache, GET Map) do **not** share across instances.
 
 ## Hands-on
 
-1. Open `src/features/super-admin/MobileTenantPanel.tsx` in the IDE.
+1. Open `tests/api/http-notifications.test.ts` in the IDE.
 2. Breakpoint the largest exported function.
 3. Trigger via UI or supertest.
 4. Write one sentence on why this file exists in the product narrative.
 
 ---
 
-*Generated by scripts/generate-file-deepdives.mjs · slug: `src__features__super-admin__mobiletenantpanel`*
+*Generated by scripts/generate-file-deepdives.mjs · slug: `tests__api__http-notifications.test`*

@@ -4,6 +4,8 @@ import { Building2, KeyRound, ArrowRight } from 'lucide-react';
 import { api } from '../../../api';
 import { resolveApiUrl } from '../../shared/apiBase';
 import { saveCompanySlug } from './companyStorage';
+import { getStoredSeat, setOfflineEntitled } from './seatStorage';
+import { MobileSeatActivation } from './MobileSeatActivation';
 
 function normalizeSlug(raw: string): string {
   return raw
@@ -17,8 +19,9 @@ function normalizeSlug(raw: string): string {
 
 function looksLikeInvite(raw: string): boolean {
   const u = raw.trim().toUpperCase();
-  // DG-M-XXXX-XXXX or DG-M-XXXX-XXXX-XXXX (48-bit)
-  return u.startsWith('DG-M-') || /^[A-F0-9]{4}-[A-F0-9]{4}(-[A-F0-9]{4})?$/.test(u) || u.includes('DG-M');
+  // Invite is DG-M-… but not seat keys DG-MS-…
+  if (u.startsWith('DG-MS-')) return false;
+  return u.startsWith('DG-M-') || /^[A-F0-9]{4}-[A-F0-9]{4}(-[A-F0-9]{4})?$/.test(u);
 }
 
 interface Props {
@@ -26,13 +29,19 @@ interface Props {
   onComplete: (slug: string) => void;
 }
 
-/** First-launch: Super Admin invite code or company slug → branded login. */
+/** First-launch: Super Admin invite code or company slug → optional seat → branded login. */
 export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
   const [mode, setMode] = useState<'invite' | 'slug'>('invite');
   const [value, setValue] = useState(initialSlug);
   const [error, setError] = useState('');
   const [companyPreview, setCompanyPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingSeat, setPendingSeat] = useState<{ slug: string; companyName?: string } | null>(null);
+
+  const finish = (slug: string) => {
+    saveCompanySlug(slug);
+    onComplete(slug);
+  };
 
   const continueOnboard = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +55,10 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
 
     setSubmitting(true);
     try {
+      let slug = '';
+      let companyName = '';
+      let requiresSeat = false;
+
       if (mode === 'invite' || looksLikeInvite(raw)) {
         const code = raw.toUpperCase().startsWith('DG-M') ? raw.toUpperCase() : raw.toUpperCase();
         const res = await fetch(resolveApiUrl('/api/mobile/redeem-invite'), {
@@ -54,7 +67,13 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
           body: JSON.stringify({ code }),
         });
         const text = await res.text();
-        let data: { error?: string; slug?: string; companyName?: string } = {};
+        let data: {
+          error?: string;
+          slug?: string;
+          companyName?: string;
+          requiresSeat?: boolean;
+          businessType?: string;
+        } = {};
         try {
           data = text ? JSON.parse(text) : {};
         } catch {
@@ -62,23 +81,48 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
         }
         if (!res.ok) throw new Error(data.error || 'Invalid invite');
         if (!data.slug) throw new Error('Invite worked but no company was returned.');
-        saveCompanySlug(data.slug);
-        setCompanyPreview(data.companyName || null);
-        onComplete(data.slug);
+        slug = data.slug;
+        companyName = data.companyName || '';
+        requiresSeat = !!data.requiresSeat || data.businessType === 'service';
       } else {
         const clean = normalizeSlug(raw);
         if (clean.length < 2) throw new Error('Enter a valid company code');
         const t = await api.tenantBySlug(clean);
-        saveCompanySlug(t.slug);
-        setCompanyPreview(t.companyName);
-        onComplete(t.slug);
+        slug = t.slug;
+        companyName = t.companyName;
+        requiresSeat =
+          !!(t as { requiresSeat?: boolean }).requiresSeat ||
+          (t as { businessType?: string }).businessType === 'service';
       }
+
+      setCompanyPreview(companyName || null);
+      saveCompanySlug(slug);
+
+      const stored = getStoredSeat();
+      if (requiresSeat && (!stored || stored.slug !== slug || !stored.offlineEnabled)) {
+        setPendingSeat({ slug, companyName });
+        return;
+      }
+      // Stale local entitlement is not proof — heartbeat re-enables after login.
+      if (requiresSeat) setOfflineEntitled(false);
+      finish(slug);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not connect. Check the code with your admin.');
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (pendingSeat) {
+    return (
+      <MobileSeatActivation
+        slug={pendingSeat.slug}
+        companyName={pendingSeat.companyName}
+        onComplete={() => finish(pendingSeat.slug)}
+        onSkip={() => finish(pendingSeat.slug)}
+      />
+    );
+  }
 
   return (
     <div
@@ -126,7 +170,7 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
         </div>
 
         <form
-          onSubmit={continueOnboard}
+          onSubmit={e => void continueOnboard(e)}
           className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4"
         >
           <div>

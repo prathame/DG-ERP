@@ -773,11 +773,25 @@ router.delete('/api/accounts/notes/:id', blockVendors, async (req: AuthRequest, 
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const result = await pool.query('DELETE FROM credit_debit_notes WHERE id = $1 AND tenant_id = $2', [
-      req.params.id,
+    const existing = (
+      await pool.query(
+        'SELECT id, note_number, note_type, total FROM credit_debit_notes WHERE id = $1 AND tenant_id = $2',
+        [req.params.id, tenantId],
+      )
+    ).rows[0] as { id: string; note_number: string; note_type: string; total: number } | undefined;
+    if (!existing) return res.status(404).json({ error: 'Note not found' });
+    await pool.query('DELETE FROM credit_debit_notes WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
+    const kind = existing.note_type === 'credit' ? 'Credit' : 'Debit';
+    await logAudit(
+      pool,
       tenantId,
-    ]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
+      `${kind} Note Deleted`,
+      'note',
+      req.params.id as string,
+      `${existing.note_number} — ₹${existing.total}`,
+      req.user?.userId,
+      req.user?.name,
+    );
     res.status(204).send();
   } catch (err) {
     return handleApiError(req, res, err);

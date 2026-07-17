@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/platforms/mobile/online/index.ts` is part of Dhandho (DG-ERP). Approximate size: **14 lines**.
+`src/platforms/mobile/online/index.ts` is part of Dhandho (DG-ERP). Approximate size: **22 lines**.
 
 ## Business value
 
@@ -47,7 +47,7 @@ rg -n "index" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **14**. Large view/route files are refactor candidates.
+Line count **22**. Large view/route files are refactor candidates.
 
 ## Security impact
 

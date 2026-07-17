@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/onprem.ts` is part of Dhandho (DG-ERP). Approximate size: **577 lines**.
+`server/routes/onprem.ts` is part of Dhandho (DG-ERP). Approximate size: **777 lines**.
 
 ## Business value
 
@@ -35,7 +35,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (8 detected)
+## Functions (10 detected)
 
 ### Function: generateLicenseKey
 
@@ -48,6 +48,23 @@ generateLicenseKey()
 | Purpose | Symbol in `server/routes/onprem.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `generateLicenseKey` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: assertLocalOnpremOnly
+
+```ts
+assertLocalOnpremOnly(req: { socket: { remoteAddress?: string } },
+  res: {
+    status: (n: number)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/onprem.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `assertLocalOnpremOnly` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -93,6 +110,21 @@ cfgRows(...)
 | Purpose | Symbol in `server/routes/onprem.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `cfgRows` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: pending
+
+```ts
+pending(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/onprem.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `pending` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -173,7 +205,7 @@ rg -n "onprem" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **577**. Large view/route files are refactor candidates.
+Line count **777**. Large view/route files are refactor candidates.
 
 ## Security impact
 

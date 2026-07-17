@@ -15,8 +15,18 @@ router.get('/api/tenant/by-slug/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     const tenant = (
-      await pool.query('SELECT id, company_name, slug, status FROM tenants WHERE slug = $1', [slug.toLowerCase()])
-    ).rows[0] as { id: string; company_name: string; slug: string; status: string } | undefined;
+      await pool.query('SELECT id, company_name, slug, status, business_type FROM tenants WHERE slug = $1', [
+        slug.toLowerCase(),
+      ])
+    ).rows[0] as
+      | {
+          id: string;
+          company_name: string;
+          slug: string;
+          status: string;
+          business_type: string;
+        }
+      | undefined;
     if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) {
       return res.status(404).json({ error: 'Company not found' });
     }
@@ -25,10 +35,13 @@ router.get('/api/tenant/by-slug/:slug', async (req, res) => {
         tenant.id,
       ])
     ).rows[0] as { logo_base64: string | null; primary_color: string | null; tagline: string | null } | undefined;
+    const businessType = tenant.business_type || 'manufacturer';
     res.json({
       tenantId: tenant.id,
       companyName: tenant.company_name,
       slug: tenant.slug,
+      businessType,
+      requiresSeat: businessType === 'service',
       logoBase64: billSettings?.logo_base64 ?? null,
       primaryColor: billSettings?.primary_color ?? '#F27D26',
       tagline: billSettings?.tagline ?? null,
@@ -319,13 +332,20 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
     // Auto-issue mobile invite (non-fatal — tenant create must still succeed)
     let mobileInviteCode: string | undefined;
     let mobileInviteExpiresAt: string | undefined;
+    let mobileSeatKey: string | undefined;
     try {
-      const { issueInvite } = await import('./mobile');
+      const { issueInvite, issueSeat } = await import('./mobile');
       const mobileInvite = await issueInvite(result.tenantId, 30);
       mobileInviteCode = mobileInvite.code;
       mobileInviteExpiresAt = mobileInvite.expiresAt;
+      if (bType === 'service') {
+        const seat = await issueSeat(result.tenantId, {
+          createdBy: (req as AuthRequest).user?.userId,
+        });
+        mobileSeatKey = seat.seatKey;
+      }
     } catch (inviteErr) {
-      logger.warn('Mobile invite after tenant create failed', {
+      logger.warn('Mobile invite/seat after tenant create failed', {
         error: inviteErr instanceof Error ? inviteErr.message : String(inviteErr),
         stack: inviteErr instanceof Error ? inviteErr.stack : undefined,
       });
@@ -348,6 +368,8 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       tempPassword: result.credentials.password,
       mobileInviteCode,
       mobileInviteExpiresAt,
+      mobileSeatKey,
+      businessType: bType,
     });
   } catch (err) {
     const e = err as Error & { code?: string };
@@ -1320,19 +1342,103 @@ router.get('/api/super-admin/tenants/:id/export', superAdminMiddleware, async (r
   }
 });
 
-// Push in-app notification to tenant
+// Push in-app notification to tenant (appears in tenant Bell feed)
 router.post('/api/super-admin/tenants/:id/notify', superAdminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { title, message, type = 'info' } = req.body;
     if (!title || !message) return res.status(400).json({ error: 'title and message required' });
-    // Store as a system notification in audit_log — tenant reads it on next load
+    const notifType = ['info', 'warning', 'success'].includes(type) ? type : 'info';
+    const tenant = (await pool.query('SELECT id FROM tenants WHERE id = $1', [id])).rows[0];
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const notifId = uid('TN');
+    const safeTitle = String(title).slice(0, 200);
     await pool.query(
-      `INSERT INTO audit_log (tenant_id, action, entity_type, entity_id, details, user_id, user_name, created_at)
-       VALUES ($1,'SYSTEM_NOTIFICATION','notification','SYS',$2,'SA1','Super Admin',NOW())`,
-      [id, JSON.stringify({ title, message, type })],
+      `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, expires_at)
+       VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
+      [notifId, id, safeTitle, String(message).slice(0, 2000), notifType],
     );
-    res.json({ ok: true });
+    const saId = (req as AuthRequest).user?.userId;
+    await logAudit(
+      pool,
+      id,
+      'SYSTEM_NOTIFICATION',
+      'notification',
+      notifId,
+      `SA notify: ${safeTitle} (${notifType})`,
+      saId,
+      'Super Admin',
+    );
+    logger.info('SA tenant notification sent', { tenantId: id, notifId, type: notifType, userId: saId });
+    res.json({ ok: true, id: notifId });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Broadcast the same message to all active tenants (control panel). */
+router.post('/api/super-admin/notifications/broadcast', superAdminMiddleware, async (req, res) => {
+  try {
+    const { title, message, type = 'info' } = req.body;
+    if (!title || !message) return res.status(400).json({ error: 'title and message required' });
+    const notifType = ['info', 'warning', 'success'].includes(type) ? type : 'info';
+    const tenants = (await pool.query(`SELECT id FROM tenants WHERE COALESCE(status, 'active') IN ('active', 'trial')`))
+      .rows as { id: string }[];
+    const saId = (req as AuthRequest).user?.userId;
+    const safeTitle = String(title).slice(0, 200);
+    const safeBody = String(message).slice(0, 2000);
+    let sent = 0;
+    for (const t of tenants) {
+      try {
+        const notifId = uid('TN');
+        await pool.query(
+          `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, expires_at)
+           VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
+          [notifId, t.id, safeTitle, safeBody, notifType],
+        );
+        await logAudit(
+          pool,
+          t.id,
+          'SYSTEM_NOTIFICATION',
+          'notification',
+          notifId,
+          `SA broadcast: ${safeTitle} (${notifType})`,
+          saId,
+          'Super Admin',
+        );
+        sent++;
+      } catch { /* skip tenants with constraint issues (e.g. test tenants) */ }
+    }
+    // Also queue for active on-prem licenses (delivered on next heartbeat / hard sync)
+    const licenses = (await pool.query(`SELECT id FROM onprem_licenses WHERE status = 'active'`)).rows as {
+      id: string;
+    }[];
+    let onpremSent = 0;
+    for (const lic of licenses) {
+      const notifId = uid('OPN');
+      await pool.query(
+        `INSERT INTO onprem_notifications (id, license_id, title, body, type, source, expires_at)
+         VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
+        [notifId, lic.id, safeTitle, safeBody, notifType],
+      );
+      onpremSent++;
+    }
+    if (onpremSent > 0) {
+      await pool.query(
+        `INSERT INTO audit_log (tenant_id, action, entity_type, entity_id, details, user_id, user_name, created_at)
+         VALUES (NULL,'SYSTEM_NOTIFICATION','onprem_notification',NULL,$1,$2,'Super Admin',NOW())`,
+        [`SA broadcast on-prem: ${safeTitle} (${notifType}) → ${onpremSent} license(s)`, saId || null],
+      );
+    }
+    logger.info('SA notification broadcast', {
+      sent,
+      onpremSent,
+      type: notifType,
+      title: safeTitle,
+      userId: saId,
+    });
+    res.json({ ok: true, sent, onpremSent });
   } catch (err) {
     return handleApiError(req, res, err);
   }

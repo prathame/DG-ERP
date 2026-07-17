@@ -867,6 +867,25 @@ export async function initSchema() {
     await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_igst NUMERIC(12,2) DEFAULT 0');
     await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS is_interstate BOOLEAN DEFAULT false');
 
+    // In-app notifications (Super Admin / control-panel pushes)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tenant_notifications (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'info',
+        source TEXT NOT NULL DEFAULT 'super_admin',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        read_at TIMESTAMPTZ,
+        expires_at TIMESTAMPTZ,
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_tn_tenant_unread ON tenant_notifications(tenant_id, read_at, created_at DESC)',
+    );
+
     // Invoice payments — partial/batch payments against standalone invoices
     await client.query(`
       CREATE TABLE IF NOT EXISTS invoice_payments (
@@ -941,6 +960,26 @@ export async function initSchema() {
     await client.query('ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_pushed_at TIMESTAMPTZ');
     await client.query('ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_applied_at TIMESTAMPTZ');
 
+    // SA → on-prem Bell messages (delivered on heartbeat / hard sync)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS onprem_notifications (
+        id TEXT PRIMARY KEY,
+        license_id TEXT NOT NULL REFERENCES onprem_licenses(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'info',
+        source TEXT NOT NULL DEFAULT 'super_admin',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        expires_at TIMESTAMPTZ,
+        delivered_at TIMESTAMPTZ
+      )
+    `);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_onprem_notif_pending
+       ON onprem_notifications(license_id, created_at)
+       WHERE delivered_at IS NULL`,
+    );
+
     // Mobile app (Capacitor) — Super Admin invite + force sync + device registry
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_invite_code TEXT`);
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_invite_expires_at TIMESTAMPTZ`);
@@ -966,6 +1005,28 @@ export async function initSchema() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_mobile_devices_tenant ON mobile_devices(tenant_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_mobile_devices_seen ON mobile_devices(last_seen)');
+
+    // Service-tenant mobile offline seats (on-prem-style device binding)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS mobile_seats (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        seat_key TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'active',
+        device_id TEXT,
+        device_platform TEXT,
+        app_version TEXT,
+        valid_until DATE,
+        last_seen TIMESTAMPTZ,
+        activated_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        created_by TEXT
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_mobile_seats_tenant ON mobile_seats(tenant_id)');
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_mobile_seats_device ON mobile_seats(tenant_id, device_id) WHERE device_id IS NOT NULL`,
+    );
 
     // Row Level Security (RLS) — DB-level tenant isolation safety net
     // RLS policies enforce tenant_id filtering at the DB level.
@@ -1002,9 +1063,11 @@ export async function initSchema() {
       'staff_members',
       'staff_payments',
       'standalone_invoices',
+      'tenant_notifications',
       'tenant_invoices',
       'tenant_stats',
       'mobile_devices',
+      'mobile_seats',
     ];
     for (const table of rlsTables) {
       await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);

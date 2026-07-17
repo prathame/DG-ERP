@@ -43,6 +43,7 @@ import payrollRouter from './routes/payroll';
 import expensesRouter from './routes/expenses';
 import gstApiRouter from './routes/gst-api';
 import invoicesRouter from './routes/invoices';
+import notificationsRouter from './routes/notifications';
 import { logger, requestContext, type RequestLogContext } from './utils/logger';
 import { logAuthEvent } from './utils/http-error';
 import { getCachedAuth, setCachedAuth } from './utils/authCache';
@@ -62,8 +63,11 @@ const PUBLIC_PATHS = [
   '/api/onprem/deactivate',
   '/api/onprem/provision',
   '/api/onprem/apply-settings',
+  '/api/onprem/apply-notifications',
   '/api/onprem/mark-applied',
+  '/api/onprem/mark-notifications-delivered',
   '/api/mobile/redeem-invite',
+  '/api/mobile/activate-seat',
   '/api/mobile/heartbeat',
 ];
 
@@ -531,6 +535,9 @@ export function createApp(): express.Application {
   app.use(invoicesRouter);
   app.use(chatbotRouter);
   app.use(billSettingsRouter);
+  // Before reports/accounts — those routers use router.use(blockVendors) and would
+  // intercept /api/notifications for Vendor users before this router runs.
+  app.use(notificationsRouter);
   app.use(reportsRouter);
   app.use(purchasesRouter);
   app.use(quotationsRouter);

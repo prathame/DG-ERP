@@ -28,9 +28,7 @@ let lastAppliedSettingsHash: string | null = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getIcon() {
-  return nativeImage.createFromPath(
-    path.join(__dirname, '../../public/icons/icon-192.svg')
-  );
+  return nativeImage.createFromPath(path.join(__dirname, '../../public/icons/icon-192.svg'));
 }
 
 async function startExpressServer(dbUrl: string): Promise<void> {
@@ -91,8 +89,10 @@ async function sendHeartbeat(): Promise<void> {
       }),
       signal: AbortSignal.timeout(10000),
     });
-    const data = await r.json() as Record<string, unknown>;
-    console.log(`[sync] heartbeat → ${CLOUD_API} status=${r.status} valid=${data.licenseValid} hasSettings=${!!(data.settings && typeof data.settings === 'object')}${data.error ? ` error=${data.error}` : ''}`);
+    const data = (await r.json()) as Record<string, unknown>;
+    console.log(
+      `[sync] heartbeat → ${CLOUD_API} status=${r.status} valid=${data.licenseValid} hasSettings=${!!(data.settings && typeof data.settings === 'object')}${data.error ? ` error=${data.error}` : ''}`,
+    );
 
     // C10 fix: never interpolate cloud data into executeJavaScript — use IPC instead
     if (data.licenseValid === false && data.licenseStatus) {
@@ -103,8 +103,13 @@ async function sendHeartbeat(): Promise<void> {
     if (data.forceUpdate) {
       mainWin?.webContents.send('update-available', { forced: true, url: `${CLOUD_API}/download` });
     } else if (data.updateAvailable) {
-      mainWin?.webContents.send('update-available', { forced: false, version: String(data.latestVersion || '').slice(0, 20) });
+      mainWin?.webContents.send('update-available', {
+        forced: false,
+        version: String(data.latestVersion || '').slice(0, 20),
+      });
     }
+
+    let shouldReload = false;
 
     // Apply any pushed settings (tab config, feature toggles) to local tenant
     if (data.settings && typeof data.settings === 'object' && licenseInfo) {
@@ -114,14 +119,15 @@ async function sendHeartbeat(): Promise<void> {
       const { forceSyncAt: _f, ...durable } = s;
       const settingsHash = JSON.stringify(durable);
       const alreadyApplied =
-        (forceAt && forceAt === lastAppliedForceSyncAt) ||
-        (!forceAt && settingsHash === lastAppliedSettingsHash);
+        (forceAt && forceAt === lastAppliedForceSyncAt) || (!forceAt && settingsHash === lastAppliedSettingsHash);
 
       if (alreadyApplied) {
         console.log('[sync] settings already applied — skip re-apply/reload');
       } else {
         const tc = (s.tabConfig || {}) as Record<string, { visible?: boolean }>;
-        const offTabs = Object.entries(tc).filter(([, v]) => v?.visible === false).map(([k]) => k);
+        const offTabs = Object.entries(tc)
+          .filter(([, v]) => v?.visible === false)
+          .map(([k]) => k);
         console.log(`[sync] applying settings from cloud… tabsOFF=[${offTabs.join(',')}] force=${!!forceAt}`);
         try {
           const applyRes = await fetch(`${LOCAL_API_URL}/api/onprem/apply-settings`, {
@@ -129,7 +135,7 @@ async function sendHeartbeat(): Promise<void> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ licenseKey: licenseInfo.licenseKey, settings: s }),
           });
-          const result = await applyRes.json() as { applied?: number; error?: string; ok?: boolean };
+          const result = (await applyRes.json()) as { applied?: number; error?: string; ok?: boolean };
           console.log(`[sync] apply-settings → ${applyRes.status}`, result);
           if (applyRes.ok) {
             lastAppliedForceSyncAt = forceAt;
@@ -138,7 +144,10 @@ async function sendHeartbeat(): Promise<void> {
               const markRes = await fetch(`${CLOUD_API}/api/onprem/mark-applied`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ licenseKey: licenseInfo.licenseKey }),
+                body: JSON.stringify({
+                  licenseKey: licenseInfo.licenseKey,
+                  machineId: getMachineId(),
+                }),
               });
               const markBody = await markRes.json().catch(() => ({}));
               console.log(`[sync] mark-applied → ${CLOUD_API} status=${markRes.status}`, markBody);
@@ -146,8 +155,7 @@ async function sendHeartbeat(): Promise<void> {
               console.error('[sync] mark-applied failed:', e);
             }
             if (result.applied && result.applied > 0) {
-              console.log('[sync] reloading UI');
-              mainWin?.webContents.reload();
+              shouldReload = true;
             }
           }
         } catch (err) {
@@ -156,6 +164,68 @@ async function sendHeartbeat(): Promise<void> {
       }
     } else {
       console.log('[sync] cloud returned no settings to apply');
+    }
+
+    // Pull SA Bell messages queued on cloud → local tenant_notifications
+    const pending = Array.isArray(data.pendingNotifications)
+      ? (data.pendingNotifications as {
+          id: string;
+          title: string;
+          body: string;
+          type?: string;
+          source?: string;
+          createdAt?: string;
+          expiresAt?: string | null;
+        }[])
+      : [];
+    if (pending.length > 0 && licenseInfo) {
+      console.log(`[sync] applying ${pending.length} pending notification(s) from cloud…`);
+      try {
+        const applyNotifRes = await fetch(`${LOCAL_API_URL}/api/onprem/apply-notifications`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ licenseKey: licenseInfo.licenseKey, notifications: pending }),
+        });
+        const applyNotifBody = (await applyNotifRes.json().catch(() => ({}))) as {
+          ok?: boolean;
+          inserted?: number;
+          applied?: number;
+          ids?: string[];
+        };
+        console.log(`[sync] apply-notifications → ${applyNotifRes.status}`, applyNotifBody);
+        if (applyNotifRes.ok && applyNotifBody.ids?.length) {
+          let markedOk = false;
+          try {
+            const markNotifRes = await fetch(`${CLOUD_API}/api/onprem/mark-notifications-delivered`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                licenseKey: licenseInfo.licenseKey,
+                machineId: getMachineId(),
+                ids: applyNotifBody.ids,
+              }),
+            });
+            const markNotifBody = (await markNotifRes.json().catch(() => ({}))) as { marked?: number };
+            console.log(
+              `[sync] mark-notifications-delivered → ${CLOUD_API} status=${markNotifRes.status}`,
+              markNotifBody,
+            );
+            markedOk = markNotifRes.ok;
+          } catch (e) {
+            console.error('[sync] mark-notifications-delivered failed:', e);
+          }
+          // Reload only for newly inserted rows after a successful cloud ack (avoids reload loops)
+          const inserted = applyNotifBody.inserted ?? applyNotifBody.applied ?? 0;
+          if (markedOk && inserted > 0) shouldReload = true;
+        }
+      } catch (err) {
+        console.error('[sync] apply-notifications failed:', err);
+      }
+    }
+
+    if (shouldReload) {
+      console.log('[sync] reloading UI');
+      mainWin?.webContents.reload();
     }
 
     // Save validUntil locally so offline expiry check works
@@ -212,13 +282,14 @@ ipcMain.handle('activate-license', async (_event, licenseKey: string) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        licenseKey, machineId: getMachineId(),
+        licenseKey,
+        machineId: getMachineId(),
         osInfo: `${os.platform()} ${os.release()}`,
         appVersion: app.getVersion(),
       }),
       signal: AbortSignal.timeout(15000),
     });
-    const data = await r.json() as Record<string, unknown>;
+    const data = (await r.json()) as Record<string, unknown>;
     if (!r.ok) return { valid: false, error: (data.error as string) || 'Invalid license' };
     return { valid: true, ...data };
   } catch (e) {
@@ -248,7 +319,7 @@ ipcMain.handle('complete-setup', async (_event, data: LicenseData & { adminPassw
     }),
   });
   if (!r.ok) {
-    const errBody = await r.json().catch(() => ({})) as Record<string, unknown>;
+    const errBody = (await r.json().catch(() => ({}))) as Record<string, unknown>;
     throw new Error(`Provisioning failed (${r.status}): ${errBody.error || 'unknown'}`);
   }
 
@@ -304,10 +375,14 @@ async function openMainWindow(slug: string): Promise<void> {
       if (u.protocol === 'https:' || u.protocol === 'http:') {
         shell.openExternal(url);
       }
-    } catch { /* ignore invalid URLs */ }
+    } catch {
+      /* ignore invalid URLs */
+    }
     return { action: 'deny' };
   });
-  mainWin.on('closed', () => { mainWin = null; });
+  mainWin.on('closed', () => {
+    mainWin = null;
+  });
 }
 
 // IPC: UI requests connection status

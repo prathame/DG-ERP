@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/super-admin/OnPremView.tsx` is part of Dhandho (DG-ERP). Approximate size: **837 lines**.
+`src/features/super-admin/OnPremView.tsx` is part of Dhandho (DG-ERP). Approximate size: **1255 lines**.
 
 ## Business value
 
@@ -32,7 +32,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (17 detected)
+## Functions (19 detected)
 
 ### Function: timeAgo
 
@@ -184,6 +184,21 @@ handleUpdate(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: d
+
+```ts
+d(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/super-admin/OnPremView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `d` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 ### Function: buildMergedSettings
 
 ```ts
@@ -289,6 +304,21 @@ val(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: releases
+
+```ts
+releases(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/super-admin/OnPremView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `releases` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 
 ## Execution flow
 
@@ -305,7 +335,7 @@ rg -n "OnPremView" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **837**. Large view/route files are refactor candidates.
+Line count **1255**. Large view/route files are refactor candidates.
 
 ## Security impact
 

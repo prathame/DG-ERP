@@ -320,6 +320,16 @@ router.delete('/api/invoice-finance/payments/:id', blockVendors, async (req: Aut
     }
 
     await client.query('COMMIT');
+    await logAudit(
+      pool,
+      tenantId,
+      'Invoice Payment Deleted',
+      'invoice_payment',
+      req.params.id as string,
+      `₹${Number(payment.amount).toLocaleString()} removed from invoice ${payment.invoice_id}`,
+      req.user?.userId,
+      req.user?.name,
+    );
     res.status(204).send();
   } catch (err) {
     await client.query('ROLLBACK');

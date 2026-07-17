@@ -1,10 +1,10 @@
 ---
-sidebar_label: "api.ts"
-title: "File src/api.ts"
-description: "Deep walkthrough of src/api.ts in DG-ERP / Dhandho"
+sidebar_label: "http-onprem-notifications.test.ts"
+title: "File tests/api/http-onprem-notifications.test.ts"
+description: "Deep walkthrough of tests/api/http-onprem-notifications.test.ts in DG-ERP / Dhandho"
 ---
 
-# File walkthrough: `src/api.ts`
+# File walkthrough: `tests/api/http-onprem-notifications.test.ts`
 
 :::info Ownership context
 Auto-generated from the live source tree so **no file is invisible** during onboarding.
@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/api.ts` is part of Dhandho (DG-ERP). Approximate size: **1338 lines**.
+`tests/api/http-onprem-notifications.test.ts` is part of Dhandho (DG-ERP). Approximate size: **189 lines**.
 
 ## Business value
 
@@ -20,77 +20,60 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 ## Imports
 
-- `./lib/session`
-- `./platforms/shared`
-- `./platforms/mobile/online/isMobileClient`
-- `./platforms/mobile/offline`
-- `./platforms/mobile/online/seatStorage`
-- `./lib/logger`
+- `vitest`
+- `../helpers`
+- `../http`
+- `../../server/utils/helpers`
 
 ## Exports and symbols
 
-**Exported names:** `DistributionRecord`, `DistributionBatch`, `DistributionBatchItem`, `DistributionBatchDetail`, `SaleRecord`, `ReplacementRecord`, `RewardRule`, `SaleBillData`, `DistributionBillData`, `invalidateCache`, `fetchApi`, `api`
+**Exported names:** _none detected_
 
 **Classes:** _none_
 
-## Functions (4 detected)
+## Functions (3 detected)
 
-### Function: offlineCacheKey
+### Function: saToken
 
 ```ts
-offlineCacheKey(path: string, tenantId: string | null)
+saToken(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/api.ts`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-onprem-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `offlineCacheKey` before deleting. |
+| What breaks if removed | Search the repo for `saToken` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: invalidateCache
+### Function: pending
 
 ```ts
-invalidateCache(prefix?: string)
+pending(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/api.ts`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-onprem-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `invalidateCache` before deleting. |
+| What breaks if removed | Search the repo for `pending` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: queueMutation
+### Function: row
 
 ```ts
-queueMutation(...)
+row(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/api.ts`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-onprem-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `queueMutation` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
-### Function: msg
-
-```ts
-msg(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `src/api.ts`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `msg` before deleting. |
+| What breaks if removed | Search the repo for `row` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -106,12 +89,12 @@ msg(...)
 
 ```bash
 # From DG-ERP repo root
-rg -n "api" --glob '!node_modules' -g '*.ts' -g '*.tsx'
+rg -n "http-onprem-notifications.test" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 ```
 
 ## Performance impact
 
-Line count **1338**. Large view/route files are refactor candidates.
+Line count **189**. Large view/route files are refactor candidates.
 
 ## Security impact
 
@@ -151,11 +134,11 @@ In-memory caches (authCache, GET Map) do **not** share across instances.
 
 ## Hands-on
 
-1. Open `src/api.ts` in the IDE.
+1. Open `tests/api/http-onprem-notifications.test.ts` in the IDE.
 2. Breakpoint the largest exported function.
 3. Trigger via UI or supertest.
 4. Write one sentence on why this file exists in the product narrative.
 
 ---
 
-*Generated by scripts/generate-file-deepdives.mjs · slug: `src__api`*
+*Generated by scripts/generate-file-deepdives.mjs · slug: `tests__api__http-onprem-notifications.test`*

@@ -24,7 +24,6 @@ import {
   FileText,
   ShoppingBag,
   BarChart3,
-  Bell,
   Search,
   ReceiptIndianRupee,
   ChevronDown,
@@ -32,7 +31,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { Tab } from './types';
-import { ToastProvider, LoadingSpinner } from './components/ui';
+import { ToastProvider, LoadingSpinner, NotificationCenter } from './components/ui';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { useTranslation } from './i18n';
 import { AppShutterIntro } from './components/layout/AppShutterIntro';
@@ -238,7 +237,6 @@ export default function App() {
   };
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [lowStockCount, setLowStockCount] = useState(0);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     try {
       const s = localStorage.getItem('dg_nav_collapsed');
@@ -286,10 +284,6 @@ export default function App() {
           session.setUser(merged);
           setUser(merged);
         })
-        .catch(() => {});
-      api.products
-        .lowStockCount(10)
-        .then(r => setLowStockCount(r.count))
         .catch(() => {});
     }
   }, []);
@@ -874,19 +868,12 @@ export default function App() {
                   {(userConfig?.planName as string) || 'Standard'} Plan
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => canAccess('inventory') && setActiveTab('inventory')}
-                className="relative p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-xl transition-colors text-gray-500 hover:text-gray-700"
-                aria-label="Low stock alerts"
-              >
-                <Bell size={20} />
-                {lowStockCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                    {lowStockCount > 9 ? '9+' : lowStockCount}
-                  </span>
-                )}
-              </button>
+              <NotificationCenter
+                onNavigate={tab => {
+                  if (canAccess(tab)) setActiveTab(tab as Tab);
+                }}
+                canAccessTab={canAccess}
+              />
               <div className="relative flex items-center gap-2 sm:gap-3">
                 <button
                   type="button"

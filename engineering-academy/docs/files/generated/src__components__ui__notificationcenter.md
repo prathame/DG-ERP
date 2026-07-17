@@ -1,10 +1,10 @@
 ---
-sidebar_label: "QuotationsView.tsx"
-title: "File src/features/quotations/QuotationsView.tsx"
-description: "Deep walkthrough of src/features/quotations/QuotationsView.tsx in DG-ERP / Dhandho"
+sidebar_label: "NotificationCenter.tsx"
+title: "File src/components/ui/NotificationCenter.tsx"
+description: "Deep walkthrough of src/components/ui/NotificationCenter.tsx in DG-ERP / Dhandho"
 ---
 
-# File walkthrough: `src/features/quotations/QuotationsView.tsx`
+# File walkthrough: `src/components/ui/NotificationCenter.tsx`
 
 :::info Ownership context
 Auto-generated from the live source tree so **no file is invisible** during onboarding.
@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/quotations/QuotationsView.tsx` is part of Dhandho (DG-ERP). Approximate size: **1062 lines**.
+`src/components/ui/NotificationCenter.tsx` is part of Dhandho (DG-ERP). Approximate size: **325 lines**.
 
 ## Business value
 
@@ -21,246 +21,240 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 ## Imports
 
 - `react`
-- `motion/react`
 - `lucide-react`
 - `../../lib/utils`
 - `../../api`
-- `../../types`
-- `../../components/ui`
-- `../../lib/useEscapeKey`
-- `../../hooks/useConfirm`
 - `../../lib/session`
-- `../../lib/billTemplates`
 
 ## Exports and symbols
 
-**Exported names:** `QuotationsView`
+**Exported names:** `NotificationItem`, `NotificationCenter`
 
 **Classes:** _none_
 
 ## Functions (15 detected)
 
-### Function: QuotationsView
+### Function: storageScope
 
 ```ts
-QuotationsView()
+storageScope()
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `QuotationsView` before deleting. |
+| What breaks if removed | Search the repo for `storageScope` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: load
+### Function: loadDismissed
 
 ```ts
-load(...)
+loadDismissed()
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `load` before deleting. |
+| What breaks if removed | Search the repo for `loadDismissed` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: printQuotation
+### Function: saveDismissed
 
 ```ts
-printQuotation(...)
+saveDismissed(ids: Set<string>)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `printQuotation` before deleting. |
+| What breaks if removed | Search the repo for `saveDismissed` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: bs
+### Function: isMuted
 
 ```ts
-bs(...)
+isMuted()
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `bs` before deleting. |
+| What breaks if removed | Search the repo for `isMuted` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: resolveQuoteRowPrice
+### Function: setMuted
 
 ```ts
-resolveQuoteRowPrice(...)
+setMuted(muted: boolean)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `resolveQuoteRowPrice` before deleting. |
+| What breaks if removed | Search the repo for `setMuted` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: token
+### Function: playSoftChime
 
 ```ts
-token(...)
+playSoftChime()
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `token` before deleting. |
+| What breaks if removed | Search the repo for `playSoftChime` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: lineAmounts
+### Function: highFingerprint
 
 ```ts
-lineAmounts(...)
+highFingerprint(items: NotificationItem[])
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `lineAmounts` before deleting. |
+| What breaks if removed | Search the repo for `highFingerprint` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: resetForm
+### Function: NotificationCenter
 
 ```ts
-resetForm(...)
+NotificationCenter({ onNavigate, canAccessTab }: Props)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `resetForm` before deleting. |
+| What breaks if removed | Search the repo for `NotificationCenter` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: openEditDraft
+### Function: u
 
 ```ts
-openEditDraft(...)
+u(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `openEditDraft` before deleting. |
+| What breaks if removed | Search the repo for `u` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: handleCreate
+### Function: onDoc
 
 ```ts
-handleCreate(...)
+onDoc(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `handleCreate` before deleting. |
+| What breaks if removed | Search the repo for `onDoc` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: openConvert
+### Function: markAdminRead
 
 ```ts
-openConvert(...)
+markAdminRead(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `openConvert` before deleting. |
+| What breaks if removed | Search the repo for `markAdminRead` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: handleConvertSubmit
+### Function: dismissDigest
 
 ```ts
-handleConvertSubmit(...)
+dismissDigest(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `handleConvertSubmit` before deleting. |
+| What breaks if removed | Search the repo for `dismissDigest` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: handleStatusChange
+### Function: markAllRead
 
 ```ts
-handleStatusChange(...)
+markAllRead(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `handleStatusChange` before deleting. |
+| What breaks if removed | Search the repo for `markAllRead` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: handleDelete
+### Function: toggleMute
 
 ```ts
-handleDelete(...)
+toggleMute(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `handleDelete` before deleting. |
+| What breaks if removed | Search the repo for `toggleMute` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: formatQuotationText
+### Function: onClickItem
 
 ```ts
-formatQuotationText(...)
+onClickItem(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `src/features/quotations/QuotationsView.tsx`. Open the source and read the body. |
+| Purpose | Symbol in `src/components/ui/NotificationCenter.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `formatQuotationText` before deleting. |
+| What breaks if removed | Search the repo for `onClickItem` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -276,12 +270,12 @@ formatQuotationText(...)
 
 ```bash
 # From DG-ERP repo root
-rg -n "QuotationsView" --glob '!node_modules' -g '*.ts' -g '*.tsx'
+rg -n "NotificationCenter" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 ```
 
 ## Performance impact
 
-Line count **1062**. Large view/route files are refactor candidates.
+Line count **325**. Large view/route files are refactor candidates.
 
 ## Security impact
 
@@ -321,11 +315,11 @@ In-memory caches (authCache, GET Map) do **not** share across instances.
 
 ## Hands-on
 
-1. Open `src/features/quotations/QuotationsView.tsx` in the IDE.
+1. Open `src/components/ui/NotificationCenter.tsx` in the IDE.
 2. Breakpoint the largest exported function.
 3. Trigger via UI or supertest.
 4. Write one sentence on why this file exists in the product narrative.
 
 ---
 
-*Generated by scripts/generate-file-deepdives.mjs · slug: `src__features__quotations__quotationsview`*
+*Generated by scripts/generate-file-deepdives.mjs · slug: `src__components__ui__notificationcenter`*

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/platforms/mobile/online/MobileOnboarding.tsx` is part of Dhandho (DG-ERP). Approximate size: **186 lines**.
+`src/platforms/mobile/online/MobileOnboarding.tsx` is part of Dhandho (DG-ERP). Approximate size: **226 lines**.
 
 ## Business value
 
@@ -26,6 +26,8 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../../../api`
 - `../../shared/apiBase`
 - `./companyStorage`
+- `./seatStorage`
+- `./MobileSeatActivation`
 
 ## Exports and symbols
 
@@ -33,7 +35,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (4 detected)
+## Functions (5 detected)
 
 ### Function: normalizeSlug
 
@@ -80,6 +82,21 @@ MobileOnboarding({ initialSlug = '', onComplete }: Props)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: finish
+
+```ts
+finish(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/platforms/mobile/online/MobileOnboarding.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `finish` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 ### Function: continueOnboard
 
 ```ts
@@ -111,7 +128,7 @@ rg -n "MobileOnboarding" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **186**. Large view/route files are refactor candidates.
+Line count **226**. Large view/route files are refactor candidates.
 
 ## Security impact
 

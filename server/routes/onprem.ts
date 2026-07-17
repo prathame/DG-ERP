@@ -10,7 +10,7 @@ const onpremLimiter = rateLimit({
   legacyHeaders: false,
 });
 import { pool } from '../pg-db';
-import { uid, logAudit } from '../utils/helpers';
+import { uid } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { logger } from '../utils/logger';
 import { superAdminMiddleware } from '../middleware/auth';
@@ -111,6 +111,46 @@ router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
       ? Math.ceil((new Date(lic.valid_until as string).getTime() - Date.now()) / 86400000)
       : null;
 
+    // Pending SA Bell messages for this license (delivered on next apply)
+    let pendingNotifications: {
+      id: string;
+      title: string;
+      body: string;
+      type: string;
+      source: string;
+      createdAt: string;
+      expiresAt: string | null;
+    }[] = [];
+    if (isValid && isMachineMatch) {
+      const pending = (
+        await pool.query(
+          `SELECT id, title, body, type, source, created_at, expires_at
+           FROM onprem_notifications
+           WHERE license_id = $1
+             AND delivered_at IS NULL
+             AND (expires_at IS NULL OR expires_at > NOW())
+           ORDER BY created_at ASC
+           LIMIT 20`,
+          [lic.id],
+        )
+      ).rows as Record<string, unknown>[];
+      pendingNotifications = pending.map(r => ({
+        id: String(r.id),
+        title: String(r.title),
+        body: String(r.body),
+        type: String(r.type || 'info'),
+        source: String(r.source || 'super_admin'),
+        createdAt: r.created_at ? new Date(r.created_at as string).toISOString() : new Date().toISOString(),
+        expiresAt: r.expires_at ? new Date(r.expires_at as string).toISOString() : null,
+      }));
+      if (pendingNotifications.length > 0) {
+        logger.info('On-prem heartbeat pending notifications', {
+          licenseId: lic.id,
+          pending: pendingNotifications.length,
+        });
+      }
+    }
+
     res.json({
       licenseValid: isValid && isMachineMatch,
       licenseStatus: lic.status,
@@ -120,6 +160,7 @@ router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
       latestVersion: latestVersion || null,
       forceUpdate: Boolean(forceUpdate),
       settings: lic.settings || {},
+      pendingNotifications,
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -156,8 +197,9 @@ router.post('/api/onprem/mark-applied', onpremLimiter, async (req, res) => {
     if (!lic || lic.status !== 'active') {
       return res.status(404).json({ error: 'Invalid or inactive license' });
     }
-    if (body.machineId && lic.machine_id && body.machineId !== lic.machine_id) {
-      return res.status(403).json({ error: 'Machine mismatch' });
+    if (lic.machine_id) {
+      if (!body.machineId) return res.status(403).json({ error: 'machineId required' });
+      if (body.machineId !== lic.machine_id) return res.status(403).json({ error: 'Machine mismatch' });
     }
     // Clear forceSyncAt so the device does not re-apply/reload on every heartbeat
     const updated = await pool.query(
@@ -213,13 +255,131 @@ router.get('/api/onprem/tab-config', async (req, res) => {
   }
 });
 
+function assertLocalOnpremOnly(
+  req: { socket: { remoteAddress?: string } },
+  res: {
+    status: (n: number) => { json: (b: unknown) => unknown };
+  },
+): boolean {
+  const ip = req.socket.remoteAddress || '';
+  if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip)) {
+    res.status(403).json({ error: 'Localhost only' });
+    return false;
+  }
+  const isTest = process.env.VITEST === 'true' || process.env.NODE_ENV === 'test';
+  if (process.env.DEPLOYMENT_MODE !== 'onprem' && !isTest) {
+    res.status(403).json({ error: 'On-prem only' });
+    return false;
+  }
+  return true;
+}
+
+// ── Apply SA notifications from cloud into local Bell feed ───────────────────
+router.post('/api/onprem/apply-notifications', async (req, res) => {
+  try {
+    if (!assertLocalOnpremOnly(req, res)) return;
+    const { licenseKey, notifications } = req.body as {
+      licenseKey?: string;
+      notifications?: {
+        id: string;
+        title: string;
+        body: string;
+        type?: string;
+        source?: string;
+        createdAt?: string;
+        expiresAt?: string | null;
+      }[];
+    };
+    if (!licenseKey || typeof licenseKey !== 'string' || licenseKey.length < 8) {
+      return res.status(400).json({ error: 'licenseKey required' });
+    }
+    if (!Array.isArray(notifications) || notifications.length === 0) {
+      return res.json({ ok: true, inserted: 0, ids: [] as string[] });
+    }
+
+    const tenant = (await pool.query("SELECT id FROM tenants WHERE slug != 'OWNER' LIMIT 1")).rows[0] as
+      { id: string } | undefined;
+    if (!tenant) return res.json({ ok: true, skipped: true, inserted: 0, ids: [] as string[] });
+
+    const ackIds: string[] = [];
+    let inserted = 0;
+    for (const n of notifications.slice(0, 20)) {
+      if (!n?.id || !n?.title || !n?.body) continue;
+      if (n.expiresAt && new Date(n.expiresAt).getTime() < Date.now()) continue;
+      const notifType = ['info', 'warning', 'success'].includes(String(n.type)) ? String(n.type) : 'info';
+      const id = String(n.id).slice(0, 64);
+      const result = await pool.query(
+        `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, created_at, expires_at)
+         VALUES ($1,$2,$3,$4,$5,$6,COALESCE($7::timestamptz, NOW()),$8)
+         ON CONFLICT (id, tenant_id) DO NOTHING
+         RETURNING id`,
+        [
+          id,
+          tenant.id,
+          String(n.title).slice(0, 200),
+          String(n.body).slice(0, 2000),
+          notifType,
+          String(n.source || 'super_admin').slice(0, 64),
+          n.createdAt || null,
+          n.expiresAt || null,
+        ],
+      );
+      ackIds.push(id);
+      if (result.rows[0]) inserted++;
+    }
+    logger.info('On-prem notifications applied locally', {
+      tenantId: tenant.id,
+      inserted,
+      ack: ackIds.length,
+    });
+    res.json({ ok: true, inserted, applied: inserted, ids: ackIds });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Cloud: mark on-prem notifications delivered after local apply succeeds. */
+router.post('/api/onprem/mark-notifications-delivered', onpremLimiter, async (req, res) => {
+  try {
+    const { licenseKey, machineId, ids } = req.body as {
+      licenseKey?: string;
+      machineId?: string;
+      ids?: string[];
+    };
+    if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });
+    if (!Array.isArray(ids) || ids.length === 0) return res.json({ ok: true, marked: 0 });
+
+    const lic = (
+      await pool.query(`SELECT id, status, machine_id FROM onprem_licenses WHERE license_key = $1`, [licenseKey])
+    ).rows[0] as { id: string; status: string; machine_id: string | null } | undefined;
+    if (!lic || lic.status !== 'active') {
+      return res.status(404).json({ error: 'Invalid or inactive license' });
+    }
+    if (lic.machine_id) {
+      if (!machineId) return res.status(403).json({ error: 'machineId required' });
+      if (machineId !== lic.machine_id) return res.status(403).json({ error: 'Machine mismatch' });
+    }
+
+    const safeIds = ids.map(String).slice(0, 50);
+    const result = await pool.query(
+      `UPDATE onprem_notifications SET delivered_at = NOW()
+       WHERE license_id = $1 AND id = ANY($2::text[]) AND delivered_at IS NULL`,
+      [lic.id, safeIds],
+    );
+    logger.info('On-prem notifications marked delivered', {
+      licenseId: lic.id,
+      marked: result.rowCount ?? 0,
+    });
+    res.json({ ok: true, marked: result.rowCount ?? 0 });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
 // ── Apply settings pushed from cloud (tab config, feature toggles) ────────────
 router.post('/api/onprem/apply-settings', async (req, res) => {
   try {
-    // Use socket peer address — ignore X-Forwarded-For (trust proxy bypass)
-    const ip = req.socket.remoteAddress || '';
-    if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip))
-      return res.status(403).json({ error: 'Localhost only' });
+    if (!assertLocalOnpremOnly(req, res)) return;
     const { licenseKey, settings } = req.body as { licenseKey: string; settings: Record<string, unknown> };
 
     // Localhost-only endpoint. On-prem local DB usually has no onprem_licenses row
@@ -493,6 +653,46 @@ router.post('/api/super-admin/onprem', superAdminMiddleware, async (req, res) =>
       ],
     );
     res.status(201).json({ id, licenseKey, companyName, businessType, validUntil });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Queue an in-app Bell message for an on-prem license (delivered on heartbeat / hard sync). */
+router.post('/api/super-admin/onprem/:id/notify', superAdminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, message, type = 'info' } = req.body;
+    if (!title || !message) return res.status(400).json({ error: 'title and message required' });
+    const notifType = ['info', 'warning', 'success'].includes(type) ? type : 'info';
+    const lic = (await pool.query('SELECT id, company_name FROM onprem_licenses WHERE id = $1', [id])).rows[0] as
+      { id: string; company_name: string } | undefined;
+    if (!lic) return res.status(404).json({ error: 'License not found' });
+
+    const notifId = uid('OPN');
+    const safeTitle = String(title).slice(0, 200);
+    await pool.query(
+      `INSERT INTO onprem_notifications (id, license_id, title, body, type, source, expires_at)
+       VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
+      [notifId, id, safeTitle, String(message).slice(0, 2000), notifType],
+    );
+    // Platform-level audit (no cloud tenant_id for on-prem licenses)
+    await pool.query(
+      `INSERT INTO audit_log (tenant_id, action, entity_type, entity_id, details, user_id, user_name, created_at)
+       VALUES (NULL,'SYSTEM_NOTIFICATION','onprem_notification',$1,$2,$3,'Super Admin',NOW())`,
+      [
+        notifId,
+        `On-prem notify ${lic.company_name}: ${safeTitle} (${notifType})`,
+        (req as { user?: { userId?: string } }).user?.userId || null,
+      ],
+    );
+    logger.info('SA on-prem notification queued', {
+      licenseId: id,
+      notifId,
+      type: notifType,
+      company: lic.company_name,
+    });
+    res.json({ ok: true, id: notifId });
   } catch (err) {
     return handleApiError(req, res, err);
   }

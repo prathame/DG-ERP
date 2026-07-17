@@ -356,6 +356,16 @@ router.put('/api/quotations/:id/status', blockVendors, async (req: AuthRequest, 
       tenantId,
     ]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Quotation not found' });
+    await logAudit(
+      pool,
+      tenantId,
+      'Quotation Status Changed',
+      'quotation',
+      req.params.id as string,
+      `${current.status} → ${status}`,
+      req.user?.userId,
+      req.user?.name,
+    );
     res.json({ ok: true, status });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -366,13 +376,24 @@ router.delete('/api/quotations/:id', blockVendors, async (req: AuthRequest, res)
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    const result = await pool.query('DELETE FROM quotations WHERE id = $1 AND tenant_id = $2 AND status IN ($3, $4)', [
-      req.params.id,
+    const existing = (
+      await pool.query(
+        'SELECT id, quotation_number, status FROM quotations WHERE id = $1 AND tenant_id = $2 AND status IN ($3, $4)',
+        [req.params.id, tenantId, 'Draft', 'Rejected'],
+      )
+    ).rows[0] as { id: string; quotation_number: string; status: string } | undefined;
+    if (!existing) return res.status(400).json({ error: 'Can only delete Draft or Rejected quotations' });
+    await pool.query('DELETE FROM quotations WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
+    await logAudit(
+      pool,
       tenantId,
-      'Draft',
-      'Rejected',
-    ]);
-    if (result.rowCount === 0) return res.status(400).json({ error: 'Can only delete Draft or Rejected quotations' });
+      'Quotation Deleted',
+      'quotation',
+      req.params.id as string,
+      `${existing.quotation_number} (${existing.status})`,
+      req.user?.userId,
+      req.user?.name,
+    );
     res.json({ ok: true });
   } catch (err) {
     return handleApiError(req, res, err);
