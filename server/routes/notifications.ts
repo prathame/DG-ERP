@@ -3,6 +3,8 @@ import { pool } from '../pg-db';
 import { AuthRequest } from '../middleware/auth';
 import { getAccessLevel, type AccessLevel } from '../middleware/permissions';
 import { handleApiError } from '../utils/http-error';
+import { logger } from '../utils/logger';
+import { logAudit } from '../utils/helpers';
 
 const router = Router();
 
@@ -320,17 +322,24 @@ router.post('/api/notifications/:id/read', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const notifId = req.params.id as string;
     const result = await pool.query(
       `UPDATE tenant_notifications SET read_at = NOW()
        WHERE id = $1 AND tenant_id = $2 AND read_at IS NULL`,
-      [req.params.id, tenantId],
+      [notifId, tenantId],
     );
     if (result.rowCount === 0) {
       const exists = await pool.query('SELECT id FROM tenant_notifications WHERE id = $1 AND tenant_id = $2', [
-        req.params.id,
+        notifId,
         tenantId,
       ]);
       if (exists.rowCount === 0) return res.status(404).json({ error: 'Notification not found' });
+    } else {
+      logger.info('Notification marked read', {
+        tenantId,
+        notifId,
+        userId: req.user?.userId,
+      });
     }
     res.json({ ok: true });
   } catch (err) {
@@ -342,12 +351,26 @@ router.post('/api/notifications/read-all', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
-    await pool.query(
+    const result = await pool.query(
       `UPDATE tenant_notifications SET read_at = NOW()
        WHERE tenant_id = $1 AND read_at IS NULL`,
       [tenantId],
     );
-    res.json({ ok: true });
+    const marked = result.rowCount ?? 0;
+    if (marked > 0) {
+      await logAudit(
+        pool,
+        tenantId,
+        'UPDATE',
+        'notification',
+        undefined,
+        `Marked ${marked} notification(s) read`,
+        req.user?.userId,
+        req.user?.name,
+      );
+      logger.info('Notifications read-all', { tenantId, marked, userId: req.user?.userId });
+    }
+    res.json({ ok: true, marked });
   } catch (err) {
     return handleApiError(req, res, err);
   }

@@ -1331,16 +1331,24 @@ router.post('/api/super-admin/tenants/:id/notify', superAdminMiddleware, async (
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
     const notifId = uid('TN');
+    const safeTitle = String(title).slice(0, 200);
     await pool.query(
       `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, expires_at)
        VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
-      [notifId, id, String(title).slice(0, 200), String(message).slice(0, 2000), notifType],
+      [notifId, id, safeTitle, String(message).slice(0, 2000), notifType],
     );
-    await pool.query(
-      `INSERT INTO audit_log (tenant_id, action, entity_type, entity_id, details, user_id, user_name, created_at)
-       VALUES ($1,'SYSTEM_NOTIFICATION','notification',$2,$3,'SA1','Super Admin',NOW())`,
-      [id, notifId, JSON.stringify({ title, message, type: notifType })],
+    const saId = (req as AuthRequest).user?.userId;
+    await logAudit(
+      pool,
+      id,
+      'SYSTEM_NOTIFICATION',
+      'notification',
+      notifId,
+      `SA notify: ${safeTitle} (${notifType})`,
+      saId,
+      'Super Admin',
     );
+    logger.info('SA tenant notification sent', { tenantId: id, notifId, type: notifType, userId: saId });
     res.json({ ok: true, id: notifId });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -1355,16 +1363,30 @@ router.post('/api/super-admin/notifications/broadcast', superAdminMiddleware, as
     const notifType = ['info', 'warning', 'success'].includes(type) ? type : 'info';
     const tenants = (await pool.query(`SELECT id FROM tenants WHERE COALESCE(status, 'active') IN ('active', 'trial')`))
       .rows as { id: string }[];
+    const saId = (req as AuthRequest).user?.userId;
+    const safeTitle = String(title).slice(0, 200);
+    const safeBody = String(message).slice(0, 2000);
     let sent = 0;
     for (const t of tenants) {
       const notifId = uid('TN');
       await pool.query(
         `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, expires_at)
          VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
-        [notifId, t.id, String(title).slice(0, 200), String(message).slice(0, 2000), notifType],
+        [notifId, t.id, safeTitle, safeBody, notifType],
+      );
+      await logAudit(
+        pool,
+        t.id,
+        'SYSTEM_NOTIFICATION',
+        'notification',
+        notifId,
+        `SA broadcast: ${safeTitle} (${notifType})`,
+        saId,
+        'Super Admin',
       );
       sent++;
     }
+    logger.info('SA notification broadcast', { sent, type: notifType, title: safeTitle, userId: saId });
     res.json({ ok: true, sent });
   } catch (err) {
     return handleApiError(req, res, err);
