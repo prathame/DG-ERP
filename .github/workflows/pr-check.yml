@@ -35,11 +35,7 @@ jobs:
         run: npm ci
       - name: Run tests with coverage
         run: npx vitest run --coverage
-      - name: Enforce coverage threshold (50% minimum)
-        run: |
-          STMTS=$(npx vitest run --coverage --reporter=json 2>/dev/null | grep -o '"pct":[0-9.]*' | head -1 | grep -o '[0-9.]*')
-          echo "Statement coverage: ${STMTS}%"
-          awk -v pct="${STMTS:-0}" 'BEGIN { if (pct+0 < 50) { print "FAIL: Coverage " pct "% < 50%"; exit 1 } else print "PASS: Coverage " pct "%" }'
+      # Coverage floors are enforced by vitest.config.ts thresholds (90% stmts/funcs/lines).
 
   quality:
     name: Code Quality

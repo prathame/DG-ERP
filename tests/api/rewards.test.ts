@@ -281,7 +281,7 @@ describe('Rewards', () => {
       )).rows[0].total_reward_points;
 
       // Simulates the route logic: earnVendorId is set, but type is not 'Earned'
-      const type = 'Adjustment';
+      const type: string = 'Adjustment';
       const earnVendorId = 'V-RWD-2';
       if (earnVendorId && type === 'Earned') {
         // would update — won't reach here
@@ -489,8 +489,8 @@ describe('Rewards', () => {
       // Route: oldDelta = +oldPoints, newDelta = -newPoints, adjust = newDelta - oldDelta
       const oldPoints = 200;
       const newPoints = 100;
-      const oldType = 'Earned';
-      const newType = 'Redeemed';
+      const oldType: string = 'Earned';
+      const newType: string = 'Redeemed';
       const oldDelta = oldType === 'Redeemed' ? -oldPoints : oldType === 'Earned' ? oldPoints : 0;
       const newDelta = newType === 'Redeemed' ? -newPoints : newType === 'Earned' ? newPoints : 0;
       const adjust = newDelta - oldDelta;
@@ -501,8 +501,8 @@ describe('Rewards', () => {
     });
 
     it('no vendor adjustment when vendorId is null', () => {
-      const adjust = -50;
-      const vendorId = null;
+      const adjust: number = -50;
+      const vendorId: string | null = null;
       // Route: if (adjust !== 0 && vendorId) — won't run
       expect(adjust !== 0 && vendorId !== null).toBe(false);
     });
@@ -579,15 +579,15 @@ describe('Rewards', () => {
     });
 
     it('deleting Redeemed reward adds back to vendor (reverse = +pts)', () => {
-      const rType = 'Redeemed';
+      const rType: string = 'Redeemed';
       const pts = 50;
       const reverse = rType === 'Redeemed' ? pts : rType === 'Earned' ? -pts : 0;
       expect(reverse).toBe(50);
     });
 
     it('no vendor update when vendorId null on delete', () => {
-      const reverse = -100;
-      const vendorId = null;
+      const reverse: number = -100;
+      const vendorId: string | null = null;
       expect(reverse !== 0 && vendorId !== null).toBe(false);
     });
   });
@@ -729,16 +729,17 @@ describe('Rewards', () => {
 
     it('blockVendors rejects role=Vendor', () => {
       // Simulate blockVendors middleware logic
-      const role = 'Vendor';
+      const role: string = 'Vendor';
       const blocked = role === 'Vendor';
       expect(blocked).toBe(true);
       // Non-vendor passes
-      expect('Admin' === 'Vendor').toBe(false);
+      const adminRole: string = 'Admin';
+      expect(adminRole === 'Vendor').toBe(false);
     });
 
     it('vendorScopeId returns null for non-vendor role', () => {
       // vendorScopeId: if role !== 'Vendor' return null
-      const role = 'Admin';
+      const role: string = 'Admin';
       const scopeId = role !== 'Vendor' ? null : 'some-vendor-id';
       expect(scopeId).toBeNull();
     });
@@ -746,14 +747,14 @@ describe('Rewards', () => {
     it('vendor role with no linked vendorId returns 403 on GET /rewards', () => {
       // Route: jwtVendorId === null && req.user?.role === 'Vendor' → 403
       const jwtVendorId: string | null = null;
-      const role = 'Vendor';
+      const role: string = 'Vendor';
       const shouldBlock = jwtVendorId === null && role === 'Vendor';
       expect(shouldBlock).toBe(true);
     });
 
     it('vendor role with linked vendorId gets scoped results', () => {
       const jwtVendorId = 'V-RWD-1';
-      const role = 'Vendor';
+      const role: string = 'Vendor';
       // Route uses jwtVendorId as effectiveVendorId
       const effectiveVendorId = role === 'Vendor' ? jwtVendorId : undefined;
       expect(effectiveVendorId).toBe('V-RWD-1');

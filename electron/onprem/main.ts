@@ -1,6 +1,6 @@
 /**
- * On-Prem Electron main process.
- * Starts embedded PostgreSQL → Express server → opens app window.
+ * Desktop · offline (Electron on-prem).
+ * Embedded PostgreSQL → Express → window. Pair with `src/platforms/desktop/offline/`.
  * Shows first-run wizard if no license stored locally.
  */
 import { app, BrowserWindow, ipcMain, shell, Menu, nativeImage } from 'electron';

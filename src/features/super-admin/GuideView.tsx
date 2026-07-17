@@ -102,14 +102,16 @@ export function GuideView() {
               <p>After creation, a credentials screen appears with:</p>
               <p>• Login URL: <code className="bg-gray-200 px-1 rounded">{window.location.origin}/their-slug</code></p>
               <p>• Admin email + temporary password</p>
-              <p>Click <strong>Share via WhatsApp</strong> — sends everything in one message</p>
+              <p>• <strong>Mobile invite code</strong>: <code className="bg-gray-200 px-1 rounded font-mono">DG-M-XXXX-XXXX</code></p>
+              <p>Click <strong>Share via WhatsApp</strong> — includes web login + mobile download + invite</p>
             </div>
           </Step>
 
-          <Step n={3} title="Customer logs in">
+          <Step n={3} title="Customer logs in (web or mobile)">
             <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
-              <p>Customer opens the link → logs in → prompted to change password</p>
-              <p>They can also download the <strong>Cloud Electron app</strong> for a desktop experience</p>
+              <p><strong>Web:</strong> opens the link → logs in → change password</p>
+              <p><strong>Desktop:</strong> download Cloud Electron from <code className="bg-gray-200 px-1 rounded">/download</code></p>
+              <p><strong>Mobile:</strong> install from <code className="bg-gray-200 px-1 rounded">/download</code> → enter invite code → login</p>
             </div>
           </Step>
 
@@ -124,6 +126,52 @@ export function GuideView() {
 
           <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
             <p className="text-sm text-emerald-800 font-medium">✅ Cloud customer is live. Updates are instant — just deploy code changes.</p>
+          </div>
+        </div>
+      </Section>
+
+      {/* Onboard Mobile Customer */}
+      <Section title="Onboard a Mobile Customer" icon={Users} color="bg-brand" defaultOpen>
+        <p className="text-sm text-gray-600">Phone app (Android / iOS) talks to the same cloud tenant. Same pattern as on-prem: Super Admin issues a code, customer installs, then syncs.</p>
+
+        <div className="space-y-4">
+          <Step n={1} title="Create tenant (or open existing)">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
+              <p>Create Tenant → credentials screen shows <strong>Mobile invite code</strong> automatically</p>
+              <p>Or open tenant → <strong>Mobile</strong> panel → <strong>Issue / Rotate invite</strong></p>
+            </div>
+          </Step>
+
+          <Step n={2} title="Share download + invite">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
+              <p>WhatsApp from create screen or Mobile panel includes:</p>
+              <p>• Download: <code className="bg-gray-200 px-1 rounded">{window.location.origin}/download</code></p>
+              <p>• Invite: <code className="bg-gray-200 px-1 rounded font-mono">DG-M-XXXX-XXXX</code> (+ QR in Mobile panel)</p>
+              <p>• Company code (slug) as fallback</p>
+              <p>• Admin email / password</p>
+            </div>
+          </Step>
+
+          <Step n={3} title="Customer installs and connects">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
+              <p>1. Install Android / iOS from the download page</p>
+              <p>2. Open app → enter <strong>invite code</strong> (or company code)</p>
+              <p>3. Login with shared credentials</p>
+              <p>4. Device appears under Tenant → Mobile → Registered devices</p>
+            </div>
+          </Step>
+
+          <Step n={4} title="Push updates / force sync">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
+              <p>Tenant detail → <strong>Mobile</strong> panel:</p>
+              <p>• <strong>Force sync now</strong> — phones clear offline cache and reload (next ~60s heartbeat)</p>
+              <p>• <strong>Min / Latest version</strong> — soft or hard update flags to the app</p>
+              <p>• Feature/tab changes on the tenant apply on next login / force sync</p>
+            </div>
+          </Step>
+
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+            <p className="text-sm text-emerald-800 font-medium">✅ Full write-up for engineers: docs/MOBILE.md in the repo.</p>
           </div>
         </div>
       </Section>
@@ -281,6 +329,10 @@ export function GuideView() {
             <p className="text-sm text-gray-600">On-Prem tab → Issue License → fill details → Generate. Share key + download link via WhatsApp button.</p>
           </div>
           <div>
+            <h4 className="font-bold text-sm mb-2">Mobile invite (cloud phones)</h4>
+            <p className="text-sm text-gray-600">Create Tenant (auto) or Tenant → Mobile → Issue invite. Share via WhatsApp. Force sync / version policy / device list live on the same panel. Download page: <code className="bg-gray-100 px-1 rounded">/download</code>.</p>
+          </div>
+          <div>
             <h4 className="font-bold text-sm mb-2">Suspend / Revoke</h4>
             <p className="text-sm text-gray-600">Click the license row → Manage → Suspend (temporary) or Revoke (permanent). App shows blocked message on next heartbeat (up to 60 min).</p>
           </div>
@@ -300,6 +352,17 @@ export function GuideView() {
         <p className="text-sm text-gray-600 mb-2">Click each item to mark as done. Verify before shipping any release.</p>
 
         <div className="space-y-5">
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase mb-2">Mobile (Capacitor)</p>
+            <Checklist items={[
+              "Create tenant shows Mobile invite code DG-M-…",
+              "WhatsApp share includes /download + invite",
+              "App onboarding accepts invite → branded login",
+              "Device appears in Tenant → Mobile panel after login",
+              "Force sync makes phone reload / clear offline cache",
+              "/download shows Mobile section (Play / App Store / APK)",
+            ]} />
+          </div>
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase mb-2">Cloud Electron</p>
             <Checklist items={[

@@ -22,6 +22,7 @@ import banksRouter from './routes/banks';
 import financeRouter from './routes/finance';
 import invoiceFinanceRouter from './routes/invoice-finance';
 import onpremRouter from './routes/onprem';
+import mobileRouter from './routes/mobile';
 import authRouter from './routes/auth';
 import adminRouter from './routes/admin';
 import dashboardRouter from './routes/dashboard';
@@ -49,6 +50,7 @@ const PUBLIC_PATHS = [
   '/manifest.json',
   '/api/onprem/activate', '/api/onprem/heartbeat', '/api/onprem/deactivate',
   '/api/onprem/provision', '/api/onprem/apply-settings', '/api/onprem/mark-applied',
+  '/api/mobile/redeem-invite', '/api/mobile/heartbeat',
 ];
 
 /** Build the Express app without listening — used by server entry and supertest. */
@@ -80,10 +82,19 @@ export function createApp(): express.Application {
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
 
-  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || (isProduction ? ['https://dhandho.app'] : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002']);
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || (isProduction
+    ? ['https://dhandho.app', 'https://dg-erp.onrender.com']
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002']);
+  // Capacitor / Ionic WebView origins for the mobile app
+  const capacitorOrigins = new Set([
+    'capacitor://localhost',
+    'ionic://localhost',
+    'http://localhost',
+    'https://localhost',
+  ]);
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin && allowedOrigins.includes(origin)) {
+    if (origin && (allowedOrigins.includes(origin) || capacitorOrigins.has(origin))) {
       res.header('Access-Control-Allow-Origin', origin);
     }
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -266,6 +277,7 @@ export function createApp(): express.Application {
   app.use(financeRouter);
   app.use(invoiceFinanceRouter);
   app.use(onpremRouter);
+  app.use(mobileRouter);
   app.use(authRouter);
   app.use(adminRouter);
   app.use(dashboardRouter);

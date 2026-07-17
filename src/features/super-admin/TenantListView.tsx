@@ -42,7 +42,7 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string; phone?: string; companyName?: string; slug?: string } | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string; phone?: string; companyName?: string; slug?: string; mobileInviteCode?: string } | null>(null);
   const [deleteTenantId, setDeleteTenantId] = useState<string | null>(null);
 
   const fetchTenants = useCallback(() => {
@@ -346,8 +346,8 @@ const BUSINESS_TYPE_CONFIGS: Record<Exclude<BusinessType, 'custom'>, { label: st
 
 function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
   onClose: () => void;
-  onCreated: (creds: { email: string; password: string; phone?: string; companyName?: string; slug?: string }) => void;
-  createdCredentials: { email: string; password: string; phone?: string; companyName?: string; slug?: string } | null;
+  onCreated: (creds: { email: string; password: string; phone?: string; companyName?: string; slug?: string; mobileInviteCode?: string }) => void;
+  createdCredentials: { email: string; password: string; phone?: string; companyName?: string; slug?: string; mobileInviteCode?: string } | null;
 }) {
   const [form, setForm] = useState({
     companyName: '',
@@ -414,7 +414,14 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
       }
       const data = await res.json();
       const resolvedPassword = data.password || data.credentials?.password || form.password || `${form.companyName.replace(/\s+/g, '').toLowerCase().slice(0, 12)}@123`;
-      onCreated({ email: data.adminEmail ?? form.adminEmail, password: resolvedPassword, phone: form.phone || undefined, companyName: form.companyName, slug: data.slug || undefined });
+      onCreated({
+        email: data.adminEmail ?? form.adminEmail,
+        password: resolvedPassword,
+        phone: form.phone || undefined,
+        companyName: form.companyName,
+        slug: data.slug || undefined,
+        mobileInviteCode: data.mobileInviteCode || undefined,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Creation failed');
     } finally {
@@ -501,12 +508,30 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                   </button>
                 </div>
               )}
+              {createdCredentials.mobileInviteCode && (
+                <div className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-xl p-3">
+                  <div>
+                    <p className="text-xs text-orange-600 font-medium">Mobile invite code</p>
+                    <p className="text-sm font-bold tracking-wider text-gray-900">{createdCredentials.mobileInviteCode}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Enter this in the Dhandho mobile app</p>
+                  </div>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(createdCredentials.mobileInviteCode!)}
+                    className="p-1.5 hover:bg-orange-100 rounded-lg transition-colors"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <button
                 onClick={() => {
                   const loginUrl = createdCredentials.slug ? `${window.location.origin}/${createdCredentials.slug}` : window.location.origin;
-                  const msg = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.`;
+                  const mobileLine = createdCredentials.mobileInviteCode
+                    ? `\n\n📱 Mobile app:\n1. Download: ${window.location.origin}/download\n2. Enter invite code: ${createdCredentials.mobileInviteCode}\n   (or company code: ${createdCredentials.slug})\n3. Login with email/password below`
+                    : '';
+                  const msg = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!${mobileLine}\n\nWeb login:\nURL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.`;
                   const phone = (createdCredentials.phone || '').replace(/[^0-9]/g, '');
                   window.open(`https://wa.me/${phone ? (phone.startsWith('91') ? phone : '91' + phone) : ''}?text=${encodeURIComponent(msg)}`, '_blank');
                 }}
@@ -518,7 +543,10 @@ function CreateTenantModal({ onClose, onCreated, createdCredentials }: {
                 onClick={() => {
                   const loginUrl = createdCredentials.slug ? `${window.location.origin}/${createdCredentials.slug}` : window.location.origin;
                   const subject = `Your ${createdCredentials.companyName || 'Dhandho'} Login Credentials`;
-                  const body = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.\n\nRegards,\nDhandho Management`;
+                  const mobileLine = createdCredentials.mobileInviteCode
+                    ? `\n\nMobile app invite code: ${createdCredentials.mobileInviteCode}\nCompany code: ${createdCredentials.slug}\n`
+                    : '';
+                  const body = `Welcome to ${createdCredentials.companyName || 'Dhandho'}!${mobileLine}\n\nYour login credentials:\n\nLogin URL: ${loginUrl}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\n\nPlease change your password after first login.\n\nRegards,\nDhandho Management`;
                   window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(createdCredentials.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
                 }}
                 className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors"

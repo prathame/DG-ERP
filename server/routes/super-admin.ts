@@ -211,8 +211,26 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
     };
     const tabConfig = bType === 'custom' ? customPreset : (PRESETS[bType] || PRESETS.manufacturer);
     await pool.query('UPDATE tenants SET tab_config = $1, business_type = $2 WHERE id = $3', [JSON.stringify(tabConfig), bType, result.tenantId]);
+    // Auto-issue mobile invite (non-fatal — tenant create must still succeed)
+    let mobileInviteCode: string | undefined;
+    let mobileInviteExpiresAt: string | undefined;
+    try {
+      const { issueInvite } = await import('./mobile');
+      const mobileInvite = await issueInvite(result.tenantId, 30);
+      mobileInviteCode = mobileInvite.code;
+      mobileInviteExpiresAt = mobileInvite.expiresAt;
+    } catch (inviteErr) {
+      console.error('mobile invite after create failed:', (inviteErr as Error).message);
+    }
     await logAudit(pool, result.tenantId, 'CREATE', 'tenant', result.tenantId, `Tenant "${companyName}" created on ${selectedPlan} plan`, (req as AuthRequest).user?.userId, 'Super Admin');
-    res.status(201).json({ ...result, adminEmail, companyName, tempPassword: result.credentials.password });
+    res.status(201).json({
+      ...result,
+      adminEmail,
+      companyName,
+      tempPassword: result.credentials.password,
+      mobileInviteCode,
+      mobileInviteExpiresAt,
+    });
   } catch (err) {
     const e = err as Error & { code?: string };
     if (e.code === 'DUPLICATE_SLUG') return res.status(400).json({ error: e.message });

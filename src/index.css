@@ -30,6 +30,16 @@ body {
   color: var(--ink);
 }
 
+/* Capacitor / notch safe areas — horizontal only; bottom nav / header own their insets */
+html.native-app body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+html.native-app .app-header-safe {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+}
+
 /* Dark mode overrides */
 html.dark body {
   background-color: #111827;
@@ -216,6 +226,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 640px) {
   .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
+    position: relative;
   }
   .overflow-x-auto table {
     min-width: 600px;
@@ -234,18 +245,64 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 /* Touch-friendly tap targets */
 @media (max-width: 768px) {
-  button, a, select, input {
-    min-height: 40px;
+  button, a[role="button"], select {
+    min-height: 44px;
+  }
+  input:not([type="checkbox"]):not([type="radio"]), textarea {
+    min-height: 44px;
+    font-size: 16px !important; /* prevent iOS zoom on focus */
   }
 }
 
-/* PWA safe area for iPhone notch + bottom nav spacing */
+/* PWA / Capacitor safe area for iPhone home indicator */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* —— Mobile-friendly content density (phones + Capacitor) —— */
 @media (max-width: 1023px) {
-  main { padding-bottom: 70px !important; }
+  .app-shell main {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Modals nearly full-bleed on tablet/phone */
+  .fixed.inset-0 .max-w-lg,
+  .fixed.inset-0 .max-w-xl,
+  .fixed.inset-0 .max-w-2xl {
+    max-width: calc(100vw - 1.5rem) !important;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Stack page toolbars (title + actions) */
+  .app-mobile-content > div > .flex.justify-between,
+  .app-mobile-content > div > div.flex.justify-between {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  /* Dense multi-column grids → one column on small phones */
+  .app-mobile-content .grid.grid-cols-3,
+  .app-mobile-content .grid.grid-cols-4 {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Full-width submit buttons */
+  .app-mobile-content form button[type="submit"] {
+    width: 100%;
+  }
+}
+
+/* Native Capacitor: slightly denser type + no hover reliance */
+html.native-app {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+html.native-app .app-mobile-content {
+  overscroll-behavior-y: contain;
 }
 
 /* Hide app chrome when printing */

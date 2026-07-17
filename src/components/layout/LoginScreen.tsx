@@ -26,9 +26,11 @@ interface TenantBranding {
 interface LoginScreenProps {
   onLogin: (u: LoginResult['user']) => void;
   tenant?: TenantBranding | null;
+  /** Mobile: switch to another company workspace */
+  onChangeCompany?: () => void;
 }
 
-export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
+export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenProps) {
   const urlToken = new URLSearchParams(window.location.search).get('token');
   const [mode, setMode] = useState<LoginMode>(urlToken ? 'reset' : 'login');
   const [form, setForm] = useState({ email: '', password: '', name: '', confirmPassword: '', companyName: '', phone: '' });
@@ -91,9 +93,15 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
   const showTabs = false; // signup disabled — all user creation goes through admin
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center p-4">
+    <div
+      className="min-h-[100dvh] bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center px-4 py-8"
+      style={{
+        paddingTop: 'max(2rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(2rem, env(safe-area-inset-bottom))',
+      }}
+    >
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
-        <div className="text-center mb-8">
+        <div className="text-center mb-6 sm:mb-8">
           {tenant?.logoBase64 ? (
             <img src={tenant.logoBase64} alt={tenant.companyName} className="w-16 h-16 rounded-2xl object-contain mx-auto mb-4" />
           ) : (
@@ -109,7 +117,7 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
             <p className="text-gray-600 text-[10px] mt-2">Powered by Dhandho</p>
           )}
         </div>
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 sm:p-8 shadow-2xl">
           {showTabs && (
             <div className="flex gap-2 mb-6">
               <button type="button" onClick={() => { setMode('login'); setError(''); }} className={cn("flex-1 py-3 rounded-xl font-bold transition-all", mode === 'login' ? 'text-white' : 'bg-white/5 text-gray-400 hover:text-white')} style={mode === 'login' ? { backgroundColor: accentColor } : undefined}>Login</button>
@@ -133,10 +141,19 @@ export function LoginScreen({ onLogin, tenant }: LoginScreenProps) {
             </button>
           </form>
           {mode === 'login' && (
-            <div className="flex justify-between mt-4">
+            <div className="flex justify-between mt-4 gap-2">
               <button type="button" onClick={() => { setMode('forgot'); setError(''); setSuccessMessage(''); }} className="text-xs text-gray-500 hover:text-white transition-colors">Forgot Password?</button>
               <button type="button" onClick={() => { setMode('reset'); setError(''); setSuccessMessage(''); }} className="text-xs text-gray-500 hover:text-white transition-colors">Have a reset token?</button>
             </div>
+          )}
+          {onChangeCompany && (
+            <button
+              type="button"
+              onClick={onChangeCompany}
+              className="w-full mt-5 py-3 text-sm text-gray-400 hover:text-white border border-white/10 rounded-xl transition-colors"
+            >
+              Change company
+            </button>
           )}
         </div>
       </motion.div>
