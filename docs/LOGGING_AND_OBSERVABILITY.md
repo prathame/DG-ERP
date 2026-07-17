@@ -85,7 +85,8 @@ Production-grade logging strategy for DG-ERP (server + SPA).
 | `SLOW_API_MS` | `500` | Warn on slow HTTP |
 | `SLOW_QUERY_MS` | `200` | Warn via `loggedQuery()` |
 | `SLOW_EXTERNAL_MS` | `3000` | Warn on slow NIC/GST calls |
-| `LOGTAIL_TOKEN` | unset | Enable Better Stack Logtail |
+| `LOGTAIL_TOKEN` | unset | Enable Better Stack Logtail (source token) |
+| `LOGTAIL_ENDPOINT` | default Better Stack ingest | Required for most new sources — copy **Ingesting host** from the source page |
 | `SERVICE_NAME` | `dg-erp-api` | Service field in logs |
 
 ## 4. Observability Improvements Delivered
