@@ -338,6 +338,39 @@ export async function handleLocalApiRequest(
       return json(201, { id, name: b.name });
     }
 
+    // User-owned backup schedule (local file only — never uploaded to our cloud)
+    if (ctx.path === '/backup/settings' && ctx.method === 'GET') {
+      if (!ctx.auth || ctx.auth.role !== 'Admin') return json(403, { error: 'Admin only' });
+      const { loadLocalBackupSettings } = await import('../localBackup');
+      return json(200, await loadLocalBackupSettings());
+    }
+    if (ctx.path === '/backup/settings' && ctx.method === 'PUT') {
+      if (!ctx.auth || ctx.auth.role !== 'Admin') return json(403, { error: 'Admin only' });
+      const { saveLocalBackupSettings } = await import('../localBackup');
+      const b = (ctx.body || {}) as { enabled?: boolean; frequency?: string; email?: string };
+      const saved = await saveLocalBackupSettings({
+        enabled: b.enabled,
+        frequency: b.frequency as 'daily' | 'weekly' | 'monthly' | undefined,
+        email: b.email,
+      });
+      return json(200, { ok: true, ...saved });
+    }
+    if (ctx.path === '/backup' && ctx.method === 'GET') {
+      if (!ctx.auth || ctx.auth.role !== 'Admin') return json(403, { error: 'Admin only' });
+      const { buildLocalBackupEnvelope, saveLocalBackupSettings } = await import('../localBackup');
+      const { envelope } = await buildLocalBackupEnvelope();
+      await saveLocalBackupSettings({ lastBackupAt: envelope.exportedAt });
+      return json(200, envelope);
+    }
+    if (ctx.path === '/backup/restore' && ctx.method === 'POST') {
+      if (!ctx.auth || ctx.auth.role !== 'Admin') return json(403, { error: 'Admin only' });
+      const { restoreFromLocalBackupJson } = await import('../localBackup');
+      const text = typeof ctx.body === 'string' ? ctx.body : JSON.stringify(ctx.body);
+      const r = await restoreFromLocalBackupJson(text);
+      if (!r.ok) return json(400, { error: r.error || 'Restore failed' });
+      return json(200, { ok: true, restored: true });
+    }
+
     // Bill settings
     if (ctx.path === '/bill-settings' && ctx.method === 'GET') {
       const { rows } = await localQuery(`SELECT * FROM bill_settings WHERE tenant_id=$1`, [tid]);

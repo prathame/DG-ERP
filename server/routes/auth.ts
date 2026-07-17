@@ -39,11 +39,9 @@ router.post('/api/auth/login', async (req, res) => {
         ).rows[0]?.c ?? 0,
       );
       if (cnt > 1) {
-        return res
-          .status(400)
-          .json({
-            error: 'Multiple accounts found for this email. Open your company login link (slug) and try again.',
-          });
+        return res.status(400).json({
+          error: 'Multiple accounts found for this email. Open your company login link (slug) and try again.',
+        });
       }
     }
 
@@ -56,7 +54,7 @@ router.post('/api/auth/login', async (req, res) => {
              t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status,
              t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
              t.trial_ends_at, t.subscription_ends_at, t.tab_config, t.business_type,
-             t.plan_id
+             t.client_access_mode, t.plan_id
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
       WHERE LOWER(u.email) = LOWER($1) ${slugClause} LIMIT 1
@@ -200,6 +198,7 @@ router.post('/api/auth/login', async (req, res) => {
         return pid.charAt(0).toUpperCase() + pid.slice(1).toLowerCase();
       })(),
       businessType: (row.business_type as string) || 'manufacturer',
+      clientAccessMode: (row.client_access_mode as string) || null,
       subscriptionEndsAt: row.subscription_ends_at ?? null,
       trialEndsAt: row.trial_ends_at ?? null,
       tabConfig: (() => {

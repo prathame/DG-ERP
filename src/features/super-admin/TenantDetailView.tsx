@@ -27,10 +27,12 @@ import {
   Clock,
   HardDrive,
   Zap,
+  Trash2,
 } from 'lucide-react';
 import { cn, bizTypeLabel } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
 import { session } from '../../lib/session';
+import { ServiceCloudSeatsPanel } from './ServiceCloudSeatsPanel';
 interface TenantDetail {
   id: string;
   companyName: string;
@@ -346,6 +348,34 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
               Suspend
             </button>
           )}
+          <button
+            type="button"
+            onClick={async () => {
+              if (
+                !confirm(
+                  `Delete tenant "${tenant.companyName}" permanently? All their cloud data will be removed. This cannot be undone.`,
+                )
+              ) {
+                return;
+              }
+              const saToken = session.getToken();
+              const r = await fetch(`/api/super-admin/tenants/${tenantId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${saToken}` },
+              });
+              if (!r.ok) {
+                const d = (await r.json().catch(() => ({}))) as { error?: string };
+                toast(d.error || 'Delete failed', 'error');
+                return;
+              }
+              toast('Tenant deleted', 'success');
+              onBack();
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-rose-200 text-rose-700 rounded-xl font-medium hover:bg-rose-50 transition-colors"
+          >
+            <Trash2 size={16} />
+            Delete tenant
+          </button>
         </div>
       </div>
 
@@ -570,6 +600,8 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
         tenant={tenant as unknown as Record<string, unknown>}
         onSaved={fetchTenant}
       />
+
+      {tenant.businessType === 'service' && <ServiceCloudSeatsPanel tenantId={tenantId} />}
 
       {/* Users Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">

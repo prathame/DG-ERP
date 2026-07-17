@@ -29,8 +29,11 @@ import { useToast, LoadingSpinner } from '../../components/ui';
 import { session } from '../../lib/session';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 import { useConfirm } from '../../hooks/useConfirm';
+import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { exportLocalBackupNow, restoreFromLocalBackupFile } from '../../platforms/service-mobile';
 
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
+const serviceMobile = isServiceMobileMode();
 
 const BILL_DEFAULTS: BillSettings = {
   logoBase64: null,
@@ -1641,11 +1644,27 @@ export function SettingsView({
                 </h3>
               </div>
               <div className="p-6 space-y-4">
+                {serviceMobile && (
+                  <p className="text-sm text-gray-500 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                    Backups stay on <strong>your phone</strong> (and your Gmail if you send them). Dhando does not store
+                    your business data in the cloud.
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-4 items-center">
                   <button
                     type="button"
                     onClick={async () => {
                       try {
+                        if (serviceMobile) {
+                          const { filename } = await exportLocalBackupNow({
+                            openMail: Boolean(backupSettings?.email),
+                          });
+                          toast(`Backup saved: ${filename}`, 'success');
+                          setBackupSettings(prev =>
+                            prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev,
+                          );
+                          return;
+                        }
                         const r = await fetch('/api/backup', {
                           headers: {
                             Authorization: `Bearer ${session.getToken()}`,
@@ -1668,7 +1687,7 @@ export function SettingsView({
                     }}
                     className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
                   >
-                    <Download size={18} /> Download Backup Now
+                    <Download size={18} /> {serviceMobile ? 'Save Backup File' : 'Download Backup Now'}
                   </button>
                   <label className="flex items-center gap-2 px-5 py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 cursor-pointer">
                     <Upload size={18} /> Restore from Backup
@@ -1691,6 +1710,13 @@ export function SettingsView({
                           return;
                         }
                         try {
+                          if (serviceMobile) {
+                            const r = await restoreFromLocalBackupFile(file);
+                            if (!r.ok) throw new Error(r.error || 'Restore failed');
+                            toast('Backup restored — reloading…', 'success');
+                            setTimeout(() => window.location.reload(), 600);
+                            return;
+                          }
                           const text = await file.text();
                           const data = JSON.parse(text);
                           const r = await fetch('/api/backup/restore', {
@@ -1729,7 +1755,7 @@ export function SettingsView({
                         checked={backupSettings?.enabled ?? false}
                         onChange={async e => {
                           const enabled = e.target.checked;
-                          const freq = backupSettings?.frequency || 'weekly';
+                          const freq = backupSettings?.frequency || (serviceMobile ? 'daily' : 'weekly');
                           try {
                             const r = await api.backup.updateSettings({
                               enabled,
@@ -1737,7 +1763,13 @@ export function SettingsView({
                               intervalDays: backupSettings?.intervalDays,
                               email: backupSettings?.email || undefined,
                             });
-                            setBackupSettings(r);
+                            setBackupSettings(prev => ({
+                              enabled: r.enabled,
+                              frequency: r.frequency,
+                              intervalDays: r.intervalDays,
+                              email: r.email,
+                              lastBackupAt: prev?.lastBackupAt ?? null,
+                            }));
                             toast(enabled ? 'Auto backup enabled' : 'Auto backup disabled', 'success');
                           } catch (err) {
                             toast((err as Error).message, 'error');
@@ -1747,14 +1779,26 @@ export function SettingsView({
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                     </label>
-                    <span className="text-sm font-bold">Auto Backup</span>
+                    <div>
+                      <span className="text-sm font-bold">Auto Backup</span>
+                      {serviceMobile && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Saves a file on this phone (daily / weekly / monthly). Optional Gmail opens your mail app — we
+                          never upload your data.
+                        </p>
+                      )}
+                    </div>
                   </div>
                   {backupSettings?.enabled && (
                     <div className="flex flex-wrap gap-3 items-end ml-14">
                       <div>
                         <label className="text-xs font-bold text-gray-400 block mb-1">Frequency</label>
                         <select
-                          value={backupSettings.frequency}
+                          value={
+                            serviceMobile && !['daily', 'weekly', 'monthly'].includes(backupSettings.frequency)
+                              ? 'daily'
+                              : backupSettings.frequency
+                          }
                           onChange={async e => {
                             const freq = e.target.value;
                             const days =
@@ -1772,7 +1816,13 @@ export function SettingsView({
                                 intervalDays: days,
                                 email: backupSettings.email || undefined,
                               });
-                              setBackupSettings(r);
+                              setBackupSettings(prev => ({
+                                enabled: r.enabled,
+                                frequency: r.frequency,
+                                intervalDays: r.intervalDays,
+                                email: r.email,
+                                lastBackupAt: prev?.lastBackupAt ?? null,
+                              }));
                               toast('Backup frequency updated', 'success');
                             } catch (err) {
                               toast((err as Error).message, 'error');
@@ -1783,10 +1833,10 @@ export function SettingsView({
                           <option value="daily">Daily</option>
                           <option value="weekly">Weekly</option>
                           <option value="monthly">Monthly</option>
-                          <option value="custom">Custom</option>
+                          {!serviceMobile && <option value="custom">Custom</option>}
                         </select>
                       </div>
-                      {backupSettings.frequency === 'custom' && (
+                      {!serviceMobile && backupSettings.frequency === 'custom' && (
                         <div>
                           <label className="text-xs font-bold text-gray-400 block mb-1">Every N days</label>
                           <input
@@ -1803,7 +1853,13 @@ export function SettingsView({
                                   intervalDays: days,
                                   email: backupSettings.email || undefined,
                                 });
-                                setBackupSettings(r);
+                                setBackupSettings(prev => ({
+                                  enabled: r.enabled,
+                                  frequency: r.frequency,
+                                  intervalDays: r.intervalDays,
+                                  email: r.email,
+                                  lastBackupAt: prev?.lastBackupAt ?? null,
+                                }));
                               } catch {}
                             }}
                             onChange={e =>
@@ -1816,11 +1872,13 @@ export function SettingsView({
                         </div>
                       )}
                       <div>
-                        <label className="text-xs font-bold text-gray-400 block mb-1">Email backup to (optional)</label>
+                        <label className="text-xs font-bold text-gray-400 block mb-1">
+                          {serviceMobile ? 'Your Gmail (optional — opens mail app)' : 'Email backup to (optional)'}
+                        </label>
                         <input
                           type="email"
                           value={backupSettings.email || ''}
-                          placeholder="admin@company.com"
+                          placeholder="you@gmail.com"
                           onBlur={async e => {
                             try {
                               const r = await api.backup.updateSettings({
@@ -1829,7 +1887,13 @@ export function SettingsView({
                                 intervalDays: backupSettings.intervalDays,
                                 email: e.target.value || undefined,
                               });
-                              setBackupSettings(r);
+                              setBackupSettings(prev => ({
+                                enabled: r.enabled,
+                                frequency: r.frequency,
+                                intervalDays: r.intervalDays,
+                                email: r.email,
+                                lastBackupAt: prev?.lastBackupAt ?? null,
+                              }));
                             } catch {}
                           }}
                           onChange={e => setBackupSettings(prev => (prev ? { ...prev, email: e.target.value } : prev))}

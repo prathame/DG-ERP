@@ -1,14 +1,15 @@
 /**
- * First-run: cloud activate → optional restore → set admin password → local provision.
+ * First-run: cloud activate → optional restore from staff's backup file → set admin password.
+ * We never host ERP backups — staff keep the file (Downloads / their Gmail).
  */
-import React, { useState } from 'react';
-import { Smartphone, KeyRound, Loader2, Lock } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Smartphone, KeyRound, Loader2, Lock, FileUp } from 'lucide-react';
 import { activateLicense } from './cloud';
 import { getOrCreateDeviceId } from './deviceId';
 import { saveLicense, loadLicense } from './licenseStore';
 import { provisionLocalTenant, isLocalProvisioned } from './local/provision';
 import { getLocalDb } from './local/db';
-import { restoreSameTenantBackup } from './restore';
+import { restoreFromLocalBackupFile } from './restore';
 import { serviceMobileAppVersion } from './mode';
 
 type Props = {
@@ -23,7 +24,7 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [companyName, setCompanyName] = useState('');
-  const [hasBackup, setHasBackup] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const activate = async () => {
     setError('');
@@ -60,8 +61,8 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
         tabConfig: result.tabConfig,
       });
       setCompanyName(result.companyName);
-      setHasBackup(Boolean(result.hasBackup));
-      setStep(result.hasBackup ? 'restore' : 'password');
+      // Always offer file restore — we do not store backups in the cloud
+      setStep('restore');
     } catch {
       setError('Cannot reach activation server. Go online and try again.');
     } finally {
@@ -69,15 +70,12 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
     }
   };
 
-  const doRestore = async (want: boolean) => {
+  const onPickBackup = async (file: File | null) => {
+    if (!file) return;
     setError('');
-    if (!want) {
-      setStep('password');
-      return;
-    }
     setBusy(true);
     try {
-      const r = await restoreSameTenantBackup();
+      const r = await restoreFromLocalBackupFile(file);
       if (!r.ok) {
         setError(r.error || 'Restore failed');
         return;
@@ -89,6 +87,7 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
       setStep('password');
     } finally {
       setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
@@ -111,7 +110,6 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
     try {
       await getLocalDb();
       const { slug, adminEmail } = await provisionLocalTenant(lic, password);
-      // Stash for login screen
       try {
         sessionStorage.setItem('sm_slug', slug);
         sessionStorage.setItem('sm_email', adminEmail);
@@ -133,9 +131,9 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
           <div className="mx-auto w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
             <Smartphone size={24} />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Service Mobile setup</h1>
+          <h1 className="text-xl font-bold text-gray-900">Offline Mobile setup</h1>
           <p className="text-sm text-gray-500">
-            Offline service ERP — one license, one phone. Data stays on this device.
+            Service business type — data stays on this phone. We do not store your backups in the cloud.
           </p>
         </div>
 
@@ -169,23 +167,32 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
         {step === 'restore' && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              A backup exists for <strong>{companyName}</strong>. Restore it on this phone? (Same license only.)
+              Setting up <strong>{companyName}</strong>. If you have a backup file from your old phone (Downloads or
+              Gmail), restore it here. Same <span className="font-mono text-xs">DG-SM-</span> key required.
             </p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={e => void onPickBackup(e.target.files?.[0] || null)}
+            />
             <button
               type="button"
               disabled={busy}
-              onClick={() => void doRestore(true)}
-              className="w-full py-3 rounded-xl text-sm font-bold bg-emerald-600 text-white disabled:opacity-50"
+              onClick={() => fileRef.current?.click()}
+              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-emerald-600 text-white disabled:opacity-50"
             >
-              {busy ? <Loader2 size={16} className="animate-spin inline" /> : null} Restore backup
+              {busy ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />}
+              Restore from backup file
             </button>
             <button
               type="button"
               disabled={busy}
-              onClick={() => void doRestore(false)}
+              onClick={() => setStep('password')}
               className="w-full py-3 rounded-xl text-sm font-medium border border-gray-200 text-gray-700"
             >
-              Start fresh
+              Start fresh (no backup)
             </button>
           </div>
         )}
@@ -193,8 +200,7 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
         {step === 'password' && (
           <>
             <p className="text-sm text-gray-600">
-              Set the admin password for <strong>{companyName || 'your company'}</strong>
-              {hasBackup ? '' : ''}.
+              Set the admin password for <strong>{companyName || 'your company'}</strong>.
             </p>
             <label className="block space-y-1.5">
               <span className="text-xs font-medium text-gray-500 flex items-center gap-1">
