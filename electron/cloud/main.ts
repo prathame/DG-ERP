@@ -4,8 +4,7 @@
  */
 import { app, BrowserWindow, shell, Menu, nativeImage } from 'electron';
 import path from 'path';
-
-const CLOUD_URL = process.env.DG_CLOUD_URL || 'https://dg-erp.onrender.com';
+import { CLOUD_API as CLOUD_URL } from '../shared/constants';
 
 let win: BrowserWindow | null = null;
 

@@ -22,7 +22,3 @@ export async function setup() {
   const { initDatabase } = await import('../server/pg-db');
   await initDatabase();
 }
-
-export async function teardown() {
-  // Pool will close naturally when process exits
-}
