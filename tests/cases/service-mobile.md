@@ -6,6 +6,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 |---|------|-------|----------|
 | 1 | Issue license | SA → Tenants → Service Mobile → Issue | Key starts with `DG-SM-`, business type service, max users 1 |
 | 2 | Activate first device | Enter key on phone (online) | Activates; device bound; last-seen updates |
+| 2b | Activate CORS | Sideload APK → activate with valid `DG-SM-` key while online | Must not show “Cannot reach activation server” (Capacitor `https://localhost` allowed by cloud CORS) |
 | 3 | Second device blocked | Activate same key on another phone | Rejected until SA Unbind |
 | 4 | Local provision | Set admin password ≥8 chars | Login works offline; only one user |
 | 5 | Offline ERP | Airplane mode → create client + invoice | Persists locally; no cloud ERP calls |
@@ -19,4 +20,4 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 11b | Public download link | Open `/download` → Offline Mobile Download | Hits evergreen GitHub APK (`…/releases/download/offline-mobile/offline-mobile-service-debug.apk`) unless SA overrode URL |
 | 12 | Download page | Open `/download` | **Service Mobile OFFLINE** card present; distinct from Service Cloud ONLINE |
 
-**Automated:** `tests/api/http-service-mobile.test.ts` (license lifecycle; cloud backup disabled).
+**Automated:** `tests/api/http-service-mobile.test.ts` (license lifecycle; cloud backup disabled) · `tests/api/http-cors-capacitor.test.ts` (Capacitor origins).

@@ -159,6 +159,8 @@ export function createApp(): express.Application {
         },
       },
       crossOriginEmbedderPolicy: false,
+      // JSON API is called from Capacitor (https://localhost) and Electron — not same-origin pages only
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
       frameguard: { action: 'deny' },
       hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
       noSniff: true,
@@ -174,9 +176,16 @@ export function createApp(): express.Application {
   )
     .map(o => o.trim())
     .filter(Boolean);
+  /** Capacitor WebView origins (Offline Mobile + Service Cloud APK/IPA) — fixed app shells, not arbitrary sites */
+  const capacitorOrigins = new Set([
+    'capacitor://localhost',
+    'ionic://localhost',
+    'http://localhost',
+    'https://localhost',
+  ]);
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin && allowedOrigins.includes(origin)) {
+    if (origin && (allowedOrigins.includes(origin) || capacitorOrigins.has(origin))) {
       res.header('Access-Control-Allow-Origin', origin);
     }
     // Never reflect * — unlisted origins get no Allow-Origin header
