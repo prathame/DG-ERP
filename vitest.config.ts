@@ -15,6 +15,10 @@ export default defineConfig({
       include: [
         'server/utils/**/*.ts',
         'server/services/**/*.ts',
+        'server/routes/mobile.ts',
+        'src/platforms/mobile/offline/cache.ts',
+        'src/platforms/mobile/offline/queue.ts',
+        'src/platforms/mobile/online/companyStorage.ts',
       ],
       exclude: [
         '**/*.test.ts',
