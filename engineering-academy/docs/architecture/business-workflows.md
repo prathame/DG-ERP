@@ -195,7 +195,14 @@ The header Bell loads `GET /api/notifications` — a **merged feed**, not a toas
 1. **Super Admin / control panel pushes** from `tenant_notifications` (written by `POST /api/super-admin/tenants/:id/notify` or broadcast). Shown individually at the top; `POST /api/notifications/:id/read` sets `read_at`.
 2. **Computed digests** (one card per category): price lists expiring (7d), quotes expiring (3d), low stock, warranties (14d), overdue collections/invoices, subscription/trial ≤15d.
 
-Anti-noise: digests are capped; client dismisses digests in `localStorage`; soft chime only when a *new* high-priority unread id appears and sound is unmuted. Poll every 5 minutes while focused.
+**Who sees what**
+
+- **Vendor role**: SA/control-panel messages only — never tenant-wide digests (even if the user has no linked `vendorId`). The notifications router is mounted *before* reports/accounts so those routers’ global `blockVendors` middleware cannot block the Bell feed.
+- **Other roles**: digests are filtered by module permission (`getAccessLevel` ≠ `hidden`). Example: Warehouse may see inventory digests but not finance overdue.
+- **Service overdue**: only `standalone_invoices` with `status = 'sent'` past due with unpaid balance — drafts never count.
+- **Manufacturer overdue**: count of vendors with positive balance whose *oldest* dispatch is &gt; 30 days (not a lifetime payment vs old billed mismatch).
+
+Anti-noise: digests capped (≤6); client dismisses digests in `localStorage`; soft chime only when a *new* high-priority unread id appears and sound is unmuted. Poll every 5 minutes while focused.
 
 ## Workflow 8: Multi-page bill print
 

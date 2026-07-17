@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/components/ui/NotificationCenter.tsx` is part of Dhandho (DG-ERP). Approximate size: **321 lines**.
+`src/components/ui/NotificationCenter.tsx` is part of Dhandho (DG-ERP). Approximate size: **325 lines**.
 
 ## Business value
 
@@ -275,7 +275,7 @@ rg -n "NotificationCenter" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **321**. Large view/route files are refactor candidates.
+Line count **325**. Large view/route files are refactor candidates.
 
 ## Security impact
 

@@ -532,13 +532,15 @@ export function createApp(): express.Application {
   app.use(invoicesRouter);
   app.use(chatbotRouter);
   app.use(billSettingsRouter);
+  // Before reports/accounts — those routers use router.use(blockVendors) and would
+  // intercept /api/notifications for Vendor users before this router runs.
+  app.use(notificationsRouter);
   app.use(reportsRouter);
   app.use(purchasesRouter);
   app.use(quotationsRouter);
   app.use(ordersRouter);
   app.use(priceListsRouter);
   app.use(accountsRouter);
-  app.use(notificationsRouter);
 
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const correlationId =

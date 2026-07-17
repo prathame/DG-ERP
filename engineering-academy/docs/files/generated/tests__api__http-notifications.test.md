@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`tests/api/http-notifications.test.ts` is part of Dhandho (DG-ERP). Approximate size: **94 lines**.
+`tests/api/http-notifications.test.ts` is part of Dhandho (DG-ERP). Approximate size: **220 lines**.
 
 ## Business value
 
@@ -32,7 +32,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (3 detected)
+## Functions (7 detected)
 
 ### Function: admin
 
@@ -79,6 +79,66 @@ row(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: hasPl
+
+```ts
+hasPl(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `tests/api/http-notifications.test.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `hasPl` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: digests
+
+```ts
+digests(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `tests/api/http-notifications.test.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `digests` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: kinds
+
+```ts
+kinds(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `tests/api/http-notifications.test.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `kinds` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: overdue
+
+```ts
+overdue(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `tests/api/http-notifications.test.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `overdue` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 
 ## Execution flow
 
@@ -95,7 +155,7 @@ rg -n "http-notifications.test" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **94**. Large view/route files are refactor candidates.
+Line count **220**. Large view/route files are refactor candidates.
 
 ## Security impact
 

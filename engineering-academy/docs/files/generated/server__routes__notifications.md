@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/notifications.ts` is part of Dhandho (DG-ERP). Approximate size: **313 lines**.
+`server/routes/notifications.ts` is part of Dhandho (DG-ERP). Approximate size: **360 lines**.
 
 ## Business value
 
@@ -23,6 +23,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `express`
 - `../pg-db`
 - `../middleware/auth`
+- `../middleware/permissions`
 - `../utils/http-error`
 
 ## Exports and symbols
@@ -31,7 +32,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (5 detected)
+## Functions (8 detected)
 
 ### Function: todayBucket
 
@@ -48,10 +49,45 @@ todayBucket()
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: canView
+
+```ts
+canView(permissions: Record<string, AccessLevel> | undefined,
+  role: string | undefined,
+  module: string,)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/notifications.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `canView` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: isVendorUser
+
+```ts
+isVendorUser(req: AuthRequest)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/notifications.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `isVendorUser` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 ### Function: buildDigests
 
 ```ts
-buildDigests(tenantId: string, businessType: string)
+buildDigests(tenantId: string,
+  businessType: string,
+  permissions: Record<string, AccessLevel> | undefined,
+  role: string | undefined,)
 ```
 
 | Aspect | Detail |
@@ -59,6 +95,21 @@ buildDigests(tenantId: string, businessType: string)
 | Purpose | Symbol in `server/routes/notifications.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `buildDigests` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: allow
+
+```ts
+allow(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/notifications.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `allow` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -124,7 +175,7 @@ rg -n "notifications" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **313**. Large view/route files are refactor candidates.
+Line count **360**. Large view/route files are refactor candidates.
 
 ## Security impact
 
