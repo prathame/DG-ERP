@@ -17,7 +17,12 @@ function normalizeSlug(raw: string): string {
 
 function looksLikeInvite(raw: string): boolean {
   const u = raw.trim().toUpperCase();
-  return u.startsWith('DG-M-') || /^[A-F0-9]{4}-[A-F0-9]{4}$/.test(u) || u.includes('DG-M');
+  // DG-M-XXXX-XXXX or DG-M-XXXX-XXXX-XXXX (48-bit)
+  return (
+    u.startsWith('DG-M-')
+    || /^[A-F0-9]{4}-[A-F0-9]{4}(-[A-F0-9]{4})?$/.test(u)
+    || u.includes('DG-M')
+  );
 }
 
 interface Props {
@@ -129,7 +134,7 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
                 spellCheck={false}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                placeholder={mode === 'invite' ? 'DG-M-XXXX-XXXX' : 'your-company'}
+                placeholder={mode === 'invite' ? 'DG-M-XXXX-XXXX-XXXX' : 'your-company'}
                 className="flex-1 bg-transparent py-3.5 text-white placeholder-gray-500 text-base outline-none min-h-[48px] font-mono tracking-wide"
               />
             </div>

@@ -854,7 +854,7 @@ export async function initSchema() {
       'audit_log', 'categories', 'bill_settings', 'credit_debit_notes',
       'price_lists', 'quotations', 'orders', 'suppliers', 'supplier_payments',
       'expenses', 'staff_members', 'staff_payments', 'standalone_invoices',
-      'tenant_invoices', 'tenant_stats',
+      'tenant_invoices', 'tenant_stats', 'mobile_devices',
     ];
     for (const table of rlsTables) {
       await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);

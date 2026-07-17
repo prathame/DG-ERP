@@ -15,6 +15,18 @@ export type OfflineMutation = {
 
 const KEY = 'dg_offline_queue_v1';
 const MAX = 100;
+const SENSITIVE_HEADER = /^(authorization|x-tenant-id)$/i;
+
+/** Drop auth headers — flush rebinds a fresh session token (never persist JWTs). */
+function sanitizeHeaders(headers?: Record<string, string>): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) {
+    if (SENSITIVE_HEADER.test(k)) continue;
+    out[k] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 function read(): OfflineMutation[] {
   try {
@@ -48,6 +60,7 @@ function dedupeKey(m: Pick<OfflineMutation, 'method' | 'path' | 'body'>): string
 export function enqueueOfflineMutation(m: Omit<OfflineMutation, 'id' | 'createdAt'>): OfflineMutation {
   const item: OfflineMutation = {
     ...m,
+    headers: sanitizeHeaders(m.headers),
     id: `OQ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: new Date().toISOString(),
   };
