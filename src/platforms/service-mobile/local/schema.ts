@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS tenants (
   quotations_enabled BOOLEAN DEFAULT true,
   accounts_enabled BOOLEAN DEFAULT true,
   purchases_enabled BOOLEAN DEFAULT true,
-  chatbot_enabled BOOLEAN DEFAULT true,
+  chatbot_enabled BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -341,6 +341,6 @@ export const SERVICE_TAB_PRESET: Record<string, { label: string; visible: boolea
   warranty: { label: 'Warranty', visible: false },
   replacements: { label: 'Replacements', visible: false },
   rewards: { label: 'Rewards', visible: false },
-  chatbot: { label: 'Chatbot', visible: true },
+  chatbot: { label: 'Chatbot', visible: false },
   settings: { label: 'Settings', visible: true },
 };

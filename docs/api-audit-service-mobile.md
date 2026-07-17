@@ -54,6 +54,10 @@ Scope: Capacitor Offline Mobile (`VITE_DEPLOYMENT_MODE=service-mobile`) local PG
 - `engineering-academy/docs/deployment/service-mobile.md`
 - `docs/api-audit-service-mobile.md`
 
+## Chatbot
+
+Removed from Offline Mobile UI (`ChatWidget` gated off; tab preset `chatbot.visible: false`). Local `/chatbot*` returns 404.
+
 ## Print / PDF (Capacitor)
 
 `window.open` is blocked or useless in the Offline Mobile WebView, so Print/PDF showed “Pop-up blocked”.  

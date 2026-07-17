@@ -806,7 +806,8 @@ export default function App() {
               })}
             </nav>
 
-            {tv('chatbot') && (
+            {/* Offline Mobile: no chatbot (floating help widget / sidebar). */}
+            {!serviceMobile && tv('chatbot') && (
               <div className="px-3 pt-1">
                 <Suspense fallback={null}>
                   <ChatWidget />

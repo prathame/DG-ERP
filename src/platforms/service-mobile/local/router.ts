@@ -1285,15 +1285,9 @@ export async function handleLocalApiRequest(
       });
     }
 
-    // Chatbot stub offline
-    if (ctx.path === '/chatbot/quick-actions' && ctx.method === 'GET') {
-      return json(200, { actions: ['Create invoice', 'Add client', 'View accounts'] });
-    }
-    if (ctx.path.startsWith('/chatbot') && (ctx.method === 'POST' || ctx.method === 'GET')) {
-      return json(200, {
-        text: 'Chatbot is limited offline. Use Masters, Invoices, and Accounts locally.',
-        reply: 'Chatbot is limited offline. Use Masters, Invoices, and Accounts locally.',
-      });
+    // Chatbot removed from Offline Mobile — return 404 if anything still calls it
+    if (ctx.path.startsWith('/chatbot')) {
+      return json(404, { error: 'Chatbot is not available on Offline Mobile' });
     }
 
     // Empty-safe stubs for unused / manufacturer-only modules
