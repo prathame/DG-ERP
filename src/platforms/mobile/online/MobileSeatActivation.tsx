@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { KeyRound, ArrowRight } from 'lucide-react';
 import { resolveApiUrl } from '../../shared/apiBase';
 import { getMobileDeviceId } from './mobileSync';
-import { saveStoredSeat } from './seatStorage';
+import { clearStoredSeat, saveStoredSeat } from './seatStorage';
 
 const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined)?.trim() || '2.2.0';
 
@@ -19,6 +19,11 @@ export function MobileSeatActivation({ slug, companyName, onComplete, onSkip }: 
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const skip = () => {
+    clearStoredSeat();
+    onSkip?.();
+  };
+
   const activate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -34,6 +39,7 @@ export function MobileSeatActivation({ slug, companyName, onComplete, onSkip }: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           seatKey,
+          slug,
           deviceId: getMobileDeviceId(),
           platform: /android/i.test(navigator.userAgent)
             ? 'android'
@@ -50,6 +56,9 @@ export function MobileSeatActivation({ slug, companyName, onComplete, onSkip }: 
         offlineEnabled?: boolean;
       };
       if (!res.ok) throw new Error(data.error || 'Could not activate seat');
+      if (data.slug && data.slug !== slug) {
+        throw new Error('This seat belongs to a different company.');
+      }
       saveStoredSeat({
         seatKey,
         slug: data.slug || slug,
@@ -100,7 +109,7 @@ export function MobileSeatActivation({ slug, companyName, onComplete, onSkip }: 
           </button>
         </form>
         {onSkip && (
-          <button type="button" onClick={onSkip} className="w-full text-sm text-gray-500 hover:text-gray-300">
+          <button type="button" onClick={skip} className="w-full text-sm text-gray-500 hover:text-gray-300">
             Continue without offline (online only)
           </button>
         )}

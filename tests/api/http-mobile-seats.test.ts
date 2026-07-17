@@ -7,21 +7,32 @@ import { pool, cleanupTestData, createTestToken, createSuperAdminToken } from '.
 import { api, authHeaders } from '../http';
 
 const SVC = 'T-TEST-HTTP-MSEAT-SVC';
+const SVC2 = 'T-TEST-HTTP-MSEAT-SVC2';
 const MFG = 'T-TEST-HTTP-MSEAT-MFG';
 const USER = 'U-HTTP-MSEAT';
+const USER_MFG = 'U-HTTP-MSEAT-MFG';
 const SLUG = 'test-http-mseat-svc';
+const SLUG2 = 'test-http-mseat-svc2';
 let token = '';
+let mfgToken = '';
 let saToken = '';
 
 describe('HTTP: service mobile seats', () => {
   beforeAll(async () => {
     await cleanupTestData(SVC);
+    await cleanupTestData(SVC2);
     await cleanupTestData(MFG);
     await pool.query(
       `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, business_type)
        VALUES ($1, 'Seat Service Co', $2, 'mseat-svc@test.com', 'Admin', 'active', 'service')
        ON CONFLICT (id) DO UPDATE SET business_type = 'service', status = 'active', slug = EXCLUDED.slug`,
       [SVC, SLUG],
+    );
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, business_type)
+       VALUES ($1, 'Seat Service Co 2', $2, 'mseat-svc2@test.com', 'Admin', 'active', 'service')
+       ON CONFLICT (id) DO UPDATE SET business_type = 'service', status = 'active', slug = EXCLUDED.slug`,
+      [SVC2, SLUG2],
     );
     await pool.query(
       `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, business_type)
@@ -36,10 +47,23 @@ describe('HTTP: service mobile seats', () => {
        ON CONFLICT DO NOTHING`,
       [USER, SVC, hash],
     );
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
+       VALUES ($1, $2, 'mseat-mfg@test.com', $3, 'Admin', 'Admin')
+       ON CONFLICT DO NOTHING`,
+      [USER_MFG, MFG, hash],
+    );
     token = createTestToken({
       userId: USER,
       tenantId: SVC,
       email: 'mseat-svc@test.com',
+      role: 'Admin',
+      name: 'Admin',
+    });
+    mfgToken = createTestToken({
+      userId: USER_MFG,
+      tenantId: MFG,
+      email: 'mseat-mfg@test.com',
       role: 'Admin',
       name: 'Admin',
     });
@@ -48,6 +72,7 @@ describe('HTTP: service mobile seats', () => {
 
   afterAll(async () => {
     await cleanupTestData(SVC);
+    await cleanupTestData(SVC2);
     await cleanupTestData(MFG);
   });
 
@@ -57,6 +82,17 @@ describe('HTTP: service mobile seats', () => {
       .set({ Authorization: `Bearer ${saToken}` })
       .send({});
     expect(res.status).toBe(400);
+  });
+
+  it('manufacturer heartbeat has no offline entitlement', async () => {
+    const hb = await api()
+      .post('/api/mobile/heartbeat')
+      .set(authHeaders(mfgToken, MFG))
+      .send({ deviceId: 'dev_seat_mfg_01', platform: 'android', appVersion: '2.2.0' });
+    expect(hb.status).toBe(200);
+    expect(hb.body.businessType).toBe('manufacturer');
+    expect(hb.body.seatValid).toBe(false);
+    expect(hb.body.offlineEnabled).toBe(false);
   });
 
   it('issues seat, activates, heartbeat reports offlineEnabled', async () => {
@@ -70,6 +106,7 @@ describe('HTTP: service mobile seats', () => {
     const deviceId = 'dev_seat_test_device_01';
     const act = await api().post('/api/mobile/activate-seat').send({
       seatKey: issue.body.seatKey,
+      slug: SLUG,
       deviceId,
       platform: 'android',
       appVersion: '2.2.0',
@@ -80,6 +117,7 @@ describe('HTTP: service mobile seats', () => {
 
     const wrong = await api().post('/api/mobile/activate-seat').send({
       seatKey: issue.body.seatKey,
+      slug: SLUG,
       deviceId: 'dev_seat_other_device_99',
       platform: 'ios',
     });
@@ -101,6 +139,88 @@ describe('HTTP: service mobile seats', () => {
     expect(list.body.seats.some((s: { seatKey: string }) => s.seatKey === issue.body.seatKey)).toBe(true);
   });
 
+  it('rejects seat key for a different company slug', async () => {
+    const issue = await api()
+      .post(`/api/super-admin/tenants/${SVC}/mobile-seats`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({});
+    const res = await api().post('/api/mobile/activate-seat').send({
+      seatKey: issue.body.seatKey,
+      slug: SLUG2,
+      deviceId: 'dev_seat_wrong_slug_01',
+      platform: 'android',
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/belong/i);
+  });
+
+  it('rejects revoked and expired seats', async () => {
+    const issue = await api()
+      .post(`/api/super-admin/tenants/${SVC}/mobile-seats`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({});
+    const seats = (
+      await api()
+        .get(`/api/super-admin/tenants/${SVC}/mobile-seats`)
+        .set({ Authorization: `Bearer ${saToken}` })
+    ).body.seats as { id: string; seatKey: string }[];
+    const seat = seats.find(s => s.seatKey === issue.body.seatKey)!;
+
+    const revoked = await api()
+      .put(`/api/super-admin/tenants/${SVC}/mobile-seats/${seat.id}`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({ status: 'revoked' });
+    expect(revoked.status).toBe(200);
+
+    const actRevoked = await api().post('/api/mobile/activate-seat').send({
+      seatKey: issue.body.seatKey,
+      slug: SLUG,
+      deviceId: 'dev_seat_revoked_01',
+      platform: 'android',
+    });
+    expect(actRevoked.status).toBe(403);
+
+    const issue2 = await api()
+      .post(`/api/super-admin/tenants/${SVC}/mobile-seats`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({ validUntil: '2020-01-01' });
+    expect(issue2.status).toBe(201);
+    const actExpired = await api().post('/api/mobile/activate-seat').send({
+      seatKey: issue2.body.seatKey,
+      slug: SLUG,
+      deviceId: 'dev_seat_expired_01',
+      platform: 'android',
+    });
+    expect(actExpired.status).toBe(403);
+    expect(actExpired.body.error).toMatch(/expired/i);
+  });
+
+  it('blocks one device from binding two active seats', async () => {
+    const a = await api()
+      .post(`/api/super-admin/tenants/${SVC}/mobile-seats`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({});
+    const b = await api()
+      .post(`/api/super-admin/tenants/${SVC}/mobile-seats`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({});
+    const deviceId = 'dev_seat_multi_01';
+    const first = await api().post('/api/mobile/activate-seat').send({
+      seatKey: a.body.seatKey,
+      slug: SLUG,
+      deviceId,
+      platform: 'android',
+    });
+    expect(first.status).toBe(200);
+    const second = await api().post('/api/mobile/activate-seat').send({
+      seatKey: b.body.seatKey,
+      slug: SLUG,
+      deviceId,
+      platform: 'android',
+    });
+    expect(second.status).toBe(403);
+  });
+
   it('suspend blocks offline entitlement', async () => {
     const issue = await api()
       .post(`/api/super-admin/tenants/${SVC}/mobile-seats`)
@@ -109,6 +229,7 @@ describe('HTTP: service mobile seats', () => {
     const deviceId = 'dev_seat_suspend_01';
     await api().post('/api/mobile/activate-seat').send({
       seatKey: issue.body.seatKey,
+      slug: SLUG,
       deviceId,
       platform: 'android',
     });
@@ -134,7 +255,7 @@ describe('HTTP: service mobile seats', () => {
     expect(hb.body.offlineEnabled).toBe(false);
   });
 
-  it('transfer clears device binding', async () => {
+  it('transfer clears device binding; rotateKey issues a new key', async () => {
     const issue = await api()
       .post(`/api/super-admin/tenants/${SVC}/mobile-seats`)
       .set({ Authorization: `Bearer ${saToken}` })
@@ -142,6 +263,7 @@ describe('HTTP: service mobile seats', () => {
     const deviceId = 'dev_seat_xfer_01';
     await api().post('/api/mobile/activate-seat').send({
       seatKey: issue.body.seatKey,
+      slug: SLUG,
       deviceId,
       platform: 'ios',
     });
@@ -161,9 +283,19 @@ describe('HTTP: service mobile seats', () => {
 
     const act2 = await api().post('/api/mobile/activate-seat').send({
       seatKey: issue.body.seatKey,
+      slug: SLUG,
       deviceId: 'dev_seat_xfer_02',
       platform: 'android',
     });
     expect(act2.status).toBe(200);
+
+    const rotated = await api()
+      .put(`/api/super-admin/tenants/${SVC}/mobile-seats/${seat.id}`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({ rotateKey: true });
+    expect(rotated.status).toBe(200);
+    expect(rotated.body.seat.seatKey).toMatch(/^DG-MS-/);
+    expect(rotated.body.seat.seatKey).not.toBe(issue.body.seatKey);
+    expect(rotated.body.seat.deviceId).toBeNull();
   });
 });

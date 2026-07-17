@@ -52,6 +52,15 @@ function genSeatKey(): string {
   return `DG-MS-${seg()}-${seg()}-${seg()}`;
 }
 
+async function allocateUniqueSeatKey(): Promise<string> {
+  for (let i = 0; i < 8; i++) {
+    const seatKey = genSeatKey();
+    const clash = (await pool.query('SELECT id FROM mobile_seats WHERE seat_key = $1', [seatKey])).rows[0];
+    if (!clash) return seatKey;
+  }
+  throw new Error('Could not allocate a unique mobile seat key');
+}
+
 function mapSeat(r: Record<string, unknown>) {
   return {
     id: r.id,
@@ -73,14 +82,7 @@ async function issueSeat(
   tenantId: string,
   opts?: { validUntil?: string | null; createdBy?: string },
 ): Promise<{ id: string; seatKey: string; validUntil: string | null }> {
-  let seatKey = '';
-  for (let i = 0; i < 8; i++) {
-    seatKey = genSeatKey();
-    const clash = (await pool.query('SELECT id FROM mobile_seats WHERE seat_key = $1', [seatKey])).rows[0];
-    if (!clash) break;
-    seatKey = '';
-  }
-  if (!seatKey) throw new Error('Could not allocate a unique mobile seat key');
+  const seatKey = await allocateUniqueSeatKey();
   const id = uid('MS');
   const validUntil = opts?.validUntil || null;
   await pool.query(
@@ -222,6 +224,9 @@ router.post('/api/mobile/activate-seat', mobileLimiter, async (req, res) => {
     }
     const platform = String(req.body?.platform || 'unknown').slice(0, 32);
     const appVersion = String(req.body?.appVersion || '').slice(0, 32);
+    const expectedSlug = String(req.body?.slug || '')
+      .trim()
+      .toLowerCase();
 
     const seat = (
       await pool.query(
@@ -238,6 +243,14 @@ router.post('/api/mobile/activate-seat', mobileLimiter, async (req, res) => {
     if (seat.business_type !== 'service') {
       return res.status(400).json({ error: 'Seat is not for a service tenant' });
     }
+    if (expectedSlug && String(seat.slug) !== expectedSlug) {
+      logger.warn('Mobile seat activate rejected: wrong company', {
+        seatId: seat.id,
+        expectedSlug,
+        seatSlug: seat.slug,
+      });
+      return res.status(403).json({ error: 'Seat does not belong to this company' });
+    }
     if (seat.status !== 'active') {
       return res.status(403).json({ error: `Seat ${seat.status}` });
     }
@@ -250,16 +263,45 @@ router.post('/api/mobile/activate-seat', mobileLimiter, async (req, res) => {
       });
     }
 
-    await pool.query(
+    // One active seat per device (re-activating the same seat is allowed).
+    const other = (
+      await pool.query(
+        `SELECT id FROM mobile_seats
+         WHERE device_id = $1 AND status = 'active' AND id <> $2
+         LIMIT 1`,
+        [deviceId, seat.id],
+      )
+    ).rows[0];
+    if (other) {
+      logger.warn('Mobile seat activate rejected: device already bound', {
+        seatId: seat.id,
+        deviceIdPrefix: deviceId.slice(0, 8),
+      });
+      return res.status(403).json({
+        error: 'This device already has an offline seat. Contact Super Admin to transfer.',
+      });
+    }
+
+    // Conditional update closes the concurrent-bind race.
+    const bound = await pool.query(
       `UPDATE mobile_seats SET
          device_id = $1,
          device_platform = $2,
          app_version = $3,
          activated_at = COALESCE(activated_at, NOW()),
          last_seen = NOW()
-       WHERE id = $4`,
+       WHERE id = $4
+         AND status = 'active'
+         AND (device_id IS NULL OR device_id = $1)
+         AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+       RETURNING id`,
       [deviceId, platform, appVersion || null, seat.id],
     );
+    if (!bound.rowCount) {
+      return res.status(409).json({
+        error: 'Seat could not be activated (taken or no longer active). Try again or contact Super Admin.',
+      });
+    }
 
     logger.info('Mobile seat activated', {
       seatId: seat.id,
@@ -352,7 +394,12 @@ router.post('/api/mobile/heartbeat', mobileLimiter, async (req, res) => {
       const seat = (
         await pool.query(
           `SELECT id, status, valid_until FROM mobile_seats
-           WHERE tenant_id = $1 AND device_id = $2`,
+           WHERE tenant_id = $1 AND device_id = $2
+           ORDER BY
+             CASE WHEN status = 'active' THEN 0 ELSE 1 END,
+             activated_at DESC NULLS LAST,
+             last_seen DESC NULLS LAST
+           LIMIT 1`,
           [tid, deviceId],
         )
       ).rows[0] as { id: string; status: string; valid_until: string | null } | undefined;
@@ -672,7 +719,7 @@ router.put('/api/super-admin/tenants/:id/mobile-seats/:seatId', superAdminMiddle
       params.push(validUntil === '' || validUntil == null ? null : String(validUntil).slice(0, 10));
     }
     if (rotateKey) {
-      newKey = genSeatKey();
+      newKey = await allocateUniqueSeatKey();
       updates.push(`seat_key = $${idx++}`);
       params.push(newKey);
       updates.push(`device_id = NULL`);

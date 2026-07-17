@@ -4,7 +4,7 @@ import { Building2, KeyRound, ArrowRight } from 'lucide-react';
 import { api } from '../../../api';
 import { resolveApiUrl } from '../../shared/apiBase';
 import { saveCompanySlug } from './companyStorage';
-import { getStoredSeat } from './seatStorage';
+import { getStoredSeat, setOfflineEntitled } from './seatStorage';
 import { MobileSeatActivation } from './MobileSeatActivation';
 
 function normalizeSlug(raw: string): string {
@@ -103,6 +103,8 @@ export function MobileOnboarding({ initialSlug = '', onComplete }: Props) {
         setPendingSeat({ slug, companyName });
         return;
       }
+      // Stale local entitlement is not proof — heartbeat re-enables after login.
+      if (requiresSeat) setOfflineEntitled(false);
       finish(slug);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not connect. Check the code with your admin.');

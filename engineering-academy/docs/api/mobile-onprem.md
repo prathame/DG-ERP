@@ -75,6 +75,9 @@ Localhost gates use `req.socket.remoteAddress`. Do not “fix” them by trustin
 1. Putting provision on a public internet URL without localhost gate  
 2. Building mobile against wrong `VITE_API_ORIGIN`  
 3. Forgetting rate limits on redeem-invite (invite stuffing)  
+4. Treating `localStorage` offline entitlement as authoritative after SA suspend/revoke (heartbeat is source of truth)  
+5. Activating a `DG-MS-…` seat without sending the onboarding `slug` (cross-tenant key mix-up)  
+6. Unconditional seat `device_id` update (two devices can both “succeed” without conditional `UPDATE … RETURNING`)  
 
 ## Interview question
 
@@ -87,6 +90,7 @@ Device polls heartbeat; server returns a flag derived from `tenants.mobile_force
 ## Related
 
 - [Four Surfaces](/architecture/four-surfaces)  
+- [Service Mobile Offline Seats](/architecture/mobile-service-seats)  
 - [Deployment: Mobile](/deployment/mobile)  
 - [Deployment: Electron](/deployment/electron)  
 - [Runbook: Mobile Sync](/runbooks/mobile-sync)  

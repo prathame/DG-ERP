@@ -50,6 +50,14 @@ flowchart TD
 2. This sets `mobile_force_sync_at` on the tenant; the client's next heartbeat/poll detects this flag, calls `cacheInvalidateForApiPath` equivalent logic (clearing `cache.ts`'s stored entries), and reloads.
 3. If Force Sync doesn't resolve it: ask the user to fully close and reopen the app (not just background/foreground) — a stuck WebView state can outlast a soft reload in rare cases.
 
+## "Offline invoice/payment won't queue" (service tenant)
+
+1. Confirm `business_type = service` — only service seats unlock the stronger offline queue (`isOfflineEntitled()` in `src/api.ts`).
+2. Super Admin → Mobile panel → seat for this phone should be **active**, not suspended/revoked, and `device_id` should match the phone.
+3. Ask the user to open the app online once — heartbeat must return `seatValid: true` / `offlineEnabled: true`. Stale `localStorage` is cleared on onboarding / skip and re-enabled only after a good heartbeat (or fresh activate).
+4. If they transferred phones: SA must **clear device** (or rotate key) before the new phone can activate.
+5. Architecture deep-dive: [Service Mobile Offline Seats](/architecture/mobile-service-seats).
+
 ## "Device never appears in the list at all"
 
 1. Confirm the tenant actually issued a valid, non-expired invite (`mobile_invite_code`, `mobile_invite_expires_at`) if this is a brand-new device — an expired invite fails `POST /api/mobile/redeem-invite` outright, and the device never gets far enough to register.
@@ -59,6 +67,7 @@ flowchart TD
 ## Related pages
 
 - [Mobile deployment](/deployment/mobile)
+- [Service Mobile Offline Seats](/architecture/mobile-service-seats)
 - [Lab: Offline Queue](/labs/lab-offline-queue)
 - [Animations → Mobile Offline](/animations/mobile-offline)
 - [File Walkthrough: server/routes (mobile.ts)](/files/server/routes)
