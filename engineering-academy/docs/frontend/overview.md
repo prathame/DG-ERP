@@ -1,13 +1,13 @@
 ---
 sidebar_label: Frontend Overview
 title: Frontend Overview — The React 19 SPA
-description: How src/App.tsx, src/api.ts, src/platforms, and 19 src/features modules combine into one codebase serving Web, Electron, and Capacitor.
+description: How src/App.tsx, src/api.ts, src/platforms, and 19 src/features modules combine into one codebase serving Web and Electron.
 ---
 
 # Frontend Overview — The React 19 SPA
 
 :::tip One codebase, four faces
-The exact same `src/` tree, built twice (`vite build` and `vite build --mode mobile`), renders inside a browser tab, an Electron `BrowserWindow`, and a Capacitor native WebView. See [System Overview](/architecture/system-overview) for the full four-surface picture.
+The exact same `src/` tree, built with `vite build`, renders in a browser tab or Electron `BrowserWindow`. See [Product Surfaces](/architecture/four-surfaces).
 :::
 
 ## 1. The shape of `src/`

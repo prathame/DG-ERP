@@ -73,7 +73,7 @@ A second Python E2E script exists alongside `e2e_by_type.py`, covering additiona
 
 ## Manual test cases (`tests/cases/*.md`) — the fourth, human layer
 
-Not automated at all — markdown specs for a human QA pass, covering things genuinely hard to assert programmatically: `landing-page.md`, `multi-language.md`, `pwa-mobile.md`, `super-admin.md`, `cross-tenant.md`, `chatbot.md`, and others. These exist because some regressions (a broken layout, a mistranslated string, a confusing UX flow) are real risks the automated suites cannot catch, and pretending otherwise would be worse than admitting a human still needs to click through these before a significant release.
+Not automated at all — markdown specs for a human QA pass, covering things genuinely hard to assert programmatically: `landing-page.md`, `multi-language.md`, `super-admin.md`, `cross-tenant.md`, `chatbot.md`, and others. These exist because some regressions (a broken layout, a mistranslated string, a confusing UX flow) are real risks the automated suites cannot catch, and pretending otherwise would be worse than admitting a human still needs to click through these before a significant release.
 
 ## Running it yourself, locally
 

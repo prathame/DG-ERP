@@ -15,18 +15,8 @@ router.get('/api/tenant/by-slug/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     const tenant = (
-      await pool.query('SELECT id, company_name, slug, status, business_type FROM tenants WHERE slug = $1', [
-        slug.toLowerCase(),
-      ])
-    ).rows[0] as
-      | {
-          id: string;
-          company_name: string;
-          slug: string;
-          status: string;
-          business_type: string;
-        }
-      | undefined;
+      await pool.query('SELECT id, company_name, slug, status FROM tenants WHERE slug = $1', [slug.toLowerCase()])
+    ).rows[0] as { id: string; company_name: string; slug: string; status: string } | undefined;
     if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) {
       return res.status(404).json({ error: 'Company not found' });
     }
@@ -35,13 +25,10 @@ router.get('/api/tenant/by-slug/:slug', async (req, res) => {
         tenant.id,
       ])
     ).rows[0] as { logo_base64: string | null; primary_color: string | null; tagline: string | null } | undefined;
-    const businessType = tenant.business_type || 'manufacturer';
     res.json({
       tenantId: tenant.id,
       companyName: tenant.company_name,
       slug: tenant.slug,
-      businessType,
-      requiresSeat: businessType === 'service',
       logoBase64: billSettings?.logo_base64 ?? null,
       primaryColor: billSettings?.primary_color ?? '#F27D26',
       tagline: billSettings?.tagline ?? null,
@@ -329,27 +316,6 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       bType,
       result.tenantId,
     ]);
-    // Auto-issue mobile invite (non-fatal — tenant create must still succeed)
-    let mobileInviteCode: string | undefined;
-    let mobileInviteExpiresAt: string | undefined;
-    let mobileSeatKey: string | undefined;
-    try {
-      const { issueInvite, issueSeat } = await import('./mobile');
-      const mobileInvite = await issueInvite(result.tenantId, 30);
-      mobileInviteCode = mobileInvite.code;
-      mobileInviteExpiresAt = mobileInvite.expiresAt;
-      if (bType === 'service') {
-        const seat = await issueSeat(result.tenantId, {
-          createdBy: (req as AuthRequest).user?.userId,
-        });
-        mobileSeatKey = seat.seatKey;
-      }
-    } catch (inviteErr) {
-      logger.warn('Mobile invite/seat after tenant create failed', {
-        error: inviteErr instanceof Error ? inviteErr.message : String(inviteErr),
-        stack: inviteErr instanceof Error ? inviteErr.stack : undefined,
-      });
-    }
     await logAudit(
       pool,
       result.tenantId,
@@ -366,9 +332,6 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       adminEmail,
       companyName,
       tempPassword: result.credentials.password,
-      mobileInviteCode,
-      mobileInviteExpiresAt,
-      mobileSeatKey,
       businessType: bType,
     });
   } catch (err) {
@@ -1408,7 +1371,9 @@ router.post('/api/super-admin/notifications/broadcast', superAdminMiddleware, as
           'Super Admin',
         );
         sent++;
-      } catch { /* skip tenants with constraint issues (e.g. test tenants) */ }
+      } catch {
+        /* skip tenants with constraint issues (e.g. test tenants) */
+      }
     }
     // Also queue for active on-prem licenses (delivered on next heartbeat / hard sync)
     const licenses = (await pool.query(`SELECT id FROM onprem_licenses WHERE status = 'active'`)).rows as {

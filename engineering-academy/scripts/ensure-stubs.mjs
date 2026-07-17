@@ -80,7 +80,7 @@ If you are reading a short stub, a deeper rewrite may still be landing — use l
 
 ## Why this matters
 
-Dhandho is a multi-tenant, GST-aware ERP for Indian SMEs spanning web, Electron, and Capacitor. Every subsystem below either protects tenant isolation, money correctness, tax compliance, or operator sanity at 2am.
+Dhandho is a multi-tenant, GST-aware ERP for Indian SMEs spanning web and Electron. Every subsystem below either protects tenant isolation, money correctness, tax compliance, or operator sanity at 2am.
 
 ## Mental model
 

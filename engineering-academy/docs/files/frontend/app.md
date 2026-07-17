@@ -12,7 +12,6 @@ At 1,101 lines, `App.tsx` is the single largest frontend file and the control to
 
 ## Imports/exports
 
-**Notable imports:** `OfflineBanner`/`MobileOnboarding`/`isMobileClient` from `./platforms/mobile/*`; `OnlineStatus` from `./platforms/desktop/offline`; `api` from `./api`; `session` from `./lib/session`; `ToastProvider`/`ErrorBoundary`/`CommandPalette` from `./components/ui`; every feature view via `React.lazy(() => import(...))`.
 
 **Exports:** the default `App` component, consumed by `main.tsx` only.
 
@@ -41,7 +40,6 @@ Every feature view (`DashboardView`, `SalesEntryView`, `DistributionView`, ... ~
 
 - **Lazy loading is the single biggest perf lever in this file** — without it, the initial bundle would include all ~18 feature modules' code (much of it large: rich tables, charts, PDF/bill generation logic) whether or not the user ever visits them.
 - The `Suspense` boundaries around lazy-loaded views need a lightweight fallback (`LoadingSpinner`) — a heavy fallback component would defeat some of the purpose of code-splitting.
-- Platform detection (`isMobileClient()`) is called at render time, not memoized globally — cheap (reads a Capacitor global/UA check), so this is fine, but worth knowing it's not a one-time-computed constant if you're reasoning about re-render costs.
 
 ## Security notes
 

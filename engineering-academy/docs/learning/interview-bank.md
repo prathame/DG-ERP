@@ -24,7 +24,7 @@ A weak answer describes the *general pattern* ("use tenant IDs to scope data"). 
 
 1. Why does the auth middleware re-fetch role/status from the database on every request (via a 30-second cache) instead of trusting the JWT's embedded claims for its full 24-hour lifetime?
 2. How does a password change invalidate all previously-issued sessions without maintaining a token blocklist/revocation table?
-3. Compare `localStorage`-stored JWTs against `HttpOnly` cookie sessions specifically for this SPA + Electron + Capacitor product shape — where does each option's weakness actually bite, given the three different runtime environments?
+3. Compare `localStorage`-stored JWTs against `HttpOnly` cookie sessions specifically for this SPA + Electron product shape — where does each option's weakness actually bite, given the three different runtime environments?
 4. Two independent authorization layers exist: module permissions and route-level role guards. Give a concrete example where a user could pass one layer and fail the other, and explain why that's not a bug but the intended design.
 5. Why does `getAccessLevel()` give Admin/Super Admin an unconditional bypass of the stored `permissions` JSON, rooted in the `role` column instead?
 

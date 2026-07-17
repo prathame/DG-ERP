@@ -12,7 +12,6 @@ At 1,241 lines, `api.ts` is the **only** file in the frontend that talks to the 
 
 ## Imports/exports
 
-**Imports:** `session` from `./lib/session`; `resolveApiUrl` from `./platforms/shared`; `isMobileClient` from `./platforms/mobile/online/isMobileClient`; `cacheGet`/`cacheSet`/`cacheInvalidateForApiPath`/`enqueueOfflineMutation`/`getConnectionState` from `./platforms/mobile/offline`.
 
 **Exports:** dozens of TypeScript interfaces (`DistributionRecord`, `SaleRecord`, `ReplacementRecord`, `RewardRule`, `SaleBillData`, ...) that double as the frontend's shared type vocabulary for backend response shapes, plus the `api` object itself — a large object of methods like `api.getSales()`, `api.createSale(...)`, one per backend endpoint the frontend calls.
 
@@ -20,7 +19,6 @@ At 1,241 lines, `api.ts` is the **only** file in the frontend that talks to the 
 
 ```mermaid
 flowchart TD
-  A[Feature calls api.getProducts] --> B{isMobileClient AND path matches CACHEABLE_GET?}
   B -->|yes| C[cacheGet — return cached value immediately if present]
   B -->|no| D[Skip cache, go straight to network]
   C --> E[Fire network request in background too]

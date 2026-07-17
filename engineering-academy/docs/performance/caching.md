@@ -11,7 +11,6 @@ Dhandho has **three caching layers**, each solving a different problem, each wit
 graph TD
     A[Server: authCache — 30s<br/>server/utils/authCache.ts] -->|reduces| A1[Repeated users JOIN tenants<br/>lookups on every request]
     B[Client: in-memory GET cache — 3s<br/>src/api.ts] -->|reduces| B1[Duplicate identical GET requests<br/>fired in quick succession]
-    C[Mobile: durable cache — 7 days<br/>src/platforms/mobile/offline/cache.ts] -->|enables| C1[Reading last-known data<br/>while fully offline]
 ```
 
 ## Layer 1 — server-side `authCache` (30 seconds)
@@ -55,21 +54,6 @@ Any non-GET request (`POST`/`PUT`/`DELETE`) proactively invalidates cache entrie
 
 ## Layer 3 — mobile durable cache (7 days)
 
-Unrelated in purpose to either layer above: `src/platforms/mobile/offline/cache.ts` persists specific, curated GET responses (`CACHEABLE_GET` — things like the product catalog and customer list, not, say, a live dashboard revenue figure) to `localStorage` with a **7-day** expiry, specifically so a mobile user with **no network connection at all** can still open the app and see recent data rather than a blank error screen.
-
-This cache answers a completely different question than Layers 1 and 2: not "how do we avoid redundant requests," but "what do we show when there's no request to make at all." Seven days is long enough to cover a realistic gap in connectivity (a multi-day trip to a low-signal area) while still being bounded — data doesn't accumulate and go stale indefinitely, and a 7-day-old cached product list is still far more useful to a warehouse worker mid-shift than an empty screen. Full mechanics — including how it interacts with the offline mutation queue — are covered in [../frontend/platforms.md](../frontend/platforms.md).
-
-## Why three separate layers, not one unified cache
-
-| | authCache | GET cache | Mobile durable cache |
-|---|---|---|---|
-| Lives where | Server memory | Browser/WebView memory | `localStorage` (persisted) |
-| TTL | 30s | 3s | 7 days |
-| Problem solved | Redundant per-request DB lookups | Redundant near-simultaneous identical requests | Zero-connectivity data availability |
-| Survives a page reload? | N/A (server-side) | No | Yes (by design) |
-| Wrong answer if misapplied | Stale permission checks | Stale UI data after a quick edit | N/A — it's explicitly a last-resort fallback |
-
-Each layer's TTL is a direct reflection of the cost of being wrong in that specific context. Being wrong for 30 seconds about a user's role (Layer 1) is a minor, self-correcting inconvenience. Being wrong for 3 seconds about a list's contents (Layer 2) is barely perceptible and self-heals on the next natural fetch. Being wrong for up to 7 days about a mobile user's product catalog (Layer 3) is an accepted trade-off *only* because the alternative — no data at all while offline — is strictly worse, and the cache is always clearly presented as "last known" data via [`OfflineBanner`](../frontend/platforms.md), not silently mixed with live data.
 
 ## Quiz
 

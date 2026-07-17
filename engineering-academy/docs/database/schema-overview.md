@@ -37,7 +37,6 @@ flowchart TB
         Docs["quotations, orders, standalone_invoices,\ncredit_debit_notes, price_lists"]
         Rewards["rewards, reward_rules, redemption_settings"]
         Audit[audit_log]
-        Mobile[mobile_devices]
     end
     Tenants -->|"id FK, ON DELETE CASCADE"| TenantScoped
 ```

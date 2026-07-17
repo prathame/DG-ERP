@@ -1,11 +1,4 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { OfflineBanner } from './platforms/mobile/offline';
-import {
-  MobileOnboarding,
-  isMobileClient,
-  getSavedCompanySlug,
-  clearSavedCompanySlug,
-} from './platforms/mobile/online';
 import { api } from './api';
 import {
   LayoutDashboard,
@@ -476,24 +469,7 @@ export default function App() {
     }
   }, [urlSlug, !user]);
 
-  // Mobile: restore last company when opening at /
-  useEffect(() => {
-    if (user || urlSlug || !isMobileClient()) return;
-    const saved = getSavedCompanySlug();
-    if (saved) {
-      window.history.replaceState(null, '', `/${saved}`);
-      window.location.reload();
-    }
-  }, [user, urlSlug]);
-
   const authState = getAuthState();
-
-  const goToMobileOnboarding = () => {
-    clearSavedCompanySlug();
-    session.clearAll();
-    window.history.replaceState(null, '', '/');
-    window.location.reload();
-  };
 
   useEffect(() => {
     if (authState.isSuperAdmin && urlSlug) session.clearAll();
@@ -571,22 +547,12 @@ export default function App() {
             <p className="text-gray-400 text-sm mb-6">
               No company registered with URL <span className="font-mono text-gray-300">/{urlSlug}</span>
             </p>
-            {isMobileClient() ? (
-              <button
-                type="button"
-                onClick={goToMobileOnboarding}
-                className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors"
-              >
-                Enter a different company
-              </button>
-            ) : (
-              <a
-                href="/"
-                className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors"
-              >
-                Go to Dhandho Home
-              </a>
-            )}
+            <a
+              href="/"
+              className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors"
+            >
+              Go to Dhandho Home
+            </a>
           </div>
         </div>
       );
@@ -597,11 +563,7 @@ export default function App() {
       return (
         <ToastProvider>
           <Suspense fallback={<LazyFallback />}>
-            <LoginScreen
-              onLogin={handleLogin}
-              tenant={tenantBranding}
-              onChangeCompany={isMobileClient() ? goToMobileOnboarding : undefined}
-            />
+            <LoginScreen onLogin={handleLogin} tenant={tenantBranding} />
           </Suspense>
         </ToastProvider>
       );
@@ -613,29 +575,6 @@ export default function App() {
         <div className="min-h-[100dvh] flex items-center justify-center bg-[#151619]">
           <LoadingSpinner size="lg" />
         </div>
-      );
-    }
-
-    // Mobile first launch — company code onboarding (not marketing landing)
-    if (isMobileClient()) {
-      // Restoring saved company — avoid flashing onboarding
-      if (getSavedCompanySlug()) {
-        return (
-          <div className="min-h-[100dvh] flex items-center justify-center bg-[#151619]">
-            <LoadingSpinner size="lg" />
-          </div>
-        );
-      }
-      return (
-        <ToastProvider>
-          <OfflineBanner />
-          <MobileOnboarding
-            onComplete={slug => {
-              window.history.replaceState(null, '', `/${slug}`);
-              window.location.reload();
-            }}
-          />
-        </ToastProvider>
       );
     }
 
@@ -662,7 +601,6 @@ export default function App() {
   return (
     <ToastProvider>
       {appShutter && <AppShutterIntro companyName={appShutter} onDone={() => setAppShutter(null)} />}
-      <OfflineBanner />
       <div className="app-shell flex h-[100dvh] max-h-[100dvh] bg-[#F8F9FA] text-[#1A1A1A] font-sans overflow-hidden">
         {/* Mobile sidebar backdrop */}
         {isSidebarOpen && (

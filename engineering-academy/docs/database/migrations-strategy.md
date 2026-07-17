@@ -115,7 +115,7 @@ None of these triggers has been hit yet for this codebase's current size and tea
 
 ## Hands-on exercise
 
-1. Open `server/pg-db.ts` and find a section comment marking a distinct feature era (e.g. "Purchase module tables", "Mobile app (Capacitor)").
+1. Open `server/pg-db.ts` and find a section comment marking a distinct feature era (e.g. "Purchase module tables", "on-prem notifications").
 2. Pick one `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statement from that section and write out, in your own words, the expand/contract steps that *would* be needed if that column's name needed to change today.
 3. Find the `DO $$ BEGIN ... EXCEPTION WHEN duplicate_object THEN NULL; END $$;` pattern used for the `invoice_payments_invoice_fk` foreign key. Explain why a plain `ALTER TABLE ... ADD CONSTRAINT` without that wrapper would break idempotency, and what specific Postgres error the `EXCEPTION` clause is catching.
 

@@ -23,7 +23,6 @@ import banksRouter from './routes/banks';
 import financeRouter from './routes/finance';
 import invoiceFinanceRouter from './routes/invoice-finance';
 import onpremRouter from './routes/onprem';
-import mobileRouter from './routes/mobile';
 import authRouter from './routes/auth';
 import adminRouter from './routes/admin';
 import dashboardRouter from './routes/dashboard';
@@ -66,9 +65,6 @@ const PUBLIC_PATHS = [
   '/api/onprem/apply-notifications',
   '/api/onprem/mark-applied',
   '/api/onprem/mark-notifications-delivered',
-  '/api/mobile/redeem-invite',
-  '/api/mobile/activate-seat',
-  '/api/mobile/heartbeat',
 ];
 
 function isPublicApiPath(apiRelativePath: string): boolean {
@@ -168,16 +164,9 @@ export function createApp(): express.Application {
   )
     .map(o => o.trim())
     .filter(Boolean);
-  // Capacitor / Ionic WebView origins for the mobile app
-  const capacitorOrigins = new Set([
-    'capacitor://localhost',
-    'ionic://localhost',
-    'http://localhost',
-    'https://localhost',
-  ]);
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin && (allowedOrigins.includes(origin) || capacitorOrigins.has(origin))) {
+    if (origin && allowedOrigins.includes(origin)) {
       res.header('Access-Control-Allow-Origin', origin);
     }
     // Never reflect * — unlisted origins get no Allow-Origin header
@@ -521,7 +510,6 @@ export function createApp(): express.Application {
   app.use(financeRouter);
   app.use(invoiceFinanceRouter);
   app.use(onpremRouter);
-  app.use(mobileRouter);
   app.use(authRouter);
   app.use(adminRouter);
   app.use(dashboardRouter);

@@ -8,7 +8,6 @@ description: Map of the React/Vite frontend and how App.tsx, api.ts, features, a
 
 ## Purpose & business value
 
-The frontend is one React app (Vite-built) that serves **four deployment surfaces** (Cloud Web, Electron Cloud, Electron On-Prem, Capacitor Mobile) from the same source tree — see [Deployment Overview](/deployment/overview) for why. The organizing idea you need before reading any individual file: **feature folders own their domain UI**, `platforms/` isolates the parts that genuinely differ per-surface, and `api.ts` is the single seam between all of that and the backend.
 
 ## Directory map
 
@@ -29,7 +28,6 @@ flowchart TD
 | `src/api.ts` | The one API client every feature imports — request building, caching, offline queue hooks |
 | `src/features/*` | ~18 folders, one per business module (sales, distribution, inventory, finance, etc.) |
 | `src/platforms/*` | `desktop/`, `mobile/`, `shared/` — platform-specific bootstrapping, detection, and offline/online behavior |
-| `src/lib/*` | `session.ts`, `businessTypeConfig.ts`, `billTemplates.ts`, `hsnRates.ts`, `utils.ts`, `capacitorApp.ts` |
 | `src/components/*` | `layout/` (page-level chrome: landing, login, chat widget) and `ui/` (reusable primitives: toast, pagination, barcode scanner, CSV import) |
 
 ## Where to go next

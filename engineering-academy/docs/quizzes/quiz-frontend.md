@@ -30,12 +30,6 @@ Clears `session` and redirects to `/{slug}` (or login flow).
 
 ## Q3
 
-Name the three mobile offline modules under `platforms/mobile/offline`.
-
-<details>
-<summary>Answer</summary>
-
-`cache.ts`, `queue.ts`, `network.ts` (plus `OfflineBanner` UI).
 
 </details>
 

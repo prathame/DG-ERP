@@ -66,19 +66,9 @@ const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
 });
 ```
 
-```26:31:src/platforms/mobile/online/isMobileClient.ts
-export function isMobileClient(): boolean {
-  if (isNativeApp()) return true;
-  try {
-    return import.meta.env.VITE_MOBILE === '1' || import.meta.env.MODE === 'mobile';
-  } catch {
-    return false;
-  }
-}
-```
 
 > [!NOTE]
-| **Why so much defensive `try/catch`?** `localStorage` can throw (Safari private mode, storage quota exceeded, a corrupted value that fails `JSON.parse`). `window.Capacitor` may not exist at all on web. `window.electronAPI` may not exist outside Electron. Rather than gate every such access behind an explicit platform check everywhere it's used, the convention is: **wrap the access, catch failure, fall back to a safe default, keep rendering.** A crashed `useState` initializer would break the entire component tree (see [app-shell.md](./app-shell.md)'s `ErrorBoundary` discussion — but that only catches *render* errors, not initializer-time throws before the first render even starts). This pattern is cheap insurance against the long tail of "this works on my machine/browser/platform but not that one."
+| **Why so much defensive `try/catch`?** `localStorage` can throw (Safari private mode, storage quota exceeded, a corrupted value that fails `JSON.parse`). `window.electronAPI` may not exist outside Electron. Rather than gate every such access behind an explicit platform check everywhere it's used, the convention is: **wrap the access, catch failure, fall back to a safe default, keep rendering.** A crashed `useState` initializer would break the entire component tree (see [app-shell.md](./app-shell.md)'s `ErrorBoundary` discussion — but that only catches *render* errors, not initializer-time throws before the first render even starts). This pattern is cheap insurance against the long tail of "this works on my machine/browser/platform but not that one."
 
 ## 4. Bug-fix comments are left in the code, not just in git history
 

@@ -25,7 +25,6 @@ Local Vitest could not be executed in this environment (no Postgres/Docker). Bun
 flowchart LR
   subgraph clients [Clients]
     Web[Web SPA]
-    Mobile[Capacitor]
     Elec[Electron]
   end
   subgraph render [Render]

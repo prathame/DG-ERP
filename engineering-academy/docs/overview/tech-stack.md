@@ -33,7 +33,6 @@ flowchart TB
     end
     subgraph Shells["Native shells"]
         EL["Electron 43"]
-        CAP["Capacitor 8"]
     end
     subgraph Tooling["Tooling"]
         TS["TypeScript ~5.8"]
@@ -100,8 +99,6 @@ The `xlsx` (SheetJS) package on npm has open CVEs with no fix released to the np
 |---|---|---|
 | **Electron** | `^43.1.1` | Two builds from one codebase: a thin **cloud wrapper** (~20 MB, no local DB) and a full **on-prem** build (~180 MB, embedded Postgres). See [Four Surfaces](/architecture/four-surfaces). |
 | **electron-builder** | `^26.15.3` | Produces `.exe`/`.dmg` installers for both Electron variants (`electron-cloud.config.cjs`, `electron-onprem.config.cjs`). |
-| **@capacitor/core, /android, /ios, /cli** | `^8.x` | Wraps the same React SPA as a native Android/iOS app for **cloud tenants only** — talks to `VITE_API_ORIGIN`, no local DB, light offline mutation queue. See `src/platforms/mobile/`. |
-| **@capacitor/app, /network, /splash-screen, /status-bar** | `^8.x` | Native lifecycle hooks, connectivity detection (drives the offline banner), and platform chrome. |
 
 ## Tooling
 
@@ -128,7 +125,7 @@ There's no formally written upgrade policy in the repo, but the pattern across t
 
 1. **Bump one major dependency at a time**, not the whole stack together — React 19 → 20 and Vite 6 → 7 in the same PR makes a regression impossible to attribute.
 2. **Run `npm run typecheck`, `npm run lint`, and `npm test` before and after** — TypeScript and ESLint surface most breaking API changes in React/Express typings immediately.
-3. **Test all four surfaces**, not just the web build — an Electron- or Capacitor-breaking change (e.g., a Vite config option that behaves differently under `base: './'`) can hide behind a clean web build.
+3. **Test all four surfaces**, not just the web build — an Electron-breaking change (e.g., a Vite config option that behaves differently under `base: './'`) can hide behind a clean web build.
 4. **Re-read the relevant [Design Decisions](/architecture/design-decisions) entry** before upgrading something that was deliberately pinned for a reason beyond "it's the current version" (e.g., Express 4 vs. 5).
 5. **Check Postgres-version-sensitive behavior** (a JSONB operator, an RLS nuance) against *both* the hosted cloud database *and* whatever `embedded-postgres` ships for on-prem — they must stay compatible.
 
@@ -140,7 +137,7 @@ Upgrading dependencies in a four-surface codebase is like replacing **one engine
 
 When adding a *new* dependency (not upgrading an existing one), walk this list — it mirrors the reasoning already applied to every entry in the tables above:
 
-- Does it need to run inside a Capacitor WebView and an Electron renderer, not just a normal browser? (Rules out anything requiring Node.js-only APIs in client code.)
+- Does it need to run inside an Electron renderer, not just a normal browser? (Rules out anything requiring Node.js-only APIs in client code.)
 - Is it large enough to need its own `manualChunks` entry in `vite.config.ts`? (Anything sizeable, used on fewer than half of all tabs — see `vendor-motion`, `vendor-scanner`, `vendor-xlsx` as precedent.)
 - Does it have known CVEs, and if so, is there a feature-complete alternative? (See the `xlsx` precedent in [Design Decisions](/architecture/design-decisions) for how an accepted risk should be documented, not silently ignored.)
 - Does it assume network access at runtime? (Breaks the on-prem offline story if so — needs a documented fallback.)
@@ -150,14 +147,13 @@ When adding a *new* dependency (not upgrading an existing one), walk this list �
 
 - **Pinned major versions, not "latest"** — React 19, Vite 6, Express 4, Tailwind 4 are all deliberate choices at a point in time, not auto-upgraded; check `package.json` before assuming a newer major is safe.
 - **Bundle-aware dependency placement** — large/rarely-used libraries (`motion`, `xlsx`, scanner libs) are explicitly chunked in `vite.config.ts` so the initial bundle stays small. See [Performance → Bundle](/performance/bundle).
-- **One codebase, four runtime targets** — the same `src/` and `server/` ship inside a browser tab, an Electron BrowserWindow (×2 variants), and a Capacitor WebView.
+- **One codebase, three client shells** — the same `src/` and `server/` ship inside a browser tab and Electron (cloud + on-prem).
 
 ## Common mistakes
 
 1. Adding a heavy new dependency (charting library, rich text editor) without adding a `manualChunks` entry in `vite.config.ts` — it will bloat the main bundle.
 2. Assuming Express 5 semantics (e.g. changed error-handling for async route handlers) — this app is on Express 4.
 3. Reaching for Redux/Zustand out of habit — check [Design Decisions](/architecture/design-decisions) first; the existing pattern is per-view `fetch` on mount.
-4. Running `npm run build:mobile` and expecting absolute asset paths — Capacitor requires `base: './'`, which is mode-specific in `vite.config.ts`.
 5. Upgrading multiple majors in one PR and losing the ability to bisect a regression across four client surfaces.
 
 ## Interview question

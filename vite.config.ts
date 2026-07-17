@@ -4,8 +4,7 @@ import path from 'path';
 import { defineConfig, loadEnv, type PluginOption } from 'vite';
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-  const isMobile = mode === 'mobile' || env.VITE_MOBILE === '1';
+  loadEnv(mode, process.cwd(), '');
   const analyze = mode === 'analyze';
   const plugins: PluginOption[] = [react(), tailwindcss()];
   // Optional — keep as a dynamic import so production installs without
@@ -16,8 +15,7 @@ export default defineConfig(({ mode }) => {
     plugins.push(visualizer({ filename: 'dist/stats.html', gzipSize: true, open: false }));
   }
   return {
-    // Relative assets required for Capacitor file:// / capacitor:// WebView
-    base: isMobile ? './' : '/',
+    base: '/',
     plugins,
     resolve: {
       alias: {
@@ -25,7 +23,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      outDir: isMobile ? 'dist-mobile' : 'dist',
+      outDir: 'dist',
       emptyOutDir: true,
       target: 'es2020',
       cssCodeSplit: true,

@@ -70,7 +70,7 @@ Retries **only** trigger on `TypeError` (a genuine network failure — DNS, conn
 ## 5. Offline queueing — mobile-only, and why
 
 ```ts
-// Offline queue/cache is mobile-only (Capacitor / VITE_MOBILE) — not desktop Electron/web
+// Offline queue/cache is mobile-only (Electron / VITE_MOBILE) — not desktop Electron/web
 if (isMobileClient() && !getConnectionState().connected) { ... }
 ```
 

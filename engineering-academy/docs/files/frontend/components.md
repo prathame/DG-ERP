@@ -39,8 +39,7 @@ Two subfolders, two different jobs: `layout/` holds full-page or app-shell-level
 | `ConfirmDialog.tsx` | Shared "are you sure?" modal for destructive actions |
 | `PasswordInput.tsx` | Password field with show/hide toggle, used in login/settings |
 | `PaidBadge.tsx` | Small status badge, e.g. for finance/invoice paid status |
-| `OfflineBanner.tsx` / `OnlineStatus.tsx` | Connectivity indicators — these live in `ui/` as presentational components, but their *data* comes from `platforms/mobile/offline` and `platforms/desktop/offline` respectively (see [`platforms.md`](/files/frontend/platforms)) |
-
+| `
 ## Flow — how a feature uses these two folders together
 
 ```mermaid

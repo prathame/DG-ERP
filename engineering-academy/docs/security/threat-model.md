@@ -14,7 +14,7 @@ Dhandho is a **multi-tenant SaaS ERP** (plus an on-prem/desktop variant) holding
 
 ```mermaid
 graph TD
-    Browser[Browser / Capacitor WebView / Electron]
+    Browser[Browser / Electron]
     LB[Express app — server/app.ts]
     DB[(PostgreSQL — RLS-enabled, tenant_id scoped)]
     GST[Government GST/NIC APIs]

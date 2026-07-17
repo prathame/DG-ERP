@@ -26,7 +26,6 @@ The product name itself — "Dhandho" (धंधा, Gujarati/Hindi for "busines
 | Be usable by a dealer network, not just HQ | `Vendor` role with `vendorId` scoping, vendor finance ledger | `server/middleware/auth.ts` (`vendorScopeId`), `server/routes/finance.ts` |
 | Stay GST-legal as rules tighten | HSN/GST rate per product, IRN/EWB columns, NIC API client, GSTR-2B/3B report routes | `server/services/nic-api.ts`, `server/routes/gst-api.ts`, `server/routes/reports.ts` |
 | Sell to customers with **no reliable cloud connectivity** | On-prem Electron build with embedded Postgres | `electron/onprem/*`, `embedded-postgres` dependency |
-| Let field/dealer staff work off patchy mobile data | Capacitor app with an offline queue/cache | `src/platforms/mobile/offline`, `src/lib/offline/*` |
 | Convert trial users into paying tenants without a sales call | Self-serve signup disabled in favor of controlled provisioning + trial timers | `server/routes/super-admin.ts`, `provisionTenant()` in `server/utils/tenant.ts` |
 | Prove compliance and defend against disputes | `audit_log` table on every sensitive mutation | `server/utils/helpers.ts` (`logAudit`), used across nearly every route |
 
@@ -38,7 +37,6 @@ flowchart LR
     W[Web SPA<br/>any browser]
     EC[Electron Cloud<br/>desktop shell → dhandho.app]
     EO[Electron On-Prem<br/>desktop + embedded Postgres]
-    M[Capacitor Mobile<br/>Android / iOS]
   end
   W --> API[server/app.ts]
   EC --> API

@@ -16,17 +16,16 @@ Complete test case suite for the Splendor ERP application. Each file covers a sp
 | 10 | [bill-customization.md](bill-customization.md) | Bill Customization | 12 | Medium |
 | 11 | [settings.md](settings.md) | Settings | 11 | Medium |
 | 12 | [security.md](security.md) | Security | 15 | Critical |
-| 13 | [pwa-mobile.md](pwa-mobile.md) | PWA & Mobile (Capacitor + download) | 26 | High |
-| 14 | [multi-language.md](multi-language.md) | Multi-Language | 6 | Medium |
-| 15 | [chatbot.md](chatbot.md) | Chatbot | 7 | Low |
-| 16 | [cross-tenant.md](cross-tenant.md) | Cross-Tenant Isolation | 7 | Critical |
-| 17 | [edge-cases.md](edge-cases.md) | Edge Cases | 10 | Medium |
+| 13 | [multi-language.md](multi-language.md) | Multi-Language | 6 | Medium |
+| 14 | [chatbot.md](chatbot.md) | Chatbot | 7 | Low |
+| 15 | [cross-tenant.md](cross-tenant.md) | Cross-Tenant Isolation | 7 | Critical |
+| 16 | [edge-cases.md](edge-cases.md) | Edge Cases | 10 | Medium |
 
 ---
 
-**Total: 238 test cases** (approx.; see each file for exact counts)
+**Total:** see each file for exact counts. Capacitor / phone-app cases were removed with the mobile product.
 
-**Product docs:** [`docs/MOBILE.md`](../../docs/MOBILE.md) · [`DEVELOPER.md`](../../DEVELOPER.md) · [`README.md`](../../README.md)
+**Product docs:** [`DEVELOPER.md`](../../DEVELOPER.md) · [`README.md`](../../README.md)
 
 ### Priority Legend
 
