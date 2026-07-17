@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { blockVendors } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { DISTRIBUTION_BILL_UNIT_SQL, gstFromExclusive, splitGst } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
 
 const router = Router();
 
@@ -82,8 +83,7 @@ router.get('/api/reports/sales-register', async (req, res) => {
     );
     res.json({ rows: mapped, totals, count: mapped.length, pricing: 'exclusive' });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -162,8 +162,7 @@ router.get('/api/reports/distribution-register', async (req, res) => {
     );
     res.json({ rows: mapped, totals, count: mapped.length });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -282,8 +281,7 @@ router.get('/api/reports/outstanding', async (req, res) => {
     );
     res.json({ rows, totals, count: rows.length });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -337,8 +335,7 @@ router.get('/api/reports/payment-register', async (req, res) => {
     const totals = { amount: mapped.reduce((s, r) => s + r.amount, 0) };
     res.json({ rows: mapped, totals, count: mapped.length });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -393,8 +390,7 @@ router.get('/api/reports/stock-summary', async (req, res) => {
     );
     res.json({ rows: mapped, totals, count: mapped.length });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -495,8 +491,7 @@ router.get('/api/reports/gst-summary', async (req, res) => {
       totalValue: Object.values(b2b).reduce((s, v) => s + v.total, 0) + b2cTotal,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -852,8 +847,7 @@ router.get('/api/reports/gstr1', async (req, res) => {
 
     res.json(gstr1);
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 

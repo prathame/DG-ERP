@@ -1,10 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { pool } from '../pg-db';
+import { logAuthEvent } from '../utils/http-error';
+import { logger } from '../utils/logger';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  console.error('FATAL: JWT_SECRET environment variable is required');
+  logger.fatal('JWT_SECRET environment variable is required');
   process.exit(1);
 }
 
@@ -56,14 +58,22 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
           decoded.role = row.role;
           decoded.vendorId = row.vendor_id ?? undefined;
         }
-      } catch {
-        /* keep JWT claims if DB briefly unavailable */
+      } catch (dbErr) {
+        logger.warn('Live role fetch failed — keeping JWT claims', {
+          userId: decoded.userId,
+          tenantId: decoded.tenantId,
+          error: dbErr instanceof Error ? dbErr.message : String(dbErr),
+        });
       }
     }
     req.user = decoded;
     req.tenantId = decoded.tenantId;
     next();
-  } catch {
+  } catch (err) {
+    const name = err instanceof Error ? err.name : 'Error';
+    const reason =
+      name === 'TokenExpiredError' ? 'expired_token' : name === 'JsonWebTokenError' ? 'invalid_token' : 'auth_failed';
+    logAuthEvent('JWT authentication failed', req, { reason, errorName: name }, 'warn');
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
@@ -113,7 +123,11 @@ export async function authMiddlewareStrict(req: AuthRequest, res: Response, next
     req.user = decoded;
     req.tenantId = decoded.tenantId;
     next();
-  } catch {
+  } catch (err) {
+    const name = err instanceof Error ? err.name : 'Error';
+    const reason =
+      name === 'TokenExpiredError' ? 'expired_token' : name === 'JsonWebTokenError' ? 'invalid_token' : 'auth_failed';
+    logAuthEvent('JWT strict authentication failed', req, { reason, errorName: name }, 'warn');
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
@@ -124,6 +138,17 @@ export function requireRole(allowed: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     const role = req.user?.role;
     if (!role || !allowed.includes(role)) {
+      logAuthEvent(
+        'Permission denied',
+        req,
+        {
+          reason: 'role_not_allowed',
+          requiredRoles: allowed,
+          role: role ?? 'unknown',
+          path: req.path,
+        },
+        'warn',
+      );
       return res.status(403).json({
         error: `Access denied. Required role: ${allowed.join(' or ')}. Your role: ${role ?? 'unknown'}.`,
       });
@@ -176,11 +201,16 @@ export function superAdminMiddleware(req: AuthRequest, res: Response, next: Next
       role: string;
     };
     if (decoded.role !== 'super_admin' && decoded.role !== 'owner' && decoded.role !== 'support') {
+      logAuthEvent('Permission denied', req, { reason: 'super_admin_required', role: decoded.role }, 'warn');
       return res.status(403).json({ error: 'Super admin access required' });
     }
     req.user = decoded as JwtPayload;
     next();
-  } catch {
+  } catch (err) {
+    const name = err instanceof Error ? err.name : 'Error';
+    const reason =
+      name === 'TokenExpiredError' ? 'expired_token' : name === 'JsonWebTokenError' ? 'invalid_token' : 'auth_failed';
+    logAuthEvent('Super-admin JWT authentication failed', req, { reason, errorName: name }, 'warn');
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }

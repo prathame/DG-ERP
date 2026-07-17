@@ -11,6 +11,8 @@ const onpremLimiter = rateLimit({
 });
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
+import { logger } from '../utils/logger';
 import { superAdminMiddleware } from '../middleware/auth';
 import crypto from 'crypto';
 
@@ -63,8 +65,7 @@ router.post('/api/onprem/activate', onpremLimiter, async (req, res) => {
       settings: lic.settings || {},
     });
   } catch (err) {
-    console.error('💥 /api/onprem/activate failed:', (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -121,8 +122,7 @@ router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
       settings: lic.settings || {},
     });
   } catch (err) {
-    console.error('💥 /api/onprem/heartbeat failed:', (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -140,7 +140,7 @@ router.post('/api/onprem/deactivate', onpremLimiter, async (req, res) => {
     await pool.query('UPDATE onprem_licenses SET machine_id=NULL WHERE license_key=$1', [licenseKey]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err, 'On-prem deactivate failed');
   }
 });
 
@@ -171,7 +171,7 @@ router.post('/api/onprem/mark-applied', onpremLimiter, async (req, res) => {
     if (!updated.rows[0]) return res.status(404).json({ error: 'Invalid or inactive license' });
     res.json({ ok: true });
   } catch (err) {
-    console.error('mark-applied failed:', (err as Error).message);
+    logger.exception('mark-applied failed', err, { licenseKeyPrefix: String(licenseKey).slice(0, 8) });
     // Fallback: still stamp applied even if jsonb strip fails (active licenses only)
     try {
       const fb = await pool.query(
@@ -180,8 +180,8 @@ router.post('/api/onprem/mark-applied', onpremLimiter, async (req, res) => {
       );
       if (!fb.rows[0]) return res.status(404).json({ error: 'Invalid or inactive license' });
       return res.status(500).json({ ok: false, error: 'Partial apply failure' });
-    } catch {
-      /* ignore */
+    } catch (fbErr) {
+      logger.exception('mark-applied fallback failed', fbErr, { licenseKeyPrefix: String(licenseKey).slice(0, 8) });
     }
     res.status(500).json({ ok: false, error: 'Internal server error' });
   }
@@ -205,7 +205,10 @@ router.get('/api/onprem/tab-config', async (req, res) => {
       )
     ).rows[0] as { tab_config: unknown } | undefined;
     res.json(row?.tab_config || null);
-  } catch {
+  } catch (err) {
+    logger.warn('onprem tab-config lookup failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     res.json(null);
   }
 });
@@ -279,8 +282,7 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
     }
     res.json({ ok: true, applied: updates.length });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -425,8 +427,7 @@ router.post('/api/onprem/provision', async (req, res) => {
 
     res.json({ ok: true, tenantId, slug });
   } catch (err) {
-    console.error('💥 /api/onprem/provision failed:', (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -465,7 +466,7 @@ router.get('/api/super-admin/onprem', superAdminMiddleware, async (req, res) => 
       })),
     );
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -493,7 +494,7 @@ router.post('/api/super-admin/onprem', superAdminMiddleware, async (req, res) =>
     );
     res.status(201).json({ id, licenseKey, companyName, businessType, validUntil });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -557,7 +558,7 @@ router.put('/api/super-admin/onprem/:id', superAdminMiddleware, async (req, res)
       },
     });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -568,7 +569,7 @@ router.delete('/api/super-admin/onprem/:id', superAdminMiddleware, async (req, r
     if (!result.rows[0]) return res.status(404).json({ error: 'License not found' });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 

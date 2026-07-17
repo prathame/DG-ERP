@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
 
 const router = Router();
 
@@ -11,13 +12,15 @@ router.get('/api/redemption-settings', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const row = (await pool.query(
-      'SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2',
-      ['default', tenantId]
-    )).rows[0] as { min_balance: number; min_points: number } | undefined;
+    const row = (
+      await pool.query('SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2', [
+        'default',
+        tenantId,
+      ])
+    ).rows[0] as { min_balance: number; min_points: number } | undefined;
     res.json({ minBalance: row?.min_balance ?? 100, minPoints: row?.min_points ?? 50 });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -33,16 +36,18 @@ router.put('/api/redemption-settings', blockVendors, async (req: AuthRequest, re
     await pool.query(
       `INSERT INTO redemption_settings (id, tenant_id, min_balance, min_points) VALUES ($1, $2, $3, $4)
        ON CONFLICT (id, tenant_id) DO UPDATE SET min_balance = $3, min_points = $4`,
-      ['default', tenantId, mb, mp]
+      ['default', tenantId, mb, mp],
     );
 
-    const row = (await pool.query(
-      'SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2',
-      ['default', tenantId]
-    )).rows[0] as { min_balance: number; min_points: number };
+    const row = (
+      await pool.query('SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2', [
+        'default',
+        tenantId,
+      ])
+    ).rows[0] as { min_balance: number; min_points: number };
     res.json({ minBalance: row.min_balance, minPoints: row.min_points });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -84,7 +89,7 @@ router.get('/api/rewards', async (req: AuthRequest, res) => {
     }));
     res.json(rewards);
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -93,17 +98,21 @@ router.get('/api/rewards/balance', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const earned = (await pool.query(
-      "SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned' AND tenant_id = $1",
-      [tenantId]
-    )).rows[0] as { total: number };
-    const redeemed = (await pool.query(
-      "SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Redeemed' AND tenant_id = $1",
-      [tenantId]
-    )).rows[0] as { total: number };
+    const earned = (
+      await pool.query(
+        "SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Earned' AND tenant_id = $1",
+        [tenantId],
+      )
+    ).rows[0] as { total: number };
+    const redeemed = (
+      await pool.query(
+        "SELECT COALESCE(SUM(points), 0) as total FROM rewards WHERE type = 'Redeemed' AND tenant_id = $1",
+        [tenantId],
+      )
+    ).rows[0] as { total: number };
     res.json({ balance: earned.total - redeemed.total });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -125,39 +134,74 @@ router.post('/api/rewards', blockVendors, async (req: AuthRequest, res) => {
       try {
         await client.query('BEGIN');
 
-        const settings = (await client.query(
-          'SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2',
-          ['default', tenantId]
-        )).rows[0] as { min_balance: number; min_points: number } | undefined;
+        const settings = (
+          await client.query(
+            'SELECT min_balance, min_points FROM redemption_settings WHERE id = $1 AND tenant_id = $2',
+            ['default', tenantId],
+          )
+        ).rows[0] as { min_balance: number; min_points: number } | undefined;
         const minBal = settings?.min_balance ?? 100;
         const minPts = settings?.min_points ?? 50;
 
         let balance: number;
         if (isVendorRedemption) {
-          const v = (await client.query(
-            'SELECT total_reward_points FROM vendors WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
-            [vendorId, tenantId]
-          )).rows[0] as { total_reward_points: number } | undefined;
-          if (!v) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Vendor not found' }); }
+          const v = (
+            await client.query('SELECT total_reward_points FROM vendors WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
+              vendorId,
+              tenantId,
+            ])
+          ).rows[0] as { total_reward_points: number } | undefined;
+          if (!v) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Vendor not found' });
+          }
           balance = v.total_reward_points ?? 0;
         } else {
           const [earned, redeemed] = await Promise.all([
-            client.query("SELECT COALESCE(SUM(points),0) as total FROM rewards WHERE type='Earned' AND (vendor_id IS NULL OR vendor_id='') AND tenant_id=$1", [tenantId]),
-            client.query("SELECT COALESCE(SUM(points),0) as total FROM rewards WHERE type='Redeemed' AND (vendor_id IS NULL OR vendor_id='') AND tenant_id=$1", [tenantId]),
+            client.query(
+              "SELECT COALESCE(SUM(points),0) as total FROM rewards WHERE type='Earned' AND (vendor_id IS NULL OR vendor_id='') AND tenant_id=$1",
+              [tenantId],
+            ),
+            client.query(
+              "SELECT COALESCE(SUM(points),0) as total FROM rewards WHERE type='Redeemed' AND (vendor_id IS NULL OR vendor_id='') AND tenant_id=$1",
+              [tenantId],
+            ),
           ]);
-          balance = (earned.rows[0] as {total:number}).total - (redeemed.rows[0] as {total:number}).total;
+          balance = (earned.rows[0] as { total: number }).total - (redeemed.rows[0] as { total: number }).total;
         }
 
-        if (balance < minBal) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Minimum balance of ${minBal} pts required to redeem` }); }
-        if (ptsToInsert < minPts) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Minimum ${minPts} pts per redemption` }); }
-        if (ptsToInsert > balance) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Insufficient balance' }); }
+        if (balance < minBal) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `Minimum balance of ${minBal} pts required to redeem` });
+        }
+        if (ptsToInsert < minPts) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `Minimum ${minPts} pts per redemption` });
+        }
+        if (ptsToInsert > balance) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Insufficient balance' });
+        }
 
         if (isVendorRedemption) {
-          await client.query('UPDATE vendors SET total_reward_points = total_reward_points - $1 WHERE id = $2 AND tenant_id = $3', [ptsToInsert, vendorId, tenantId]);
+          await client.query(
+            'UPDATE vendors SET total_reward_points = total_reward_points - $1 WHERE id = $2 AND tenant_id = $3',
+            [ptsToInsert, vendorId, tenantId],
+          );
         }
         await client.query(
           `INSERT INTO rewards (id,tenant_id,user_id,points,type,description,date,vendor_id,sale_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-          [id, tenantId, userId ?? 'D1', ptsToInsert, type ?? 'Earned', description ?? '', date, isVendorRedemption ? vendorId : null, null]
+          [
+            id,
+            tenantId,
+            userId ?? 'D1',
+            ptsToInsert,
+            type ?? 'Earned',
+            description ?? '',
+            date,
+            isVendorRedemption ? vendorId : null,
+            null,
+          ],
         );
         await client.query('COMMIT');
       } catch (e) {
@@ -171,19 +215,18 @@ router.post('/api/rewards', blockVendors, async (req: AuthRequest, res) => {
       const earnVendorId = typeof vendorId === 'string' && vendorId ? vendorId : null;
       await pool.query(
         `INSERT INTO rewards (id,tenant_id,user_id,points,type,description,date,vendor_id,sale_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [id, tenantId, userId ?? 'D1', ptsToInsert, type ?? 'Earned', description ?? '', date, earnVendorId, null]
+        [id, tenantId, userId ?? 'D1', ptsToInsert, type ?? 'Earned', description ?? '', date, earnVendorId, null],
       );
       if (earnVendorId && (type ?? 'Earned') === 'Earned') {
         await pool.query(
           'UPDATE vendors SET total_reward_points = total_reward_points + $1 WHERE id = $2 AND tenant_id = $3',
-          [ptsToInsert, earnVendorId, tenantId]
+          [ptsToInsert, earnVendorId, tenantId],
         );
       }
     }
 
-    const row = (await pool.query(
-      'SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2', [id, tenantId]
-    )).rows[0] as Record<string, unknown>;
+    const row = (await pool.query('SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0] as Record<string, unknown>;
     res.status(201).json({
       id: row.id,
       userId: row.user_id,
@@ -193,7 +236,7 @@ router.post('/api/rewards', blockVendors, async (req: AuthRequest, res) => {
       date: row.date,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -207,10 +250,9 @@ router.put('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
     const { points, type, description, date } = req.body;
 
     await client.query('BEGIN');
-    const existing = (await client.query(
-      'SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
-      [id, tenantId]
-    )).rows[0] as Record<string, unknown> | undefined;
+    const existing = (
+      await client.query('SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [id, tenantId])
+    ).rows[0] as Record<string, unknown> | undefined;
     if (!existing) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Reward not found' });
@@ -229,7 +271,7 @@ router.put('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
         description = COALESCE($3, description),
         date = COALESCE($4, date)
       WHERE id = $5 AND tenant_id = $6`,
-      [points, type, description, date, id, tenantId]
+      [points, type, description, date, id, tenantId],
     );
     if (result.rowCount === 0) {
       await client.query('ROLLBACK');
@@ -243,14 +285,13 @@ router.put('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
     if (adjust !== 0 && vendorId) {
       await client.query(
         'UPDATE vendors SET total_reward_points = total_reward_points + $1 WHERE id = $2 AND tenant_id = $3',
-        [adjust, vendorId, tenantId]
+        [adjust, vendorId, tenantId],
       );
     }
 
     await client.query('COMMIT');
-    const row = (await pool.query(
-      'SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2', [id, tenantId]
-    )).rows[0] as Record<string, unknown>;
+    const row = (await pool.query('SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2', [id, tenantId]))
+      .rows[0] as Record<string, unknown>;
     res.json({
       id: row.id,
       userId: row.user_id,
@@ -261,8 +302,10 @@ router.put('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
     });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
-  } finally { client.release(); }
+    return handleApiError(req, res, err, 'Reward update failed');
+  } finally {
+    client.release();
+  }
 });
 
 router.delete('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) => {
@@ -273,10 +316,9 @@ router.delete('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) =>
 
     const { id } = req.params;
     await client.query('BEGIN');
-    const existing = (await client.query(
-      'SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
-      [id, tenantId]
-    )).rows[0] as Record<string, unknown> | undefined;
+    const existing = (
+      await client.query('SELECT * FROM rewards WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [id, tenantId])
+    ).rows[0] as Record<string, unknown> | undefined;
     if (!existing) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Reward not found' });
@@ -287,10 +329,7 @@ router.delete('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) =>
     const vendorId = (existing.vendor_id as string) || null;
     const reverse = rType === 'Redeemed' ? pts : rType === 'Earned' ? -pts : 0;
 
-    const result = await client.query(
-      'DELETE FROM rewards WHERE id = $1 AND tenant_id = $2',
-      [id, tenantId]
-    );
+    const result = await client.query('DELETE FROM rewards WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
     if (result.rowCount === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Reward not found' });
@@ -299,7 +338,7 @@ router.delete('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) =>
     if (reverse !== 0 && vendorId) {
       await client.query(
         'UPDATE vendors SET total_reward_points = total_reward_points + $1 WHERE id = $2 AND tenant_id = $3',
-        [reverse, vendorId, tenantId]
+        [reverse, vendorId, tenantId],
       );
     }
 
@@ -307,8 +346,10 @@ router.delete('/api/rewards/:id', blockVendors, async (req: AuthRequest, res) =>
     res.status(204).send();
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
-  } finally { client.release(); }
+    return handleApiError(req, res, err, 'Reward delete failed');
+  } finally {
+    client.release();
+  }
 });
 
 // ============ REWARD RULES ============
@@ -322,18 +363,20 @@ router.get('/api/reward-rules', async (req, res) => {
        LEFT JOIN categories c ON rr.category_id = c.id AND c.tenant_id = $1
        WHERE rr.tenant_id = $1
        ORDER BY rr.products_sold_threshold`,
-      [tenantId]
+      [tenantId],
     );
-    res.json(rows.map((r: Record<string, unknown>) => ({
-      id: r.id,
-      categoryId: r.category_id,
-      categoryName: r.category_name,
-      productsSoldThreshold: r.products_sold_threshold,
-      rewardPoints: r.reward_points,
-      description: r.description,
-    })));
+    res.json(
+      rows.map((r: Record<string, unknown>) => ({
+        id: r.id,
+        categoryId: r.category_id,
+        categoryName: r.category_name,
+        productsSoldThreshold: r.products_sold_threshold,
+        rewardPoints: r.reward_points,
+        description: r.description,
+      })),
+    );
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -348,15 +391,17 @@ router.post('/api/reward-rules', blockVendors, async (req: AuthRequest, res) => 
     await pool.query(
       `INSERT INTO reward_rules (id, tenant_id, category_id, products_sold_threshold, reward_points, description)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [id, tenantId, categoryId || null, productsSoldThreshold ?? 0, rewardPoints ?? 0, description || null]
+      [id, tenantId, categoryId || null, productsSoldThreshold ?? 0, rewardPoints ?? 0, description || null],
     );
 
-    const row = (await pool.query(
-      `SELECT rr.*, c.name as category_name FROM reward_rules rr
+    const row = (
+      await pool.query(
+        `SELECT rr.*, c.name as category_name FROM reward_rules rr
        LEFT JOIN categories c ON rr.category_id = c.id AND c.tenant_id = $1
        WHERE rr.id = $2 AND rr.tenant_id = $1`,
-      [tenantId, id]
-    )).rows[0] as Record<string, unknown>;
+        [tenantId, id],
+      )
+    ).rows[0] as Record<string, unknown>;
     res.status(201).json({
       id: row.id,
       categoryId: row.category_id,
@@ -366,7 +411,7 @@ router.post('/api/reward-rules', blockVendors, async (req: AuthRequest, res) => 
       description: row.description,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -384,16 +429,18 @@ router.put('/api/reward-rules/:id', blockVendors, async (req: AuthRequest, res) 
         reward_points = COALESCE($3, reward_points),
         description = COALESCE($4, description)
       WHERE id = $5 AND tenant_id = $6`,
-      [categoryId, productsSoldThreshold, rewardPoints, description, id, tenantId]
+      [categoryId, productsSoldThreshold, rewardPoints, description, id, tenantId],
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Reward rule not found' });
 
-    const row = (await pool.query(
-      `SELECT rr.*, c.name as category_name FROM reward_rules rr
+    const row = (
+      await pool.query(
+        `SELECT rr.*, c.name as category_name FROM reward_rules rr
        LEFT JOIN categories c ON rr.category_id = c.id AND c.tenant_id = $1
        WHERE rr.id = $2 AND rr.tenant_id = $1`,
-      [tenantId, id]
-    )).rows[0] as Record<string, unknown>;
+        [tenantId, id],
+      )
+    ).rows[0] as Record<string, unknown>;
     res.json({
       id: row.id,
       categoryId: row.category_id,
@@ -403,7 +450,7 @@ router.put('/api/reward-rules/:id', blockVendors, async (req: AuthRequest, res) 
       description: row.description,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -413,14 +460,11 @@ router.delete('/api/reward-rules/:id', blockVendors, async (req: AuthRequest, re
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const result = await pool.query(
-      'DELETE FROM reward_rules WHERE id = $1 AND tenant_id = $2',
-      [id, tenantId]
-    );
+    const result = await pool.query('DELETE FROM reward_rules WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Reward rule not found' });
     res.status(204).send();
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 

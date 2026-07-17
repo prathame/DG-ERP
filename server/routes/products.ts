@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../pg-db';
 import { uid, mapProduct, logAudit } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
 import { barcodeExists, expandBarcodeRange, generateBarcodesFromPrefix } from '../utils/barcode';
 import { requireAdmin, blockVendors, AuthRequest, vendorScopeId, assertVendorLinked } from '../middleware/auth';
 import { checkPlanLimit } from '../utils/planLimits';
@@ -18,8 +19,7 @@ router.get('/api/categories', async (req, res) => {
       .rows as Record<string, unknown>[];
     res.json(rows.map(r => ({ id: r.id, name: r.name })));
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -40,8 +40,7 @@ router.post('/api/categories', requireAdmin, async (req: AuthRequest, res) => {
       .rows[0] as Record<string, unknown>;
     res.status(201).json({ id: row.id, name: row.name });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -61,8 +60,7 @@ router.put('/api/categories/:id', requireAdmin, async (req: AuthRequest, res) =>
       .rows[0] as Record<string, unknown>;
     res.json({ id: row.id, name: row.name });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -98,8 +96,7 @@ router.delete('/api/categories/:id', requireAdmin, async (req: AuthRequest, res)
 
     res.status(204).send();
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -208,8 +205,7 @@ router.get('/api/products', async (req: AuthRequest, res) => {
       }),
     );
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -249,8 +245,7 @@ router.get('/api/products/low-stock-count', async (req: AuthRequest, res) => {
     );
     res.json({ count: Number(rows[0]?.c ?? 0), threshold });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -311,8 +306,7 @@ router.get('/api/products/:id/barcode-details', async (req: AuthRequest, res) =>
       })),
     );
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -354,8 +348,7 @@ router.get('/api/products/:id/barcodes', async (req: AuthRequest, res) => {
       barcodes: rows.map(r => ({ barcode: r.barcode, status: r.status })),
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -505,8 +498,7 @@ router.get('/api/products/verify/:barcode', async (req: AuthRequest, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -561,8 +553,7 @@ router.get('/api/products/by-barcode/:barcode', async (req: AuthRequest, res) =>
     }
     res.json(mapProduct({ ...row, stock: (row.inv_stock as number) ?? row.stock ?? 0 }));
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -711,8 +702,9 @@ router.post('/api/products/batch', blockVendors, async (req: AuthRequest, res) =
     res.status(201).json({ success: created + stockAdded, created, stockAdded, details, errors: [] });
   } catch (e) {
     await client.query('ROLLBACK');
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
-    res.status(500).json({ error: 'Import failed — no products were added' });
+    return handleApiError(req, res, e, 'Product import failed', {
+      publicMessage: 'Import failed — no products were added',
+    });
   } finally {
     client.release();
   }
@@ -909,8 +901,7 @@ router.post('/api/products', blockVendors, async (req: AuthRequest, res) => {
       client.release();
     }
   } catch (outerErr) {
-    console.error('[API Error]', req.path, outerErr);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, outerErr, 'Product create failed');
   }
 });
 
@@ -1020,8 +1011,7 @@ router.post('/api/products/:id/add-stock', blockVendors, async (req: AuthRequest
       .rows[0] as Record<string, unknown>;
     res.status(201).json(mapProduct({ ...row, stock: stockCount }));
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1107,8 +1097,7 @@ router.put('/api/products/:id', blockVendors, async (req: AuthRequest, res) => {
     ).rows[0] as Record<string, unknown>;
     res.json(mapProduct({ ...updated, stock: (updated.inv_stock as number) ?? updated.stock ?? 0 }));
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1136,8 +1125,7 @@ router.delete('/api/products/all', requireAdmin, async (req: AuthRequest, res) =
     await logAudit(pool, tenantId, 'Delete All Products', 'product', 'all', `${rowCount} products deleted`);
     res.json({ deleted: rowCount });
   } catch (e) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (e as Error).message);
-    res.status(500).json({ error: 'Failed to delete inventory' });
+    return handleApiError(req, res, e, 'Inventory delete failed', { publicMessage: 'Failed to delete inventory' });
   }
 });
 
@@ -1188,8 +1176,7 @@ router.delete('/api/products/:id', requireAdmin, async (req: AuthRequest, res) =
 
     res.status(204).send();
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 

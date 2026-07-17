@@ -51,6 +51,14 @@ export function assertCriticalEnv(env: NodeJS.ProcessEnv = process.env): void {
 }
 
 function fatal(message: string): never {
-  console.error(`❌ FATAL: ${message}`);
+  // Intentionally use console before logger init — fail-fast at process boot
+  console.error(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level: 'fatal',
+      msg: message,
+      service: process.env.SERVICE_NAME || 'dg-erp-api',
+    }),
+  );
   process.exit(1);
 }

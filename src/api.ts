@@ -8,6 +8,7 @@ import {
   enqueueOfflineMutation,
   getConnectionState,
 } from './platforms/mobile/offline';
+import { clientLogger, ensureCorrelationId } from './lib/logger';
 
 const CACHEABLE_GET = [/^\/products(?:\?|$)/, /^\/vendors(?:\?|$)/, /^\/tenant\//];
 
@@ -231,9 +232,12 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   const authHeaders: Record<string, string> = {};
   if (token) authHeaders['Authorization'] = `Bearer ${token}`;
   if (tenantId) authHeaders['X-Tenant-ID'] = tenantId;
+  const correlationId = ensureCorrelationId();
+  authHeaders['X-Correlation-ID'] = correlationId;
 
   // App paths are like `/products` — always resolve via `/api/...`
   const requestUrl = resolveApiUrl(`/api${path.startsWith('/') ? path : `/${path}`}`);
+  const started = Date.now();
 
   const queueMutation = () => {
     const body = typeof options?.body === 'string' ? options.body : undefined;
@@ -274,17 +278,30 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
       });
 
       // Server responded (even 4xx/5xx) — don't retry, fall through to handle below
-      return await handleResponse<T>(res, path, method, tenantId);
+      return await handleResponse<T>(res, path, method, tenantId, correlationId, started);
     } catch (err) {
       // Only retry on network failures (TypeError: Failed to fetch)
       if (!(err instanceof TypeError)) throw err;
       lastError = err;
+      clientLogger.warn('API network retry', {
+        path,
+        method,
+        attempt: attempt + 1,
+        maxRetries: MAX_RETRIES,
+        correlationId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       if (attempt < MAX_RETRIES - 1) {
         await new Promise(r => setTimeout(r, RETRY_DELAY_MS[attempt] ?? 800));
       }
     }
   }
-  void lastError;
+  clientLogger.exception('API network failure', lastError, {
+    path,
+    method,
+    correlationId,
+    durationMs: Date.now() - started,
+  });
 
   // Last resort: durable offline cache for GET
   if (method === 'GET' && CACHEABLE_GET.some(re => re.test(path))) {
@@ -298,7 +315,17 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   throw new Error('Connection lost. Please check your internet and try again.');
 }
 
-async function handleResponse<T>(res: Response, path: string, method: string, tenantId: string | null): Promise<T> {
+async function handleResponse<T>(
+  res: Response,
+  path: string,
+  method: string,
+  tenantId: string | null,
+  correlationId: string,
+  started: number,
+): Promise<T> {
+  const serverCorrelation = res.headers.get('X-Correlation-ID') || correlationId;
+  const durationMs = Date.now() - started;
+
   if (res.status === 401) {
     const isAuthEndpoint =
       path.startsWith('/auth/login') ||
@@ -307,6 +334,13 @@ async function handleResponse<T>(res: Response, path: string, method: string, te
       path.startsWith('/auth/forgot') ||
       path.startsWith('/super-admin/login');
     if (!isAuthEndpoint && session.getToken()) {
+      clientLogger.warn('Session expired — redirecting to login', {
+        path,
+        method,
+        statusCode: 401,
+        correlationId: serverCorrelation,
+        durationMs,
+      });
       const slug = session.getSlug();
       const pathSlug = window.location.pathname.match(/^\/([a-z0-9][a-z0-9-]*)/i)?.[1];
       session.clearAll();
@@ -319,18 +353,34 @@ async function handleResponse<T>(res: Response, path: string, method: string, te
     const err = await res.json().catch(() => ({}));
     const msg = (err as { error?: string }).error || 'Access denied';
     if (msg.includes('suspended') || msg.includes('deleted')) {
+      clientLogger.warn('Account suspended/deleted — redirecting', {
+        path,
+        statusCode: 403,
+        correlationId: serverCorrelation,
+      });
       const slug = session.getSlug();
       session.clearAll();
       alert(msg);
       window.location.href = slug ? `/${slug}` : '/';
       return new Promise(() => {}) as T;
     }
+    clientLogger.warn('API forbidden', { path, method, statusCode: 403, correlationId: serverCorrelation, durationMs });
     throw new Error(msg);
   }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error || res.statusText);
+    const msg = (err as { error?: string }).error || res.statusText;
+    const level = res.status >= 500 ? 'error' : 'warn';
+    clientLogger[level]('API request failed', {
+      path,
+      method,
+      statusCode: res.status,
+      correlationId: serverCorrelation,
+      durationMs,
+      error: msg,
+    });
+    throw new Error(msg);
   }
   if (res.status === 204) return undefined as T;
   const data = await res.json();

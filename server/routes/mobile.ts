@@ -11,6 +11,8 @@ import rateLimit from 'express-rate-limit';
 import { pool } from '../pg-db';
 import { superAdminMiddleware, AuthRequest } from '../middleware/auth';
 import { logAudit } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
+import { logger } from '../utils/logger';
 
 const mobileLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -24,8 +26,14 @@ function optionalJwt(req: { headers: { authorization?: string } }): { tenantId?:
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
   if (!token || !process.env.JWT_SECRET) return {};
   try {
-    return jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }) as { tenantId?: string; userId?: string };
-  } catch {
+    return jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }) as {
+      tenantId?: string;
+      userId?: string;
+    };
+  } catch (err) {
+    logger.debug('optionalJwt: invalid token ignored', {
+      errorName: err instanceof Error ? err.name : 'Error',
+    });
     return {};
   }
 }
@@ -39,8 +47,8 @@ function genInviteCode(): string {
 }
 
 function cmpVersion(a: string, b: string): number {
-  const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
-  const pb = b.split('.').map((n) => parseInt(n, 10) || 0);
+  const pa = a.split('.').map(n => parseInt(n, 10) || 0);
+  const pb = b.split('.').map(n => parseInt(n, 10) || 0);
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
     const d = (pa[i] || 0) - (pb[i] || 0);
     if (d !== 0) return d;
@@ -85,30 +93,42 @@ async function issueInvite(tenantId: string, daysValid = 30) {
     throw new Error('Could not allocate a unique mobile invite code');
   }
   const expires = new Date(Date.now() + daysValid * 24 * 60 * 60 * 1000).toISOString();
-  await pool.query(
-    `UPDATE tenants SET mobile_invite_code = $1, mobile_invite_expires_at = $2 WHERE id = $3`,
-    [code, expires, tenantId]
-  );
+  await pool.query(`UPDATE tenants SET mobile_invite_code = $1, mobile_invite_expires_at = $2 WHERE id = $3`, [
+    code,
+    expires,
+    tenantId,
+  ]);
   return { code, expiresAt: expires };
 }
 
 // ── Public: redeem Super Admin invite → company branding / slug ──────────────
 router.post('/api/mobile/redeem-invite', mobileLimiter, async (req, res) => {
   try {
-    const raw = String(req.body?.code || '').trim().toUpperCase();
+    const raw = String(req.body?.code || '')
+      .trim()
+      .toUpperCase();
     if (!raw) return res.status(400).json({ error: 'Invite code required' });
-    const row = (await pool.query(
-      `SELECT t.id, t.slug, t.company_name, t.status, t.mobile_invite_expires_at,
+    const row = (
+      await pool.query(
+        `SELECT t.id, t.slug, t.company_name, t.status, t.mobile_invite_expires_at,
               b.logo_base64, b.primary_color, b.tagline
        FROM tenants t
        LEFT JOIN bill_settings b ON b.tenant_id = t.id
        WHERE t.mobile_invite_code = $1`,
-      [raw]
-    )).rows[0] as {
-      id: string; slug: string; company_name: string; status: string;
-      mobile_invite_expires_at: string | null;
-      logo_base64: string | null; primary_color: string | null; tagline: string | null;
-    } | undefined;
+        [raw],
+      )
+    ).rows[0] as
+      | {
+          id: string;
+          slug: string;
+          company_name: string;
+          status: string;
+          mobile_invite_expires_at: string | null;
+          logo_base64: string | null;
+          primary_color: string | null;
+          tagline: string | null;
+        }
+      | undefined;
 
     if (!row) return res.status(404).json({ error: 'Invalid invite code' });
     if (row.status === 'suspended') return res.status(403).json({ error: 'This company is suspended' });
@@ -124,8 +144,7 @@ router.post('/api/mobile/redeem-invite', mobileLimiter, async (req, res) => {
       tagline: row.tagline,
     });
   } catch (e) {
-    console.error('mobile redeem-invite:', (e as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, e, 'mobile redeem-invite:');
   }
 });
 
@@ -146,7 +165,11 @@ router.post('/api/mobile/heartbeat', mobileLimiter, async (req, res) => {
     // Never trust client-supplied tenantId. Unauthenticated: slug only for sync flags (no settings / no device upsert).
     let tid = authedTenantId;
     if (!tid && typeof slug === 'string' && slug) {
-      tid = ((await pool.query('SELECT id FROM tenants WHERE slug = $1', [slug.toLowerCase()])).rows[0] as { id: string } | undefined)?.id || '';
+      tid =
+        (
+          (await pool.query('SELECT id FROM tenants WHERE slug = $1', [slug.toLowerCase()])).rows[0] as
+            { id: string } | undefined
+        )?.id || '';
     }
 
     if (!tid) {
@@ -160,11 +183,13 @@ router.post('/api/mobile/heartbeat', mobileLimiter, async (req, res) => {
       });
     }
 
-    const t = (await pool.query(
-      `SELECT mobile_force_sync_at, mobile_min_version, mobile_latest_version, status
+    const t = (
+      await pool.query(
+        `SELECT mobile_force_sync_at, mobile_min_version, mobile_latest_version, status
        FROM tenants WHERE id = $1`,
-      [tid]
-    )).rows[0] as Record<string, unknown> | undefined;
+        [tid],
+      )
+    ).rows[0] as Record<string, unknown> | undefined;
 
     if (!t) return res.status(404).json({ error: 'Tenant not found' });
 
@@ -181,7 +206,14 @@ router.post('/api/mobile/heartbeat', mobileLimiter, async (req, res) => {
            platform = EXCLUDED.platform,
            app_version = EXCLUDED.app_version,
            last_seen = NOW()`,
-        [id, tid, jwtUser.userId || null, deviceId, String(platform || 'unknown').slice(0, 32), String(appVersion || '').slice(0, 32)]
+        [
+          id,
+          tid,
+          jwtUser.userId || null,
+          deviceId,
+          String(platform || 'unknown').slice(0, 32),
+          String(appVersion || '').slice(0, 32),
+        ],
       );
     }
 
@@ -201,8 +233,7 @@ router.post('/api/mobile/heartbeat', mobileLimiter, async (req, res) => {
       minVersion: minV || null,
     });
   } catch (e) {
-    console.error('mobile heartbeat:', (e as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, e, 'mobile heartbeat:');
   }
 });
 
@@ -227,12 +258,18 @@ router.post('/api/mobile/register-device', mobileLimiter, async (req, res) => {
        ON CONFLICT (tenant_id, device_id) DO UPDATE SET
          user_id = EXCLUDED.user_id, platform = EXCLUDED.platform,
          app_version = EXCLUDED.app_version, last_seen = NOW()`,
-      [id, tenantId, auth.user?.userId || null, deviceId, String(platform || 'unknown').slice(0, 32), String(appVersion || '').slice(0, 32)]
+      [
+        id,
+        tenantId,
+        auth.user?.userId || null,
+        deviceId,
+        String(platform || 'unknown').slice(0, 32),
+        String(appVersion || '').slice(0, 32),
+      ],
     );
     res.json({ ok: true });
   } catch (e) {
-    console.error('mobile register-device:', (e as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, e, 'mobile register-device:');
   }
 });
 
@@ -240,11 +277,22 @@ router.post('/api/mobile/register-device', mobileLimiter, async (req, res) => {
 router.post('/api/super-admin/tenants/:id/mobile-invite', superAdminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const tenant = (await pool.query('SELECT id, slug, company_name, phone, admin_email FROM tenants WHERE id = $1', [id])).rows[0];
+    const tenant = (
+      await pool.query('SELECT id, slug, company_name, phone, admin_email FROM tenants WHERE id = $1', [id])
+    ).rows[0];
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
     const days = Math.min(365, Math.max(1, Number(req.body?.daysValid) || 30));
     const { code, expiresAt } = await issueInvite(id, days);
-    await logAudit(pool, id, 'UPDATE', 'mobile_invite', id, `Mobile invite issued ${code}`, (req as AuthRequest).user?.userId, 'Super Admin');
+    await logAudit(
+      pool,
+      id,
+      'UPDATE',
+      'mobile_invite',
+      id,
+      `Mobile invite issued ${code}`,
+      (req as AuthRequest).user?.userId,
+      'Super Admin',
+    );
     const origin = process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get('host')}`;
     res.json({
       code,
@@ -266,19 +314,20 @@ router.post('/api/super-admin/tenants/:id/mobile-invite', superAdminMiddleware, 
       ].join('\n'),
     });
   } catch (e) {
-    console.error('mobile-invite:', (e as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, e, 'mobile-invite:');
   }
 });
 
 router.get('/api/super-admin/tenants/:id/mobile-invite', superAdminMiddleware, async (req, res) => {
   try {
-    const row = (await pool.query(
-      `SELECT slug, company_name, mobile_invite_code, mobile_invite_expires_at,
+    const row = (
+      await pool.query(
+        `SELECT slug, company_name, mobile_invite_code, mobile_invite_expires_at,
               mobile_force_sync_at, mobile_min_version, mobile_latest_version
        FROM tenants WHERE id = $1`,
-      [req.params.id]
-    )).rows[0];
+        [req.params.id],
+      )
+    ).rows[0];
     if (!row) return res.status(404).json({ error: 'Tenant not found' });
     res.json({
       slug: row.slug,
@@ -290,8 +339,7 @@ router.get('/api/super-admin/tenants/:id/mobile-invite', superAdminMiddleware, a
       latestVersion: row.mobile_latest_version,
     });
   } catch (e) {
-    console.error('get mobile-invite:', (e as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, e, 'get mobile-invite:');
   }
 });
 
@@ -300,14 +348,22 @@ router.post('/api/super-admin/tenants/:id/mobile-force-sync', superAdminMiddlewa
     const { id } = req.params;
     const r = await pool.query(
       `UPDATE tenants SET mobile_force_sync_at = NOW() WHERE id = $1 RETURNING mobile_force_sync_at`,
-      [id]
+      [id],
     );
     if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found' });
-    await logAudit(pool, id, 'UPDATE', 'mobile_force_sync', id, 'Force sync pushed to mobile devices', (req as AuthRequest).user?.userId, 'Super Admin');
+    await logAudit(
+      pool,
+      id,
+      'UPDATE',
+      'mobile_force_sync',
+      id,
+      'Force sync pushed to mobile devices',
+      (req as AuthRequest).user?.userId,
+      'Super Admin',
+    );
     res.json({ ok: true, forceSyncAt: r.rows[0].mobile_force_sync_at });
   } catch (e) {
-    console.error('mobile-force-sync:', (e as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, e, 'mobile-force-sync:');
   }
 });
 
@@ -324,13 +380,12 @@ router.put('/api/super-admin/tenants/:id/mobile-version', superAdminMiddleware, 
     }
     const r = await pool.query(
       `UPDATE tenants SET mobile_min_version = $1, mobile_latest_version = $2 WHERE id = $3 RETURNING id`,
-      [minVersion, latestVersion, req.params.id]
+      [minVersion, latestVersion, req.params.id],
     );
     if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found' });
     res.json({ ok: true, minVersion, latestVersion });
   } catch (e) {
-    console.error('mobile-version:', (e as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, e, 'mobile-version:');
   }
 });
 
@@ -344,10 +399,10 @@ router.get('/api/super-admin/tenants/:id/mobile-devices', superAdminMiddleware, 
        WHERE d.tenant_id = $1
        ORDER BY d.last_seen DESC NULLS LAST
        LIMIT 100`,
-      [req.params.id]
+      [req.params.id],
     );
     res.json({
-      devices: rows.map((r) => ({
+      devices: rows.map(r => ({
         id: r.id,
         deviceId: r.device_id,
         platform: r.platform,
@@ -356,12 +411,11 @@ router.get('/api/super-admin/tenants/:id/mobile-devices', superAdminMiddleware, 
         createdAt: r.created_at,
         userName: r.user_name,
         userEmail: r.user_email,
-        isOnline: r.last_seen && (Date.now() - new Date(r.last_seen).getTime()) < 20 * 60 * 1000,
+        isOnline: r.last_seen && Date.now() - new Date(r.last_seen).getTime() < 20 * 60 * 1000,
       })),
     });
   } catch (e) {
-    console.error('mobile-devices:', (e as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, e, 'mobile-devices:');
   }
 });
 

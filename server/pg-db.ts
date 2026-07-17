@@ -1,8 +1,11 @@
 import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
+import { logger } from './utils/logger';
 
 dotenv.config();
+
+export const SLOW_QUERY_MS = Number(process.env.SLOW_QUERY_MS || 200);
 
 // Set tenant context on a connection for RLS (P2 fix)
 // Use true = transaction-local (resets after COMMIT/ROLLBACK)
@@ -29,7 +32,23 @@ export async function withTenantClient<T>(
     await client.query('COMMIT');
     return result;
   } catch (err) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch (rbErr) {
+      logger.error('Transaction rollback failed', {
+        tenantId,
+        error: rbErr instanceof Error ? rbErr.message : String(rbErr),
+        cause: err instanceof Error ? err.message : String(err),
+      });
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    const isDeadlock = /deadlock/i.test(msg);
+    const isTimeout = /timeout|canceling statement/i.test(msg);
+    logger.error(isDeadlock ? 'Transaction deadlock' : isTimeout ? 'Transaction timeout' : 'Transaction rolled back', {
+      tenantId,
+      error: msg,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     throw err;
   } finally {
     client.release();
@@ -64,11 +83,47 @@ export const pool = new Pool({
   ...(useSsl ? { ssl: { rejectUnauthorized } } : {}),
 });
 
-// Swallow pool-level connection errors (e.g. PG shutting down while connections are open)
+// Pool-level connection errors (e.g. PG shutting down while connections are open)
 pool.on('error', err => {
   if (process.env.DEPLOYMENT_MODE === 'onprem') return; // expected on app close
-  console.error('Unexpected pool error:', err.message);
+  logger.fatal('Unexpected database pool error', {
+    error: err.message,
+    stack: err.stack,
+    code: (err as NodeJS.ErrnoException).code,
+  });
 });
+
+/**
+ * Instrumented query helper — prefer for new code / hot paths.
+ * Logs slow queries (>= SLOW_QUERY_MS) and failures. Never logs bind params.
+ */
+export async function loggedQuery<T extends import('pg').QueryResultRow = import('pg').QueryResultRow>(
+  text: string,
+  params?: unknown[],
+): Promise<import('pg').QueryResult<T>> {
+  const started = Date.now();
+  try {
+    const result = await pool.query<T>(text, params);
+    const durationMs = Date.now() - started;
+    if (durationMs >= SLOW_QUERY_MS) {
+      logger.warn('Slow database query', {
+        durationMs,
+        thresholdMs: SLOW_QUERY_MS,
+        sql: text.replace(/\s+/g, ' ').slice(0, 200),
+      });
+    }
+    return result;
+  } catch (err) {
+    logger.error('Database query failed', {
+      durationMs: Date.now() - started,
+      sql: text.replace(/\s+/g, ' ').slice(0, 200),
+      error: err instanceof Error ? err.message : String(err),
+      code: err && typeof err === 'object' && 'code' in err ? (err as { code?: string }).code : undefined,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    throw err;
+  }
+}
 
 export async function initSchema() {
   const client = await pool.connect();
@@ -941,9 +996,9 @@ export async function initSchema() {
     // FORCE ROW LEVEL SECURITY was removed: without per-request SET LOCAL inside the
     // same transaction, handlers use pool.query() on different connections where
     // app.tenant_id is unset → FORCE RLS returns empty rows (silent data loss).
-    console.log('  ✓ Row Level Security policies applied');
+    logger.info('Row Level Security policies applied');
 
-    console.log('  ✓ Database schema ready');
+    logger.info('Database schema ready');
   } finally {
     client.release();
   }
@@ -953,7 +1008,7 @@ export async function seedPlatformData() {
   const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
   const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
   if (!superAdminEmail || !superAdminPassword) {
-    console.log('  ⚠ Set SUPER_ADMIN_EMAIL + SUPER_ADMIN_PASSWORD env vars to create admin');
+    logger.warn('SUPER_ADMIN_EMAIL + SUPER_ADMIN_PASSWORD not set — skipping admin seed');
   } else {
     const existing = await pool.query('SELECT id FROM super_admins WHERE email = $1', [superAdminEmail]);
     if (existing.rows.length === 0) {
@@ -965,7 +1020,7 @@ export async function seedPlatformData() {
         'Platform Owner',
         'owner',
       ]);
-      console.log('  ✓ Super admin created: [REDACTED_EMAIL]');
+      logger.info('Super admin created');
     }
   }
 
@@ -1023,11 +1078,11 @@ export async function seedPlatformData() {
       p,
     );
   }
-  console.log('  ✓ Plans seeded (Trial, Basic, Standard, Professional)');
+  logger.info('Plans seeded', { plans: ['Trial', 'Basic', 'Standard', 'Professional'] });
 }
 
 export async function initDatabase() {
   await initSchema();
   await seedPlatformData();
-  console.log('  ✓ Database ready');
+  logger.info('Database ready');
 }

@@ -1,4 +1,5 @@
 import { pool } from '../pg-db';
+import { logger } from './logger';
 
 type Resource = 'products' | 'vendors' | 'users' | 'barcodes';
 
@@ -17,16 +18,13 @@ const PLAN_COL: Record<Resource, string> = {
 };
 
 /** Returns 403 JSON error string if limit exceeded, null if allowed. */
-export async function checkPlanLimit(
-  tenantId: string,
-  resource: Resource
-): Promise<{ error: string } | null> {
+export async function checkPlanLimit(tenantId: string, resource: Resource): Promise<{ error: string } | null> {
   try {
     const planRow = await pool.query(
       `SELECT p.${PLAN_COL[resource]} AS lim
        FROM plans p JOIN tenants t ON t.plan_id = p.id
        WHERE t.id = $1`,
-      [tenantId]
+      [tenantId],
     );
     const limit: number = planRow.rows[0]?.lim ?? -1;
     if (limit === -1) return null; // -1 = unlimited
@@ -35,7 +33,7 @@ export async function checkPlanLimit(
     const whereExtra = resource === 'vendors' ? " AND id != 'OWNER'" : '';
     const countRow = await pool.query(
       `SELECT COUNT(*) AS c FROM ${RESOURCE_TABLE[resource]} WHERE tenant_id = $1${whereExtra}`,
-      [tenantId]
+      [tenantId],
     );
     const current = Number(countRow.rows[0]?.c ?? 0);
 
@@ -45,8 +43,14 @@ export async function checkPlanLimit(
       };
     }
     return null;
-  } catch {
+  } catch (err) {
     // Fail closed — do not allow creates past plan caps when limits cannot be checked
+    logger.error('Plan limit check failed', {
+      tenantId,
+      resource,
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return { error: 'Unable to verify plan limits. Please try again.' };
   }
 }

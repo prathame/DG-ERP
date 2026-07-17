@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { blockVendors, AuthRequest, vendorScopeId } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit, isValidPhone, isValidEmail } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
 
 const router = Router();
 
@@ -48,8 +49,7 @@ router.get('/api/customers', async (req: AuthRequest, res) => {
     res.setHeader('X-Limit', String(limit));
     res.json(list);
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -85,8 +85,7 @@ router.post('/api/customers', blockVendors, async (req: AuthRequest, res) => {
       vendorId: row.vendor_id ?? null,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -112,8 +111,7 @@ router.put('/api/customers/:id', blockVendors, async (req: AuthRequest, res) => 
       vendorId: row.vendor_id ?? null,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -135,8 +133,7 @@ router.delete('/api/customers/:id', blockVendors, async (req: AuthRequest, res) 
     if (result.rowCount === 0) return res.status(404).json({ error: 'Customer not found' });
     res.status(204).send();
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -172,8 +169,7 @@ router.get('/api/customers/:id/purchases', async (req, res) => {
       })),
     );
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -200,8 +196,7 @@ router.put('/api/customers/:id/vendor', blockVendors, async (req: AuthRequest, r
       vendorId: row.vendor_id ?? null,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 

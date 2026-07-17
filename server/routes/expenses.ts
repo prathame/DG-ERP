@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
+import { handleApiError } from '../utils/http-error';
 
 const router = Router();
 
@@ -13,18 +14,34 @@ router.get('/api/expenses', async (req, res) => {
     let sql = 'SELECT * FROM expenses WHERE tenant_id = $1';
     const params: unknown[] = [tenantId];
     let idx = 2;
-    if (typeof category === 'string' && category) { sql += ` AND category = $${idx++}`; params.push(category); }
-    if (typeof from === 'string' && from) { sql += ` AND expense_date >= $${idx++}`; params.push(from); }
-    if (typeof to === 'string' && to) { sql += ` AND expense_date <= $${idx++}`; params.push(to); }
+    if (typeof category === 'string' && category) {
+      sql += ` AND category = $${idx++}`;
+      params.push(category);
+    }
+    if (typeof from === 'string' && from) {
+      sql += ` AND expense_date >= $${idx++}`;
+      params.push(from);
+    }
+    if (typeof to === 'string' && to) {
+      sql += ` AND expense_date <= $${idx++}`;
+      params.push(to);
+    }
     sql += ' ORDER BY expense_date DESC';
     const { rows } = await pool.query(sql, params);
-    res.json(rows.map((r: Record<string, unknown>) => ({
-      id: r.id, category: r.category, description: r.description, amount: Number(r.amount),
-      expenseDate: r.expense_date, paymentMethod: r.payment_method,
-      referenceNumber: r.reference_number, notes: r.notes,
-    })));
+    res.json(
+      rows.map((r: Record<string, unknown>) => ({
+        id: r.id,
+        category: r.category,
+        description: r.description,
+        amount: Number(r.amount),
+        expenseDate: r.expense_date,
+        paymentMethod: r.payment_method,
+        referenceNumber: r.reference_number,
+        notes: r.notes,
+      })),
+    );
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -33,18 +50,27 @@ router.get('/api/expenses/summary', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const year = parseInt(String(req.query.year), 10) || new Date().getFullYear();
-    const byCategory = (await pool.query(
-      'SELECT category, SUM(amount) as total, COUNT(*) as count FROM expenses WHERE tenant_id = $1 AND EXTRACT(YEAR FROM expense_date) = $2 GROUP BY category ORDER BY total DESC',
-      [tenantId, year]
-    )).rows as { category: string; total: number; count: number }[];
-    const byMonth = (await pool.query(
-      "SELECT to_char(expense_date, 'YYYY-MM') as month, SUM(amount) as total FROM expenses WHERE tenant_id = $1 AND EXTRACT(YEAR FROM expense_date) = $2 GROUP BY to_char(expense_date, 'YYYY-MM') ORDER BY month",
-      [tenantId, year]
-    )).rows as { month: string; total: number }[];
+    const byCategory = (
+      await pool.query(
+        'SELECT category, SUM(amount) as total, COUNT(*) as count FROM expenses WHERE tenant_id = $1 AND EXTRACT(YEAR FROM expense_date) = $2 GROUP BY category ORDER BY total DESC',
+        [tenantId, year],
+      )
+    ).rows as { category: string; total: number; count: number }[];
+    const byMonth = (
+      await pool.query(
+        "SELECT to_char(expense_date, 'YYYY-MM') as month, SUM(amount) as total FROM expenses WHERE tenant_id = $1 AND EXTRACT(YEAR FROM expense_date) = $2 GROUP BY to_char(expense_date, 'YYYY-MM') ORDER BY month",
+        [tenantId, year],
+      )
+    ).rows as { month: string; total: number }[];
     const grand = byCategory.reduce((s, r) => s + Number(r.total), 0);
-    res.json({ year, grandTotal: grand, byCategory: byCategory.map(r => ({ category: r.category, total: Number(r.total), count: Number(r.count) })), byMonth: byMonth.map(r => ({ month: r.month, total: Number(r.total) })) });
+    res.json({
+      year,
+      grandTotal: grand,
+      byCategory: byCategory.map(r => ({ category: r.category, total: Number(r.total), count: Number(r.count) })),
+      byMonth: byMonth.map(r => ({ month: r.month, total: Number(r.total) })),
+    });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -59,12 +85,40 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
     const date = expenseDate || new Date().toISOString().slice(0, 10);
     await pool.query(
       'INSERT INTO expenses (id, tenant_id, category, description, amount, expense_date, payment_method, reference_number, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-      [id, tenantId, category.trim(), description || null, Number(amount), date, paymentMethod || 'Cash', referenceNumber || null, notes || null]
+      [
+        id,
+        tenantId,
+        category.trim(),
+        description || null,
+        Number(amount),
+        date,
+        paymentMethod || 'Cash',
+        referenceNumber || null,
+        notes || null,
+      ],
     );
-    await logAudit(pool, tenantId, 'Expense Recorded', 'expense', id, `${category}: ₹${Number(amount).toLocaleString()}`);
-    res.status(201).json({ id, category: category.trim(), description, amount: Number(amount), expenseDate: date, paymentMethod: paymentMethod || 'Cash', referenceNumber, notes });
+    await logAudit(
+      pool,
+      tenantId,
+      'Expense Recorded',
+      'expense',
+      id,
+      `${category}: ₹${Number(amount).toLocaleString()}`,
+    );
+    res
+      .status(201)
+      .json({
+        id,
+        category: category.trim(),
+        description,
+        amount: Number(amount),
+        expenseDate: date,
+        paymentMethod: paymentMethod || 'Cash',
+        referenceNumber,
+        notes,
+      });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -76,7 +130,7 @@ router.delete('/api/expenses/:id', blockVendors, async (req: AuthRequest, res) =
     if (result.rowCount === 0) return res.status(404).json({ error: 'Expense not found' });
     res.json({ ok: true });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message); res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 

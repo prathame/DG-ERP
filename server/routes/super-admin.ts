@@ -1,7 +1,9 @@
 import { Router } from 'express';
+import { logger } from '../utils/logger';
 import { pool } from '../pg-db';
 import bcrypt from 'bcrypt';
 import { uid } from '../utils/helpers';
+import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
 import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
 import { logAudit } from '../utils/helpers';
@@ -32,8 +34,7 @@ router.get('/api/tenant/by-slug/:slug', async (req, res) => {
       tagline: billSettings?.tagline ?? null,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -48,19 +49,25 @@ router.post('/api/super-admin/login', async (req, res) => {
     );
     const admin = rows[0] as
       { id: string; email: string; name: string; password_hash: string; role: string } | undefined;
-    if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!admin) {
+      logAuthEvent('Super-admin login failed', req, { reason: 'unknown_user' }, 'warn');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
     const valid = await bcrypt.compare(password, admin.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!valid) {
+      logAuthEvent('Super-admin login failed', req, { reason: 'bad_password', userId: admin.id }, 'warn');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
     const token = generateSuperAdminToken({
       userId: admin.id,
       email: admin.email,
       name: admin.name,
       role: 'super_admin',
     });
+    logger.info('Super-admin login success', { userId: admin.id, role: admin.role });
     res.json({ token, user: { id: admin.id, email: admin.email, name: admin.name, role: 'super_admin' } });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -107,8 +114,7 @@ router.get('/api/super-admin/dashboard', superAdminMiddleware, async (req, res) 
       tenantsByPlan,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -160,8 +166,7 @@ router.get('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =>
       })),
     );
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -320,7 +325,10 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       mobileInviteCode = mobileInvite.code;
       mobileInviteExpiresAt = mobileInvite.expiresAt;
     } catch (inviteErr) {
-      console.error('mobile invite after create failed:', (inviteErr as Error).message);
+      logger.warn('Mobile invite after tenant create failed', {
+        error: inviteErr instanceof Error ? inviteErr.message : String(inviteErr),
+        stack: inviteErr instanceof Error ? inviteErr.stack : undefined,
+      });
     }
     await logAudit(
       pool,
@@ -344,8 +352,7 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
   } catch (err) {
     const e = err as Error & { code?: string };
     if (e.code === 'DUPLICATE_SLUG') return res.status(400).json({ error: e.message });
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, e.message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err, 'Tenant create failed');
   }
 });
 
@@ -406,8 +413,7 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
       })),
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -539,8 +545,7 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
       tabConfig: tenant.tab_config ?? null,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -563,8 +568,7 @@ router.delete('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, 
     await deleteTenant(id);
     res.json({ ok: true, message: 'Tenant and all data deleted' });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -606,8 +610,7 @@ router.post('/api/super-admin/tenants/:id/reset-token', superAdminMiddleware, as
 
     res.json({ ok: true, token, resetLink, expiresAt, userName: user.name, email: user.email });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -660,8 +663,7 @@ router.post('/api/super-admin/tenants/:id/impersonate', superAdminMiddleware, as
       user: { id: admin.id, email: admin.email, name: admin.name, role: admin.role, companyName: tenant.company_name },
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -687,8 +689,7 @@ router.get('/api/super-admin/plans', superAdminMiddleware, async (req, res) => {
       })),
     );
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -712,8 +713,7 @@ router.post('/api/super-admin/plans', superAdminMiddleware, async (req, res) => 
     );
     res.status(201).json({ ok: true });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -741,8 +741,7 @@ router.put('/api/super-admin/plans/:id', superAdminMiddleware, async (req, res) 
     );
     res.json({ ok: true });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -755,8 +754,7 @@ router.delete('/api/super-admin/plans/:id', superAdminMiddleware, async (req, re
     await pool.query('DELETE FROM plans WHERE id = $1', [id]);
     res.json({ ok: true });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -808,8 +806,7 @@ router.get('/api/super-admin/billing', superAdminMiddleware, async (req, res) =>
       totalPages: Math.ceil(Number(countResult.c) / pageSize),
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -855,8 +852,7 @@ router.post('/api/super-admin/billing', superAdminMiddleware, async (req, res) =
     );
     res.status(201).json({ id, invoiceNumber: invNum, total });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -876,8 +872,7 @@ router.put('/api/super-admin/billing/:id/paid', superAdminMiddleware, async (req
     );
     res.json({ ok: true });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -886,8 +881,7 @@ router.delete('/api/super-admin/billing/:id', superAdminMiddleware, async (req, 
     await pool.query('DELETE FROM tenant_invoices WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -946,8 +940,7 @@ router.get('/api/super-admin/audit-log', superAdminMiddleware, async (req, res) 
       totalPages: Math.ceil(Number(countResult.c) / pageSize),
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -980,8 +973,7 @@ router.get('/api/super-admin/analytics', superAdminMiddleware, async (req, res) 
 
     res.json({ monthlyTenants, revenueByTenant, mostActiveToday });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1004,7 +996,7 @@ router.get('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       onpremVersions: versions,
     });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1025,8 +1017,7 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
     }
     res.json({ ok: true });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1097,8 +1088,7 @@ router.get('/api/super-admin/cloud-analytics', superAdminMiddleware, async (req,
       activeThisWeek: Number(recentLogins.rows[0]?.count) || 0,
     });
   } catch (err) {
-    console.error(`💥 cloud-analytics failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1151,8 +1141,7 @@ router.get('/api/super-admin/onprem-analytics', superAdminMiddleware, async (req
       statusBreakdown: statusBreakdown.rows,
     });
   } catch (err) {
-    console.error(`💥 onprem-analytics failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1170,8 +1159,7 @@ router.get('/api/super-admin/tenants/:id/active-users', superAdminMiddleware, as
     ).rows;
     res.json({ activeCount: rows.length, users: rows });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1192,8 +1180,7 @@ router.post('/api/super-admin/tenants/:id/upgrade-plan', superAdminMiddleware, a
     ]);
     res.json({ ok: true, plan: plan.name });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1256,8 +1243,7 @@ router.get('/api/super-admin/tenants/:id/activity', superAdminMiddleware, async 
       estimatedStorageRows: Number(s.total_rows) || 0,
     });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1330,8 +1316,7 @@ router.get('/api/super-admin/tenants/:id/export', superAdminMiddleware, async (r
     res.setHeader('Content-Type', 'application/json');
     res.json(backup);
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1349,8 +1334,7 @@ router.post('/api/super-admin/tenants/:id/notify', superAdminMiddleware, async (
     );
     res.json({ ok: true });
   } catch (err) {
-    console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1370,7 +1354,7 @@ router.get('/api/super-admin/reset-tokens', superAdminMiddleware, async (req, re
     res.setHeader('Cache-Control', 'no-store');
     res.json(rows.rows);
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
@@ -1392,7 +1376,7 @@ router.post('/api/super-admin/users/:userId/reset-password', superAdminMiddlewar
     );
     res.json({ ok: true, message: `Password reset for ${user.email}` });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    return handleApiError(req, res, err);
   }
 });
 
