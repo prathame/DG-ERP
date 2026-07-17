@@ -61,8 +61,17 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       allowedHosts: true as const,
       proxy: {
-        '/api': { target: 'http://localhost:3001', changeOrigin: true },
-        '/manifest.json': { target: 'http://localhost:3001', changeOrigin: true },
+        // Default: local Express. Override for cloud: DG_DEV_API_PROXY=https://dg-erp.onrender.com
+        '/api': {
+          target: process.env.DG_DEV_API_PROXY || 'http://localhost:3001',
+          changeOrigin: true,
+          secure: true,
+        },
+        '/manifest.json': {
+          target: process.env.DG_DEV_API_PROXY || 'http://localhost:3001',
+          changeOrigin: true,
+          secure: true,
+        },
       },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
