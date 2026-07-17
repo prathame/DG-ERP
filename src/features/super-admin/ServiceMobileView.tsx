@@ -169,9 +169,19 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
     if (selected?.id === id) setSelected(rows.find(l => l.id === id) || null);
   };
 
-  const remove = async (id: string) => {
-    if (!confirm('Delete this license permanently? Backups will be removed.')) return;
-    await fetch(`/api/super-admin/service-mobile/${id}`, { method: 'DELETE', headers: h });
+  const remove = async (id: string, companyName?: string) => {
+    if (
+      !confirm(
+        `Delete Offline Mobile license${companyName ? ` for "${companyName}"` : ''} permanently? The DG-SM key will stop working. Staff phone data is not stored by us.`,
+      )
+    ) {
+      return;
+    }
+    const r = await fetch(`/api/super-admin/service-mobile/${id}`, { method: 'DELETE', headers: h });
+    if (!r.ok) {
+      toast('Delete failed', 'error');
+      return;
+    }
     toast('License deleted', 'success');
     setSelected(null);
     await load(true);
@@ -317,10 +327,10 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
             )}
             <button
               type="button"
-              onClick={() => void remove(selected.id)}
+              onClick={() => void remove(selected.id, selected.companyName)}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-red-50 text-red-700 hover:bg-red-100"
             >
-              <Trash2 size={14} /> Delete
+              <Trash2 size={14} /> Delete license
             </button>
           </div>
         </div>
@@ -446,20 +456,17 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Device</th>
                 <th className="px-4 py-3 font-medium">Last seen</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {licenses.map(lic => (
-                <tr
-                  key={lic.id}
-                  onClick={() => setSelected(lic)}
-                  className="border-t border-gray-50 hover:bg-gray-50 cursor-pointer"
-                >
-                  <td className="px-4 py-3">
+                <tr key={lic.id} className="border-t border-gray-50 hover:bg-gray-50">
+                  <td className="px-4 py-3 cursor-pointer" onClick={() => setSelected(lic)}>
                     <p className="font-medium text-gray-900">{lic.companyName}</p>
                     <p className="text-xs font-mono text-gray-400 truncate max-w-[200px]">{lic.licenseKey}</p>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 cursor-pointer" onClick={() => setSelected(lic)}>
                     <span
                       className={cn(
                         'text-xs font-bold px-2 py-0.5 rounded-full',
@@ -469,7 +476,7 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
                       {lic.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 cursor-pointer" onClick={() => setSelected(lic)}>
                     <span className="inline-flex items-center gap-1">
                       {lic.isOnline ? (
                         <Wifi size={14} className="text-emerald-500" />
@@ -479,7 +486,22 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
                       {lic.machineId ? 'Bound' : '—'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-500">{timeAgo(lic.lastSeen)}</td>
+                  <td className="px-4 py-3 text-gray-500 cursor-pointer" onClick={() => setSelected(lic)}>
+                    {timeAgo(lic.lastSeen)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      title="Delete license"
+                      onClick={e => {
+                        e.stopPropagation();
+                        void remove(lic.id, lic.companyName);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100"
+                    >
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
