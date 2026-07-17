@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/quotations.ts` is part of Dhandho (DG-ERP). Approximate size: **772 lines**.
+`server/routes/quotations.ts` is part of Dhandho (DG-ERP). Approximate size: **793 lines**.
 
 ## Business value
 
@@ -34,7 +34,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (16 detected)
+## Functions (17 detected)
 
 ### Function: todayYmd
 
@@ -193,6 +193,21 @@ current(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: existing
+
+```ts
+existing(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/quotations.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `existing` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 ### Function: tenantType
 
 ```ts
@@ -299,7 +314,7 @@ rg -n "quotations" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **772**. Large view/route files are refactor candidates.
+Line count **793**. Large view/route files are refactor candidates.
 
 ## Security impact
 

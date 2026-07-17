@@ -960,6 +960,26 @@ export async function initSchema() {
     await client.query('ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_pushed_at TIMESTAMPTZ');
     await client.query('ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_applied_at TIMESTAMPTZ');
 
+    // SA → on-prem Bell messages (delivered on heartbeat / hard sync)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS onprem_notifications (
+        id TEXT PRIMARY KEY,
+        license_id TEXT NOT NULL REFERENCES onprem_licenses(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'info',
+        source TEXT NOT NULL DEFAULT 'super_admin',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        expires_at TIMESTAMPTZ,
+        delivered_at TIMESTAMPTZ
+      )
+    `);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_onprem_notif_pending
+       ON onprem_notifications(license_id, created_at)
+       WHERE delivered_at IS NULL`,
+    );
+
     // Mobile app (Capacitor) — Super Admin invite + force sync + device registry
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_invite_code TEXT`);
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_invite_expires_at TIMESTAMPTZ`);

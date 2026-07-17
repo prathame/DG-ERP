@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/notifications.ts` is part of Dhandho (DG-ERP). Approximate size: **360 lines**.
+`server/routes/notifications.ts` is part of Dhandho (DG-ERP). Approximate size: **380 lines**.
 
 ## Business value
 
@@ -25,6 +25,8 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../middleware/auth`
 - `../middleware/permissions`
 - `../utils/http-error`
+- `../utils/logger`
+- `../utils/helpers`
 
 ## Exports and symbols
 
@@ -175,7 +177,7 @@ rg -n "notifications" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **360**. Large view/route files are refactor candidates.
+Line count **380**. Large view/route files are refactor candidates.
 
 ## Security impact
 

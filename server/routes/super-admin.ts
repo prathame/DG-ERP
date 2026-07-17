@@ -1386,8 +1386,28 @@ router.post('/api/super-admin/notifications/broadcast', superAdminMiddleware, as
       );
       sent++;
     }
-    logger.info('SA notification broadcast', { sent, type: notifType, title: safeTitle, userId: saId });
-    res.json({ ok: true, sent });
+    // Also queue for active on-prem licenses (delivered on next heartbeat / hard sync)
+    const licenses = (await pool.query(`SELECT id FROM onprem_licenses WHERE status = 'active'`)).rows as {
+      id: string;
+    }[];
+    let onpremSent = 0;
+    for (const lic of licenses) {
+      const notifId = uid('OPN');
+      await pool.query(
+        `INSERT INTO onprem_notifications (id, license_id, title, body, type, source, expires_at)
+         VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
+        [notifId, lic.id, safeTitle, safeBody, notifType],
+      );
+      onpremSent++;
+    }
+    logger.info('SA notification broadcast', {
+      sent,
+      onpremSent,
+      type: notifType,
+      title: safeTitle,
+      userId: saId,
+    });
+    res.json({ ok: true, sent, onpremSent });
   } catch (err) {
     return handleApiError(req, res, err);
   }

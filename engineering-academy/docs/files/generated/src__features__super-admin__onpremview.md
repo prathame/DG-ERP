@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/super-admin/OnPremView.tsx` is part of Dhandho (DG-ERP). Approximate size: **837 lines**.
+`src/features/super-admin/OnPremView.tsx` is part of Dhandho (DG-ERP). Approximate size: **904 lines**.
 
 ## Business value
 
@@ -305,7 +305,7 @@ rg -n "OnPremView" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **837**. Large view/route files are refactor candidates.
+Line count **904**. Large view/route files are refactor candidates.
 
 ## Security impact
 

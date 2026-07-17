@@ -201,6 +201,7 @@ The header Bell loads `GET /api/notifications` — a **merged feed**, not a toas
 - **Other roles**: digests are filtered by module permission (`getAccessLevel` ≠ `hidden`). Example: Warehouse may see inventory digests but not finance overdue.
 - **Service overdue**: only `standalone_invoices` with `status = 'sent'` past due with unpaid balance — drafts never count.
 - **Manufacturer overdue**: count of vendors with positive balance whose *oldest* dispatch is &gt; 30 days (not a lifetime payment vs old billed mismatch).
+- **On-prem desktop**: SA messages are queued in cloud `onprem_notifications` (`POST /api/super-admin/onprem/:id/notify`, and broadcast). Heartbeat returns `pendingNotifications`; Electron applies them into the local `tenant_notifications` via localhost `POST /api/onprem/apply-notifications`, then acks with `POST /api/onprem/mark-notifications-delivered`. Hard sync / Sync Now pulls the same payload. Digests still compute locally — only SA pushes need this bridge.
 
 Anti-noise: digests capped (≤6); client dismisses digests in `localStorage`; soft chime only when a *new* high-priority unread id appears and sound is unmuted. Poll every 5 minutes while focused.
 

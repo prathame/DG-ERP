@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/invoice-finance.ts` is part of Dhandho (DG-ERP). Approximate size: **333 lines**.
+`server/routes/invoice-finance.ts` is part of Dhandho (DG-ERP). Approximate size: **343 lines**.
 
 ## Business value
 
@@ -125,7 +125,7 @@ rg -n "invoice-finance" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **333**. Large view/route files are refactor candidates.
+Line count **343**. Large view/route files are refactor candidates.
 
 ## Security impact
 

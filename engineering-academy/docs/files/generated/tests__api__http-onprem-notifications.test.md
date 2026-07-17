@@ -1,10 +1,10 @@
 ---
-sidebar_label: "pg-db.ts"
-title: "File server/pg-db.ts"
-description: "Deep walkthrough of server/pg-db.ts in DG-ERP / Dhandho"
+sidebar_label: "http-onprem-notifications.test.ts"
+title: "File tests/api/http-onprem-notifications.test.ts"
+description: "Deep walkthrough of tests/api/http-onprem-notifications.test.ts in DG-ERP / Dhandho"
 ---
 
-# File walkthrough: `server/pg-db.ts`
+# File walkthrough: `tests/api/http-onprem-notifications.test.ts`
 
 :::info Ownership context
 Auto-generated from the live source tree so **no file is invisible** during onboarding.
@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/pg-db.ts` is part of Dhandho (DG-ERP). Approximate size: **1156 lines**.
+`tests/api/http-onprem-notifications.test.ts` is part of Dhandho (DG-ERP). Approximate size: **122 lines**.
 
 ## Business value
 
@@ -20,90 +20,60 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 ## Imports
 
-- `pg`
-- `bcrypt`
-- `dotenv`
-- `./utils/logger`
+- `vitest`
+- `../helpers`
+- `../http`
+- `../../server/utils/helpers`
 
 ## Exports and symbols
 
-**Exported names:** `SLOW_QUERY_MS`, `setTenantContext`, `withTenantClient`, `pool`, `loggedQuery`, `initSchema`, `seedPlatformData`, `initDatabase`
+**Exported names:** _none detected_
 
 **Classes:** _none_
 
-## Functions (5 detected)
+## Functions (3 detected)
 
-### Function: setTenantContext
+### Function: saToken
 
 ```ts
-setTenantContext(client: import('pg')
+saToken(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/pg-db.ts`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-onprem-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `setTenantContext` before deleting. |
+| What breaks if removed | Search the repo for `saToken` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: initSchema
+### Function: pending
 
 ```ts
-initSchema()
+pending(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/pg-db.ts`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-onprem-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `initSchema` before deleting. |
+| What breaks if removed | Search the repo for `pending` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: seedPlatformData
+### Function: row
 
 ```ts
-seedPlatformData()
+row(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/pg-db.ts`. Open the source and read the body. |
+| Purpose | Symbol in `tests/api/http-onprem-notifications.test.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `seedPlatformData` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
-### Function: initDatabase
-
-```ts
-initDatabase()
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `server/pg-db.ts`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `initDatabase` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
-### Function: useSsl
-
-```ts
-useSsl(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `server/pg-db.ts`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `useSsl` before deleting. |
+| What breaks if removed | Search the repo for `row` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -119,12 +89,12 @@ useSsl(...)
 
 ```bash
 # From DG-ERP repo root
-rg -n "pg-db" --glob '!node_modules' -g '*.ts' -g '*.tsx'
+rg -n "http-onprem-notifications.test" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 ```
 
 ## Performance impact
 
-Line count **1156**. Large view/route files are refactor candidates.
+Line count **122**. Large view/route files are refactor candidates.
 
 ## Security impact
 
@@ -164,11 +134,11 @@ In-memory caches (authCache, GET Map) do **not** share across instances.
 
 ## Hands-on
 
-1. Open `server/pg-db.ts` in the IDE.
+1. Open `tests/api/http-onprem-notifications.test.ts` in the IDE.
 2. Breakpoint the largest exported function.
 3. Trigger via UI or supertest.
 4. Write one sentence on why this file exists in the product narrative.
 
 ---
 
-*Generated by scripts/generate-file-deepdives.mjs · slug: `server__pg-db`*
+*Generated by scripts/generate-file-deepdives.mjs · slug: `tests__api__http-onprem-notifications.test`*

@@ -63,7 +63,9 @@ const PUBLIC_PATHS = [
   '/api/onprem/deactivate',
   '/api/onprem/provision',
   '/api/onprem/apply-settings',
+  '/api/onprem/apply-notifications',
   '/api/onprem/mark-applied',
+  '/api/onprem/mark-notifications-delivered',
   '/api/mobile/redeem-invite',
   '/api/mobile/heartbeat',
 ];

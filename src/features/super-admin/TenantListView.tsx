@@ -205,7 +205,11 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Broadcast failed');
-                    toast(`Broadcast sent to ${data.sent} tenants`, 'success');
+                    toast(
+                      `Broadcast sent to ${data.sent} tenants` +
+                        (data.onpremSent ? ` + ${data.onpremSent} on-prem` : ''),
+                      'success',
+                    );
                     setShowBroadcast(false);
                     setBroadcastForm({ title: '', message: '', type: 'info' });
                   } catch (err) {

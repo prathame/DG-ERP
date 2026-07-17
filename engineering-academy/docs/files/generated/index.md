@@ -179,7 +179,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`electron/shared/constants.ts`](/files/generated/electron__shared__constants)
 - [`electron/shared/find-port.ts`](/files/generated/electron__shared__find-port)
 
-## Tests (52 files)
+## Tests (53 files)
 
 - [`tests/api/audit.test.ts`](/files/generated/tests__api__audit.test)
 - [`tests/api/auth.test.ts`](/files/generated/tests__api__auth.test)
@@ -197,6 +197,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`tests/api/http-invoices-finance.test.ts`](/files/generated/tests__api__http-invoices-finance.test)
 - [`tests/api/http-mobile.test.ts`](/files/generated/tests__api__http-mobile.test)
 - [`tests/api/http-notifications.test.ts`](/files/generated/tests__api__http-notifications.test)
+- [`tests/api/http-onprem-notifications.test.ts`](/files/generated/tests__api__http-onprem-notifications.test)
 - [`tests/api/http-vendors-finance-purchases.test.ts`](/files/generated/tests__api__http-vendors-finance-purchases.test)
 - [`tests/api/mapping.test.ts`](/files/generated/tests__api__mapping.test)
 - [`tests/api/masters.test.ts`](/files/generated/tests__api__masters.test)
@@ -234,4 +235,4 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`tests/unit/pii.test.ts`](/files/generated/tests__unit__pii.test)
 - [`tests/unit/price-resolve.test.ts`](/files/generated/tests__unit__price-resolve.test)
 
-**Total files documented:** 212
+**Total files documented:** 213
