@@ -1,12 +1,12 @@
 ---
 sidebar_label: Business Workflows
 title: Business Workflows — Following the Data
-description: Four real, end-to-end workflows traced through the actual code — sale to warranty, quote to distribution, purchase to barcode stock, and E-Invoice IRN generation.
+description: End-to-end workflows traced through the actual code — purchase/sale/quote/IRN for goods, plus party-linked service invoices and price-list resolve.
 ---
 
 # Business Workflows
 
-Architecture diagrams tell you the shape of the system. This page tells you what actually happens, table by table and endpoint by endpoint, for the four workflows that matter most to a physical-goods tenant (Manufacturer/Dealer/Retail). If you're going to break something in your first month, it'll be one of these — read this before you touch `sales.ts`, `distribution.ts`, `purchases.ts`, or `quotations.ts`.
+Architecture diagrams tell you the shape of the system. This page tells you what actually happens, table by table and endpoint by endpoint, for the workflows that matter most. Workflows 1–4 are the physical-goods path (Manufacturer/Dealer/Retail). Workflows 5–6 cover **standalone invoices / Invoice Finance** and **price lists** (service tenants and any type that uses those tabs).
 
 :::info Ground truth
 Every step below is read from the actual route handlers, not inferred. Table and column names are exact.
@@ -146,7 +146,55 @@ Key correctness details:
 A bug in the e-invoice payload builder isn't a UI glitch — it's a document a tenant might submit to the Indian government under their own GSTIN. Treat changes to `distribution.ts`'s e-invoice logic, and to `gst-api.ts`/`nic-api.ts`, with the same review rigor as changes to money-moving code, because functionally, it is exactly that plus a compliance dimension.
 :::
 
-## How the four workflows connect
+## Workflow 5: Service invoice → party-linked ledger
+
+Service (and other) tenants bill via `standalone_invoices` instead of barcode sales. The critical correctness rule: **group collections by a stable party id, not by the typed display name**.
+
+```mermaid
+sequenceDiagram
+    participant User as Admin
+    participant Inv as POST /api/invoices
+    participant Fin as GET /api/invoice-finance/summary
+    participant PG as PostgreSQL
+
+    User->>Inv: Create invoice (customerName, partyType, partyId, items)
+    Inv->>PG: Validate vendor/customer exists for tenant
+    Inv->>PG: INSERT standalone_invoices (party_type, party_id, customer_name, totals…)
+    Inv-->>User: { id, grandTotal }
+    User->>Fin: Open Invoice Finance
+    Fin->>PG: GROUP BY party_type:party_id (else name:customer_name)
+    Fin-->>User: Client cards with partyKey, balance
+    User->>Fin: Drill into vendor:V-1 / New Invoice (prefill)
+```
+
+- **Create** (`invoices.ts`): optional `partyType` + `partyId` validated; status only `draft` or `sent` on create.
+- **Summary** (`invoice-finance.ts`): `partyKey` = `vendor:ID` \| `customer:ID` \| `name:…`. Renaming `customer_name` on a later invoice **does not** split the card when `party_id` matches.
+- **Payments** still attach to individual invoice ids; deleting an invoice with payments is blocked by `ON DELETE RESTRICT`.
+- **UI (service):** `InvoiceFinanceView` mirrors Distribution’s vendor cards; **New Invoice** reuses `CreateInvoiceModal` with party prefills.
+
+:::tip Quotations are not a substitute for price lists
+Quotations are one-off commercial documents. Price lists are reusable slabs (vendor-specific or general). Service billing can pull catalog rates from price lists on the invoice line; it does not replace the quotation → order → distribution pipeline used by goods tenants.
+:::
+
+## Workflow 6: Price list resolve & bulk import
+
+```mermaid
+flowchart TB
+    Need["Need a unit price for product + optional vendor + qty"] --> Resolve["GET /api/price-lists/resolve"]
+    Resolve --> V{"Matching active rule?"}
+    V -->|"vendor_id = vendor, best min_qty"| VendorSlab["source: price_list"]
+    V -->|"vendor_id IS NULL, best min_qty"| GeneralSlab["source: price_list"]
+    V -->|"none"| ProductPrice["source: default → products.price"]
+    CSV["CSV upload in Masters"] --> Bulk["POST /api/price-lists/bulk"]
+    Bulk --> Names["Resolve productName / vendorName → ids"]
+    Names --> Insert["INSERT price_lists rows (insert-only)"]
+```
+
+- **Resolve priority** (SQL `ORDER BY` vendor match first, then `min_qty DESC`): vendor slab → general slab → product default price.
+- **Bulk** accepts up to 500 rules per request; unknown product/vendor names become row errors, not a full abort.
+- **Invoice UI** currently mirrors resolve client-side (`resolveCatalogPrice` in `InvoicesView`); Distribution calls the server endpoint. Prefer the API if you change priority rules so the two paths cannot drift.
+
+## How the goods workflows connect
 
 ```mermaid
 flowchart LR
@@ -158,7 +206,10 @@ flowchart LR
     Inventory --> Sale
     Sale --> Warranty[("warranties<br/>auto-created")]
     Warranty --> Replacement["Replacement<br/>(under warranty)"]
+    PriceList[("price_lists")] -.->|"resolve"| Dist
 ```
+
+Service path (parallel, no barcodes): `vendors/customers` → `standalone_invoices` (+ optional price list on lines) → `invoice_payments`, summarized by `partyKey`.
 
 ## Key concepts
 
@@ -166,6 +217,7 @@ flowchart LR
 - **State transitions with real consequences are funneled through narrow, transactional, guarded endpoints** — quotation conversion and IRN-bearing batch deletion are the clearest examples.
 - **Row locks (`FOR UPDATE`) prevent double-selling** the same physical barcode.
 - **GST compliance logic is business-critical**, not incidental — errors have real regulatory consequences for the tenant.
+- **Service ledgers key on party id** — never rely on display name alone for Invoice Finance grouping.
 
 ## Common mistakes
 
@@ -173,6 +225,9 @@ flowchart LR
 2. Adding a sale-flow side effect after the transaction commits when it actually needs atomicity with the sale.
 3. Deleting or modifying a distribution batch that already has an IRN/EWB without going through the documented cancel-first flow.
 4. Treating "GST rate" or "interstate" logic as a simple lookup rather than checking both the product's own HSN/GST configuration and the seller/buyer state codes at the point of sale.
+5. Creating standalone invoices without `partyType`/`partyId` when a master record exists — Finance will fall back to `name:` grouping and rename-splits return.
+6. Changing price-list resolve priority only in the invoice modal (or only in SQL) — keep `GET /api/price-lists/resolve` and any client mirror in sync.
+7. Assuming CSV bulk upserts — `/bulk` only inserts; re-imports duplicate rules.
 
 ## Interview question
 

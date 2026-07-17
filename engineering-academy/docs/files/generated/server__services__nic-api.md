@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/services/nic-api.ts` is part of Dhandho (DG-ERP). Approximate size: **371 lines**.
+`server/services/nic-api.ts` is part of Dhandho (DG-ERP). Approximate size: **517 lines**.
 
 ## Business value
 
@@ -23,6 +23,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `crypto`
 - `../utils/secret-crypto`
 - `../utils/helpers`
+- `../utils/logger`
 
 ## Exports and symbols
 
@@ -30,7 +31,22 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** `NicApiClient`
 
-## Functions (12 detected)
+## Functions (15 detected)
+
+### Function: loggedFetch
+
+```ts
+loggedFetch(url: string, init: RequestInit & { signal?: AbortSignal }, op: string)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/services/nic-api.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `loggedFetch` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
 ### Function: getGstnPublicKey
 
@@ -111,12 +127,35 @@ resolveSupplyType(buyerGstin: string | undefined)
 
 ```ts
 buildIrnPayload(opts: {
-  sellerGstin: string; sellerName: string; sellerAddr: string; sellerPin: string;
-  buyerGstin?: string; buyerName: string; buyerAddr: string; buyerPin: string;
-  invoiceNo: string; invoiceDate: string;
-  items: { hsnCode: string; productName: string; qty: number; unitPrice: number; gstRate: number; taxable: number; cgst: number; sgst: number; igst: number; total: number }[];
-  totalTaxable: number; totalCgst: number; totalSgst: number; totalIgst: number; grandTotal: number;
-  supplyType?: string; docType?: string;
+  sellerGstin: string;
+  sellerName: string;
+  sellerAddr: string;
+  sellerPin: string;
+  buyerGstin?: string;
+  buyerName: string;
+  buyerAddr: string;
+  buyerPin: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  items: {
+    hsnCode: string;
+    productName: string;
+    qty: number;
+    unitPrice: number;
+    gstRate: number;
+    taxable: number;
+    cgst: number;
+    sgst: number;
+    igst: number;
+    total: number;
+  }[];
+  totalTaxable: number;
+  totalCgst: number;
+  totalSgst: number;
+  totalIgst: number;
+  grandTotal: number;
+  supplyType?: string;
+  docType?: string;
 })
 ```
 
@@ -133,13 +172,40 @@ buildIrnPayload(opts: {
 
 ```ts
 buildEwbPayload(opts: {
-  supplyType: string; subSupplyType: string;
-  docType: string; docNo: string; docDate: string;
-  sellerGstin: string; sellerName: string; sellerAddr: string; sellerPin: string;
-  buyerGstin: string; buyerName: string; buyerAddr: string; buyerPin: string;
-  items: { productName: string; hsnCode: string; qty: number; taxable: number; cgst: number; sgst: number; igst: number; total: number }[];
-  totalTaxable: number; totalCgst: number; totalSgst: number; totalIgst: number; grandTotal: number;
-  vehicleNo: string; vehicleType?: string; transportMode?: string; transporterId?: string; transporterName?: string; distance: number;
+  supplyType: string;
+  subSupplyType: string;
+  docType: string;
+  docNo: string;
+  docDate: string;
+  sellerGstin: string;
+  sellerName: string;
+  sellerAddr: string;
+  sellerPin: string;
+  buyerGstin: string;
+  buyerName: string;
+  buyerAddr: string;
+  buyerPin: string;
+  items: {
+    productName: string;
+    hsnCode: string;
+    qty: number;
+    taxable: number;
+    cgst: number;
+    sgst: number;
+    igst: number;
+    total: number;
+  }[];
+  totalTaxable: number;
+  totalCgst: number;
+  totalSgst: number;
+  totalIgst: number;
+  grandTotal: number;
+  vehicleNo: string;
+  vehicleType?: string;
+  transportMode?: string;
+  transporterId?: string;
+  transporterName?: string;
+  distance: number;
 })
 ```
 
@@ -182,6 +248,21 @@ loadSellerPin(pool: import('pg')
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: method
+
+```ts
+method(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/services/nic-api.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `method` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 ### Function: pem
 
 ```ts
@@ -193,6 +274,21 @@ pem(...)
 | Purpose | Symbol in `server/services/nic-api.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `pem` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: data
+
+```ts
+data(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/services/nic-api.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `data` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -243,7 +339,7 @@ rg -n "nic-api" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **371**. Large view/route files are refactor candidates.
+Line count **517**. Large view/route files are refactor candidates.
 
 ## Security impact
 

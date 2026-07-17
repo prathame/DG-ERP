@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/onprem.ts` is part of Dhandho (DG-ERP). Approximate size: **487 lines**.
+`server/routes/onprem.ts` is part of Dhandho (DG-ERP). Approximate size: **577 lines**.
 
 ## Business value
 
@@ -24,6 +24,8 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `express-rate-limit`
 - `../pg-db`
 - `../utils/helpers`
+- `../utils/http-error`
+- `../utils/logger`
 - `../middleware/auth`
 - `crypto`
 
@@ -171,7 +173,7 @@ rg -n "onprem" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **487**. Large view/route files are refactor candidates.
+Line count **577**. Large view/route files are refactor candidates.
 
 ## Security impact
 

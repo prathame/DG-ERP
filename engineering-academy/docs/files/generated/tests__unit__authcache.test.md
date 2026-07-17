@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`tests/unit/authCache.test.ts` is part of Dhandho (DG-ERP). Approximate size: **37 lines**.
+`tests/unit/authCache.test.ts` is part of Dhandho (DG-ERP). Approximate size: **32 lines**.
 
 ## Business value
 
@@ -48,7 +48,7 @@ rg -n "authCache.test" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **37**. Large view/route files are refactor candidates.
+Line count **32**. Large view/route files are refactor candidates.
 
 ## Security impact
 

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/middleware/auth.ts` is part of Dhandho (DG-ERP). Approximate size: **187 lines**.
+`server/middleware/auth.ts` is part of Dhandho (DG-ERP). Approximate size: **217 lines**.
 
 ## Business value
 
@@ -23,6 +23,8 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `express`
 - `jsonwebtoken`
 - `../pg-db`
+- `../utils/http-error`
+- `../utils/logger`
 
 ## Exports and symbols
 
@@ -183,7 +185,7 @@ rg -n "auth" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **187**. Large view/route files are refactor candidates.
+Line count **217**. Large view/route files are refactor candidates.
 
 ## Security impact
 

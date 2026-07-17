@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/masters.ts` is part of Dhandho (DG-ERP). Approximate size: **37 lines**.
+`server/routes/masters.ts` is part of Dhandho (DG-ERP). Approximate size: **43 lines**.
 
 ## Business value
 
@@ -23,6 +23,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `express`
 - `../middleware/auth`
 - `../pg-db`
+- `../utils/http-error`
 
 ## Exports and symbols
 
@@ -49,7 +50,7 @@ rg -n "masters" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **37**. Large view/route files are refactor candidates.
+Line count **43**. Large view/route files are refactor candidates.
 
 ## Security impact
 

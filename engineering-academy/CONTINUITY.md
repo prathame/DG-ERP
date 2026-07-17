@@ -15,6 +15,10 @@ This academy is designed to grow incrementally without losing the curriculum map
 | Diagrams | `diagrams/*.mmd` |
 | Generators | `scripts/generate-file-deepdives.mjs`, `scripts/ensure-stubs.mjs`, `scripts/enrich-stubs.mjs` |
 
+## Recently updated (product sync)
+
+Party-linked standalone invoices + Invoice Finance `partyKey` + price-list bulk/PDF (PR #68): curated chapters in `overview/product-domain`, `frontend/features-catalog`, `api/finance-accounts`, `architecture/business-workflows` (workflows 5–6), `database/tenant-tables` + `erd`, `testing/api-integration`, `glossary/domain-terms`. Re-run `npm run generate:files` after pulling route changes.
+
 ## How to continue in a new chat
 
 > Continue the Dhandho Engineering Academy at `engineering-academy/` inside DG-ERP.  

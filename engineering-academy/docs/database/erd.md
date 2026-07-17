@@ -267,6 +267,9 @@ erDiagram
         text id PK
         text tenant_id FK
         text invoice_number
+        text customer_name
+        text party_type
+        text party_id
         jsonb items
         numeric grand_total
         text status

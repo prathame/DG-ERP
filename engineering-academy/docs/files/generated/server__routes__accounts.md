@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/accounts.ts` is part of Dhandho (DG-ERP). Approximate size: **766 lines**.
+`server/routes/accounts.ts` is part of Dhandho (DG-ERP). Approximate size: **1269 lines**.
 
 ## Business value
 
@@ -24,6 +24,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../middleware/auth`
 - `../pg-db`
 - `../utils/helpers`
+- `../utils/http-error`
 
 ## Exports and symbols
 
@@ -394,7 +395,7 @@ rg -n "accounts" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **766**. Large view/route files are refactor candidates.
+Line count **1269**. Large view/route files are refactor candidates.
 
 ## Security impact
 

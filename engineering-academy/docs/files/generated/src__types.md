@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/types.ts` is part of Dhandho (DG-ERP). Approximate size: **141 lines**.
+`src/types.ts` is part of Dhandho (DG-ERP). Approximate size: **159 lines**.
 
 ## Business value
 
@@ -47,7 +47,7 @@ rg -n "types" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **141**. Large view/route files are refactor candidates.
+Line count **159**. Large view/route files are refactor candidates.
 
 ## Security impact
 

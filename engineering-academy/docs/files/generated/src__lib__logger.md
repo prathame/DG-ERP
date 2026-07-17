@@ -1,10 +1,10 @@
 ---
-sidebar_label: "auth.ts"
-title: "File server/routes/auth.ts"
-description: "Deep walkthrough of server/routes/auth.ts in DG-ERP / Dhandho"
+sidebar_label: "logger.ts"
+title: "File src/lib/logger.ts"
+description: "Deep walkthrough of src/lib/logger.ts in DG-ERP / Dhandho"
 ---
 
-# File walkthrough: `server/routes/auth.ts`
+# File walkthrough: `src/lib/logger.ts`
 
 :::info Ownership context
 Auto-generated from the live source tree so **no file is invisible** during onboarding.
@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/auth.ts` is part of Dhandho (DG-ERP). Approximate size: **569 lines**.
+`src/lib/logger.ts` is part of Dhandho (DG-ERP). Approximate size: **103 lines**.
 
 ## Business value
 
@@ -20,109 +20,102 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 ## Imports
 
-- `express`
-- `bcrypt`
-- `crypto`
-- `../pg-db`
-- `../utils/helpers`
-- `../utils/http-error`
-- `../utils/logger`
-- `../middleware/auth`
+_No static imports detected._
 
 ## Exports and symbols
 
-**Exported names:** _none detected_
+**Exported names:** `ClientLogLevel`, `ensureCorrelationId`, `clientLogger`, `installGlobalErrorHandlers`
 
 **Classes:** _none_
 
 ## Functions (6 detected)
 
-### Function: row
+### Function: redact
 
 ```ts
-row(...)
+redact(value: unknown)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
+| Purpose | Symbol in `src/lib/logger.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `row` before deleting. |
+| What breaks if removed | Search the repo for `redact` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: planRow
+### Function: correlationFromSession
 
 ```ts
-planRow(...)
+correlationFromSession()
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
+| Purpose | Symbol in `src/lib/logger.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `planRow` before deleting. |
+| What breaks if removed | Search the repo for `correlationFromSession` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: normalizedPerms
+### Function: ensureCorrelationId
 
 ```ts
-normalizedPerms(...)
+ensureCorrelationId()
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
+| Purpose | Symbol in `src/lib/logger.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `normalizedPerms` before deleting. |
+| What breaks if removed | Search the repo for `ensureCorrelationId` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: user
+### Function: baseContext
 
 ```ts
-user(...)
+baseContext()
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
+| Purpose | Symbol in `src/lib/logger.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `user` before deleting. |
+| What breaks if removed | Search the repo for `baseContext` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: resetToken
+### Function: emit
 
 ```ts
-resetToken(...)
+emit(level: ClientLogLevel, message: string, context?: Record<string, unknown>)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
+| Purpose | Symbol in `src/lib/logger.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `resetToken` before deleting. |
+| What breaks if removed | Search the repo for `emit` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: admins
+### Function: installGlobalErrorHandlers
 
 ```ts
-admins(...)
+installGlobalErrorHandlers()
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
+| Purpose | Symbol in `src/lib/logger.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `admins` before deleting. |
+| What breaks if removed | Search the repo for `installGlobalErrorHandlers` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -138,12 +131,12 @@ admins(...)
 
 ```bash
 # From DG-ERP repo root
-rg -n "auth" --glob '!node_modules' -g '*.ts' -g '*.tsx'
+rg -n "logger" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 ```
 
 ## Performance impact
 
-Line count **569**. Large view/route files are refactor candidates.
+Line count **103**. Large view/route files are refactor candidates.
 
 ## Security impact
 
@@ -183,11 +176,11 @@ In-memory caches (authCache, GET Map) do **not** share across instances.
 
 ## Hands-on
 
-1. Open `server/routes/auth.ts` in the IDE.
+1. Open `src/lib/logger.ts` in the IDE.
 2. Breakpoint the largest exported function.
 3. Trigger via UI or supertest.
 4. Write one sentence on why this file exists in the product narrative.
 
 ---
 
-*Generated by scripts/generate-file-deepdives.mjs · slug: `server__routes__auth`*
+*Generated by scripts/generate-file-deepdives.mjs · slug: `src__lib__logger`*

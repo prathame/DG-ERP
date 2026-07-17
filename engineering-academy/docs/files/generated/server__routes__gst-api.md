@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/gst-api.ts` is part of Dhandho (DG-ERP). Approximate size: **404 lines**.
+`server/routes/gst-api.ts` is part of Dhandho (DG-ERP). Approximate size: **500 lines**.
 
 ## Business value
 
@@ -24,6 +24,8 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../middleware/auth`
 - `../pg-db`
 - `../utils/helpers`
+- `../utils/http-error`
+- `../utils/logger`
 - `../utils/secret-crypto`
 - `../services/nic-api`
 
@@ -192,7 +194,7 @@ rg -n "gst-api" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **404**. Large view/route files are refactor candidates.
+Line count **500**. Large view/route files are refactor candidates.
 
 ## Security impact
 

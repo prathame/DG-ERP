@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`tests/api/utils-services.test.ts` is part of Dhandho (DG-ERP). Approximate size: **540 lines**.
+`tests/api/utils-services.test.ts` is part of Dhandho (DG-ERP). Approximate size: **710 lines**.
 
 ## Business value
 
@@ -99,7 +99,7 @@ rg -n "utils-services.test" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **540**. Large view/route files are refactor candidates.
+Line count **710**. Large view/route files are refactor candidates.
 
 ## Security impact
 

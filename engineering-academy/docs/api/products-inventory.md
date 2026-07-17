@@ -27,6 +27,17 @@ Barcode generation modes on create: prefix / auto / range (see route implementat
 - Vendor lists are scoped  
 - Plan limits via `checkPlanLimit` on creates  
 
+## Price lists (`price-lists.ts`)
+
+Same **inventory** module permission. Full endpoint table lives under [Finance & Accounts API](/api/finance-accounts#price-lists-price-liststs) (shared resolve used by Distribution and invoice create). Quick map:
+
+| Path | Role |
+|---|---|
+| `GET /api/price-lists` | List rules |
+| `GET /api/price-lists/resolve` | Unit price for product + vendor + qty |
+| `POST /api/price-lists/bulk` | CSV import by product/vendor name |
+| `POST` / `PUT` / `DELETE /api/price-lists…` | Single-rule CRUD |
+
 ## Related purchases note
 
 `POST /api/purchases/batch` can **auto-create inventory barcodes** so purchased stock is sellable — inventory is not only created from the products UI.
@@ -35,3 +46,4 @@ Barcode generation modes on create: prefix / auto / range (see route implementat
 
 - [Tenant Tables](/database/tenant-tables)  
 - [Routes Catalog](/backend/routes-catalog)  
+- [Business Workflows — price list](/architecture/business-workflows#workflow-6-price-list-resolve--bulk-import)  

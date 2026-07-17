@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/utils/authCache.ts` is part of Dhandho (DG-ERP). Approximate size: **74 lines**.
+`server/utils/authCache.ts` is part of Dhandho (DG-ERP). Approximate size: **65 lines**.
 
 ## Business value
 
@@ -48,9 +48,7 @@ cacheKey(userId: string, tenantId: string, iat: number | undefined)
 ### Function: getCachedAuth
 
 ```ts
-getCachedAuth(userId: string,
-  tenantId: string,
-  iat: number | undefined)
+getCachedAuth(userId: string, tenantId: string, iat: number | undefined)
 ```
 
 | Aspect | Detail |
@@ -65,10 +63,7 @@ getCachedAuth(userId: string,
 ### Function: setCachedAuth
 
 ```ts
-setCachedAuth(userId: string,
-  tenantId: string,
-  iat: number | undefined,
-  row: CachedAuthRow)
+setCachedAuth(userId: string, tenantId: string, iat: number | undefined, row: CachedAuthRow)
 ```
 
 | Aspect | Detail |
@@ -126,7 +121,7 @@ rg -n "authCache" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **74**. Large view/route files are refactor candidates.
+Line count **65**. Large view/route files are refactor candidates.
 
 ## Security impact
 

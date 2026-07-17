@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/search.ts` is part of Dhandho (DG-ERP). Approximate size: **105 lines**.
+`server/routes/search.ts` is part of Dhandho (DG-ERP). Approximate size: **208 lines**.
 
 ## Business value
 
@@ -22,6 +22,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 - `express`
 - `../pg-db`
+- `../utils/http-error`
 - `../middleware/auth`
 
 ## Exports and symbols
@@ -49,7 +50,7 @@ rg -n "search" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **105**. Large view/route files are refactor candidates.
+Line count **208**. Large view/route files are refactor candidates.
 
 ## Security impact
 

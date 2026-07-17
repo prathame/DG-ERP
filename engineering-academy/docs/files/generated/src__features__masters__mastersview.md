@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/masters/MastersView.tsx` is part of Dhandho (DG-ERP). Approximate size: **88 lines**.
+`src/features/masters/MastersView.tsx` is part of Dhandho (DG-ERP). Approximate size: **231 lines**.
 
 ## Business value
 
@@ -40,7 +40,12 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 ### Function: MastersView
 
 ```ts
-MastersView({ setActiveTab, user, businessType: _businessType = 'manufacturer' }: { setActiveTab: (tab: Tab)
+MastersView({
+  setActiveTab,
+  user,
+  businessType: _businessType = 'manufacturer',
+}: {
+  setActiveTab: (tab: Tab)
 ```
 
 | Aspect | Detail |
@@ -143,7 +148,7 @@ rg -n "MastersView" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **88**. Large view/route files are refactor candidates.
+Line count **231**. Large view/route files are refactor candidates.
 
 ## Security impact
 

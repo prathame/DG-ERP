@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/orders.ts` is part of Dhandho (DG-ERP). Approximate size: **238 lines**.
+`server/routes/orders.ts` is part of Dhandho (DG-ERP). Approximate size: **422 lines**.
 
 ## Business value
 
@@ -24,6 +24,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../middleware/auth`
 - `../pg-db`
 - `../utils/helpers`
+- `../utils/http-error`
 
 ## Exports and symbols
 
@@ -31,7 +32,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (10 detected)
+## Functions (9 detected)
 
 ### Function: r
 
@@ -153,21 +154,6 @@ unitTypeRow(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: isBoxBarcode
-
-```ts
-isBoxBarcode(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `server/routes/orders.ts`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `isBoxBarcode` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
 ### Function: invRows
 
 ```ts
@@ -199,7 +185,7 @@ rg -n "orders" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **238**. Large view/route files are refactor candidates.
+Line count **422**. Large view/route files are refactor candidates.
 
 ## Security impact
 

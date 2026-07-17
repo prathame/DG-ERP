@@ -27,6 +27,10 @@ Dhandho's domain language is a mix of retail/distribution business vocabulary (v
 | **GSTR-2B / GSTR-3B** | Government-defined GST return formats Dhandho helps generate/reconcile — 2B is auto-drafted input tax credit data, 3B is the summary return a business files. | `reports.ts`, `gst-api.ts` |
 | **Super Admin** | The platform operator role — outside and above all tenants, manages tenant provisioning, plans, and platform-wide settings. A separate authorization universe from tenant-level roles. | `super_admins` table, `superAdminMiddleware` |
 | **On-prem license** | A per-installation license record for the Electron on-prem product, checked via periodic heartbeat rather than continuous connectivity. | `onprem_licenses` table, `onprem.ts` routes |
+| **Standalone invoice** | A non-inventory bill (`standalone_invoices`) — used heavily by service tenants, available wherever the Invoices tab is on. Distinct from `tenant_invoices` (platform billing *the tenant*). | `invoices.ts`, `InvoicesView` |
+| **Invoice Finance** | Per-client receivables UI/API for standalone invoices (`financeView: 'invoice'`), parallel to Vendor Finance for distribution. | `invoice-finance.ts`, `InvoiceFinanceView` |
+| **partyKey** | Stable ledger key: `vendor:<id>`, `customer:<id>`, or legacy `name:<display>`. Built from `party_type`/`party_id` when set. | `parsePartyKey()` in `invoice-finance.ts` |
+| **Price list** | Quantity-slab price override, optionally vendor-specific (`vendor_id` null = general). Resolve: vendor slab → general → product price. | `price_lists` table, `price-lists.ts` |
 
 ## Technical / architecture terms
 

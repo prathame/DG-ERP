@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/mapping.ts` is part of Dhandho (DG-ERP). Approximate size: **50 lines**.
+`server/routes/mapping.ts` is part of Dhandho (DG-ERP). Approximate size: **84 lines**.
 
 ## Business value
 
@@ -22,6 +22,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 - `express`
 - `../pg-db`
+- `../utils/http-error`
 - `../middleware/auth`
 
 ## Exports and symbols
@@ -63,7 +64,7 @@ rg -n "mapping" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **50**. Large view/route files are refactor candidates.
+Line count **84**. Large view/route files are refactor candidates.
 
 ## Security impact
 

@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/mobile.ts` is part of Dhandho (DG-ERP). Approximate size: **370 lines**.
+`server/routes/mobile.ts` is part of Dhandho (DG-ERP). Approximate size: **424 lines**.
 
 ## Business value
 
@@ -27,6 +27,8 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../pg-db`
 - `../middleware/auth`
 - `../utils/helpers`
+- `../utils/http-error`
+- `../utils/logger`
 
 ## Exports and symbols
 
@@ -247,7 +249,7 @@ rg -n "mobile" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **370**. Large view/route files are refactor candidates.
+Line count **424**. Large view/route files are refactor candidates.
 
 ## Security impact
 

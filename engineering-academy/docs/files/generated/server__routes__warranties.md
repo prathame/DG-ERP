@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/warranties.ts` is part of Dhandho (DG-ERP). Approximate size: **274 lines**.
+`server/routes/warranties.ts` is part of Dhandho (DG-ERP). Approximate size: **327 lines**.
 
 ## Business value
 
@@ -24,6 +24,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../middleware/auth`
 - `../pg-db`
 - `../utils/helpers`
+- `../utils/http-error`
 
 ## Exports and symbols
 
@@ -199,7 +200,7 @@ rg -n "warranties" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **274**. Large view/route files are refactor candidates.
+Line count **327**. Large view/route files are refactor candidates.
 
 ## Security impact
 

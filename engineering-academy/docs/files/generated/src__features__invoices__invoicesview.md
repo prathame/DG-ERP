@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`src/features/invoices/InvoicesView.tsx` is part of Dhandho (DG-ERP). Approximate size: **878 lines**.
+`src/features/invoices/InvoicesView.tsx` is part of Dhandho (DG-ERP). Approximate size: **1145 lines**.
 
 ## Business value
 
@@ -29,14 +29,15 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../../lib/useEscapeKey`
 - `../../lib/hsnRates`
 - `../../lib/session`
+- `../../types`
 
 ## Exports and symbols
 
-**Exported names:** `InvoicesView`
+**Exported names:** `InvoicesView`, `InvoicePartyPrefill`, `CreateInvoiceModal`
 
 **Classes:** _none_
 
-## Functions (11 detected)
+## Functions (15 detected)
 
 ### Function: esc
 
@@ -49,6 +50,21 @@ esc(t: unknown)
 | Purpose | Symbol in `src/features/invoices/InvoicesView.tsx`. Open the source and read the body. |
 | Parameters | See signature above. |
 | What breaks if removed | Search the repo for `esc` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: resolveCatalogPrice
+
+```ts
+resolveCatalogPrice(product: Product, rules: PriceRule[], vendorId: string | null, qty: number)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/invoices/InvoicesView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `resolveCatalogPrice` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -71,7 +87,12 @@ InvoicesView()
 ### Function: CreateInvoiceModal
 
 ```ts
-CreateInvoiceModal({ onClose, onCreated }: { onClose: ()
+CreateInvoiceModal({
+  onClose,
+  onCreated,
+  initialParty,
+}: {
+  onClose: ()
 ```
 
 | Aspect | Detail |
@@ -173,6 +194,51 @@ printInvoice(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: selectParty
+
+```ts
+selectParty(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/invoices/InvoicesView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `selectParty` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: applyCatalogItem
+
+```ts
+applyCatalogItem(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/invoices/InvoicesView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `applyCatalogItem` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: updateRowQty
+
+```ts
+updateRowQty(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `src/features/invoices/InvoicesView.tsx`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `updateRowQty` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 ### Function: taxable
 
 ```ts
@@ -219,7 +285,7 @@ rg -n "InvoicesView" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **878**. Large view/route files are refactor candidates.
+Line count **1145**. Large view/route files are refactor candidates.
 
 ## Security impact
 

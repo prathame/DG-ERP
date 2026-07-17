@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/utils/env.ts` is part of Dhandho (DG-ERP). Approximate size: **57 lines**.
+`server/utils/env.ts` is part of Dhandho (DG-ERP). Approximate size: **65 lines**.
 
 ## Business value
 
@@ -76,7 +76,7 @@ rg -n "env" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **57**. Large view/route files are refactor candidates.
+Line count **65**. Large view/route files are refactor candidates.
 
 ## Security impact
 

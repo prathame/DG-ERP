@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/utils/barcode.ts` is part of Dhandho (DG-ERP). Approximate size: **73 lines**.
+`server/utils/barcode.ts` is part of Dhandho (DG-ERP). Approximate size: **79 lines**.
 
 ## Business value
 
@@ -78,7 +78,11 @@ getMaxBarcodeNumber(pool: Pool, tenantId: string, prefix: string)
 ### Function: generateBarcodesFromPrefix
 
 ```ts
-generateBarcodesFromPrefix(pool: Pool, tenantId: string, prefix: string, quantity: number, padLength?: number)
+generateBarcodesFromPrefix(pool: Pool,
+  tenantId: string,
+  prefix: string,
+  quantity: number,
+  padLength?: number,)
 ```
 
 | Aspect | Detail |
@@ -121,7 +125,7 @@ rg -n "barcode" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **73**. Large view/route files are refactor candidates.
+Line count **79**. Large view/route files are refactor candidates.
 
 ## Security impact
 

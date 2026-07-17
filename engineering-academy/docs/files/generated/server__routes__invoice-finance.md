@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/invoice-finance.ts` is part of Dhandho (DG-ERP). Approximate size: **203 lines**.
+`server/routes/invoice-finance.ts` is part of Dhandho (DG-ERP). Approximate size: **333 lines**.
 
 ## Business value
 
@@ -24,14 +24,30 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../middleware/auth`
 - `../pg-db`
 - `../utils/helpers`
+- `../utils/http-error`
 
 ## Exports and symbols
 
-**Exported names:** _none detected_
+**Exported names:** `parsePartyKey`
 
 **Classes:** _none_
 
 ## Functions (5 detected)
+
+### Function: parsePartyKey
+
+```ts
+parsePartyKey(raw: string)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/invoice-finance.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `parsePartyKey` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
 ### Function: rows
 
@@ -48,32 +64,17 @@ rows(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: invoices
+### Function: displayName
 
 ```ts
-invoices(...)
+displayName(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
 | Purpose | Symbol in `server/routes/invoice-finance.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `invoices` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
-### Function: payments
-
-```ts
-payments(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `server/routes/invoice-finance.ts`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `payments` before deleting. |
+| What breaks if removed | Search the repo for `displayName` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -124,7 +125,7 @@ rg -n "invoice-finance" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **203**. Large view/route files are refactor candidates.
+Line count **333**. Large view/route files are refactor candidates.
 
 ## Security impact
 

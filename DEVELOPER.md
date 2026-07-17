@@ -154,8 +154,8 @@ Middleware stack (applied per route):
 | `purchases.ts` | `/api/purchases` | purchase batches, supplier payments |
 | `distribution.ts` | `/api/distribution` | challan, batch, E-Invoice JSON |
 | `sales.ts` | `/api/sales` | POS sale, warranty auto-create |
-| `invoices.ts` | `/api/invoices` | standalone invoices, PDF |
-| `invoice-finance.ts` | `/api/invoice-finance` | partial payments per invoice |
+| `invoices.ts` | `/api/invoices` | standalone invoices, optional party link, PDF |
+| `invoice-finance.ts` | `/api/invoice-finance` | partyKey summary + payments per invoice |
 | `finance.ts` | `/api/finance` | vendor receivables, payments |
 | `accounts.ts` | `/api/accounts` | P&L, balance sheet, ledger |
 | `reports.ts` | `/api/reports` | GST registers, stock summary |
@@ -167,7 +167,7 @@ Middleware stack (applied per route):
 | `payroll.ts` | `/api/payroll` | staff, salary, payments |
 | `quotations.ts` | `/api/quotations` | quotes CRUD |
 | `orders.ts` | `/api/orders` | order fulfillment |
-| `price-lists.ts` | `/api/price-lists` | slab pricing |
+| `price-lists.ts` | `/api/price-lists` | slab pricing, `/resolve`, CSV `/bulk` |
 | `rewards.ts` | `/api/rewards` | points earn/redeem |
 | `warranties.ts` | `/api/warranties` | warranty CRUD |
 | `replacements.ts` | `/api/replacements` | product replacement flow |

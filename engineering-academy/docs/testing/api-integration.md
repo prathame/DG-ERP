@@ -74,6 +74,8 @@ afterAll(async () => {
 | **Status code contracts** | Assert `404` for a nonexistent ID, not `500` | Most `*.test.ts` files, implicitly |
 | **Rate limiting behavior** | Assert the 6th rapid login attempt within a minute gets `429` | `tests/api/http-auth.test.ts` |
 | **Response shape drift** | Assert the JSON keys returned match what the frontend actually expects (camelCase, not raw snake_case columns) | Nearly every route test, since routes map DB columns to camelCase API responses |
+| **Party-linked invoice ledger** | Two invoices same `party_id`, different display names → one summary card; unknown party → 400; price-list bulk by name | `tests/api/http-invoices-finance.test.ts` |
+| **partyKey parsing** | `vendor:` / `customer:` / `name:` / empty prefix / URL encoding | `tests/unit/invoice-finance-party.test.ts` |
 
 ## The cross-tenant test — the most important one in the suite
 
@@ -108,6 +110,7 @@ CI runs this against an ephemeral `postgres:16` service container (`pr-check.yml
 2. **Sharing a `tenantId` across test files running in parallel** — Vitest can run files concurrently; always generate a unique ID (`TEST-${Date.now()}-${Math.random()}`) rather than a fixed string.
 3. **Testing only the happy path** — the valuable tests here are the 401/403/404 boundary cases, not just "does creating a product return 201."
 4. **Asserting on exact error message strings from `err.message`** — remember the two-faced error contract (see [Logging](/sre/logging)); client-visible 500s are always generic. Assert on status code and the `error` field's *generic* text, not internal details that were never sent to the client anyway.
+5. **Deleting `standalone_invoices` before `invoice_payments` in cleanup** — the FK is `ON DELETE RESTRICT`. `cleanupTestData` in `tests/helpers.ts` deletes payments first; keep that order if you extend the helper.
 
 ## Related pages
 

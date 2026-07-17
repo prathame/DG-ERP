@@ -45,7 +45,7 @@ Several queries filter it out explicitly (`WHERE id != 'OWNER'` in vendor lists 
 |---|---|---|
 | `products` | SKU master | `hsn_code`, `gst_rate`, `price`, `pack_size`, `pack_name`, `price_includes_gst`, `warranty_months`, `warranty_applicable` |
 | `product_inventory` | One row per **physical barcoded unit** | `barcode` (unique per tenant), `batch_id`, `status` (`InStock`/`Sold`), `unit_type` (`piece`/`box`) |
-| `price_lists` | Customer/vendor/quantity-slab pricing overrides | `min_qty`, `max_qty`, `vendor_id` nullable (null = applies to all vendors) |
+| `price_lists` | Vendor/quantity-slab pricing overrides (also used on standalone invoice catalog lines) | `min_qty`, `max_qty`, `vendor_id` nullable (null = general / all vendors), `is_active` |
 
 `products` is the catalog-level definition (name, default price, GST rate); `product_inventory` is one row *per barcode* — if you stock 500 units of a product, you have 500 `product_inventory` rows, not one row with a `quantity` counter. This is deliberate: barcodes are individually scannable and individually traceable through the [physical-goods chain](/database/schema-overview#the-physical-goods-table-chain), so counting stock is `COUNT(*) WHERE status = 'InStock'`, not reading a mutable counter that could drift from reality.
 
@@ -72,8 +72,12 @@ They participate in opposite directions of the same physical-goods chain — `su
 | `vendor_payments` | Money collected **from** vendors against distribution batches | `batch_id` (nullable — legacy rows predate batch-level tracking) |
 | `supplier_payments` | Money paid **to** suppliers against purchase batches | mirrors `vendor_payments` |
 | `vendor_reminder_settings` | Per-vendor WhatsApp payment-reminder config | `enabled`, `reminder_days`, `last_reminder_date` |
-| `standalone_invoices` | Non-inventory billing (services, one-off invoices) | `items` JSONB, `status` (`draft`/`paid`/`cancelled`), `tax_total`, `grand_total` |
+| `standalone_invoices` | Non-inventory billing (services, one-off invoices) | `items` JSONB, `status` (`draft`/`sent`/`paid`/`cancelled`), `tax_total`, `grand_total`, **`party_type`** (`vendor`/`customer`/null), **`party_id`** (app-level link to masters — indexed `idx_si_party`) |
 | `invoice_payments` | Partial/batch payments against a `standalone_invoices` row | `FOREIGN KEY (invoice_id) REFERENCES standalone_invoices(id) ON DELETE RESTRICT` |
+
+:::tip Why `party_type` / `party_id` exist
+Invoice Finance used to group solely by `customer_name`. Renaming a client on the next invoice split their ledger into two cards. The party columns are a stable foreign key *by convention* (validated on create; no DB FK to `vendors`/`customers`). Summary SQL builds `partyKey` as `party_type || ':' || party_id`, falling back to `name:` + display name for legacy rows.
+:::
 | `expenses` | General business expenses feeding P&L | `category`, `expense_date` |
 | `staff_payments` | Payroll — salary, bonus, advance | `payment_type` (`salary`/`bonus`/`advance`/`advance_repay`), `month`, `year` |
 | `credit_debit_notes` | Accounting adjustments against invoices/purchases | `note_type` (`credit`/`debit`), `reference_invoice` |

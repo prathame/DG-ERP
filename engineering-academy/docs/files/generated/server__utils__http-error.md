@@ -1,10 +1,10 @@
 ---
-sidebar_label: "auth.ts"
-title: "File server/routes/auth.ts"
-description: "Deep walkthrough of server/routes/auth.ts in DG-ERP / Dhandho"
+sidebar_label: "http-error.ts"
+title: "File server/utils/http-error.ts"
+description: "Deep walkthrough of server/utils/http-error.ts in DG-ERP / Dhandho"
 ---
 
-# File walkthrough: `server/routes/auth.ts`
+# File walkthrough: `server/utils/http-error.ts`
 
 :::info Ownership context
 Auto-generated from the live source tree so **no file is invisible** during onboarding.
@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/auth.ts` is part of Dhandho (DG-ERP). Approximate size: **569 lines**.
+`server/utils/http-error.ts` is part of Dhandho (DG-ERP). Approximate size: **135 lines**.
 
 ## Business value
 
@@ -21,108 +21,98 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 ## Imports
 
 - `express`
-- `bcrypt`
-- `crypto`
-- `../pg-db`
-- `../utils/helpers`
-- `../utils/http-error`
-- `../utils/logger`
-- `../middleware/auth`
+- `./logger`
+- `./pii`
 
 ## Exports and symbols
 
-**Exported names:** _none detected_
+**Exported names:** `ApiErrorOptions`, `handleApiError`, `logAuthEvent`, `logSlowOperation`
 
 **Classes:** _none_
 
-## Functions (6 detected)
+## Functions (5 detected)
 
-### Function: row
+### Function: extractRequestMeta
 
 ```ts
-row(...)
+extractRequestMeta(req: Request)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
+| Purpose | Symbol in `server/utils/http-error.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `row` before deleting. |
+| What breaks if removed | Search the repo for `extractRequestMeta` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: planRow
+### Function: handleApiError
 
 ```ts
-planRow(...)
+handleApiError(req: Request,
+  res: Response,
+  err: unknown,
+  message = 'Request failed',
+  options: ApiErrorOptions = {},)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
+| Purpose | Symbol in `server/utils/http-error.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `planRow` before deleting. |
+| What breaks if removed | Search the repo for `handleApiError` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: normalizedPerms
+### Function: logAuthEvent
 
 ```ts
-normalizedPerms(...)
+logAuthEvent(event: string,
+  req: Request,
+  context?: Record<string, unknown>,
+  level: 'info' | 'warn' | 'error' = 'warn',)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
+| Purpose | Symbol in `server/utils/http-error.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `normalizedPerms` before deleting. |
+| What breaks if removed | Search the repo for `logAuthEvent` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: user
+### Function: logSlowOperation
 
 ```ts
-user(...)
+logSlowOperation(operation: string,
+  durationMs: number,
+  thresholdMs: number,
+  context?: Record<string, unknown>,)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
+| Purpose | Symbol in `server/utils/http-error.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `user` before deleting. |
+| What breaks if removed | Search the repo for `logSlowOperation` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: resetToken
+### Function: correlationId
 
 ```ts
-resetToken(...)
+correlationId(...)
 ```
 
 | Aspect | Detail |
 | --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
+| Purpose | Symbol in `server/utils/http-error.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `resetToken` before deleting. |
-| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
-| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
-| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
-
-### Function: admins
-
-```ts
-admins(...)
-```
-
-| Aspect | Detail |
-| --- | --- |
-| Purpose | Symbol in `server/routes/auth.ts`. Open the source and read the body. |
-| Parameters | See signature above. |
-| What breaks if removed | Search the repo for `admins` before deleting. |
+| What breaks if removed | Search the repo for `correlationId` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
@@ -138,12 +128,12 @@ admins(...)
 
 ```bash
 # From DG-ERP repo root
-rg -n "auth" --glob '!node_modules' -g '*.ts' -g '*.tsx'
+rg -n "http-error" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 ```
 
 ## Performance impact
 
-Line count **569**. Large view/route files are refactor candidates.
+Line count **135**. Large view/route files are refactor candidates.
 
 ## Security impact
 
@@ -183,11 +173,11 @@ In-memory caches (authCache, GET Map) do **not** share across instances.
 
 ## Hands-on
 
-1. Open `server/routes/auth.ts` in the IDE.
+1. Open `server/utils/http-error.ts` in the IDE.
 2. Breakpoint the largest exported function.
 3. Trigger via UI or supertest.
 4. Write one sentence on why this file exists in the product narrative.
 
 ---
 
-*Generated by scripts/generate-file-deepdives.mjs · slug: `server__routes__auth`*
+*Generated by scripts/generate-file-deepdives.mjs · slug: `server__utils__http-error`*

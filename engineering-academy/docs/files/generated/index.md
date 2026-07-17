@@ -10,7 +10,7 @@ description: Auto-generated walkthrough pages for every TS/TSX file in DG-ERP
 These pages ensure **zero skipped files**. Prefer curated chapters under [File Walkthrough](/files/) for narrative learning.
 :::
 
-## Server (49 files)
+## Server (50 files)
 
 - [`server/app.ts`](/files/generated/server__app)
 - [`server/index.ts`](/files/generated/server__index)
@@ -55,6 +55,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`server/utils/barcode.ts`](/files/generated/server__utils__barcode)
 - [`server/utils/env.ts`](/files/generated/server__utils__env)
 - [`server/utils/helpers.ts`](/files/generated/server__utils__helpers)
+- [`server/utils/http-error.ts`](/files/generated/server__utils__http-error)
 - [`server/utils/logger.ts`](/files/generated/server__utils__logger)
 - [`server/utils/pagination.ts`](/files/generated/server__utils__pagination)
 - [`server/utils/pii.ts`](/files/generated/server__utils__pii)
@@ -62,7 +63,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`server/utils/secret-crypto.ts`](/files/generated/server__utils__secret-crypto)
 - [`server/utils/tenant.ts`](/files/generated/server__utils__tenant)
 
-## Frontend (106 files)
+## Frontend (98 files)
 
 - [`src/App.tsx`](/files/generated/src__app)
 - [`src/api.ts`](/files/generated/src__api)
@@ -86,8 +87,6 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`src/components/ui/DateRangeFilter.tsx`](/files/generated/src__components__ui__daterangefilter)
 - [`src/components/ui/ErrorBoundary.tsx`](/files/generated/src__components__ui__errorboundary)
 - [`src/components/ui/LoadingSpinner.tsx`](/files/generated/src__components__ui__loadingspinner)
-- [`src/components/ui/OfflineBanner.tsx`](/files/generated/src__components__ui__offlinebanner)
-- [`src/components/ui/OnlineStatus.tsx`](/files/generated/src__components__ui__onlinestatus)
 - [`src/components/ui/Pagination.tsx`](/files/generated/src__components__ui__pagination)
 - [`src/components/ui/PaidBadge.tsx`](/files/generated/src__components__ui__paidbadge)
 - [`src/components/ui/PasswordInput.tsx`](/files/generated/src__components__ui__passwordinput)
@@ -138,22 +137,16 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`src/hooks/useConfirm.tsx`](/files/generated/src__hooks__useconfirm)
 - [`src/hooks/useDebounce.ts`](/files/generated/src__hooks__usedebounce)
 - [`src/i18n/index.tsx`](/files/generated/src__i18n__index)
-- [`src/lib/apiBase.ts`](/files/generated/src__lib__apibase)
 - [`src/lib/billTemplates.ts`](/files/generated/src__lib__billtemplates)
 - [`src/lib/businessTypeConfig.ts`](/files/generated/src__lib__businesstypeconfig)
-- [`src/lib/capacitorApp.ts`](/files/generated/src__lib__capacitorapp)
 - [`src/lib/hsnRates.ts`](/files/generated/src__lib__hsnrates)
-- [`src/lib/offline/cache.ts`](/files/generated/src__lib__offline__cache)
-- [`src/lib/offline/network.ts`](/files/generated/src__lib__offline__network)
-- [`src/lib/offline/queue.ts`](/files/generated/src__lib__offline__queue)
+- [`src/lib/logger.ts`](/files/generated/src__lib__logger)
 - [`src/lib/session.ts`](/files/generated/src__lib__session)
 - [`src/lib/useEscapeKey.ts`](/files/generated/src__lib__useescapekey)
 - [`src/lib/utils.ts`](/files/generated/src__lib__utils)
 - [`src/main.tsx`](/files/generated/src__main)
-- [`src/platforms/desktop/index.ts`](/files/generated/src__platforms__desktop__index)
 - [`src/platforms/desktop/offline/OnlineStatus.tsx`](/files/generated/src__platforms__desktop__offline__onlinestatus)
 - [`src/platforms/desktop/offline/index.ts`](/files/generated/src__platforms__desktop__offline__index)
-- [`src/platforms/desktop/online/index.ts`](/files/generated/src__platforms__desktop__online__index)
 - [`src/platforms/index.ts`](/files/generated/src__platforms__index)
 - [`src/platforms/mobile/index.ts`](/files/generated/src__platforms__mobile__index)
 - [`src/platforms/mobile/offline/OfflineBanner.tsx`](/files/generated/src__platforms__mobile__offline__offlinebanner)
@@ -182,7 +175,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`electron/shared/constants.ts`](/files/generated/electron__shared__constants)
 - [`electron/shared/find-port.ts`](/files/generated/electron__shared__find-port)
 
-## Tests (45 files)
+## Tests (49 files)
 
 - [`tests/api/audit.test.ts`](/files/generated/tests__api__audit.test)
 - [`tests/api/auth.test.ts`](/files/generated/tests__api__auth.test)
@@ -197,6 +190,7 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`tests/api/finance2.test.ts`](/files/generated/tests__api__finance2.test)
 - [`tests/api/gst-helpers.test.ts`](/files/generated/tests__api__gst-helpers.test)
 - [`tests/api/http-auth.test.ts`](/files/generated/tests__api__http-auth.test)
+- [`tests/api/http-invoices-finance.test.ts`](/files/generated/tests__api__http-invoices-finance.test)
 - [`tests/api/http-mobile.test.ts`](/files/generated/tests__api__http-mobile.test)
 - [`tests/api/http-vendors-finance-purchases.test.ts`](/files/generated/tests__api__http-vendors-finance-purchases.test)
 - [`tests/api/mapping.test.ts`](/files/generated/tests__api__mapping.test)
@@ -224,10 +218,13 @@ These pages ensure **zero skipped files**. Prefer curated chapters under [File W
 - [`tests/stress-test.ts`](/files/generated/tests__stress-test)
 - [`tests/unit/authCache.test.ts`](/files/generated/tests__unit__authcache.test)
 - [`tests/unit/env.test.ts`](/files/generated/tests__unit__env.test)
+- [`tests/unit/http-error.test.ts`](/files/generated/tests__unit__http-error.test)
 - [`tests/unit/impersonation-token.test.ts`](/files/generated/tests__unit__impersonation-token.test)
+- [`tests/unit/invoice-finance-party.test.ts`](/files/generated/tests__unit__invoice-finance-party.test)
+- [`tests/unit/logger.test.ts`](/files/generated/tests__unit__logger.test)
 - [`tests/unit/mobile-onboarding.test.ts`](/files/generated/tests__unit__mobile-onboarding.test)
 - [`tests/unit/offline-mobile.test.ts`](/files/generated/tests__unit__offline-mobile.test)
 - [`tests/unit/pagination.test.ts`](/files/generated/tests__unit__pagination.test)
 - [`tests/unit/pii.test.ts`](/files/generated/tests__unit__pii.test)
 
-**Total files documented:** 208
+**Total files documented:** 205

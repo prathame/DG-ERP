@@ -12,7 +12,7 @@ Auto-generated from the live source tree so **no file is invisible** during onbo
 
 ## Purpose
 
-`server/routes/price-lists.ts` is part of Dhandho (DG-ERP). Approximate size: **119 lines**.
+`server/routes/price-lists.ts` is part of Dhandho (DG-ERP). Approximate size: **267 lines**.
 
 ## Business value
 
@@ -21,6 +21,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 ## Imports
 
 - `../utils/helpers`
+- `../utils/http-error`
 - `express`
 - `../pg-db`
 - `../middleware/auth`
@@ -31,7 +32,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 **Classes:** _none_
 
-## Functions (2 detected)
+## Functions (4 detected)
 
 ### Function: rules
 
@@ -63,6 +64,36 @@ product(...)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
+### Function: products
+
+```ts
+products(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/price-lists.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `products` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
+### Function: vendors
+
+```ts
+vendors(...)
+```
+
+| Aspect | Detail |
+| --- | --- |
+| Purpose | Symbol in `server/routes/price-lists.ts`. Open the source and read the body. |
+| Parameters | See signature above. |
+| What breaks if removed | Search the repo for `vendors` before deleting. |
+| Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
+| Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
+| Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
+
 
 ## Execution flow
 
@@ -79,7 +110,7 @@ rg -n "price-lists" --glob '!node_modules' -g '*.ts' -g '*.tsx'
 
 ## Performance impact
 
-Line count **119**. Large view/route files are refactor candidates.
+Line count **267**. Large view/route files are refactor candidates.
 
 ## Security impact
 
