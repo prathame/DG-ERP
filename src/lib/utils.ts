@@ -86,8 +86,19 @@ function isNativeCapacitor(): boolean {
   }
 }
 
+/** Offline Mobile / Capacitor: use in-app preview + native PrintManager (window.print is a no-op). */
+function needsNativePrintPath(): boolean {
+  if (isNativeCapacitor()) return true;
+  try {
+    return (import.meta.env.VITE_DEPLOYMENT_MODE as string | undefined) === 'service-mobile';
+  } catch {
+    return false;
+  }
+}
+
 const PRINT_OVERLAY_ID = 'dg-print-overlay';
 const PRINT_FRAME_ID = 'dg-print-frame';
+const PRINT_JOB_ATTR = 'data-print-job';
 
 function escapeHtmlLite(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -97,6 +108,48 @@ function escapeHtmlLite(s: string): string {
 export function closePrintOverlay(): void {
   try {
     document.getElementById(PRINT_OVERLAY_ID)?.remove();
+  } catch {
+    /* ignore */
+  }
+}
+
+function readOverlayPrintHtml(): { html: string; name: string } | null {
+  const host = document.getElementById(PRINT_OVERLAY_ID);
+  const frame = document.getElementById(PRINT_FRAME_ID) as HTMLIFrameElement | null;
+  const doc = frame?.contentDocument;
+  if (!doc?.documentElement) return null;
+  const html = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+  const name = host?.getAttribute(PRINT_JOB_ATTR) || doc.title || 'Document';
+  return { html, name };
+}
+
+/** Android/iOS WebView: window.print() does nothing — use PrintManager via Capgo. */
+async function nativePrintHtml(html: string, name?: string): Promise<boolean> {
+  try {
+    const { Printer } = await import('@capgo/capacitor-printer');
+    await Printer.printHtml({
+      html,
+      name: (name || 'Document').replace(/[^\w.\- ()#]+/g, '_').slice(0, 80),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function triggerOverlayPrint(): Promise<void> {
+  const payload = readOverlayPrintHtml();
+  if (!payload) return;
+  if (needsNativePrintPath()) {
+    const ok = await nativePrintHtml(payload.html, payload.name);
+    if (ok) return;
+  }
+  const frame = document.getElementById(PRINT_FRAME_ID) as HTMLIFrameElement | null;
+  const w = frame?.contentWindow;
+  if (!w) return;
+  try {
+    w.focus();
+    w.print();
   } catch {
     /* ignore */
   }
@@ -128,7 +181,7 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
   closeBtn.onclick = () => closePrintOverlay();
 
   const title = document.createElement('div');
-  title.textContent = isNativeCapacitor() ? 'Preview → Print / PDF' : 'Print / PDF';
+  title.textContent = needsNativePrintPath() ? 'Preview → Print / PDF' : 'Print / PDF';
   title.style.cssText = 'flex:1;font-weight:700;font-size:13px;text-align:center;line-height:1.2;';
 
   const printBtn = document.createElement('button');
@@ -137,15 +190,7 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
   printBtn.style.cssText =
     'padding:8px 12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:13px;';
   printBtn.onclick = () => {
-    const frame = document.getElementById(PRINT_FRAME_ID) as HTMLIFrameElement | null;
-    const w = frame?.contentWindow;
-    if (!w) return;
-    try {
-      w.focus();
-      w.print();
-    } catch {
-      /* ignore */
-    }
+    void triggerOverlayPrint();
   };
 
   bar.appendChild(closeBtn);
@@ -181,8 +226,8 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
  * On Capacitor (and when pop-ups are blocked), uses an in-app preview instead of window.open.
  */
 export function openPrintWindow(placeholder = 'Preparing…'): Window | null {
-  // Capacitor Android/iOS: window.open is unreliable or opens a blank external browser.
-  if (isNativeCapacitor()) {
+  // Capacitor / Offline Mobile: window.open is blocked; window.print() is a no-op in WebView.
+  if (needsNativePrintPath()) {
     return openPrintOverlay(placeholder);
   }
 
@@ -322,7 +367,11 @@ export function printBillInWindow(win: Window, html: string, filename?: string, 
       /* ignore */
     }
   }
-  const usingOverlay = !!document.getElementById(PRINT_OVERLAY_ID);
+  const overlay = document.getElementById(PRINT_OVERLAY_ID);
+  if (overlay && filename) {
+    overlay.setAttribute(PRINT_JOB_ATTR, filename);
+  }
+  const usingOverlay = !!overlay;
   if (opts?.autoPrint === false) {
     try {
       win.focus();
@@ -331,7 +380,7 @@ export function printBillInWindow(win: Window, html: string, filename?: string, 
     }
     return;
   }
-  // Keep overlay open so the user can tap Print / PDF again (Save as PDF on Android).
+  // Overlay: native PrintManager (Android WebView ignores window.print). Keep preview open.
   if (usingOverlay) {
     try {
       win.focus();
@@ -339,11 +388,7 @@ export function printBillInWindow(win: Window, html: string, filename?: string, 
       /* ignore */
     }
     setTimeout(() => {
-      try {
-        win.print();
-      } catch {
-        /* ignore */
-      }
+      void triggerOverlayPrint();
     }, 450);
     return;
   }
