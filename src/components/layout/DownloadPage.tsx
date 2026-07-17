@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Download, Monitor, Apple, ExternalLink, CheckCircle, Loader, Smartphone } from 'lucide-react';
+import { Download, Monitor, Apple, ExternalLink, CheckCircle, Loader, Smartphone, Cloud } from 'lucide-react';
 
 interface ReleaseAsset {
   name: string;
@@ -82,7 +82,7 @@ export function DownloadPage() {
               ? 'Fetching latest release...'
               : release
                 ? `Version ${release.tag_name} · ${formatDate(release.published_at)}`
-                : 'Desktop apps for Dhandho'}
+                : 'Apps for Dhandho — online and offline'}
           </p>
         </motion.div>
 
@@ -108,37 +108,125 @@ export function DownloadPage() {
 
         {!loading && (
           <div className="space-y-6">
-            {/* Service Mobile */}
+            <p className="text-xs font-bold uppercase tracking-widest text-white/35 px-1">Service businesses</p>
+            <p className="text-sm text-white/45 -mt-3 px-1">
+              Two different products — do <strong className="text-white/70">not</strong> mix installers or licenses.
+            </p>
+
+            {/* Service Cloud Seats — ONLINE */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden"
+              className="rounded-2xl border border-sky-500/25 bg-sky-500/5 overflow-hidden"
             >
               <div className="px-6 py-5 border-b border-white/10">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <Cloud size={18} className="text-sky-400" />
+                  <span className="font-bold text-lg">Dhando Service Cloud</span>
+                  <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-full font-bold">
+                    ONLINE
+                  </span>
+                </div>
+                <p className="text-sm text-white/45">
+                  Cloud seats for service tenants. Needs internet. Phone and/or desktop. One live session company-wide.
+                </p>
+              </div>
+              <div className="px-6 py-4 space-y-4">
+                <div className="space-y-2 text-sm text-white/60">
+                  <p className="flex items-start gap-2">
+                    <Smartphone size={16} className="text-sky-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-white/80">Phone (online):</strong> Install the Service Cloud APK /
+                      TestFlight from your Super Admin. Not the offline Service Mobile app.
+                    </span>
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <Monitor size={16} className="text-sky-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-white/80">Desktop:</strong> Use the Cloud Electron build below (same cloud
+                      desktop wrapper). Login with your seat user credentials.
+                    </span>
+                  </p>
+                  <p className="text-xs text-white/40">
+                    Access from Super Admin → service tenant →{' '}
+                    <strong className="text-sky-300/90">Service cloud seats</strong>
+                    (access mode + device slots). No <span className="font-mono text-emerald-400/70">DG-SM-</span> key.
+                  </p>
+                </div>
+
+                {(cloudArm || cloudIntel) && (
+                  <div className="space-y-3 pt-1 border-t border-white/10">
+                    <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Desktop downloads</p>
+                    {cloudArm ? (
+                      <a
+                        href={cloudArm.browser_download_url}
+                        className="flex items-center justify-between p-4 rounded-xl border border-sky-500/20 hover:border-sky-400/50 hover:bg-sky-500/10 transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Apple size={20} className="text-white/60" />
+                          <div>
+                            <div className="font-semibold text-sm">Mac — Apple Silicon (M1/M2/M3)</div>
+                            <div className="text-xs text-white/40">
+                              {formatSize(cloudArm.size)} · Cloud Electron · .dmg
+                            </div>
+                          </div>
+                        </div>
+                        <Download size={16} className="text-white/40 group-hover:text-sky-300 transition-colors" />
+                      </a>
+                    ) : null}
+                    {cloudIntel ? (
+                      <a
+                        href={cloudIntel.browser_download_url}
+                        className="flex items-center justify-between p-4 rounded-xl border border-sky-500/20 hover:border-sky-400/50 hover:bg-sky-500/10 transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Apple size={20} className="text-white/60" />
+                          <div>
+                            <div className="font-semibold text-sm">Mac — Intel</div>
+                            <div className="text-xs text-white/40">
+                              {formatSize(cloudIntel.size)} · Cloud Electron · .dmg
+                            </div>
+                          </div>
+                        </div>
+                        <Download size={16} className="text-white/40 group-hover:text-sky-300 transition-colors" />
+                      </a>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+
+            {/* Service Mobile — OFFLINE */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 overflow-hidden"
+            >
+              <div className="px-6 py-5 border-b border-white/10">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <Smartphone size={18} className="text-emerald-400" />
                   <span className="font-bold text-lg">Dhando Service Mobile</span>
                   <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
                     OFFLINE
                   </span>
                 </div>
-                <p className="text-sm text-white/40">
-                  Phone app for service businesses. Local data, SA license key, hard sync + backup.
+                <p className="text-sm text-white/45">
+                  Phone-only offline ERP. Local database. Separate from Service Cloud seats above.
                 </p>
               </div>
               <div className="px-6 py-4 space-y-3 text-sm text-white/60">
                 <p>
-                  <strong className="text-white/80">Android:</strong> Sideload the APK from your Super Admin (Service
-                  Mobile → releases) or Test builds via <code className="text-white/50">npm run cap:android</code>.
+                  <strong className="text-white/80">Android:</strong> Sideload the APK from Super Admin → Service
+                  Mobile, or build with <code className="text-white/50">npm run cap:sync</code>.
                 </p>
                 <p>
-                  <strong className="text-white/80">iOS:</strong> Install via TestFlight when your admin shares an
-                  invite. Build with <code className="text-white/50">npm run cap:ios</code>.
+                  <strong className="text-white/80">iOS:</strong> TestFlight invite from your admin.
                 </p>
                 <p className="text-xs text-white/40">
-                  Requires a <span className="font-mono text-emerald-400/80">DG-SM-…</span> license from Super Admin →
-                  Tenants → Service Mobile.
+                  Requires a <span className="font-mono text-emerald-400/80">DG-SM-…</span> license. Do not use this
+                  installer for online cloud seats.
                 </p>
               </div>
             </motion.div>
@@ -146,12 +234,14 @@ export function DownloadPage() {
         )}
 
         {!loading && release && (
-          <div className="space-y-6 mt-6">
+          <div className="space-y-6 mt-10">
+            <p className="text-xs font-bold uppercase tracking-widest text-white/35 px-1">Other desktop apps</p>
+
             {/* On-Prem */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+              transition={{ delay: 0.15 }}
               className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden"
             >
               <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
@@ -203,7 +293,7 @@ export function DownloadPage() {
               </div>
             </motion.div>
 
-            {/* Cloud App */}
+            {/* Generic Cloud App note — same builds as Service Cloud desktop */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -219,7 +309,7 @@ export function DownloadPage() {
                   </span>
                 </div>
                 <p className="text-sm text-white/40">
-                  Native desktop wrapper for the cloud version. Requires internet.
+                  Generic cloud desktop wrapper (any business type). Same installer as Service Cloud desktop above.
                 </p>
               </div>
               <div className="px-6 py-4 space-y-3">
@@ -253,6 +343,9 @@ export function DownloadPage() {
                     <Download size={16} className="text-white/40 group-hover:text-violet-400 transition-colors" />
                   </a>
                 ) : null}
+                {!cloudArm && !cloudIntel && (
+                  <p className="text-white/30 text-sm py-2">No cloud desktop assets in the latest release yet.</p>
+                )}
               </div>
             </motion.div>
 

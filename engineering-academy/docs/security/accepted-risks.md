@@ -59,9 +59,16 @@ Every real system has residual risk after mitigations are applied — the questi
 | JWT in `localStorage`, readable by XSS | High (session takeover) | Strict CSP (`script-src 'self'` in prod), no `dangerouslySetInnerHTML`, 24h expiry, password-change invalidation | Accepted, monitored |
 | `xlsx@0.18.5` CVEs | Medium (requires authenticated attacker to upload a crafted file) | Narrow exposure (authenticated-only, export path unaffected), `CsvImport` avoids `xlsx` for the common case | Accepted, tracked for future migration |
 | RLS not forced on pool owner | High if application-layer filter is ever missed | Code review discipline on the `WHERE tenant_id` convention; RLS still active against non-owner/out-of-band access | Accepted, documented in source comments |
+| Spoofable `X-DG-Client` for service cloud seats | Medium — browser can claim to be Electron/Capacitor | Still requires valid JWT + free device slot for that kind; web body `client: web` is rejected; real device bind is the seat control | Accepted for v1 (no client attestation) |
 
 > [!TIP]
-> **The common thread across all three:** none of these are "we didn't think about it" risks — each has a specific, documented reason the more theoretically-secure alternative was rejected, and each has a compensating control that meaningfully reduces (without eliminating) the practical exposure. That's the difference between an accepted risk and a security gap.
+> **The common thread:** none of these are "we didn't think about it" risks — each has a specific, documented reason the more theoretically-secure alternative was rejected, and each has a compensating control that meaningfully reduces (without eliminating) the practical exposure. That's the difference between an accepted risk and a security gap.
+
+## 4. Spoofable `X-DG-Client` on service cloud seats
+
+**The risk:** Client kind (`electron-cloud` / `capacitor-cloud`) is taken from a request header (or body). A browser with a stolen/valid JWT could spoof the header and enroll as desktop/mobile if the user has free slots.
+
+**Why accepted for v1:** True client attestation (signed Electron/Capacitor identity) is a larger platform project. Compensating controls: JWT required, slot inventory is SA-controlled, company-wide session lock still applies, and browser is not auto-gated into the seat UX. Revisit if browser-first service tenants become a product requirement.
 
 ## Quiz
 
