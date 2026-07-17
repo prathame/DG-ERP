@@ -14,6 +14,7 @@ export default tseslint.config(
       'electron/**',
       'coverage/**',
       'node_modules/**',
+      'engineering-academy/**',
       'tests/stress-test.ts',
       'tests/e2e_full.py',
     ],
