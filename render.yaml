@@ -24,6 +24,9 @@ services:
         generateValue: true
       - key: NODE_ENV
         value: production
+      # Skip git hooks install on Render (husky is a local-dev tool)
+      - key: HUSKY
+        value: "0"
       - key: PORT
         value: 3001
       - key: DATABASE_SSL

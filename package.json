@@ -27,7 +27,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "analyze": "vite build --mode analyze",
-    "prepare": "husky",
+    "prepare": "node -e \"try{require('child_process').execSync('husky',{stdio:'inherit'})}catch(e){process.exit(0)}\"",
     "electron:cloud:dev": "electron electron/cloud/main.ts",
     "electron:onprem:dev": "npm run tsc:electron && electron electron/onprem/main.js",
     "electron:onprem:dev:local": "npm run tsc:electron && DG_CLOUD_URL=http://localhost:3001 electron electron/onprem/main.js",
