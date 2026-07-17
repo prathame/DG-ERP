@@ -25,11 +25,7 @@ function cacheKey(userId: string, tenantId: string, iat: number | undefined): st
   return `${userId}:${tenantId}:${iat ?? 0}`;
 }
 
-export function getCachedAuth(
-  userId: string,
-  tenantId: string,
-  iat: number | undefined
-): CachedAuthRow | null {
+export function getCachedAuth(userId: string, tenantId: string, iat: number | undefined): CachedAuthRow | null {
   const key = cacheKey(userId, tenantId, iat);
   const entry = cache.get(key);
   if (!entry) return null;
@@ -40,12 +36,7 @@ export function getCachedAuth(
   return entry.row;
 }
 
-export function setCachedAuth(
-  userId: string,
-  tenantId: string,
-  iat: number | undefined,
-  row: CachedAuthRow
-): void {
+export function setCachedAuth(userId: string, tenantId: string, iat: number | undefined, row: CachedAuthRow): void {
   if (cache.size >= MAX_ENTRIES) {
     const now = Date.now();
     for (const [k, v] of cache) {

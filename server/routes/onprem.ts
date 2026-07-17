@@ -2,7 +2,13 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 
 // M5 fix: rate limit public on-prem endpoints (no JWT)
-const onpremLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, message: { error: 'Too many requests' }, standardHeaders: true, legacyHeaders: false });
+const onpremLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: { error: 'Too many requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { superAdminMiddleware } from '../middleware/auth';
@@ -26,9 +32,8 @@ router.post('/api/onprem/activate', onpremLimiter, async (req, res) => {
     if (!licenseKey || !machineId) return res.status(400).json({ error: 'licenseKey and machineId required' });
     if (!/^[a-f0-9]{32}$/.test(machineId)) return res.status(400).json({ error: 'Invalid machineId format' });
 
-    const lic = (await pool.query(
-      'SELECT * FROM onprem_licenses WHERE license_key = $1', [licenseKey]
-    )).rows[0] as Record<string, unknown> | undefined;
+    const lic = (await pool.query('SELECT * FROM onprem_licenses WHERE license_key = $1', [licenseKey])).rows[0] as
+      Record<string, unknown> | undefined;
 
     if (!lic) return res.status(404).json({ error: 'Invalid license key' });
     if (lic.status !== 'active') return res.status(403).json({ error: `License ${lic.status}` });
@@ -37,12 +42,14 @@ router.post('/api/onprem/activate', onpremLimiter, async (req, res) => {
     }
     // Machine binding — first activation locks to this machine
     if (lic.machine_id && lic.machine_id !== machineId) {
-      return res.status(403).json({ error: 'License already activated on another machine. Contact support to transfer.' });
+      return res
+        .status(403)
+        .json({ error: 'License already activated on another machine. Contact support to transfer.' });
     }
 
     await pool.query(
       `UPDATE onprem_licenses SET machine_id=$1, machine_os=$2, app_version=$3, last_seen=NOW() WHERE license_key=$4`,
-      [machineId, osInfo || null, appVersion || null, licenseKey]
+      [machineId, osInfo || null, appVersion || null, licenseKey],
     );
 
     res.json({
@@ -67,14 +74,12 @@ router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
     const { licenseKey, machineId, version, activeUsers, diskMB, businessType, slug } = req.body;
     if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });
 
-    const lic = (await pool.query(
-      'SELECT * FROM onprem_licenses WHERE license_key = $1', [licenseKey]
-    )).rows[0] as Record<string, unknown> | undefined;
+    const lic = (await pool.query('SELECT * FROM onprem_licenses WHERE license_key = $1', [licenseKey])).rows[0] as
+      Record<string, unknown> | undefined;
 
     if (!lic) return res.json({ licenseValid: false, message: 'Unknown license' });
 
-    const isValid = lic.status === 'active' &&
-      (!lic.valid_until || new Date(lic.valid_until as string) >= new Date());
+    const isValid = lic.status === 'active' && (!lic.valid_until || new Date(lic.valid_until as string) >= new Date());
     const isMachineMatch = !lic.machine_id || lic.machine_id === machineId;
 
     if (isValid && isMachineMatch) {
@@ -82,14 +87,18 @@ router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
         `UPDATE onprem_licenses SET last_seen=NOW(), app_version=$1, active_users=$2, disk_mb=$3${businessType ? ', business_type=$5' : ''} WHERE license_key=$4`,
         businessType
           ? [version || null, activeUsers || 0, diskMB || 0, licenseKey, businessType]
-          : [version || null, activeUsers || 0, diskMB || 0, licenseKey]
+          : [version || null, activeUsers || 0, diskMB || 0, licenseKey],
       );
 
       // ponytail: cloud is authoritative for tabConfig — never overwrite from app heartbeat
     }
 
     // Check version config from DB (fallback to env)
-    const cfgRows = (await pool.query("SELECT key, value FROM platform_config WHERE key IN ('latest_onprem_version','min_onprem_version')")).rows as { key: string; value: string }[];
+    const cfgRows = (
+      await pool.query(
+        "SELECT key, value FROM platform_config WHERE key IN ('latest_onprem_version','min_onprem_version')",
+      )
+    ).rows as { key: string; value: string }[];
     const cfgMap: Record<string, string> = {};
     for (const r of cfgRows) cfgMap[r.key] = r.value;
     const latestVersion = cfgMap['latest_onprem_version'] || process.env.LATEST_ONPREM_VERSION || null;
@@ -121,10 +130,12 @@ router.post('/api/onprem/heartbeat', onpremLimiter, async (req, res) => {
 router.post('/api/onprem/deactivate', onpremLimiter, async (req, res) => {
   try {
     const { licenseKey, machineId } = req.body;
-    const lic = (await pool.query(
-      'SELECT * FROM onprem_licenses WHERE license_key = $1 AND machine_id = $2',
-      [licenseKey, machineId]
-    )).rows[0];
+    const lic = (
+      await pool.query('SELECT * FROM onprem_licenses WHERE license_key = $1 AND machine_id = $2', [
+        licenseKey,
+        machineId,
+      ])
+    ).rows[0];
     if (!lic) return res.status(404).json({ error: 'License not found for this machine' });
     await pool.query('UPDATE onprem_licenses SET machine_id=NULL WHERE license_key=$1', [licenseKey]);
     res.json({ ok: true });
@@ -139,10 +150,9 @@ router.post('/api/onprem/mark-applied', onpremLimiter, async (req, res) => {
   const licenseKey = body?.licenseKey;
   if (!licenseKey) return res.status(400).json({ error: 'licenseKey required' });
   try {
-    const lic = (await pool.query(
-      `SELECT id, status, machine_id FROM onprem_licenses WHERE license_key = $1`,
-      [licenseKey]
-    )).rows[0] as { id: string; status: string; machine_id: string | null } | undefined;
+    const lic = (
+      await pool.query(`SELECT id, status, machine_id FROM onprem_licenses WHERE license_key = $1`, [licenseKey])
+    ).rows[0] as { id: string; status: string; machine_id: string | null } | undefined;
     if (!lic || lic.status !== 'active') {
       return res.status(404).json({ error: 'Invalid or inactive license' });
     }
@@ -156,7 +166,7 @@ router.post('/api/onprem/mark-applied', onpremLimiter, async (req, res) => {
            settings = COALESCE(settings, '{}'::jsonb) - 'forceSyncAt'
        WHERE license_key = $1 AND status = 'active'
        RETURNING id`,
-      [licenseKey]
+      [licenseKey],
     );
     if (!updated.rows[0]) return res.status(404).json({ error: 'Invalid or inactive license' });
     res.json({ ok: true });
@@ -166,11 +176,13 @@ router.post('/api/onprem/mark-applied', onpremLimiter, async (req, res) => {
     try {
       const fb = await pool.query(
         `UPDATE onprem_licenses SET settings_applied_at=NOW() WHERE license_key=$1 AND status='active' RETURNING id`,
-        [licenseKey]
+        [licenseKey],
       );
       if (!fb.rows[0]) return res.status(404).json({ error: 'Invalid or inactive license' });
       return res.status(500).json({ ok: false, error: 'Partial apply failure' });
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     res.status(500).json({ ok: false, error: 'Internal server error' });
   }
 });
@@ -180,15 +192,18 @@ router.get('/api/onprem/tab-config', async (req, res) => {
   try {
     // Use socket peer address — ignore X-Forwarded-For (trust proxy bypass)
     const ip = req.socket.remoteAddress || '';
-    if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip)) return res.status(403).json({ error: 'Localhost only' });
+    if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip))
+      return res.status(403).json({ error: 'Localhost only' });
     const licenseKey = req.headers['x-license-key'] as string;
     if (!licenseKey) return res.status(400).json({ error: 'Missing license key' });
-    const row = (await pool.query(
-      `SELECT t.tab_config FROM tenants t
+    const row = (
+      await pool.query(
+        `SELECT t.tab_config FROM tenants t
        JOIN onprem_licenses l ON l.company_name = t.company_name
        WHERE l.license_key = $1 LIMIT 1`,
-      [licenseKey]
-    )).rows[0] as { tab_config: unknown } | undefined;
+        [licenseKey],
+      )
+    ).rows[0] as { tab_config: unknown } | undefined;
     res.json(row?.tab_config || null);
   } catch {
     res.json(null);
@@ -200,7 +215,8 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
   try {
     // Use socket peer address — ignore X-Forwarded-For (trust proxy bypass)
     const ip = req.socket.remoteAddress || '';
-    if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip)) return res.status(403).json({ error: 'Localhost only' });
+    if (!['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(ip))
+      return res.status(403).json({ error: 'Localhost only' });
     const { licenseKey, settings } = req.body as { licenseKey: string; settings: Record<string, unknown> };
 
     // Localhost-only endpoint. On-prem local DB usually has no onprem_licenses row
@@ -210,7 +226,8 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
     }
 
     // Find the local tenant and apply settings
-    const tenant = (await pool.query("SELECT id, tab_config FROM tenants WHERE slug != 'OWNER' LIMIT 1")).rows[0] as { id: string; tab_config: unknown } | undefined;
+    const tenant = (await pool.query("SELECT id, tab_config FROM tenants WHERE slug != 'OWNER' LIMIT 1")).rows[0] as
+      { id: string; tab_config: unknown } | undefined;
     if (!tenant) return res.json({ ok: true, skipped: true });
 
     const updates: string[] = [];
@@ -219,9 +236,9 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
 
     if (settings.tabConfig && typeof settings.tabConfig === 'object') {
       // Deep-merge so a partial push (e.g. only rewards OFF) does not wipe other tabs
-      const existing = (typeof tenant.tab_config === 'string'
-        ? JSON.parse(tenant.tab_config)
-        : (tenant.tab_config || {})) as Record<string, unknown>;
+      const existing = (
+        typeof tenant.tab_config === 'string' ? JSON.parse(tenant.tab_config) : tenant.tab_config || {}
+      ) as Record<string, unknown>;
       const incoming = settings.tabConfig as Record<string, unknown>;
       const merged: Record<string, unknown> = { ...existing };
       for (const [key, val] of Object.entries(incoming)) {
@@ -281,7 +298,8 @@ router.post('/api/onprem/provision', async (req, res) => {
 
     const { companyName, businessType, adminEmail, adminPassword, licenseKey, maxUsers } = req.body;
     if (!companyName || !adminPassword) return res.status(400).json({ error: 'Missing required fields' });
-    if (adminPassword.length < 8) return res.status(400).json({ error: 'Admin password must be at least 8 characters' });
+    if (adminPassword.length < 8)
+      return res.status(400).json({ error: 'Admin password must be at least 8 characters' });
 
     const { provisionTenant } = await import('../utils/tenant');
 
@@ -293,75 +311,117 @@ router.post('/api/onprem/provision', async (req, res) => {
     `);
 
     // If tenant with this slug already exists (retry after partial failure), reuse it
-    const baseSlug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const existing = (await pool.query('SELECT id, slug FROM tenants WHERE slug = $1', [baseSlug])).rows[0] as { id: string; slug: string } | undefined;
+    const baseSlug = companyName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    const existing = (await pool.query('SELECT id, slug FROM tenants WHERE slug = $1', [baseSlug])).rows[0] as
+      { id: string; slug: string } | undefined;
 
     let tenantId: string, slug: string;
     if (existing) {
-      tenantId = existing.id; slug = existing.slug;
+      tenantId = existing.id;
+      slug = existing.slug;
       // Update admin password if tenant already exists
       const bcrypt = await import('bcrypt');
       const hash = await bcrypt.hash(adminPassword, 12);
       await pool.query('UPDATE users SET password_hash=$1 WHERE tenant_id=$2 AND role=$3', [hash, tenantId, 'Admin']);
     } else {
       const result = await provisionTenant({
-        companyName, adminEmail: adminEmail || `admin@local`,
-        adminName: 'Admin', adminPassword,
-        planId: 'LOCAL', status: 'active',
+        companyName,
+        adminEmail: adminEmail || `admin@local`,
+        adminName: 'Admin',
+        adminPassword,
+        planId: 'LOCAL',
+        status: 'active',
       });
-      tenantId = result.tenantId; slug = result.slug;
+      tenantId = result.tenantId;
+      slug = result.slug;
     }
 
     // Apply business-type tab config (same presets as super admin cloud onboarding)
     const TAB_CONFIGS: Record<string, Record<string, { label: string; visible: boolean }>> = {
       manufacturer: {
-        analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
-        inventory: { label: 'Inventory', visible: true }, distribution: { label: 'Dispatch', visible: true },
-        sales: { label: 'Warranty Registration', visible: true }, purchases: { label: 'Purchases', visible: true },
-        verification: { label: 'Search / Verify', visible: true }, quotations: { label: 'Quotes & Orders', visible: true },
-        invoices: { label: 'Invoices', visible: true }, finance: { label: 'Vendor Payments', visible: true },
-        accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: true },
-        replacements: { label: 'Replacements', visible: true }, rewards: { label: 'Rewards', visible: true },
-        chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+        analytics: { label: 'Analytics', visible: true },
+        masters: { label: 'Masters', visible: true },
+        inventory: { label: 'Inventory', visible: true },
+        distribution: { label: 'Dispatch', visible: true },
+        sales: { label: 'Warranty Registration', visible: true },
+        purchases: { label: 'Purchases', visible: true },
+        verification: { label: 'Search / Verify', visible: true },
+        quotations: { label: 'Quotes & Orders', visible: true },
+        invoices: { label: 'Invoices', visible: true },
+        finance: { label: 'Vendor Payments', visible: true },
+        accounts: { label: 'Accounts', visible: true },
+        warranty: { label: 'Warranty', visible: true },
+        replacements: { label: 'Replacements', visible: true },
+        rewards: { label: 'Rewards', visible: true },
+        chatbot: { label: 'Chatbot', visible: true },
+        settings: { label: 'Settings', visible: true },
       },
       dealer: {
-        analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
-        inventory: { label: 'Inventory', visible: true }, distribution: { label: 'Sales', visible: true },
-        sales: { label: 'Sales Entry', visible: false }, purchases: { label: 'Purchases', visible: true },
-        verification: { label: 'Search / Verify', visible: true }, quotations: { label: 'Quotes & Orders', visible: true },
-        invoices: { label: 'Invoices', visible: true }, finance: { label: 'Dealer Payments', visible: true },
-        accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: false },
-        replacements: { label: 'Replacements', visible: false }, rewards: { label: 'Rewards', visible: false },
-        chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+        analytics: { label: 'Analytics', visible: true },
+        masters: { label: 'Masters', visible: true },
+        inventory: { label: 'Inventory', visible: true },
+        distribution: { label: 'Sales', visible: true },
+        sales: { label: 'Sales Entry', visible: false },
+        purchases: { label: 'Purchases', visible: true },
+        verification: { label: 'Search / Verify', visible: true },
+        quotations: { label: 'Quotes & Orders', visible: true },
+        invoices: { label: 'Invoices', visible: true },
+        finance: { label: 'Dealer Payments', visible: true },
+        accounts: { label: 'Accounts', visible: true },
+        warranty: { label: 'Warranty', visible: false },
+        replacements: { label: 'Replacements', visible: false },
+        rewards: { label: 'Rewards', visible: false },
+        chatbot: { label: 'Chatbot', visible: true },
+        settings: { label: 'Settings', visible: true },
       },
       retail: {
-        analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
-        inventory: { label: 'Stock', visible: true }, distribution: { label: 'Purchase', visible: true },
-        sales: { label: 'Sales Entry', visible: false }, purchases: { label: 'Purchases', visible: true },
-        verification: { label: 'Search / Verify', visible: true }, quotations: { label: 'Quotes & Orders', visible: true },
-        invoices: { label: 'Invoices', visible: true }, finance: { label: 'Supplier Payments', visible: true },
-        accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: false },
-        replacements: { label: 'Replacements', visible: false }, rewards: { label: 'Rewards', visible: false },
-        chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+        analytics: { label: 'Analytics', visible: true },
+        masters: { label: 'Masters', visible: true },
+        inventory: { label: 'Stock', visible: true },
+        distribution: { label: 'Purchase', visible: true },
+        sales: { label: 'Sales Entry', visible: false },
+        purchases: { label: 'Purchases', visible: true },
+        verification: { label: 'Search / Verify', visible: true },
+        quotations: { label: 'Quotes & Orders', visible: true },
+        invoices: { label: 'Invoices', visible: true },
+        finance: { label: 'Supplier Payments', visible: true },
+        accounts: { label: 'Accounts', visible: true },
+        warranty: { label: 'Warranty', visible: false },
+        replacements: { label: 'Replacements', visible: false },
+        rewards: { label: 'Rewards', visible: false },
+        chatbot: { label: 'Chatbot', visible: true },
+        settings: { label: 'Settings', visible: true },
       },
       service: {
-        analytics: { label: 'Analytics', visible: true }, masters: { label: 'Masters', visible: true },
-        inventory: { label: 'Inventory', visible: false }, distribution: { label: 'Distribution', visible: false },
-        sales: { label: 'Sales Entry', visible: false }, purchases: { label: 'Expenses', visible: true },
-        verification: { label: 'Search / Verify', visible: false }, quotations: { label: 'Quotes & Orders', visible: true },
-        invoices: { label: 'Invoices', visible: true }, finance: { label: 'Invoice Finance', visible: true },
-        accounts: { label: 'Accounts', visible: true }, warranty: { label: 'Warranty', visible: false },
-        replacements: { label: 'Replacements', visible: false }, rewards: { label: 'Rewards', visible: false },
-        chatbot: { label: 'Chatbot', visible: true }, settings: { label: 'Settings', visible: true },
+        analytics: { label: 'Analytics', visible: true },
+        masters: { label: 'Masters', visible: true },
+        inventory: { label: 'Inventory', visible: false },
+        distribution: { label: 'Distribution', visible: false },
+        sales: { label: 'Sales Entry', visible: false },
+        purchases: { label: 'Expenses', visible: true },
+        verification: { label: 'Search / Verify', visible: false },
+        quotations: { label: 'Quotes & Orders', visible: true },
+        invoices: { label: 'Invoices', visible: true },
+        finance: { label: 'Invoice Finance', visible: true },
+        accounts: { label: 'Accounts', visible: true },
+        warranty: { label: 'Warranty', visible: false },
+        replacements: { label: 'Replacements', visible: false },
+        rewards: { label: 'Rewards', visible: false },
+        chatbot: { label: 'Chatbot', visible: true },
+        settings: { label: 'Settings', visible: true },
       },
     };
     const tabConfig = TAB_CONFIGS[businessType || 'manufacturer'] || TAB_CONFIGS.manufacturer;
 
     // Set business type + tab config
-    await pool.query(
-      'UPDATE tenants SET business_type=$1, tab_config=$2 WHERE id=$3',
-      [businessType || 'manufacturer', JSON.stringify(tabConfig), tenantId]
-    );
+    await pool.query('UPDATE tenants SET business_type=$1, tab_config=$2 WHERE id=$3', [
+      businessType || 'manufacturer',
+      JSON.stringify(tabConfig),
+      tenantId,
+    ]);
 
     res.json({ ok: true, tenantId, slug });
   } catch (err) {
@@ -375,31 +435,35 @@ router.post('/api/onprem/provision', async (req, res) => {
 // List all licenses
 router.get('/api/super-admin/onprem', superAdminMiddleware, async (req, res) => {
   try {
-    const rows = (await pool.query(
-      `SELECT *, (valid_until IS NULL OR valid_until >= CURRENT_DATE) AS is_valid_date FROM onprem_licenses ORDER BY created_at DESC`
-    )).rows;
+    const rows = (
+      await pool.query(
+        `SELECT *, (valid_until IS NULL OR valid_until >= CURRENT_DATE) AS is_valid_date FROM onprem_licenses ORDER BY created_at DESC`,
+      )
+    ).rows;
     const now = Date.now();
-    res.json(rows.map((r: Record<string, unknown>) => ({
-      id: r.id,
-      licenseKey: r.license_key,
-      companyName: r.company_name,
-      businessType: r.business_type,
-      adminEmail: r.admin_email,
-      maxUsers: r.max_users,
-      validUntil: r.valid_until,
-      status: r.status,
-      machineId: r.machine_id,
-      machineOs: r.machine_os,
-      appVersion: r.app_version,
-      lastSeen: r.last_seen,
-      activeUsers: r.active_users,
-      diskMB: r.disk_mb,
-      settings: r.settings,
-      settingsPushedAt: r.settings_pushed_at,
-      settingsAppliedAt: r.settings_applied_at,
-      isOnline: r.last_seen && (now - new Date(r.last_seen as string).getTime()) < 70 * 60 * 1000,
-      createdAt: r.created_at,
-    })));
+    res.json(
+      rows.map((r: Record<string, unknown>) => ({
+        id: r.id,
+        licenseKey: r.license_key,
+        companyName: r.company_name,
+        businessType: r.business_type,
+        adminEmail: r.admin_email,
+        maxUsers: r.max_users,
+        validUntil: r.valid_until,
+        status: r.status,
+        machineId: r.machine_id,
+        machineOs: r.machine_os,
+        appVersion: r.app_version,
+        lastSeen: r.last_seen,
+        activeUsers: r.active_users,
+        diskMB: r.disk_mb,
+        settings: r.settings,
+        settingsPushedAt: r.settings_pushed_at,
+        settingsAppliedAt: r.settings_applied_at,
+        isOnline: r.last_seen && now - new Date(r.last_seen as string).getTime() < 70 * 60 * 1000,
+        createdAt: r.created_at,
+      })),
+    );
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -415,8 +479,17 @@ router.post('/api/super-admin/onprem', superAdminMiddleware, async (req, res) =>
     await pool.query(
       `INSERT INTO onprem_licenses (id, license_key, company_name, business_type, admin_email, max_users, valid_until, settings, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [id, licenseKey, companyName, businessType || 'manufacturer', adminEmail || null,
-       maxUsers || 5, validUntil || null, JSON.stringify(settings || {}), 'SA1']
+      [
+        id,
+        licenseKey,
+        companyName,
+        businessType || 'manufacturer',
+        adminEmail || null,
+        maxUsers || 5,
+        validUntil || null,
+        JSON.stringify(settings || {}),
+        'SA1',
+      ],
     );
     res.status(201).json({ id, licenseKey, companyName, businessType, validUntil });
   } catch (err) {
@@ -431,15 +504,31 @@ router.put('/api/super-admin/onprem/:id', superAdminMiddleware, async (req, res)
     const updates: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
-    if (status !== undefined) { updates.push(`status=$${idx++}`); params.push(status); }
-    if (maxUsers !== undefined) { updates.push(`max_users=$${idx++}`); params.push(maxUsers); }
-    if (validUntil !== undefined) { updates.push(`valid_until=$${idx++}`); params.push(validUntil); }
-    if (settings !== undefined) { updates.push(`settings=$${idx++}`); params.push(JSON.stringify(settings)); updates.push(`settings_pushed_at=NOW()`); }
-    if (clearMachine) { updates.push(`machine_id=NULL`); }
+    if (status !== undefined) {
+      updates.push(`status=$${idx++}`);
+      params.push(status);
+    }
+    if (maxUsers !== undefined) {
+      updates.push(`max_users=$${idx++}`);
+      params.push(maxUsers);
+    }
+    if (validUntil !== undefined) {
+      updates.push(`valid_until=$${idx++}`);
+      params.push(validUntil);
+    }
+    if (settings !== undefined) {
+      updates.push(`settings=$${idx++}`);
+      params.push(JSON.stringify(settings));
+      updates.push(`settings_pushed_at=NOW()`);
+    }
+    if (clearMachine) {
+      updates.push(`machine_id=NULL`);
+    }
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
     params.push(req.params.id);
     const result = await pool.query(
-      `UPDATE onprem_licenses SET ${updates.join(',')} WHERE id=$${idx} RETURNING *`, params
+      `UPDATE onprem_licenses SET ${updates.join(',')} WHERE id=$${idx} RETURNING *`,
+      params,
     );
     const r = result.rows[0] as Record<string, unknown>;
     if (!r) return res.status(404).json({ error: 'License not found' });

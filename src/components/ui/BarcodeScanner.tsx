@@ -14,7 +14,9 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const onScanRef = useRef(onScan);
   const containerId = 'barcode-scanner-container';
 
-  useEffect(() => { onScanRef.current = onScan; }, [onScan]);
+  useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
 
   const stopScanner = () => {
     if (scannerRef.current) {
@@ -35,13 +37,13 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
         await scanner.start(
           { facingMode: 'environment' },
           { fps: 10, qrbox: { width: 250, height: 150 } },
-          (decodedText) => {
+          decodedText => {
             if (scannedRef.current) return;
             scannedRef.current = true;
             stopScanner();
             onScanRef.current(decodedText);
           },
-          () => {}
+          () => {},
         );
         if (!cancelled) setScanning(true);
       } catch (err) {
@@ -63,7 +65,12 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Barcode scanner">
+    <div
+      className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Barcode scanner"
+    >
       <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -71,13 +78,20 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
             <h3 className="font-bold text-sm">Scan Barcode</h3>
             {scanning && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" aria-label="Scanning" />}
           </div>
-          <button type="button" onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Close scanner">
+          <button
+            type="button"
+            onClick={handleClose}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+            aria-label="Close scanner"
+          >
             <X size={18} />
           </button>
         </div>
         <div className="p-4">
           {error ? (
-            <p className="text-sm text-rose-600 text-center py-8" role="alert">{error}</p>
+            <p className="text-sm text-rose-600 text-center py-8" role="alert">
+              {error}
+            </p>
           ) : (
             <div id={containerId} className="rounded-xl overflow-hidden bg-black min-h-[200px]" />
           )}

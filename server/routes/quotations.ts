@@ -208,14 +208,12 @@ router.put('/api/quotations/:id/status', blockVendors, async (req: AuthRequest, 
     const { status } = req.body;
     // Converted only via POST /convert (locks stock + creates distribution).
     if (!['Draft', 'Sent', 'Accepted', 'Rejected', 'Expired'].includes(status)) {
-      return res
-        .status(400)
-        .json({
-          error:
-            status === 'Converted'
-              ? 'Use POST /api/quotations/:id/convert to convert (creates distribution)'
-              : 'Invalid status',
-        });
+      return res.status(400).json({
+        error:
+          status === 'Converted'
+            ? 'Use POST /api/quotations/:id/convert to convert (creates distribution)'
+            : 'Invalid status',
+      });
     }
     const current = (
       await pool.query('SELECT status FROM quotations WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId])

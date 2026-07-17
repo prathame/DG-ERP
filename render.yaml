@@ -31,6 +31,7 @@ services:
         value: 3001
       - key: DATABASE_SSL
         value: "true"
+      # Set these in Render Dashboard → Environment (sync: false = not auto-filled):
       - key: SUPER_ADMIN_EMAIL
         sync: false
       - key: SUPER_ADMIN_PASSWORD

@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  getCachedAuth,
-  setCachedAuth,
-  invalidateAuthCache,
-  clearAuthCache,
-} from '../../server/utils/authCache';
+import { getCachedAuth, setCachedAuth, invalidateAuthCache, clearAuthCache } from '../../server/utils/authCache';
 
 describe('authCache', () => {
   beforeEach(() => clearAuthCache());

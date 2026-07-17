@@ -76,16 +76,14 @@ router.post('/api/customers', blockVendors, async (req: AuthRequest, res) => {
       [id, tenantId, name.trim(), phone, email, address, vendorId || null],
     );
     const row = (await pool.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];
-    res
-      .status(201)
-      .json({
-        id: row.id,
-        name: row.name,
-        phone: row.phone,
-        email: row.email,
-        address: row.address,
-        vendorId: row.vendor_id ?? null,
-      });
+    res.status(201).json({
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      email: row.email,
+      address: row.address,
+      vendorId: row.vendor_id ?? null,
+    });
   } catch (err) {
     console.error(`💥 ${req.method} ${req.originalUrl} failed:`, (err as Error).message);
     res.status(500).json({ error: 'Internal server error' });

@@ -10,7 +10,7 @@ export async function barcodeExists(pool: Pool, tenantId: string, barcode: strin
        UNION ALL SELECT 1 FROM warranties WHERE barcode = $1 AND tenant_id = $2
        UNION ALL SELECT 1 FROM products WHERE barcode = $1 AND tenant_id = $2
      ) LIMIT 1`,
-    [barcode, tenantId]
+    [barcode, tenantId],
   );
   return result.rows.length > 0;
 }
@@ -46,7 +46,7 @@ export async function getMaxBarcodeNumber(pool: Pool, tenantId: string, prefix: 
      UNION ALL SELECT barcode FROM product_sales WHERE barcode LIKE $1 AND tenant_id = $2
      UNION ALL SELECT barcode FROM warranties WHERE barcode LIKE $1 AND tenant_id = $2
      UNION ALL SELECT barcode FROM products WHERE barcode LIKE $1 AND tenant_id = $2`,
-    [likePattern, tenantId]
+    [likePattern, tenantId],
   );
   let maxNum = 0;
   const regex = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`);
@@ -61,7 +61,13 @@ export async function getMaxBarcodeNumber(pool: Pool, tenantId: string, prefix: 
 }
 
 /** Generate barcodes from prefix + quantity, starting after the highest existing number */
-export async function generateBarcodesFromPrefix(pool: Pool, tenantId: string, prefix: string, quantity: number, padLength?: number): Promise<string[]> {
+export async function generateBarcodesFromPrefix(
+  pool: Pool,
+  tenantId: string,
+  prefix: string,
+  quantity: number,
+  padLength?: number,
+): Promise<string[]> {
   const startNum = (await getMaxBarcodeNumber(pool, tenantId, prefix)) + 1;
   const pad = padLength ?? Math.max(3, String(startNum + quantity - 1).length);
   const results: string[] = [];

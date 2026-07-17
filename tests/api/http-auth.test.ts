@@ -15,14 +15,14 @@ describe('HTTP Auth', () => {
       `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status)
        VALUES ($1, 'HTTP Auth Co', $2, $3, 'Admin', 'active')
        ON CONFLICT (id) DO NOTHING`,
-      [TEST_TENANT, TEST_SLUG, TEST_EMAIL]
+      [TEST_TENANT, TEST_SLUG, TEST_EMAIL],
     );
     const hash = await bcrypt.hash(TEST_PASSWORD, 12);
     await pool.query(
       `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
        VALUES ('U-HTTP-AUTH-1', $1, $2, $3, 'HTTP Auth User', 'Admin')
        ON CONFLICT DO NOTHING`,
-      [TEST_TENANT, TEST_EMAIL, hash]
+      [TEST_TENANT, TEST_EMAIL, hash],
     );
   });
 
@@ -72,9 +72,7 @@ describe('HTTP Auth', () => {
   });
 
   it('POST /api/auth/forgot-password does not enumerate users', async () => {
-    const res = await api()
-      .post('/api/auth/forgot-password')
-      .send({ email: 'nobody-exists@example.com' });
+    const res = await api().post('/api/auth/forgot-password').send({ email: 'nobody-exists@example.com' });
     expect([200, 201]).toContain(res.status);
   });
 });
