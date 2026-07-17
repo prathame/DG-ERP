@@ -31,6 +31,15 @@ import { AppShutterIntro } from './components/layout/AppShutterIntro';
 import { session } from './lib/session';
 import { CommandPalette } from './components/ui/CommandPalette';
 import { OnlineStatus } from './platforms/desktop/offline';
+import {
+  isServiceMobileMode,
+  loadLicense,
+  isLocalProvisioned,
+  getLocalSlug,
+  getLocalDb,
+  ServiceMobileOnboarding,
+  startServiceMobileHeartbeat,
+} from './platforms/service-mobile';
 
 const LandingPage = lazy(() => import('./components/layout/LandingPage').then(m => ({ default: m.LandingPage })));
 const LoginScreen = lazy(() => import('./components/layout/LoginScreen').then(m => ({ default: m.LoginScreen })));
@@ -221,6 +230,35 @@ if (typeof window !== 'undefined') {
 }
 
 export default function App() {
+  const serviceMobile = isServiceMobileMode();
+  const [smBoot, setSmBoot] = useState<'loading' | 'onboarding' | 'ready'>(() => (serviceMobile ? 'loading' : 'ready'));
+
+  useEffect(() => {
+    if (!serviceMobile) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await getLocalDb();
+        const lic = loadLicense();
+        const provisioned = await isLocalProvisioned();
+        if (!cancelled) {
+          if (!lic || !provisioned) setSmBoot('onboarding');
+          else {
+            const slug = await getLocalSlug();
+            if (slug) session.setSlug(slug);
+            setSmBoot('ready');
+            startServiceMobileHeartbeat();
+          }
+        }
+      } catch {
+        if (!cancelled) setSmBoot('onboarding');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [serviceMobile]);
+
   const [activeTab, setActiveTabRaw] = useState<Tab>('analytics');
   const [tabKey, setTabKey] = useState(0);
   const setActiveTab = (tab: Tab) => {
@@ -533,8 +571,57 @@ export default function App() {
     );
   }
 
+  // Service Mobile Capacitor shell — license + local provision before login
+  if (serviceMobile) {
+    if (smBoot === 'loading') {
+      return (
+        <div className="min-h-[100dvh] flex items-center justify-center bg-emerald-50">
+          <LoadingSpinner size="lg" />
+        </div>
+      );
+    }
+    if (smBoot === 'onboarding') {
+      return (
+        <ServiceMobileOnboarding
+          onReady={() => {
+            void getLocalSlug().then(slug => {
+              if (slug) {
+                session.setSlug(slug);
+                window.history.replaceState(null, '', `/${slug}`);
+              }
+              setSmBoot('ready');
+              startServiceMobileHeartbeat();
+            });
+          }}
+        />
+      );
+    }
+  }
+
   // No user session — show tenant login
   if (!user) {
+    // Service Mobile: always local tenant login (no marketing landing)
+    if (serviceMobile && smBoot === 'ready') {
+      const slug = session.getSlug() || 'service';
+      return (
+        <ToastProvider>
+          <Suspense fallback={<LazyFallback />}>
+            <LoginScreen
+              onLogin={handleLogin}
+              tenant={{
+                tenantId: session.getTenantId() || 'local',
+                companyName: loadLicense()?.companyName || 'Service Mobile',
+                slug,
+                logoBase64: null,
+                primaryColor: '#059669',
+                tagline: 'Offline service',
+              }}
+            />
+          </Suspense>
+        </ToastProvider>
+      );
+    }
+
     // Slug URL but tenant not found
     if (urlSlug && slugNotFound) {
       return (

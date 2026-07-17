@@ -21,7 +21,7 @@ How many primary client surfaces share the one Express API, and name them.
 <details>
 <summary>Answer</summary>
 
-**Three:** Web SPA (browser), Electron Cloud (hosted API), Electron On-Prem (embedded local Postgres). Same `src/` React app; differences live in `src/platforms/` and `electron/`. Capacitor mobile was removed. See [Product Surfaces](/architecture/four-surfaces).
+**Four:** Web SPA, Electron Cloud, Electron On-Prem, and Service Mobile (Capacitor offline phone for service type only). Same React features where applicable; Service Mobile uses on-device PGlite + SA `DG-SM-` licenses. See [Product Surfaces](/architecture/four-surfaces).
 
 </details>
 

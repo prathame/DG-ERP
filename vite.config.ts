@@ -6,6 +6,7 @@ import { defineConfig, loadEnv, type PluginOption } from 'vite';
 export default defineConfig(({ mode }) => {
   loadEnv(mode, process.cwd(), '');
   const analyze = mode === 'analyze';
+  const serviceMobile = mode === 'service-mobile';
   const plugins: PluginOption[] = [react(), tailwindcss()];
   // Optional — keep as a dynamic import so production installs without
   // rollup-plugin-visualizer (devDependency) still build.
@@ -15,7 +16,7 @@ export default defineConfig(({ mode }) => {
     plugins.push(visualizer({ filename: 'dist/stats.html', gzipSize: true, open: false }));
   }
   return {
-    base: '/',
+    base: serviceMobile ? './' : '/',
     plugins,
     resolve: {
       alias: {
@@ -23,7 +24,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      outDir: 'dist',
+      outDir: serviceMobile ? 'dist-service-mobile' : 'dist',
       emptyOutDir: true,
       target: 'es2020',
       cssCodeSplit: true,

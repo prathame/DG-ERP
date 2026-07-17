@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Download, Monitor, Apple, ExternalLink, CheckCircle, Loader } from 'lucide-react';
+import { Download, Monitor, Apple, ExternalLink, CheckCircle, Loader, Smartphone } from 'lucide-react';
 
 interface ReleaseAsset {
   name: string;
@@ -106,8 +106,47 @@ export function DownloadPage() {
           </div>
         )}
 
-        {!loading && release && (
+        {!loading && (
           <div className="space-y-6">
+            {/* Service Mobile */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden"
+            >
+              <div className="px-6 py-5 border-b border-white/10">
+                <div className="flex items-center gap-2 mb-1">
+                  <Smartphone size={18} className="text-emerald-400" />
+                  <span className="font-bold text-lg">Dhando Service Mobile</span>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
+                    OFFLINE
+                  </span>
+                </div>
+                <p className="text-sm text-white/40">
+                  Phone app for service businesses. Local data, SA license key, hard sync + backup.
+                </p>
+              </div>
+              <div className="px-6 py-4 space-y-3 text-sm text-white/60">
+                <p>
+                  <strong className="text-white/80">Android:</strong> Sideload the APK from your Super Admin (Service
+                  Mobile → releases) or Test builds via <code className="text-white/50">npm run cap:android</code>.
+                </p>
+                <p>
+                  <strong className="text-white/80">iOS:</strong> Install via TestFlight when your admin shares an
+                  invite. Build with <code className="text-white/50">npm run cap:ios</code>.
+                </p>
+                <p className="text-xs text-white/40">
+                  Requires a <span className="font-mono text-emerald-400/80">DG-SM-…</span> license from Super Admin →
+                  Tenants → Service Mobile.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {!loading && release && (
+          <div className="space-y-6 mt-6">
             {/* On-Prem */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}

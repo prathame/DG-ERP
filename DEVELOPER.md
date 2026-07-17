@@ -47,7 +47,7 @@ platforms/
 ```
 
 Native Electron processes: `electron/cloud` = desktop·online, `electron/onprem` = desktop·offline.  
-See `src/platforms/README.md` and `electron/README.md`. There is no Capacitor phone app.
+See `src/platforms/README.md` and `electron/README.md`. Offline phone ERP is **Service Mobile** (`src/platforms/service-mobile/`, Capacitor) — service business type only, SA keys `DG-SM-…`.
 
 ---
 
@@ -278,7 +278,8 @@ The Express server serves the React `dist/` at `/` and the API at `/api/*`. No s
 | `server/index.ts` | Express app, middleware, route registration |
 | `server/utils/tenant.ts` | Tenant lifecycle (provision, delete, stats) |
 | `server/routes/super-admin.ts` | PRESETS object — authoritative tab configs per business type |
-| `src/platforms/` | Shared API base + Electron desktop helpers |
+| `src/platforms/` | Shared API base, Electron desktop, Service Mobile |
+| `server/routes/service-mobile.ts` | Service Mobile license / sync / backup APIs |
 | `src/lib/businessTypeConfig.ts` | Frontend per-type feature flags |
 | `src/lib/billTemplates.ts` | PDF bill HTML (sales, distribution, invoice, quotation) |
 | `src/api.ts` | Typed API client |

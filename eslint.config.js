@@ -8,9 +8,10 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
-      'dist-mobile/**',
+      'dist-service-mobile/**',
       'android/**',
       'ios/**',
+      'capacitor.config.ts',
       'electron/**',
       'coverage/**',
       'node_modules/**',
