@@ -136,7 +136,7 @@ describe('offline queue', () => {
     const a = enqueueOfflineMutation({ path: '/api/a', method: 'PUT' });
     enqueueOfflineMutation({ path: '/api/b', method: 'PUT' });
     removeOfflineMutation(a.id);
-    expect(getOfflineQueue().map((x) => x.path)).toEqual(['/api/b']);
+    expect(getOfflineQueue().map(x => x.path)).toEqual(['/api/b']);
     clearOfflineQueue();
     expect(offlineQueueCount()).toBe(0);
   });
@@ -170,7 +170,9 @@ describe('offline queue', () => {
     const r = await flushOfflineQueue(fetchFn as unknown as typeof fetch);
     expect(r.failed).toBe(3);
     expect(offlineQueueCount()).toBe(2);
-    const paths = getOfflineQueue().map((x) => x.path).sort();
+    const paths = getOfflineQueue()
+      .map(x => x.path)
+      .sort();
     expect(paths).toEqual(['/api/auth', '/api/rate']);
   });
 
@@ -180,7 +182,9 @@ describe('offline queue', () => {
     clearOfflineQueue();
     enqueueOfflineMutation({ path: '/api/1', method: 'POST' });
     enqueueOfflineMutation({ path: '/api/2', method: 'POST' });
-    const fetchFn = vi.fn(async () => { throw new TypeError('offline'); });
+    const fetchFn = vi.fn(async () => {
+      throw new TypeError('offline');
+    });
     const r = await flushOfflineQueue(fetchFn as unknown as typeof fetch);
     expect(r.failed).toBe(1);
     expect(offlineQueueCount()).toBe(2);
@@ -227,11 +231,11 @@ describe('apiBase', () => {
     shim.setNative(true);
     const { getApiOrigin, getApiBase, resolveApiUrl, isNativeApp } = await import('../../src/platforms/shared/apiBase');
     expect(isNativeApp()).toBe(true);
-    expect(getApiOrigin()).toBe('https://dg-erp.onrender.com');
-    expect(getApiBase()).toBe('https://dg-erp.onrender.com/api');
-    expect(resolveApiUrl('/api/vendors')).toBe('https://dg-erp.onrender.com/api/vendors');
-    expect(resolveApiUrl('/health')).toBe('https://dg-erp.onrender.com/health');
-    expect(resolveApiUrl('sales')).toBe('https://dg-erp.onrender.com/api/sales');
+    expect(getApiOrigin()).toBe('https://dhandho.app');
+    expect(getApiBase()).toBe('https://dhandho.app/api');
+    expect(resolveApiUrl('/api/vendors')).toBe('https://dhandho.app/api/vendors');
+    expect(resolveApiUrl('/health')).toBe('https://dhandho.app/health');
+    expect(resolveApiUrl('sales')).toBe('https://dhandho.app/api/sales');
   });
 
   it('honours VITE_API_ORIGIN over native default', async () => {
@@ -283,7 +287,9 @@ describe('apiBase', () => {
 
   it('isNativeApp is false when Capacitor throws', async () => {
     Object.defineProperty(shim.window, 'Capacitor', {
-      get() { throw new Error('boom'); },
+      get() {
+        throw new Error('boom');
+      },
     });
     const { isNativeApp } = await import('../../src/platforms/shared/apiBase');
     expect(isNativeApp()).toBe(false);

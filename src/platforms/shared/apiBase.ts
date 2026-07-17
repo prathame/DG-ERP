@@ -16,7 +16,7 @@ export function isNativeApp(): boolean {
 }
 
 /**
- * Origin for API calls (no trailing slash), e.g. https://dg-erp.onrender.com
+ * Origin for API calls (no trailing slash), e.g. https://dhandho.app
  * Empty string = same-origin relative `/api` (web + Electron).
  */
 export function getApiOrigin(): string {
@@ -26,7 +26,7 @@ export function getApiOrigin(): string {
   return '';
 }
 
-/** Base path including `/api`, e.g. https://dg-erp.onrender.com/api or `/api`. */
+/** Base path including `/api`, e.g. https://dhandho.app/api or `/api`. */
 export function getApiBase(): string {
   const envBase = (import.meta.env.VITE_API_BASE as string | undefined)?.trim();
   if (envBase) return stripTrailingSlash(envBase);
