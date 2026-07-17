@@ -18,17 +18,21 @@ function ToastItem({ t, onDismiss }: { key?: React.Key; t: Toast; onDismiss: () 
       animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0, x: 60, scale: 0.95 }}
       className={cn(
-        "relative px-4 py-3 rounded-xl shadow-lg border text-sm font-medium flex items-center gap-2 overflow-hidden pr-9",
-        t.type === 'success' && "bg-emerald-50 border-emerald-200 text-emerald-800",
-        t.type === 'error' && "bg-rose-50 border-rose-200 text-rose-800",
-        t.type === 'info' && "bg-blue-50 border-blue-200 text-blue-800"
+        'relative px-4 py-3 rounded-xl shadow-lg border text-sm font-medium flex items-center gap-2 overflow-hidden pr-9',
+        t.type === 'success' && 'bg-emerald-50 border-emerald-200 text-emerald-800',
+        t.type === 'error' && 'bg-rose-50 border-rose-200 text-rose-800',
+        t.type === 'info' && 'bg-blue-50 border-blue-200 text-blue-800',
       )}
     >
       {t.type === 'success' && <CheckCircle2 size={18} className="shrink-0" />}
       {t.type === 'error' && <AlertCircle size={18} className="shrink-0" />}
       {t.type === 'info' && <Info size={18} className="shrink-0" />}
       <span className="flex-1">{t.message}</span>
-      <button type="button" onClick={onDismiss} className="absolute top-2 right-2 p-1 rounded-md opacity-50 hover:opacity-100 transition-opacity">
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="absolute top-2 right-2 p-1 rounded-md opacity-50 hover:opacity-100 transition-opacity"
+      >
         <X size={14} />
       </button>
       {/* Progress bar */}
@@ -37,10 +41,10 @@ function ToastItem({ t, onDismiss }: { key?: React.Key; t: Toast; onDismiss: () 
         animate={{ scaleX: 0 }}
         transition={{ duration: TOAST_DURATION / 1000, ease: 'linear' }}
         className={cn(
-          "absolute bottom-0 left-0 right-0 h-[3px] origin-left",
-          t.type === 'success' && "bg-emerald-400",
-          t.type === 'error' && "bg-rose-400",
-          t.type === 'info' && "bg-blue-400"
+          'absolute bottom-0 left-0 right-0 h-[3px] origin-left',
+          t.type === 'success' && 'bg-emerald-400',
+          t.type === 'error' && 'bg-rose-400',
+          t.type === 'info' && 'bg-blue-400',
         )}
       />
     </motion.div>
@@ -52,16 +56,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   let nextId = 0;
   const toast = useCallback((message: string, type: ToastType = 'info') => {
     const id = ++nextId + Date.now();
-    setToasts((t) => [...t, { id, message, type }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), TOAST_DURATION);
+    setToasts(t => [...t, { id, message, type }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), TOAST_DURATION);
   }, []);
-  const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
+  const dismiss = useCallback((id: number) => setToasts(t => t.filter(x => x.id !== id)), []);
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2 max-w-sm">
+      <div
+        className="fixed right-3 sm:right-4 z-[200] flex flex-col gap-2 max-w-[min(100vw-1.5rem,24rem)] w-full pointer-events-none [&_*]:pointer-events-auto"
+        style={{ top: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
+      >
         <AnimatePresence>
-          {toasts.map((t) => (
+          {toasts.map(t => (
             <ToastItem key={t.id} t={t} onDismiss={() => dismiss(t.id)} />
           ))}
         </AnimatePresence>

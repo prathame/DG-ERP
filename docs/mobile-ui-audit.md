@@ -1,125 +1,90 @@
-# Mobile UI Audit Report (Cloud app)
+# Mobile UI Audit Report (Phase 1)
 
 Date: 2026-07-17  
-Scope: Cloud-based Dhandho app (tenant shell + Super Admin + marketing/login).  
-Goal: Improve phone usability (320–430px) **without** redesigning desktop or changing business logic/APIs.
-
-PR: https://github.com/prathame/DG-ERP/pull/77
+Scope: Phone layouts for Offline Mobile + Cloud under `lg` (320–480px). Desktop preserved via `sm:` / `lg:` gates.  
+Goal: Native-like ERP usability — no redesign, no API/business-logic changes.
 
 ---
 
-## 1. Mobile UI Audit Report
+## 1. Findings (root causes)
 
-The tenant shell already had bottom nav, drawer sidebar, and partial safe-area helpers. Gaps were:
-
-- Missing / incomplete safe-area variables and header padding
-- Super Admin permanently stealing width with a desktop sidebar on phones
-- Bare / clipped tables on phones
-- Modals taller or wider than the viewport (including `max-w-5xl` / `max-w-6xl`)
-- Hover-only actions invisible on touch
-- Dense form grids inside overlays
-- Chat full-screen, staff drawers, and distribution sheets ignoring notch / home indicator
-
-Desktop layouts were preserved via `sm:` / `lg:` gates and CSS scoped under `max-width` media queries.
+| Issue | Root cause |
+|-------|------------|
+| Invoice create cramped / horizontal scroll | `CreateInvoiceModal` used a `min-w-[720px]` line-item table inside a single tall centered dialog; 3 footer buttons in one row |
+| Purchases / Quotations line editors | Same desktop table-in-modal pattern |
+| Drawer whitespace / Settings float | Aside lacked sticky profile + pinned footer; nav scroll mixed with chrome |
+| Toasts under notch | `ToastProvider` used `top-4` without safe-area |
+| No shared modal | Hand-rolled overlays; only `ConfirmDialog` had bottom-sheet-on-phone |
 
 ---
 
-## 2. Responsive Issues Found
+## 2. Components refactored / added
 
-| Priority | Area | Issue |
-|----------|------|--------|
-| P0 | Shell | Notch / status bar overlap; bottom nav covering content |
-| P0 | Super Admin | Fixed `ml-64` sidebar on all viewports |
-| P0 | Tables | Invoices, Orders line items, Quotations detail, Settings permissions, Finance bank match — clip without scroll |
-| P0 | Modals | Large create dialogs (`max-w-3xl`–`6xl`) and tall payment forms exceed viewport |
-| P1 | Forms | Sales barcode row, Purchases 3-col grid cramped at 320px |
-| P1 | Touch | Icon `p-1` / `p-1.5` actions; Sales actions `opacity-0` until hover |
-| P1 | Sheets | Staff payment drawer, Chat full-screen, Distribution vendor sheet — no safe-area |
-| P2 | Marketing | Landing / SA login safe-area gaps |
+| Component | Role |
+|-----------|------|
+| `AppModal` | Bottom sheet on phone, centered on `sm+`; sticky header/footer; Escape + focus trap |
+| `ModalActions` / `ModalActionButton` | Stacked primary/secondary on phone; row on desktop |
+| `FormSection` / `FormGrid` / `FormField` | 1-col phone / 2-col `sm+` form layout |
+| `LineItemCard` | Collapsible vertical line-item editor for phones |
+| `MobileStepper` | Party → Items → Review (invoice create, phone only) |
 
 ---
 
-## 3. Files Modified
+## 3. Files modified
 
 | File | Change |
 |------|--------|
-| `src/index.css` | `--safe-*` vars, `.app-header-safe`, modal max-w up to 7xl + max-height, overlay grids stack, table `:has()` scroll, 44px icon hits, overflow clip |
-| `src/App.tsx` | Settings nav touch target |
-| `src/components/ui/ConfirmDialog.tsx` | Bottom sheet on phones + safe-area padding |
-| `src/components/layout/ChatWidget.tsx` | Full-screen safe-area header/input |
-| `src/components/layout/LandingPage.tsx` | Safe-area nav/hero |
-| `src/features/super-admin/SuperAdminApp.tsx` | Mobile drawer; desktop rail unchanged |
-| `src/features/super-admin/SuperAdminLogin.tsx` | `100dvh` + safe-area |
-| `src/features/invoices/InvoicesView.tsx` | Mobile cards; detail table scroll |
-| `src/features/sales/SalesEntryView.tsx` | Wrap barcode row; always-visible actions on small screens |
-| `src/features/orders/OrdersView.tsx` | Line-item table `overflow-x-auto` |
-| `src/features/purchases/PurchasesView.tsx` | `grid-cols-1 sm:grid-cols-3` |
-| `src/features/quotations/QuotationsView.tsx` | Detail table scroll; convert modal max-height |
-| `src/features/finance/InvoiceFinanceView.tsx` | Payment modal scroll |
-| `src/features/finance/VendorFinanceView.tsx` | Bank match table overflow |
-| `src/features/distribution/DistributionView.tsx` | Vendor sheet safe-area; payment modal scroll |
-| `src/features/masters/StaffMasterView.tsx` | Drawer wrap + safe-area |
-| `src/features/masters/CustomerMasterView.tsx` | Purchases modal horizontal scroll |
-| `src/features/masters/PriceListView.tsx` | Modal max-height |
-| `src/features/accounts/AccountsView.tsx` | GSTR table overflow wrappers |
-| `src/features/settings/SettingsView.tsx` | Permissions matrix overflow |
-| `src/platforms/service-cloud/ServiceCloudGate.tsx` | Busy/offline sheet fits viewport |
-| `docs/mobile-ui-audit.md` | This report |
+| `src/components/ui/AppModal.tsx` | New |
+| `src/components/ui/ModalActions.tsx` | New |
+| `src/components/ui/FormSection.tsx` | New |
+| `src/components/ui/LineItemCard.tsx` | New |
+| `src/components/ui/MobileStepper.tsx` | New |
+| `src/components/ui/index.ts` | Exports |
+| `src/components/ui/Toast.tsx` | Safe-area top offset |
+| `src/features/invoices/InvoicesView.tsx` | Stepper + item cards + AppModal |
+| `src/features/purchases/PurchasesView.tsx` | AppModal + LineItemCard |
+| `src/features/quotations/QuotationsView.tsx` | AppModal + LineItemCard |
+| `src/App.tsx` | Drawer sticky profile / scroll nav / pinned settings; header touch targets |
+| `tests/cases/service-mobile.md` | Cases 5g–5i |
+| `tests/cases/cloud-mobile.md` | Cases 13–15 |
 
 ---
 
-## 4. Mobile Improvements Applied
-
-- Safe areas for header, bottom nav, chat, drawers, distribution sheet, confirm dialog, landing, SA login
-- Super Admin off-canvas drawer below `lg`; desktop sidebar unchanged
-- Invoices: card UI under `sm`; table from `sm` up
-- Global modal fit (`max-width` + `max-height` + scroll) through `max-w-7xl`
-- Overlay form grids stack to one column under `lg`
-- Bare card tables get horizontal scroll under `lg`
-- 44px min hit area for dense icon buttons on phones
-- Hover-only row actions visible on phones
-- Sales barcode row wraps; Verify full-width on narrow phones
-- Tall payment / price / convert modals scroll within ~90dvh
-
----
-
-## 5. Before vs After Summary
+## 4. Before vs after
 
 | Before | After |
 |--------|--------|
-| Header under status bar | `.app-header-safe` + `--safe-top` clears notch |
-| SA panel unusable on phone | Full-width content + hamburger drawer |
-| Invoice table clipped | Cards on phone; same table on desktop |
-| Tall / wide modals clipped | Scrollable within ~90dvh; width ≤ viewport − 1.5rem |
-| Sales actions invisible on touch | Visible below `sm` |
-| Chat / drawers under home indicator | Safe-area padding |
-| Confirm dialog centered awkwardly | Bottom sheet on phones |
+| Invoice line table scrolls sideways on phone | Stacked `LineItemCard`s; no horizontal scroll |
+| Cancel / Draft / Send squeezed in one row | Full-width stacked actions on phone |
+| One huge scrollable invoice dialog | Phone stepper (Party / Items / Review); desktop still shows all sections |
+| Drawer Settings mid-scroll | Pinned settings footer + safe-area |
+| Toasts under status bar | Offset by `env(safe-area-inset-top)` |
 
 ---
 
-## 6. Remaining Mobile Issues
+## 5. Remaining improvements (follow-up)
 
-- Distribution / Purchases / Quotations / Warranty: dense line-item editors still use horizontal scroll (not full card UIs)
-- Accounts report tables beyond GSTR may still need summary cards
-- Landscape phones: usable, not specially tuned
-- Some intentional 2-col metric strips stay 2-up by design
-- Offline Mobile / Capacitor APK must be rebuilt to pick up client CSS/layout changes
-- Full visual QA on physical iOS/Android still recommended
-- Automated coverage: Vitest gates target `server/utils` + `server/services` — UI/CSS changes are covered by manual cases in `tests/cases/cloud-mobile.md`
+- Cardify Masters list tables (Staff, Customers, Vendors, Bank, Price List)
+- Accounts report tables (beyond existing GSTR helpers)
+- Distribution / Warranty dense editors
+- Landscape phone tuning
+- Rebuild Offline Mobile APK after merge for device QA
 
-## 7. Review follow-ups (post #77)
+---
 
-| Finding | Severity | Fix |
-|---------|----------|-----|
-| Chat full-screen could not be dismissed | High | Header close + Escape |
-| Invoice mobile cards nested `role=button` around action buttons | Medium | Summary is a `<button>`; actions are siblings |
-| No mobile automated tests | Low | Knowledge cases + Escape contract unit test |
+## 6. Local test gate (before APK)
+
+```bash
+npx vite --mode service-mobile --port 3000 --host
+```
+
+Chrome DevTools device widths: 320 / 360 / 375 / 390 / 412 / 430 / 480.  
+Checklist: create invoice (3+ lines), purchases/quotes line cards, drawer Settings pinned, toast below notch, no page horizontal scroll, desktop `lg+` unchanged.
 
 ---
 
 ## Rules honored
 
-- Desktop visual design preserved (`lg:` / `sm:` gates + media-query CSS)
+- Desktop visual design preserved (`sm:` / `lg:` gates)
 - No API or business-logic changes
-- No new design system / branding change
-- Cloud-focused (tenant + SA + public pages)
+- No branding / color / font system change
