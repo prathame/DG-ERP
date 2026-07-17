@@ -314,7 +314,7 @@ erDiagram
 
 ## What this ERD deliberately omits
 
-- `audit_log`, `mobile_devices`, `password_reset_tokens`, `vendor_reminder_settings` — simple, largely-standalone tables not central to the business-domain narrative (fully documented in [`tenant-tables.md`](/database/tenant-tables) and [`platform-tables.md`](/database/platform-tables)).
+- `audit_log`, `password_reset_tokens`, `vendor_reminder_settings` — simple, largely-standalone tables not central to the business-domain narrative (fully documented in [`tenant-tables.md`](/database/tenant-tables) and [`platform-tables.md`](/database/platform-tables)).
 - Every index and constraint — see [`performance.md`](/database/performance) for indexes and [`rls.md`](/database/rls) for row-level security policies layered on top of every table shown here.
 
 ## Related pages

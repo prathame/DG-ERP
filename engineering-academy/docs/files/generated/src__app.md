@@ -21,8 +21,6 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 ## Imports
 
 - `react`
-- `./platforms/mobile/offline`
-- `./platforms/mobile/online`
 - `./api`
 - `lucide-react`
 - `motion/react`

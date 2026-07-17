@@ -26,7 +26,6 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 - `../../lib/utils`
 - `../../components/ui`
 - `../../lib/session`
-- `./MobileTenantPanel`
 
 ## Exports and symbols
 

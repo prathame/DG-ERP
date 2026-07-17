@@ -42,9 +42,6 @@ flowchart LR
     Onprem["Electron On-Prem users"] -->|"No remote rollback —\nmust ship + customer must update"| Fixed2["Fixed only after\nnext manual update"]
 ```
 
-## Mobile (Capacitor / app stores)
-
-Similar constraint to on-prem: once a build is submitted and approved on the Play Store/App Store, there's no instant rollback — only a new release, subject to store review time. If the bug is backend-only (not a frontend code issue), fixing the backend API is often the faster mitigation path even if the mobile app itself technically shipped with a related bug, since the mobile app is a thin client against the same cloud API.
 
 ## Fix playbook summary
 
@@ -52,7 +49,6 @@ Similar constraint to on-prem: once a build is submitted and approved on the Pla
 |---|---|---|
 | Web / Electron Cloud | Minutes | Render dashboard redeploy of previous version |
 | On-prem Electron | None — forward-fix only | Ship a patch, notify affected customers |
-| Mobile (Capacitor) | Hours to days | New store release, subject to review |
 
 ## Related
 

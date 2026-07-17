@@ -1,7 +1,7 @@
 ---
 sidebar_label: src/lib/*
 title: File Walkthrough — src/lib/
-description: session.ts, businessTypeConfig.ts, billTemplates.ts, hsnRates.ts, utils.ts, capacitorApp.ts, useEscapeKey.ts.
+App.ts, useEscapeKey.ts.
 ---
 
 # File Walkthrough — `src/lib/`
@@ -32,9 +32,9 @@ Reference data mapping HSN (Harmonized System of Nomenclature) codes to applicab
 
 Most notably exports `cn()` (className merging, the standard Tailwind/clsx pattern) used throughout `components/ui` and every feature view for conditional styling.
 
-### `capacitorApp.ts` — Capacitor lifecycle glue
+ lifecycle glue
 
-Thin wrapper around Capacitor app lifecycle events (app resume/pause, back-button handling on Android) — distinct from `platforms/mobile/*` in that this is generic Capacitor app-shell behavior, not the DG-ERP-specific onboarding/sync/offline logic that lives in `platforms/`.
+ app-shell behavior, not the DG-ERP-specific onboarding/sync/offline logic that lives in `platforms/`.
 
 ### `useEscapeKey.ts` — a small reusable hook
 
@@ -42,8 +42,7 @@ A `useEffect`-based hook for closing modals/dialogs on Escape key press — smal
 
 ### `offline/` — cache, queue, network (mobile)
 
-Note: there is a `src/lib/offline/` directory in addition to `src/platforms/mobile/offline/`. If you're tracing offline behavior, confirm which one a given import actually points to — the active, currently-wired-up mobile offline logic (cache/queue/network used by `api.ts`) lives under `src/platforms/mobile/offline/`; treat any logic under `src/lib/offline/` as a signal to double check whether it's live code, legacy, or a shared low-level piece the platform layer builds on, before assuming either location is "the" offline implementation.
-
+Note: there is a `src/lib/offline/` directory in addition to `src/
 ## Common mistakes
 
 1. Reaching directly into `localStorage`/`sessionStorage` from a feature component instead of going through `session.ts` — breaks the single point of control for session lifecycle (logout, token refresh, tenant switching).

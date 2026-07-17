@@ -38,7 +38,6 @@ Traffic shape you should expect, not be surprised by:
 
 - **Bursty around business hours** — Indian SME retail/dealer usage clusters around opening hours and month-end/GST-filing-deadline days.
 - **Login spikes** — after any deploy that invalidates sessions unexpectedly, or after a widely-shared "server was down" moment; `loginLimiter` (5/min/IP) exists specifically to survive a legitimate retry storm without becoming a self-inflicted DoS vector.
-- **Mobile heartbeat traffic** — `src/platforms/mobile/online/mobileSync.ts` pings `/api/mobile/heartbeat` every 60 seconds per active device; at scale this is a steady, predictable background load, not spiky, and it's in `PUBLIC_PATHS` so it skips JWT verification overhead when unauthenticated.
 - **On-prem heartbeat traffic** — every on-prem install calls `/api/onprem/heartbeat` roughly every 60 minutes (`HEARTBEAT_INTERVAL_MS` in `electron/shared/constants.ts`); low volume, but each miss is meaningful (see [On-Prem License Runbook](/runbooks/onprem-license)).
 - **Rate limiting is your traffic-shaping tool today**, not a queue or a CDN. The global `/api/` limiter (300 req/min/IP) and per-route limiters (login, password reset, signup, chatbot) are the entire defense against both abuse and accidental traffic storms.
 

@@ -67,7 +67,7 @@ Everything on this page was a **deliberate, reasonable choice at the time** — 
 |---|---|
 | **Cost today** | Vulnerable to token theft via XSS (any successful script injection can read and exfiltrate the token); not vulnerable to CSRF, which is the trade-off's upside. |
 | **Trigger to revisit** | A documented XSS finding in this app (even a low-severity one) that demonstrates real exploitability, or a compliance requirement that specifically mandates `HttpOnly` cookie-based sessions. |
-| **Fix sketch** | Move to `HttpOnly` + `SameSite=Strict` cookies for web, add CSRF token verification on state-changing routes, and separately solve token storage for the Electron/Capacitor shells (which don't have the same cookie-jar semantics as a browser tab). |
+| **Fix sketch** | Move to `HttpOnly` + `SameSite=Strict` cookies for web, add CSRF token verification on state-changing routes, and separately solve token storage for the Electron shells (which don't have the same cookie-jar semantics as a browser tab). |
 
 ### 7. Unindexed filters on high-cardinality report queries
 

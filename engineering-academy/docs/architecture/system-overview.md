@@ -12,16 +12,14 @@ If you remember one diagram from this entire academy, make it this one. Everythi
 
 > **One Express API, one PostgreSQL schema, four client shells.**
 
-There is no microservices mesh, no separate BFF layer, no GraphQL gateway. `server/` is a single Node.js process (or, on-prem, a single process per customer machine) that every client — browser, Electron ×2, Capacitor — talks to over the same REST-ish JSON API.
-
+There is no microservices mesh, no separate BFF layer, no GraphQL gateway. `server/` is a single Node.js process (or, on-prem, a single process per customer machine) that every client — browser, Electron ×2, 
 ```mermaid
 flowchart TB
     subgraph Clients["4 Client Surfaces (same React SPA in src/)"]
         Web["Web Browser<br/>dhandho.app"]
         ElCloud["Electron Cloud<br/>thin wrapper, no local DB"]
         ElOnprem["Electron On-Prem<br/>embedded Postgres"]
-        Mobile["Capacitor Mobile<br/>Android / iOS"]
-    end
+        Mobile["    end
 
     subgraph API["server/ — one Express 4 application"]
         MW["Middleware stack<br/>(helmet, CORS, rate-limit,<br/>JWT auth, permissions)"]
@@ -44,18 +42,16 @@ flowchart TB
 ```
 
 :::tip Analogy
-Picture a **bank with one vault (PostgreSQL) and one teller counter (Express API)**, but four different lobby entrances (web, two Electron variants, mobile) that all funnel to the same counter. Each entrance has its own decor and quirks (a Capacitor WebView behaves differently than a browser tab), but no entrance has a private back door to the vault — everyone goes through the same teller, who checks the same ID (JWT) and enforces the same rules (permissions, tenant scoping) regardless of which door you walked in through.
-:::
+Picture a **bank with one vault (PostgreSQL) and one teller counter (Express API)**, but four different lobby entrances (web, two Electron variants, mobile) that all funnel to the same counter. Each entrance has its own decor and quirks (a :::
 
-## The four surfaces, one sentence each
+## The three surfaces, one sentence each
 
 | Surface | What it is | Talks to |
 |---|---|---|
 | **Web** | The React SPA served directly by Express at `/` in production | Hosted API, same origin |
 | **Electron Cloud** | A ~20 MB native wrapper that just opens the hosted `dhandho.app` URL in a `BrowserWindow` | Hosted API, over the internet |
 | **Electron On-Prem** | A ~180 MB self-contained install: embedded PostgreSQL + the same Express server + the same React build, all running locally | `localhost`, no internet required after activation |
-| **Capacitor Mobile** | Native Android/iOS shell around the same React SPA, for cloud tenants only | Hosted API, over the internet, with a light offline mutation queue |
-
+| **
 Full detail in [Four Surfaces](./four-surfaces.md).
 
 ## Why this shape, and not something else
@@ -63,12 +59,11 @@ Full detail in [Four Surfaces](./four-surfaces.md).
 The alternative architectures worth naming — and why they weren't chosen — are covered in depth in [Design Decisions](./design-decisions.md), but the headline reasoning:
 
 - **A single Express monolith** (not microservices) because the team size and deployment story (including an *offline, single-machine* on-prem deployment) make service-to-service network calls a liability, not a benefit. You cannot run a service mesh on a shop-floor laptop with no internet.
-- **Server-rendered nothing; pure API + SPA** because four very different shells (browser, two Electron flavors, Capacitor) need one consistent JSON contract rather than four different rendering strategies.
-- **One PostgreSQL schema for all tenants** (not database-per-tenant) because the tenant count and per-tenant data volume for Indian SMEs don't justify the operational overhead of thousands of separate databases — see [Multi-tenancy](./multi-tenancy.md) for the isolation strategy that makes shared-schema safe.
+- **Server-rendered nothing; pure API + SPA** because four very different shells (browser, two Electron flavors, - **One PostgreSQL schema for all tenants** (not database-per-tenant) because the tenant count and per-tenant data volume for Indian SMEs don't justify the operational overhead of thousands of separate databases — see [Multi-tenancy](./multi-tenancy.md) for the isolation strategy that makes shared-schema safe.
 
 ## Request path at a glance
 
-Every mutating or reading request — regardless of which of the four surfaces it came from — follows the identical path once it reaches the server:
+Every mutating or reading request — regardless of which of the three surfaces it came from — follows the identical path once it reaches the server:
 
 ```mermaid
 sequenceDiagram
@@ -104,15 +99,14 @@ Every table except a handful of explicitly platform-level tables (`tenants`, `pl
 ## Common mistakes
 
 1. Assuming a new feature needs its own microservice or serverless function "for scalability" — this pattern doesn't fit the on-prem deployment model at all.
-2. Building a feature that behaves differently based on which of the four surfaces it's running on, when the difference should live in `src/platforms/`, not the feature itself (see [Folder Structure](/overview/folder-structure)).
+2. Building a feature that behaves differently based on which of the three surfaces it's running on, when the difference should live in `src/platforms/`, not the feature itself (see [Folder Structure](/overview/folder-structure)).
 3. Forgetting that the on-prem surface has no internet by default — any feature that assumes an always-reachable third-party API needs a documented offline fallback.
 
 ## Interview question
 
 > **Q: Sketch the system architecture of Dhandho in under 60 seconds, out loud, without looking at a diagram.**
 >
-> Expected answer, verbally: "One Express API and one PostgreSQL database serve four client surfaces — a web SPA, two Electron variants (a thin cloud wrapper and a full on-prem build with an embedded database), and a Capacitor mobile app. Every tenant's data lives in the same schema, isolated by a `tenant_id` column enforced in application SQL, the JWT payload, and a Postgres RLS policy as a backstop. The on-prem build reuses the identical server code against a locally embedded Postgres instead of the hosted one, which is why the server can't assume internet access or TLS availability."
-
+> Expected answer, verbally: "One Express API and one PostgreSQL database serve four client surfaces — a web SPA, two Electron variants (a thin cloud wrapper and a full on-prem build with an embedded database), and a 
 ## Related
 
 - [Four Surfaces](./four-surfaces.md)

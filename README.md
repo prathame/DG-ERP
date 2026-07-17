@@ -50,7 +50,7 @@ Each tenant is provisioned as one of five types. The type controls which tabs ar
 - **Backend**: Node.js, Express 4, PostgreSQL 16 (RLS per tenant)
 - **Auth**: JWT (HS256, 24h), bcrypt
 - **Desktop**: Electron (cloud wrapper + on-prem with embedded PostgreSQL)
-- **Mobile**: Capacitor (Android / iOS) against the cloud API — invite onboarding + light offline queue
+- **Clients**: Responsive web (phone browser OK) + Electron cloud + Electron on-prem
 - **Hosting**: Render (cloud), self-hosted (on-prem)
 
 ---
@@ -130,7 +130,6 @@ Public URL: **`/download`**
 
 | Section | What |
 |---------|------|
-| Mobile | Play Store / App Store / GitHub APK |
 | On-Prem desktop | Electron offline installers |
 | Cloud desktop | Electron online installers |
 
@@ -142,7 +141,7 @@ Accessible at `/admin` (or `/super-admin` depending on deploy) with the platform
 
 | Section | What it manages |
 |---|---|
-| **Tenants** | Create / manage cloud tenants, business type, tabs; **Mobile panel** (invite, force sync, devices) |
+| **Tenants** | Create / manage cloud tenants, business type, tabs |
 | **On-Prem** | Issue license keys, track installations, push settings |
 | **Analytics** | Revenue, tenant growth, plan distribution |
 | **Guide** | In-app operator documentation |
@@ -153,9 +152,8 @@ Accessible at `/admin` (or `/super-admin` depending on deploy) with the platform
 
 | Doc | Contents |
 |-----|----------|
-| [`docs/MOBILE.md`](docs/MOBILE.md) | Mobile onboarding, APIs, sync, build |
 | [`DEVELOPER.md`](DEVELOPER.md) | Architecture, routes, Electron, platforms |
-| [`src/platforms/README.md`](src/platforms/README.md) | mobile/desktop · online/offline layout |
+| [`src/platforms/README.md`](src/platforms/README.md) | Shared + Electron desktop helpers |
 | [`electron/README.md`](electron/README.md) | Electron cloud vs on-prem |
 | Super Admin → **Guide** | Operator how-tos inside the product |
 
@@ -165,13 +163,13 @@ Accessible at `/admin` (or `/super-admin` depending on deploy) with the platform
 
 ```
 src/
-  platforms/        — mobile|desktop × online|offline (see platforms/README.md)
+  platforms/        — shared + desktop (see platforms/README.md)
   features/         — one folder per module (analytics, inventory, sales, …)
   lib/              — shared helpers (session, bills, businessTypeConfig, …)
-  api.ts            — typed API client (uses platforms offline helpers)
+  api.ts            — typed API client
 
 server/
-  routes/           — domain routes (+ mobile.ts, onprem.ts, super-admin.ts)
+  routes/           — domain routes (+ onprem.ts, super-admin.ts)
   middleware/       — auth.ts (JWT)
   utils/            — tenant.ts, barcode.ts, …
   pg-db.ts          — pool + schema init
@@ -182,13 +180,11 @@ electron/
   onprem/           — desktop · offline
   shared/
 
-android/ ios/       — Capacitor native projects (generated / synced)
 docs/
-  MOBILE.md
 
 tests/
   e2e_by_type.py
-  cases/            — manual specs (incl. pwa-mobile.md, super-admin.md)
+  cases/            — manual specs (e.g. super-admin.md)
 ```
 
 ---
@@ -203,9 +199,8 @@ tests/
 
 **Supporting**: `warranties`, `rewards`, `reward_rules`, `redemption_settings`, `quotations`, `orders`, `price_lists`, `credit_debit_notes`, `staff_members`, `staff_payments`
 
-**Platform**: `plans`, `super_admins`, `tenant_invoices`, `tenant_stats`, `audit_log`, `bill_settings`, `vendor_reminder_settings`, `password_reset_tokens`, `onprem_licenses`, `platform_config`, `mobile_devices`
+**Platform**: `plans`, `super_admins`, `tenant_invoices`, `tenant_stats`, `audit_log`, `bill_settings`, `vendor_reminder_settings`, `password_reset_tokens`, `onprem_licenses`, `platform_config`
 
-**Mobile columns on `tenants`**: `mobile_invite_code`, `mobile_invite_expires_at`, `mobile_force_sync_at`, `mobile_min_version`, `mobile_latest_version`
 
 ---
 

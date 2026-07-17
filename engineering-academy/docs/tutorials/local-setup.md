@@ -7,7 +7,7 @@ description: Step-by-step environment setup for prathame/DG-ERP — Postgres, .e
 # Local Setup — Running Dhandho on Your Machine
 
 :::tip Before you start
-You need Node.js (matching the `@types/node` ^22 in `package.json`, so Node 20+ is a safe bet) and a local or remote PostgreSQL 16 instance. You do **not** need Docker, Electron, or Capacitor tooling to do normal feature development.
+You need Node.js (matching the `@types/node` ^22 in `package.json`, so Node 20+ is a safe bet) and a local or remote PostgreSQL 16 instance. You do **not** need Docker or Electron tooling to do normal feature development.
 :::
 
 ## 1. Clone and install

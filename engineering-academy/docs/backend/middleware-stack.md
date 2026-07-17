@@ -17,7 +17,7 @@ flowchart TB
   A[trust proxy — prod only] --> B[Correlation ID + safe res.json override]
   B --> C[compression]
   C --> D[helmet — CSP/HSTS/frameguard/noSniff]
-  D --> E[CORS allow-list + Capacitor origins]
+  D --> E[CORS allow-list + Electron origins]
   E --> F[Dev-only request logger]
   F --> G["express.json (2mb; 50mb on /backup/restore)"]
   G --> H[Global rate limit 300/min]
@@ -75,7 +75,7 @@ See [Threat Model](/security/threat-model) for how this maps to OWASP categories
 
 ```ts
 const allowedOrigins = (process.env.ALLOWED_ORIGINS?.split(',') || (isProduction ? [] : [...localhost defaults]))
-const capacitorOrigins = new Set(['capacitor://localhost', 'ionic://localhost', 'http://localhost', 'https://localhost']);
+const capacitorOrigins = new Set(['Electron custom origins', 'ionic://localhost', 'http://localhost', 'https://localhost']);
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && (allowedOrigins.includes(origin) || capacitorOrigins.has(origin))) {
@@ -86,7 +86,7 @@ app.use((req, res, next) => {
 });
 ```
 
-Production **must** set `ALLOWED_ORIGINS` explicitly (empty array otherwise — everything gets rejected, a deliberate fail-closed default). The Capacitor scheme origins (`capacitor://localhost`, `ionic://localhost`) are hardcoded because the mobile WebView's origin is fixed and unrelated to `ALLOWED_ORIGINS`, which is meant for browser-facing domains.
+Production **must** set `ALLOWED_ORIGINS` explicitly (empty array otherwise — everything gets rejected, a deliberate fail-closed default). The Electron scheme origins (`Electron custom origins`, `ionic://localhost`) are hardcoded because the mobile WebView's origin is fixed and unrelated to `ALLOWED_ORIGINS`, which is meant for browser-facing domains.
 
 ## 5. Rate limiting — tiered, not one-size-fits-all
 
@@ -138,7 +138,7 @@ Covered in full in [Permissions](/backend/permissions). One-paragraph summary: m
 
 ## Debugging exercise
 
-A mobile QA tester reports: "API calls from the Android app are being rejected with a CORS-like error, but the same build works fine on iOS." Given that Capacitor's WebView origin is fixed per platform (`capacitor://localhost` on both, typically), is CORS really the most likely cause, or is this symptom more likely rooted somewhere else in the pipeline (hint: check `resolveApiUrl()` and whether the Android build is actually pointed at the right `VITE_API_ORIGIN`)?
+A mobile QA tester reports: "API calls from the Android app are being rejected with a CORS-like error, but the same build works fine on iOS." Given that Electron's WebView origin is fixed per platform (`Electron custom origins` on both, typically), is CORS really the most likely cause, or is this symptom more likely rooted somewhere else in the pipeline (hint: check `resolveApiUrl()` and whether the Android build is actually pointed at the right `VITE_API_ORIGIN`)?
 
 ## Optimization challenge
 
@@ -154,7 +154,7 @@ The global rate limiter, helmet, and CORS middleware all run on **every** reques
 <summary>Answers</summary>
 
 1. It acts as a safety net — even a route handler that forgets to redact its error response, or a bug in a rarely-hit code path, still gets its 5xx body replaced with a generic, correlation-tagged message before it reaches the client.
-2. There isn't one — the code explicitly comments "Never reflect * — unlisted origins get no Allow-Origin header"; even Capacitor origins are matched against an explicit allow-list (`capacitorOrigins`), not a wildcard.
+2. There isn't one — the code explicitly comments "Never reflect * — unlisted origins get no Allow-Origin header"; even Electron origins are matched against an explicit allow-list (`capacitorOrigins`), not a wildcard.
 3. To keep integration tests exercising the *real* rate-limiting middleware's code path (so a regression there would still be caught) without making test suites flaky due to hitting a tight 5/min ceiling across many test files running in parallel.
 
 </details>

@@ -115,7 +115,6 @@ Warranty expiry is **not** enforced by a scheduled job — it's checked lazily o
 | `(tenant_id, barcode)` | `product_inventory` |
 | `(tenant_id, quotation_number)` | `quotations` |
 | `(tenant_id, account_number) WHERE account_number IS NOT NULL` | `banks` |
-| `(tenant_id, device_id)` | `mobile_devices` |
 
 ## Rejected alternative: one giant `documents` table for quotations/orders/invoices
 

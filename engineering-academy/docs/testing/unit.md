@@ -17,8 +17,6 @@ description: What DG-ERP's unit tests cover, why they're limited to pure/isolate
 | `authCache.test.ts` | `getCachedAuth`/`setCachedAuth` (`server/utils/authCache.ts`) | An in-memory `Map`-backed cache — testable by calling set then get, no real users table required |
 | `env.test.ts` | `assertCriticalEnv` (`server/utils/env.ts`) | Tests against a *fake* `process.env`-shaped object passed as a parameter (`assertCriticalEnv(fakeEnv)`), not the real process env — this is exactly why the function accepts an optional `env` parameter instead of always reading `process.env` directly |
 | `impersonation-token.test.ts` | Super-admin impersonation token shape/expiry logic | JWT signing/verification logic, mockable without a live server |
-| `mobile-onboarding.test.ts` | Invite code parsing/validation logic | String/format validation, no network |
-| `offline-mobile.test.ts` | `src/platforms/mobile/offline/{queue,cache}.ts` logic | `localStorage`-backed, but `localStorage` itself is mockable/available in the Vitest `node` environment via a small shim — no real device needed |
 
 ## Why `assertCriticalEnv` accepts a parameter — a lesson in testable design
 

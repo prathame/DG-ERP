@@ -17,7 +17,6 @@ Dhandho is a multi-tenant ERP SaaS for Indian SMEs (inventory, distribution, GST
 | Cloud web | React 19 SPA (Vite 6) + Express 4 + PostgreSQL |
 | Desktop cloud | Electron → cloud URL |
 | Desktop on-prem | Electron + embedded PostgreSQL + local Express |
-| Mobile | Capacitor 8 (Android/iOS) → cloud API |
 
 Hosting: Render (`render.yaml`). Optional self-host via `Dockerfile` / `docker-compose.yml`.
 
@@ -44,7 +43,6 @@ Hosting: Render (`render.yaml`). Optional self-host via `Dockerfile` / `docker-c
 flowchart TB
   subgraph clients [Clients]
     Web[Web SPA]
-    Cap[Capacitor Mobile]
     ElecC[Electron Cloud]
     ElecO[Electron On-Prem]
   end
@@ -97,7 +95,7 @@ src/
   api.ts                  Typed API client
   features/               ERP modules (lazy-loaded)
   components/{layout,ui}/ Marketing + shared UI (ErrorBoundary, dialogs)
-  platforms/              mobile|desktop × online|offline
+  platforms/              shared + desktop (Electron)
   lib/                    session, bills, utils
   i18n/                   en eager; hi/gu/mr lazy
 server/
@@ -139,7 +137,7 @@ Feature views are `React.lazy()`; Vite `manualChunks` isolate react / motion / s
 
 ## API & data
 
-- Base `/api/*`; public paths for auth, health, tenant-by-slug, on-prem, mobile invite
+- Base `/api/*`; public paths for auth, health, tenant-by-slug, on-prem
 - List endpoints: `page` / `limit` with hard ceiling; `X-Total-Count` headers
 - Bulk imports capped at 500 rows
 - `/api/products/low-stock-count` for shell badge (no full catalog load)

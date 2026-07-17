@@ -278,9 +278,7 @@ The Express server serves the React `dist/` at `/` and the API at `/api/*`. No s
 | `server/index.ts` | Express app, middleware, route registration |
 | `server/utils/tenant.ts` | Tenant lifecycle (provision, delete, stats) |
 | `server/routes/super-admin.ts` | PRESETS object — authoritative tab configs per business type |
-| `docs/MOBILE.md` | Mobile product + API + build documentation |
-| `src/platforms/` | Mobile/desktop · online/offline client layout |
-| `server/routes/mobile.ts` | Mobile invite / heartbeat / devices |
+| `src/platforms/` | Shared API base + Electron desktop helpers |
 | `src/lib/businessTypeConfig.ts` | Frontend per-type feature flags |
 | `src/lib/billTemplates.ts` | PDF bill HTML (sales, distribution, invoice, quotation) |
 | `src/api.ts` | Typed API client |

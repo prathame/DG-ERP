@@ -12,12 +12,12 @@ Every real system has residual risk after mitigations are applied — the questi
 
 ## 1. JWT stored in `localStorage`, not an httpOnly cookie
 
-**The risk:** Any successful XSS on the frontend can read `localStorage` and steal the JWT directly via `document.localStorage` or the equivalent Capacitor/Electron storage API — an httpOnly cookie would be invisible to JavaScript entirely, closing off this specific theft vector.
+**The risk:** Any successful XSS on the frontend can read `localStorage` and steal the JWT directly via `document.localStorage` or Electron storage APIs — an httpOnly cookie would be invisible to JavaScript entirely, closing off this specific theft vector.
 
 **Why it exists:**
 
-- Dhandho runs across **three fundamentally different client shells** — a plain browser, a Capacitor mobile WebView, and an Electron desktop wrapper. Cookie-based auth (with `httpOnly`, `SameSite`, `Secure` attributes) works cleanly in a browser talking to a single origin, but gets substantially more complicated across Capacitor's `capacitor://localhost` origin and Electron's `file://`-adjacent origins talking to a remote API host — cross-origin cookie handling in embedded WebViews has historically been inconsistent across platforms and OS versions.
-- A Bearer-token-in-header model is **origin-agnostic** by construction: the same `api.ts` code that attaches `Authorization: Bearer <token>` works identically whether the JS is running in a browser tab, a Capacitor WebView, or an Electron renderer process — no per-platform cookie-jar handling needed.
+- Dhandho runs across **two client shells** — a plain browser and Electron (cloud + on-prem). Cookie-based auth (with `httpOnly`, `SameSite`, `Secure` attributes) works cleanly in a browser talking to a single origin, but gets substantially more complicated across Electron's custom/`file://`-adjacent origins talking to a remote API host — cross-origin cookie handling in embedded WebViews has historically been inconsistent across platforms and OS versions.
+- A Bearer-token-in-header model is **origin-agnostic** by construction: the same `api.ts` code that attaches `Authorization: Bearer <token>` works identically whether the JS is running in a browser tab or an Electron renderer process — no per-platform cookie-jar handling needed.
 - Bearer tokens also sidestep CSRF entirely (see [threat-model.md](./threat-model.md)'s Spoofing section) — a real, and arguably larger, class of attack that cookie-based auth has to defend against with separate CSRF-token machinery.
 
 **Mitigations already in place that reduce this risk's severity:**
@@ -27,7 +27,7 @@ Every real system has residual risk after mitigations are applied — the questi
 - 24-hour token expiry bounds the exposure window of any single stolen token.
 - Password-change invalidation (comparing `password_changed_at` to token `iat`) gives users a way to kill a stolen token immediately upon suspecting compromise, without waiting for natural expiry.
 
-**What would eliminate it:** Moving to httpOnly, `SameSite=Strict` cookies for the web target specifically, with a separate token-passing mechanism retained for Capacitor/Electron — a genuinely more complex, dual-mode auth architecture. **Not currently planned**, given the CSP mitigations already in place and the added complexity of maintaining two auth transport mechanisms across three client shells.
+**What would eliminate it:** Moving to httpOnly, `SameSite=Strict` cookies for the web target specifically, with a separate token-passing mechanism retained for Electron — a genuinely more complex, dual-mode auth architecture. **Not currently planned**, given the CSP mitigations already in place and the added complexity of maintaining two auth transport mechanisms across browser and Electron.
 
 ## 2. `xlsx@0.18.5` — known CVEs, no upstream fix on the free channel
 

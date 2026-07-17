@@ -980,6 +980,20 @@ export async function initSchema() {
        WHERE delivered_at IS NULL`,
     );
 
+    // Capacitor mobile removed — drop leftover table/columns from older deploys (idempotent).
+    await client.query(`DROP TABLE IF EXISTS mobile_seats CASCADE`);
+    await client.query(`DROP TABLE IF EXISTS mobile_devices CASCADE`);
+    await client.query(`DROP INDEX IF EXISTS idx_tenants_mobile_invite`);
+    for (const col of [
+      'mobile_invite_code',
+      'mobile_invite_expires_at',
+      'mobile_force_sync_at',
+      'mobile_min_version',
+      'mobile_latest_version',
+    ]) {
+      await client.query(`ALTER TABLE tenants DROP COLUMN IF EXISTS ${col}`);
+    }
+
     // Row Level Security (RLS) — DB-level tenant isolation safety net
     // RLS policies enforce tenant_id filtering at the DB level.
     // Table owner (our pool user) bypasses RLS — this is intentional.

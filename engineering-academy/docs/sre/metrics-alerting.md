@@ -18,7 +18,6 @@ This page has two halves on purpose: **what exists today** (small, honest, mostl
 | Error visibility | `logger.error(...)` + Logtail (if `LOGTAIL_TOKEN` set) | `server/utils/logger.ts` |
 | Per-tenant audit trail | `audit_log` table | `server/routes/audit.ts`, `server/utils/helpers.ts` (`logAudit`) |
 | On-prem fleet health | Heartbeat → `onprem_licenses.last_seen`, `active_users`, `disk_mb` | `server/routes/onprem.ts` |
-| Mobile fleet health | Heartbeat → `mobile_devices.last_seen`, `app_version` | `server/routes/mobile.ts` |
 | npm dependency vulnerabilities | `npm audit` in CI | `.github/workflows/security.yml`, `release.yml` |
 | Bundle size regression | gzip size check on the main JS chunk | `.github/workflows/build.yml`, `release.yml` (`< 262144` bytes gzip) |
 

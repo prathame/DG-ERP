@@ -46,11 +46,9 @@ No route file imports another route file. This is a deliberate, load-bearing con
 flowchart TB
     AppTsx["App.tsx"] --> Session["lib/session.ts"]
     AppTsx --> Api["api.ts (fetchApi, all endpoint wrappers)"]
-    AppTsx --> Platforms["platforms/mobile, platforms/desktop"]
     AppTsx -->|"lazy()"| Features["features/* (18 feature folders)"]
     Api --> Session
     Api --> PlatformsShared["platforms/shared (resolveApiUrl)"]
-    Api --> Offline["platforms/mobile/offline (cache, queue)"]
     Features --> Api
     Features --> ComponentsUi["components/ui"]
     Features -.->|"no feature imports another feature"| Features
@@ -61,8 +59,6 @@ Just like the backend's routes, **`src/features/*` folders do not import each ot
 | Layer | Depends on | Depended on by |
 |---|---|---|
 | `lib/session.ts` | `localStorage` only | `api.ts`, every feature that reads the current user |
-| `api.ts` | `lib/session.ts`, `platforms/shared`, `platforms/mobile/offline` | Every `features/*` folder |
-| `platforms/mobile/offline/*` | `localStorage`, `@capacitor/network` | `api.ts` only |
 | `platforms/desktop/*` | Electron IPC (`window.electronAPI`, if present) | `App.tsx`, a handful of settings screens |
 | `components/ui/*` | React, `motion`, `lucide-react` | Every feature |
 | `features/*` (18 folders) | `api.ts`, `components/ui`, `lib/*` | `App.tsx` only |

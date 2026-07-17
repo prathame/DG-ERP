@@ -31,7 +31,7 @@ sequenceDiagram
     EX->>EX: 1. correlation-id middleware<br/>(sets X-Correlation-ID, wraps res.json for 500s)
     EX->>EX: 2. compression()
     EX->>EX: 3. helmet() security headers
-    EX->>EX: 4. CORS origin check (allowlist + Capacitor origins)
+    EX->>EX: 4. CORS origin check (allowlist + origins)
     EX->>EX: 5. dev request logger (non-prod only)
     EX->>EX: 6. express.json({limit:'2mb'}) body parsing
     EX->>EX: 7. global rate limit (300/min per IP, skip in test)
