@@ -1,20 +1,56 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { OfflineBanner } from '../../platforms/mobile/offline';
-import { motion, useInView, AnimatePresence, useMotionValue, useSpring, useScroll, useTransform, useMotionTemplate } from 'motion/react';
+import {
+  motion,
+  useInView,
+  AnimatePresence,
+  useMotionValue,
+  useSpring,
+  useScroll,
+  useTransform,
+  useMotionTemplate,
+} from 'motion/react';
 import { ShutterIntro } from './ShutterIntro';
 import { DeskIllustration } from './DeskIllustration';
 import {
-  Package, ShoppingCart, Truck, Receipt, IndianRupee, BarChart3, Users,
-  ArrowRight, Check, Mail, Phone, MessageCircle, Moon, Sun, Send,
-  Store, Factory, Warehouse, Briefcase, Zap, Shield, Globe, FileText,
-  ChevronRight, ChevronDown, Database, Cloud, Cpu, Lock, Menu, X,
+  Package,
+  ShoppingCart,
+  Truck,
+  Receipt,
+  IndianRupee,
+  BarChart3,
+  Users,
+  ArrowRight,
+  Check,
+  Mail,
+  Phone,
+  MessageCircle,
+  Moon,
+  Sun,
+  Send,
+  Store,
+  Factory,
+  Warehouse,
+  Briefcase,
+  Zap,
+  Shield,
+  Globe,
+  FileText,
+  ChevronRight,
+  ChevronDown,
+  Database,
+  Cloud,
+  Cpu,
+  Lock,
+  Menu,
+  X,
 } from 'lucide-react';
 import { CustomCursor } from './CustomCursor';
 
 // ── Reduced motion hook ──────────────────────────────────────────────────────
 function useReducedMotion() {
-  const [reduced, setReduced] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const [reduced, setReduced] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -27,20 +63,56 @@ function useReducedMotion() {
 
 // ── Testimonials data ─────────────────────────────────────────────────────────
 const TESTIMONIALS = [
-  { name: 'Rajesh Patel', role: 'Proprietor, Patel Seeds', location: 'Rajkot', text: 'Dhandho has transformed how we manage our distribution. What used to take 3 staff members now runs automatically.', avatar: 'RP' },
-  { name: 'Priya Sharma', role: 'Owner, Sharma Electricals', location: 'Ahmedabad', text: 'GST filing used to be a nightmare. With Dhandho, our accountant does it in 20 minutes every month.', avatar: 'PS' },
-  { name: 'Mehul Shah', role: 'Director, Shah Agro Industries', location: 'Surat', text: 'The vendor portal alone saved us ₹2L in communication costs. Our dealers love it.', avatar: 'MS' },
-  { name: 'Kavita Joshi', role: 'CEO, Joshi CNC Works', location: 'Pune', text: 'As a service business we needed invoicing + payroll. Everything is in one place now.', avatar: 'KJ' },
+  {
+    name: 'Rajesh Patel',
+    role: 'Proprietor, Patel Seeds',
+    location: 'Rajkot',
+    text: 'Dhandho has transformed how we manage our distribution. What used to take 3 staff members now runs automatically.',
+    avatar: 'RP',
+  },
+  {
+    name: 'Priya Sharma',
+    role: 'Owner, Sharma Electricals',
+    location: 'Ahmedabad',
+    text: 'GST filing used to be a nightmare. With Dhandho, our accountant does it in 20 minutes every month.',
+    avatar: 'PS',
+  },
+  {
+    name: 'Mehul Shah',
+    role: 'Director, Shah Agro Industries',
+    location: 'Surat',
+    text: 'The vendor portal alone saved us ₹2L in communication costs. Our dealers love it.',
+    avatar: 'MS',
+  },
+  {
+    name: 'Kavita Joshi',
+    role: 'CEO, Joshi CNC Works',
+    location: 'Pune',
+    text: 'As a service business we needed invoicing + payroll. Everything is in one place now.',
+    avatar: 'KJ',
+  },
 ];
 
 // ── FAQ data ──────────────────────────────────────────────────────────────────
 const FAQS = [
   { q: 'Is Dhandho free to start?', a: '14-day free trial, all features included, no credit card required.' },
   { q: 'Does it work offline?', a: 'Our on-prem desktop app works fully offline. Cloud version requires internet.' },
-  { q: 'Is it GST compliant?', a: 'Yes — GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice and E-Way Bill JSON generation.' },
-  { q: 'Can I use it in Hindi or Gujarati?', a: 'Yes, full UI in English, Hindi, and Gujarati. Switch from settings anytime.' },
-  { q: 'How many users can I add?', a: 'Free trial allows 5 users. Paid plans go up to unlimited based on your subscription.' },
-  { q: 'What happens to my data if I stop?', a: 'You own your data. Export everything as CSV anytime. We retain data for 30 days after cancellation.' },
+  {
+    q: 'Is it GST compliant?',
+    a: 'Yes — GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice and E-Way Bill JSON generation.',
+  },
+  {
+    q: 'Can I use it in Hindi or Gujarati?',
+    a: 'Yes, full UI in English, Hindi, and Gujarati. Switch from settings anytime.',
+  },
+  {
+    q: 'How many users can I add?',
+    a: 'Free trial allows 5 users. Paid plans go up to unlimited based on your subscription.',
+  },
+  {
+    q: 'What happens to my data if I stop?',
+    a: 'You own your data. Export everything as CSV anytime. We retain data for 30 days after cancellation.',
+  },
 ];
 
 // ── Animated counter ──────────────────────────────────────────────────────────
@@ -59,7 +131,13 @@ function Counter({ to, prefix = '', suffix = '' }: { to: number; prefix?: string
     }, 30);
     return () => clearInterval(timer);
   }, [inView, to]);
-  return <span ref={ref}>{prefix}{val}{suffix}</span>;
+  return (
+    <span ref={ref}>
+      {prefix}
+      {val}
+      {suffix}
+    </span>
+  );
 }
 
 // ── Enquiry form ──────────────────────────────────────────────────────────────
@@ -73,39 +151,108 @@ function EnquiryForm({ dark }: { dark: boolean }) {
     setSending(true);
     const subject = encodeURIComponent(`Dhandho Enquiry — ${form.name} (${form.company || 'N/A'})`);
     const body = `Name: ${form.name}\nPhone: ${form.phone}\nEmail: ${form.email || 'N/A'}\nCompany: ${form.company || 'N/A'}\n\n${form.message}`;
-    window.open(`https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com&su=${subject}&body=${encodeURIComponent(body)}`, '_blank');
-    setTimeout(() => { setSent(true); setSending(false); }, 500);
+    window.open(
+      `https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com&su=${subject}&body=${encodeURIComponent(body)}`,
+      '_blank',
+    );
+    setTimeout(() => {
+      setSent(true);
+      setSending(false);
+    }, 500);
   };
 
   const inp = `w-full px-4 py-3 rounded-xl border text-sm outline-none transition-colors ${dark ? 'bg-white/5 border-white/10 text-white placeholder-white/20 focus:border-brand/60' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-brand/60'}`;
 
-  if (sent) return (
-    <div className={`p-8 rounded-2xl border text-center ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
-      <div className="w-14 h-14 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-        <Check size={28} className="text-green-500" />
+  if (sent)
+    return (
+      <div
+        className={`p-8 rounded-2xl border text-center ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}
+      >
+        <div className="w-14 h-14 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Check size={28} className="text-green-500" />
+        </div>
+        <h3 className="font-bold text-xl mb-2">Sent!</h3>
+        <p className={`text-sm mb-4 ${dark ? 'text-white/40' : 'text-gray-500'}`}>
+          We'll get back to you within 24 hours.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setSent(false);
+            setForm({ name: '', phone: '', email: '', company: '', message: '' });
+          }}
+          className="text-sm text-brand hover:underline"
+        >
+          Send another
+        </button>
       </div>
-      <h3 className="font-bold text-xl mb-2">Sent!</h3>
-      <p className={`text-sm mb-4 ${dark ? 'text-white/40' : 'text-gray-500'}`}>We'll get back to you within 24 hours.</p>
-      <button type="button" onClick={() => { setSent(false); setForm({ name: '', phone: '', email: '', company: '', message: '' }); }} className="text-sm text-brand hover:underline">Send another</button>
-    </div>
-  );
+    );
 
   return (
-    <form onSubmit={handleSubmit} className={`p-6 sm:p-8 rounded-2xl border ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
+    <form
+      onSubmit={handleSubmit}
+      className={`p-6 sm:p-8 rounded-2xl border ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}
+    >
       <h3 className="font-bold text-lg mb-1">Start Free Trial</h3>
       <p className={`text-sm mb-5 ${dark ? 'text-white/40' : 'text-gray-500'}`}>No credit card. Setup in 5 minutes.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-        <input required aria-label="Your name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={inp} placeholder="Your name *" />
-        <input required aria-label="Phone number" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className={inp} placeholder="+91 98765 43210 *" />
-        <input type="email" aria-label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={inp} placeholder="Email (optional)" />
-        <input aria-label="Business name" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} className={inp} placeholder="Business name" />
+        <input
+          required
+          aria-label="Your name"
+          value={form.name}
+          onChange={e => setForm({ ...form, name: e.target.value })}
+          className={inp}
+          placeholder="Your name *"
+        />
+        <input
+          required
+          aria-label="Phone number"
+          value={form.phone}
+          onChange={e => setForm({ ...form, phone: e.target.value })}
+          className={inp}
+          placeholder="+91 98765 43210 *"
+        />
+        <input
+          type="email"
+          aria-label="Email"
+          value={form.email}
+          onChange={e => setForm({ ...form, email: e.target.value })}
+          className={inp}
+          placeholder="Email (optional)"
+        />
+        <input
+          aria-label="Business name"
+          value={form.company}
+          onChange={e => setForm({ ...form, company: e.target.value })}
+          className={inp}
+          placeholder="Business name"
+        />
       </div>
-      <textarea rows={3} aria-label="Message" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} className={`${inp} resize-none mb-4`} placeholder="Tell us about your business..." />
-      <button type="submit" disabled={sending} className="w-full py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-60">
+      <textarea
+        rows={3}
+        aria-label="Message"
+        value={form.message}
+        onChange={e => setForm({ ...form, message: e.target.value })}
+        className={`${inp} resize-none mb-4`}
+        placeholder="Tell us about your business..."
+      />
+      <button
+        type="submit"
+        disabled={sending}
+        className="w-full py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+      >
         <Send size={16} /> {sending ? 'Sending...' : 'Get Started Free'}
       </button>
       <p className={`text-xs text-center mt-3 ${dark ? 'text-white/50' : 'text-gray-500'}`}>
-        Or WhatsApp: <a href="https://wa.me/918806907616" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:underline">+91 88069 07616</a>
+        Or WhatsApp:{' '}
+        <a
+          href="https://wa.me/918806907616"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-green-500 hover:underline"
+        >
+          +91 88069 07616
+        </a>
       </p>
     </form>
   );
@@ -119,7 +266,9 @@ export function LandingPage() {
       // Skip on browser back/forward button ('back_forward')
       const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
       return nav?.type === 'back_forward';
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   });
   const handleShutterDone = useCallback(() => setShutterDone(true), []);
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
@@ -167,15 +316,20 @@ export function LandingPage() {
   useEffect(() => {
     if (!heroAuto) return;
     const CYCLE = ['en', 'hi', 'gu', 'mr'] as const;
-    const t = setInterval(() => setHeroLang(h => {
-      const next = (h + 1) % 4;
-      setLang(CYCLE[next]);
-      return next;
-    }), 7000);
+    const t = setInterval(
+      () =>
+        setHeroLang(h => {
+          const next = (h + 1) % 4;
+          setLang(CYCLE[next]);
+          return next;
+        }),
+      7000,
+    );
     return () => clearInterval(t);
   }, [heroAuto]);
 
-  const L = (en: string, hi: string, gu: string, mr?: string) => lang === 'en' ? en : lang === 'gu' ? gu : lang === 'mr' ? (mr ?? hi) : hi;
+  const L = (en: string, hi: string, gu: string, mr?: string) =>
+    lang === 'en' ? en : lang === 'gu' ? gu : lang === 'mr' ? (mr ?? hi) : hi;
 
   // Theme tokens
   const bg = dark ? 'bg-[#09090B]' : 'bg-[#FAFAFA]';
@@ -198,32 +352,181 @@ export function LandingPage() {
   ];
 
   const HERO = [
-    { h1: 'Run your business,', h2: 'not your software.', sub: 'Inventory · GST · Accounts · Distribution — one platform for every Indian business.' },
-    { h1: 'बिज़नेस चलाओ,', h2: 'software नहीं।', sub: 'Inventory · GST · हिसाब-किताब · Distribution — एक platform पर।' },
+    {
+      h1: 'Run your business,',
+      h2: 'not your software.',
+      sub: 'Inventory · GST · Accounts · Distribution — one platform for every Indian business.',
+    },
+    {
+      h1: 'बिज़नेस चलाओ,',
+      h2: 'software नहीं।',
+      sub: 'Inventory · GST · हिसाब-किताब · Distribution — एक platform पर।',
+    },
     { h1: 'ધંધો ચલાવો,', h2: 'software નહિ।', sub: 'Inventory · GST · હિસાબ · Distribution — એક platform.' },
     { h1: 'धंदा करा,', h2: 'software नाही।', sub: 'Inventory · GST · हिशोब · Distribution — एक platform वर.' },
   ];
 
   const TYPES = [
-    { icon: Store, title: L('Retail Shop','दुकान / Retail','દુકાન / Retail','दुकान / Retail'), color: 'from-blue-500/20 to-blue-500/5', dot: 'bg-blue-500', items: [L('Barcode billing','बारकोड billing','બારકોડ billing','बारकोड billing'), L('Stock alerts','स्टॉक alerts','સ્ટોક alerts','साठा सूचना'), L('WhatsApp bills','WhatsApp bills','WhatsApp bills','WhatsApp bills'), 'GST invoice'] },
-    { icon: Warehouse, title: L('Dealer / Wholesaler','डीलर / होलसेलर','ડીલર / હોલસેલર','डीलर / घाऊक'), color: 'from-emerald-500/20 to-emerald-500/5', dot: 'bg-emerald-500', items: [L('Vendor portal','वेंडर portal','વેન્ડર portal','विक्रेता portal'), L('Batch payment','Batch payment','Batch payment','Batch payment'), L('Outstanding','बकाया','બાકી','थकबाकी'), L('Quotation→Dispatch','Quote→Dispatch','Quote→Dispatch','Quote→Dispatch')] },
-    { icon: Factory, title: L('Manufacturer','निर्माता','નિર્માતા','उत्पादक'), color: 'from-violet-500/20 to-violet-500/5', dot: 'bg-violet-500', items: ['P&L / Balance Sheet', 'GSTR-1 / GSTR-3B', 'E-Invoice & E-Way Bill', L('Supplier management','Supplier management','Supplier management','Supplier management')] },
-    { icon: Briefcase, title: L('Service / Consulting','सर्विस / कंसल्टिंग','સર્વિસ / કન્સલ્ટિંગ','सेवा / सल्लागार'), color: 'from-orange-500/20 to-orange-500/5', dot: 'bg-orange-500', items: [L('Standalone invoices','Standalone invoices','Standalone invoices','Standalone invoices'), L('Partial payments','आंशिक payment','આંશિક payment','आंशिक payment'), L('Expense tracking','Expense tracking','Expense tracking','Expense tracking'), L('Accounts','Accounts','Accounts','Accounts')] },
+    {
+      icon: Store,
+      title: L('Retail Shop', 'दुकान / Retail', 'દુકાન / Retail', 'दुकान / Retail'),
+      color: 'from-blue-500/20 to-blue-500/5',
+      dot: 'bg-blue-500',
+      items: [
+        L('Barcode billing', 'बारकोड billing', 'બારકોડ billing', 'बारकोड billing'),
+        L('Stock alerts', 'स्टॉक alerts', 'સ્ટોક alerts', 'साठा सूचना'),
+        L('WhatsApp bills', 'WhatsApp bills', 'WhatsApp bills', 'WhatsApp bills'),
+        'GST invoice',
+      ],
+    },
+    {
+      icon: Warehouse,
+      title: L('Dealer / Wholesaler', 'डीलर / होलसेलर', 'ડીલર / હોલસેલર', 'डीलर / घाऊक'),
+      color: 'from-emerald-500/20 to-emerald-500/5',
+      dot: 'bg-emerald-500',
+      items: [
+        L('Vendor portal', 'वेंडर portal', 'વેન્ડર portal', 'विक्रेता portal'),
+        L('Batch payment', 'Batch payment', 'Batch payment', 'Batch payment'),
+        L('Outstanding', 'बकाया', 'બાકી', 'थकबाकी'),
+        L('Quotation→Dispatch', 'Quote→Dispatch', 'Quote→Dispatch', 'Quote→Dispatch'),
+      ],
+    },
+    {
+      icon: Factory,
+      title: L('Manufacturer', 'निर्माता', 'નિર્માતા', 'उत्पादक'),
+      color: 'from-violet-500/20 to-violet-500/5',
+      dot: 'bg-violet-500',
+      items: [
+        'P&L / Balance Sheet',
+        'GSTR-1 / GSTR-3B',
+        'E-Invoice & E-Way Bill',
+        L('Supplier management', 'Supplier management', 'Supplier management', 'Supplier management'),
+      ],
+    },
+    {
+      icon: Briefcase,
+      title: L('Service / Consulting', 'सर्विस / कंसल्टिंग', 'સર્વિસ / કન્સલ્ટિંગ', 'सेवा / सल्लागार'),
+      color: 'from-orange-500/20 to-orange-500/5',
+      dot: 'bg-orange-500',
+      items: [
+        L('Standalone invoices', 'Standalone invoices', 'Standalone invoices', 'Standalone invoices'),
+        L('Partial payments', 'आंशिक payment', 'આંશિક payment', 'आंशिक payment'),
+        L('Expense tracking', 'Expense tracking', 'Expense tracking', 'Expense tracking'),
+        L('Accounts', 'Accounts', 'Accounts', 'Accounts'),
+      ],
+    },
   ];
 
   const FEATURES = [
-    { icon: Package, title: L('Inventory','स्टॉक','સ્ટોક'), desc: L('Auto-barcode, pack size, batch printing, CSV import, stock alerts, HSN suggest','Auto-barcode, pack size, batch printing, CSV import, stock alerts','Auto-barcode, pack size, batch printing, CSV import, stock alerts') },
-    { icon: ShoppingCart, title: L('Purchases','खरीद','ખરીદ'), desc: L('Supplier management, purchase batches, GSTR-2B invoice matching','Supplier management, purchase batches, GSTR-2B invoice matching','Supplier management, purchase batches, GSTR-2B invoice matching') },
-    { icon: Truck, title: L('Distribution','वितरण','વિતરણ'), desc: L('Batch challan, vendor payment tracking, custom pricing, E-Invoice JSON','Batch challan, vendor payment tracking, custom pricing','Batch challan, vendor payment tracking, custom pricing') },
-    { icon: FileText, title: L('Invoices','इनवॉइस','ઇનવૉઇસ'), desc: L('Standalone invoices, 3 PDF presets, auto-numbering, Draft→Sent→Paid flow','Standalone invoices, PDF presets, Draft→Sent→Paid flow','Standalone invoices, PDF presets, Draft→Sent→Paid flow') },
-    { icon: IndianRupee, title: L('Finance','फाइनेंस','ફાઇનાન્સ'), desc: L('Vendor receivables, age-wise outstanding, partial payments, bulk WhatsApp reminders','Vendor receivables, age-wise outstanding, bulk WhatsApp reminders','Vendor receivables, age-wise outstanding, bulk WhatsApp reminders') },
-    { icon: BarChart3, title: L('Accounts','हिसाब','હિસાબ'), desc: L('P&L, Balance Sheet, Cash Flow, Ledger, Day Book — auto-generated from transactions','P&L, Balance Sheet, Cash Flow, Ledger, Day Book — auto-generated','P&L, Balance Sheet, Cash Flow, Ledger, Day Book — auto-generated') },
-    { icon: Receipt, title: L('GST Reports','GST Reports','GST Reports'), desc: L('GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice, E-Way Bill JSON','GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice, E-Way Bill JSON','GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice, E-Way Bill JSON') },
-    { icon: Users, title: L('Payroll','पेरोल','પેરોલ'), desc: L('Staff directory, salary, advance, bonus payments, WhatsApp salary slips','Staff directory, salary, advance, bonus, WhatsApp salary slips','Staff directory, salary, advance, bonus, WhatsApp salary slips') },
-    { icon: Zap, title: L('Bank Statements','बैंक Statements','બેન્ક Statements'), desc: L('Upload ICICI/HDFC/SBI XLS or XLSX — auto-parse, match UPI to vendors','Upload ICICI/HDFC/SBI XLS/XLSX — auto-parse, match UPI to vendors','Upload ICICI/HDFC/SBI XLS/XLSX — auto-parse, match UPI to vendors') },
-    { icon: Shield, title: L('Rewards & Warranty','Rewards & Warranty','Rewards & Warranty'), desc: L('Customer reward points, QR redemption, serial-linked warranty with expiry alerts','Customer reward points, QR redemption, warranty with expiry alerts','Customer reward points, QR redemption, warranty with expiry alerts') },
-    { icon: Globe, title: L('4 Languages','4 भाषाएं','4 ભાષાઓ','4 भाषा'), desc: L('Full English, Hindi, Gujarati, Marathi — switch from settings, entire UI changes','English, Hindi, Gujarati, Marathi — settings से switch','English, Hindi, Gujarati, Marathi — settings માંથી switch','English, Hindi, Gujarati, Marathi — settings मधून बदला') },
-    { icon: Cloud, title: L('Cloud + Desktop','Cloud + Desktop','Cloud + Desktop'), desc: L('Browser app + Electron desktop (Windows/Mac). On-prem version with local database available','Browser + Electron desktop (Windows/Mac). On-prem version available','Browser + Electron desktop (Windows/Mac). On-prem version available') },
+    {
+      icon: Package,
+      title: L('Inventory', 'स्टॉक', 'સ્ટોક'),
+      desc: L(
+        'Auto-barcode, pack size, batch printing, CSV import, stock alerts, HSN suggest',
+        'Auto-barcode, pack size, batch printing, CSV import, stock alerts',
+        'Auto-barcode, pack size, batch printing, CSV import, stock alerts',
+      ),
+    },
+    {
+      icon: ShoppingCart,
+      title: L('Purchases', 'खरीद', 'ખરીદ'),
+      desc: L(
+        'Supplier management, purchase batches, GSTR-2B invoice matching',
+        'Supplier management, purchase batches, GSTR-2B invoice matching',
+        'Supplier management, purchase batches, GSTR-2B invoice matching',
+      ),
+    },
+    {
+      icon: Truck,
+      title: L('Distribution', 'वितरण', 'વિતરણ'),
+      desc: L(
+        'Batch challan, vendor payment tracking, custom pricing, E-Invoice JSON',
+        'Batch challan, vendor payment tracking, custom pricing',
+        'Batch challan, vendor payment tracking, custom pricing',
+      ),
+    },
+    {
+      icon: FileText,
+      title: L('Invoices', 'इनवॉइस', 'ઇનવૉઇસ'),
+      desc: L(
+        'Standalone invoices, 3 PDF presets, auto-numbering, Draft→Sent→Paid flow',
+        'Standalone invoices, PDF presets, Draft→Sent→Paid flow',
+        'Standalone invoices, PDF presets, Draft→Sent→Paid flow',
+      ),
+    },
+    {
+      icon: IndianRupee,
+      title: L('Finance', 'फाइनेंस', 'ફાઇનાન્સ'),
+      desc: L(
+        'Vendor receivables, age-wise outstanding, partial payments, bulk WhatsApp reminders',
+        'Vendor receivables, age-wise outstanding, bulk WhatsApp reminders',
+        'Vendor receivables, age-wise outstanding, bulk WhatsApp reminders',
+      ),
+    },
+    {
+      icon: BarChart3,
+      title: L('Accounts', 'हिसाब', 'હિસાબ'),
+      desc: L(
+        'P&L, Balance Sheet, Cash Flow, Ledger, Day Book — auto-generated from transactions',
+        'P&L, Balance Sheet, Cash Flow, Ledger, Day Book — auto-generated',
+        'P&L, Balance Sheet, Cash Flow, Ledger, Day Book — auto-generated',
+      ),
+    },
+    {
+      icon: Receipt,
+      title: L('GST Reports', 'GST Reports', 'GST Reports'),
+      desc: L(
+        'GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice, E-Way Bill JSON',
+        'GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice, E-Way Bill JSON',
+        'GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice, E-Way Bill JSON',
+      ),
+    },
+    {
+      icon: Users,
+      title: L('Payroll', 'पेरोल', 'પેરોલ'),
+      desc: L(
+        'Staff directory, salary, advance, bonus payments, WhatsApp salary slips',
+        'Staff directory, salary, advance, bonus, WhatsApp salary slips',
+        'Staff directory, salary, advance, bonus, WhatsApp salary slips',
+      ),
+    },
+    {
+      icon: Zap,
+      title: L('Bank Statements', 'बैंक Statements', 'બેન્ક Statements'),
+      desc: L(
+        'Upload ICICI/HDFC/SBI XLS or XLSX — auto-parse, match UPI to vendors',
+        'Upload ICICI/HDFC/SBI XLS/XLSX — auto-parse, match UPI to vendors',
+        'Upload ICICI/HDFC/SBI XLS/XLSX — auto-parse, match UPI to vendors',
+      ),
+    },
+    {
+      icon: Shield,
+      title: L('Rewards & Warranty', 'Rewards & Warranty', 'Rewards & Warranty'),
+      desc: L(
+        'Customer reward points, QR redemption, serial-linked warranty with expiry alerts',
+        'Customer reward points, QR redemption, warranty with expiry alerts',
+        'Customer reward points, QR redemption, warranty with expiry alerts',
+      ),
+    },
+    {
+      icon: Globe,
+      title: L('4 Languages', '4 भाषाएं', '4 ભાષાઓ', '4 भाषा'),
+      desc: L(
+        'Full English, Hindi, Gujarati, Marathi — switch from settings, entire UI changes',
+        'English, Hindi, Gujarati, Marathi — settings से switch',
+        'English, Hindi, Gujarati, Marathi — settings માંથી switch',
+        'English, Hindi, Gujarati, Marathi — settings मधून बदला',
+      ),
+    },
+    {
+      icon: Cloud,
+      title: L('Cloud + Desktop', 'Cloud + Desktop', 'Cloud + Desktop'),
+      desc: L(
+        'Browser app + Electron desktop (Windows/Mac). On-prem version with local database available',
+        'Browser + Electron desktop (Windows/Mac). On-prem version available',
+        'Browser + Electron desktop (Windows/Mac). On-prem version available',
+      ),
+    },
   ];
 
   // whileInView helper — respects reducedMotion
@@ -247,26 +550,65 @@ export function LandingPage() {
 
       {/* ── Nav ─────────────────────────────────────────────────────────────── */}
       <nav className={`fixed top-0 inset-x-0 z-50 ${navBg} backdrop-blur-xl border-b ${border}`}>
-        <motion.div style={{ scale: navShrink }} className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+        <motion.div
+          style={{ scale: navShrink }}
+          className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between"
+        >
           <div className="flex items-center gap-2.5">
             <img src="/icons/logo-full.png" alt="Dhando" className="h-8 w-auto object-contain" />
           </div>
           <div className="hidden md:flex items-center gap-1">
-            {['#business','#features','#pricing','#contact'].map((href, i) => (
-              <a key={href} href={href} className={`px-3 py-2 text-sm rounded-lg transition-colors ${muted} hover:${text}`}>
-                {[L('Business','व्यापार','વ્યાપાર','व्यवसाय'), 'Features', L('Pricing','कीमत','કિંમત','किंमत'), L('Contact','संपर्क','સંપર્ક','संपर्क')][i]}
+            {['#business', '#features', '#pricing', '#contact'].map((href, i) => (
+              <a
+                key={href}
+                href={href}
+                className={`px-3 py-2 text-sm rounded-lg transition-colors ${muted} hover:${text}`}
+              >
+                {
+                  [
+                    L('Business', 'व्यापार', 'વ્યાપાર', 'व्यवसाय'),
+                    'Features',
+                    L('Pricing', 'कीमत', 'કિંમત', 'किंमत'),
+                    L('Contact', 'संपर्क', 'સંપર્ક', 'संपर्क'),
+                  ][i]
+                }
               </a>
             ))}
           </div>
           <div className="flex items-center gap-2">
             <div className={`flex items-center gap-0.5 rounded-lg p-0.5 ${dark ? 'bg-white/5' : 'bg-gray-100'}`}>
               {LANGS.map(l => (
-                <button key={l.code} type="button" onClick={() => setLang(l.code)} className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white' : `${dark ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-gray-900'}`}`}>{l.label}</button>
+                <button
+                  key={l.code}
+                  type="button"
+                  onClick={() => setLang(l.code)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${lang === l.code ? 'bg-brand text-white' : `${dark ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-gray-900'}`}`}
+                >
+                  {l.label}
+                </button>
               ))}
             </div>
-            <button type="button" onClick={toggleTheme} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg ${muted} hover:text-current transition-colors`}>{dark ? <Sun size={16} /> : <Moon size={16} />}</button>
-            <a href="#contact" className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-bold rounded-lg transition-colors hidden sm:block">{L('Try Free','ट्राय करें','Try Free','मोफत वापरा')}</a>
-            <button type="button" onClick={() => setMobileMenuOpen(o => !o)} aria-label={mobileMenuOpen ? "Close menu" : "Open menu"} aria-expanded={mobileMenuOpen} className={`md:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg ${muted} hover:text-current transition-colors`}>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+              className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg ${muted} hover:text-current transition-colors`}
+            >
+              {dark ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <a
+              href="#contact"
+              className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-bold rounded-lg transition-colors hidden sm:block"
+            >
+              {L('Try Free', 'ट्राय करें', 'Try Free', 'मोफत वापरा')}
+            </a>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(o => !o)}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
+              className={`md:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg ${muted} hover:text-current transition-colors`}
+            >
               {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
@@ -274,24 +616,49 @@ export function LandingPage() {
         {/* Mobile dropdown */}
         {mobileMenuOpen && (
           <div className={`md:hidden border-t ${border} ${navBg} backdrop-blur-xl`}>
-            {['#business','#features','#pricing','#contact'].map((href, i) => (
-              <a key={href} href={href} onClick={() => setMobileMenuOpen(false)}
-                className={`block px-4 py-3 text-sm border-b ${border} ${muted} hover:text-current transition-colors`}>
-                {[L('Business','व्यापार','વ્યાપાર','व्यवसाय'), 'Features', L('Pricing','कीमत','કિંમત','किंमत'), L('Contact','संपर्क','સંપર્ક','संपर्क')][i]}
+            {['#business', '#features', '#pricing', '#contact'].map((href, i) => (
+              <a
+                key={href}
+                href={href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`block px-4 py-3 text-sm border-b ${border} ${muted} hover:text-current transition-colors`}
+              >
+                {
+                  [
+                    L('Business', 'व्यापार', 'વ્યાપાર', 'व्यवसाय'),
+                    'Features',
+                    L('Pricing', 'कीमत', 'કિંમત', 'किंमत'),
+                    L('Contact', 'संपर्क', 'સંપર્ક', 'संपर्क'),
+                  ][i]
+                }
               </a>
             ))}
-            <a href="#contact" onClick={() => setMobileMenuOpen(false)}
-              className="block px-4 py-3 text-sm font-bold text-brand">
-              {L('Try Free','ट्राय करें','Try Free','मोफत वापरा')}
+            <a
+              href="#contact"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block px-4 py-3 text-sm font-bold text-brand"
+            >
+              {L('Try Free', 'ट्राय करें', 'Try Free', 'मोफत वापरा')}
             </a>
           </div>
         )}
       </nav>
 
       {/* ── Hero ────────────────────────────────────────────────────────────── */}
-      <section className="relative pt-24 sm:pt-32 pb-16 sm:pb-24 px-4 sm:px-6 overflow-hidden" onMouseMove={handleMouseMove}>
+      <section
+        className="relative pt-24 sm:pt-32 pb-16 sm:pb-24 px-4 sm:px-6 overflow-hidden"
+        onMouseMove={handleMouseMove}
+      >
         {/* Grid background */}
-        <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: dark ? 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)' : 'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.06) 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: dark
+              ? 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)'
+              : 'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.06) 1px, transparent 0)',
+            backgroundSize: '32px 32px',
+          }}
+        />
         <motion.div
           className="absolute top-0 right-0 w-[600px] h-[600px] pointer-events-none rounded-full"
           style={{ background: 'radial-gradient(circle, rgba(242,125,38,0.12) 0%, transparent 70%)' }}
@@ -307,20 +674,39 @@ export function LandingPage() {
 
         <div className="max-w-6xl mx-auto relative">
           <div className="grid lg:grid-cols-[1fr_480px] gap-12 lg:gap-16 items-center min-h-[520px]">
-
             {/* ── Left col: all text ─────────────────────────────────────── */}
-            <motion.div initial={!reducedMotion ? { opacity: 0, x: -20 } : { opacity: 0 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} className="flex flex-col items-center text-center lg:items-start lg:text-left">
-
+            <motion.div
+              initial={!reducedMotion ? { opacity: 0, x: -20 } : { opacity: 0 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+              className="flex flex-col items-center text-center lg:items-start lg:text-left"
+            >
               {/* Badge + lang switcher row */}
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-7">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium" style={{ borderColor: 'rgba(242,125,38,0.3)', background: 'rgba(242,125,38,0.08)', color: '#F27D26' }}>
+                <div
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium"
+                  style={{ borderColor: 'rgba(242,125,38,0.3)', background: 'rgba(242,125,38,0.08)', color: '#F27D26' }}
+                >
                   <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
                   🇮🇳 Made in India
                 </div>
                 <div className={`flex items-center gap-0.5 rounded-full p-0.5 ${dark ? 'bg-white/5' : 'bg-gray-100'}`}>
-                  {[{ idx: 0, label: 'EN' }, { idx: 1, label: 'हि' }, { idx: 2, label: 'ગુ' }, { idx: 3, label: 'म' }].map(l => (
-                    <button key={l.idx} type="button" onClick={() => { setHeroLang(l.idx); setHeroAuto(false); setLang((['en','hi','gu','mr'] as const)[l.idx]); }}
-                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${heroLang === l.idx ? 'bg-brand text-white' : (dark ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-gray-900')}`}>
+                  {[
+                    { idx: 0, label: 'EN' },
+                    { idx: 1, label: 'हि' },
+                    { idx: 2, label: 'ગુ' },
+                    { idx: 3, label: 'म' },
+                  ].map(l => (
+                    <button
+                      key={l.idx}
+                      type="button"
+                      onClick={() => {
+                        setHeroLang(l.idx);
+                        setHeroAuto(false);
+                        setLang((['en', 'hi', 'gu', 'mr'] as const)[l.idx]);
+                      }}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${heroLang === l.idx ? 'bg-brand text-white' : dark ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-gray-900'}`}
+                    >
                       {l.label}
                     </button>
                   ))}
@@ -328,43 +714,83 @@ export function LandingPage() {
               </div>
 
               {/* Headline */}
-              <motion.div key={heroLang} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mb-6">
-                <h1 className={`text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight ${heroLang === 0 ? 'leading-[1.1]' : 'leading-relaxed'}`}>
-                  {h.h1}<br />
-                  <span className="bg-gradient-to-r from-brand via-orange-400 to-violet-500 bg-clip-text text-transparent">{h.h2}</span>
+              <motion.div
+                key={heroLang}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="mb-6"
+              >
+                <h1
+                  className={`text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight ${heroLang === 0 ? 'leading-[1.1]' : 'leading-relaxed'}`}
+                >
+                  {h.h1}
+                  <br />
+                  <span className="bg-gradient-to-r from-brand via-orange-400 to-violet-500 bg-clip-text text-transparent">
+                    {h.h2}
+                  </span>
                 </h1>
                 <p className={`mt-5 text-base sm:text-lg ${muted} max-w-lg leading-relaxed`}>{h.sub}</p>
               </motion.div>
 
               {/* CTAs */}
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col sm:flex-row items-center lg:items-start gap-3 mb-4 w-full">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="flex flex-col sm:flex-row items-center lg:items-start gap-3 mb-4 w-full"
+              >
                 <a
                   href="#contact"
                   className="group w-full sm:w-auto px-7 py-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-base transition-colors flex items-center justify-center gap-2 shadow-lg shadow-brand/20"
-                  onMouseMove={(e) => {
+                  onMouseMove={e => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left - rect.width / 2;
                     const y = e.clientY - rect.top - rect.height / 2;
                     e.currentTarget.style.transform = `translate(${x * 0.15}px, ${y * 0.15}px)`;
                   }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = '';
+                  }}
                 >
-                  {L('Start Free Trial','फ्री ट्रायल','Free Trial','मोफत सुरू करा')} <ArrowRight size={17} className="group-hover:translate-x-0.5 transition-transform" />
+                  {L('Start Free Trial', 'फ्री ट्रायल', 'Free Trial', 'मोफत सुरू करा')}{' '}
+                  <ArrowRight size={17} className="group-hover:translate-x-0.5 transition-transform" />
                 </a>
-                <a href="#features" className={`w-full sm:w-auto px-7 py-3.5 rounded-xl font-bold text-base border transition-colors text-center ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}>
-                  {L('Explore Features','Features देखें','Features જુઓ','Features पहा')}
+                <a
+                  href="#features"
+                  className={`w-full sm:w-auto px-7 py-3.5 rounded-xl font-bold text-base border transition-colors text-center ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}
+                >
+                  {L('Explore Features', 'Features देखें', 'Features જુઓ', 'Features पहा')}
                 </a>
               </motion.div>
-              <p className={`text-xs ${faint} text-center lg:text-left`}>{L('No credit card · Cancel anytime','No credit card · कभी भी cancel','No credit card · ગમે ત્યારે cancel','No credit card · कधीही रद्द करा')}</p>
+              <p className={`text-xs ${faint} text-center lg:text-left`}>
+                {L(
+                  'No credit card · Cancel anytime',
+                  'No credit card · कभी भी cancel',
+                  'No credit card · ગમે ત્યારે cancel',
+                  'No credit card · कधीही रद्द करा',
+                )}
+              </p>
 
               {/* Trust chips */}
               <div className="flex flex-wrap gap-2 mt-8 justify-center lg:justify-start">
                 {[
-                  <><Cpu size={11} className="text-brand" /> Cloud-native</>,
-                  <><Lock size={11} className="text-emerald-500" /> GST Ready</>,
-                  <><Database size={11} className="text-violet-500" /> On-Prem option</>,
+                  <>
+                    <Cpu size={11} className="text-brand" /> Cloud-native
+                  </>,
+                  <>
+                    <Lock size={11} className="text-emerald-500" /> GST Ready
+                  </>,
+                  <>
+                    <Database size={11} className="text-violet-500" /> On-Prem option
+                  </>,
                 ].map((item, i) => (
-                  <span key={i} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${dark ? 'border-white/10 text-white/55' : 'border-gray-200 text-gray-500'}`}>{item}</span>
+                  <span
+                    key={i}
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${dark ? 'border-white/10 text-white/55' : 'border-gray-200 text-gray-500'}`}
+                  >
+                    {item}
+                  </span>
                 ))}
               </div>
             </motion.div>
@@ -378,7 +804,6 @@ export function LandingPage() {
             >
               <DeskIllustration dark={dark} />
             </motion.div>
-
           </div>
         </div>
       </section>
@@ -387,13 +812,15 @@ export function LandingPage() {
       <div className={`border-y ${border} py-8 sm:py-10`}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 grid grid-cols-2 sm:grid-cols-4 gap-8 text-center">
           {[
-            { val: 15, suf: '+', label: L('Modules','Modules','Modules') },
-            { val: 38, suf: '', label: L('DB Tables','DB Tables','DB Tables') },
-            { val: 493, suf: '', label: L('E2E Tests','E2E Tests','E2E Tests') },
-            { val: 4, suf: '', label: L('Languages','भाषाएं','ભાષાઓ','भाषा') },
+            { val: 15, suf: '+', label: L('Modules', 'Modules', 'Modules') },
+            { val: 38, suf: '', label: L('DB Tables', 'DB Tables', 'DB Tables') },
+            { val: 493, suf: '', label: L('E2E Tests', 'E2E Tests', 'E2E Tests') },
+            { val: 4, suf: '', label: L('Languages', 'भाषाएं', 'ભાષાઓ', 'भाषा') },
           ].map(s => (
             <div key={s.label}>
-              <p className="text-3xl sm:text-4xl font-bold text-brand"><Counter to={s.val} suffix={s.suf} /></p>
+              <p className="text-3xl sm:text-4xl font-bold text-brand">
+                <Counter to={s.val} suffix={s.suf} />
+              </p>
               <p className={`text-xs mt-1 ${faint}`}>{s.label}</p>
             </div>
           ))}
@@ -405,16 +832,35 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Built for your business</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">{L('Every business type, one platform','हर business type, एक platform','દરેક business type, એક platform','प्रत्येक व्यवसायासाठी, एक platform')}</h2>
-            <p className={`mt-3 text-lg ${muted}`}>{L('Tab visibility, labels, and features adapt to your business type','Tab visibility, labels, features — सब आपके business type के हिसाब से','तમારા business type પ્રમાણે','तुमच्या व्यवसायानुसार बदलतात')}</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">
+              {L(
+                'Every business type, one platform',
+                'हर business type, एक platform',
+                'દરેક business type, એક platform',
+                'प्रत्येक व्यवसायासाठी, एक platform',
+              )}
+            </h2>
+            <p className={`mt-3 text-lg ${muted}`}>
+              {L(
+                'Tab visibility, labels, and features adapt to your business type',
+                'Tab visibility, labels, features — सब आपके business type के हिसाब से',
+                'तમારા business type પ્રમાણે',
+                'तुमच्या व्यवसायानुसार बदलतात',
+              )}
+            </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {TYPES.map((t, i) => (
-              <motion.div key={t.title} {...vi(i * 0.08)}
-                className={`relative p-5 rounded-2xl border overflow-hidden transition-all ${card} ${cardHov}`}>
+              <motion.div
+                key={t.title}
+                {...vi(i * 0.08)}
+                className={`relative p-5 rounded-2xl border overflow-hidden transition-all ${card} ${cardHov}`}
+              >
                 <div className={`absolute top-0 inset-x-0 h-px bg-gradient-to-r ${t.color}`} />
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${t.color} flex items-center justify-center mb-4`}>
-                  <t.icon size={20} className={t.dot.replace('bg-','text-')} />
+                <div
+                  className={`w-10 h-10 rounded-xl bg-gradient-to-br ${t.color} flex items-center justify-center mb-4`}
+                >
+                  <t.icon size={20} className={t.dot.replace('bg-', 'text-')} />
                 </div>
                 <h3 className="font-bold mb-3">{t.title}</h3>
                 <div className="space-y-1.5">
@@ -436,13 +882,30 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Full feature set</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">{L('Everything your business needs','हर ज़रूरत की feature','દરેક જરૂરિયાતની feature','व्यवसायाला हवे ते सर्व')}</h2>
-            <p className={`mt-3 text-lg ${muted}`}>{L('15+ modules, all in one login','15+ modules, एक ही login','15+ modules, એક જ login','15+ modules, एकाच login मध्ये')}</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">
+              {L(
+                'Everything your business needs',
+                'हर ज़रूरत की feature',
+                'દરેક જરૂરિયાતની feature',
+                'व्यवसायाला हवे ते सर्व',
+              )}
+            </h2>
+            <p className={`mt-3 text-lg ${muted}`}>
+              {L(
+                '15+ modules, all in one login',
+                '15+ modules, एक ही login',
+                '15+ modules, એક જ login',
+                '15+ modules, एकाच login मध्ये',
+              )}
+            </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {FEATURES.map((f, i) => (
-              <motion.div key={f.title} {...vi(i * 0.03, 16)}
-                className={`p-5 rounded-2xl border flex gap-4 transition-all group ${card} ${cardHov}`}>
+              <motion.div
+                key={f.title}
+                {...vi(i * 0.03, 16)}
+                className={`p-5 rounded-2xl border flex gap-4 transition-all group ${card} ${cardHov}`}
+              >
                 <div className="w-9 h-9 bg-brand/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                   <f.icon size={18} className="text-brand" />
                 </div>
@@ -460,22 +923,51 @@ export function LandingPage() {
       <section className={`py-16 sm:py-24 px-4 sm:px-6 ${dark ? 'bg-white/[0.02]' : 'bg-white'}`}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold">{L('End-to-end, one place','एक जगह, पूरा cycle','એક જગ્યાએ, પૂરો cycle','एकाच ठिकाणी, पूर्ण cycle')}</h2>
-            <p className={`mt-3 text-lg ${muted}`}>{L('From purchase to P&L — every step tracked','Purchase से P&L तक — हर step tracked','Purchase થી P&L સુધી — દરેક step tracked','खरेदीपासून P&L पर्यंत — प्रत्येक टप्पा tracked')}</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">
+              {L('End-to-end, one place', 'एक जगह, पूरा cycle', 'એક જગ્યાએ, પૂરો cycle', 'एकाच ठिकाणी, पूर्ण cycle')}
+            </h2>
+            <p className={`mt-3 text-lg ${muted}`}>
+              {L(
+                'From purchase to P&L — every step tracked',
+                'Purchase से P&L तक — हर step tracked',
+                'Purchase થી P&L સુધી — દરેક step tracked',
+                'खरेदीपासून P&L पर्यंत — प्रत्येक टप्पा tracked',
+              )}
+            </p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             {[
-              { icon: ShoppingCart, label: L('Purchase','खरीदो','ખરીદો'), color: 'text-amber-500', bg: 'bg-amber-500/10' },
-              { icon: Package, label: L('Stock','स्टॉक','સ્ટોક'), color: 'text-blue-500', bg: 'bg-blue-500/10' },
-              { icon: FileText, label: L('Quote','कोटेशन','કોટેશન'), color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
-              { icon: Truck, label: L('Dispatch','भेजो','મોકલો'), color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-              { icon: IndianRupee, label: L('Collect','वसूलो','વસૂલો'), color: 'text-brand', bg: 'bg-brand/10' },
+              {
+                icon: ShoppingCart,
+                label: L('Purchase', 'खरीदो', 'ખરીદો'),
+                color: 'text-amber-500',
+                bg: 'bg-amber-500/10',
+              },
+              { icon: Package, label: L('Stock', 'स्टॉक', 'સ્ટોક'), color: 'text-blue-500', bg: 'bg-blue-500/10' },
+              { icon: FileText, label: L('Quote', 'कोटेशन', 'કોટેશન'), color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
+              {
+                icon: Truck,
+                label: L('Dispatch', 'भेजो', 'મોકલો'),
+                color: 'text-emerald-500',
+                bg: 'bg-emerald-500/10',
+              },
+              { icon: IndianRupee, label: L('Collect', 'वसूलो', 'વસૂલો'), color: 'text-brand', bg: 'bg-brand/10' },
               { icon: BarChart3, label: 'P&L', color: 'text-violet-500', bg: 'bg-violet-500/10' },
             ].map((s, i) => (
-              <motion.div key={s.label} {...vi(i * 0.06, 16)}
-                className={`relative p-4 rounded-2xl border text-center ${card} group`}>
-                {i < 5 && <ChevronRight size={12} className={`hidden md:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 ${faint}`} />}
-                <div className={`w-10 h-10 ${s.bg} rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform`}>
+              <motion.div
+                key={s.label}
+                {...vi(i * 0.06, 16)}
+                className={`relative p-4 rounded-2xl border text-center ${card} group`}
+              >
+                {i < 5 && (
+                  <ChevronRight
+                    size={12}
+                    className={`hidden md:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 ${faint}`}
+                  />
+                )}
+                <div
+                  className={`w-10 h-10 ${s.bg} rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform`}
+                >
                   <s.icon size={20} className={s.color} />
                 </div>
                 <p className={`font-bold text-xs`}>{s.label}</p>
@@ -490,20 +982,53 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Cloud-native architecture</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">{L('Modern tech, Indian needs','Modern tech, Indian ज़रूरतें','Modern tech, Indian જરૂરિયાત')}</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold">
+              {L('Modern tech, Indian needs', 'Modern tech, Indian ज़रूरतें', 'Modern tech, Indian જરૂરિયાત')}
+            </h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
-              { icon: Cloud, title: L('Cloud SaaS','Cloud SaaS','Cloud SaaS'), desc: L('Browser-based, zero install. Multi-tenant PostgreSQL with row-level security — each business\'s data is isolated.','Browser-based, zero install. Multi-tenant PostgreSQL — हर business का data isolated।','Browser-based, zero install. Multi-tenant PostgreSQL — દરેક business નો data isolated.'), tag: 'React 19 + Node.js + PG' },
-              { icon: Database, title: L('On-Prem Desktop','On-Prem Desktop','On-Prem Desktop'), desc: L('Electron app (~180MB) with embedded PostgreSQL. Runs offline. Activated via license key, syncs heartbeat to cloud.','Electron app with embedded PostgreSQL. Offline ready। License key से activate।','Electron app with embedded PostgreSQL. Offline ready. License key થી activate.'), tag: 'Electron + embedded PG' },
-              { icon: Lock, title: L('GST Compliant','GST Compliant','GST Compliant'), desc: L('GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice (IRN), E-Way Bill — JSON generated, ready to upload to government portal.','GSTR-1, GSTR-3B, GSTR-2B, E-Invoice, E-Way Bill JSON — government portal ke liye ready।','GSTR-1, GSTR-3B, GSTR-2B, E-Invoice, E-Way Bill JSON — government portal માટે ready.'), tag: 'GST API ready' },
+              {
+                icon: Cloud,
+                title: L('Cloud SaaS', 'Cloud SaaS', 'Cloud SaaS'),
+                desc: L(
+                  "Browser-based, zero install. Multi-tenant PostgreSQL with row-level security — each business's data is isolated.",
+                  'Browser-based, zero install. Multi-tenant PostgreSQL — हर business का data isolated।',
+                  'Browser-based, zero install. Multi-tenant PostgreSQL — દરેક business નો data isolated.',
+                ),
+                tag: 'React 19 + Node.js + PG',
+              },
+              {
+                icon: Database,
+                title: L('On-Prem Desktop', 'On-Prem Desktop', 'On-Prem Desktop'),
+                desc: L(
+                  'Electron app (~180MB) with embedded PostgreSQL. Runs offline. Activated via license key, syncs heartbeat to cloud.',
+                  'Electron app with embedded PostgreSQL. Offline ready। License key से activate।',
+                  'Electron app with embedded PostgreSQL. Offline ready. License key થી activate.',
+                ),
+                tag: 'Electron + embedded PG',
+              },
+              {
+                icon: Lock,
+                title: L('GST Compliant', 'GST Compliant', 'GST Compliant'),
+                desc: L(
+                  'GSTR-1, GSTR-3B, GSTR-2B reconciliation, E-Invoice (IRN), E-Way Bill — JSON generated, ready to upload to government portal.',
+                  'GSTR-1, GSTR-3B, GSTR-2B, E-Invoice, E-Way Bill JSON — government portal ke liye ready।',
+                  'GSTR-1, GSTR-3B, GSTR-2B, E-Invoice, E-Way Bill JSON — government portal માટે ready.',
+                ),
+                tag: 'GST API ready',
+              },
             ].map((c, i) => (
-              <motion.div key={c.title} {...vi(i * 0.1)}
-                className={`p-6 rounded-2xl border ${card}`}>
+              <motion.div key={c.title} {...vi(i * 0.1)} className={`p-6 rounded-2xl border ${card}`}>
                 <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center mb-4">
                   <c.icon size={20} className="text-brand" />
                 </div>
-                <div className="inline-block px-2 py-0.5 rounded-md text-[10px] font-mono font-bold mb-3" style={{ background: 'rgba(242,125,38,0.1)', color: '#F27D26' }}>{c.tag}</div>
+                <div
+                  className="inline-block px-2 py-0.5 rounded-md text-[10px] font-mono font-bold mb-3"
+                  style={{ background: 'rgba(242,125,38,0.1)', color: '#F27D26' }}
+                >
+                  {c.tag}
+                </div>
                 <h3 className="font-bold mb-2">{c.title}</h3>
                 <p className={`text-sm leading-relaxed ${faint}`}>{c.desc}</p>
               </motion.div>
@@ -535,28 +1060,46 @@ export function LandingPage() {
                 transition={{ duration: 0.3 }}
                 className={`p-5 rounded-2xl border ${card}`}
               >
-                {(() => { const t = TESTIMONIALS[testimonialIdx]; return (
-                  <>
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="w-10 h-10 bg-brand/20 rounded-full flex items-center justify-center text-sm font-bold text-brand shrink-0">{t.avatar}</div>
-                      <div>
-                        <p className="font-bold text-sm">{t.name}</p>
-                        <p className={`text-xs ${faint}`}>{t.role} · {t.location}</p>
+                {(() => {
+                  const t = TESTIMONIALS[testimonialIdx];
+                  return (
+                    <>
+                      <div className="flex items-start gap-3 mb-4">
+                        <div className="w-10 h-10 bg-brand/20 rounded-full flex items-center justify-center text-sm font-bold text-brand shrink-0">
+                          {t.avatar}
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm">{t.name}</p>
+                          <p className={`text-xs ${faint}`}>
+                            {t.role} · {t.location}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <p className={`text-sm leading-relaxed ${muted}`}>"{t.text}"</p>
-                  </>
-                ); })()}
+                      <p className={`text-sm leading-relaxed ${muted}`}>"{t.text}"</p>
+                    </>
+                  );
+                })()}
               </motion.div>
             </AnimatePresence>
             <div className="flex justify-center gap-2 mt-4">
               {TESTIMONIALS.map((_, i) => (
-                <button key={i} onClick={() => setTestimonialIdx(i)}
+                <button
+                  key={i}
+                  onClick={() => setTestimonialIdx(i)}
                   aria-label={`Go to testimonial ${i + 1}`}
                   className="flex items-center justify-center"
-                  style={{ minWidth: 44, minHeight: 44, background: 'transparent', padding: 0, border: 'none', cursor: 'pointer' }}
+                  style={{
+                    minWidth: 44,
+                    minHeight: 44,
+                    background: 'transparent',
+                    padding: 0,
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
                 >
-                  <span className={`inline-block rounded-full transition-all ${i === testimonialIdx ? 'bg-brand h-1.5 w-4' : `h-1.5 w-1.5 ${dark ? 'bg-white/20' : 'bg-gray-300'}`}`} />
+                  <span
+                    className={`inline-block rounded-full transition-all ${i === testimonialIdx ? 'bg-brand h-1.5 w-4' : `h-1.5 w-1.5 ${dark ? 'bg-white/20' : 'bg-gray-300'}`}`}
+                  />
                 </button>
               ))}
             </div>
@@ -565,11 +1108,15 @@ export function LandingPage() {
           {/* Desktop: CSS grid, all cards visible, active card highlighted */}
           <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-5">
             {TESTIMONIALS.map((t, i) => (
-              <motion.div key={t.name} {...vi(i * 0.08)}
+              <motion.div
+                key={t.name}
+                {...vi(i * 0.08)}
                 className={`p-5 rounded-2xl border transition-all ${card} ${cardHov} ${i === testimonialIdx ? (dark ? 'border-brand/40' : 'border-brand/30') : ''}`}
               >
                 <div className="flex items-start gap-3 mb-4">
-                  <div className="w-10 h-10 bg-brand/20 rounded-full flex items-center justify-center text-sm font-bold text-brand shrink-0">{t.avatar}</div>
+                  <div className="w-10 h-10 bg-brand/20 rounded-full flex items-center justify-center text-sm font-bold text-brand shrink-0">
+                    {t.avatar}
+                  </div>
                   <div>
                     <p className="font-bold text-sm">{t.name}</p>
                     <p className={`text-xs ${faint}`}>{t.role}</p>
@@ -588,8 +1135,17 @@ export function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Simple pricing</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">{L('Fits every budget','सबके बजट में','બધાના budget માં','सर्वांच्या बजेटमध्ये')}</h2>
-            <p className={`mt-3 text-lg ${muted}`}>{L('Free trial, no credit card. Contact us for pricing.','Free trial, no credit card। Pricing के लिए contact करें।','Free trial, no credit card. Pricing માટે contact કરો.','Free trial, no credit card. Pricing साठी संपर्क करा.')}</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">
+              {L('Fits every budget', 'सबके बजट में', 'બધાના budget માં', 'सर्वांच्या बजेटमध्ये')}
+            </h2>
+            <p className={`mt-3 text-lg ${muted}`}>
+              {L(
+                'Free trial, no credit card. Contact us for pricing.',
+                'Free trial, no credit card। Pricing के लिए contact करें।',
+                'Free trial, no credit card. Pricing માટે contact કરો.',
+                'Free trial, no credit card. Pricing साठी संपर्क करा.',
+              )}
+            </p>
           </div>
 
           {/* Billing toggle */}
@@ -614,20 +1170,78 @@ export function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
-              { name: L('Free Trial','Free Trial','Free Trial'), price: '₹0', period: L('/ 14 days','/ 14 दिन','/ 14 દિવસ'), desc: L('All features, no card','सब features, no card','બધા features, no card'), feats: [L('All modules','सब modules','બધા modules'), '50 products', '5 vendors', 'Email support'], highlight: false, cta: L('Start Free','शुरू करें','Free Start','Free trial, सर्व features, no card') },
-              { name: L('Standard','Standard','Standard'), price: L('Contact','संपर्क','સંપર્ક'), period: '', desc: L('Growing businesses','बढ़ते व्यापार के लिए','વધતા business માટે'), feats: [L('Unlimited products','Unlimited products','Unlimited products'), '15 vendors', L('Vendor portal','Vendor portal','Vendor portal'), L('Priority support','Priority support','Priority support'), L('All reports','All reports','All reports')], highlight: true, cta: L('Get Quote','Quote लें','Quote મેળવો','संपर्क') },
-              { name: L('Professional','Professional','Professional'), price: L('Contact','संपर्क','સંપર્ક'), period: '', desc: L('Manufacturers & large dealers','बड़े manufacturers के लिए','મોટા manufacturers માટે'), feats: [L('Everything unlimited','સব unlimited','Everything unlimited'), 'E-Invoice & E-Way Bill', L('AI Chatbot','AI Chatbot','AI Chatbot'), L('Custom branding','Custom branding','Custom branding'), L('On-prem option','On-prem option','On-prem option')], highlight: false, cta: L('Get Quote','Quote लें','Quote મેળવો','संपर्क') },
+              {
+                name: L('Free Trial', 'Free Trial', 'Free Trial'),
+                price: '₹0',
+                period: L('/ 14 days', '/ 14 दिन', '/ 14 દિવસ'),
+                desc: L('All features, no card', 'सब features, no card', 'બધા features, no card'),
+                feats: [L('All modules', 'सब modules', 'બધા modules'), '50 products', '5 vendors', 'Email support'],
+                highlight: false,
+                cta: L('Start Free', 'शुरू करें', 'Free Start', 'Free trial, सर्व features, no card'),
+              },
+              {
+                name: L('Standard', 'Standard', 'Standard'),
+                price: L('Contact', 'संपर्क', 'સંપર્ક'),
+                period: '',
+                desc: L('Growing businesses', 'बढ़ते व्यापार के लिए', 'વધતા business માટે'),
+                feats: [
+                  L('Unlimited products', 'Unlimited products', 'Unlimited products'),
+                  '15 vendors',
+                  L('Vendor portal', 'Vendor portal', 'Vendor portal'),
+                  L('Priority support', 'Priority support', 'Priority support'),
+                  L('All reports', 'All reports', 'All reports'),
+                ],
+                highlight: true,
+                cta: L('Get Quote', 'Quote लें', 'Quote મેળવો', 'संपर्क'),
+              },
+              {
+                name: L('Professional', 'Professional', 'Professional'),
+                price: L('Contact', 'संपर्क', 'સંપર્ક'),
+                period: '',
+                desc: L('Manufacturers & large dealers', 'बड़े manufacturers के लिए', 'મોટા manufacturers માટે'),
+                feats: [
+                  L('Everything unlimited', 'સব unlimited', 'Everything unlimited'),
+                  'E-Invoice & E-Way Bill',
+                  L('AI Chatbot', 'AI Chatbot', 'AI Chatbot'),
+                  L('Custom branding', 'Custom branding', 'Custom branding'),
+                  L('On-prem option', 'On-prem option', 'On-prem option'),
+                ],
+                highlight: false,
+                cta: L('Get Quote', 'Quote लें', 'Quote મેળવો', 'संपर्क'),
+              },
             ].map((p, i) => (
-              <motion.div key={p.name} {...vi(i * 0.1)}
-                className={`p-6 rounded-2xl border relative ${p.highlight ? (dark ? 'border-brand/40 bg-brand/5' : 'border-brand/30 bg-brand/3 shadow-lg shadow-brand/10') : card}`}>
-                {p.highlight && <div className="absolute -top-3 left-1/2 -translate-x-1/2"><span className="px-3 py-1 bg-brand text-white text-[10px] font-bold rounded-full uppercase tracking-wide">{L('Popular','Popular','Popular')}</span></div>}
+              <motion.div
+                key={p.name}
+                {...vi(i * 0.1)}
+                className={`p-6 rounded-2xl border relative ${p.highlight ? (dark ? 'border-brand/40 bg-brand/5' : 'border-brand/30 bg-brand/3 shadow-lg shadow-brand/10') : card}`}
+              >
+                {p.highlight && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="px-3 py-1 bg-brand text-white text-[10px] font-bold rounded-full uppercase tracking-wide">
+                      {L('Popular', 'Popular', 'Popular')}
+                    </span>
+                  </div>
+                )}
                 <h3 className="font-bold text-lg mb-1">{p.name}</h3>
-                <div className="flex items-baseline gap-1 mb-1"><span className="text-3xl font-bold">{p.price}</span><span className={`text-sm ${faint}`}>{p.period}</span></div>
+                <div className="flex items-baseline gap-1 mb-1">
+                  <span className="text-3xl font-bold">{p.price}</span>
+                  <span className={`text-sm ${faint}`}>{p.period}</span>
+                </div>
                 <p className={`text-sm ${faint} mb-5`}>{p.desc}</p>
                 <div className="space-y-2 mb-6">
-                  {p.feats.map(f => <div key={f} className="flex items-center gap-2"><Check size={13} className="text-brand shrink-0" /><span className={`text-sm ${muted}`}>{f}</span></div>)}
+                  {p.feats.map(f => (
+                    <div key={f} className="flex items-center gap-2">
+                      <Check size={13} className="text-brand shrink-0" />
+                      <span className={`text-sm ${muted}`}>{f}</span>
+                    </div>
+                  ))}
                 </div>
-                <a href="#contact" className={`block text-center py-3 rounded-xl font-bold text-sm transition-colors ${p.highlight ? 'bg-brand hover:bg-brand-dark text-white' : `border ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}`}>{p.cta}</a>
+                <a
+                  href="#contact"
+                  className={`block text-center py-3 rounded-xl font-bold text-sm transition-colors ${p.highlight ? 'bg-brand hover:bg-brand-dark text-white' : `border ${dark ? 'border-white/10 hover:bg-white/5' : 'border-gray-200 hover:bg-gray-50'}`}`}
+                >
+                  {p.cta}
+                </a>
               </motion.div>
             ))}
           </div>
@@ -643,20 +1257,31 @@ export function LandingPage() {
           </div>
           <div className="space-y-2">
             {FAQS.map((faq, i) => (
-              <motion.div key={i} {...vi(i * 0.05)}
-                className={`rounded-2xl border overflow-hidden ${card}`}>
+              <motion.div key={i} {...vi(i * 0.05)} className={`rounded-2xl border overflow-hidden ${card}`}>
                 <button
+                  type="button"
+                  id={`faq-btn-${i}`}
+                  aria-expanded={openFaq === i}
+                  aria-controls={`faq-panel-${i}`}
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className="w-full text-left px-5 py-4 flex items-center justify-between font-bold text-sm"
                 >
                   <span>{faq.q}</span>
-                  <motion.div animate={{ rotate: openFaq === i ? 180 : 0 }} transition={{ duration: 0.2 }} className="shrink-0 ml-4">
+                  <motion.div
+                    animate={{ rotate: openFaq === i ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="shrink-0 ml-4"
+                    aria-hidden="true"
+                  >
                     <ChevronDown size={16} className={faint} />
                   </motion.div>
                 </button>
                 <AnimatePresence>
                   {openFaq === i && (
                     <motion.div
+                      id={`faq-panel-${i}`}
+                      role="region"
+                      aria-labelledby={`faq-btn-${i}`}
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
@@ -678,28 +1303,76 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <p className={`text-xs font-bold uppercase tracking-widest text-brand mb-3`}>Get started</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">{L('Let\'s talk','बात करें','વાત કરો','बोलूया')}</h2>
-            <p className={`mt-3 text-lg ${muted}`}>{L('Free trial · Setup in 5 min · Reply within 24h','Free trial · 5 min setup · 24h में reply','Free trial · 5 min setup · 24h માં reply','Free trial · 5 min setup · 24h मध्ये reply')}</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">{L("Let's talk", 'बात करें', 'વાત કરો', 'बोलूया')}</h2>
+            <p className={`mt-3 text-lg ${muted}`}>
+              {L(
+                'Free trial · Setup in 5 min · Reply within 24h',
+                'Free trial · 5 min setup · 24h में reply',
+                'Free trial · 5 min setup · 24h માં reply',
+                'Free trial · 5 min setup · 24h मध्ये reply',
+              )}
+            </p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 lg:gap-12">
             <div className="lg:col-span-2 flex flex-col gap-4">
               {[
                 { icon: Phone, label: 'Phone', val: '+91 88069 07616', href: 'tel:+918806907616', color: 'text-brand' },
-                { icon: MessageCircle, label: 'WhatsApp', val: '+91 88069 07616', href: 'https://wa.me/918806907616', color: 'text-green-500' },
-                { icon: Mail, label: 'Email', val: 'patelprathamesh007@gmail.com', href: 'https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com', color: 'text-brand' },
+                {
+                  icon: MessageCircle,
+                  label: 'WhatsApp',
+                  val: '+91 88069 07616',
+                  href: 'https://wa.me/918806907616',
+                  color: 'text-green-500',
+                },
+                {
+                  icon: Mail,
+                  label: 'Email',
+                  val: 'patelprathamesh007@gmail.com',
+                  href: 'https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com',
+                  color: 'text-brand',
+                },
               ].map(c => (
-                <a key={c.label} href={c.href} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${card} ${cardHov}`}>
-                  <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center shrink-0"><c.icon size={18} className={c.color} /></div>
-                  <div><p className={`text-xs ${faint}`}>{c.label}</p><p className="font-medium text-sm">{c.val}</p></div>
+                <a
+                  key={c.label}
+                  href={c.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${card} ${cardHov}`}
+                >
+                  <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center shrink-0">
+                    <c.icon size={18} className={c.color} />
+                  </div>
+                  <div>
+                    <p className={`text-xs ${faint}`}>{c.label}</p>
+                    <p className="font-medium text-sm">{c.val}</p>
+                  </div>
                 </a>
               ))}
-              <div className={`p-4 rounded-2xl border ${dark ? 'border-white/5 bg-white/[0.02]' : 'border-gray-100 bg-gray-50'} mt-2`}>
+              <div
+                className={`p-4 rounded-2xl border ${dark ? 'border-white/5 bg-white/[0.02]' : 'border-gray-100 bg-gray-50'} mt-2`}
+              >
                 <p className="text-2xl mb-2">🦁</p>
-                <p className="font-bold text-sm">{L('Designed in Rajkot, built for Bharat','Rajkot में बना, Bharat के लिए','Rajkot માં DesIgn, Bharat માટે','Rajkot मध्ये बनवले, Bharat साठी')}</p>
-                <p className={`text-xs mt-1 ${faint}`}>{L('India\'s industrial heartland. Software for every shopkeeper, dealer, and manufacturer.','India के industrial heartland से। हर दुकानदार, dealer, manufacturer के लिए।','India ના industrial heartland થી. દરેક દુકાનદાર, dealer, manufacturer માટે.','भारतातील प्रत्येक दुकानदार, dealer, उत्पादकासाठी.')}</p>
+                <p className="font-bold text-sm">
+                  {L(
+                    'Designed in Rajkot, built for Bharat',
+                    'Rajkot में बना, Bharat के लिए',
+                    'Rajkot માં DesIgn, Bharat માટે',
+                    'Rajkot मध्ये बनवले, Bharat साठी',
+                  )}
+                </p>
+                <p className={`text-xs mt-1 ${faint}`}>
+                  {L(
+                    "India's industrial heartland. Software for every shopkeeper, dealer, and manufacturer.",
+                    'India के industrial heartland से। हर दुकानदार, dealer, manufacturer के लिए।',
+                    'India ના industrial heartland થી. દરેક દુકાનદાર, dealer, manufacturer માટે.',
+                    'भारतातील प्रत्येक दुकानदार, dealer, उत्पादकासाठी.',
+                  )}
+                </p>
               </div>
             </div>
-            <div className="lg:col-span-3"><EnquiryForm dark={dark} /></div>
+            <div className="lg:col-span-3">
+              <EnquiryForm dark={dark} />
+            </div>
           </div>
         </div>
       </section>
@@ -712,19 +1385,60 @@ export function LandingPage() {
             <span className={`text-xs ${faint}`}>🇮🇳</span>
           </div>
           <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs ${faint}`}>
-            {['#features','#pricing','#contact','/privacy','/terms'].map((href, i) => (
+            {['#features', '#pricing', '#contact', '/privacy', '/terms'].map((href, i) => (
               <a key={href} href={href} className="hover:text-brand transition-colors">
-                {['Features', L('Pricing','कीमत','કિંમત'), L('Contact','संपर्क','સંપર્ક'), L('Privacy','Privacy','Privacy'), L('Terms','Terms','Terms')][i]}
+                {
+                  [
+                    'Features',
+                    L('Pricing', 'कीमत', 'કિંમત'),
+                    L('Contact', 'संपर्क', 'સંપર્ક'),
+                    L('Privacy', 'Privacy', 'Privacy'),
+                    L('Terms', 'Terms', 'Terms'),
+                  ][i]
+                }
               </a>
             ))}
           </div>
           <div className={`flex items-center gap-3 ${faint}`}>
-            <a href="tel:+918806907616" aria-label="Call us" className="hover:text-brand transition-colors p-2" style={{minWidth:44,minHeight:44,display:'flex',alignItems:'center',justifyContent:'center'}}><Phone size={15} /></a>
-            <a href="https://wa.me/918806907616" aria-label="WhatsApp us" target="_blank" rel="noopener noreferrer" className="hover:text-green-500 transition-colors p-2" style={{minWidth:44,minHeight:44,display:'flex',alignItems:'center',justifyContent:'center'}}><MessageCircle size={15} /></a>
-            <a href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com" aria-label="Email us" target="_blank" rel="noopener noreferrer" className="hover:text-brand transition-colors p-2" style={{minWidth:44,minHeight:44,display:'flex',alignItems:'center',justifyContent:'center'}}><Mail size={15} /></a>
+            <a
+              href="tel:+918806907616"
+              aria-label="Call us"
+              className="hover:text-brand transition-colors p-2"
+              style={{ minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Phone size={15} />
+            </a>
+            <a
+              href="https://wa.me/918806907616"
+              aria-label="WhatsApp us"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-green-500 transition-colors p-2"
+              style={{ minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <MessageCircle size={15} />
+            </a>
+            <a
+              href="https://mail.google.com/mail/?view=cm&to=patelprathamesh007@gmail.com"
+              aria-label="Email us"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-brand transition-colors p-2"
+              style={{ minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Mail size={15} />
+            </a>
           </div>
         </div>
-        <p className={`text-center text-xs mt-5 ${faint}`}>© {new Date().getFullYear()} Dhandho · {L('Built with love for Indian businesses','भारतीय businesses के लिए बना','ભારતીય businesses માટે બનેલું','भारतीय व्यवसायांसाठी बनवले')}</p>
+        <p className={`text-center text-xs mt-5 ${faint}`}>
+          © {new Date().getFullYear()} Dhandho ·{' '}
+          {L(
+            'Built with love for Indian businesses',
+            'भारतीय businesses के लिए बना',
+            'ભારતીય businesses માટે બનેલું',
+            'भारतीय व्यवसायांसाठी बनवले',
+          )}
+        </p>
       </footer>
     </div>
   );

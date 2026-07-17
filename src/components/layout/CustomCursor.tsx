@@ -3,6 +3,8 @@ import { motion, useMotionValue, useSpring } from 'motion/react';
 
 // ponytail: module-level check — runs once, avoids repeated window access
 const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window;
+const prefersReducedMotion =
+  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function CustomCursor() {
   const [hovered, setHovered] = useState(false);
@@ -12,7 +14,7 @@ export function CustomCursor() {
   const ringY = useSpring(dotY, { stiffness: 150, damping: 15 });
 
   useEffect(() => {
-    if (isTouchDevice) return;
+    if (isTouchDevice || prefersReducedMotion) return;
     document.body.style.cursor = 'none';
 
     const onMove = (e: MouseEvent) => {
@@ -32,7 +34,7 @@ export function CustomCursor() {
     };
   }, [dotX, dotY]);
 
-  if (isTouchDevice) return null;
+  if (isTouchDevice || prefersReducedMotion) return null;
 
   return (
     <>

@@ -122,11 +122,23 @@ export interface SaleBillData {
   customerEmail?: string | null;
   purchaseDate: string;
   rewardPointsEarned: number;
-  vendor: { name: string; contactPerson?: string | null; phone?: string | null; email?: string | null; address?: string | null };
+  vendor: {
+    name: string;
+    contactPerson?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+  };
   warranty?: { activationDate: string; expiryDate: string; status: string } | null;
   hsnCode?: string | null;
   gstRate: number;
-  company: { name: string; contactName?: string | null; phone?: string | null; address?: string | null; gstNumber?: string | null };
+  company: {
+    name: string;
+    contactName?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    gstNumber?: string | null;
+  };
   vendorFinance?: { totalDistributedValue: number; totalPaid: number; balance: number } | null;
 }
 
@@ -134,16 +146,47 @@ export interface DistributionBillData {
   challanId: string;
   batchId?: string | null;
   distributionDate: string;
-  vendor: { name: string; contactPerson?: string | null; phone?: string | null; email?: string | null; address?: string | null; gstNumber?: string | null };
-  company: { name: string; contactName?: string | null; phone?: string | null; address?: string | null; gstNumber?: string | null };
+  vendor: {
+    name: string;
+    contactPerson?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    gstNumber?: string | null;
+  };
+  company: {
+    name: string;
+    contactName?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    gstNumber?: string | null;
+  };
   gstRate: number;
   ewbNumber?: string | null;
   irn?: string | null;
   irnQr?: string | null;
   irnAckNo?: string | null;
   irnAckDt?: string | null;
-  items: { sno: number; barcode: string; productName: string; batchNumber?: string | null; originalPrice: number; discountPercent: number; price: number; status: string }[];
-  groupedItems: { sno: number; productName: string; barcodeRange: string; quantity: number; originalPrice: number; discountPercent: number; netPrice: number; lineTotal: number }[];
+  items: {
+    sno: number;
+    barcode: string;
+    productName: string;
+    batchNumber?: string | null;
+    originalPrice: number;
+    discountPercent: number;
+    price: number;
+    status: string;
+  }[];
+  groupedItems: {
+    sno: number;
+    productName: string;
+    barcodeRange: string;
+    quantity: number;
+    originalPrice: number;
+    discountPercent: number;
+    netPrice: number;
+    lineTotal: number;
+  }[];
   totalQuantity: number;
   savedGstUnits: number;
   grossValue: number;
@@ -157,8 +200,13 @@ const getCache = new Map<string, { data: unknown; ts: number }>();
 const GET_CACHE_TTL = 3000; // M6 fix: 3s (was 15s) — reduces stale UI after mutations
 
 export function invalidateCache(prefix?: string) {
-  if (!prefix) { getCache.clear(); return; }
-  for (const key of getCache.keys()) { if (key.includes(prefix)) getCache.delete(key); }
+  if (!prefix) {
+    getCache.clear();
+    return;
+  }
+  for (const key of getCache.keys()) {
+    if (key.includes(prefix)) getCache.delete(key);
+  }
 }
 
 export async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
@@ -200,7 +248,7 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
 
   // Offline queue/cache is mobile-only (Capacitor / VITE_MOBILE) — not desktop Electron/web
   if (isMobileClient() && !getConnectionState().connected) {
-    if (method === 'GET' && CACHEABLE_GET.some((re) => re.test(path))) {
+    if (method === 'GET' && CACHEABLE_GET.some(re => re.test(path))) {
       const hit = cacheGet<T>(offlineCacheKey(path, tenantId));
       if (hit != null) return hit;
     }
@@ -239,7 +287,7 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   void lastError;
 
   // Last resort: durable offline cache for GET
-  if (method === 'GET' && CACHEABLE_GET.some((re) => re.test(path))) {
+  if (method === 'GET' && CACHEABLE_GET.some(re => re.test(path))) {
     const hit = cacheGet<T>(offlineCacheKey(path, tenantId));
     if (hit != null) return hit;
   }
@@ -251,9 +299,13 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
 }
 
 async function handleResponse<T>(res: Response, path: string, method: string, tenantId: string | null): Promise<T> {
-
   if (res.status === 401) {
-    const isAuthEndpoint = path.startsWith('/auth/login') || path.startsWith('/auth/signup') || path.startsWith('/auth/reset') || path.startsWith('/auth/forgot') || path.startsWith('/super-admin/login');
+    const isAuthEndpoint =
+      path.startsWith('/auth/login') ||
+      path.startsWith('/auth/signup') ||
+      path.startsWith('/auth/reset') ||
+      path.startsWith('/auth/forgot') ||
+      path.startsWith('/super-admin/login');
     if (!isAuthEndpoint && session.getToken()) {
       const slug = session.getSlug();
       const pathSlug = window.location.pathname.match(/^\/([a-z0-9][a-z0-9-]*)/i)?.[1];
@@ -285,7 +337,7 @@ async function handleResponse<T>(res: Response, path: string, method: string, te
   if (method === 'GET') {
     const cacheKey = `${tenantId}:${path}`;
     getCache.set(cacheKey, { data, ts: Date.now() });
-    if (CACHEABLE_GET.some((re) => re.test(path))) {
+    if (CACHEABLE_GET.some(re => re.test(path))) {
       cacheSet(offlineCacheKey(path, tenantId), data);
     }
   }
@@ -296,24 +348,59 @@ export const api = {
   products: {
     list: (search?: string) =>
       fetchApi<import('./types').Product[]>(`/products${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+    lowStockCount: (threshold = 10) =>
+      fetchApi<{ count: number; threshold: number }>(`/products/low-stock-count?threshold=${threshold}`),
     getByBarcode: (barcode: string) =>
       fetchApi<import('./types').Product>(`/products/by-barcode/${encodeURIComponent(barcode)}`),
     barcodeDetails: (id: string) =>
-      fetchApi<{ date: string; barcodeFirst: string; barcodeLast: string; count: number }[]>(`/products/${id}/barcode-details`),
+      fetchApi<{ date: string; barcodeFirst: string; barcodeLast: string; count: number }[]>(
+        `/products/${id}/barcode-details`,
+      ),
     getBarcodes: (id: string) =>
-      fetchApi<{ product: { id: string; name: string; price: number }; barcodes: { barcode: string; status: string }[] }>(`/products/${id}/barcodes`),
-    verify: (barcode: string) =>
-      fetchApi<Record<string, unknown>>(`/products/verify/${encodeURIComponent(barcode)}`),
-    create: (data: Partial<Omit<import('./types').Product, 'id'>> & { name: string; rangeStart?: string; rangeEnd?: string; barcodePrefix?: string; barcodeMode?: 'prefix' | 'range' | 'auto'; quantity?: number; barcodePerBox?: boolean; priceIncludesGst?: boolean }) =>
-      fetchApi<import('./types').Product>('/products', { method: 'POST', body: JSON.stringify(data) }),
-    addStock: (id: string, data: { barcodePrefix?: string; rangeStart?: string; rangeEnd?: string; quantity: number; barcodeMode?: 'prefix' | 'range' | 'auto'; barcodePerBox?: boolean; packSize?: number }) =>
+      fetchApi<{
+        product: { id: string; name: string; price: number };
+        barcodes: { barcode: string; status: string }[];
+      }>(`/products/${id}/barcodes`),
+    verify: (barcode: string) => fetchApi<Record<string, unknown>>(`/products/verify/${encodeURIComponent(barcode)}`),
+    create: (
+      data: Partial<Omit<import('./types').Product, 'id'>> & {
+        name: string;
+        rangeStart?: string;
+        rangeEnd?: string;
+        barcodePrefix?: string;
+        barcodeMode?: 'prefix' | 'range' | 'auto';
+        quantity?: number;
+        barcodePerBox?: boolean;
+        priceIncludesGst?: boolean;
+      },
+    ) => fetchApi<import('./types').Product>('/products', { method: 'POST', body: JSON.stringify(data) }),
+    addStock: (
+      id: string,
+      data: {
+        barcodePrefix?: string;
+        rangeStart?: string;
+        rangeEnd?: string;
+        quantity: number;
+        barcodeMode?: 'prefix' | 'range' | 'auto';
+        barcodePerBox?: boolean;
+        packSize?: number;
+      },
+    ) =>
       fetchApi<import('./types').Product>(`/products/${id}/add-stock`, { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<import('./types').Product>) =>
       fetchApi<import('./types').Product>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => fetchApi<void>(`/products/${id}`, { method: 'DELETE' }),
   },
   warranties: {
-    list: (params?: { search?: string; status?: string; vendorId?: string; page?: number; dateRange?: string; dateFrom?: string; dateTo?: string }) => {
+    list: (params?: {
+      search?: string;
+      status?: string;
+      vendorId?: string;
+      page?: number;
+      dateRange?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    }) => {
       const q = new URLSearchParams();
       if (params?.search) q.set('search', params.search);
       if (params?.status) q.set('status', params.status);
@@ -323,29 +410,62 @@ export const api = {
       if (params?.dateFrom) q.set('dateFrom', params.dateFrom);
       if (params?.dateTo) q.set('dateTo', params.dateTo);
       const query = q.toString();
-      return fetchApi<{ data: import('./types').Warranty[]; total: number; page: number; totalPages: number }>(`/warranties${query ? `?${query}` : ''}`);
+      return fetchApi<{ data: import('./types').Warranty[]; total: number; page: number; totalPages: number }>(
+        `/warranties${query ? `?${query}` : ''}`,
+      );
     },
     create: (data: { barcode: string; customerName: string; customerPhone: string }) =>
       fetchApi<import('./types').Warranty>('/warranties', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: Partial<{ customerName: string; customerPhone: string; status: string; replacedBarcode: string | null }>) =>
-      fetchApi<import('./types').Warranty>(`/warranties/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    update: (
+      id: string,
+      data: Partial<{ customerName: string; customerPhone: string; status: string; replacedBarcode: string | null }>,
+    ) => fetchApi<import('./types').Warranty>(`/warranties/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => fetchApi<void>(`/warranties/${id}`, { method: 'DELETE' }),
   },
   replacements: {
     list: (vendorId?: string) =>
       fetchApi<ReplacementRecord[]>(`/replacements${vendorId ? `?vendorId=${encodeURIComponent(vendorId)}` : ''}`),
     validateOld: (barcode: string, vendorId?: string) =>
-      fetchApi<{ valid: boolean; vendorId?: string; vendorName?: string; productId?: string; productName?: string | null; customerName?: string; customerPhone?: string; customerEmail?: string; error?: string }>(`/replacements/validate-old/${encodeURIComponent(barcode)}${vendorId ? `?vendorId=${encodeURIComponent(vendorId)}` : ''}`),
+      fetchApi<{
+        valid: boolean;
+        vendorId?: string;
+        vendorName?: string;
+        productId?: string;
+        productName?: string | null;
+        customerName?: string;
+        customerPhone?: string;
+        customerEmail?: string;
+        error?: string;
+      }>(
+        `/replacements/validate-old/${encodeURIComponent(barcode)}${vendorId ? `?vendorId=${encodeURIComponent(vendorId)}` : ''}`,
+      ),
     validateNew: (barcode: string, vendorId: string) =>
-      fetchApi<{ valid: boolean; vendorId?: string; vendorName?: string; productId?: string; productName?: string; error?: string }>(`/replacements/validate-new/${encodeURIComponent(barcode)}?vendorId=${encodeURIComponent(vendorId)}`),
-    create: (data: { oldBarcode: string; newBarcode: string; warrantyId?: string; customerName: string; customerPhone: string; replacedDate?: string; reason?: string; vendorId?: string }) =>
-      fetchApi<ReplacementRecord>('/replacements', { method: 'POST', body: JSON.stringify(data) }),
+      fetchApi<{
+        valid: boolean;
+        vendorId?: string;
+        vendorName?: string;
+        productId?: string;
+        productName?: string;
+        error?: string;
+      }>(`/replacements/validate-new/${encodeURIComponent(barcode)}?vendorId=${encodeURIComponent(vendorId)}`),
+    create: (data: {
+      oldBarcode: string;
+      newBarcode: string;
+      warrantyId?: string;
+      customerName: string;
+      customerPhone: string;
+      replacedDate?: string;
+      reason?: string;
+      vendorId?: string;
+    }) => fetchApi<ReplacementRecord>('/replacements', { method: 'POST', body: JSON.stringify(data) }),
   },
   redemptionSettings: {
-    get: () =>
-      fetchApi<{ minBalance: number; minPoints: number }>('/redemption-settings'),
+    get: () => fetchApi<{ minBalance: number; minPoints: number }>('/redemption-settings'),
     update: (data: { minBalance: number; minPoints: number }) =>
-      fetchApi<{ minBalance: number; minPoints: number }>('/redemption-settings', { method: 'PUT', body: JSON.stringify(data) }),
+      fetchApi<{ minBalance: number; minPoints: number }>('/redemption-settings', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
   },
   rewards: {
     list: (type?: string, vendorId?: string) => {
@@ -381,7 +501,9 @@ export const api = {
         vendorSummaries: { vendorId: string; vendorName: string; productsSold: number; totalRewardPoints: number }[];
       }>('/dashboard/rewards-summary'),
     recentActivity: () =>
-      fetchApi<{ type: string; id: string; label: string; amount: number; date: string }[]>('/analytics/recent-activity'),
+      fetchApi<{ type: string; id: string; label: string; amount: number; date: string }[]>(
+        '/analytics/recent-activity',
+      ),
     overview: (from?: string, to?: string) => {
       // M6 fix: use GET with query params instead of experimental QUERY method
       const qp = new URLSearchParams();
@@ -389,17 +511,36 @@ export const api = {
       if (to) qp.set('to', to);
       const qs = qp.toString();
       return fetchApi<{
-        money: { collections: number; revenue: number; distribution: number; expenses: number; outstanding: number; invoiceOutstanding: number };
+        money: {
+          collections: number;
+          revenue: number;
+          distribution: number;
+          expenses: number;
+          outstanding: number;
+          invoiceOutstanding: number;
+        };
         recentActivity: { type: string; id: string; label: string; amount: number; date: string }[];
         topVendors: { vendorId: string; vendorName: string; balance: number }[];
-        counts: { customerMaster: number; vendorMaster: number; itemMaster: number; bankMaster: number; staffCount: number };
+        counts: {
+          customerMaster: number;
+          vendorMaster: number;
+          itemMaster: number;
+          bankMaster: number;
+          staffCount: number;
+        };
       }>(`/analytics/overview${qs ? '?' + qs : ''}`, { method: 'GET' });
     },
-vendor: (vendorId: string) =>
+    vendor: (vendorId: string) =>
       fetchApi<{
         vendor: { id: string; name: string; totalSales: number; totalRewardPoints: number };
         assignedProducts: { id: string; productName: string; barcode: string; rewardPointsValue: number }[];
-        salesHistory: { id: string; productName: string; customerName: string; purchaseDate: string; rewardPointsEarned: number }[];
+        salesHistory: {
+          id: string;
+          productName: string;
+          customerName: string;
+          purchaseDate: string;
+          rewardPointsEarned: number;
+        }[];
       }>(`/dashboard/vendor/${vendorId}`),
   },
   distribution: {
@@ -411,35 +552,74 @@ vendor: (vendorId: string) =>
       return fetchApi<DistributionRecord[]>(`/distribution${qs ? `?${qs}` : ''}`);
     },
     batches: (vendorId?: string) =>
-      fetchApi<DistributionBatch[]>(`/distribution/batches${vendorId ? `?vendorId=${encodeURIComponent(vendorId)}` : ''}`),
+      fetchApi<DistributionBatch[]>(
+        `/distribution/batches${vendorId ? `?vendorId=${encodeURIComponent(vendorId)}` : ''}`,
+      ),
     summary: () =>
       fetchApi<{
         totalBeforeDistribution: number;
         availableInInventory: number;
         totalDistributed: number;
-        vendorStats: { vendorId: string; vendorName: string; distributed: number; sold: number; replaced: number; damaged: number; availableWithVendor: number }[];
+        vendorStats: {
+          vendorId: string;
+          vendorName: string;
+          distributed: number;
+          sold: number;
+          replaced: number;
+          damaged: number;
+          availableWithVendor: number;
+        }[];
       }>('/distribution/summary'),
     createBatch: (data: {
       vendorId: string;
       distributionDate?: string;
       amountPaid?: number;
       gstRate?: number;
-      items: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean; customPrice?: number }[];
+      items: {
+        productId: string;
+        quantity: number;
+        discountPercent?: number;
+        withGst?: boolean;
+        customPrice?: number;
+      }[];
     }) => fetchApi<DistributionBatch>('/distribution/batch', { method: 'POST', body: JSON.stringify(data) }),
-    create: (data: { productId: string; vendorId: string; distributionDate?: string; quantity?: number; discountPercent?: number; amountPaid?: number; withGst?: boolean; gstRate?: number; batchId?: string }) =>
-      fetchApi<DistributionRecord>('/distribution', { method: 'POST', body: JSON.stringify(data) }),
-    updateBatch: (batchId: string, data: {
+    create: (data: {
+      productId: string;
+      vendorId: string;
       distributionDate?: string;
+      quantity?: number;
+      discountPercent?: number;
+      amountPaid?: number;
+      withGst?: boolean;
       gstRate?: number;
-      items?: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean }[];
-    }) =>
-      fetchApi<DistributionBatch & { deleted?: boolean }>(`/distribution/batch/${encodeURIComponent(batchId)}`, { method: 'PUT', body: JSON.stringify(data) }),
+      batchId?: string;
+    }) => fetchApi<DistributionRecord>('/distribution', { method: 'POST', body: JSON.stringify(data) }),
+    updateBatch: (
+      batchId: string,
+      data: {
+        distributionDate?: string;
+        gstRate?: number;
+        items?: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean }[];
+      },
+    ) =>
+      fetchApi<DistributionBatch & { deleted?: boolean }>(`/distribution/batch/${encodeURIComponent(batchId)}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
     getBatch: (batchId: string) =>
       fetchApi<DistributionBatchDetail>(`/distribution/batch/${encodeURIComponent(batchId)}`),
     deleteBatch: (batchId: string) =>
-      fetchApi<{ ok: boolean; batchId: string; unitsReturned: number }>(`/distribution/batch/${encodeURIComponent(batchId)}`, { method: 'DELETE' }),
-    applyBilling: (data: { vendorId?: string; batchId?: string; gstUnits: number; nonGstUnits: number; gstRate: number }) =>
-      fetchApi<{ ok: boolean }>('/distribution/apply-billing', { method: 'PUT', body: JSON.stringify(data) }),
+      fetchApi<{ ok: boolean; batchId: string; unitsReturned: number }>(
+        `/distribution/batch/${encodeURIComponent(batchId)}`,
+        { method: 'DELETE' },
+      ),
+    applyBilling: (data: {
+      vendorId?: string;
+      batchId?: string;
+      gstUnits: number;
+      nonGstUnits: number;
+      gstRate: number;
+    }) => fetchApi<{ ok: boolean }>('/distribution/apply-billing', { method: 'PUT', body: JSON.stringify(data) }),
     getBill: (params: { vendorId?: string; batchId?: string; productId?: string; distributionDate?: string }) => {
       const q = new URLSearchParams();
       if (params.vendorId) q.set('vendorId', params.vendorId);
@@ -451,9 +631,26 @@ vendor: (vendorId: string) =>
   },
   sales: {
     validate: (barcode: string, vendorId?: string) =>
-      fetchApi<{ valid: boolean; productId?: string; productName?: string; vendorId?: string; vendorName?: string; rewardPointsValue?: number; price?: number; error?: string }>(`/sales/validate/${encodeURIComponent(barcode)}${vendorId ? `?vendorId=${encodeURIComponent(vendorId)}` : ''}`),
-    create: (data: { barcode: string; customerName: string; customerPhone: string; customerEmail?: string; purchaseDate?: string; salePrice?: number | string }) =>
-      fetchApi<SaleRecord>('/sales', { method: 'POST', body: JSON.stringify(data) }),
+      fetchApi<{
+        valid: boolean;
+        productId?: string;
+        productName?: string;
+        vendorId?: string;
+        vendorName?: string;
+        rewardPointsValue?: number;
+        price?: number;
+        error?: string;
+      }>(
+        `/sales/validate/${encodeURIComponent(barcode)}${vendorId ? `?vendorId=${encodeURIComponent(vendorId)}` : ''}`,
+      ),
+    create: (data: {
+      barcode: string;
+      customerName: string;
+      customerPhone: string;
+      customerEmail?: string;
+      purchaseDate?: string;
+      salePrice?: number | string;
+    }) => fetchApi<SaleRecord>('/sales', { method: 'POST', body: JSON.stringify(data) }),
     list: (params?: { vendorId?: string; page?: number; dateRange?: string; dateFrom?: string; dateTo?: string }) => {
       const q = new URLSearchParams();
       if (params?.vendorId) q.set('vendorId', params.vendorId);
@@ -462,10 +659,11 @@ vendor: (vendorId: string) =>
       if (params?.dateFrom) q.set('dateFrom', params.dateFrom);
       if (params?.dateTo) q.set('dateTo', params.dateTo);
       const qs = q.toString();
-      return fetchApi<{ data: SaleRecord[]; total: number; page: number; totalPages: number }>(`/sales${qs ? `?${qs}` : ''}`);
+      return fetchApi<{ data: SaleRecord[]; total: number; page: number; totalPages: number }>(
+        `/sales${qs ? `?${qs}` : ''}`,
+      );
     },
-    getBill: (saleId: string) =>
-      fetchApi<SaleBillData>(`/sales/${encodeURIComponent(saleId)}/bill`),
+    getBill: (saleId: string) => fetchApi<SaleBillData>(`/sales/${encodeURIComponent(saleId)}/bill`),
   },
   rewardRules: {
     list: () => fetchApi<RewardRule[]>('/reward-rules'),
@@ -477,7 +675,9 @@ vendor: (vendorId: string) =>
   },
   masters: {
     counts: () =>
-      fetchApi<{ customerMaster: number; vendorMaster: number; itemMaster: number; bankMaster: number }>('/masters/counts'),
+      fetchApi<{ customerMaster: number; vendorMaster: number; itemMaster: number; bankMaster: number }>(
+        '/masters/counts',
+      ),
   },
   customers: {
     list: (search?: string, vendorId?: string) => {
@@ -488,19 +688,34 @@ vendor: (vendorId: string) =>
       return fetchApi<import('./types').Customer[]>(`/customers${query ? `?${query}` : ''}`);
     },
     purchases: (id: string) =>
-      fetchApi<{ productName: string; productId: string; vendorName: string; vendorId: string; barcode: string; purchaseDate: string }[]>(`/customers/${id}/purchases`),
+      fetchApi<
+        {
+          productName: string;
+          productId: string;
+          vendorName: string;
+          vendorId: string;
+          barcode: string;
+          purchaseDate: string;
+        }[]
+      >(`/customers/${id}/purchases`),
     create: (data: Omit<import('./types').Customer, 'id'>) =>
       fetchApi<import('./types').Customer>('/customers', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<import('./types').Customer>) =>
       fetchApi<import('./types').Customer>(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => fetchApi<void>(`/customers/${id}`, { method: 'DELETE' }),
     setVendor: (id: string, vendorId: string | null) =>
-      fetchApi<import('./types').Customer>(`/customers/${id}/vendor`, { method: 'PUT', body: JSON.stringify({ vendorId }) }),
+      fetchApi<import('./types').Customer>(`/customers/${id}/vendor`, {
+        method: 'PUT',
+        body: JSON.stringify({ vendorId }),
+      }),
   },
   mapping: {
     vendorsWithCustomers: () =>
       fetchApi<{
-        vendors: { vendor: { id: string; name: string; contactPerson: string; phone: string }; customers: { id: string; name: string; phone: string; email: string }[] }[];
+        vendors: {
+          vendor: { id: string; name: string; contactPerson: string; phone: string };
+          customers: { id: string; name: string; phone: string; email: string }[];
+        }[];
         directCustomers: { id: string; name: string; phone: string; email: string }[];
       }>('/mapping/vendors-with-customers'),
   },
@@ -508,12 +723,19 @@ vendor: (vendorId: string) =>
     list: (search?: string) =>
       fetchApi<import('./types').Vendor[]>(`/vendors${search ? `?search=${encodeURIComponent(search)}` : ''}`),
     create: (data: Omit<import('./types').Vendor, 'id'>) =>
-      fetchApi<import('./types').Vendor & { credentials?: { email: string; password: string } | null }>('/vendors', { method: 'POST', body: JSON.stringify(data) }),
+      fetchApi<import('./types').Vendor & { credentials?: { email: string; password: string } | null }>('/vendors', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     update: (id: string, data: Partial<import('./types').Vendor>) =>
       fetchApi<import('./types').Vendor>(`/vendors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => fetchApi<void>(`/vendors/${id}`, { method: 'DELETE' }),
     bulk: (vendors: { name: string; contactPerson?: string; phone?: string; email?: string; address?: string }[]) =>
-      fetchApi<{ success: number; errors: string[]; credentials: { name: string; email: string; password: string; url: string }[] }>('/vendors/bulk', { method: 'POST', body: JSON.stringify({ vendors }) }),
+      fetchApi<{
+        success: number;
+        errors: string[];
+        credentials: { name: string; email: string; password: string; url: string }[];
+      }>('/vendors/bulk', { method: 'POST', body: JSON.stringify({ vendors }) }),
   },
   banks: {
     list: (search?: string) =>
@@ -525,33 +747,119 @@ vendor: (vendorId: string) =>
     delete: (id: string) => fetchApi<void>(`/banks/${id}`, { method: 'DELETE' }),
   },
   invoiceFinance: {
-    summary: () => fetchApi<{ clientName: string; clientPhone: string | null; invoiceCount: number; totalInvoiced: number; totalPaid: number; balance: number }[]>('/invoice-finance/summary'),
-    client: (clientName: string) => fetchApi<{
-      clientName: string; totalInvoiced: number; totalPaid: number; balance: number;
-      invoices: { id: string; invoiceNumber: string; invoiceDate: string; dueDate?: string; grandTotal: number; paid: number; balance: number; status: string; notes?: string }[];
-      payments: { id: string; invoiceId: string; invoiceNumber: string; amount: number; paymentDate: string; paymentMethod: string; referenceNumber?: string; notes?: string }[];
-    }>(`/invoice-finance/client/${encodeURIComponent(clientName)}`),
-    recordPayment: (data: { invoiceId: string; amount: number; paymentDate: string; paymentMethod: string; referenceNumber?: string; notes?: string }) =>
-      fetchApi<{ id: string }>('/invoice-finance/payments', { method: 'POST', body: JSON.stringify(data) }),
+    summary: () =>
+      fetchApi<
+        {
+          clientName: string;
+          clientPhone: string | null;
+          invoiceCount: number;
+          totalInvoiced: number;
+          totalPaid: number;
+          balance: number;
+        }[]
+      >('/invoice-finance/summary'),
+    client: (clientName: string) =>
+      fetchApi<{
+        clientName: string;
+        totalInvoiced: number;
+        totalPaid: number;
+        balance: number;
+        invoices: {
+          id: string;
+          invoiceNumber: string;
+          invoiceDate: string;
+          dueDate?: string;
+          grandTotal: number;
+          paid: number;
+          balance: number;
+          status: string;
+          notes?: string;
+        }[];
+        payments: {
+          id: string;
+          invoiceId: string;
+          invoiceNumber: string;
+          amount: number;
+          paymentDate: string;
+          paymentMethod: string;
+          referenceNumber?: string;
+          notes?: string;
+        }[];
+      }>(`/invoice-finance/client/${encodeURIComponent(clientName)}`),
+    recordPayment: (data: {
+      invoiceId: string;
+      amount: number;
+      paymentDate: string;
+      paymentMethod: string;
+      referenceNumber?: string;
+      notes?: string;
+    }) => fetchApi<{ id: string }>('/invoice-finance/payments', { method: 'POST', body: JSON.stringify(data) }),
     deletePayment: (id: string) => fetchApi<void>(`/invoice-finance/payments/${id}`, { method: 'DELETE' }),
   },
   vendorFinance: {
     summary: () =>
-      fetchApi<{ vendorId: string; vendorName: string; vendorPhone: string; totalDistributedValue: number; totalPaid: number; balance: number; unitsDistributed: number; reminder: { enabled: boolean; days: number; lastSent: string | null } }[]>('/vendor-finance/summary'),
+      fetchApi<
+        {
+          vendorId: string;
+          vendorName: string;
+          vendorPhone: string;
+          totalDistributedValue: number;
+          totalPaid: number;
+          balance: number;
+          unitsDistributed: number;
+          reminder: { enabled: boolean; days: number; lastSent: string | null };
+        }[]
+      >('/vendor-finance/summary'),
     detail: (vendorId: string) =>
       fetchApi<{
         vendor: { id: string; name: string; phone?: string; email?: string; address?: string; contactPerson?: string };
-        totalDistributedValue: number; totalPaid: number; balance: number;
-        payments: { id: string; amount: number; paymentDate: string; paymentMethod: string; referenceNumber?: string; notes?: string }[];
+        totalDistributedValue: number;
+        totalPaid: number;
+        balance: number;
+        payments: {
+          id: string;
+          amount: number;
+          paymentDate: string;
+          paymentMethod: string;
+          referenceNumber?: string;
+          notes?: string;
+        }[];
         distributions: { date: string; productName: string; unitPrice: number; quantity: number; total: number }[];
         reminder: { enabled: boolean; days: number; lastSent: string | null };
       }>(`/vendor-finance/${vendorId}`),
-    recordPayment: (vendorId: string, data: { amount: number; paymentDate?: string; paymentMethod?: string; referenceNumber?: string; notes?: string; batchId?: string }) =>
-      fetchApi<{ id: string; amount: number; paymentDate: string }>(`/vendor-finance/${vendorId}/payments`, { method: 'POST', body: JSON.stringify(data) }),
+    recordPayment: (
+      vendorId: string,
+      data: {
+        amount: number;
+        paymentDate?: string;
+        paymentMethod?: string;
+        referenceNumber?: string;
+        notes?: string;
+        batchId?: string;
+      },
+    ) =>
+      fetchApi<{ id: string; amount: number; paymentDate: string }>(`/vendor-finance/${vendorId}/payments`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     updateReminder: (vendorId: string, data: { enabled: boolean; reminderDays: number }) =>
-      fetchApi<{ enabled: boolean; days: number; lastSent: string | null }>(`/vendor-finance/${vendorId}/reminder`, { method: 'PUT', body: JSON.stringify(data) }),
+      fetchApi<{ enabled: boolean; days: number; lastSent: string | null }>(`/vendor-finance/${vendorId}/reminder`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
     remindersDue: () =>
-      fetchApi<{ vendorId: string; vendorName: string; vendorPhone: string; balance: number; totalValue: number; totalPaid: number; reminderDays: number; lastSent: string | null }[]>('/vendor-finance/reminders-due'),
+      fetchApi<
+        {
+          vendorId: string;
+          vendorName: string;
+          vendorPhone: string;
+          balance: number;
+          totalValue: number;
+          totalPaid: number;
+          reminderDays: number;
+          lastSent: string | null;
+        }[]
+      >('/vendor-finance/reminders-due'),
     markReminderSent: (vendorId: string) =>
       fetchApi<{ ok: boolean }>(`/vendor-finance/${vendorId}/reminder-sent`, { method: 'POST' }),
   },
@@ -579,36 +887,141 @@ vendor: (vendorId: string) =>
       if (params?.dateTo) q.set('dateTo', params.dateTo);
       if (params?.entityType) q.set('entityType', params.entityType);
       const qs = q.toString();
-      return fetchApi<{ data: { id: number; userId: string; userName: string; action: string; entityType: string; entityId: string; details: string; createdAt: string }[]; total: number; page: number; totalPages: number }>(`/audit-log${qs ? `?${qs}` : ''}`);
+      return fetchApi<{
+        data: {
+          id: number;
+          userId: string;
+          userName: string;
+          action: string;
+          entityType: string;
+          entityId: string;
+          details: string;
+          createdAt: string;
+        }[];
+        total: number;
+        page: number;
+        totalPages: number;
+      }>(`/audit-log${qs ? `?${qs}` : ''}`);
     },
   },
   gst: {
     getSettings: () => fetchApi<{ mode: string; gstin: string; username: string; clientId: string }>('/gst/settings'),
-    saveSettings: (d: { mode?: string; gstin?: string; username?: string; password?: string; clientId?: string; clientSecret?: string }) =>
-      fetchApi<{ ok: boolean }>('/gst/settings', { method: 'PUT', body: JSON.stringify(d) }),
+    saveSettings: (d: {
+      mode?: string;
+      gstin?: string;
+      username?: string;
+      password?: string;
+      clientId?: string;
+      clientSecret?: string;
+    }) => fetchApi<{ ok: boolean }>('/gst/settings', { method: 'PUT', body: JSON.stringify(d) }),
     generateIrn: (batchId: string) =>
-      fetchApi<{ ok: boolean; irn: string; ackNo: string; ackDt: string; qrCode: string; signedQrCode?: string; mode: string }>('/gst/irn/generate', { method: 'POST', body: JSON.stringify({ batchId }) }),
-    generateEwb: (data: { batchId: string; vehicleNo: string; distance: number; transportMode?: string; transporterName?: string; transporterId?: string }) =>
-      fetchApi<{ ok: boolean; ewbNo: string; ewbDt: string; ewbValidTill: string; mode: string }>('/gst/ewb/generate', { method: 'POST', body: JSON.stringify(data) }),
+      fetchApi<{
+        ok: boolean;
+        irn: string;
+        ackNo: string;
+        ackDt: string;
+        qrCode: string;
+        signedQrCode?: string;
+        mode: string;
+      }>('/gst/irn/generate', { method: 'POST', body: JSON.stringify({ batchId }) }),
+    generateEwb: (data: {
+      batchId: string;
+      vehicleNo: string;
+      distance: number;
+      transportMode?: string;
+      transporterName?: string;
+      transporterId?: string;
+    }) =>
+      fetchApi<{ ok: boolean; ewbNo: string; ewbDt: string; ewbValidTill: string; mode: string }>('/gst/ewb/generate', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     cancelIrn: (irn: string, reason: number, remark?: string) =>
       fetchApi<{ ok: boolean }>('/gst/irn/cancel', { method: 'POST', body: JSON.stringify({ irn, reason, remark }) }),
   },
   auth: {
-    signup: (data: { email: string; password: string; name: string; phone?: string; address?: string; role?: string; companyName?: string }) =>
-      fetchApi<{ token: string; tenantId: string; user: { id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string } }>('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
+    signup: (data: {
+      email: string;
+      password: string;
+      name: string;
+      phone?: string;
+      address?: string;
+      role?: string;
+      companyName?: string;
+    }) =>
+      fetchApi<{
+        token: string;
+        tenantId: string;
+        user: {
+          id: string;
+          email: string;
+          name: string;
+          phone?: string;
+          address?: string;
+          role?: string;
+          companyName?: string;
+        };
+      }>('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
     login: (email: string, password: string, slug?: string) =>
-      fetchApi<{ token: string; tenantId: string; tenantSlug?: string; id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: Record<string, string> | string[] | null; vendorId?: string | null; autoWhatsapp?: boolean; defaultGstRate?: number; gstNumber?: string | null; warrantyEnabled?: boolean; replacementEnabled?: boolean; rewardsEnabled?: boolean; financeEnabled?: boolean; chatbotEnabled?: boolean; billCustomizationEnabled?: boolean; multiLanguageEnabled?: boolean; vendorPortalEnabled?: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, ...(slug ? { slug } : {}) }) }),
+      fetchApi<{
+        token: string;
+        tenantId: string;
+        tenantSlug?: string;
+        id: string;
+        email: string;
+        name: string;
+        phone?: string;
+        address?: string;
+        role?: string;
+        companyName?: string;
+        permissions?: Record<string, string> | string[] | null;
+        vendorId?: string | null;
+        autoWhatsapp?: boolean;
+        defaultGstRate?: number;
+        gstNumber?: string | null;
+        warrantyEnabled?: boolean;
+        replacementEnabled?: boolean;
+        rewardsEnabled?: boolean;
+        financeEnabled?: boolean;
+        chatbotEnabled?: boolean;
+        billCustomizationEnabled?: boolean;
+        multiLanguageEnabled?: boolean;
+        vendorPortalEnabled?: boolean;
+      }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, ...(slug ? { slug } : {}) }) }),
     forgotPassword: (email: string) =>
-      fetchApi<{ ok: boolean; message: string; token?: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+      fetchApi<{ ok: boolean; message: string; token?: string }>('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }),
     resetPassword: (token: string, newPassword: string) =>
-      fetchApi<{ ok: boolean; message: string }>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
+      fetchApi<{ ok: boolean; message: string }>('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ token, newPassword }),
+      }),
   },
   tenantBySlug: (slug: string) =>
-    fetchApi<{ tenantId: string; companyName: string; slug: string; logoBase64: string | null; primaryColor: string; tagline: string | null }>(`/tenant/by-slug/${encodeURIComponent(slug)}`),
+    fetchApi<{
+      tenantId: string;
+      companyName: string;
+      slug: string;
+      logoBase64: string | null;
+      primaryColor: string;
+      tagline: string | null;
+    }>(`/tenant/by-slug/${encodeURIComponent(slug)}`),
   backup: {
-    settings: () => fetchApi<{ enabled: boolean; frequency: string; intervalDays: number; lastBackupAt: string | null; email: string | null }>('/backup/settings'),
+    settings: () =>
+      fetchApi<{
+        enabled: boolean;
+        frequency: string;
+        intervalDays: number;
+        lastBackupAt: string | null;
+        email: string | null;
+      }>('/backup/settings'),
     updateSettings: (data: { enabled: boolean; frequency: string; intervalDays?: number; email?: string }) =>
-      fetchApi<{ ok: boolean; enabled: boolean; frequency: string; intervalDays: number; email: string | null }>('/backup/settings', { method: 'PUT', body: JSON.stringify(data) }),
+      fetchApi<{ ok: boolean; enabled: boolean; frequency: string; intervalDays: number; email: string | null }>(
+        '/backup/settings',
+        { method: 'PUT', body: JSON.stringify(data) },
+      ),
   },
   expenses: {
     list: (filters?: { category?: string; from?: string; to?: string }) => {
@@ -616,56 +1029,212 @@ vendor: (vendorId: string) =>
       if (filters?.category) q.set('category', filters.category);
       if (filters?.from) q.set('from', filters.from);
       if (filters?.to) q.set('to', filters.to);
-      return fetchApi<{ id: string; category: string; description?: string; amount: number; expenseDate: string; paymentMethod: string; referenceNumber?: string; notes?: string }[]>(`/expenses?${q}`);
+      return fetchApi<
+        {
+          id: string;
+          category: string;
+          description?: string;
+          amount: number;
+          expenseDate: string;
+          paymentMethod: string;
+          referenceNumber?: string;
+          notes?: string;
+        }[]
+      >(`/expenses?${q}`);
     },
-    summary: (year?: number) => fetchApi<{ year: number; grandTotal: number; byCategory: { category: string; total: number; count: number }[]; byMonth: { month: string; total: number }[] }>(`/expenses/summary?year=${year || new Date().getFullYear()}`),
-    create: (data: { category: string; description?: string; amount: number; expenseDate?: string; paymentMethod?: string; referenceNumber?: string; notes?: string }) =>
-      fetchApi<{ id: string; category: string; amount: number }>('/expenses', { method: 'POST', body: JSON.stringify(data) }),
+    summary: (year?: number) =>
+      fetchApi<{
+        year: number;
+        grandTotal: number;
+        byCategory: { category: string; total: number; count: number }[];
+        byMonth: { month: string; total: number }[];
+      }>(`/expenses/summary?year=${year || new Date().getFullYear()}`),
+    create: (data: {
+      category: string;
+      description?: string;
+      amount: number;
+      expenseDate?: string;
+      paymentMethod?: string;
+      referenceNumber?: string;
+      notes?: string;
+    }) =>
+      fetchApi<{ id: string; category: string; amount: number }>('/expenses', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     delete: (id: string) => fetchApi<{ ok: boolean }>(`/expenses/${id}`, { method: 'DELETE' }),
   },
   staff: {
-    list: (search?: string) => fetchApi<{ id: string; name: string; phone?: string; role?: string; address?: string; salary: number; joiningDate?: string; status: string; totalPaid: number; totalAdvance: number; totalRepaid: number; advanceBalance: number; paymentCount: number; lastPayment?: string }[]>(`/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-    create: (data: { name: string; phone?: string; role?: string; address?: string; salary?: number; joiningDate?: string }) =>
-      fetchApi<{ id: string; name: string }>('/staff', { method: 'POST', body: JSON.stringify(data) }),
+    list: (search?: string) =>
+      fetchApi<
+        {
+          id: string;
+          name: string;
+          phone?: string;
+          role?: string;
+          address?: string;
+          salary: number;
+          joiningDate?: string;
+          status: string;
+          totalPaid: number;
+          totalAdvance: number;
+          totalRepaid: number;
+          advanceBalance: number;
+          paymentCount: number;
+          lastPayment?: string;
+        }[]
+      >(`/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+    create: (data: {
+      name: string;
+      phone?: string;
+      role?: string;
+      address?: string;
+      salary?: number;
+      joiningDate?: string;
+    }) => fetchApi<{ id: string; name: string }>('/staff', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Record<string, unknown>) =>
       fetchApi<{ ok: boolean }>(`/staff/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => fetchApi<{ ok: boolean }>(`/staff/${id}`, { method: 'DELETE' }),
   },
   payroll: {
-    staff: (search?: string) => fetchApi<{ name: string; totalPaid: number; paymentCount: number; lastPayment: string; firstPayment: string }[]>(`/payroll/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+    staff: (search?: string) =>
+      fetchApi<{ name: string; totalPaid: number; paymentCount: number; lastPayment: string; firstPayment: string }[]>(
+        `/payroll/staff${search ? `?search=${encodeURIComponent(search)}` : ''}`,
+      ),
     list: (filters?: { month?: string; year?: number; staffName?: string }) => {
       const q = new URLSearchParams();
       if (filters?.month) q.set('month', filters.month);
       if (filters?.year) q.set('year', String(filters.year));
       if (filters?.staffName) q.set('staffName', filters.staffName);
-      return fetchApi<{ id: string; staffName: string; amount: number; paymentDate: string; paymentMethod: string; referenceNumber?: string; notes?: string; month: string; year: number }[]>(`/payroll?${q}`);
+      return fetchApi<
+        {
+          id: string;
+          staffName: string;
+          amount: number;
+          paymentDate: string;
+          paymentMethod: string;
+          referenceNumber?: string;
+          notes?: string;
+          month: string;
+          year: number;
+        }[]
+      >(`/payroll?${q}`);
     },
-    summary: (year?: number) => fetchApi<{ year: number; grandTotal: number; advanceOutstanding: number; byStaff: { name: string; total: number; payments: number }[]; byMonth: { month: string; total: number; payments: number }[] }>(`/payroll/summary?year=${year || new Date().getFullYear()}`),
-    create: (data: { staffName: string; amount: number; paymentDate?: string; paymentType?: string; paymentMethod?: string; referenceNumber?: string; notes?: string }) =>
-      fetchApi<{ id: string; staffName: string; amount: number; paymentDate: string; paymentType: string }>('/payroll', { method: 'POST', body: JSON.stringify(data) }),
+    summary: (year?: number) =>
+      fetchApi<{
+        year: number;
+        grandTotal: number;
+        advanceOutstanding: number;
+        byStaff: { name: string; total: number; payments: number }[];
+        byMonth: { month: string; total: number; payments: number }[];
+      }>(`/payroll/summary?year=${year || new Date().getFullYear()}`),
+    create: (data: {
+      staffName: string;
+      amount: number;
+      paymentDate?: string;
+      paymentType?: string;
+      paymentMethod?: string;
+      referenceNumber?: string;
+      notes?: string;
+    }) =>
+      fetchApi<{ id: string; staffName: string; amount: number; paymentDate: string; paymentType: string }>(
+        '/payroll',
+        { method: 'POST', body: JSON.stringify(data) },
+      ),
     delete: (id: string) => fetchApi<{ ok: boolean }>(`/payroll/${id}`, { method: 'DELETE' }),
   },
   settings: {
     getProfile: (userId: string) =>
-      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: Record<string, string> | string[] | null; vendorId?: string | null; gstNumber?: string | null; defaultGstRate?: number }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),
+      fetchApi<{
+        id: string;
+        email: string;
+        name: string;
+        phone?: string;
+        address?: string;
+        role?: string;
+        companyName?: string;
+        permissions?: Record<string, string> | string[] | null;
+        vendorId?: string | null;
+        gstNumber?: string | null;
+        defaultGstRate?: number;
+      }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),
     changePassword: (userId: string, currentPassword: string, newPassword: string) =>
-      fetchApi<{ ok: boolean }>('/settings/change-password', { method: 'PUT', body: JSON.stringify({ userId, currentPassword, newPassword }) }),
+      fetchApi<{ ok: boolean }>('/settings/change-password', {
+        method: 'PUT',
+        body: JSON.stringify({ userId, currentPassword, newPassword }),
+      }),
     updateProfile: (userId: string, data: Record<string, unknown>) =>
-      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; autoWhatsapp?: boolean }>('/settings/profile', { method: 'PUT', body: JSON.stringify({ userId, ...data }) }),
+      fetchApi<{
+        id: string;
+        email: string;
+        name: string;
+        phone?: string;
+        address?: string;
+        role?: string;
+        companyName?: string;
+        autoWhatsapp?: boolean;
+      }>('/settings/profile', { method: 'PUT', body: JSON.stringify({ userId, ...data }) }),
     deleteAccount: (password: string) =>
       fetchApi<{ ok: boolean; message: string }>('/auth/me', { method: 'DELETE', body: JSON.stringify({ password }) }),
-    getBillSettings: () =>
-      fetchApi<import('./types').BillSettings>('/settings/bill'),
+    getBillSettings: () => fetchApi<import('./types').BillSettings>('/settings/bill'),
     updateBillSettings: (data: Partial<import('./types').BillSettings>) =>
       fetchApi<import('./types').BillSettings>('/settings/bill', { method: 'PUT', body: JSON.stringify(data) }),
   },
   admin: {
     listUsers: (adminUserId: string) =>
-      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[] | null; vendorId?: string | null }[]>(`/admin/users?adminUserId=${encodeURIComponent(adminUserId)}`),
-    createUser: (adminUserId: string, data: { email: string; password: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[]; vendorId?: string }) =>
-      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: string[] | null; vendorId?: string | null }>('/admin/users', { method: 'POST', body: JSON.stringify({ adminUserId, ...data }) }),
-    updateUser: (adminUserId: string, userId: string, data: { role?: string; permissions?: Record<string, string> | string[]; vendorId?: string }) =>
-      fetchApi<{ id: string; email: string; name: string; phone?: string; address?: string; role?: string; companyName?: string; permissions?: Record<string, string> | null }>(`/admin/users/${userId}`, { method: 'PUT', body: JSON.stringify({ adminUserId, ...data }) }),
+      fetchApi<
+        {
+          id: string;
+          email: string;
+          name: string;
+          phone?: string;
+          address?: string;
+          role?: string;
+          companyName?: string;
+          permissions?: string[] | null;
+          vendorId?: string | null;
+        }[]
+      >(`/admin/users?adminUserId=${encodeURIComponent(adminUserId)}`),
+    createUser: (
+      adminUserId: string,
+      data: {
+        email: string;
+        password: string;
+        name: string;
+        phone?: string;
+        address?: string;
+        role?: string;
+        companyName?: string;
+        permissions?: string[];
+        vendorId?: string;
+      },
+    ) =>
+      fetchApi<{
+        id: string;
+        email: string;
+        name: string;
+        phone?: string;
+        address?: string;
+        role?: string;
+        companyName?: string;
+        permissions?: string[] | null;
+        vendorId?: string | null;
+      }>('/admin/users', { method: 'POST', body: JSON.stringify({ adminUserId, ...data }) }),
+    updateUser: (
+      adminUserId: string,
+      userId: string,
+      data: { role?: string; permissions?: Record<string, string> | string[]; vendorId?: string },
+    ) =>
+      fetchApi<{
+        id: string;
+        email: string;
+        name: string;
+        phone?: string;
+        address?: string;
+        role?: string;
+        companyName?: string;
+        permissions?: Record<string, string> | null;
+      }>(`/admin/users/${userId}`, { method: 'PUT', body: JSON.stringify({ adminUserId, ...data }) }),
     deleteUser: (userId: string) =>
       fetchApi<{ ok: boolean; message: string }>(`/admin/users/${userId}`, { method: 'DELETE' }),
   },

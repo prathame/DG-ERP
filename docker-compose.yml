@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: dhandho
+      POSTGRES_PASSWORD: dhandho
+      POSTGRES_DB: dhandho
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dhandho -d dhandho"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgres://dhandho:dhandho@db:5432/dhandho
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-use-long-random}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-admin@example.com}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-ChangeMeNow!}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3001,http://localhost:3000}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:3001}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

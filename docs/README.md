@@ -2,8 +2,10 @@
 
 | Doc | Description |
 |-----|-------------|
+| [architecture.md](architecture.md) | Living architecture + Mermaid diagrams |
 | [ARCHITECTURE_REPORT.md](ARCHITECTURE_REPORT.md) | Stack, routing, auth, DB, deploy topology |
 | [PRODUCTION_AUDIT_REPORT.md](PRODUCTION_AUDIT_REPORT.md) | Production hardening audit, scores, debt |
+| [ENTERPRISE_HARDENING_REPORT.md](ENTERPRISE_HARDENING_REPORT.md) | Enterprise SaaS pass — metrics & debt |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Render env checklist, health checks, rollback |
 | [MOBILE.md](MOBILE.md) | Capacitor app: Super Admin invite, heartbeat sync, `/download`, APIs, build |
 | [../README.md](../README.md) | Product overview, setup, desktop + mobile summary |
