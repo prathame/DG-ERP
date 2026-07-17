@@ -102,7 +102,7 @@ export function GuideView() {
               <p>After creation, a credentials screen appears with:</p>
               <p>• Login URL: <code className="bg-gray-200 px-1 rounded">{window.location.origin}/their-slug</code></p>
               <p>• Admin email + temporary password</p>
-              <p>• <strong>Mobile invite code</strong>: <code className="bg-gray-200 px-1 rounded font-mono">DG-M-XXXX-XXXX</code></p>
+              <p>• <strong>Mobile invite code</strong>: <code className="bg-gray-200 px-1 rounded font-mono">DG-M-XXXX-XXXX-XXXX</code></p>
               <p>Click <strong>Share via WhatsApp</strong> — includes web login + mobile download + invite</p>
             </div>
           </Step>
@@ -146,7 +146,7 @@ export function GuideView() {
             <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
               <p>WhatsApp from create screen or Mobile panel includes:</p>
               <p>• Download: <code className="bg-gray-200 px-1 rounded">{window.location.origin}/download</code></p>
-              <p>• Invite: <code className="bg-gray-200 px-1 rounded font-mono">DG-M-XXXX-XXXX</code> (+ QR in Mobile panel)</p>
+              <p>• Invite: <code className="bg-gray-200 px-1 rounded font-mono">DG-M-XXXX-XXXX-XXXX</code> (+ QR in Mobile panel)</p>
               <p>• Company code (slug) as fallback</p>
               <p>• Admin email / password</p>
             </div>

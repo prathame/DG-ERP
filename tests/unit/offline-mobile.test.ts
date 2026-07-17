@@ -97,6 +97,27 @@ describe('offline queue', () => {
     expect(getOfflineQueue()[0].label).toBe('create');
   });
 
+  it('strips Authorization and X-Tenant-ID from persisted headers', async () => {
+    const { enqueueOfflineMutation, getOfflineQueue, clearOfflineQueue } =
+      await import('../../src/platforms/mobile/offline/queue');
+    clearOfflineQueue();
+    enqueueOfflineMutation({
+      path: '/api/products',
+      method: 'POST',
+      body: '{}',
+      headers: {
+        Authorization: 'Bearer secret-jwt',
+        'X-Tenant-ID': 'T1',
+        'Content-Type': 'application/json',
+        'X-Custom': 'keep',
+      },
+    });
+    const stored = getOfflineQueue()[0].headers;
+    expect(stored?.Authorization).toBeUndefined();
+    expect(stored?.['X-Tenant-ID']).toBeUndefined();
+    expect(stored?.['X-Custom']).toBe('keep');
+  });
+
   it('dedupes identical method/path/body', async () => {
     const { enqueueOfflineMutation, offlineQueueCount, clearOfflineQueue } =
       await import('../../src/platforms/mobile/offline/queue');
