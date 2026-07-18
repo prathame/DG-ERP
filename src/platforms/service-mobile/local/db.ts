@@ -30,16 +30,44 @@ async function runMigrations(instance: PGlite): Promise<void> {
   }
 }
 
+async function createAndMigrate(): Promise<PGlite> {
+  const instance = await PGlite.create('idb://dhandho-service-mobile');
+  await instance.exec(SERVICE_MOBILE_SCHEMA_SQL);
+  await runMigrations(instance);
+  return instance;
+}
+
+async function deleteIdbStore(): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  await new Promise<void>(resolve => {
+    const req = indexedDB.deleteDatabase('/pglite/dhandho-service-mobile');
+    req.onsuccess = () => resolve();
+    req.onerror = () => resolve();
+    req.onblocked = () => resolve();
+  });
+}
+
 export async function getLocalDb(): Promise<PGlite> {
   if (db) return db;
   if (!ready) {
     ready = (async () => {
-      const instance = await PGlite.create('idb://dhandho-service-mobile');
-      await instance.exec(SERVICE_MOBILE_SCHEMA_SQL);
-      await runMigrations(instance);
-      db = instance;
-      return instance;
-    })();
+      try {
+        const instance = await createAndMigrate();
+        db = instance;
+        return instance;
+      } catch (first) {
+        // Corrupted IDB or interrupted first boot (common after Vite/WASM hiccups) — wipe once and retry.
+        console.warn('[service-mobile] PGlite open failed, wiping IndexedDB and retrying', first);
+        await deleteIdbStore();
+        const instance = await createAndMigrate();
+        db = instance;
+        return instance;
+      }
+    })().catch(err => {
+      ready = null;
+      db = null;
+      throw err;
+    });
   }
   return ready;
 }
@@ -165,12 +193,5 @@ export async function restoreLocalDbFromJson(bytes: Uint8Array): Promise<void> {
 export async function wipeLocalDb(): Promise<void> {
   db = null;
   ready = null;
-  if (typeof indexedDB !== 'undefined') {
-    await new Promise<void>(resolve => {
-      const req = indexedDB.deleteDatabase('/pglite/dhandho-service-mobile');
-      req.onsuccess = () => resolve();
-      req.onerror = () => resolve();
-      req.onblocked = () => resolve();
-    });
-  }
+  await deleteIdbStore();
 }

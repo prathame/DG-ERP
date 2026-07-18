@@ -52,8 +52,10 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
       }
       try {
         await getLocalDb();
-      } catch {
-        setError('Could not open local database on this phone. Free some storage and try again.');
+      } catch (dbErr) {
+        console.error('[service-mobile] local DB open failed', dbErr);
+        const detail = import.meta.env.DEV && dbErr instanceof Error && dbErr.message ? ` (${dbErr.message})` : '';
+        setError(`Could not open local database on this phone. Free some storage and try again.${detail}`);
         return;
       }
       saveLicense({

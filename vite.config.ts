@@ -18,6 +18,13 @@ export default defineConfig(({ mode }) => {
   return {
     base: serviceMobile ? './' : '/',
     plugins,
+    // PGlite ships its own WASM/data URLs — Vite prebundle breaks them (blank DB / WASM compile errors).
+    optimizeDeps: {
+      exclude: ['@electric-sql/pglite'],
+    },
+    worker: {
+      format: 'es',
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

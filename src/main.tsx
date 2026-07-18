@@ -37,11 +37,11 @@ document.addEventListener(
 );
 
 void initPlatform().finally(() => {
-  createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-      <LanguageProvider>
-        <App />
-      </LanguageProvider>
-    </StrictMode>,
+  const tree = (
+    <LanguageProvider>
+      <App />
+    </LanguageProvider>
   );
+  // PGlite IndexedDB must not be double-mounted (React StrictMode remounts break first boot).
+  createRoot(document.getElementById('root')!).render(isServiceMobileMode() ? tree : <StrictMode>{tree}</StrictMode>);
 });
