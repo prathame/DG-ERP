@@ -18,6 +18,14 @@ import {
   mapVendor,
 } from './mappers';
 import { buildLineItems, mapOrderRow, mapQuoteRow, nextDocNumber } from './quoteOrderHelpers';
+import {
+  buildStandaloneInvoiceLines,
+  isInterstateSupply,
+  resolveLocalPrice,
+  resolveSellerGstin,
+  splitGstTax,
+  type InvoiceLineIn,
+} from './invoiceHelpers';
 
 function uid(prefix: string): string {
   return `${prefix}-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
@@ -375,9 +383,24 @@ export async function handleLocalApiRequest(
     if (ctx.path === '/products' && ctx.method === 'POST') {
       const b = ctx.body as Record<string, unknown>;
       const id = uid('P');
+      const gst = Number(b.gstRate ?? b.gstPercent ?? b.gst_rate ?? b.gst_percent) || 18;
       await localQuery(
-        `INSERT INTO products (id, tenant_id, name, sku, price, gst_percent) VALUES ($1,$2,$3,$4,$5,$6)`,
-        [id, tid, b.name, b.sku ?? null, b.price ?? 0, b.gstPercent ?? b.gst_percent ?? 18],
+        `INSERT INTO products
+           (id, tenant_id, name, sku, barcode, price, gst_percent, gst_rate, hsn_code, stock, warranty_months, price_includes_gst)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11)`,
+        [
+          id,
+          tid,
+          b.name,
+          b.sku ?? null,
+          b.barcode ?? null,
+          b.price ?? 0,
+          gst,
+          b.hsnCode ?? b.hsn_code ?? null,
+          b.stock ?? 0,
+          b.warrantyMonths ?? b.warranty_months ?? 0,
+          !!b.priceIncludesGst,
+        ],
       );
       const { rows } = await localQuery(`SELECT * FROM products WHERE id=$1`, [id]);
       return json(201, mapProduct(rows[0] as Record<string, unknown>));
@@ -403,14 +426,22 @@ export async function handleLocalApiRequest(
       }
       if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
         const b = ctx.body as Record<string, unknown>;
+        const gstRaw = b.gstRate ?? b.gstPercent;
+        const gst = gstRaw != null ? Number(gstRaw) : null;
         await localQuery(
           `UPDATE products SET name=COALESCE($1,name), sku=COALESCE($2,sku), price=COALESCE($3,price),
-           gst_percent=COALESCE($4,gst_percent) WHERE id=$5 AND tenant_id=$6`,
+           gst_percent=COALESCE($4,gst_percent), gst_rate=COALESCE($4,gst_rate),
+           hsn_code=COALESCE($5,hsn_code), barcode=COALESCE($6,barcode),
+           price_includes_gst=COALESCE($7,price_includes_gst)
+           WHERE id=$8 AND tenant_id=$9`,
           [
             b.name ?? null,
             b.sku ?? null,
             b.price != null ? Number(b.price) : null,
-            b.gstPercent != null ? Number(b.gstPercent) : null,
+            gst,
+            b.hsnCode ?? b.hsn_code ?? null,
+            b.barcode ?? null,
+            b.priceIncludesGst != null ? !!b.priceIncludesGst : null,
             id,
             tid,
           ],
@@ -1345,37 +1376,86 @@ export async function handleLocalApiRequest(
       }
       if (ctx.method === 'POST') {
         const b = ctx.body as Record<string, unknown>;
+        const customerName = String(b.customerName ?? b.clientName ?? b.client_name ?? '').trim();
+        if (!customerName) return json(400, { error: 'Customer name is required' });
+
+        let resolvedPartyType: string | null = null;
+        let resolvedPartyId: string | null = null;
+        if (b.partyType != null || b.partyId != null) {
+          if (b.partyType !== 'vendor' && b.partyType !== 'customer') {
+            return json(400, { error: 'partyType must be vendor or customer' });
+          }
+          if (!b.partyId || typeof b.partyId !== 'string') {
+            return json(400, { error: 'partyId is required when partyType is set' });
+          }
+          if (b.partyType === 'vendor') {
+            const { rows: vr } = await localQuery(`SELECT id FROM vendors WHERE id=$1 AND tenant_id=$2`, [
+              b.partyId,
+              tid,
+            ]);
+            if (!vr[0]) return json(400, { error: 'Vendor not found' });
+          } else {
+            const { rows: cr } = await localQuery(`SELECT id FROM customers WHERE id=$1 AND tenant_id=$2`, [
+              b.partyId,
+              tid,
+            ]);
+            if (!cr[0]) return json(400, { error: 'Customer not found' });
+          }
+          resolvedPartyType = String(b.partyType);
+          resolvedPartyId = String(b.partyId);
+        }
+
+        // paid/cancelled only via status update — never on create (same as cloud)
+        let createStatus = 'draft';
+        if (b.status === 'sent' || b.status === 'unpaid') createStatus = 'sent';
+        else if (b.status === 'draft' || b.status == null) createStatus = 'draft';
+        else if (b.status) {
+          return json(400, {
+            error: 'New invoices can only be draft or sent. Mark paid after recording payment.',
+          });
+        }
+
+        const priceVendorId = resolvedPartyType === 'vendor' ? resolvedPartyId : null;
+        const built = await buildStandaloneInvoiceLines(tid!, (b.items as InvoiceLineIn[]) || [], priceVendorId);
+        if ('error' in built) return json(400, { error: built.error });
+
+        const sellerGstin = await resolveSellerGstin(tid!);
+        const customerGstin = (b.customerGstin as string) || null;
+        const interstate = isInterstateSupply(sellerGstin, customerGstin);
+        const { taxCgst, taxSgst, taxIgst } = splitGstTax(built.taxTotal, interstate);
+
         const id = uid('INV');
-        const customerName = b.customerName ?? b.clientName ?? b.client_name ?? '';
-        const subtotal = Number(b.subtotal) || 0;
-        const taxTotal = Number(b.taxTotal ?? b.tax) || 0;
-        const grandTotal = Number(b.grandTotal ?? b.total) || subtotal + taxTotal;
+        const invoiceNumber = (b.invoiceNumber as string) || (b.invoice_number as string) || `INV-${Date.now()}`;
         await localQuery(
           `INSERT INTO standalone_invoices
              (id, tenant_id, invoice_number, customer_name, client_name, client_id, customer_gstin, customer_address,
               customer_phone, party_type, party_id, status, items, subtotal, tax, tax_total, grand_total, total,
-              notes, terms, invoice_date, due_date)
-           VALUES ($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14,$15,$15,$16,$17,$18,$19)`,
+              notes, terms, invoice_date, due_date, tax_cgst, tax_sgst, tax_igst, is_interstate)
+           VALUES ($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14,$15,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
           [
             id,
             tid,
-            b.invoiceNumber ?? b.invoice_number ?? null,
+            invoiceNumber,
             customerName,
-            b.partyId ?? b.clientId ?? null,
-            b.customerGstin ?? null,
+            resolvedPartyId,
+            customerGstin,
             b.customerAddress ?? null,
             b.customerPhone ?? null,
-            b.partyType ?? null,
-            b.partyId ?? null,
-            b.status ?? 'draft',
-            JSON.stringify(b.items ?? []),
-            subtotal,
-            taxTotal,
-            grandTotal,
+            resolvedPartyType,
+            resolvedPartyId,
+            createStatus,
+            JSON.stringify(built.lineItems),
+            built.subtotal,
+            built.taxTotal,
+            built.grandTotal,
             b.notes ?? null,
             b.terms ?? null,
             b.invoiceDate ?? b.invoice_date ?? new Date().toISOString().slice(0, 10),
             b.dueDate ?? null,
+            taxCgst,
+            taxSgst,
+            taxIgst,
+            interstate,
           ],
         );
         const { rows } = await localQuery(`SELECT * FROM standalone_invoices WHERE id=$1`, [id]);
@@ -1724,6 +1804,16 @@ export async function handleLocalApiRequest(
       }
     }
 
+    // Price resolve (InvoicesView / QuotationsView — same shape as cloud)
+    if (ctx.path === '/price-lists/resolve' && ctx.method === 'GET') {
+      const productId = query.get('productId');
+      if (!productId) return json(400, { error: 'productId required' });
+      const vendorId = query.get('vendorId');
+      const quantity = Number(query.get('quantity')) || 1;
+      const resolved = await resolveLocalPrice(tid!, productId, vendorId, quantity);
+      return json(200, resolved);
+    }
+
     // Price lists (per-product / per-vendor rules — same shape as cloud)
     if (ctx.path === '/price-lists' && ctx.method === 'GET') {
       const { rows } = await localQuery(
@@ -1861,7 +1951,7 @@ export async function handleLocalApiRequest(
       return json(200, { success, updated, inserted, errors });
     }
     const priceListMatch = ctx.path.match(/^\/price-lists\/([^/]+)$/);
-    if (priceListMatch && priceListMatch[1] !== 'bulk') {
+    if (priceListMatch && priceListMatch[1] !== 'bulk' && priceListMatch[1] !== 'resolve') {
       const id = priceListMatch[1]!;
       if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
         const b = ctx.body as Record<string, unknown>;

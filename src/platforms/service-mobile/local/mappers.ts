@@ -12,13 +12,16 @@ function parseJsonArray(value: unknown): unknown[] {
 }
 
 export function mapVendor(r: Record<string, unknown>) {
+  const gst = (r.gstin ?? r.gst_number ?? null) as string | null;
   return {
     id: r.id,
     name: r.name,
     phone: r.phone ?? null,
     email: r.email ?? null,
     address: r.address ?? null,
-    gstin: r.gstin ?? null,
+    /** UI (InvoicesView / Vendor type) reads gstNumber */
+    gstNumber: gst,
+    gstin: gst,
     createdAt: r.created_at,
   };
 }
@@ -35,13 +38,21 @@ export function mapCustomer(r: Record<string, unknown>) {
 }
 
 export function mapProduct(r: Record<string, unknown>) {
+  const gst = Number(r.gst_rate ?? r.gst_percent) || 18;
   return {
     id: r.id,
     name: r.name,
     sku: r.sku ?? null,
+    barcode: r.barcode ?? null,
     categoryId: r.category_id ?? null,
     price: Number(r.price) || 0,
-    gstPercent: Number(r.gst_percent) || 18,
+    /** UI (InvoicesView Product type) reads gstRate + hsnCode */
+    gstRate: gst,
+    gstPercent: gst,
+    hsnCode: (r.hsn_code as string) ?? null,
+    stock: Number(r.stock) || 0,
+    warrantyMonths: Number(r.warranty_months) || 0,
+    priceIncludesGst: !!r.price_includes_gst,
     createdAt: r.created_at,
   };
 }

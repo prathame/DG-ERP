@@ -867,7 +867,7 @@ export function CreateInvoiceModal({
 
   const pricingVendorId = partyKey.startsWith('vendor:') ? partyKey.slice('vendor:'.length) : null;
 
-  /** Prefer server resolve; fall back to client catalog rules. */
+  /** Prefer server resolve (Offline → local router); fall back to client catalog rules. */
   const resolveRowPrice = (idx: number, productId: string, vendorId: string | null, quantity: number) => {
     if (!productId || quantity <= 0) return;
     const token = (resolveTokenRef.current[idx] = (resolveTokenRef.current[idx] || 0) + 1);
@@ -876,13 +876,7 @@ export function CreateInvoiceModal({
       quantity: String(quantity),
     });
     if (vendorId) qs.set('vendorId', vendorId);
-    fetch(`/api/price-lists/resolve?${qs}`, {
-      headers: {
-        Authorization: `Bearer ${session.getToken()}`,
-        'X-Tenant-ID': session.getTenantId() || '',
-      },
-    })
-      .then(r => r.json())
+    fetchApi<{ price: number }>(`/price-lists/resolve?${qs}`)
       .then(d => {
         if (resolveTokenRef.current[idx] !== token) return;
         if (!d || typeof d.price !== 'number') return;
@@ -908,57 +902,62 @@ export function CreateInvoiceModal({
     fetchApi<{ number: string }>('/invoices/next-number')
       .then(r => setInvoiceNumber(r.number))
       .catch(() => {});
-    Promise.all([api.vendors.list(), api.customers.list(), api.products.list(), fetchApi<PriceRule[]>('/price-lists')])
-      .then(([vendors, customers, productList, rules]) => {
-        const fromVendors: InvoiceParty[] = vendors
-          .filter(v => v.id !== 'OWNER')
-          .map(v => ({
-            key: `vendor:${v.id}`,
-            label: `${v.name} (${vendorPartyKind})`,
-            name: v.name,
-            phone: v.phone || '',
-            address: v.address || '',
-            gstin: v.gstNumber || '',
-            partyType: 'vendor' as const,
-            partyId: v.id,
-          }));
-        const fromCustomers: InvoiceParty[] = customers.map(c => ({
-          key: `customer:${c.id}`,
-          label: `${c.name} (${isService ? 'Customer' : 'Client'})`,
-          name: c.name,
-          phone: c.phone || '',
-          address: c.address || '',
-          gstin: '',
-          partyType: 'customer' as const,
-          partyId: c.id,
+    // allSettled: one failing list must not wipe parties/products (blocks Offline create form)
+    Promise.allSettled([
+      api.vendors.list(),
+      api.customers.list(),
+      api.products.list(),
+      fetchApi<PriceRule[]>('/price-lists'),
+    ]).then(results => {
+      const vendors = results[0].status === 'fulfilled' && Array.isArray(results[0].value) ? results[0].value : [];
+      const customers = results[1].status === 'fulfilled' && Array.isArray(results[1].value) ? results[1].value : [];
+      const productList = results[2].status === 'fulfilled' && Array.isArray(results[2].value) ? results[2].value : [];
+      const rules = results[3].status === 'fulfilled' && Array.isArray(results[3].value) ? results[3].value : [];
+
+      const fromVendors: InvoiceParty[] = vendors
+        .filter(v => v.id !== 'OWNER')
+        .map(v => ({
+          key: `vendor:${v.id}`,
+          label: `${v.name} (${vendorPartyKind})`,
+          name: v.name,
+          phone: v.phone || '',
+          address: v.address || '',
+          gstin: v.gstNumber || '',
+          partyType: 'vendor' as const,
+          partyId: v.id,
         }));
-        const list = [...fromVendors, ...fromCustomers].sort((a, b) =>
-          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-        );
-        setParties(list);
-        setProducts(productList);
-        setPriceRules(rules.filter(r => r.isActive !== false));
-        // If opened from Finance with a party id, ensure fields filled once list loads
-        if (initialParty?.partyType && initialParty?.partyId) {
-          const key = `${initialParty.partyType}:${initialParty.partyId}`;
-          const party = list.find(p => p.key === key);
-          if (party) {
-            setPartyKey(key);
-            setForm(f => ({
-              ...f,
-              customerName: party.name || f.customerName,
-              customerPhone: party.phone || f.customerPhone,
-              customerAddress: party.address || f.customerAddress,
-              customerGstin: party.gstin || f.customerGstin,
-            }));
-          }
+      const fromCustomers: InvoiceParty[] = customers.map(c => ({
+        key: `customer:${c.id}`,
+        label: `${c.name} (${isService ? 'Customer' : 'Client'})`,
+        name: c.name,
+        phone: c.phone || '',
+        address: c.address || '',
+        gstin: '',
+        partyType: 'customer' as const,
+        partyId: c.id,
+      }));
+      const list = [...fromVendors, ...fromCustomers].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+      );
+      setParties(list);
+      setProducts(productList);
+      setPriceRules(rules.filter(r => r.isActive !== false));
+      // If opened from Finance with a party id, ensure fields filled once list loads
+      if (initialParty?.partyType && initialParty?.partyId) {
+        const key = `${initialParty.partyType}:${initialParty.partyId}`;
+        const party = list.find(p => p.key === key);
+        if (party) {
+          setPartyKey(key);
+          setForm(f => ({
+            ...f,
+            customerName: party.name || f.customerName,
+            customerPhone: party.phone || f.customerPhone,
+            customerAddress: party.address || f.customerAddress,
+            customerGstin: party.gstin || f.customerGstin,
+          }));
         }
-      })
-      .catch(() => {
-        setParties([]);
-        setProducts([]);
-        setPriceRules([]);
-      });
+      }
+    });
   }, [initialParty?.partyType, initialParty?.partyId, vendorPartyKind, isService]);
 
   const selectParty = (key: string) => {

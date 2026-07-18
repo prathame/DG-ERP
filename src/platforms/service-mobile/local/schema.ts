@@ -85,9 +85,15 @@ CREATE TABLE IF NOT EXISTS products (
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   sku TEXT,
+  barcode TEXT,
   category_id TEXT,
   price NUMERIC DEFAULT 0,
   gst_percent NUMERIC DEFAULT 18,
+  gst_rate NUMERIC DEFAULT 18,
+  hsn_code TEXT,
+  stock NUMERIC DEFAULT 0,
+  warranty_months INT DEFAULT 0,
+  price_includes_gst BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -432,6 +438,13 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS fulfilled_batch_id TEXT;
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'Cash';
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reference_number TEXT;
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS gst_rate NUMERIC;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS hsn_code TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS stock NUMERIC DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS warranty_months INT DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS price_includes_gst BOOLEAN DEFAULT false;
+UPDATE products SET gst_rate = COALESCE(gst_rate, gst_percent, 18);
 `;
 
 export const SERVICE_TAB_PRESET: Record<string, { label: string; visible: boolean }> = {
