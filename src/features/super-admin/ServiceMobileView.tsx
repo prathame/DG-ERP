@@ -134,6 +134,35 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
     if (selected?.id === id) setSelected(rows.find(l => l.id === id) || null);
   };
 
+  /** Same key, new paid period — extends validUntil and sets status active. */
+  const renewLicense = async (id: string, validUntil: string) => {
+    if (!validUntil) {
+      toast('Select a new expiry date', 'error');
+      return;
+    }
+    const r = await fetch(`/api/super-admin/service-mobile/${id}`, {
+      method: 'PUT',
+      headers: h,
+      body: JSON.stringify({ validUntil, status: 'active' }),
+    });
+    if (!r.ok) {
+      toast('Renewal failed', 'error');
+      return;
+    }
+    toast(`License renewed until ${new Date(validUntil).toLocaleDateString('en-IN')}`, 'success');
+    const rows = await load(true);
+    if (selected?.id === id) setSelected(rows.find(l => l.id === id) || null);
+  };
+
+  const extendByMonths = (months: number) => {
+    if (!selected) return;
+    const now = new Date();
+    const current = selected.validUntil ? new Date(selected.validUntil) : now;
+    const base = current > now ? current : now;
+    base.setMonth(base.getMonth() + months);
+    void renewLicense(selected.id, base.toISOString().slice(0, 10));
+  };
+
   const unbind = async (id: string) => {
     if (
       !confirm(
@@ -333,6 +362,64 @@ export function ServiceMobileView({ saToken }: { saToken: string }) {
               <Trash2 size={14} /> Delete license
             </button>
           </div>
+        </div>
+
+        {/* Renew — same DG-SM key after customer pays for next period */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <h3 className="font-bold mb-1">Renew / Extend License</h3>
+          <p className="text-xs text-gray-400 mb-3">
+            When the customer pays again, extend this same key — no new license needed. Current expiry:{' '}
+            <span className="font-bold text-gray-600">
+              {selected.validUntil ? new Date(selected.validUntil).toLocaleDateString('en-IN') : 'No expiry'}
+            </span>
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="date"
+              id="smRenewDate"
+              key={selected.id + (selected.validUntil || '')}
+              defaultValue={
+                selected.validUntil && new Date(selected.validUntil) > new Date()
+                  ? selected.validUntil.slice(0, 10)
+                  : new Date().toISOString().slice(0, 10)
+              }
+              min={new Date().toISOString().slice(0, 10)}
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const input = document.getElementById('smRenewDate') as HTMLInputElement | null;
+                if (!input?.value) {
+                  toast('Select a new expiry date', 'error');
+                  return;
+                }
+                void renewLicense(selected.id, input.value);
+              }}
+              className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-orange-600"
+            >
+              Renew
+            </button>
+          </div>
+          <div className="flex gap-2 mt-2">
+            {[
+              { label: '+3 months', months: 3 },
+              { label: '+6 months', months: 6 },
+              { label: '+1 year', months: 12 },
+            ].map(({ label, months }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => extendByMonths(months)}
+                className="flex-1 py-1.5 border border-gray-200 rounded-lg text-xs font-bold hover:border-brand hover:text-brand transition-colors"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-400 mt-2">
+            Phone picks up the new expiry on the next online heartbeat (or Force sync).
+          </p>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
