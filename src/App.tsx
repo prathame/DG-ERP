@@ -29,6 +29,7 @@ import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { useTranslation } from './i18n';
 import { AppShutterIntro } from './components/layout/AppShutterIntro';
 import { session } from './lib/session';
+import { resolveTabAccess, type AccessLevel } from './lib/tabAccess';
 import { CommandPalette } from './components/ui/CommandPalette';
 import { OnlineStatus } from './platforms/desktop/offline';
 import {
@@ -452,37 +453,8 @@ export default function App() {
   ];
   const navItems = navSections.flatMap(s => s.items).filter(i => i.show);
 
-  type AccessLevel = 'hidden' | 'view' | 'print' | 'full';
-  const getAccess = (tabId: string): AccessLevel => {
-    const u = userConfig as Record<string, unknown> | null;
-    if (!u) return 'hidden';
-    const perms = u.permissions as Record<string, string> | string[] | null;
-    // Object format (new): { analytics: "full", inventory: "view" }
-    // Treat legacy "dashboard" permission as "analytics" (nav id)
-    if (perms && typeof perms === 'object' && !Array.isArray(perms)) {
-      const level = (perms[tabId] ??
-        (tabId === 'analytics' ? perms.dashboard : undefined) ??
-        (tabId === 'dashboard' ? perms.analytics : undefined)) as string | undefined;
-      if (level === 'full' || level === 'print' || level === 'view' || level === 'hidden') return level;
-      return 'hidden';
-    }
-    // Array format (old): ["dashboard", "distribution"] — map dashboard ↔ analytics
-    if (Array.isArray(perms)) {
-      if (perms.includes(tabId)) return 'full';
-      if (tabId === 'analytics' && perms.includes('dashboard')) return 'full';
-      if (tabId === 'dashboard' && perms.includes('analytics')) return 'full';
-      return 'hidden';
-    }
-    // No permissions — role defaults
-    const role = (u.role as string) ?? '';
-    if (['Super Admin', 'Admin'].includes(role)) return 'full';
-    if (role === 'Manager') return tabId === 'settings' ? 'view' : 'full';
-    if (role === 'Staff') return 'view';
-    if (role === 'Vendor')
-      return ['analytics', 'dashboard', 'distribution', 'finance'].includes(tabId) ? 'view' : 'hidden';
-    // H10 fix: unknown role gets no access (was incorrectly returning 'full')
-    return 'hidden';
-  };
+  const getAccess = (tabId: string): AccessLevel =>
+    resolveTabAccess(tabId, userConfig as { permissions?: unknown; role?: string } | null);
   const canAccess = (tabId: string) => getAccess(tabId) !== 'hidden';
 
   useEffect(() => {

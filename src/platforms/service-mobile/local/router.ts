@@ -1946,6 +1946,16 @@ export async function handleLocalApiRequest(
           defaultGstRate: 18,
         };
       }
+      // Schema default is '{}'; empty map must not reach the shell as object RBAC
+      // (getAccess would deny every tab → blank Analytics + only More in bottom nav).
+      const rawPerms = row.permissions;
+      const permissions =
+        rawPerms &&
+        typeof rawPerms === 'object' &&
+        !Array.isArray(rawPerms) &&
+        Object.keys(rawPerms as object).length > 0
+          ? rawPerms
+          : null;
       return {
         id: row.id,
         email: row.email,
@@ -1954,7 +1964,7 @@ export async function handleLocalApiRequest(
         address: row.address ?? null,
         role: row.role,
         companyName: row.company_name || row.tenant_company || null,
-        permissions: row.permissions ?? null,
+        permissions,
         autoWhatsapp: !!row.auto_whatsapp,
         defaultGstRate: Number(row.default_gst_rate) || 18,
         gstNumber: row.gst_number ?? null,
