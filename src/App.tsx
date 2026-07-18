@@ -734,7 +734,7 @@ export default function App() {
             className={cn(
               'bg-white border-r border-gray-200 transition-transform duration-300 flex flex-col z-50 shadow-xl lg:shadow-none',
               'fixed lg:relative inset-y-0 left-0 h-[100dvh] max-h-[100dvh]',
-              isSidebarOpen ? 'w-[min(88vw,20rem)] translate-x-0 lg:w-60' : 'w-16 -translate-x-full lg:translate-x-0',
+              isSidebarOpen ? 'w-[min(70vw,15rem)] translate-x-0 lg:w-60' : 'w-16 -translate-x-full lg:translate-x-0',
             )}
           >
             {/* Sticky brand / profile */}
