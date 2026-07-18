@@ -12,6 +12,7 @@ import {
   Trash2,
   ArrowRight,
   Download,
+  Printer,
 } from 'lucide-react';
 import {
   cn,
@@ -23,6 +24,7 @@ import {
   fetchImageAsDataUrl,
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
+import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { api, fetchApi } from '../../api';
 import type { BillSettings, Product, Vendor } from '../../types';
 import {
@@ -81,6 +83,7 @@ interface Quotation {
 export function QuotationsView() {
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
+  const offlinePdf = isServiceMobileMode();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -559,7 +562,15 @@ export function QuotationsView() {
                 onClick={() => printQuotation(selected)}
                 className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
               >
-                <Download size={14} /> Download PDF
+                {offlinePdf ? (
+                  <>
+                    <Download size={14} /> Download PDF
+                  </>
+                ) : (
+                  <>
+                    <Printer size={14} /> Print / PDF
+                  </>
+                )}
               </button>
               {selected.customerPhone && (
                 <button

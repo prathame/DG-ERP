@@ -415,7 +415,7 @@ export function ProductVerificationView() {
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50"
             >
-              <Printer size={14} /> Download PDF
+              <Printer size={14} /> Print / PDF
             </button>
           </div>
           {(() => {

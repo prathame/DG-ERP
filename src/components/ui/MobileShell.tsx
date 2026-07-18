@@ -27,7 +27,7 @@ export function MobilePillTabs({
             onClick={() => onChange(item.id)}
             className={cn(
               // Same size active/idle — border always on, fixed height, equal min width
-              'dg-pill-tab shrink-0 inline-flex items-center justify-center gap-1 rounded-full',
+              'dg-pill-tab dg-compact shrink-0 inline-flex items-center justify-center gap-1 rounded-full',
               'box-border h-8 min-h-8 max-h-8 !min-h-8 min-w-[5.75rem] px-3 py-0 leading-none',
               'text-[11px] font-bold border border-solid transition-colors',
               active ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50',

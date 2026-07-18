@@ -74,8 +74,8 @@ export function resolveIrnQrPayload(r: {
   return candidate;
 }
 
-/** Shown when the in-app PDF overlay could not open. */
-export const PRINT_POPUP_BLOCKED = 'Could not start PDF download — try again';
+/** Shown when print/PDF preview could not open. */
+export const PRINT_POPUP_BLOCKED = 'Could not open print preview — try again';
 
 function isNativeCapacitor(): boolean {
   try {
@@ -87,8 +87,8 @@ function isNativeCapacitor(): boolean {
 }
 
 /**
- * Offline Mobile / Capacitor (and service-mobile web): window.open is blocked and
- * window.print() is a no-op in WebView — use in-app overlay + direct PDF download.
+ * Offline Mobile / Capacitor: window.open is blocked and window.print() is a no-op
+ * in WebView — use in-app overlay + direct PDF download. Cloud desktop keeps classic print.
  */
 function needsNativePrintPath(): boolean {
   if (isNativeCapacitor()) return true;
@@ -237,17 +237,31 @@ async function triggerOverlayDownload(): Promise<boolean> {
   return false;
 }
 
+/** Cloud popup-blocked overlay: classic browser print (Save as PDF via print dialog). */
+async function triggerOverlayPrint(): Promise<void> {
+  const frame = document.getElementById(PRINT_FRAME_ID) as HTMLIFrameElement | null;
+  const w = frame?.contentWindow;
+  if (!w) return;
+  try {
+    w.focus();
+    w.print();
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
- * Fullscreen in-app overlay — Capacitor WebView blocks window.open.
- * Shows a short “preparing” state, then downloads PDF (no print sheet).
+ * Fullscreen in-app overlay when window.open is unavailable.
+ * Offline Mobile / Capacitor → Download PDF; cloud popup-blocked → classic Print / PDF.
  * Returns the iframe's contentWindow so existing printBillInWindow() callers keep working.
  */
-function openPrintOverlay(placeholder = 'Preparing PDF…'): Window | null {
+function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
   closePrintOverlay();
+  const nativePdf = needsNativePrintPath();
   const host = document.createElement('div');
   host.id = PRINT_OVERLAY_ID;
   host.setAttribute('role', 'dialog');
-  host.setAttribute('aria-label', 'PDF download');
+  host.setAttribute('aria-label', nativePdf ? 'PDF download' : 'Print preview');
   host.style.cssText =
     'position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#0f172a;';
 
@@ -264,26 +278,33 @@ function openPrintOverlay(placeholder = 'Preparing PDF…'): Window | null {
   closeBtn.onclick = () => closePrintOverlay();
 
   const title = document.createElement('div');
-  title.textContent = 'Download PDF';
+  title.textContent = nativePdf ? 'Download PDF' : 'Print / PDF';
   title.style.cssText = 'flex:1;font-weight:700;font-size:13px;text-align:center;line-height:1.2;';
 
-  const downloadBtn = document.createElement('button');
-  downloadBtn.type = 'button';
-  downloadBtn.setAttribute('data-pdf-download', '1');
-  downloadBtn.textContent = 'Download PDF';
-  downloadBtn.style.cssText =
+  const actionBtn = document.createElement('button');
+  actionBtn.type = 'button';
+  actionBtn.style.cssText =
     'padding:8px 12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:13px;';
-  downloadBtn.onclick = () => {
-    void triggerOverlayDownload();
-  };
+  if (nativePdf) {
+    actionBtn.setAttribute('data-pdf-download', '1');
+    actionBtn.textContent = 'Download PDF';
+    actionBtn.onclick = () => {
+      void triggerOverlayDownload();
+    };
+  } else {
+    actionBtn.textContent = 'Print / PDF';
+    actionBtn.onclick = () => {
+      void triggerOverlayPrint();
+    };
+  }
 
   bar.appendChild(closeBtn);
   bar.appendChild(title);
-  bar.appendChild(downloadBtn);
+  bar.appendChild(actionBtn);
 
   const iframe = document.createElement('iframe');
   iframe.id = PRINT_FRAME_ID;
-  iframe.title = 'PDF preview';
+  iframe.title = nativePdf ? 'PDF preview' : 'Print preview';
   iframe.style.cssText = 'flex:1;width:100%;border:0;background:#fff;';
 
   host.appendChild(bar);
@@ -295,7 +316,7 @@ function openPrintOverlay(placeholder = 'Preparing PDF…'): Window | null {
   try {
     win.document.open();
     win.document.write(
-      `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PDF</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${escapeHtmlLite(placeholder)}</p></body></html>`,
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${nativePdf ? 'PDF' : 'Print'}</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${escapeHtmlLite(placeholder)}</p></body></html>`,
     );
     win.document.close();
   } catch {
@@ -307,10 +328,10 @@ function openPrintOverlay(placeholder = 'Preparing PDF…'): Window | null {
 /**
  * Open a print/PDF window immediately.
  * Must be called synchronously from a click handler — never after await.
- * On Capacitor / Offline Mobile (and when pop-ups are blocked), uses an in-app overlay
- * that downloads a PDF directly (no system print sheet).
+ * Offline Mobile / Capacitor uses in-app PDF download; cloud desktop uses window.open + print.
+ * Popup-blocked cloud falls back to in-app Print / PDF (not forced download).
  */
-export function openPrintWindow(placeholder = 'Preparing PDF…'): Window | null {
+export function openPrintWindow(placeholder = 'Preparing…'): Window | null {
   if (needsNativePrintPath()) {
     return openPrintOverlay(placeholder);
   }
@@ -332,7 +353,7 @@ export function openPrintWindow(placeholder = 'Preparing PDF…'): Window | null
     try {
       win.document.open();
       win.document.write(
-        `<!DOCTYPE html><html><head><meta charset="utf-8"><title>PDF</title></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${escapeHtmlLite(placeholder)}</p></body></html>`,
+        `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print</title></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${escapeHtmlLite(placeholder)}</p></body></html>`,
       );
       win.document.close();
     } catch {
@@ -340,7 +361,7 @@ export function openPrintWindow(placeholder = 'Preparing PDF…'): Window | null
     }
     return win;
   }
-  // Desktop pop-up blocked → in-app overlay + PDF download
+  // Desktop pop-up blocked → in-app classic print preview
   return openPrintOverlay(placeholder);
 }
 
@@ -434,7 +455,7 @@ function triggerPrintWhenReady(win: Window) {
   }
 }
 
-/** Write HTML into an already-opened print/PDF window and download (overlay) or print (desktop). */
+/** Write HTML into an already-opened print/PDF window and download (offline) or print (cloud). */
 export function printBillInWindow(win: Window, html: string, filename?: string, opts?: { autoPrint?: boolean }) {
   const titled = withPrintPagination(applyPrintTitle(html, filename));
   try {
@@ -456,24 +477,29 @@ export function printBillInWindow(win: Window, html: string, filename?: string, 
     overlay.setAttribute(PRINT_JOB_ATTR, filename);
   }
   const usingOverlay = !!overlay;
-  // Overlay path: download PDF (no system print sheet). autoPrint:false keeps preview open.
+  if (opts?.autoPrint === false) {
+    try {
+      win.focus();
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  // Overlay: Offline Mobile downloads PDF; cloud popup-blocked uses classic print.
   if (usingOverlay) {
     try {
       win.focus();
     } catch {
       /* ignore */
     }
-    if (opts?.autoPrint === false) return;
-    setTimeout(() => {
-      void triggerOverlayDownload();
-    }, 350);
-    return;
-  }
-  if (opts?.autoPrint === false) {
-    try {
-      win.focus();
-    } catch {
-      /* ignore */
+    if (needsNativePrintPath()) {
+      setTimeout(() => {
+        void triggerOverlayDownload();
+      }, 350);
+    } else {
+      setTimeout(() => {
+        void triggerOverlayPrint();
+      }, 450);
     }
     return;
   }
@@ -542,25 +568,36 @@ export function writePrintHtml(
 }
 
 /**
- * Generate and download a PDF from bill HTML (no print dialog).
- * Pass `win` from openPrintWindow() when called after await — closes the prep overlay/window.
+ * Save bill HTML as PDF.
+ * Offline Mobile / Capacitor: direct html2pdf download/share.
+ * Cloud desktop: classic print window (user chooses Save as PDF).
+ * Pass `win` from openPrintWindow() when called after await.
  */
 export async function saveBillAsPdf(html: string, filename?: string, win?: Window | null): Promise<boolean> {
   const titled = withPrintPagination(applyPrintTitle(html, filename));
-  // Prefer direct download (works on Chrome localhost + Capacitor share/download).
-  const ok = await downloadHtmlAsPdf(titled, filename);
-  if (win) {
-    try {
-      if (document.getElementById(PRINT_OVERLAY_ID)) closePrintOverlay();
-      else win.close();
-    } catch {
-      /* ignore */
+  if (needsNativePrintPath()) {
+    const ok = await downloadHtmlAsPdf(titled, filename);
+    if (win) {
+      try {
+        if (document.getElementById(PRINT_OVERLAY_ID)) closePrintOverlay();
+        else win.close();
+      } catch {
+        /* ignore */
+      }
     }
+    if (ok) return true;
+    // Fallback: overlay with Download PDF button
+    const w = win && !win.closed ? win : openPrintWindow('Preparing PDF…');
+    if (!w) return false;
+    printBillInWindow(w, titled, filename, { autoPrint: false });
+    return true;
   }
-  if (ok) return true;
-  // Fallback: show overlay with Download PDF button
+  // Cloud: open preview; user saves via browser print dialog
   const w = win && !win.closed ? win : openPrintWindow('Preparing PDF…');
-  if (!w) return false;
+  if (!w) {
+    printViaIframe(titled, true);
+    return true;
+  }
   printBillInWindow(w, titled, filename, { autoPrint: false });
   return true;
 }

@@ -402,11 +402,11 @@ html.dg-mobile-dense select {
   }
 }
 
-/* Primary actions keep usable hit area; icon chips stay compact */
+/* Primary actions keep usable hit area; pills/toggles opt out via .dg-compact */
 html.dg-mobile-dense .app-bottom-nav button,
 html.dg-mobile-dense .app-mobile-content form button[type="submit"],
-html.dg-mobile-dense .app-mobile-content button.bg-brand,
-html.dg-mobile-dense .fixed.inset-0 button.bg-brand {
+html.dg-mobile-dense .app-mobile-content button.bg-brand:not(.dg-compact),
+html.dg-mobile-dense .fixed.inset-0 button.bg-brand:not(.dg-compact) {
   min-height: 44px;
 }
 html.dg-mobile-dense .app-mobile-content button.p-1,

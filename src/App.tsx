@@ -678,11 +678,14 @@ export default function App() {
     );
   }
 
-  /** Phone shell IA (Emergent-style): Analytics · Masters · Invoice · Quotes · More */
-  const mobileNavIds =
-    user?.role === 'Vendor'
+  /** Phone bottom nav — Emergent IA only on Offline Mobile; cloud keeps prior destinations */
+  const mobileNavIds = serviceMobile
+    ? user?.role === 'Vendor'
       ? ['analytics', 'distribution', 'finance', 'inventory']
-      : ['analytics', 'masters', 'invoices', 'quotations'];
+      : ['analytics', 'masters', 'invoices', 'quotations']
+    : user?.role === 'Vendor'
+      ? ['analytics', 'distribution', 'finance', 'inventory', 'settings']
+      : ['analytics', 'masters', 'inventory', 'finance', 'quotations'];
   const mobileNavLabel: Record<string, string> = {
     analytics: 'Analytics',
     masters: 'Masters',

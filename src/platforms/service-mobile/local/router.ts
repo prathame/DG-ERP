@@ -667,7 +667,15 @@ export async function handleLocalApiRequest(
       return json(200, []);
     }
     if (ctx.path === '/payroll/summary' && ctx.method === 'GET') {
-      return json(200, { totalPaid: 0, totalAdvance: 0, staffCount: 0, payments: [] });
+      // AnalyticsView / PayrollView expect { year, grandTotal, advanceOutstanding, byStaff, byMonth }
+      const year = Number(query.get('year')) || new Date().getFullYear();
+      return json(200, {
+        year,
+        grandTotal: 0,
+        advanceOutstanding: 0,
+        byStaff: [],
+        byMonth: [],
+      });
     }
     if (ctx.path === '/payroll' && ctx.method === 'POST') {
       return json(403, { error: 'Payroll create is not available on Offline Mobile yet' });

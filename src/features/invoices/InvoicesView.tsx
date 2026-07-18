@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Trash2, Download, Send, Check, X } from 'lucide-react';
+import { Plus, FileText, Trash2, Download, Send, Check, X, Printer } from 'lucide-react';
 import {
   cn,
   formatDate,
@@ -12,6 +12,7 @@ import {
   closePrintOverlay,
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
+import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { fetchApi } from '../../api';
 import {
   useToast,
@@ -138,6 +139,7 @@ function resolveCatalogPrice(product: Product, rules: PriceRule[], vendorId: str
 export function InvoicesView() {
   const { toast } = useToast();
   const invoicesLabel = useTabLabel('invoices', 'Invoices');
+  const offlinePdf = isServiceMobileMode();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -511,10 +513,10 @@ export function InvoicesView() {
                       type="button"
                       onClick={() => printInvoice(inv)}
                       className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
-                      title="Download PDF"
-                      aria-label="Download invoice PDF"
+                      title={offlinePdf ? 'Download PDF' : 'Print/PDF'}
+                      aria-label={offlinePdf ? 'Download invoice PDF' : 'Print invoice'}
                     >
-                      <Download size={14} />
+                      {offlinePdf ? <Download size={14} /> : <Printer size={14} />}
                     </button>
                     {inv.status === 'draft' && (
                       <button
@@ -587,10 +589,10 @@ export function InvoicesView() {
                           type="button"
                           onClick={() => printInvoice(inv)}
                           className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
-                          title="Download PDF"
-                          aria-label="Download invoice PDF"
+                          title={offlinePdf ? 'Download PDF' : 'Print/PDF'}
+                          aria-label={offlinePdf ? 'Download invoice PDF' : 'Print invoice'}
                         >
-                          <Download size={15} />
+                          {offlinePdf ? <Download size={15} /> : <Printer size={15} />}
                         </button>
                         {inv.status === 'draft' && (
                           <button
@@ -713,7 +715,15 @@ export function InvoicesView() {
                   onClick={() => printInvoice(selectedInvoice)}
                   className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold flex items-center justify-center gap-2"
                 >
-                  <Download size={16} /> Download PDF
+                  {offlinePdf ? (
+                    <>
+                      <Download size={16} /> Download PDF
+                    </>
+                  ) : (
+                    <>
+                      <Printer size={16} /> Print / PDF
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
