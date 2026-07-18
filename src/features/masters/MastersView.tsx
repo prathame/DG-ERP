@@ -343,6 +343,8 @@ export function MastersView({
       <Suspense fallback={<MasterFallback />}>
         <StaffMasterView
           onBack={() => {
+            // Hub-originated payment detail calls onBack — keep Staff pill selected.
+            if (focusStaffId) setHubTab('staff');
             setSelectedMaster(null);
             setFocusStaffId(null);
           }}

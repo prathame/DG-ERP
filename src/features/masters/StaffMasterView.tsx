@@ -99,7 +99,14 @@ export function StaffMasterView({
     }
   }, [initialStaffId, list, loading, focusedInitial]);
 
+  /** Hub Staff row deep-link — Back must leave manage, not reveal the full Staff list. */
+  const fromHubRow = Boolean(initialStaffId);
+
   const backFromDetail = () => {
+    if (fromHubRow) {
+      onBack();
+      return;
+    }
     setSelected(null);
     setPayments([]);
     setPayModalOpen(false);
@@ -278,7 +285,7 @@ export function StaffMasterView({
     );
   }
 
-  // ── Payment detail (replaces list; Back returns to staff list) ──────────
+  // ── Payment detail (hub deep-link → hub Staff tab; manage list → staff list) ──
   if (selected) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 pb-8">
@@ -287,7 +294,7 @@ export function StaffMasterView({
             type="button"
             onClick={backFromDetail}
             className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg"
-            aria-label="Back to staff list"
+            aria-label={fromHubRow ? 'Back to Staff' : 'Back to staff list'}
           >
             <ArrowLeft size={20} />
           </button>
