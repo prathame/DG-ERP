@@ -511,19 +511,21 @@ function BillCustomizationSection() {
                 maxLength={20}
               />
             </div>
-            <div>
-              <label htmlFor="settings-field-6" className="text-xs font-bold text-gray-500 block mb-1">
-                Challan Prefix
-              </label>
-              <input
-                id="settings-field-6"
-                value={form.challanPrefix || ''}
-                onChange={e => setForm(p => ({ ...p, challanPrefix: e.target.value || null }))}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-                placeholder="e.g. SPL-CH-"
-                maxLength={20}
-              />
-            </div>
+            {!serviceMobile && (
+              <div>
+                <label htmlFor="settings-field-6" className="text-xs font-bold text-gray-500 block mb-1">
+                  Challan Prefix
+                </label>
+                <input
+                  id="settings-field-6"
+                  value={form.challanPrefix || ''}
+                  onChange={e => setForm(p => ({ ...p, challanPrefix: e.target.value || null }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+                  placeholder="e.g. SPL-CH-"
+                  maxLength={20}
+                />
+              </div>
+            )}
             <div>
               <label htmlFor="settings-invoice-template" className="text-xs font-bold text-gray-500 block mb-1">
                 Invoice template
@@ -702,33 +704,35 @@ function BillCustomizationSection() {
           </div>
         </div>
 
-        {/* Bill Section Toggles */}
-        <div>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Bill Sections</p>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm">Show Barcode</p>
-                <p className="text-xs text-gray-500">Display barcode column on bills</p>
+        {/* Bill Section Toggles — manufacturer/cloud only (not Offline service) */}
+        {!serviceMobile && (
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase mb-3">Bill Sections</p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Show Barcode</p>
+                  <p className="text-xs text-gray-500">Display barcode column on bills</p>
+                </div>
+                {toggleField('showBarcode')}
               </div>
-              {toggleField('showBarcode')}
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm">Show Warranty</p>
-                <p className="text-xs text-gray-500">Display warranty info on sales invoice</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Show Warranty</p>
+                  <p className="text-xs text-gray-500">Display warranty info on sales invoice</p>
+                </div>
+                {toggleField('showWarranty')}
               </div>
-              {toggleField('showWarranty')}
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm">Show Rewards</p>
-                <p className="text-xs text-gray-500">Display reward points earned on invoice</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Show Rewards</p>
+                  <p className="text-xs text-gray-500">Display reward points earned on invoice</p>
+                </div>
+                {toggleField('showRewards')}
               </div>
-              {toggleField('showRewards')}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Footer */}
         <div>
