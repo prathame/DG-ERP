@@ -1139,6 +1139,7 @@ export const api = {
           staffName: string;
           amount: number;
           paymentDate: string;
+          paymentType: string;
           paymentMethod: string;
           referenceNumber?: string;
           notes?: string;

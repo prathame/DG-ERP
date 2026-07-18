@@ -79,7 +79,14 @@ describe('service-mobile invoice-finance SQL shapes', () => {
        VALUES ('p1','t1','inv1',50,'2026-07-02','Cash','Cash')`,
     );
 
-    const { rows } = await db.query(
+    type FinanceSummaryRow = {
+      party_key: string;
+      customer_name: string;
+      invoice_count: number;
+      total_invoiced: number;
+      total_paid: number;
+    };
+    const { rows } = await db.query<FinanceSummaryRow>(
       `SELECT
          CASE
            WHEN si.party_type IS NOT NULL AND si.party_id IS NOT NULL THEN si.party_type || ':' || si.party_id

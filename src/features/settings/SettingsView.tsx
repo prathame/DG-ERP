@@ -979,6 +979,11 @@ export function SettingsView({
       session.setToken(r.token);
       if (r.tenantId) session.setTenantId(r.tenantId);
       if (r.tenantSlug) session.setSlug(r.tenantSlug);
+      const extra = r as Record<string, unknown>;
+      const tabConfig =
+        extra.tabConfig && typeof extra.tabConfig === 'object'
+          ? (extra.tabConfig as Record<string, { label?: string; visible?: boolean }>)
+          : undefined;
       const u = {
         id: r.id,
         email: r.email,
@@ -987,10 +992,10 @@ export function SettingsView({
         companyName: r.companyName,
         vendorId: r.vendorId,
         autoWhatsapp: r.autoWhatsapp,
-        barcodeSystemEnabled: (r as Record<string, unknown>).barcodeSystemEnabled,
-        multiLanguageEnabled: (r as Record<string, unknown>).multiLanguageEnabled,
-        vendorPortalEnabled: (r as Record<string, unknown>).vendorPortalEnabled,
-        tabConfig: (r as Record<string, unknown>).tabConfig,
+        barcodeSystemEnabled: extra.barcodeSystemEnabled,
+        multiLanguageEnabled: extra.multiLanguageEnabled,
+        vendorPortalEnabled: extra.vendorPortalEnabled,
+        tabConfig,
       };
       session.setUser(u);
       onUserChange(u);
