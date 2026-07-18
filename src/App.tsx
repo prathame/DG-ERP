@@ -897,10 +897,10 @@ export default function App() {
                   <Menu size={20} />
                 </button>
                 <div className="min-w-0">
-                  <h1 className="text-base sm:text-2xl font-bold truncate leading-tight tracking-tight">
+                  <h1 className="text-sm sm:text-2xl font-bold truncate leading-tight tracking-tight">
                     {t(`nav.${activeTab}`)}
                   </h1>
-                  <p className="text-[10px] text-gray-400 truncate sm:hidden leading-tight mt-0.5">
+                  <p className="text-[9px] text-gray-400 truncate sm:hidden leading-tight mt-0.5">
                     {user?.companyName}
                   </p>
                 </div>
