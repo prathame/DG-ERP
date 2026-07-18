@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import type { Tab } from '../../types';
-import { LoadingSpinner } from '../../components/ui';
+import { LoadingSpinner, MobilePillTabs } from '../../components/ui';
 
 const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
 const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
@@ -196,7 +196,20 @@ export function MastersView({
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 sm:space-y-4">
-      {/* Phone: full masters list at top (no All/Parties/Catalog filters) */}
+      {/* Phone: masters as horizontal pills (Clients, Products, Banks…) */}
+      <div className="sm:hidden">
+        <MobilePillTabs
+          items={masters.map(m => ({
+            id: m.id,
+            label: m.name,
+            icon: <m.icon />,
+          }))}
+          value=""
+          onChange={id => handleMasterClick(id as MasterType)}
+        />
+      </div>
+
+      {/* Phone: dense list under the pills */}
       <div className="sm:hidden space-y-1.5">
         {masters.map(m => (
           <button
