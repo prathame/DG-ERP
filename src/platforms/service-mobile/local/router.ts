@@ -81,6 +81,68 @@ async function syncInvoicePaidStatus(tenantId: string, invoiceId: string) {
   }
 }
 
+/** partyKey: vendor:ID | customer:ID | name:DisplayName (matches cloud parsePartyKey) */
+function parseLocalPartyKey(raw: string): {
+  partyType: 'vendor' | 'customer' | null;
+  partyId: string | null;
+  clientName: string | null;
+  partyKey: string;
+} {
+  const key = (() => {
+    try {
+      return decodeURIComponent(raw || '').trim();
+    } catch {
+      return (raw || '').trim();
+    }
+  })();
+  if (key.startsWith('vendor:') || key.startsWith('customer:')) {
+    const i = key.indexOf(':');
+    const partyType = key.slice(0, i) as 'vendor' | 'customer';
+    const partyId = key.slice(i + 1).trim();
+    if (!partyId) return { partyType: null, partyId: null, clientName: '', partyKey: 'name:' };
+    return { partyType, partyId, clientName: null, partyKey: `${partyType}:${partyId}` };
+  }
+  const name = key.startsWith('name:') ? key.slice(5) : key;
+  return { partyType: null, partyId: null, clientName: name, partyKey: `name:${name}` };
+}
+
+function toDateStr(v: unknown): string | null {
+  if (v == null || v === '') return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  const s = String(v);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+/**
+ * Older Mark Paid only flipped status without writing invoice_payments.
+ * Backfill remaining balance so Invoice Finance ledger matches status.
+ */
+async function reconcilePaidInvoicesLedger(tenantId: string): Promise<void> {
+  const { rows } = await localQuery(
+    `SELECT si.id,
+            COALESCE(si.grand_total, si.total, 0) AS grand_total,
+            COALESCE((
+              SELECT SUM(ip.amount) FROM invoice_payments ip
+              WHERE ip.invoice_id = si.id AND ip.tenant_id = $1
+            ), 0) AS paid
+     FROM standalone_invoices si
+     WHERE si.tenant_id = $1 AND si.status = 'paid'`,
+    [tenantId],
+  );
+  for (const r of rows as { id: string; grand_total: number; paid: number }[]) {
+    const remaining = (Number(r.grand_total) || 0) - (Number(r.paid) || 0);
+    if (remaining <= 0.001) continue;
+    const payId = uid('IP');
+    const pDate = new Date().toISOString().slice(0, 10);
+    await localQuery(
+      `INSERT INTO invoice_payments
+         (id, tenant_id, invoice_id, amount, payment_date, method, payment_method, notes)
+       VALUES ($1,$2,$3,$4,$5,'Cash','Cash',$6)`,
+      [payId, tenantId, r.id, remaining, pDate, 'Marked paid (ledger sync)'],
+    );
+  }
+}
+
 export async function handleLocalApiRequest(
   method: string,
   rawPath: string,
@@ -1536,6 +1598,7 @@ export async function handleLocalApiRequest(
 
     // Invoice finance summary / client
     if (ctx.path === '/invoice-finance/summary' && ctx.method === 'GET') {
+      await reconcilePaidInvoicesLedger(tid!);
       const { rows } = await localQuery(
         `SELECT
            CASE
@@ -1544,7 +1607,7 @@ export async function handleLocalApiRequest(
            END AS party_key,
            MAX(si.party_type) AS party_type,
            MAX(si.party_id) AS party_id,
-           MAX(COALESCE(si.customer_name, si.client_name)) AS customer_name,
+           MAX(COALESCE(si.customer_name, si.client_name, 'Unknown')) AS customer_name,
            MAX(si.customer_phone) AS customer_phone,
            COUNT(si.id)::int AS invoice_count,
            COALESCE(SUM(COALESCE(si.grand_total, si.total, 0)), 0) AS total_invoiced,
@@ -1560,45 +1623,68 @@ export async function handleLocalApiRequest(
       );
       return json(
         200,
-        rows.map(r => ({
-          partyKey: r.party_key,
-          partyType: r.party_type || null,
-          partyId: r.party_id || null,
-          clientName: r.customer_name,
-          clientPhone: r.customer_phone || null,
-          invoiceCount: Number(r.invoice_count) || 0,
-          totalInvoiced: Number(r.total_invoiced) || 0,
-          totalPaid: Number(r.total_paid) || 0,
-          balance: (Number(r.total_invoiced) || 0) - (Number(r.total_paid) || 0),
-        })),
+        (rows || []).map(r => {
+          const totalInvoiced = Number(r.total_invoiced) || 0;
+          const totalPaid = Number(r.total_paid) || 0;
+          return {
+            partyKey: String(r.party_key || 'name:Unknown'),
+            partyType: (r.party_type as string) || null,
+            partyId: (r.party_id as string) || null,
+            clientName: String(r.customer_name || 'Unknown'),
+            clientPhone: (r.customer_phone as string) || null,
+            invoiceCount: Number(r.invoice_count) || 0,
+            totalInvoiced,
+            totalPaid,
+            balance: totalInvoiced - totalPaid,
+          };
+        }),
       );
     }
     const invClientMatch = ctx.path.match(/^\/invoice-finance\/client\/(.+)$/);
     if (invClientMatch && ctx.method === 'GET') {
-      const raw = decodeURIComponent(invClientMatch[1]!);
+      await reconcilePaidInvoicesLedger(tid!);
+      const { partyType, partyId, clientName, partyKey } = parseLocalPartyKey(invClientMatch[1]!);
       let where = `si.tenant_id=$1 AND COALESCE(si.status,'') != 'cancelled'`;
       const params: unknown[] = [tid];
-      if (raw.startsWith('vendor:') || raw.startsWith('customer:')) {
-        const [ptype, pid] = raw.split(':');
+      if (partyType && partyId) {
         where += ` AND si.party_type=$2 AND si.party_id=$3`;
-        params.push(ptype, pid);
+        params.push(partyType, partyId);
       } else {
-        const name = raw.startsWith('name:') ? raw.slice(5) : raw;
-        where += ` AND COALESCE(si.customer_name, si.client_name)=$2`;
-        params.push(name);
+        // Legacy name: keys — only unlinked invoices (same as cloud)
+        where += ` AND COALESCE(si.customer_name, si.client_name)=$2
+                   AND (si.party_type IS NULL OR si.party_id IS NULL)`;
+        params.push(clientName || '');
       }
       const { rows: invoices } = await localQuery(
-        `SELECT si.*, COALESCE(SUM(ip.amount),0) AS paid
+        `SELECT si.id, si.invoice_number, si.invoice_date, si.due_date,
+                COALESCE(si.grand_total, si.total, 0) AS grand_total,
+                si.subtotal, si.tax_total, si.status, si.notes,
+                si.customer_name, si.client_name, si.customer_phone,
+                si.customer_gstin, si.customer_address, si.party_type, si.party_id,
+                COALESCE(SUM(ip.amount),0) AS paid
          FROM standalone_invoices si
          LEFT JOIN invoice_payments ip ON ip.invoice_id=si.id AND ip.tenant_id=$1
          WHERE ${where}
          GROUP BY si.id ORDER BY si.invoice_date DESC NULLS LAST`,
         params,
       );
-      const mapped = invoices.map(r => {
-        const inv = mapInvoice(r as Record<string, unknown>);
-        const paid = Number((r as { paid: number }).paid) || 0;
-        return { ...inv, paid, balance: inv.grandTotal - paid };
+      const mapped = (invoices || []).map(r => {
+        const row = r as Record<string, unknown>;
+        const grandTotal = Number(row.grand_total) || 0;
+        const paid = Number(row.paid) || 0;
+        return {
+          id: row.id,
+          invoiceNumber: row.invoice_number,
+          invoiceDate: toDateStr(row.invoice_date),
+          dueDate: toDateStr(row.due_date),
+          grandTotal,
+          subtotal: Number(row.subtotal) || 0,
+          taxTotal: Number(row.tax_total) || 0,
+          paid,
+          balance: grandTotal - paid,
+          status: (row.status as string) || 'draft',
+          notes: row.notes ?? null,
+        };
       });
       const totalInvoiced = mapped.reduce((s, i) => s + i.grandTotal, 0);
       const totalPaid = mapped.reduce((s, i) => s + i.paid, 0);
@@ -1610,36 +1696,35 @@ export async function handleLocalApiRequest(
         JOIN standalone_invoices si ON ip.invoice_id = si.id AND si.tenant_id = $1
         WHERE ip.tenant_id = $1`;
       const payParams: unknown[] = [tid];
-      if (raw.startsWith('vendor:') || raw.startsWith('customer:')) {
-        const [ptype, pid] = raw.split(':');
+      if (partyType && partyId) {
         paySql += ` AND si.party_type=$2 AND si.party_id=$3`;
-        payParams.push(ptype, pid);
+        payParams.push(partyType, partyId);
       } else {
-        const name = raw.startsWith('name:') ? raw.slice(5) : raw;
-        paySql += ` AND COALESCE(si.customer_name, si.client_name)=$2`;
-        payParams.push(name);
+        paySql += ` AND COALESCE(si.customer_name, si.client_name)=$2
+                    AND (si.party_type IS NULL OR si.party_id IS NULL)`;
+        payParams.push(clientName || '');
       }
       paySql += ` ORDER BY ip.payment_date DESC NULLS LAST, ip.created_at DESC`;
       const { rows: payRows } = await localQuery(paySql, payParams);
 
       return json(200, {
-        partyKey: raw,
-        partyType: first?.party_type || null,
-        partyId: first?.party_id || null,
-        clientName: first?.customer_name || first?.client_name || raw,
-        clientPhone: first?.customer_phone || null,
-        customerGstin: first?.customer_gstin || null,
-        customerAddress: first?.customer_address || null,
+        partyKey,
+        partyType: partyType || (first?.party_type as string) || null,
+        partyId: partyId || (first?.party_id as string) || null,
+        clientName: String(first?.customer_name || first?.client_name || clientName || 'Client'),
+        clientPhone: (first?.customer_phone as string) || null,
+        customerGstin: (first?.customer_gstin as string) || null,
+        customerAddress: (first?.customer_address as string) || null,
         totalInvoiced,
         totalPaid,
         balance: totalInvoiced - totalPaid,
         invoices: mapped,
-        payments: payRows.map(r => ({
+        payments: (payRows || []).map(r => ({
           id: r.id,
           invoiceId: r.invoice_id,
           invoiceNumber: r.invoice_number,
           amount: Number(r.amount) || 0,
-          paymentDate: r.payment_date,
+          paymentDate: toDateStr(r.payment_date),
           paymentMethod: r.payment_method || r.method || 'Cash',
           referenceNumber: r.reference_number || null,
           notes: r.notes || null,
@@ -1661,7 +1746,7 @@ export async function handleLocalApiRequest(
             id: r.id,
             invoiceId: r.invoice_id,
             amount: Number(r.amount) || 0,
-            paymentDate: r.payment_date,
+            paymentDate: toDateStr(r.payment_date),
             paymentMethod: r.payment_method || r.method || 'Cash',
             referenceNumber: r.reference_number || null,
             notes: r.notes || null,
@@ -1687,7 +1772,8 @@ export async function handleLocalApiRequest(
         );
         const alreadyPaid = Number((paidRows[0] as { t: number }).t) || 0;
         const remaining = Number((invRows[0] as { grand_total: number }).grand_total) - alreadyPaid;
-        if (payAmt > remaining + 0.001) {
+        // Allow small float slack; Extra Pay (credit) is allowed when remaining <= 0
+        if (remaining > 0.001 && payAmt > remaining + 0.001) {
           return json(400, {
             error: `Payment exceeds remaining balance (₹${Math.max(0, remaining).toFixed(2)})`,
           });
@@ -1716,7 +1802,7 @@ export async function handleLocalApiRequest(
       const invoiceId = String((rows[0] as { invoice_id: string }).invoice_id);
       await localQuery(`DELETE FROM invoice_payments WHERE id=$1 AND tenant_id=$2`, [payId, tid]);
       await syncInvoicePaidStatus(tid!, invoiceId);
-      return json(200, { ok: true });
+      return new Response(null, { status: 204 });
     }
 
     // Banks

@@ -101,3 +101,14 @@ Removed from Offline Mobile UI (`ChatWidget` gated off; tab preset `chatbot.visi
 | `POST /payroll`, `DELETE /payroll/:id` | Record/delete payments offline; non-deduction types mirror into `expenses` |
 | Analytics UI | Card title uses `cfg.labels.vendors` (“Outstanding Clients”); View All → Finance (Invoice Finance) |
 
+## Follow-up (2026-07-18) — Invoice Finance tab
+
+| Call / UI | Fix |
+|-----------|-----|
+| Finance tab gate | Offline Mobile always opens `InvoiceFinanceView` (`isServiceMobileMode()`), not Vendor Finance |
+| `GET /invoice-finance/summary` | Stable camelCase array; `clientName` never null; reconcile Mark Paid → `invoice_payments` |
+| `GET /invoice-finance/client/:key` | Cloud-aligned party keys (`vendor:` / `customer:` / `name:`); slim invoice + payments arrays |
+| `POST /invoice-finance/payments` | Writes ledger + `syncInvoicePaidStatus`; Extra Pay allowed when balance already 0 |
+| `DELETE /invoice-finance/payments/:id` | 204 + status resync |
+| InvoiceFinanceView | `Array.isArray` guards; Client(s) copy via `cfg.labels.vendors` |
+

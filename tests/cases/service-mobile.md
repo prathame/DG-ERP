@@ -12,6 +12,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5 | Offline ERP | Airplane mode → create client + invoice | Persists locally; no cloud ERP calls |
 | 5b | Local APIs | Purchases, Accounts Generate, Invoice Finance, Staff, Masters | No “not implemented” / “Failed to load”; empty lists OK on fresh install |
 | 5c | businessType | After login, Finance tab | Invoice Finance (clients), not Vendor “Distributed Value” |
+| 5c2 | Invoice Finance | Create unpaid invoice → Finance | Client card shows invoiced / received / due; open → Pay records payment offline; Mark Paid also shows received |
 | 5d | Download PDF | Invoices → Download PDF (or Quotes / Price List) | PDF downloads directly (or share/save sheet on device). No system print dialog; no “Pop-up blocked” |
 | 5e | No chatbot | Any screen (sidebar / floating help) | No “May I help you?” widget; chatbot not in Offline Mobile |
 | 5f | UI density | Masters hub, Invoices, bottom nav | Smaller titles/body than desktop web; compact header + tab bar; forms not oversized |
