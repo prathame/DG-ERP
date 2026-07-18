@@ -17,7 +17,6 @@ const VendorCustomerMappingView = lazy(() =>
 const RewardRulesView = lazy(() => import('./RewardRulesView').then(m => ({ default: m.RewardRulesView })));
 const PriceListView = lazy(() => import('./PriceListView').then(m => ({ default: m.PriceListView })));
 const StaffMasterView = lazy(() => import('./StaffMasterView').then(m => ({ default: m.StaffMasterView })));
-const ProductMasterView = lazy(() => import('./ProductMasterView').then(m => ({ default: m.ProductMasterView })));
 
 export type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList' | 'staff';
 
@@ -90,14 +89,19 @@ export function MastersView({
   }, []);
 
   const allMasters = [
-    {
-      id: 'item' as const,
-      name: 'Products',
-      count: masterCounts.item as number | string,
-      icon: Package,
-      color: 'text-orange-600',
-      bg: 'bg-orange-50',
-    },
+    // Offline service has no inventory — hide Products from Masters (Price List / invoice lines still use products API).
+    ...(!serviceMobile
+      ? [
+          {
+            id: 'item' as const,
+            name: 'Products',
+            count: masterCounts.item as number | string,
+            icon: Package,
+            color: 'text-orange-600',
+            bg: 'bg-orange-50',
+          },
+        ]
+      : []),
     {
       id: 'vendor' as const,
       name: cfg.labels.vendors,
@@ -170,8 +174,12 @@ export function MastersView({
   ];
   const masters = isVendor ? allMasters.filter(m => m.id === 'customer') : allMasters;
 
-  // Default phone hub tab
+  // Default / repair phone hub tab when the active pill was filtered out (e.g. Products Offline)
   useEffect(() => {
+    if (hubTab && !masters.some(m => m.id === hubTab)) {
+      setHubTab(masters[0]?.id ?? null);
+      return;
+    }
     if (!hubTab && masters.length) setHubTab(masters[0].id);
   }, [masters, hubTab]);
 
@@ -243,11 +251,7 @@ export function MastersView({
 
   const openFull = (id: MasterType) => {
     if (id === 'item') {
-      // Offline service has no Inventory tab — catalog stays in Masters.
-      if (serviceMobile) {
-        setSelectedMaster('item');
-        return;
-      }
+      // Cloud manufacturer: Products → Inventory. Offline service never shows this pill.
       setActiveTab('inventory');
       return;
     }
@@ -274,23 +278,6 @@ export function MastersView({
     return (
       <Suspense fallback={<MasterFallback />}>
         <BankMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} />
-      </Suspense>
-    );
-  if (selectedMaster === 'item')
-    return (
-      <Suspense fallback={<MasterFallback />}>
-        <ProductMasterView
-          onBack={() => {
-            setSelectedMaster(null);
-            setHubTab('item');
-            api.products
-              .list()
-              .then(setProducts)
-              .catch(() => setProducts([]));
-            refreshCounts();
-          }}
-          onRefresh={refreshCounts}
-        />
       </Suspense>
     );
   if (selectedMaster === 'mapping')
@@ -424,7 +411,7 @@ export function MastersView({
             <MobileEmptyState
               icon={<Package />}
               title="No products yet"
-              actionLabel={serviceMobile ? 'Add Product' : 'Open Products'}
+              actionLabel="Open Products"
               onAction={() => openFull('item')}
             />
           ) : (
@@ -434,11 +421,7 @@ export function MastersView({
                   <MobileListRow
                     icon={<Package className="text-orange-600" />}
                     title={p.name}
-                    subtitle={
-                      serviceMobile
-                        ? (p as Product & { sku?: string | null }).sku || 'Catalog'
-                        : p.hsnCode || p.barcode || `Stock ${p.stock ?? 0}`
-                    }
+                    subtitle={p.hsnCode || p.barcode || `Stock ${p.stock ?? 0}`}
                     trailing={typeof p.price === 'number' ? `₹${p.price.toLocaleString()}` : undefined}
                     onClick={() => openFull('item')}
                   />

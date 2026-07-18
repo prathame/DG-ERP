@@ -60,7 +60,7 @@ On-device PGlite implements the same `/api/*` paths the cloud UI uses (vendors, 
 
 Analytics **Outstanding Clients** (`topVendors`) is invoice outstanding per party (invoiced − payments), same party keys as Invoice Finance. **Staff Payroll** uses local `staff_payments` (summary + create/list/delete) so Masters “Record payroll payment” works offline.
 
-Masters on Offline Mobile: **Products** stay in Masters as a catalog (no Inventory navigation — inventory tab is off). **Vendor-Customer Map** is hidden (no local mapping APIs).
+Masters on Offline Mobile: **Products** and **Vendor-Customer Map** are hidden (no inventory / mapping). Price List and invoice/quote line items still use the local products API.
 
 See `docs/api-audit-service-mobile.md`.
 
