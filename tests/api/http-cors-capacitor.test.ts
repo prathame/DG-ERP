@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { api } from '../http';
 
-/** Capacitor WebView origins must be able to call public activate without CORS/CORP blocking. */
+/** Capacitor WebView + local Vite origins must be able to call public activate without CORS/CORP blocking. */
 const CAPACITOR_ORIGINS = ['https://localhost', 'capacitor://localhost', 'http://localhost', 'ionic://localhost'];
+const LOOPBACK_ORIGINS = ['http://localhost:3000', 'http://localhost:3010', 'http://127.0.0.1:3000'];
 
 describe('CORS for Capacitor (Offline Mobile)', () => {
-  for (const origin of CAPACITOR_ORIGINS) {
+  for (const origin of [...CAPACITOR_ORIGINS, ...LOOPBACK_ORIGINS]) {
     it(`allows Origin ${origin} on service-mobile activate`, async () => {
       const res = await api().post('/api/service-mobile/activate').set('Origin', origin).send({
         licenseKey: 'DG-SM-CORS-PROBE',

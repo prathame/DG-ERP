@@ -60,14 +60,17 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       allowedHosts: true as const,
       proxy: {
-        // Default: local Express. Override for cloud: DG_DEV_API_PROXY=https://dg-erp.onrender.com
+        // Offline Mobile Vite: proxy license APIs to cloud (avoids CORS on localhost:*).
+        // Other modes: local Express. Override: DG_DEV_API_PROXY=https://…
         '/api': {
-          target: process.env.DG_DEV_API_PROXY || 'http://localhost:3001',
+          target:
+            process.env.DG_DEV_API_PROXY || (serviceMobile ? 'https://dg-erp.onrender.com' : 'http://localhost:3001'),
           changeOrigin: true,
           secure: true,
         },
         '/manifest.json': {
-          target: process.env.DG_DEV_API_PROXY || 'http://localhost:3001',
+          target:
+            process.env.DG_DEV_API_PROXY || (serviceMobile ? 'https://dg-erp.onrender.com' : 'http://localhost:3001'),
           changeOrigin: true,
           secure: true,
         },

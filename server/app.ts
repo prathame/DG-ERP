@@ -183,9 +183,21 @@ export function createApp(): express.Application {
     'http://localhost',
     'https://localhost',
   ]);
+  /** Vite / browser QA on any local port (e.g. http://localhost:3010) */
+  const isLoopbackOrigin = (origin: string) => {
+    try {
+      const u = new URL(origin);
+      return (
+        (u.protocol === 'http:' || u.protocol === 'https:') &&
+        (u.hostname === 'localhost' || u.hostname === '127.0.0.1')
+      );
+    } catch {
+      return false;
+    }
+  };
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin && (allowedOrigins.includes(origin) || capacitorOrigins.has(origin))) {
+    if (origin && (allowedOrigins.includes(origin) || capacitorOrigins.has(origin) || isLoopbackOrigin(origin))) {
       res.header('Access-Control-Allow-Origin', origin);
     }
     // Never reflect * — unlisted origins get no Allow-Origin header
