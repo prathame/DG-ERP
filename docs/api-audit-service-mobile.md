@@ -58,10 +58,10 @@ Scope: Capacitor Offline Mobile (`VITE_DEPLOYMENT_MODE=service-mobile`) local PG
 
 Removed from Offline Mobile UI (`ChatWidget` gated off; tab preset `chatbot.visible: false`). Local `/chatbot*` returns 404.
 
-## Print / PDF (Capacitor)
+## PDF download (Capacitor / Offline Mobile)
 
 `window.open` is blocked in the Offline Mobile WebView, and Android WebView ignores `window.print()`.  
-`openPrintWindow()` uses a fullscreen in-app preview; **Print / PDF** calls `@capgo/capacitor-printer` (`Printer.printHtml`) so the system print sheet opens (Save as PDF).
+`openPrintWindow()` uses a short in-app overlay; bills/quotes/invoices are rendered with **html2pdf.js** and **downloaded directly** (Chrome: file download; Capacitor: share sheet / save when available). No system print sheet.
 
 ## Bugbot follow-ups (fixed)
 
@@ -76,4 +76,18 @@ Removed from Offline Mobile UI (`ChatWidget` gated off; tab preset `chatbot.visi
 - Rebuild Offline Mobile APK after merge for devices to pick up local API + login fix + print overlay.
 - Existing devices: log out and log in once so `businessType: service` is stored (or reopen app — session restore now defaults offline).
 - iOS build still requires Xcode on a Mac with the Capacitor iOS toolchain.
+
+## Follow-up (2026-07-18) — Settings / Bell / Quotes
+
+| Call | Fix |
+|------|-----|
+| `GET /notifications` | Feed shape `{ items, generatedAt, unreadAdmin }` with `kind: admin_message` |
+| `POST /notifications/:id/read` | Implemented |
+| `GET/PUT /settings/profile` | Phone/address/gst/autoWhatsapp/defaultGstRate on local `users` |
+| `PUT /settings/change-password` | bcrypt verify + update |
+| `GET /analytics/overview` | Invoice/payment/expense KPIs + counts |
+| `GET/PUT/DELETE /quotations/:id`, status, convert | Full quote flow → invoice convert |
+| `GET/POST /orders`, status, fulfill, DELETE | Order flow; fulfill creates invoice |
+| `PUT/DELETE /customers/:id` | Masters edit/delete |
+| GST API / Delete Account | Hidden in Settings UI for Offline Mobile |
 

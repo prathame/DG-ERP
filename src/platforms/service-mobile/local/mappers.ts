@@ -130,32 +130,7 @@ export function mapExpense(r: Record<string, unknown>) {
   };
 }
 
-export function mapQuotation(r: Record<string, unknown>) {
-  const items = parseJsonArray(r.items);
-  return {
-    id: r.id,
-    quoteNumber: r.quote_number,
-    clientName: r.client_name,
-    clientId: r.client_id,
-    status: r.status,
-    items,
-    total: Number(r.total) || 0,
-    createdAt: r.created_at,
-  };
-}
-
-export function mapOrder(r: Record<string, unknown>) {
-  const items = parseJsonArray(r.items);
-  return {
-    id: r.id,
-    orderNumber: r.order_number,
-    clientName: r.client_name,
-    status: r.status,
-    items,
-    total: Number(r.total) || 0,
-    createdAt: r.created_at,
-  };
-}
+export { mapQuoteRow as mapQuotation, mapOrderRow as mapOrder } from './quoteOrderHelpers';
 
 export function mapPriceRule(r: Record<string, unknown>) {
   return {

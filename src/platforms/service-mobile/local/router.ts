@@ -2,6 +2,7 @@
  * In-process local API for Service Mobile — ERP traffic stays on-device.
  * Cloud license/sync/backup paths are NOT handled here (see cloud.ts).
  */
+import bcrypt from 'bcryptjs';
 import { localQuery } from './db';
 import { localLogin, verifyLocalToken, type LocalJwtPayload } from './auth';
 import { SERVICE_TAB_PRESET } from './schema';
@@ -10,14 +11,13 @@ import {
   mapCustomer,
   mapExpense,
   mapInvoice,
-  mapOrder,
   mapPriceRule,
   mapProduct,
-  mapQuotation,
   mapStaff,
   mapSupplier,
   mapVendor,
 } from './mappers';
+import { buildLineItems, mapOrderRow, mapQuoteRow, nextDocNumber } from './quoteOrderHelpers';
 
 function uid(prefix: string): string {
   return `${prefix}-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
@@ -262,9 +262,41 @@ export async function handleLocalApiRequest(
       const { rows } = await localQuery(`SELECT * FROM customers WHERE id=$1`, [id]);
       return json(201, mapCustomer(rows[0] as Record<string, unknown>));
     }
+    const customerMatch = ctx.path.match(/^\/customers\/([^/]+)$/);
+    if (customerMatch) {
+      const id = customerMatch[1]!;
+      if (ctx.method === 'GET') {
+        const { rows } = await localQuery(`SELECT * FROM customers WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        return rows[0] ? json(200, mapCustomer(rows[0] as Record<string, unknown>)) : json(404, { error: 'Not found' });
+      }
+      if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
+        const b = ctx.body as Record<string, unknown>;
+        await localQuery(
+          `UPDATE customers SET name=COALESCE($1,name), phone=COALESCE($2,phone), email=COALESCE($3,email),
+           address=COALESCE($4,address) WHERE id=$5 AND tenant_id=$6`,
+          [b.name ?? null, b.phone ?? null, b.email ?? null, b.address ?? null, id, tid],
+        );
+        const { rows } = await localQuery(`SELECT * FROM customers WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        return rows[0] ? json(200, mapCustomer(rows[0] as Record<string, unknown>)) : json(404, { error: 'Not found' });
+      }
+      if (ctx.method === 'DELETE') {
+        await localQuery(`DELETE FROM customers WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        return json(200, { ok: true });
+      }
+    }
 
     // Categories / products (masters)
-    if (ctx.path === '/categories' && ctx.method === 'GET') return json(200, await listTable('categories', tid!));
+    if (ctx.path === '/categories' && ctx.method === 'GET') {
+      const rows = await listTable('categories', tid!);
+      return json(
+        200,
+        rows.map(r => ({
+          id: (r as { id: string }).id,
+          name: (r as { name: string }).name,
+          createdAt: (r as { created_at?: string }).created_at,
+        })),
+      );
+    }
     if (ctx.path === '/categories' && ctx.method === 'POST') {
       const b = ctx.body as Record<string, unknown>;
       const id = uid('CAT');
@@ -634,6 +666,16 @@ export async function handleLocalApiRequest(
     if (ctx.path === '/payroll/staff' && ctx.method === 'GET') {
       return json(200, []);
     }
+    if (ctx.path === '/payroll/summary' && ctx.method === 'GET') {
+      return json(200, { totalPaid: 0, totalAdvance: 0, staffCount: 0, payments: [] });
+    }
+    if (ctx.path === '/payroll' && ctx.method === 'POST') {
+      return json(403, { error: 'Payroll create is not available on Offline Mobile yet' });
+    }
+    const payrollDel = ctx.path.match(/^\/payroll\/([^/]+)$/);
+    if (payrollDel && ctx.method === 'DELETE') {
+      return json(403, { error: 'Payroll delete is not available on Offline Mobile yet' });
+    }
 
     // Expenses
     if (ctx.path === '/expenses' && ctx.method === 'GET') {
@@ -664,28 +706,222 @@ export async function handleLocalApiRequest(
       const rows = await listTable('quotations', tid!);
       return json(
         200,
-        rows.map(r => mapQuotation(r as Record<string, unknown>)),
+        rows.map(r => mapQuoteRow(r as Record<string, unknown>)),
       );
     }
     if (ctx.path === '/quotations' && ctx.method === 'POST') {
       const b = ctx.body as Record<string, unknown>;
+      const rate = Number(b.gstRate) || 18;
+      const built = await buildLineItems(tid!, (b.items as Parameters<typeof buildLineItems>[1]) || [], rate);
+      if ('error' in built) return json(400, { error: built.error });
       const id = uid('Q');
+      const qNum = await nextDocNumber('quotations', tid!, 'QT');
+      let vendorName: string | null = null;
+      if (b.vendorId) {
+        const { rows: vr } = await localQuery(`SELECT name FROM vendors WHERE id=$1 AND tenant_id=$2`, [
+          b.vendorId,
+          tid,
+        ]);
+        vendorName = (vr[0] as { name?: string } | undefined)?.name ?? null;
+      }
+      const customerName = (b.customerName as string) || vendorName || null;
+      const qDate = (b.quotationDate as string) || new Date().toISOString().slice(0, 10);
       await localQuery(
-        `INSERT INTO quotations (id, tenant_id, quote_number, client_name, client_id, status, items, total)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        `INSERT INTO quotations
+           (id, tenant_id, quotation_number, quote_number, vendor_id, vendor_name, client_name, customer_name,
+            customer_phone, customer_email, quotation_date, valid_until, status, items, subtotal, gst_rate, gst_amount, total, notes)
+         VALUES ($1,$2,$3,$3,$4,$5,$6,$6,$7,$8,$9,$10,'Draft',$11,$12,$13,$14,$15,$16)`,
         [
           id,
           tid,
-          b.quoteNumber ?? b.quote_number ?? null,
-          b.clientName ?? b.client_name ?? null,
-          b.clientId ?? null,
-          b.status ?? 'draft',
-          JSON.stringify(b.items ?? []),
-          b.total ?? 0,
+          qNum,
+          b.vendorId ?? null,
+          vendorName,
+          customerName,
+          b.customerPhone ?? null,
+          b.customerEmail ?? null,
+          qDate,
+          b.validUntil ?? null,
+          JSON.stringify(built.resolvedItems),
+          built.subtotal,
+          rate,
+          built.gstAmount,
+          built.total,
+          b.notes ?? null,
         ],
       );
       const { rows } = await localQuery(`SELECT * FROM quotations WHERE id=$1`, [id]);
-      return json(201, mapQuotation(rows[0] as Record<string, unknown>));
+      return json(201, mapQuoteRow(rows[0] as Record<string, unknown>));
+    }
+    const quoteConvert = ctx.path.match(/^\/quotations\/([^/]+)\/convert$/);
+    if (quoteConvert && ctx.method === 'POST') {
+      const qid = quoteConvert[1]!;
+      const { rows } = await localQuery(`SELECT * FROM quotations WHERE id=$1 AND tenant_id=$2`, [qid, tid]);
+      const quote = rows[0] as Record<string, unknown> | undefined;
+      if (!quote) return json(404, { error: 'Quotation not found' });
+      if (String(quote.status) === 'Converted') return json(400, { error: 'Already converted' });
+      if (String(quote.status) !== 'Accepted')
+        return json(400, { error: 'Quotation must be accepted before converting' });
+      const items = mapQuoteRow(quote).items;
+      const convertReq = Array.isArray((ctx.body as { items?: unknown })?.items)
+        ? (ctx.body as { items: { productId: string; quantity: number; lineIndex?: number }[] }).items
+        : null;
+      const plan: { idx: number; convertQty: number; item: (typeof items)[0] }[] = [];
+      const used = new Set<number>();
+      if (convertReq?.length) {
+        for (const reqLine of convertReq) {
+          const idx =
+            typeof reqLine.lineIndex === 'number' &&
+            reqLine.lineIndex >= 0 &&
+            reqLine.lineIndex < items.length &&
+            items[reqLine.lineIndex]!.productId === reqLine.productId
+              ? reqLine.lineIndex
+              : items.findIndex(
+                  (i, j) => i.productId === reqLine.productId && !used.has(j) && i.quantity - (i.convertedQty || 0) > 0,
+                );
+          if (idx < 0 || used.has(idx)) return json(400, { error: `Product not on quotation: ${reqLine.productId}` });
+          const item = items[idx]!;
+          const remaining = item.quantity - (item.convertedQty || 0);
+          const convertQty = Math.max(0, Math.min(remaining, Number(reqLine.quantity) || 0));
+          if (convertQty <= 0) return json(400, { error: `No remaining quantity for ${item.productName}` });
+          used.add(idx);
+          plan.push({ idx, convertQty, item });
+        }
+      } else {
+        items.forEach((item, idx) => {
+          const remaining = item.quantity - (item.convertedQty || 0);
+          if (remaining > 0) plan.push({ idx, convertQty: remaining, item });
+        });
+      }
+      if (!plan.length) return json(400, { error: 'Nothing left to convert' });
+      const invItems = plan.map(p => {
+        const withGst = p.item.withGst !== false;
+        const unitNet = p.item.lineNet / Math.max(1, p.item.quantity);
+        const unitGst = p.item.lineGst / Math.max(1, p.item.quantity);
+        const qty = p.convertQty;
+        const lineNet = Math.round(unitNet * qty * 100) / 100;
+        const lineGst = withGst ? Math.round(unitGst * qty * 100) / 100 : 0;
+        return {
+          productId: p.item.productId,
+          productName: p.item.productName,
+          quantity: qty,
+          unitPrice: p.item.price,
+          lineNet,
+          lineGst,
+          lineTotal: Math.round((lineNet + lineGst) * 100) / 100,
+        };
+      });
+      const subtotal = invItems.reduce((s, i) => s + i.lineNet, 0);
+      const taxTotal = invItems.reduce((s, i) => s + i.lineGst, 0);
+      const grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
+      const invId = uid('INV');
+      const { rows: cntRows } = await localQuery(
+        `SELECT COUNT(*)::int AS c FROM standalone_invoices WHERE tenant_id=$1`,
+        [tid],
+      );
+      const count = Number((cntRows[0] as { c: number }).c) + 1;
+      const now = new Date();
+      const fy =
+        now.getMonth() >= 3
+          ? `${now.getFullYear()}-${(now.getFullYear() + 1).toString().slice(2)}`
+          : `${now.getFullYear() - 1}-${now.getFullYear().toString().slice(2)}`;
+      const invNum = `INV/${fy}/${String(count).padStart(4, '0')}`;
+      const customerName = String(quote.customer_name || quote.client_name || 'Customer');
+      await localQuery(
+        `INSERT INTO standalone_invoices
+           (id, tenant_id, invoice_number, customer_name, client_name, status, items, subtotal, tax, tax_total, grand_total, total, invoice_date)
+         VALUES ($1,$2,$3,$4,$4,'sent',$5,$6,$7,$7,$8,$8,$9)`,
+        [
+          invId,
+          tid,
+          invNum,
+          customerName,
+          JSON.stringify(invItems),
+          subtotal,
+          taxTotal,
+          grandTotal,
+          quote.quotation_date || new Date().toISOString().slice(0, 10),
+        ],
+      );
+      for (const p of plan) {
+        items[p.idx]!.convertedQty = (items[p.idx]!.convertedQty || 0) + p.convertQty;
+      }
+      const fullyConverted = items.every(i => (i.convertedQty || 0) >= i.quantity);
+      await localQuery(
+        `UPDATE quotations SET items=$1, status=$2, converted_invoice_id=COALESCE(converted_invoice_id,$3)
+         WHERE id=$4 AND tenant_id=$5`,
+        [JSON.stringify(items), fullyConverted ? 'Converted' : 'Accepted', invId, qid, tid],
+      );
+      return json(200, {
+        target: 'invoice',
+        invoiceId: invId,
+        invoiceNumber: invNum,
+        grandTotal,
+        fullyConverted,
+      });
+    }
+    const quoteStatus = ctx.path.match(/^\/quotations\/([^/]+)\/status$/);
+    if (quoteStatus && ctx.method === 'PUT') {
+      const status = String((ctx.body as { status?: string })?.status || '');
+      if (status === 'Converted') return json(400, { error: 'Use POST /quotations/:id/convert to convert' });
+      await localQuery(`UPDATE quotations SET status=$1 WHERE id=$2 AND tenant_id=$3`, [status, quoteStatus[1], tid]);
+      return json(200, { ok: true, status });
+    }
+    const quoteMatch = ctx.path.match(/^\/quotations\/([^/]+)$/);
+    if (quoteMatch) {
+      const id = quoteMatch[1]!;
+      if (ctx.method === 'GET') {
+        const { rows } = await localQuery(`SELECT * FROM quotations WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        return rows[0] ? json(200, mapQuoteRow(rows[0] as Record<string, unknown>)) : json(404, { error: 'Not found' });
+      }
+      if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
+        const { rows: curRows } = await localQuery(`SELECT * FROM quotations WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        const current = curRows[0] as Record<string, unknown> | undefined;
+        if (!current) return json(404, { error: 'Not found' });
+        if (String(current.status) !== 'Draft') return json(400, { error: 'Only Draft quotations can be edited' });
+        const b = ctx.body as Record<string, unknown>;
+        const rate = Number(b.gstRate) || Number(current.gst_rate) || 18;
+        const built = await buildLineItems(tid!, (b.items as Parameters<typeof buildLineItems>[1]) || [], rate);
+        if ('error' in built) return json(400, { error: built.error });
+        let vendorName = (current.vendor_name as string) || null;
+        if (b.vendorId) {
+          const { rows: vr } = await localQuery(`SELECT name FROM vendors WHERE id=$1 AND tenant_id=$2`, [
+            b.vendorId,
+            tid,
+          ]);
+          vendorName = (vr[0] as { name?: string } | undefined)?.name ?? null;
+        }
+        const customerName = (b.customerName as string) || vendorName || null;
+        await localQuery(
+          `UPDATE quotations SET vendor_id=COALESCE($1,vendor_id), vendor_name=$2, client_name=$3, customer_name=$3,
+           customer_phone=$4, customer_email=$5, quotation_date=COALESCE($6,quotation_date), valid_until=$7,
+           items=$8, subtotal=$9, gst_rate=$10, gst_amount=$11, total=$12, notes=$13
+           WHERE id=$14 AND tenant_id=$15`,
+          [
+            b.vendorId ?? null,
+            vendorName,
+            customerName,
+            b.customerPhone ?? null,
+            b.customerEmail ?? null,
+            b.quotationDate ?? null,
+            b.validUntil ?? null,
+            JSON.stringify(built.resolvedItems),
+            built.subtotal,
+            rate,
+            built.gstAmount,
+            built.total,
+            b.notes ?? null,
+            id,
+            tid,
+          ],
+        );
+        const { rows } = await localQuery(`SELECT * FROM quotations WHERE id=$1`, [id]);
+        return json(200, mapQuoteRow(rows[0] as Record<string, unknown>));
+      }
+      if (ctx.method === 'DELETE') {
+        await localQuery(`DELETE FROM quotations WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        return json(200, { ok: true });
+      }
     }
 
     // Orders
@@ -693,26 +929,115 @@ export async function handleLocalApiRequest(
       const rows = await listTable('orders', tid!);
       return json(
         200,
-        rows.map(r => mapOrder(r as Record<string, unknown>)),
+        rows.map(r => mapOrderRow(r as Record<string, unknown>)),
       );
     }
     if (ctx.path === '/orders' && ctx.method === 'POST') {
       const b = ctx.body as Record<string, unknown>;
+      const rate = Number(b.gstRate) || 18;
+      const built = await buildLineItems(tid!, (b.items as Parameters<typeof buildLineItems>[1]) || [], rate);
+      if ('error' in built) return json(400, { error: built.error });
       const id = uid('O');
+      const oNum = await nextDocNumber('orders', tid!, 'ORD');
+      let vendorName: string | null = null;
+      if (b.vendorId) {
+        const { rows: vr } = await localQuery(`SELECT name FROM vendors WHERE id=$1 AND tenant_id=$2`, [
+          b.vendorId,
+          tid,
+        ]);
+        vendorName = (vr[0] as { name?: string } | undefined)?.name ?? null;
+      }
+      const customerName = (b.customerName as string) || vendorName || null;
+      const oDate = (b.orderDate as string) || new Date().toISOString().slice(0, 10);
       await localQuery(
-        `INSERT INTO orders (id, tenant_id, order_number, client_name, status, items, total) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        `INSERT INTO orders
+           (id, tenant_id, order_number, vendor_id, vendor_name, client_name, customer_name, customer_phone,
+            customer_gst_number, order_date, required_date, status, items, subtotal, gst_rate, gst_amount, total, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,'Pending',$11,$12,$13,$14,$15,$16)`,
         [
           id,
           tid,
-          b.orderNumber ?? null,
-          b.clientName ?? null,
-          b.status ?? 'open',
-          JSON.stringify(b.items ?? []),
-          b.total ?? 0,
+          oNum,
+          b.vendorId ?? null,
+          vendorName,
+          customerName,
+          b.customerPhone ?? null,
+          b.customerGstNumber ?? null,
+          oDate,
+          b.requiredDate ?? null,
+          JSON.stringify(built.resolvedItems),
+          built.subtotal,
+          rate,
+          built.gstAmount,
+          built.total,
+          b.notes ?? null,
         ],
       );
       const { rows } = await localQuery(`SELECT * FROM orders WHERE id=$1`, [id]);
-      return json(201, mapOrder(rows[0] as Record<string, unknown>));
+      return json(201, mapOrderRow(rows[0] as Record<string, unknown>));
+    }
+    const orderStatus = ctx.path.match(/^\/orders\/([^/]+)\/status$/);
+    if (orderStatus && ctx.method === 'PUT') {
+      const status = String((ctx.body as { status?: string })?.status || '');
+      if (status === 'Fulfilled') return json(400, { error: 'Use POST /orders/:id/fulfill to fulfill' });
+      await localQuery(`UPDATE orders SET status=$1 WHERE id=$2 AND tenant_id=$3`, [status, orderStatus[1], tid]);
+      return json(200, { ok: true, status });
+    }
+    const orderFulfill = ctx.path.match(/^\/orders\/([^/]+)\/fulfill$/);
+    if (orderFulfill && ctx.method === 'POST') {
+      const oid = orderFulfill[1]!;
+      const { rows } = await localQuery(`SELECT * FROM orders WHERE id=$1 AND tenant_id=$2`, [oid, tid]);
+      const order = rows[0] as Record<string, unknown> | undefined;
+      if (!order) return json(404, { error: 'Order not found' });
+      if (String(order.status) === 'Fulfilled') return json(400, { error: 'Already fulfilled' });
+      const mapped = mapOrderRow(order);
+      const invId = uid('INV');
+      const { rows: cntRows } = await localQuery(
+        `SELECT COUNT(*)::int AS c FROM standalone_invoices WHERE tenant_id=$1`,
+        [tid],
+      );
+      const count = Number((cntRows[0] as { c: number }).c) + 1;
+      const now = new Date();
+      const fy =
+        now.getMonth() >= 3
+          ? `${now.getFullYear()}-${(now.getFullYear() + 1).toString().slice(2)}`
+          : `${now.getFullYear() - 1}-${now.getFullYear().toString().slice(2)}`;
+      const invNum = `INV/${fy}/${String(count).padStart(4, '0')}`;
+      await localQuery(
+        `INSERT INTO standalone_invoices
+           (id, tenant_id, invoice_number, customer_name, client_name, status, items, subtotal, tax, tax_total, grand_total, total, invoice_date)
+         VALUES ($1,$2,$3,$4,$4,'sent',$5,$6,$7,$7,$8,$8,$9)`,
+        [
+          invId,
+          tid,
+          invNum,
+          mapped.customerName || 'Customer',
+          JSON.stringify(mapped.items),
+          mapped.subtotal,
+          mapped.gstAmount,
+          mapped.total,
+          mapped.orderDate || new Date().toISOString().slice(0, 10),
+        ],
+      );
+      await localQuery(`UPDATE orders SET status='Fulfilled', fulfilled_batch_id=$1 WHERE id=$2 AND tenant_id=$3`, [
+        invId,
+        oid,
+        tid,
+      ]);
+      const totalQty = mapped.items.reduce((s, i) => s + i.quantity, 0);
+      return json(200, { batchId: invNum, total: totalQty, billValue: mapped.total, invoiceId: invId });
+    }
+    const orderMatch = ctx.path.match(/^\/orders\/([^/]+)$/);
+    if (orderMatch) {
+      const id = orderMatch[1]!;
+      if (ctx.method === 'GET') {
+        const { rows } = await localQuery(`SELECT * FROM orders WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        return rows[0] ? json(200, mapOrderRow(rows[0] as Record<string, unknown>)) : json(404, { error: 'Not found' });
+      }
+      if (ctx.method === 'DELETE') {
+        await localQuery(`DELETE FROM orders WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        return json(200, { ok: true });
+      }
     }
 
     // Invoices
@@ -1457,39 +1782,254 @@ export async function handleLocalApiRequest(
       return json(200, { rows: [], items: [], total: 0 });
     }
 
-    // Notifications (local Bell)
+    // Analytics overview (phone Analytics tab)
+    if (ctx.path === '/analytics/overview' && ctx.method === 'GET') {
+      const from = query.get('from');
+      const to = query.get('to');
+      const rangeParams = from && to ? [tid, from, to] : from ? [tid, from] : [tid];
+      const invFilter = from && to ? 'AND invoice_date BETWEEN $2 AND $3' : from ? 'AND invoice_date >= $2' : '';
+      const expFilter = from && to ? 'AND expense_date BETWEEN $2 AND $3' : from ? 'AND expense_date >= $2' : '';
+      const payFilter = from && to ? 'AND payment_date BETWEEN $2 AND $3' : from ? 'AND payment_date >= $2' : '';
+      const [collectionsR, invoiceRevR, expensesR, outstandingR, activityR, countsR] = await Promise.all([
+        localQuery(
+          `SELECT COALESCE(SUM(amount),0) AS v FROM invoice_payments WHERE tenant_id=$1 ${payFilter}`,
+          rangeParams,
+        ),
+        localQuery(
+          `SELECT COALESCE(SUM(COALESCE(grand_total,total,0)),0) AS v FROM standalone_invoices
+           WHERE tenant_id=$1 AND status!='cancelled' ${invFilter}`,
+          rangeParams,
+        ),
+        localQuery(`SELECT COALESCE(SUM(amount),0) AS v FROM expenses WHERE tenant_id=$1 ${expFilter}`, rangeParams),
+        localQuery(
+          `SELECT COALESCE(SUM(COALESCE(grand_total,total,0)),0) AS v FROM standalone_invoices
+           WHERE tenant_id=$1 AND status NOT IN ('paid','cancelled')`,
+          [tid],
+        ),
+        localQuery(
+          `SELECT type, id, label, amount, date FROM (
+             SELECT 'invoice' AS type, id, COALESCE(customer_name,client_name,'Customer') AS label,
+                    COALESCE(grand_total,total,0) AS amount, invoice_date::text AS date
+             FROM standalone_invoices WHERE tenant_id=$1 AND status!='cancelled'
+             UNION ALL
+             SELECT 'payment', id, invoice_id, amount, payment_date::text
+             FROM invoice_payments WHERE tenant_id=$1
+             UNION ALL
+             SELECT 'expense', id, COALESCE(category,'Expense'), amount, expense_date::text
+             FROM expenses WHERE tenant_id=$1
+           ) t ORDER BY date DESC NULLS LAST LIMIT 15`,
+          [tid],
+        ),
+        localQuery(
+          `SELECT
+             (SELECT COUNT(*)::int FROM customers WHERE tenant_id=$1) AS customers,
+             (SELECT COUNT(*)::int FROM vendors WHERE tenant_id=$1) AS vendors,
+             (SELECT COUNT(*)::int FROM products WHERE tenant_id=$1) AS items,
+             (SELECT COUNT(*)::int FROM banks WHERE tenant_id=$1) AS banks,
+             (SELECT COUNT(*)::int FROM staff_members WHERE tenant_id=$1) AS staff`,
+          [tid],
+        ),
+      ]);
+      const collections = Number((collectionsR.rows[0] as { v: number }).v) || 0;
+      const invoiceRev = Number((invoiceRevR.rows[0] as { v: number }).v) || 0;
+      const expenses = Number((expensesR.rows[0] as { v: number }).v) || 0;
+      const invoiceOutstanding = Number((outstandingR.rows[0] as { v: number }).v) || 0;
+      const c = countsR.rows[0] as Record<string, number>;
+      return json(200, {
+        money: {
+          collections,
+          revenue: invoiceRev,
+          distribution: 0,
+          expenses,
+          outstanding: 0,
+          invoiceOutstanding,
+        },
+        recentActivity: activityR.rows.map((r: Record<string, unknown>) => ({
+          type: r.type,
+          id: r.id,
+          label: r.label,
+          amount: Number(r.amount) || 0,
+          date: r.date,
+        })),
+        topVendors: [],
+        counts: {
+          customerMaster: Number(c.customers) || 0,
+          vendorMaster: Number(c.vendors) || 0,
+          itemMaster: Number(c.items) || 0,
+          bankMaster: Number(c.banks) || 0,
+          staffCount: Number(c.staff) || 0,
+        },
+      });
+    }
+
+    // Notifications (local Bell) — same feed shape as cloud
     if (ctx.path === '/notifications' && ctx.method === 'GET') {
-      return json(200, await listTable('tenant_notifications', tid!, 'created_at DESC'));
+      const { rows } = await localQuery(
+        `SELECT id, title, body, type, source, created_at, read_at
+         FROM tenant_notifications
+         WHERE tenant_id=$1
+           AND (expires_at IS NULL OR expires_at > NOW())
+           AND (read_at IS NULL OR read_at > NOW() - INTERVAL '7 days')
+         ORDER BY (read_at IS NULL) DESC, created_at DESC
+         LIMIT 10`,
+        [tid],
+      );
+      const adminItems = (rows as Record<string, unknown>[]).slice(0, 5).map(r => ({
+        id: String(r.id),
+        kind: 'admin_message' as const,
+        priority: 'high' as const,
+        title: String(r.title),
+        body: String(r.body),
+        source: String(r.source || 'super_admin'),
+        type: String(r.type || 'info'),
+        createdAt: r.created_at ? new Date(String(r.created_at)).toISOString() : undefined,
+        read: !!r.read_at,
+        hrefTab: undefined as string | undefined,
+      }));
+      return json(200, {
+        items: adminItems,
+        generatedAt: new Date().toISOString(),
+        unreadAdmin: adminItems.filter(i => !i.read).length,
+        digestCount: 0,
+        unreadCount: adminItems.filter(i => !i.read).length,
+      });
+    }
+    const notifRead = ctx.path.match(/^\/notifications\/([^/]+)\/read$/);
+    if (notifRead && ctx.method === 'POST') {
+      const notifId = notifRead[1]!;
+      const result = await localQuery(
+        `UPDATE tenant_notifications SET read_at=NOW()
+         WHERE id=$1 AND tenant_id=$2 AND read_at IS NULL`,
+        [notifId, tid],
+      );
+      if ((result.rowCount ?? 0) === 0) {
+        const exists = await localQuery(`SELECT id FROM tenant_notifications WHERE id=$1 AND tenant_id=$2`, [
+          notifId,
+          tid,
+        ]);
+        if (!exists.rows[0]) return json(404, { error: 'Notification not found' });
+      }
+      return json(200, { ok: true });
     }
     if (ctx.path === '/notifications/read-all' && ctx.method === 'POST') {
       await localQuery(`UPDATE tenant_notifications SET read_at=NOW() WHERE tenant_id=$1 AND read_at IS NULL`, [tid]);
       return json(200, { ok: true });
     }
 
+    // GST API — not available offline; stub so Settings doesn't hard-fail if opened
+    if (ctx.path.startsWith('/gst/') && (ctx.method === 'GET' || ctx.method === 'PUT')) {
+      return json(200, { enabled: false, mode: 'disabled', message: 'GST API is not available on Offline Mobile' });
+    }
+
     // Settings / me / profile (not /settings/bill — handled above)
-    if (
-      (ctx.path === '/admin/me' ||
-        ctx.path === '/auth/me' ||
-        ctx.path.startsWith('/settings/profile') ||
-        (ctx.path.match(/^\/settings\/[^/]+$/) && ctx.path !== '/settings/bill')) &&
-      ctx.method === 'GET'
-    ) {
+    async function loadLocalProfile() {
       const { rows } = await localQuery(
-        `SELECT u.id, u.email, u.name, u.role, t.company_name AS "companyName", t.business_type AS "businessType",
-                t.tab_config AS "tabConfig"
+        `SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.auto_whatsapp,
+                u.default_gst_rate, u.gst_number, u.permissions,
+                t.company_name AS tenant_company, t.business_type, t.tab_config,
+                t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled,
+                t.inventory_tracking_enabled
          FROM users u JOIN tenants t ON t.id = u.tenant_id
          WHERE t.id=$1 AND u.id=$2 LIMIT 1`,
         [tid, ctx.auth!.userId],
       );
-      const row = (rows[0] as Record<string, unknown> | undefined) || {
-        id: ctx.auth!.userId,
-        email: ctx.auth!.email,
-        name: ctx.auth!.name,
+      const row = rows[0] as Record<string, unknown> | undefined;
+      if (!row) {
+        return {
+          id: ctx.auth!.userId,
+          email: ctx.auth!.email,
+          name: ctx.auth!.name,
+          role: ctx.auth!.role,
+          businessType: 'service',
+          tabConfig: SERVICE_TAB_PRESET,
+          autoWhatsapp: false,
+          defaultGstRate: 18,
+        };
+      }
+      return {
+        id: row.id,
+        email: row.email,
+        name: row.name,
+        phone: row.phone ?? null,
+        address: row.address ?? null,
+        role: row.role,
+        companyName: row.company_name || row.tenant_company || null,
+        permissions: row.permissions ?? null,
+        autoWhatsapp: !!row.auto_whatsapp,
+        defaultGstRate: Number(row.default_gst_rate) || 18,
+        gstNumber: row.gst_number ?? null,
+        businessType: (row.business_type as string) || 'service',
+        vendorPortalEnabled: row.vendor_portal_enabled !== false,
+        barcodeSystemEnabled: row.barcode_system_enabled !== false,
+        multiLanguageEnabled: row.multi_language_enabled !== false,
+        inventoryTrackingEnabled: row.inventory_tracking_enabled !== false,
+        tabConfig: row.tab_config || SERVICE_TAB_PRESET,
       };
-      return json(200, {
-        ...row,
-        businessType: (row.businessType as string) || (row.business_type as string) || 'service',
-        tabConfig: row.tabConfig || row.tab_config || SERVICE_TAB_PRESET,
+    }
+
+    if (
+      (ctx.path === '/admin/me' ||
+        ctx.path === '/auth/me' ||
+        ctx.path.startsWith('/settings/profile') ||
+        (ctx.path.match(/^\/settings\/[^/]+$/) &&
+          ctx.path !== '/settings/bill' &&
+          ctx.path !== '/settings/change-password')) &&
+      ctx.method === 'GET'
+    ) {
+      return json(200, await loadLocalProfile());
+    }
+
+    if (ctx.path === '/settings/profile' && (ctx.method === 'PUT' || ctx.method === 'PATCH')) {
+      const b = ctx.body as Record<string, unknown>;
+      const userId = String(b.userId || ctx.auth!.userId);
+      if (userId !== ctx.auth!.userId) return json(403, { error: 'Access denied' });
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      const add = (col: string, val: unknown) => {
+        params.push(val);
+        sets.push(`${col}=$${params.length}`);
+      };
+      if (b.name !== undefined) add('name', b.name || null);
+      if (b.phone !== undefined) add('phone', b.phone || null);
+      if (b.address !== undefined) add('address', b.address || null);
+      if (b.companyName !== undefined) add('company_name', b.companyName || null);
+      if (b.gstNumber !== undefined) add('gst_number', b.gstNumber || null);
+      if (b.autoWhatsapp !== undefined) add('auto_whatsapp', !!b.autoWhatsapp);
+      if (b.defaultGstRate !== undefined) add('default_gst_rate', Number(b.defaultGstRate) || 18);
+      if (sets.length) {
+        params.push(userId, tid);
+        await localQuery(
+          `UPDATE users SET ${sets.join(', ')} WHERE id=$${params.length - 1} AND tenant_id=$${params.length}`,
+          params,
+        );
+      }
+      if (b.companyName) {
+        await localQuery(`UPDATE tenants SET company_name=$1 WHERE id=$2`, [b.companyName, tid]);
+      }
+      return json(200, await loadLocalProfile());
+    }
+
+    if (ctx.path === '/settings/change-password' && ctx.method === 'PUT') {
+      const b = ctx.body as { userId?: string; currentPassword?: string; newPassword?: string };
+      if (!b.userId || b.userId !== ctx.auth!.userId) return json(403, { error: 'Access denied' });
+      if (!b.currentPassword || !b.newPassword) return json(400, { error: 'All fields required' });
+      if (b.newPassword.length < 8) return json(400, { error: 'Password must be at least 8 characters' });
+      const { rows } = await localQuery(`SELECT password_hash FROM users WHERE id=$1 AND tenant_id=$2`, [
+        b.userId,
+        tid,
+      ]);
+      const user = rows[0] as { password_hash: string } | undefined;
+      if (!user) return json(404, { error: 'User not found' });
+      const ok = await bcrypt.compare(b.currentPassword, user.password_hash);
+      if (!ok) return json(401, { error: 'Current password is incorrect' });
+      const newHash = await bcrypt.hash(b.newPassword, 12);
+      await localQuery(`UPDATE users SET password_hash=$1 WHERE id=$2 AND tenant_id=$3`, [newHash, b.userId, tid]);
+      return json(200, { ok: true, message: 'Password changed. Please log in again.' });
+    }
+
+    if (ctx.path === '/auth/me' && ctx.method === 'DELETE') {
+      return json(403, {
+        error: 'Delete account is not available on Offline Mobile. Unbind the device from Super Admin instead.',
       });
     }
 
