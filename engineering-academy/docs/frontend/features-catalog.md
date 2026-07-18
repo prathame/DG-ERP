@@ -163,7 +163,7 @@ The compliance-heavy module: GSTR-2B reconciliation (upload the government porta
 
 **`features/payroll/PayrollView.tsx`**, alongside **`features/masters/StaffMasterView.tsx`**
 
-A deliberately "mini" payroll: staff directory + salary/advance payment records (`staff_payments`), summarized by month/year with advance-outstanding tracking. It does not attempt full statutory payroll (PF, ESI, TDS slabs) — this is a small-business tool for "who did I pay, how much, when," not a full HR/payroll suite.
+A deliberately "mini" payroll: staff directory + salary/advance payment records (`staff_payments`), summarized by month/year with advance-outstanding tracking. In Masters → Staff, tapping a staff card (or a phone hub Staff row) opens that person’s payment history + Add payment (`GET/POST /payroll`); Back returns to the staff list. Edit/Delete on the card do not open payments. It does not attempt full statutory payroll (PF, ESI, TDS slabs) — this is a small-business tool for "who did I pay, how much, when," not a full HR/payroll suite.
 
 **Business value:** gives an owner a paper trail for cash salary/advance payments without needing a dedicated HR system they don't have the headcount to justify.
 

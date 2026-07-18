@@ -197,6 +197,45 @@ describe('service-mobile local API contract — Masters', () => {
       expect(del.status).toBe(200);
       expect((await api('GET', '/staff')).json as unknown[]).toHaveLength(1);
     });
+
+    it('GET/POST /payroll records payments for a staff member', async () => {
+      const created = await api('POST', '/staff', {
+        name: 'Payee',
+        role: 'Helper',
+        salary: 10000,
+      });
+      expect(created.status).toBe(201);
+
+      const empty = await api('GET', '/payroll?staffName=Payee');
+      expect(empty.status).toBe(200);
+      expect(Array.isArray(empty.json)).toBe(true);
+      expect((empty.json as unknown[]).length).toBe(0);
+
+      const paid = await api('POST', '/payroll', {
+        staffName: 'Payee',
+        amount: 10000,
+        paymentType: 'salary',
+        paymentDate: '2026-07-01',
+        paymentMethod: 'Cash',
+      });
+      expect(paid.status).toBe(201);
+      const row = paid.json as Record<string, unknown>;
+      expect(row.id).toBeTruthy();
+      expect(row.staffName).toBe('Payee');
+      expect(row.amount).toBe(10000);
+      expect(row.paymentType).toBe('salary');
+
+      const listed = await api('GET', '/payroll?staffName=Payee');
+      expect(listed.status).toBe(200);
+      expect((listed.json as unknown[]).length).toBe(1);
+      expect((listed.json as Record<string, unknown>[])[0]!.paymentType).toBe('salary');
+
+      const staffList = await api('GET', '/staff');
+      const payee = (staffList.json as Record<string, unknown>[]).find(s => s.name === 'Payee');
+      expect(payee).toBeTruthy();
+      expect(payee!.totalPaid).toBe(10000);
+      expect(payee!.paymentCount).toBe(1);
+    });
   });
 
   describe('Clients (vendors)', () => {

@@ -63,6 +63,8 @@ export function MastersView({
   const [masterCounts, setMasterCounts] = useState({ customer: 0, vendor: 0, item: 0, bank: 0, staff: 0 });
   /** Full-screen detail (desktop flow + phone “open manage”). */
   const [selectedMaster, setSelectedMaster] = useState<MasterType | null>(null);
+  /** When opening Staff manage from a hub row, jump into that person’s payments. */
+  const [focusStaffId, setFocusStaffId] = useState<string | null>(null);
   /** Phone hub selected pill. */
   const [hubTab, setHubTab] = useState<MasterType | null>(null);
   const [hubLoading, setHubLoading] = useState(false);
@@ -273,12 +275,14 @@ export function MastersView({
     };
   }, [active, serviceMobile]);
 
-  const openFull = (id: MasterType) => {
+  const openFull = (id: MasterType, opts?: { staffId?: string }) => {
     if (id === 'item') {
       // Cloud manufacturer only — Offline never lists this pill.
       setActiveTab('inventory');
       return;
     }
+    if (id === 'staff') setFocusStaffId(opts?.staffId ?? null);
+    else setFocusStaffId(null);
     setSelectedMaster(id);
   };
 
@@ -325,7 +329,14 @@ export function MastersView({
   if (selectedMaster === 'staff')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <StaffMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} />
+        <StaffMasterView
+          onBack={() => {
+            setSelectedMaster(null);
+            setFocusStaffId(null);
+          }}
+          onRefresh={refreshCounts}
+          initialStaffId={focusStaffId ?? undefined}
+        />
       </Suspense>
     );
 
@@ -495,7 +506,7 @@ export function MastersView({
                     icon={<Wallet className="text-indigo-600" />}
                     title={s.name}
                     subtitle={s.role || s.phone || '—'}
-                    onClick={() => openFull('staff')}
+                    onClick={() => openFull('staff', { staffId: s.id })}
                   />
                 </Fragment>
               ))}
