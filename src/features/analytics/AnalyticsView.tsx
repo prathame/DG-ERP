@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn, formatDate, useTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { api } from '../../api';
 import type { Tab } from '../../types';
 import {
@@ -56,6 +57,7 @@ function relativeTime(dateStr: string) {
 
 export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => void }) {
   const cfg = useBusinessConfig();
+  const serviceMobile = isServiceMobileMode();
   const [range, setRange] = useState<RangeId>('month');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -444,7 +446,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
         </div>
       )}
 
-      {counts && (
+      {!serviceMobile && counts && (
         <div>
           <MobileSectionTitle title="Master Summary" className="mb-2 sm:mb-3 sm:[&_h3]:text-base" />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
