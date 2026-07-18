@@ -332,6 +332,19 @@ export function GuideView() {
             </div>
           </Step>
 
+          <Step n={4} title="Customer pays for next period (renew)">
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
+              <p>
+                Open the license → <strong>Renew / Extend License</strong>
+              </p>
+              <p>
+                Pick a date or +3 / +6 / +1 year — same{' '}
+                <code className="bg-gray-200 px-1 rounded font-mono">DG-SM-</code> key
+              </p>
+              <p>Phone gets the new expiry on next online heartbeat (or Force sync)</p>
+            </div>
+          </Step>
+
           <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
             <p className="text-sm text-emerald-800 font-medium">
               This is separate from desktop On-Prem licenses. Do not mix DG- and DG-SM- keys.
