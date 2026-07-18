@@ -93,15 +93,6 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const genericCount = rules.filter(r => !r.vendorId).length;
   const vendorCount = rules.filter(r => !!r.vendorId).length;
 
-  const subtitle =
-    tab === 'generic'
-      ? isService
-        ? 'Catalog rates for all clients — used when no client-specific rule matches'
-        : `Quantity slabs for all ${partyLabel.toLowerCase()} (overrides product price)`
-      : isService
-        ? `Special rates for individual ${partyLabel.toLowerCase()}`
-        : `Rates for a specific ${partyLabel.toLowerCase().replace(/s$/, '')} (overrides generic + product price)`;
-
   const openCreate = () => {
     setForm(emptyForm());
     setModalOpen(true);
@@ -401,38 +392,29 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const vendorTabLabel = `${partyLabel}-specific`;
   const partySingular = partyLabel.replace(/s$/, '');
 
+  const toolbarBtn =
+    'inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2 sm:px-3 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 shrink-0';
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex items-center gap-3 flex-wrap">
-        <button type="button" onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3 sm:space-y-6">
+      {/* Title row */}
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg shrink-0" aria-label="Back">
           <ArrowLeft size={20} />
         </button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-bold">Price List</h2>
-          <p className="text-sm text-gray-500">{subtitle}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setCsvImportOpen(true)}
-          className="flex items-center gap-2 px-3 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"
-        >
-          <Upload size={16} /> Import CSV
+        <h2 className="text-lg sm:text-xl font-bold truncate">Price List</h2>
+      </div>
+
+      {/* Actions — one compact horizontal row */}
+      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-0.5">
+        <button type="button" onClick={() => setCsvImportOpen(true)} className={toolbarBtn}>
+          <Upload size={14} /> <span className="hidden xs:inline sm:inline">Import</span>
         </button>
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          disabled={!tabRules.length}
-          className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-        >
-          <Download size={16} /> Export CSV
+        <button type="button" onClick={handleExportCsv} disabled={!tabRules.length} className={toolbarBtn}>
+          <Download size={14} /> <span className="hidden sm:inline">Export</span>
         </button>
-        <button
-          type="button"
-          onClick={openPdf}
-          disabled={!tabRules.length}
-          className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-        >
-          <FileDown size={16} /> PDF / Print
+        <button type="button" onClick={openPdf} disabled={!tabRules.length} className={toolbarBtn}>
+          <FileDown size={14} /> <span className="hidden sm:inline">PDF</span>
         </button>
         {tabRules.length > 0 && (
           <>
@@ -442,9 +424,9 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                 const phone = prompt('Enter WhatsApp number (with country code):');
                 if (phone) shareViaWhatsApp(phone, generatePriceListText());
               }}
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 text-green-600"
+              className={cn(toolbarBtn, 'text-green-600')}
             >
-              <MessageCircle size={16} /> WhatsApp
+              <MessageCircle size={14} />
             </button>
             <button
               type="button"
@@ -452,26 +434,27 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
                 const email = prompt('Enter email address:');
                 if (email) shareViaEmail(email, `Price List — ${companyName}`, generatePriceListText());
               }}
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 text-blue-600"
+              className={cn(toolbarBtn, 'text-blue-600')}
             >
-              <Mail size={16} /> Email
+              <Mail size={14} />
             </button>
           </>
         )}
         <button
           type="button"
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+          className="inline-flex items-center gap-1 h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold bg-brand text-white shrink-0 ml-auto"
         >
-          <Plus size={18} /> Add {tab === 'generic' ? 'Catalog' : partySingular} Rule
+          <Plus size={14} /> Add Rule
         </button>
       </div>
 
-      <div className="flex gap-2">
+      {/* Scope tabs */}
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
         {(isService
           ? [
-              { id: 'generic' as const, label: genericTabLabel, count: genericCount },
-              { id: 'vendor' as const, label: vendorTabLabel, count: vendorCount },
+              { id: 'generic' as const, label: 'Catalog', count: genericCount },
+              { id: 'vendor' as const, label: partyLabel, count: vendorCount },
             ]
           : [
               { id: 'vendor' as const, label: vendorTabLabel, count: vendorCount },
@@ -483,49 +466,29 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
             type="button"
             onClick={() => setTab(t.id)}
             className={cn(
-              'px-4 py-2 rounded-xl text-sm font-bold transition-colors',
-              tab === t.id ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+              'shrink-0 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full sm:rounded-xl text-[11px] sm:text-sm font-bold transition-colors',
+              tab === t.id ? 'bg-brand text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50',
             )}
           >
             {t.label}
-            <span className={cn('ml-1.5 text-xs', tab === t.id ? 'text-white/80' : 'text-gray-400')}>({t.count})</span>
+            <span className={cn('ml-1 text-[10px] sm:text-xs', tab === t.id ? 'text-white/80' : 'text-gray-400')}>
+              ({t.count})
+            </span>
           </button>
         ))}
       </div>
 
       {tabRules.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
-          <Tag size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="font-medium mb-2">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 sm:p-12 text-center text-gray-400">
+          <Tag size={40} className="mx-auto mb-3 opacity-30" />
+          <p className="font-medium text-sm sm:text-base">
             {tab === 'generic'
               ? isService
                 ? 'No catalog rates yet'
                 : `No all-${partyLabel.toLowerCase()} slabs yet`
               : `No ${partyLabel.toLowerCase()}-specific rates yet`}
           </p>
-          <p className="text-sm mb-4 max-w-md mx-auto">
-            {tab === 'generic'
-              ? isService
-                ? 'Add catalog prices here — they apply to every client unless a client-specific rule wins.'
-                : `Optional qty slabs for every ${partySingular.toLowerCase()}. Product master price is the fallback when empty.`
-              : `Override catalog / product price for one ${partySingular.toLowerCase()}.`}
-          </p>
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setCsvImportOpen(true)}
-              className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50 text-gray-700"
-            >
-              Import CSV
-            </button>
-            <button
-              type="button"
-              onClick={openCreate}
-              className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark"
-            >
-              + Add Rule
-            </button>
-          </div>
+          <p className="text-[11px] sm:text-sm mt-1 max-w-md mx-auto">Use Add Rule above to create one.</p>
         </div>
       ) : (
         <div className="space-y-4">
