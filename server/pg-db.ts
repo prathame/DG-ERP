@@ -463,10 +463,14 @@ export async function initSchema() {
         show_barcode BOOLEAN DEFAULT true,
         show_warranty BOOLEAN DEFAULT true,
         footer_text TEXT DEFAULT 'Powered by Dhandho Management',
+        invoice_template_style TEXT DEFAULT 'modern',
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+    await client.query(
+      `ALTER TABLE bill_settings ADD COLUMN IF NOT EXISTS invoice_template_style TEXT DEFAULT 'modern'`,
+    );
 
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS vendor_portal_enabled BOOLEAN DEFAULT true');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS barcode_system_enabled BOOLEAN DEFAULT true');

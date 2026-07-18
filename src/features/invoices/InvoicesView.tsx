@@ -163,7 +163,18 @@ export function InvoicesView() {
     load();
     api.settings
       .getBillSettings()
-      .then(s => setBillSettings(s || {}))
+      .then(s => {
+        setBillSettings(s || {});
+        const style = (s as { invoiceTemplateStyle?: string } | null)?.invoiceTemplateStyle;
+        const legacy = localStorage.getItem('dg_inv_style');
+        const next =
+          style === 'classic' || style === 'minimal' || style === 'modern'
+            ? style
+            : legacy === 'classic' || legacy === 'minimal' || legacy === 'modern'
+              ? legacy
+              : 'modern';
+        setPdfStyle(next);
+      })
       .catch(() => {});
   }, []);
 
@@ -199,9 +210,7 @@ export function InvoicesView() {
     return <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full uppercase', m[s] || m.draft)}>{s}</span>;
   };
 
-  const [pdfStyle, setPdfStyle] = useState<'modern' | 'classic' | 'minimal'>(
-    () => (localStorage.getItem('dg_inv_style') as 'modern' | 'classic' | 'minimal') || 'modern',
-  );
+  const [pdfStyle, setPdfStyle] = useState<'modern' | 'classic' | 'minimal'>('modern');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'sent' | 'paid' | 'cancelled'>('all');
 
   const printInvoice = async (inv: Invoice) => {
@@ -418,19 +427,27 @@ export function InvoicesView() {
           </p>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
-          <select
-            value={pdfStyle}
-            onChange={e => {
-              const v = e.target.value as 'modern' | 'classic' | 'minimal';
-              setPdfStyle(v);
-              localStorage.setItem('dg_inv_style', v);
-            }}
-            className="px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-200 rounded-lg sm:rounded-xl text-[11px] sm:text-sm bg-white focus:ring-2 focus:ring-brand"
-          >
-            <option value="modern">Modern</option>
-            <option value="classic">Classic (Tally)</option>
-            <option value="minimal">Minimal</option>
-          </select>
+          {/* Offline Mobile: template lives in Settings → Bill Customization */}
+          {!serviceMobile && (
+            <select
+              value={pdfStyle}
+              onChange={e => {
+                const v = e.target.value as 'modern' | 'classic' | 'minimal';
+                setPdfStyle(v);
+                localStorage.setItem('dg_inv_style', v);
+                void api.settings
+                  .updateBillSettings({ ...billSettings, invoiceTemplateStyle: v })
+                  .then(saved => setBillSettings(saved || { ...billSettings, invoiceTemplateStyle: v }))
+                  .catch(() => {});
+              }}
+              className="px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-200 rounded-lg sm:rounded-xl text-[11px] sm:text-sm bg-white focus:ring-2 focus:ring-brand"
+              aria-label="Invoice template"
+            >
+              <option value="modern">Modern</option>
+              <option value="classic">Classic (Tally)</option>
+              <option value="minimal">Minimal</option>
+            </select>
+          )}
           <button
             type="button"
             onClick={() => setCreateOpen(true)}

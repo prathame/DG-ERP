@@ -60,7 +60,12 @@ const BILL_DEFAULTS: BillSettings = {
   showBarcode: true,
   showWarranty: true,
   footerText: 'Powered by Dhandho Management',
+  invoiceTemplateStyle: 'modern',
 };
+
+function normalizeInvoiceTemplateStyle(v: unknown): BillSettings['invoiceTemplateStyle'] {
+  return v === 'classic' || v === 'minimal' || v === 'modern' ? v : 'modern';
+}
 
 // ── GST API Settings — E-Invoice (IRN) + E-Way Bill ──────────────────────────
 function GstApiSection() {
@@ -280,7 +285,12 @@ function BillCustomizationSection() {
   useEffect(() => {
     api.settings
       .getBillSettings()
-      .then(s => setForm({ ...BILL_DEFAULTS, ...s }))
+      .then(s => {
+        // Migrate legacy Invoices toolbar localStorage key into bill settings.
+        const legacy = localStorage.getItem('dg_inv_style');
+        const style = normalizeInvoiceTemplateStyle(s?.invoiceTemplateStyle ?? legacy);
+        setForm({ ...BILL_DEFAULTS, ...s, invoiceTemplateStyle: style });
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
     api.banks
@@ -312,8 +322,14 @@ function BillCustomizationSection() {
     }
     setSaving(true);
     try {
-      const saved = await api.settings.updateBillSettings(form);
-      setForm({ ...BILL_DEFAULTS, ...saved });
+      const payload = {
+        ...form,
+        invoiceTemplateStyle: normalizeInvoiceTemplateStyle(form.invoiceTemplateStyle),
+      };
+      const saved = await api.settings.updateBillSettings(payload);
+      const style = normalizeInvoiceTemplateStyle(saved?.invoiceTemplateStyle ?? payload.invoiceTemplateStyle);
+      setForm({ ...BILL_DEFAULTS, ...saved, invoiceTemplateStyle: style });
+      localStorage.setItem('dg_inv_style', style);
       toast('Bill settings saved', 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to save', 'error');
@@ -478,10 +494,10 @@ function BillCustomizationSection() {
           </div>
         </div>
 
-        {/* Invoice Numbering */}
+        {/* Invoice Numbering + template */}
         <div>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Invoice Numbering</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Invoice Numbering &amp; Template</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label htmlFor="settings-field-5" className="text-xs font-bold text-gray-500 block mb-1">
                 Invoice Prefix
@@ -507,6 +523,27 @@ function BillCustomizationSection() {
                 placeholder="e.g. SPL-CH-"
                 maxLength={20}
               />
+            </div>
+            <div>
+              <label htmlFor="settings-invoice-template" className="text-xs font-bold text-gray-500 block mb-1">
+                Invoice template
+              </label>
+              <select
+                id="settings-invoice-template"
+                value={normalizeInvoiceTemplateStyle(form.invoiceTemplateStyle)}
+                onChange={e =>
+                  setForm(p => ({
+                    ...p,
+                    invoiceTemplateStyle: normalizeInvoiceTemplateStyle(e.target.value),
+                  }))
+                }
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-brand"
+              >
+                <option value="modern">Modern</option>
+                <option value="classic">Classic (Tally)</option>
+                <option value="minimal">Minimal</option>
+              </select>
+              <p className="text-[10px] text-gray-400 mt-1">Layout used when downloading or printing invoices</p>
             </div>
           </div>
         </div>
