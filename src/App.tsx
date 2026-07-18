@@ -769,45 +769,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Phone: more destinations not on bottom bar */}
-            {isSidebarOpen && (
-              <div className="lg:hidden shrink-0 px-3 pt-2.5 pb-1 border-b border-gray-50">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-0.5 mb-1.5">More</p>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {(
-                    [
-                      { id: 'inventory', label: 'Stock', icon: Package },
-                      { id: 'finance', label: 'Finance', icon: IndianRupee },
-                      { id: 'accounts', label: 'Accounts', icon: BarChart3 },
-                      { id: 'purchases', label: 'Purchases', icon: ShoppingBag },
-                      { id: 'sales', label: 'Sales', icon: ShoppingCart },
-                      { id: 'settings', label: 'Settings', icon: Settings },
-                    ] as const
-                  )
-                    .filter(x => x.id === 'settings' || (canAccess(x.id) && tv(x.id)))
-                    .map(item => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          setActiveTab(item.id as Tab);
-                          setIsSidebarOpen(false);
-                        }}
-                        className={cn(
-                          'flex flex-col items-center gap-1 rounded-xl border px-1 py-2 min-h-[56px]',
-                          activeTab === item.id
-                            ? 'border-brand/30 bg-brand/5 text-brand'
-                            : 'border-gray-100 bg-gray-50 text-gray-600',
-                        )}
-                      >
-                        <item.icon size={16} />
-                        <span className="text-[9px] font-bold leading-tight">{item.label}</span>
-                      </button>
-                    ))}
-                </div>
-              </div>
-            )}
-
             {/* Scrollable menu */}
             <nav className="flex-1 min-h-0 px-2.5 lg:px-3 py-2 lg:py-3 overflow-y-auto overscroll-contain">
               {navSections.map(section => {
