@@ -291,11 +291,21 @@ export async function handleLocalApiRequest(
       }
       if (ctx.method === 'POST') {
         const b = ctx.body as Record<string, unknown>;
+        const name = String(b.name || '').trim();
+        if (!name) return json(400, { error: 'Name is required' });
+        const email = typeof b.email === 'string' && b.email.trim() ? b.email.trim() : null;
+        if (email) {
+          const emailDup = await localQuery(
+            `SELECT id FROM vendors WHERE tenant_id=$1 AND email IS NOT NULL AND email != '' AND LOWER(email)=LOWER($2)`,
+            [tid, email],
+          );
+          if (emailDup.rows[0]) return json(400, { error: `Email "${email}" already exists` });
+        }
         const id = uid('V');
         const gstin = b.gstin ?? b.gstNumber ?? null;
         await localQuery(
           `INSERT INTO vendors (id, tenant_id, name, phone, email, address, gstin) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [id, tid, b.name, b.phone ?? null, b.email ?? null, b.address ?? null, gstin],
+          [id, tid, name, b.phone ?? null, email, b.address ?? null, gstin],
         );
         const { rows } = await localQuery(`SELECT * FROM vendors WHERE id=$1`, [id]);
         return json(201, mapVendor(rows[0] as Record<string, unknown>));
@@ -314,7 +324,7 @@ export async function handleLocalApiRequest(
       // Validate duplicates before any insert (fail-fast, match cloud)
       for (const v of vendors) {
         const name = String(v.name).trim();
-        const email = v.email ? String(v.email) : '';
+        const email = typeof v.email === 'string' && v.email.trim() ? String(v.email).trim() : '';
         const dup = await localQuery(`SELECT id FROM vendors WHERE tenant_id=$1 AND LOWER(name)=LOWER($2)`, [
           tid,
           name,
@@ -336,6 +346,7 @@ export async function handleLocalApiRequest(
       for (const v of vendors) {
         const id = uid('V');
         const gstin = v.gstin ?? v.gstNumber ?? null;
+        const email = typeof v.email === 'string' && v.email.trim() ? String(v.email).trim() : null;
         await localQuery(
           `INSERT INTO vendors (id, tenant_id, name, phone, email, address, gstin) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
           [
@@ -343,7 +354,7 @@ export async function handleLocalApiRequest(
             tid,
             String(v.name).trim(),
             v.phone ? String(v.phone).trim() : null,
-            v.email ? String(v.email) : null,
+            email,
             v.address ? String(v.address) : null,
             gstin ? String(gstin) : null,
           ],
@@ -371,10 +382,25 @@ export async function handleLocalApiRequest(
       if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
         const b = ctx.body as Record<string, unknown>;
         const gstin = b.gstin ?? b.gstNumber ?? null;
+        const email =
+          b.email === undefined || b.email === null
+            ? null
+            : typeof b.email === 'string' && b.email.trim()
+              ? b.email.trim()
+              : '';
+        if (email) {
+          const emailDup = await localQuery(
+            `SELECT id FROM vendors WHERE tenant_id=$1 AND id!=$2 AND email IS NOT NULL AND email != '' AND LOWER(email)=LOWER($3)`,
+            [tid, id, email],
+          );
+          if (emailDup.rows[0]) return json(400, { error: `Email "${email}" already exists` });
+        }
+        // Empty string clears email; null/undefined leaves existing value (COALESCE).
         await localQuery(
-          `UPDATE vendors SET name=COALESCE($1,name), phone=COALESCE($2,phone), email=COALESCE($3,email),
+          `UPDATE vendors SET name=COALESCE($1,name), phone=COALESCE($2,phone),
+           email=CASE WHEN $3::text IS NULL THEN email WHEN $3 = '' THEN NULL ELSE $3 END,
            address=COALESCE($4,address), gstin=COALESCE($5,gstin) WHERE id=$6 AND tenant_id=$7`,
-          [b.name ?? null, b.phone ?? null, b.email ?? null, b.address ?? null, gstin, id, tid],
+          [b.name ?? null, b.phone ?? null, email, b.address ?? null, gstin, id, tid],
         );
         const { rows } = await localQuery(`SELECT * FROM vendors WHERE id=$1`, [id]);
         return json(200, mapVendor(rows[0] as Record<string, unknown>));

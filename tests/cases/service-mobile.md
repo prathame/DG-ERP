@@ -25,6 +25,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5k3 | Analytics payroll | Masters → Staff → Record salary payment → Analytics | Staff Payroll shows Total Paid / staff row; Advances if advance type used |
 | 5l | Masters hub | Masters tab on phone | Icon pills (**Clients**, Prices, Banks, Staff, …) — **no Products/Catalog inventory pill**; list cards for selected pill; circular + FAB “Add Client” opens manage |
 | 5l1 | Client wording | Masters / Invoice create / Quotes / Analytics | UI says **Client(s)** not Vendor(s). API paths remain `/vendors`. Cloud manufacturer still says Vendor |
+| 5l1b | Client email optional | Masters → Clients → Add Client with name + phone only (no email); CSV import without email | Saves successfully; email field/CSV column marked optional; duplicate-email check only when email provided |
 | 5l2 | Masters no Products | Masters pills / desktop cards | **Products / Catalog inventory** absent Offline. **Price List** kept with **Catalog** + **Clients** tabs (rate book). Cloud manufacturer Masters still show Products → Inventory |
 | 5l2b | Price List tabs Offline | Masters → Prices | **Catalog** and **Clients** scope tabs both work; Add Rule can create a new item; rules list/filter correctly |
 | 5l2c | Invoice custom or Price List | Invoice create → Items | Can pick Price List item (rate resolves) **or** Custom item (description + qty + rate). Neither path mandatory alone |

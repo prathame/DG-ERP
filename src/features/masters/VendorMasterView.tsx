@@ -313,22 +313,27 @@ export function VendorMasterView({
                     className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                   />
                 </div>
-                <div className={!editing ? 'bg-blue-50 border border-blue-100 rounded-xl p-3 -mx-1' : ''}>
+                <div
+                  className={
+                    !editing && label === 'Vendor' ? 'bg-blue-50 border border-blue-100 rounded-xl p-3 -mx-1' : ''
+                  }
+                >
                   <label className="text-xs font-bold text-gray-400 uppercase">
-                    Email *{' '}
-                    {label === 'Vendor' && (
-                      <span className="text-brand normal-case font-normal">(vendor login ID)</span>
+                    Email{' '}
+                    {label === 'Vendor' ? (
+                      <span className="text-brand normal-case font-normal">(optional — vendor login ID)</span>
+                    ) : (
+                      <span className="text-gray-400 normal-case font-normal">(optional)</span>
                     )}
                   </label>
                   <input
                     type="email"
-                    required
                     value={form.email}
                     onChange={e => setForm({ ...form, email: e.target.value })}
                     className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                     placeholder={label === 'Vendor' ? 'vendor@example.com' : 'email@example.com'}
                   />
-                  {!editing && label === 'Vendor' && (
+                  {!editing && label === 'Vendor' && form.email.trim() && (
                     <p className="text-xs text-blue-600 mt-2">
                       Login will be auto-created. Password:{' '}
                       <span className="font-mono font-bold">
@@ -525,7 +530,7 @@ export function VendorMasterView({
             { key: 'name', label: `${label} Name`, required: true },
             { key: 'contactPerson', label: 'Contact Person' },
             { key: 'phone', label: 'Phone' },
-            { key: 'email', label: 'Email' },
+            { key: 'email', label: 'Email (optional)' },
             { key: 'address', label: 'Address' },
             { key: 'gstNumber', label: 'GSTIN' },
           ]}
