@@ -1,11 +1,11 @@
-import React, { useState, useEffect, lazy, Suspense, useMemo } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion } from 'motion/react';
 import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet, ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import type { Tab } from '../../types';
-import { LoadingSpinner, MobilePillTabs } from '../../components/ui';
+import { LoadingSpinner } from '../../components/ui';
 
 const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
 const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
@@ -142,27 +142,6 @@ export function MastersView({
     },
   ];
   const masters = isVendor ? allMasters.filter(m => m.id === 'customer') : allMasters;
-  const [filter, setFilter] = useState<'all' | 'parties' | 'catalog' | 'finance'>('all');
-
-  const filterItems = [
-    { id: 'all', label: 'All' },
-    { id: 'parties', label: 'Parties' },
-    { id: 'catalog', label: 'Catalog' },
-    { id: 'finance', label: 'Finance' },
-  ];
-
-  const filteredMasters = useMemo(() => {
-    if (filter === 'all') return masters;
-    const parties = new Set(['customer', 'vendor', 'mapping', 'staff']);
-    const catalog = new Set(['item', 'priceList', 'rewardRules']);
-    const finance = new Set(['bank']);
-    return masters.filter(m => {
-      if (filter === 'parties') return parties.has(m.id);
-      if (filter === 'catalog') return catalog.has(m.id);
-      if (filter === 'finance') return finance.has(m.id);
-      return true;
-    });
-  }, [masters, filter]);
 
   const handleMasterClick = (id: MasterType) => {
     if (id === 'item') {
@@ -217,13 +196,9 @@ export function MastersView({
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 sm:space-y-4">
-      <div className="sm:hidden">
-        <MobilePillTabs items={filterItems} value={filter} onChange={id => setFilter(id as typeof filter)} />
-      </div>
-
-      {/* Phone: dense list rows */}
+      {/* Phone: full masters list at top (no All/Parties/Catalog filters) */}
       <div className="sm:hidden space-y-1.5">
-        {filteredMasters.map(m => (
+        {masters.map(m => (
           <button
             key={m.id}
             type="button"
