@@ -196,14 +196,10 @@ export function MastersView({
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 sm:space-y-4">
-      {/* Phone: masters as horizontal pills only */}
+      {/* Phone: text-only pills like Analytics range chips */}
       <div className="sm:hidden">
         <MobilePillTabs
-          items={masters.map(m => ({
-            id: m.id,
-            label: m.name,
-            icon: <m.icon />,
-          }))}
+          items={masters.map(m => ({ id: m.id, label: m.name }))}
           value=""
           onChange={id => handleMasterClick(id as MasterType)}
         />
