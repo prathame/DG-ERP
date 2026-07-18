@@ -39,8 +39,12 @@ export function DateRangeFilter({
                 onChange(r.id === 'custom' ? { ...value, range: 'custom' } : { range: r.id, from: '', to: '' })
               }
               className={cn(
-                'shrink-0 inline-flex items-center rounded-full px-2.5 h-8 text-[11px] font-bold border transition-colors',
-                active ? 'bg-brand text-white border-brand' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50',
+                'dg-pill-tab shrink-0 inline-flex items-center justify-center rounded-full',
+                'box-border h-7 min-h-7 max-h-7 !min-h-7 px-2.5 py-0 leading-none',
+                'text-[11px] font-bold border border-solid transition-colors',
+                active
+                  ? 'bg-brand text-white border-brand'
+                  : 'bg-gray-100 text-gray-600 border-transparent hover:bg-gray-200',
               )}
             >
               {r.label}
