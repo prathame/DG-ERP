@@ -26,7 +26,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 ## Exports and symbols
 
-**Exported names:** `fetchImageAsDataUrl`, `bizTypeLabel`, `useTabLabel`, `cn`, `formatDate`, `resolveIrnQrPayload`, `PRINT_POPUP_BLOCKED`, `openPrintWindow`, `withPrintPagination`, `printBillInWindow`, `writePrintHtml`, `saveBillAsPdf`, `shareViaWhatsApp`, `shareViaEmail`, `formatSalesInvoiceText`, `formatDistributionChallanText`, `exportToCsv`
+**Exported names:** `fetchImageAsDataUrl`, `bizTypeLabel`, `useTabLabel`, `cn`, `formatDate`, `resolveIrnQrPayload`, `PRINT_POPUP_BLOCKED`, `downloadHtmlAsPdf`, `closePrintOverlay`, `openPrintWindow`, `withPrintPagination`, `printBillInWindow`, `writePrintHtml`, `saveBillAsPdf`, `shareViaWhatsApp`, `shareViaEmail`, `formatSalesInvoiceText`, `formatDistributionChallanText`, `exportToCsv`
 
 **Classes:** _none_
 

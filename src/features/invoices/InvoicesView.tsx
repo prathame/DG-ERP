@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Trash2, Download, Send, Check, X, Printer } from 'lucide-react';
+import { Plus, FileText, Trash2, Download, Send, Check, X } from 'lucide-react';
 import {
   cn,
   formatDate,
@@ -511,10 +511,10 @@ export function InvoicesView() {
                       type="button"
                       onClick={() => printInvoice(inv)}
                       className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
-                      title="Print/PDF"
-                      aria-label="Print invoice"
+                      title="Download PDF"
+                      aria-label="Download invoice PDF"
                     >
-                      <Printer size={14} />
+                      <Download size={14} />
                     </button>
                     {inv.status === 'draft' && (
                       <button
@@ -587,9 +587,10 @@ export function InvoicesView() {
                           type="button"
                           onClick={() => printInvoice(inv)}
                           className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
-                          title="Print/PDF"
+                          title="Download PDF"
+                          aria-label="Download invoice PDF"
                         >
-                          <Printer size={15} />
+                          <Download size={15} />
                         </button>
                         {inv.status === 'draft' && (
                           <button
@@ -712,7 +713,7 @@ export function InvoicesView() {
                   onClick={() => printInvoice(selectedInvoice)}
                   className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold flex items-center justify-center gap-2"
                 >
-                  <Printer size={16} /> Print / PDF
+                  <Download size={16} /> Download PDF
                 </button>
                 <button
                   type="button"
