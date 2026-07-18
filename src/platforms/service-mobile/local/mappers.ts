@@ -126,6 +126,9 @@ export function mapExpense(r: Record<string, unknown>) {
     amount: Number(r.amount) || 0,
     description: r.description ?? null,
     expenseDate: r.expense_date,
+    paymentMethod: r.payment_method || 'Cash',
+    referenceNumber: r.reference_number ?? null,
+    notes: r.notes ?? null,
     createdAt: r.created_at,
   };
 }

@@ -213,16 +213,77 @@ export async function handleLocalApiRequest(
       if (ctx.method === 'POST') {
         const b = ctx.body as Record<string, unknown>;
         const id = uid('V');
+        const gstin = b.gstin ?? b.gstNumber ?? null;
         await localQuery(
           `INSERT INTO vendors (id, tenant_id, name, phone, email, address, gstin) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [id, tid, b.name, b.phone ?? null, b.email ?? null, b.address ?? null, b.gstin ?? null],
+          [id, tid, b.name, b.phone ?? null, b.email ?? null, b.address ?? null, gstin],
         );
         const { rows } = await localQuery(`SELECT * FROM vendors WHERE id=$1`, [id]);
         return json(201, mapVendor(rows[0] as Record<string, unknown>));
       }
     }
+    if (ctx.path === '/vendors/bulk' && ctx.method === 'POST') {
+      const { vendors } = (ctx.body || {}) as { vendors?: Record<string, unknown>[] };
+      if (!Array.isArray(vendors) || vendors.length === 0) {
+        return json(400, { error: 'Provide an array of vendors' });
+      }
+      if (vendors.length > 500) return json(400, { error: 'Maximum 500 vendors per import' });
+      for (let i = 0; i < vendors.length; i++) {
+        const name = String(vendors[i]?.name || '').trim();
+        if (!name) return json(400, { error: `Row ${i + 2}: Name is required — no vendors were imported` });
+      }
+      // Validate duplicates before any insert (fail-fast, match cloud)
+      for (const v of vendors) {
+        const name = String(v.name).trim();
+        const email = v.email ? String(v.email) : '';
+        const dup = await localQuery(`SELECT id FROM vendors WHERE tenant_id=$1 AND LOWER(name)=LOWER($2)`, [
+          tid,
+          name,
+        ]);
+        if (dup.rows[0]) {
+          return json(400, { error: `"${name}" already exists — no vendors were imported` });
+        }
+        if (email) {
+          const emailDup = await localQuery(
+            `SELECT id FROM vendors WHERE tenant_id=$1 AND email IS NOT NULL AND email != '' AND LOWER(email)=LOWER($2)`,
+            [tid, email],
+          );
+          if (emailDup.rows[0]) {
+            return json(400, { error: `Email "${email}" already exists — no vendors were imported` });
+          }
+        }
+      }
+      let success = 0;
+      for (const v of vendors) {
+        const id = uid('V');
+        const gstin = v.gstin ?? v.gstNumber ?? null;
+        await localQuery(
+          `INSERT INTO vendors (id, tenant_id, name, phone, email, address, gstin) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [
+            id,
+            tid,
+            String(v.name).trim(),
+            v.phone ? String(v.phone).trim() : null,
+            v.email ? String(v.email) : null,
+            v.address ? String(v.address) : null,
+            gstin ? String(gstin) : null,
+          ],
+        );
+        success++;
+      }
+      return json(200, { success, errors: [], credentials: [] });
+    }
+    if (ctx.path === '/vendors/all' && ctx.method === 'DELETE') {
+      await localQuery(`DELETE FROM price_lists WHERE tenant_id=$1`, [tid]);
+      await localQuery(`DELETE FROM quotations WHERE tenant_id=$1`, [tid]);
+      await localQuery(`DELETE FROM orders WHERE tenant_id=$1`, [tid]);
+      const before = await localQuery(`SELECT COUNT(*)::int AS c FROM vendors WHERE tenant_id=$1`, [tid]);
+      const deleted = Number((before.rows[0] as { c: number }).c) || 0;
+      await localQuery(`DELETE FROM vendors WHERE tenant_id=$1`, [tid]);
+      return json(200, { deleted });
+    }
     const vendorMatch = ctx.path.match(/^\/vendors\/([^/]+)$/);
-    if (vendorMatch) {
+    if (vendorMatch && vendorMatch[1] !== 'bulk' && vendorMatch[1] !== 'all') {
       const id = vendorMatch[1]!;
       if (ctx.method === 'GET') {
         const { rows } = await localQuery(`SELECT * FROM vendors WHERE id=$1 AND tenant_id=$2`, [id, tid]);
@@ -230,10 +291,11 @@ export async function handleLocalApiRequest(
       }
       if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
         const b = ctx.body as Record<string, unknown>;
+        const gstin = b.gstin ?? b.gstNumber ?? null;
         await localQuery(
           `UPDATE vendors SET name=COALESCE($1,name), phone=COALESCE($2,phone), email=COALESCE($3,email),
            address=COALESCE($4,address), gstin=COALESCE($5,gstin) WHERE id=$6 AND tenant_id=$7`,
-          [b.name ?? null, b.phone ?? null, b.email ?? null, b.address ?? null, b.gstin ?? null, id, tid],
+          [b.name ?? null, b.phone ?? null, b.email ?? null, b.address ?? null, gstin, id, tid],
         );
         const { rows } = await localQuery(`SELECT * FROM vendors WHERE id=$1`, [id]);
         return json(200, mapVendor(rows[0] as Record<string, unknown>));
@@ -630,8 +692,49 @@ export async function handleLocalApiRequest(
       const { rows } = await localQuery(`SELECT * FROM staff_members WHERE id=$1`, [id]);
       return json(201, mapStaff(rows[0] as Record<string, unknown>));
     }
+    if (ctx.path === '/staff/batch' && ctx.method === 'POST') {
+      const { items } = (ctx.body || {}) as { items?: Record<string, unknown>[] };
+      if (!Array.isArray(items) || items.length === 0) {
+        return json(400, { error: 'No items to import' });
+      }
+      for (let i = 0; i < items.length; i++) {
+        if (!items[i]?.name || !String(items[i]!.name).trim()) {
+          return json(400, { error: `Row ${i + 2}: Name is required — no staff were imported` });
+        }
+      }
+      for (const r of items) {
+        const name = String(r.name).trim();
+        const dup = await localQuery(`SELECT id FROM staff_members WHERE tenant_id=$1 AND LOWER(name)=LOWER($2)`, [
+          tid,
+          name,
+        ]);
+        if (dup.rows[0]) {
+          return json(400, { error: `"${name}" already exists — no staff were imported` });
+        }
+      }
+      let success = 0;
+      for (const r of items) {
+        const id = uid('ST');
+        await localQuery(
+          `INSERT INTO staff_members (id, tenant_id, name, phone, role, address, salary, joining_date, status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active')`,
+          [
+            id,
+            tid,
+            String(r.name).trim(),
+            r.phone ?? null,
+            r.role ?? null,
+            r.address ?? null,
+            r.salary != null ? Number(r.salary) : 0,
+            r.joiningDate ?? null,
+          ],
+        );
+        success++;
+      }
+      return json(201, { success, errors: [] });
+    }
     const staffMatch = ctx.path.match(/^\/staff\/([^/]+)$/);
-    if (staffMatch) {
+    if (staffMatch && staffMatch[1] !== 'batch') {
       const id = staffMatch[1]!;
       if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
         const b = ctx.body as Record<string, unknown>;
@@ -859,8 +962,19 @@ export async function handleLocalApiRequest(
       const b = ctx.body as Record<string, unknown>;
       const id = uid('E');
       await localQuery(
-        `INSERT INTO expenses (id, tenant_id, category, amount, description, expense_date) VALUES ($1,$2,$3,$4,$5,$6)`,
-        [id, tid, b.category ?? null, b.amount, b.description ?? null, b.expenseDate ?? b.expense_date ?? null],
+        `INSERT INTO expenses (id, tenant_id, category, amount, description, expense_date, payment_method, reference_number, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          id,
+          tid,
+          b.category ?? null,
+          b.amount,
+          b.description ?? null,
+          b.expenseDate ?? b.expense_date ?? null,
+          b.paymentMethod ?? b.payment_method ?? 'Cash',
+          b.referenceNumber ?? b.reference_number ?? null,
+          b.notes ?? null,
+        ],
       );
       const { rows } = await localQuery(`SELECT * FROM expenses WHERE id=$1`, [id]);
       return json(201, mapExpense(rows[0] as Record<string, unknown>));
@@ -1271,16 +1385,63 @@ export async function handleLocalApiRequest(
     const invStatusMatch = ctx.path.match(/^\/invoices\/([^/]+)\/status$/);
     if (invStatusMatch && ctx.method === 'PUT') {
       const b = ctx.body as { status?: string };
-      await localQuery(`UPDATE standalone_invoices SET status=$1 WHERE id=$2 AND tenant_id=$3`, [
-        b.status,
-        invStatusMatch[1],
-        tid,
-      ]);
+      const status = b.status;
+      if (!status || !['draft', 'sent', 'paid', 'cancelled'].includes(status)) {
+        return json(400, { error: 'Invalid status' });
+      }
+      const invId = invStatusMatch[1]!;
+      const { rows: invRows } = await localQuery(
+        `SELECT id, COALESCE(grand_total, total, 0) AS grand_total, status
+         FROM standalone_invoices WHERE id=$1 AND tenant_id=$2`,
+        [invId, tid],
+      );
+      if (!invRows[0]) return json(404, { error: 'Invoice not found' });
+      const grand = Number((invRows[0] as { grand_total: number }).grand_total) || 0;
+
+      if (status === 'cancelled') {
+        const { rows: payCount } = await localQuery(
+          `SELECT COUNT(*)::int AS c FROM invoice_payments WHERE invoice_id=$1 AND tenant_id=$2`,
+          [invId, tid],
+        );
+        if (Number((payCount[0] as { c: number }).c) > 0) {
+          return json(400, { error: 'Cannot cancel invoice with payments. Delete payments first.' });
+        }
+      }
+
+      // Mark Paid: auto-record remaining balance as Cash payment so ledger stays consistent
+      if (status === 'paid') {
+        const { rows: paidRows } = await localQuery(
+          `SELECT COALESCE(SUM(amount),0) AS t FROM invoice_payments WHERE invoice_id=$1 AND tenant_id=$2`,
+          [invId, tid],
+        );
+        const paid = Number((paidRows[0] as { t: number }).t) || 0;
+        const remaining = grand - paid;
+        if (remaining > 0.001) {
+          const payId = uid('IP');
+          const pDate = new Date().toISOString().slice(0, 10);
+          await localQuery(
+            `INSERT INTO invoice_payments
+               (id, tenant_id, invoice_id, amount, payment_date, method, payment_method, notes)
+             VALUES ($1,$2,$3,$4,$5,'Cash','Cash',$6)`,
+            [payId, tid, invId, remaining, pDate, 'Marked paid'],
+          );
+        }
+      }
+
+      await localQuery(`UPDATE standalone_invoices SET status=$1 WHERE id=$2 AND tenant_id=$3`, [status, invId, tid]);
       return json(200, { ok: true });
     }
     const invMatch = ctx.path.match(/^\/invoices\/([^/]+)$/);
     if (invMatch && ctx.method === 'DELETE') {
-      await localQuery(`DELETE FROM standalone_invoices WHERE id=$1 AND tenant_id=$2`, [invMatch[1], tid]);
+      const invId = invMatch[1]!;
+      const { rows: payCount } = await localQuery(
+        `SELECT COUNT(*)::int AS c FROM invoice_payments WHERE invoice_id=$1 AND tenant_id=$2`,
+        [invId, tid],
+      );
+      if (Number((payCount[0] as { c: number }).c) > 0) {
+        return json(400, { error: 'Cannot delete invoice with payments. Delete payments first.' });
+      }
+      await localQuery(`DELETE FROM standalone_invoices WHERE id=$1 AND tenant_id=$2`, [invId, tid]);
       return json(200, { ok: true });
     }
 
@@ -1488,7 +1649,7 @@ export async function handleLocalApiRequest(
           tid,
           b.name ?? b.bankName ?? 'Bank',
           b.accountNumber ?? null,
-          b.ifsc ?? null,
+          b.ifsc ?? b.ifscCode ?? null,
           b.balance ?? 0,
           b.accountName ?? null,
           b.bankName ?? null,
@@ -1498,8 +1659,42 @@ export async function handleLocalApiRequest(
       const { rows } = await localQuery(`SELECT * FROM banks WHERE id=$1`, [id]);
       return json(201, mapBank(rows[0] as Record<string, unknown>));
     }
+    if (ctx.path === '/banks/batch' && ctx.method === 'POST') {
+      const { items } = (ctx.body || {}) as { items?: Record<string, unknown>[] };
+      if (!Array.isArray(items) || items.length === 0) {
+        return json(400, { error: 'No items to import' });
+      }
+      for (let i = 0; i < items.length; i++) {
+        const name = String(items[i]?.name || '').trim();
+        if (!name) {
+          return json(400, { error: `Row ${i + 1}: Name is required — no banks were imported` });
+        }
+      }
+      for (const r of items) {
+        const acNo = String(r.accountNumber || '').trim();
+        if (acNo) {
+          const dup = await localQuery(`SELECT id FROM banks WHERE tenant_id=$1 AND account_number=$2`, [tid, acNo]);
+          if (dup.rows[0]) {
+            return json(400, { error: `Account "${acNo}" already exists — no banks were imported` });
+          }
+        }
+      }
+      let success = 0;
+      for (const r of items) {
+        const id = uid('B');
+        const name = String(r.name || '').trim();
+        const acNo = String(r.accountNumber || '').trim() || null;
+        await localQuery(
+          `INSERT INTO banks (id, tenant_id, name, account_number, ifsc, balance, account_name, bank_name, branch)
+           VALUES ($1,$2,$3,$4,$5,0,$6,$7,$8)`,
+          [id, tid, name, acNo, r.ifscCode ?? r.ifsc ?? null, name, r.bankName ?? null, r.branch ?? null],
+        );
+        success++;
+      }
+      return json(201, { success, errors: [] });
+    }
     const bankMatch = ctx.path.match(/^\/banks\/([^/]+)$/);
-    if (bankMatch) {
+    if (bankMatch && bankMatch[1] !== 'batch') {
       const id = bankMatch[1]!;
       if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
         const b = ctx.body as Record<string, unknown>;
@@ -1912,16 +2107,433 @@ export async function handleLocalApiRequest(
       });
     }
     if (ctx.path === '/accounts/ledger' && ctx.method === 'GET') {
-      return json(200, { entries: [], opening: 0, closing: 0 });
+      const type = query.get('type') || 'all';
+      const entries: {
+        date: string;
+        type: string;
+        particulars: string;
+        refId: string;
+        debit: number;
+        credit: number;
+      }[] = [];
+
+      if (type === 'all' || type === 'sales') {
+        const inv = await localQuery(
+          `SELECT id, invoice_date AS dt, COALESCE(customer_name, client_name, 'Customer') AS customer_name,
+                  COALESCE(subtotal,0) AS amount, invoice_number
+           FROM standalone_invoices
+           WHERE tenant_id=$1 AND COALESCE(status,'') NOT IN ('cancelled','draft')
+             AND (invoice_date IS NULL OR (invoice_date >= $2 AND invoice_date <= $3))
+           ORDER BY invoice_date`,
+          [tid, periodFrom, periodTo],
+        );
+        for (const r of inv.rows as Record<string, unknown>[]) {
+          entries.push({
+            date: String(r.dt || periodFrom),
+            type: 'Invoice',
+            particulars: `Invoice ${r.invoice_number} — ${r.customer_name}`,
+            refId: String(r.id),
+            debit: Number(r.amount) || 0,
+            credit: 0,
+          });
+        }
+      }
+
+      if (type === 'all' || type === 'purchases') {
+        const purch = await localQuery(
+          `SELECT pp.batch_id AS ref_id, MIN(pp.purchase_date) AS dt,
+                  COALESCE(s.name, 'Supplier') AS supplier_name,
+                  SUM(COALESCE(pp.billed_price, pp.cost_price, 0) * COALESCE(pp.qty, 1)) AS amount,
+                  COUNT(*)::int AS qty
+           FROM product_purchases pp
+           LEFT JOIN suppliers s ON s.id = pp.supplier_id AND s.tenant_id = pp.tenant_id
+           WHERE pp.tenant_id=$1
+             AND (pp.purchase_date IS NULL OR (pp.purchase_date >= $2 AND pp.purchase_date <= $3))
+           GROUP BY pp.batch_id, s.name
+           ORDER BY MIN(pp.purchase_date)`,
+          [tid, periodFrom, periodTo],
+        );
+        for (const r of purch.rows as Record<string, unknown>[]) {
+          entries.push({
+            date: String(r.dt || periodFrom),
+            type: 'Purchase',
+            particulars: `Purchase from ${r.supplier_name} (${r.qty} items)`,
+            refId: String(r.ref_id || ''),
+            debit: 0,
+            credit: Number(r.amount) || 0,
+          });
+        }
+      }
+
+      if (type === 'all' || type === 'payments') {
+        const invPay = await localQuery(
+          `SELECT ip.id AS ref_id, ip.payment_date AS dt,
+                  COALESCE(si.customer_name, si.client_name, 'Customer') AS customer_name,
+                  ip.amount, COALESCE(ip.payment_method, ip.method, 'Cash') AS payment_method
+           FROM invoice_payments ip
+           JOIN standalone_invoices si ON si.id = ip.invoice_id AND si.tenant_id = ip.tenant_id
+           WHERE ip.tenant_id=$1
+             AND (ip.payment_date IS NULL OR (ip.payment_date >= $2 AND ip.payment_date <= $3))
+           ORDER BY ip.payment_date`,
+          [tid, periodFrom, periodTo],
+        );
+        for (const r of invPay.rows as Record<string, unknown>[]) {
+          entries.push({
+            date: String(r.dt || periodFrom),
+            type: 'Invoice Payment',
+            particulars: `Invoice payment from ${r.customer_name} (${r.payment_method})`,
+            refId: String(r.ref_id),
+            debit: Number(r.amount) || 0,
+            credit: 0,
+          });
+        }
+        const sp = await localQuery(
+          `SELECT sp.id AS ref_id, sp.payment_date AS dt,
+                  COALESCE(s.name, 'Supplier') AS supplier_name,
+                  sp.amount, COALESCE(sp.payment_method, 'Cash') AS payment_method
+           FROM supplier_payments sp
+           LEFT JOIN suppliers s ON s.id = sp.supplier_id AND s.tenant_id = sp.tenant_id
+           WHERE sp.tenant_id=$1
+             AND (sp.payment_date IS NULL OR (sp.payment_date >= $2 AND sp.payment_date <= $3))
+           ORDER BY sp.payment_date`,
+          [tid, periodFrom, periodTo],
+        );
+        for (const r of sp.rows as Record<string, unknown>[]) {
+          entries.push({
+            date: String(r.dt || periodFrom),
+            type: 'Payment Made',
+            particulars: `Payment to ${r.supplier_name} (${r.payment_method})`,
+            refId: String(r.ref_id),
+            debit: 0,
+            credit: Number(r.amount) || 0,
+          });
+        }
+        const staffPay = await localQuery(
+          `SELECT id AS ref_id, payment_date AS dt, staff_name, amount, payment_type, payment_method
+           FROM staff_payments WHERE tenant_id=$1
+             AND (payment_date IS NULL OR (payment_date >= $2 AND payment_date <= $3))
+           ORDER BY payment_date`,
+          [tid, periodFrom, periodTo],
+        );
+        const staffLabels: Record<string, string> = {
+          salary: 'Staff Salary',
+          advance: 'Staff Advance',
+          advance_repay: 'Advance Repaid',
+          bonus: 'Staff Bonus',
+          deduction: 'Staff Deduction',
+        };
+        for (const r of staffPay.rows as Record<string, unknown>[]) {
+          const pType = String(r.payment_type || 'salary');
+          const isOutflow = ['salary', 'bonus', 'advance'].includes(pType);
+          entries.push({
+            date: String(r.dt || periodFrom),
+            type: staffLabels[pType] || 'Staff Salary',
+            particulars: `${r.staff_name || 'Staff'} (${r.payment_method || 'Cash'})`,
+            refId: String(r.ref_id),
+            debit: isOutflow ? 0 : Number(r.amount) || 0,
+            credit: isOutflow ? Number(r.amount) || 0 : 0,
+          });
+        }
+        const exp = await localQuery(
+          `SELECT id AS ref_id, expense_date AS dt, category, description, amount, payment_method
+           FROM expenses WHERE tenant_id=$1
+             AND (expense_date IS NULL OR (expense_date >= $2 AND expense_date <= $3))
+           ORDER BY expense_date`,
+          [tid, periodFrom, periodTo],
+        );
+        for (const r of exp.rows as Record<string, unknown>[]) {
+          entries.push({
+            date: String(r.dt || periodFrom),
+            type: 'Expense',
+            particulars: `${r.category || 'Expense'}${r.description ? ` — ${r.description}` : ''}`,
+            refId: String(r.ref_id),
+            debit: 0,
+            credit: Number(r.amount) || 0,
+          });
+        }
+      }
+
+      entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      let balance = 0;
+      const withBalance = entries.map(e => {
+        balance += e.debit - e.credit;
+        return { ...e, balance };
+      });
+      const totals = {
+        debit: entries.reduce((s, e) => s + e.debit, 0),
+        credit: entries.reduce((s, e) => s + e.credit, 0),
+      };
+      return json(200, { entries: withBalance, totals, count: entries.length });
     }
     if (ctx.path === '/accounts/day-book' && ctx.method === 'GET') {
-      return json(200, { date: query.get('date') || periodFrom, entries: [] });
+      const date = query.get('date') || new Date().toISOString().slice(0, 10);
+      const entries: {
+        id: string;
+        date: string;
+        type: string;
+        party: string;
+        product?: string;
+        debit: number;
+        credit: number;
+        method?: string;
+      }[] = [];
+
+      const invoices = await localQuery(
+        `SELECT id, invoice_date AS date, COALESCE(customer_name, client_name, 'Customer') AS customer_name,
+                COALESCE(subtotal,0) AS amount, invoice_number, status
+         FROM standalone_invoices
+         WHERE tenant_id=$1 AND invoice_date=$2 AND COALESCE(status,'') NOT IN ('cancelled','draft')`,
+        [tid, date],
+      );
+      for (const r of invoices.rows as Record<string, unknown>[]) {
+        entries.push({
+          id: String(r.id),
+          date,
+          type: `Invoice${r.status === 'paid' ? ' (Paid)' : ''}`,
+          party: String(r.customer_name || 'Customer'),
+          product: String(r.invoice_number || ''),
+          debit: Number(r.amount) || 0,
+          credit: 0,
+        });
+      }
+
+      const purch = await localQuery(
+        `SELECT COALESCE(pp.batch_id, pp.id) AS id, pp.purchase_date AS date,
+                COALESCE(s.name, 'Supplier') AS party_name,
+                COALESCE(pp.billed_price, pp.cost_price, 0) * COALESCE(pp.qty, 1) AS amount,
+                COALESCE(p.name, '') AS product_name
+         FROM product_purchases pp
+         LEFT JOIN suppliers s ON s.id = pp.supplier_id AND s.tenant_id = pp.tenant_id
+         LEFT JOIN products p ON p.id = pp.product_id AND p.tenant_id = pp.tenant_id
+         WHERE pp.tenant_id=$1 AND pp.purchase_date=$2`,
+        [tid, date],
+      );
+      for (const r of purch.rows as Record<string, unknown>[]) {
+        entries.push({
+          id: String(r.id),
+          date,
+          type: 'Purchase',
+          party: String(r.party_name),
+          product: String(r.product_name || ''),
+          debit: 0,
+          credit: Number(r.amount) || 0,
+        });
+      }
+
+      const invPay = await localQuery(
+        `SELECT ip.id, ip.payment_date AS date,
+                COALESCE(si.customer_name, si.client_name, 'Customer') AS party_name,
+                ip.amount, COALESCE(ip.payment_method, ip.method, 'Cash') AS payment_method
+         FROM invoice_payments ip
+         JOIN standalone_invoices si ON si.id = ip.invoice_id AND si.tenant_id = ip.tenant_id
+         WHERE ip.tenant_id=$1 AND ip.payment_date=$2`,
+        [tid, date],
+      );
+      for (const r of invPay.rows as Record<string, unknown>[]) {
+        entries.push({
+          id: String(r.id),
+          date,
+          type: 'Payment Received',
+          party: String(r.party_name),
+          debit: Number(r.amount) || 0,
+          credit: 0,
+          method: String(r.payment_method),
+        });
+      }
+
+      const sp = await localQuery(
+        `SELECT sp.id, sp.payment_date AS date, COALESCE(s.name, 'Supplier') AS party_name,
+                sp.amount, COALESCE(sp.payment_method, 'Cash') AS payment_method
+         FROM supplier_payments sp
+         LEFT JOIN suppliers s ON s.id = sp.supplier_id AND s.tenant_id = sp.tenant_id
+         WHERE sp.tenant_id=$1 AND sp.payment_date=$2`,
+        [tid, date],
+      );
+      for (const r of sp.rows as Record<string, unknown>[]) {
+        entries.push({
+          id: String(r.id),
+          date,
+          type: 'Payment Made',
+          party: String(r.party_name),
+          debit: 0,
+          credit: Number(r.amount) || 0,
+          method: String(r.payment_method),
+        });
+      }
+
+      const staffPay = await localQuery(
+        `SELECT id, payment_date AS date, staff_name, amount, payment_type, payment_method
+         FROM staff_payments WHERE tenant_id=$1 AND payment_date=$2`,
+        [tid, date],
+      );
+      const staffLabels: Record<string, string> = {
+        salary: 'Staff Salary',
+        advance: 'Staff Advance',
+        advance_repay: 'Advance Repaid',
+        bonus: 'Staff Bonus',
+        deduction: 'Staff Deduction',
+      };
+      for (const r of staffPay.rows as Record<string, unknown>[]) {
+        const pType = String(r.payment_type || 'salary');
+        const isOutflow = ['salary', 'bonus', 'advance'].includes(pType);
+        entries.push({
+          id: String(r.id),
+          date,
+          type: staffLabels[pType] || 'Staff Salary',
+          party: String(r.staff_name || 'Staff'),
+          debit: isOutflow ? 0 : Number(r.amount) || 0,
+          credit: isOutflow ? Number(r.amount) || 0 : 0,
+          method: String(r.payment_method || 'Cash'),
+        });
+      }
+
+      const exp = await localQuery(
+        `SELECT id, expense_date AS date, category, description, amount, payment_method
+         FROM expenses WHERE tenant_id=$1 AND expense_date=$2`,
+        [tid, date],
+      );
+      for (const r of exp.rows as Record<string, unknown>[]) {
+        entries.push({
+          id: String(r.id),
+          date,
+          type: 'Expense',
+          party: String(r.category || 'Expense'),
+          product: String(r.description || ''),
+          debit: 0,
+          credit: Number(r.amount) || 0,
+          method: String(r.payment_method || 'Cash'),
+        });
+      }
+
+      const totalDebit = entries.reduce((s, e) => s + e.debit, 0);
+      const totalCredit = entries.reduce((s, e) => s + e.credit, 0);
+      return json(200, { date, entries, totalDebit, totalCredit });
     }
     if (ctx.path === '/accounts/notes' && ctx.method === 'GET') {
-      return json(200, []);
+      const noteType = query.get('type');
+      let sql = `SELECT * FROM credit_debit_notes WHERE tenant_id=$1`;
+      const params: unknown[] = [tid];
+      if (noteType === 'credit' || noteType === 'debit') {
+        sql += ` AND note_type=$2`;
+        params.push(noteType);
+      }
+      sql += ` ORDER BY created_at DESC`;
+      const { rows } = await localQuery(sql, params);
+      return json(
+        200,
+        rows.map((r: Record<string, unknown>) => {
+          let items: unknown[] = [];
+          if (Array.isArray(r.items)) items = r.items;
+          else if (typeof r.items === 'string') {
+            try {
+              items = JSON.parse(r.items);
+            } catch {
+              items = [];
+            }
+          }
+          return {
+            id: r.id,
+            noteNumber: r.note_number,
+            noteType: r.note_type,
+            vendorId: r.vendor_id,
+            vendorName: r.vendor_name,
+            customerName: r.customer_name,
+            noteDate: r.note_date,
+            reason: r.reason,
+            items,
+            subtotal: Number(r.subtotal) || 0,
+            gstRate: Number(r.gst_rate) || 18,
+            gstAmount: Number(r.gst_amount) || 0,
+            total: Number(r.total) || 0,
+            referenceInvoice: r.reference_invoice,
+            referenceType: r.reference_type ?? null,
+            referenceId: r.reference_id ?? null,
+            status: r.status || 'active',
+          };
+        }),
+      );
     }
     if (ctx.path === '/accounts/notes' && ctx.method === 'POST') {
-      return json(201, { ok: true, id: uid('N') });
+      const b = ctx.body as Record<string, unknown>;
+      const noteType = String(b.noteType || '');
+      if (!['credit', 'debit'].includes(noteType)) {
+        return json(400, { error: 'noteType must be credit or debit' });
+      }
+      const items = Array.isArray(b.items) ? (b.items as Record<string, unknown>[]) : [];
+      if (items.length === 0) return json(400, { error: 'At least one item required' });
+      const rate = Number(b.gstRate) || 18;
+      let subtotal = 0;
+      let gstAmount = 0;
+      const resolvedItems = items.map(item => {
+        const qty = Number(item.quantity) || 1;
+        const price = Number(item.price) || 0;
+        const net = qty * price;
+        const gst = item.withGst !== false ? Math.round((net * rate) / 100) : 0;
+        subtotal += net;
+        gstAmount += gst;
+        return {
+          description: String(item.description || ''),
+          quantity: qty,
+          price,
+          withGst: item.withGst !== false,
+          lineNet: net,
+          lineGst: gst,
+          lineTotal: net + gst,
+        };
+      });
+      const total = subtotal + gstAmount;
+      const prefix = noteType === 'credit' ? 'CN' : 'DN';
+      const countRes = await localQuery(
+        `SELECT COUNT(*)::int AS c FROM credit_debit_notes WHERE tenant_id=$1 AND note_type=$2`,
+        [tid, noteType],
+      );
+      const noteNum = `${prefix}-${String(Number((countRes.rows[0] as { c: number }).c) + 1).padStart(4, '0')}`;
+      const id = uid('N');
+      const vName = (b.vendorName as string) || (b.customerName as string) || null;
+      await localQuery(
+        `INSERT INTO credit_debit_notes
+           (id, tenant_id, note_number, note_type, vendor_id, vendor_name, customer_name, note_date, reason,
+            items, subtotal, gst_rate, gst_amount, total, reference_invoice, reference_type, reference_id, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'active')`,
+        [
+          id,
+          tid,
+          noteNum,
+          noteType,
+          b.vendorId ?? null,
+          vName,
+          b.customerName || vName,
+          b.noteDate || new Date().toISOString().slice(0, 10),
+          b.reason ?? null,
+          JSON.stringify(resolvedItems),
+          subtotal,
+          rate,
+          gstAmount,
+          total,
+          b.referenceInvoice ?? null,
+          b.referenceType || null,
+          b.referenceId ?? null,
+        ],
+      );
+      return json(201, {
+        id,
+        noteNumber: noteNum,
+        noteType,
+        vendorName: vName,
+        customerName: b.customerName || vName,
+        total,
+        status: 'active',
+      });
+    }
+    const noteDel = ctx.path.match(/^\/accounts\/notes\/([^/]+)$/);
+    if (noteDel && ctx.method === 'DELETE') {
+      const { rows } = await localQuery(`SELECT id FROM credit_debit_notes WHERE id=$1 AND tenant_id=$2`, [
+        noteDel[1],
+        tid,
+      ]);
+      if (!rows[0]) return json(404, { error: 'Note not found' });
+      await localQuery(`DELETE FROM credit_debit_notes WHERE id=$1 AND tenant_id=$2`, [noteDel[1], tid]);
+      return new Response(null, { status: 204 });
     }
     if (ctx.path === '/gstr3b/compute' && ctx.method === 'GET') {
       const month = Number(query.get('month')) || new Date().getMonth() + 1;
@@ -1934,22 +2546,120 @@ export async function handleLocalApiRequest(
         netPayable: { ...zeroTax },
       });
     }
+    // Invoice-based outstanding (service has no distribution receivables)
+    if (ctx.path === '/reports/outstanding' && ctx.method === 'GET') {
+      const { rows: parties } = await localQuery(
+        `SELECT
+           CASE
+             WHEN si.party_type IS NOT NULL AND si.party_id IS NOT NULL THEN si.party_type || ':' || si.party_id
+             ELSE 'name:' || COALESCE(si.customer_name, si.client_name, 'Unknown')
+           END AS party_key,
+           COALESCE(si.customer_name, si.client_name, 'Unknown') AS vendor_name,
+           COALESCE(SUM(COALESCE(si.grand_total, si.total, 0)), 0) AS total_billed,
+           COALESCE(SUM(COALESCE(pay.paid, 0)), 0) AS total_paid,
+           MIN(si.invoice_date) AS oldest_date
+         FROM standalone_invoices si
+         LEFT JOIN (
+           SELECT invoice_id, SUM(amount) AS paid FROM invoice_payments WHERE tenant_id=$1 GROUP BY invoice_id
+         ) pay ON pay.invoice_id = si.id
+         WHERE si.tenant_id=$1 AND COALESCE(si.status,'') NOT IN ('cancelled','draft','paid')
+         GROUP BY 1, 2
+         HAVING COALESCE(SUM(COALESCE(si.grand_total, si.total, 0)), 0) - COALESCE(SUM(COALESCE(pay.paid, 0)), 0) > 0.001
+         ORDER BY 2`,
+        [tid],
+      );
+      const now = Date.now();
+      const mapped = (parties as Record<string, unknown>[]).map(r => {
+        const billed = Number(r.total_billed) || 0;
+        const paid = Number(r.total_paid) || 0;
+        const balance = billed - paid;
+        const days = r.oldest_date ? Math.floor((now - new Date(String(r.oldest_date)).getTime()) / 86400000) : 0;
+        return {
+          vendorId: r.party_key,
+          vendorName: r.vendor_name,
+          totalBilled: billed,
+          totalPaid: paid,
+          balance,
+          d0_30: days <= 30 ? balance : 0,
+          d31_60: days > 30 && days <= 60 ? balance : 0,
+          d61_90: days > 60 && days <= 90 ? balance : 0,
+          d90plus: days > 90 ? balance : 0,
+        };
+      });
+      const totals = mapped.reduce(
+        (acc, r) => {
+          acc.totalBilled += r.totalBilled;
+          acc.totalPaid += r.totalPaid;
+          acc.balance += r.balance;
+          acc.d0_30 += r.d0_30;
+          acc.d31_60 += r.d31_60;
+          acc.d61_90 += r.d61_90;
+          acc.d90plus += r.d90plus;
+          return acc;
+        },
+        { totalBilled: 0, totalPaid: 0, balance: 0, d0_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 },
+      );
+      return json(200, { rows: mapped, totals, count: mapped.length });
+    }
+    if (ctx.path === '/reports/payment-register' && ctx.method === 'GET') {
+      const from = query.get('from');
+      const to = query.get('to');
+      let sql = `
+        SELECT ip.id, ip.payment_date, ip.amount,
+               COALESCE(ip.payment_method, ip.method, 'Cash') AS payment_method,
+               ip.reference_number, ip.notes,
+               COALESCE(si.customer_name, si.client_name, 'Customer') AS vendor_name
+        FROM invoice_payments ip
+        JOIN standalone_invoices si ON si.id = ip.invoice_id AND si.tenant_id = ip.tenant_id
+        WHERE ip.tenant_id=$1`;
+      const params: unknown[] = [tid];
+      if (from) {
+        params.push(from);
+        sql += ` AND ip.payment_date >= $${params.length}`;
+      }
+      if (to) {
+        params.push(to);
+        sql += ` AND ip.payment_date <= $${params.length}`;
+      }
+      sql += ` ORDER BY ip.payment_date DESC, ip.id DESC`;
+      const { rows } = await localQuery(sql, params);
+      const mapped = (rows as Record<string, unknown>[]).map(r => ({
+        id: r.id,
+        date: r.payment_date,
+        vendorName: r.vendor_name,
+        amount: Number(r.amount) || 0,
+        method: r.payment_method,
+        reference: r.reference_number || '',
+        batchId: '',
+        notes: r.notes || '',
+      }));
+      return json(200, {
+        rows: mapped,
+        totals: { amount: mapped.reduce((s, r) => s + r.amount, 0) },
+        count: mapped.length,
+      });
+    }
     if (
       (ctx.path.startsWith('/reports/') || ctx.path.startsWith('/gstr') || ctx.path === '/gstr2b/reconcile') &&
       (ctx.method === 'GET' || ctx.method === 'POST')
     ) {
       // Service offline: no distribution/stock/GST filing — empty safe payloads
-      if (ctx.path.includes('outstanding')) return json(200, []);
-      if (ctx.path.includes('stock')) return json(200, []);
+      if (ctx.path.includes('stock')) return json(200, { rows: [], totals: {}, count: 0 });
       if (ctx.path.includes('gst') || ctx.path.includes('gstr')) {
         return json(200, {
           rows: [],
+          b2b: [],
+          b2c: {},
+          hsnSummary: [],
+          totalTaxable: 0,
+          totalTax: 0,
+          totalValue: 0,
           summary: { taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 },
           month: Number(query.get('month')) || null,
           year: Number(query.get('year')) || null,
         });
       }
-      return json(200, { rows: [], items: [], total: 0 });
+      return json(200, { rows: [], items: [], totals: {}, count: 0, total: 0 });
     }
 
     // Analytics overview (phone Analytics tab)

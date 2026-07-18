@@ -108,6 +108,31 @@ CREATE TABLE IF NOT EXISTS expenses (
   amount NUMERIC NOT NULL,
   description TEXT,
   expense_date DATE,
+  payment_method TEXT DEFAULT 'Cash',
+  reference_number TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS credit_debit_notes (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  note_number TEXT,
+  note_type TEXT NOT NULL,
+  vendor_id TEXT,
+  vendor_name TEXT,
+  customer_name TEXT,
+  note_date DATE,
+  reason TEXT,
+  items JSONB DEFAULT '[]',
+  subtotal NUMERIC DEFAULT 0,
+  gst_rate NUMERIC DEFAULT 18,
+  gst_amount NUMERIC DEFAULT 0,
+  total NUMERIC DEFAULT 0,
+  reference_invoice TEXT,
+  reference_type TEXT,
+  reference_id TEXT,
+  status TEXT DEFAULT 'active',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -404,6 +429,9 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS gst_rate NUMERIC DEFAULT 18;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS gst_amount NUMERIC DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS fulfilled_batch_id TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'Cash';
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reference_number TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS notes TEXT;
 `;
 
 export const SERVICE_TAB_PRESET: Record<string, { label: string; visible: boolean }> = {
