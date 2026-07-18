@@ -12,7 +12,7 @@ import {
 } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { BillSettings, Product, Vendor } from '../../types';
-import { useToast, LoadingSpinner } from '../../components/ui';
+import { useToast, LoadingSpinner, MobilePillTabs } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -449,8 +449,24 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
         </button>
       </div>
 
-      {/* Scope tabs */}
-      <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+      {/* Scope tabs — same pill size as Masters Products/Vendors */}
+      <div className="sm:hidden">
+        <MobilePillTabs
+          items={(isService
+            ? [
+                { id: 'generic', label: `Catalog (${genericCount})` },
+                { id: 'vendor', label: `${partyLabel} (${vendorCount})` },
+              ]
+            : [
+                { id: 'vendor', label: `${vendorTabLabel} (${vendorCount})` },
+                { id: 'generic', label: `${genericTabLabel} (${genericCount})` },
+              ]
+          ).map(t => ({ id: t.id, label: t.label }))}
+          value={tab}
+          onChange={id => setTab(id as PriceTab)}
+        />
+      </div>
+      <div className="hidden sm:flex gap-2">
         {(isService
           ? [
               { id: 'generic' as const, label: 'Catalog', count: genericCount },
@@ -466,14 +482,14 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
             type="button"
             onClick={() => setTab(t.id)}
             className={cn(
-              'shrink-0 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full sm:rounded-xl text-[11px] sm:text-sm font-bold transition-colors',
-              tab === t.id ? 'bg-brand text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50',
+              'box-border h-9 min-w-[7.5rem] px-4 inline-flex items-center justify-center rounded-xl text-sm font-bold border border-solid transition-colors',
+              tab === t.id
+                ? 'bg-brand text-white border-brand'
+                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50',
             )}
           >
             {t.label}
-            <span className={cn('ml-1 text-[10px] sm:text-xs', tab === t.id ? 'text-white/80' : 'text-gray-400')}>
-              ({t.count})
-            </span>
+            <span className={cn('ml-1.5 text-xs', tab === t.id ? 'text-white/80' : 'text-gray-400')}>({t.count})</span>
           </button>
         ))}
       </div>
