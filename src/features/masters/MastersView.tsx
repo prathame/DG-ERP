@@ -65,6 +65,8 @@ export function MastersView({
   const [selectedMaster, setSelectedMaster] = useState<MasterType | null>(null);
   /** When opening Staff manage from a hub row, jump into that person’s payments. */
   const [focusStaffId, setFocusStaffId] = useState<string | null>(null);
+  /** When opening Clients manage from a hub row, jump into that client’s invoice hub. */
+  const [focusVendorId, setFocusVendorId] = useState<string | null>(null);
   /** Phone hub selected pill. */
   const [hubTab, setHubTab] = useState<MasterType | null>(null);
   const [hubLoading, setHubLoading] = useState(false);
@@ -275,7 +277,7 @@ export function MastersView({
     };
   }, [active, serviceMobile]);
 
-  const openFull = (id: MasterType, opts?: { staffId?: string }) => {
+  const openFull = (id: MasterType, opts?: { staffId?: string; vendorId?: string }) => {
     if (id === 'item') {
       // Cloud manufacturer only — Offline never lists this pill.
       setActiveTab('inventory');
@@ -283,6 +285,8 @@ export function MastersView({
     }
     if (id === 'staff') setFocusStaffId(opts?.staffId ?? null);
     else setFocusStaffId(null);
+    if (id === 'vendor') setFocusVendorId(opts?.vendorId ?? null);
+    else setFocusVendorId(null);
     setSelectedMaster(id);
   };
 
@@ -299,7 +303,15 @@ export function MastersView({
   if (selectedMaster === 'vendor')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <VendorMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} businessType={cfg.type} />
+        <VendorMasterView
+          onBack={() => {
+            setSelectedMaster(null);
+            setFocusVendorId(null);
+          }}
+          onRefresh={refreshCounts}
+          businessType={cfg.type}
+          initialVendorId={focusVendorId ?? undefined}
+        />
       </Suspense>
     );
   if (selectedMaster === 'bank')
@@ -417,7 +429,7 @@ export function MastersView({
                         : undefined
                     }
                     meta={typeof v.totalSales === 'number' && v.totalSales > 0 ? 'Sales' : undefined}
-                    onClick={() => openFull('vendor')}
+                    onClick={() => openFull('vendor', { vendorId: v.id })}
                   />
                 </Fragment>
               ))}

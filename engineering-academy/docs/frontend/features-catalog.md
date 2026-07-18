@@ -58,6 +58,8 @@ The "reference data" hub — customers, vendors, banks, staff, reward rules, and
 
 **Service labels:** `businessTypeConfig` sets `labels.vendors` to **Clients** for `service` (manufacturer keeps **Vendors**). Offline Masters pills, VendorMaster headers/FABs, invoice/quote party fields, Analytics “Outstanding Clients”, and Accounts party columns use that config — API paths stay `/vendors`.
 
+**Client invoice hub:** In Masters → Clients (`VendorMasterView`), tapping a client card (or a phone hub Client row with `initialVendorId`) opens that client’s Invoice Finance detail — outstanding / received / invoice list, **New Invoice** (`CreateInvoiceModal` with party prefill), and **Record Payment** via `api.invoiceFinance`. Edit/Delete icons use `stopPropagation` and stay on the card. Back returns to the Clients list. Finance tab’s `InvoiceFinanceView` keeps the same APIs.
+
 **Business value:** every other module (sales, distribution, warranty) references a vendor/customer/product by ID — Masters is where those IDs are created and kept clean (deduplication via `uq_vendors_tenant_name`-style unique indexes server-side).
 
 ## Inventory

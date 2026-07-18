@@ -12,26 +12,37 @@ import {
   Mail,
   Download,
   Upload,
+  FileText,
+  IndianRupee,
+  Clock,
 } from 'lucide-react';
-import { cn, exportToCsv, shareViaWhatsApp } from '../../lib/utils';
+import { cn, exportToCsv, shareViaWhatsApp, formatDate } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Vendor } from '../../types';
-import { useToast, LoadingSpinner } from '../../components/ui';
+import { useToast, LoadingSpinner, isBillFullyPaid, PaidBadge } from '../../components/ui';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
+
+type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
+
+const fmt = (n: number) => `₹${Math.abs(n).toLocaleString()}`;
 
 export function VendorMasterView({
   onBack,
   onRefresh,
   businessType: _businessType = 'manufacturer',
+  initialVendorId,
 }: {
   onBack: () => void;
   onRefresh: () => void;
   /** @deprecated Label comes from session businessType via useBusinessConfig */
   businessType?: string;
+  /** Open this client’s invoice hub immediately (e.g. Masters hub row tap). */
+  initialVendorId?: string;
 }) {
   const cfg = useBusinessConfig();
   // service → Client | dealer/retail → Customer | manufacturer → Vendor
@@ -54,6 +65,21 @@ export function VendorMasterView({
   const [form, setForm] = useState({ name: '', contactPerson: '', phone: '', email: '', address: '', gstNumber: '' });
   const [submitting, setSubmitting] = useState(false);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
+  const [selected, setSelected] = useState<Vendor | null>(null);
+  const [detail, setDetail] = useState<ClientDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [focusedInitial, setFocusedInitial] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createPrefill, setCreatePrefill] = useState<InvoicePartyPrefill | null>(null);
+  const [payModal, setPayModal] = useState<{ invoiceId: string; invoiceNumber: string; balance: number } | null>(null);
+  const [payForm, setPayForm] = useState({
+    amount: '',
+    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentMethod: 'Cash',
+    referenceNumber: '',
+    notes: '',
+  });
+  const [paySubmitting, setPaySubmitting] = useState(false);
 
   const load = () => {
     api.vendors
@@ -68,9 +94,158 @@ export function VendorMasterView({
     load();
   }, [debouncedSearch]);
 
+  const partyKeyFor = (v: Vendor) => `vendor:${v.id}`;
+
+  const loadDetail = (v: Vendor) => {
+    setDetailLoading(true);
+    api.invoiceFinance
+      .client(partyKeyFor(v))
+      .then(d => {
+        if (!d || typeof d !== 'object') {
+          setDetail(null);
+          return;
+        }
+        setDetail({
+          ...d,
+          invoices: Array.isArray(d.invoices) ? d.invoices : [],
+          payments: Array.isArray(d.payments) ? d.payments : [],
+          totalInvoiced: Number(d.totalInvoiced) || 0,
+          totalPaid: Number(d.totalPaid) || 0,
+          balance: Number(d.balance) || 0,
+          clientName: d.clientName || v.name || label,
+          clientPhone: d.clientPhone || v.phone || null,
+          customerAddress: d.customerAddress || v.address || null,
+          customerGstin: d.customerGstin || v.gstNumber || null,
+        });
+      })
+      .catch(() => setDetail(null))
+      .finally(() => setDetailLoading(false));
+  };
+
+  const selectClient = (v: Vendor) => {
+    setSelected(v);
+    setDetail(null);
+    loadDetail(v);
+  };
+
+  // Masters hub → Client row: jump straight into that client’s invoice hub
+  useEffect(() => {
+    if (focusedInitial || !initialVendorId || loading) return;
+    const v = list.find(x => x.id === initialVendorId);
+    if (v) {
+      selectClient(v);
+      setFocusedInitial(true);
+    }
+  }, [initialVendorId, list, loading, focusedInitial]);
+
+  const backFromDetail = () => {
+    setSelected(null);
+    setDetail(null);
+    setCreateOpen(false);
+    setCreatePrefill(null);
+    setPayModal(null);
+  };
+
+  const openNewInvoice = () => {
+    if (!selected) return;
+    setCreatePrefill({
+      partyType: 'vendor',
+      partyId: selected.id,
+      customerName: selected.name,
+      customerPhone: detail?.clientPhone || selected.phone || '',
+      customerAddress: detail?.customerAddress || selected.address || '',
+      customerGstin: detail?.customerGstin || selected.gstNumber || '',
+    });
+    setCreateOpen(true);
+  };
+
+  const openPay = (inv: ClientDetail['invoices'][0]) => {
+    setPayForm({
+      amount: String(inv.balance > 0 ? inv.balance : ''),
+      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentMethod: 'Cash',
+      referenceNumber: '',
+      notes: '',
+    });
+    setPayModal({ invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, balance: inv.balance });
+  };
+
+  /** Hub action: pay first unpaid invoice (or Extra Pay on latest if all settled). */
+  const openRecordPayment = () => {
+    const invoices = detail?.invoices || [];
+    if (invoices.length === 0) {
+      toast('Create an invoice first', 'error');
+      return;
+    }
+    const unpaid = invoices.find(i => i.balance > 0);
+    if (unpaid) {
+      openPay(unpaid);
+      return;
+    }
+    openPay({ ...invoices[0]!, balance: 0 });
+  };
+
+  const handlePay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payModal || !selected) return;
+    const amount = parseFloat(payForm.amount);
+    if (!amount || amount <= 0) {
+      toast('Enter a valid amount', 'error');
+      return;
+    }
+    if (amount > payModal.balance && payModal.balance > 0) {
+      const extra = amount - payModal.balance;
+      const ok = await confirm({
+        title: 'Extra Payment',
+        message: `Invoice balance is ${fmt(payModal.balance)}. You're paying ${fmt(amount)} — ${fmt(extra)} will be credit. Continue?`,
+        confirmLabel: `Record ${fmt(amount)}`,
+        variant: 'info',
+      });
+      if (!ok) return;
+    }
+    setPaySubmitting(true);
+    try {
+      await api.invoiceFinance.recordPayment({
+        invoiceId: payModal.invoiceId,
+        amount,
+        paymentDate: payForm.paymentDate,
+        paymentMethod: payForm.paymentMethod,
+        referenceNumber: payForm.referenceNumber || undefined,
+        notes: payForm.notes || undefined,
+      });
+      toast('Payment recorded', 'success');
+      setPayModal(null);
+      loadDetail(selected);
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setPaySubmitting(false);
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: string, amount: number) => {
+    if (!selected) return;
+    if (
+      !(await confirm({
+        title: 'Delete Payment',
+        message: `Delete payment of ${fmt(amount)}? This cannot be undone.`,
+        confirmLabel: 'Delete',
+        variant: 'danger',
+      }))
+    )
+      return;
+    try {
+      await api.invoiceFinance.deletePayment(paymentId);
+      toast('Payment deleted', 'success');
+      loadDetail(selected);
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  };
+
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: '', contactPerson: '', phone: '', email: '', address: '' });
+    setForm({ name: '', contactPerson: '', phone: '', email: '', address: '', gstNumber: '' });
     setModalOpen(true);
   };
   const openEdit = (v: Vendor) => {
@@ -126,11 +301,313 @@ export function VendorMasterView({
     api.vendors
       .delete(deleteTarget.id)
       .then(() => {
+        if (selected?.id === deleteTarget.id) backFromDetail();
         setDeleteTarget(null);
         load();
       })
       .catch(err => toast(err.message, 'error'));
   };
+
+  // Hub deep-link: wait until the named client is selected (avoid list flash)
+  if (initialVendorId && !focusedInitial && !selected) {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-16 text-center">
+        <LoadingSpinner />
+      </motion.div>
+    );
+  }
+
+  // ── Client detail hub (invoices + payments; Back → list) ──────────────────
+  if (selected) {
+    const overallPaid = detail ? isBillFullyPaid(detail.totalInvoiced, detail.balance) : false;
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 pb-8">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={backFromDetail}
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg"
+            aria-label={`Back to ${label.toLowerCase()} list`}
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold flex items-center gap-2 flex-wrap">
+              <span className="truncate">{detail?.clientName || selected.name}</span>
+              {overallPaid && <PaidBadge />}
+            </h2>
+            <p className="text-sm text-gray-500">
+              {detailLoading
+                ? 'Loading invoices…'
+                : detail
+                  ? `${detail.invoices.length} invoice${detail.invoices.length !== 1 ? 's' : ''}`
+                  : `${label} invoices & payments`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={openRecordPayment}
+              className="flex items-center gap-1.5 px-3 py-2 min-h-[44px] border border-emerald-200 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-50"
+            >
+              <IndianRupee size={16} /> Record Payment
+            </button>
+            <button
+              type="button"
+              onClick={openNewInvoice}
+              className="flex items-center gap-1.5 px-4 py-2 min-h-[44px] bg-brand text-white rounded-xl text-sm font-bold"
+            >
+              <Plus size={16} /> New Invoice
+            </button>
+          </div>
+        </div>
+
+        {detailLoading && !detail ? (
+          <div className="py-16 text-center">
+            <LoadingSpinner />
+          </div>
+        ) : !detail ? (
+          <div className="rounded-2xl border border-rose-200 bg-white p-8 text-center">
+            <p className="text-rose-600 font-medium mb-2">Failed to load invoices</p>
+            <button
+              type="button"
+              onClick={() => loadDetail(selected)}
+              className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-gray-100 bg-white p-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase">Outstanding</p>
+                <p className={cn('text-xl font-bold mt-1', detail.balance > 0 ? 'text-rose-600' : 'text-emerald-600')}>
+                  {detail.balance < 0 ? `${fmt(detail.balance)} credit` : fmt(detail.balance)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-gray-100 bg-white p-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase">Received</p>
+                <p className="text-xl font-bold text-emerald-600 mt-1">{fmt(detail.totalPaid)}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-100 bg-white p-4 col-span-2 sm:col-span-1">
+                <p className="text-[10px] font-bold text-gray-400 uppercase">Invoiced</p>
+                <p className="text-xl font-bold text-blue-600 mt-1">{fmt(detail.totalInvoiced)}</p>
+              </div>
+            </div>
+
+            {(selected.phone || selected.contactPerson || selected.gstNumber) && (
+              <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-600 space-y-1">
+                {selected.contactPerson && <p>Contact: {selected.contactPerson}</p>}
+                {selected.phone && <p>{selected.phone}</p>}
+                {selected.gstNumber && <p className="font-mono text-xs">GSTIN: {selected.gstNumber}</p>}
+              </div>
+            )}
+
+            <div>
+              <h3 className="text-sm font-bold text-gray-600 mb-2 flex items-center gap-2">
+                <FileText size={14} /> Invoices
+              </h3>
+              {detail.invoices.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 rounded-2xl border border-dashed border-gray-200">
+                  <FileText size={32} className="mx-auto mb-2 opacity-30" />
+                  <p className="font-medium text-sm">No invoices yet</p>
+                  <p className="text-xs mt-1">Tap “New Invoice” to bill this {label.toLowerCase()}</p>
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {detail.invoices.map(inv => {
+                    const paid = isBillFullyPaid(inv.grandTotal, inv.balance);
+                    return (
+                      <li
+                        key={inv.id}
+                        className="flex items-start justify-between gap-3 p-3 rounded-xl border border-gray-100 bg-white"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-bold font-mono text-sm">{inv.invoiceNumber}</p>
+                          <p className="text-xs text-gray-500">
+                            {formatDate(inv.invoiceDate)}
+                            {inv.dueDate ? ` · Due ${formatDate(inv.dueDate)}` : ''}
+                          </p>
+                          <p className="text-sm font-bold mt-1">{fmt(inv.grandTotal)}</p>
+                          {inv.paid > 0 && <p className="text-xs text-emerald-600">Paid: {fmt(inv.paid)}</p>}
+                          {inv.balance > 0 && <p className="text-xs text-rose-600">Due: {fmt(inv.balance)}</p>}
+                        </div>
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          {paid ? (
+                            <PaidBadge size="sm" />
+                          ) : (
+                            inv.balance > 0 && (
+                              <span className="text-xs bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Clock size={10} /> Unpaid
+                              </span>
+                            )
+                          )}
+                          {!paid && (
+                            <button
+                              type="button"
+                              onClick={() => openPay(inv)}
+                              className="flex items-center gap-1 px-3 py-1.5 min-h-[36px] bg-emerald-600 text-white rounded-lg text-xs font-bold"
+                            >
+                              <Plus size={12} /> Pay
+                            </button>
+                          )}
+                          {paid && inv.balance <= 0 && (
+                            <button
+                              type="button"
+                              onClick={() => openPay({ ...inv, balance: 0 })}
+                              className="flex items-center gap-1 px-3 py-1.5 min-h-[36px] border border-gray-200 rounded-lg text-xs font-medium"
+                            >
+                              <Plus size={12} /> Extra Pay
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            {detail.payments.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-gray-600 mb-2 flex items-center gap-2">
+                  <IndianRupee size={14} /> Payment History
+                </h3>
+                <ul className="space-y-2">
+                  {detail.payments.map(p => (
+                    <li
+                      key={p.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded-xl border border-gray-100 bg-white"
+                    >
+                      <div>
+                        <p className="font-bold text-emerald-600">+{fmt(p.amount)}</p>
+                        <p className="text-xs text-gray-500">
+                          {formatDate(p.paymentDate)} · {p.paymentMethod} · Invoice {p.invoiceNumber}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePayment(p.id, p.amount)}
+                        className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-rose-400 hover:text-rose-600"
+                        aria-label="Delete payment"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+
+        {createOpen && (
+          <CreateInvoiceModal
+            initialParty={createPrefill}
+            onClose={() => {
+              setCreateOpen(false);
+              setCreatePrefill(null);
+            }}
+            onCreated={() => {
+              setCreateOpen(false);
+              setCreatePrefill(null);
+              loadDetail(selected);
+            }}
+          />
+        )}
+
+        <AnimatePresence>
+          {payModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/40" onClick={() => setPayModal(null)} />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6 max-h-[90vh] overflow-y-auto"
+              >
+                <h3 className="text-lg font-bold mb-1">Record Payment</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Invoice {payModal.invoiceNumber} · Balance{' '}
+                  <span className="font-bold text-rose-600">{fmt(payModal.balance)}</span>
+                </p>
+                <form onSubmit={handlePay} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Amount (₹)</label>
+                    <input
+                      type="number"
+                      required
+                      min={0.01}
+                      step={0.01}
+                      value={payForm.amount}
+                      onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
+                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Payment Date</label>
+                    <input
+                      type="date"
+                      value={payForm.paymentDate}
+                      onChange={e => setPayForm(f => ({ ...f, paymentDate: e.target.value }))}
+                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Method</label>
+                    <select
+                      value={payForm.paymentMethod}
+                      onChange={e => setPayForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    >
+                      {['Cash', 'Bank Transfer', 'UPI', 'Cheque', 'Other'].map(m => (
+                        <option key={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Reference</label>
+                    <input
+                      value={payForm.referenceNumber}
+                      onChange={e => setPayForm(f => ({ ...f, referenceNumber: e.target.value }))}
+                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase">Notes</label>
+                    <input
+                      value={payForm.notes}
+                      onChange={e => setPayForm(f => ({ ...f, notes: e.target.value }))}
+                      className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setPayModal(null)}
+                      className="flex-1 py-2 border rounded-lg font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={paySubmitting}
+                      className="flex-1 py-2 bg-emerald-600 text-white rounded-lg font-bold"
+                    >
+                      {paySubmitting ? 'Saving...' : 'Record Payment'}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+        <ConfirmRenderer />
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -140,9 +617,9 @@ export function VendorMasterView({
         </button>
         <div className="flex-1">
           <h2 className="text-xl font-bold">{label} Master</h2>
-          <p className="text-sm text-gray-500">Manage {label.toLowerCase()} records</p>
+          <p className="text-sm text-gray-500">Tap a {label.toLowerCase()} for invoices & payments</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() =>
@@ -208,83 +685,96 @@ export function VendorMasterView({
           </button>
         </div>
       </div>
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-gray-50 flex items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder={`Search ${label.toLowerCase()}s...`}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-            />
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50">
-                <th className="px-3 py-3 sm:px-6 sm:py-4">Name</th>
-                <th className="px-3 py-3 sm:px-6 sm:py-4">Contact</th>
-                <th className="px-3 py-3 sm:px-6 sm:py-4">Phone</th>
-                <th className="px-3 py-3 sm:px-6 sm:py-4">GSTIN</th>
-                {label === 'Vendor' && (
-                  <>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4">Sales</th>
-                    <th className="px-3 py-3 sm:px-6 sm:py-4">Reward Pts</th>
-                  </>
-                )}
-                <th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <LoadingSpinner />
-                  </td>
-                </tr>
-              ) : (
-                list.map(v => (
-                  <tr key={v.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-3 sm:px-6 sm:py-4 font-medium">{v.name}</td>
-                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.contactPerson || '-'}</td>
-                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.phone || '-'}</td>
-                    <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600 font-mono">
-                      {((v as Record<string, unknown>).gstNumber as string) || '-'}
-                    </td>
-                    {label === 'Vendor' && (
-                      <>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-medium">{v.totalSales ?? 0}</td>
-                        <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-emerald-600">
-                          {v.totalRewardPoints ?? 0}
-                        </td>
-                      </>
-                    )}
-                    <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(v)}
-                        className="p-2 text-brand hover:bg-orange-50 rounded-lg"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(v)}
-                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+        <input
+          type="text"
+          placeholder={`Search ${label.toLowerCase()}s...`}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+        />
       </div>
+
+      {loading && (
+        <div className="py-16 text-center">
+          <LoadingSpinner />
+        </div>
+      )}
+
+      {/* Client cards — tap opens invoice hub (Edit/Delete do not) */}
+      {!loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {list.map(v => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => selectClient(v)}
+              className="text-left p-4 rounded-2xl border border-gray-200 bg-white hover:shadow-md transition-all"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold text-gray-800 truncate">{v.name}</span>
+                <div className="flex gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation();
+                      openEdit(v);
+                    }}
+                    className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-blue-600"
+                    aria-label={`Edit ${v.name}`}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation();
+                      setDeleteTarget(v);
+                    }}
+                    className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
+                    aria-label={`Delete ${v.name}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+              {v.contactPerson && <p className="text-xs text-gray-500">{v.contactPerson}</p>}
+              {v.phone && <p className="text-xs text-gray-400 mt-0.5">{v.phone}</p>}
+              {v.gstNumber && <p className="text-[10px] font-mono text-gray-400 mt-1">GSTIN: {v.gstNumber}</p>}
+              {label === 'Vendor' && (v.totalSales || v.totalRewardPoints) ? (
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                  {typeof v.totalSales === 'number' && v.totalSales > 0 && (
+                    <span>
+                      Sales: <b>₹{v.totalSales.toLocaleString()}</b>
+                    </span>
+                  )}
+                  {typeof v.totalRewardPoints === 'number' && v.totalRewardPoints > 0 && (
+                    <span>
+                      Pts: <b className="text-emerald-600">{v.totalRewardPoints}</b>
+                    </span>
+                  )}
+                </div>
+              ) : null}
+              <p className="text-[10px] text-brand font-medium mt-2">Tap to view invoices</p>
+            </button>
+          ))}
+          {list.length === 0 && !search && (
+            <div className="col-span-full py-16 text-center text-gray-400">
+              <FileText size={40} className="mx-auto mb-3 opacity-30" />
+              <p className="font-medium">No {label.toLowerCase()}s yet</p>
+              <p className="text-sm mt-1">Click “Add {label}” to get started</p>
+            </div>
+          )}
+          {list.length === 0 && search && (
+            <div className="col-span-full py-12 text-center text-gray-400 text-sm">
+              No matching {label.toLowerCase()}s
+            </div>
+          )}
+        </div>
+      )}
+
       <AnimatePresence>
         {modalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
