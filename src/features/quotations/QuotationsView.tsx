@@ -884,43 +884,43 @@ export function QuotationsView() {
           >
             <div className="space-y-4">
               <FormGrid>
-                <FormField label={isService ? 'Client' : 'Vendor / Customer'}>
+                <FormField label="Customer Name" required className="sm:col-span-2">
                   <SearchSelect
+                    allowCustom
                     value={form.vendorId}
-                    placeholder="Select or type below"
+                    inputValue={form.customerName}
+                    onInputChange={text => setForm(f => ({ ...f, customerName: text }))}
+                    placeholder={isService ? 'Type client name…' : 'Type vendor or customer name…'}
+                    emptyHint={
+                      vendors.length === 0
+                        ? `No ${isService ? 'clients' : 'vendors'} yet — type a name, or add in Masters`
+                        : 'Type a name — pick a match or leave as custom'
+                    }
+                    customLabel={isService ? 'client' : 'customer'}
                     options={vendors.map(v => ({
                       value: v.id,
                       label: v.name,
                       sublabel: v.phone || undefined,
                     }))}
                     onChange={nextVendor => {
+                      if (!nextVendor) {
+                        setForm(f => ({ ...f, vendorId: '' }));
+                        return;
+                      }
                       const v = vendors.find(x => x.id === nextVendor);
-                      setForm({
-                        ...form,
+                      setForm(f => ({
+                        ...f,
                         vendorId: nextVendor,
-                        customerName: v?.name || form.customerName,
-                        customerPhone: v?.phone || form.customerPhone,
-                      });
+                        customerName: v?.name || f.customerName,
+                        customerPhone: v?.phone || f.customerPhone,
+                      }));
                       rows.forEach((row, idx) => {
                         if (row.productId && (row.quantity || 0) > 0) {
                           resolveQuoteRowPrice(idx, row.productId, nextVendor, row.quantity || 1);
                         }
                       });
                     }}
-                    className="w-full [&_button]:min-h-11 [&_button]:rounded-xl [&_button]:px-3 [&_button]:sm:px-4"
-                  />
-                  {vendors.length === 0 && (
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      No {isService ? 'clients' : 'vendors'} yet — add in Masters, or type a name below
-                    </p>
-                  )}
-                </FormField>
-                <FormField label="Customer Name">
-                  <input
-                    value={form.customerName}
-                    onChange={e => setForm({ ...form, customerName: e.target.value })}
-                    className={formControlClass}
-                    placeholder={isService ? 'If not selecting a client above' : 'If not a vendor'}
+                    className="w-full [&_input]:min-h-11 [&_input]:rounded-xl [&_input]:px-3 [&_input]:sm:px-4 [&_button]:min-h-11 [&_button]:rounded-xl"
                   />
                 </FormField>
                 <FormField label="Phone">

@@ -1382,38 +1382,29 @@ export function CreateInvoiceModal({
 
         {/* Step 0 — Party */}
         <div className={cn(step !== 0 && 'hidden', 'sm:block space-y-4')}>
-          <FormSection title="Customer" description="Select a party or type a new customer">
+          <FormSection title="Customer" description="Type a name — pick a match or leave as custom">
             <FormGrid>
-              <FormField label={isService ? 'Client' : 'Customer / Vendor'} required className="sm:col-span-2">
+              <FormField label="Customer Name" required className="sm:col-span-2">
                 <SearchSelect
+                  allowCustom
                   value={partyKey}
                   onChange={selectParty}
-                  placeholder={isService ? 'Select client' : 'Select vendor or client'}
-                  options={parties.map(p => ({ value: p.key, label: p.label, sublabel: p.phone || undefined }))}
-                  className="w-full [&_button]:min-h-11 [&_button]:rounded-xl [&_button]:px-3 [&_button]:sm:px-4"
+                  inputValue={form.customerName}
+                  onInputChange={text => setForm(f => ({ ...f, customerName: text }))}
+                  placeholder={isService ? 'Type client name…' : 'Type customer or vendor name…'}
+                  emptyHint={
+                    parties.length === 0
+                      ? `No ${isService ? 'clients' : 'parties'} yet — type a name, or add in Masters`
+                      : undefined
+                  }
+                  customLabel={isService ? 'client' : 'customer'}
+                  options={parties.map(p => ({
+                    value: p.key,
+                    label: p.name,
+                    sublabel: p.phone || undefined,
+                  }))}
+                  className="w-full [&_input]:min-h-11 [&_input]:rounded-xl [&_input]:px-3 [&_input]:sm:px-4 [&_button]:min-h-11 [&_button]:rounded-xl"
                 />
-                {parties.length === 0 && (
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    No {isService ? 'clients' : 'parties'} yet — add in Masters, or type a name below
-                  </p>
-                )}
-              </FormField>
-              <FormField label="Customer Name" required>
-                <input
-                  value={form.customerName}
-                  onChange={e => {
-                    setPartyKey('');
-                    setForm({ ...form, customerName: e.target.value });
-                  }}
-                  className={formControlClass}
-                  placeholder="Or type a new name"
-                  list="invoice-party-names"
-                />
-                <datalist id="invoice-party-names">
-                  {parties.map(p => (
-                    <option key={p.key} value={p.name} />
-                  ))}
-                </datalist>
               </FormField>
               <FormField label="GSTIN">
                 <input
