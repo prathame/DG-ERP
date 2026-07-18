@@ -20,6 +20,8 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5i | Drawer + toast | More → drawer; trigger a toast | Settings pinned at bottom; toast below status bar / safe area |
 | 5j | Bottom nav IA | Glance at phone tab bar | Analytics · Masters · Invoice · Quotes · More (not Inventory/Finance as primary) |
 | 5k | Analytics phone | Analytics tab | Quick actions + dense KPI cards + range pills |
+| 5k2 | Analytics outstanding | Create unpaid invoice for a client → Analytics | Outstanding Clients lists that client with balance; View All opens Invoice Finance |
+| 5k3 | Analytics payroll | Masters → Staff → Record salary payment → Analytics | Staff Payroll shows Total Paid / staff row; Advances if advance type used |
 | 5l | Masters hub | Masters tab on phone | Icon pills (Products/Vendors/…); list cards for selected pill; circular + FAB opens manage |
 | 5m | Invoice hub phone | Invoices list | Outstanding/Collected KPIs; status pills; FAB creates invoice |
 | 5n | More shortcuts | More drawer | Shortcut grid includes Stock, Finance, Accounts, Settings |

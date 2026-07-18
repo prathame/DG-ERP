@@ -660,29 +660,191 @@ export async function handleLocalApiRequest(
         return json(200, { ok: true });
       }
     }
-    if (ctx.path === '/payroll' && ctx.method === 'GET') {
-      return json(200, []);
-    }
     if (ctx.path === '/payroll/staff' && ctx.method === 'GET') {
-      return json(200, []);
+      const search = query.get('search');
+      let sql = `SELECT staff_name, SUM(amount) AS total_paid, COUNT(*)::int AS payment_count,
+        MAX(payment_date) AS last_payment, MIN(payment_date) AS first_payment
+        FROM staff_payments WHERE tenant_id = $1`;
+      const params: unknown[] = [tid];
+      if (search) {
+        sql += ` AND staff_name ILIKE $2`;
+        params.push(`%${search}%`);
+      }
+      sql += ' GROUP BY staff_name ORDER BY staff_name';
+      const { rows } = await localQuery(sql, params);
+      return json(
+        200,
+        rows.map(r => ({
+          name: r.staff_name,
+          totalPaid: Number(r.total_paid) || 0,
+          paymentCount: Number(r.payment_count) || 0,
+          lastPayment: r.last_payment,
+          firstPayment: r.first_payment,
+        })),
+      );
     }
     if (ctx.path === '/payroll/summary' && ctx.method === 'GET') {
-      // AnalyticsView / PayrollView expect { year, grandTotal, advanceOutstanding, byStaff, byMonth }
-      const year = Number(query.get('year')) || new Date().getFullYear();
+      const y = Number(query.get('year')) || new Date().getFullYear();
+      const [byStaffR, byMonthR, grandR, advR] = await Promise.all([
+        localQuery(
+          `SELECT staff_name,
+             SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END) AS total,
+             COUNT(*)::int AS payments
+           FROM staff_payments WHERE tenant_id=$1 AND year=$2
+           GROUP BY staff_name ORDER BY total DESC`,
+          [tid, y],
+        ),
+        localQuery(
+          `SELECT month,
+             SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END) AS total,
+             COUNT(*)::int AS payments
+           FROM staff_payments WHERE tenant_id=$1 AND year=$2
+           GROUP BY month ORDER BY month`,
+          [tid, y],
+        ),
+        localQuery(
+          `SELECT COALESCE(SUM(CASE WHEN payment_type IN ('salary','bonus') THEN amount ELSE 0 END),0) AS t
+           FROM staff_payments WHERE tenant_id=$1 AND year=$2`,
+          [tid, y],
+        ),
+        localQuery(
+          `SELECT COALESCE(
+             SUM(CASE WHEN payment_type = 'advance' THEN amount ELSE 0 END)
+             - SUM(CASE WHEN payment_type = 'advance_repay' THEN amount ELSE 0 END)
+           , 0) AS bal
+           FROM staff_payments WHERE tenant_id=$1`,
+          [tid],
+        ),
+      ]);
       return json(200, {
-        year,
-        grandTotal: 0,
-        advanceOutstanding: 0,
-        byStaff: [],
-        byMonth: [],
+        year: y,
+        grandTotal: Number((grandR.rows[0] as { t: number })?.t) || 0,
+        advanceOutstanding: Math.max(0, Number((advR.rows[0] as { bal: number })?.bal) || 0),
+        byStaff: byStaffR.rows.map(r => ({
+          name: String(r.staff_name),
+          total: Number(r.total) || 0,
+          payments: Number(r.payments) || 0,
+        })),
+        byMonth: byMonthR.rows.map(r => ({
+          month: String(r.month),
+          total: Number(r.total) || 0,
+          payments: Number(r.payments) || 0,
+        })),
       });
     }
+    if (ctx.path === '/payroll' && ctx.method === 'GET') {
+      const month = query.get('month');
+      const yearQ = query.get('year');
+      const staffName = query.get('staffName');
+      let sql = 'SELECT * FROM staff_payments WHERE tenant_id = $1';
+      const params: unknown[] = [tid];
+      let idx = 2;
+      if (month && yearQ) {
+        sql += ` AND month = $${idx++} AND year = $${idx++}`;
+        params.push(month, Number(yearQ));
+      }
+      if (staffName) {
+        sql += ` AND staff_name ILIKE $${idx++}`;
+        params.push(`%${staffName}%`);
+      }
+      sql += ' ORDER BY payment_date DESC NULLS LAST, created_at DESC';
+      const { rows } = await localQuery(sql, params);
+      return json(
+        200,
+        rows.map(r => ({
+          id: r.id,
+          staffName: r.staff_name,
+          amount: Number(r.amount) || 0,
+          paymentDate: r.payment_date,
+          paymentType: (r.payment_type as string) || 'salary',
+          paymentMethod: r.payment_method || 'Cash',
+          referenceNumber: r.reference_number ?? undefined,
+          notes: r.notes ?? undefined,
+          month: r.month,
+          year: r.year != null ? Number(r.year) : undefined,
+        })),
+      );
+    }
     if (ctx.path === '/payroll' && ctx.method === 'POST') {
-      return json(403, { error: 'Payroll create is not available on Offline Mobile yet' });
+      const b = ctx.body as Record<string, unknown>;
+      const staffName = String(b.staffName ?? '').trim();
+      if (!staffName) return json(400, { error: 'Staff name is required' });
+      const amount = Number(b.amount);
+      if (!amount || amount <= 0) return json(400, { error: 'Amount must be greater than 0' });
+      const validTypes = ['salary', 'advance', 'advance_repay', 'bonus', 'deduction'];
+      const pType = validTypes.includes(String(b.paymentType)) ? String(b.paymentType) : 'salary';
+      const id = uid('SP');
+      const date = String(b.paymentDate || new Date().toISOString().slice(0, 10));
+      const d = new Date(date);
+      const m = String(b.month || String(d.getMonth() + 1).padStart(2, '0'));
+      const y = Number(b.year) || d.getFullYear();
+      const paymentMethod = String(b.paymentMethod || 'Cash');
+      const referenceNumber = b.referenceNumber ? String(b.referenceNumber) : null;
+      const notes = b.notes ? String(b.notes) : null;
+      let staffId: string | null = null;
+      const { rows: staffRows } = await localQuery(
+        `SELECT id, name, role FROM staff_members WHERE tenant_id=$1 AND LOWER(name)=LOWER($2) LIMIT 1`,
+        [tid, staffName],
+      );
+      const staffRow = staffRows[0] as { id: string; name: string; role?: string } | undefined;
+      if (staffRow) staffId = staffRow.id;
+      await localQuery(
+        `INSERT INTO staff_payments
+           (id, tenant_id, staff_id, staff_name, amount, payment_date, payment_type, payment_method, reference_number, notes, month, year)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [id, tid, staffId, staffName, amount, date, pType, paymentMethod, referenceNumber, notes, m, y],
+      );
+      // Mirror cloud: sync non-deduction payroll into expenses (best-effort)
+      if (pType !== 'deduction') {
+        const verifiedName = staffRow?.name || staffName;
+        const roleHint = staffRow?.role ? ` (${staffRow.role})` : '';
+        const typeLabel =
+          (
+            {
+              salary: 'Salary',
+              advance: 'Advance Given',
+              advance_repay: 'Advance Repaid',
+              bonus: 'Bonus',
+              deduction: 'Deduction',
+            } as Record<string, string>
+          )[pType] || pType;
+        const expenseAmount = pType === 'advance_repay' ? -amount : amount;
+        const expCategory =
+          pType === 'advance_repay'
+            ? 'Staff Advance Repaid'
+            : pType === 'advance'
+              ? 'Staff Advance'
+              : pType === 'bonus'
+                ? 'Staff Bonus'
+                : 'Staff Salary';
+        try {
+          await localQuery(
+            `INSERT INTO expenses (id, tenant_id, category, amount, description, expense_date)
+             VALUES ($1,$2,$3,$4,$5,$6)`,
+            [uid('EXP'), tid, expCategory, expenseAmount, `${typeLabel} — ${verifiedName}${roleHint}`, date],
+          );
+        } catch {
+          /* best-effort */
+        }
+      }
+      return json(201, {
+        id,
+        staffName,
+        amount,
+        paymentDate: date,
+        paymentType: pType,
+        paymentMethod,
+        referenceNumber: referenceNumber ?? undefined,
+        notes: notes ?? undefined,
+        month: m,
+        year: y,
+      });
     }
     const payrollDel = ctx.path.match(/^\/payroll\/([^/]+)$/);
     if (payrollDel && ctx.method === 'DELETE') {
-      return json(403, { error: 'Payroll delete is not available on Offline Mobile yet' });
+      const result = await localQuery(`DELETE FROM staff_payments WHERE id=$1 AND tenant_id=$2`, [payrollDel[1], tid]);
+      if (!result.rowCount) return json(404, { error: 'Payment not found' });
+      return json(200, { ok: true });
     }
 
     // Expenses
@@ -1824,24 +1986,35 @@ export async function handleLocalApiRequest(
         const invFilter = from && to ? 'AND invoice_date BETWEEN $2 AND $3' : from ? 'AND invoice_date >= $2' : '';
         const expFilter = from && to ? 'AND expense_date BETWEEN $2 AND $3' : from ? 'AND expense_date >= $2' : '';
         const payFilter = from && to ? 'AND payment_date BETWEEN $2 AND $3' : from ? 'AND payment_date >= $2' : '';
-        const [collectionsR, invoiceRevR, expensesR, outstandingR, activityR, countsR] = await Promise.all([
-          localQuery(
-            `SELECT COALESCE(SUM(amount),0) AS v FROM invoice_payments WHERE tenant_id=$1 ${payFilter}`,
-            rangeParams,
-          ),
-          localQuery(
-            `SELECT COALESCE(SUM(COALESCE(grand_total,total,0)),0) AS v FROM standalone_invoices
+        const [collectionsR, invoiceRevR, expensesR, outstandingR, activityR, countsR, topClientsR] = await Promise.all(
+          [
+            localQuery(
+              `SELECT COALESCE(SUM(amount),0) AS v FROM invoice_payments WHERE tenant_id=$1 ${payFilter}`,
+              rangeParams,
+            ),
+            localQuery(
+              `SELECT COALESCE(SUM(COALESCE(grand_total,total,0)),0) AS v FROM standalone_invoices
              WHERE tenant_id=$1 AND status!='cancelled' ${invFilter}`,
-            rangeParams,
-          ),
-          localQuery(`SELECT COALESCE(SUM(amount),0) AS v FROM expenses WHERE tenant_id=$1 ${expFilter}`, rangeParams),
-          localQuery(
-            `SELECT COALESCE(SUM(COALESCE(grand_total,total,0)),0) AS v FROM standalone_invoices
-             WHERE tenant_id=$1 AND status NOT IN ('paid','cancelled')`,
-            [tid],
-          ),
-          localQuery(
-            `SELECT type, id, label, amount, date FROM (
+              rangeParams,
+            ),
+            localQuery(
+              `SELECT COALESCE(SUM(amount),0) AS v FROM expenses WHERE tenant_id=$1 ${expFilter}`,
+              rangeParams,
+            ),
+            localQuery(
+              `SELECT COALESCE(SUM(GREATEST(0,
+                 COALESCE(si.grand_total, si.total, 0)
+                 - COALESCE(ip.paid, 0)
+               )),0) AS v
+             FROM standalone_invoices si
+             LEFT JOIN (
+               SELECT invoice_id, SUM(amount) AS paid FROM invoice_payments WHERE tenant_id=$1 GROUP BY invoice_id
+             ) ip ON si.id = ip.invoice_id
+             WHERE si.tenant_id=$1 AND COALESCE(si.status,'') NOT IN ('paid','cancelled')`,
+              [tid],
+            ),
+            localQuery(
+              `SELECT type, id, label, amount, date FROM (
                SELECT 'invoice' AS type, id, COALESCE(customer_name,client_name,'Customer') AS label,
                       COALESCE(grand_total,total,0) AS amount, invoice_date::text AS date
                FROM standalone_invoices WHERE tenant_id=$1 AND status!='cancelled'
@@ -1852,18 +2025,40 @@ export async function handleLocalApiRequest(
                SELECT 'expense', id, COALESCE(category,'Expense'), amount, expense_date::text
                FROM expenses WHERE tenant_id=$1
              ) t ORDER BY date DESC NULLS LAST LIMIT 15`,
-            [tid],
-          ),
-          localQuery(
-            `SELECT
+              [tid],
+            ),
+            localQuery(
+              `SELECT
                (SELECT COUNT(*)::int FROM customers WHERE tenant_id=$1) AS customers,
                (SELECT COUNT(*)::int FROM vendors WHERE tenant_id=$1) AS vendors,
                (SELECT COUNT(*)::int FROM products WHERE tenant_id=$1) AS items,
                (SELECT COUNT(*)::int FROM banks WHERE tenant_id=$1) AS banks,
                (SELECT COUNT(*)::int FROM staff_members WHERE tenant_id=$1) AS staff`,
-            [tid],
-          ),
-        ]);
+              [tid],
+            ),
+            // Service Offline: topVendors = invoice outstanding per client (same party keys as Invoice Finance)
+            localQuery(
+              `SELECT
+               CASE
+                 WHEN si.party_type IS NOT NULL AND si.party_id IS NOT NULL THEN si.party_type || ':' || si.party_id
+                 ELSE 'name:' || COALESCE(si.customer_name, si.client_name, 'Unknown')
+               END AS party_key,
+               MAX(COALESCE(si.customer_name, si.client_name, 'Unknown')) AS customer_name,
+               COALESCE(SUM(COALESCE(si.grand_total, si.total, 0)), 0)
+                 - COALESCE(SUM(ip.paid), 0) AS balance
+             FROM standalone_invoices si
+             LEFT JOIN (
+               SELECT invoice_id, SUM(amount) AS paid FROM invoice_payments WHERE tenant_id=$1 GROUP BY invoice_id
+             ) ip ON si.id = ip.invoice_id
+             WHERE si.tenant_id=$1 AND COALESCE(si.status,'') != 'cancelled'
+             GROUP BY 1
+             HAVING COALESCE(SUM(COALESCE(si.grand_total, si.total, 0)), 0) - COALESCE(SUM(ip.paid), 0) > 0
+             ORDER BY balance DESC
+             LIMIT 5`,
+              [tid],
+            ),
+          ],
+        );
         const collections = Number((collectionsR.rows[0] as { v: number }).v) || 0;
         const invoiceRev = Number((invoiceRevR.rows[0] as { v: number }).v) || 0;
         const expenses = Number((expensesR.rows[0] as { v: number }).v) || 0;
@@ -1885,7 +2080,11 @@ export async function handleLocalApiRequest(
             amount: Number(r.amount) || 0,
             date: r.date,
           })),
-          topVendors: [],
+          topVendors: (topClientsR.rows || []).map((r: Record<string, unknown>) => ({
+            vendorId: String(r.party_key),
+            vendorName: String(r.customer_name || 'Unknown'),
+            balance: Number(r.balance) || 0,
+          })),
           counts: {
             customerMaster: Number(c.customers) || 0,
             vendorMaster: Number(c.vendors) || 0,

@@ -91,3 +91,13 @@ Removed from Offline Mobile UI (`ChatWidget` gated off; tab preset `chatbot.visi
 | `PUT/DELETE /customers/:id` | Masters edit/delete |
 | GST API / Delete Account | Hidden in Settings UI for Offline Mobile |
 
+## Follow-up (2026-07-18) — Analytics outstanding + payroll
+
+| Call | Fix |
+|------|-----|
+| `GET /analytics/overview` `topVendors` | Top 5 clients by invoice outstanding (invoiced − payments); same party keys as Invoice Finance |
+| `GET /payroll/summary` | Real aggregates from `staff_payments` (year salary/bonus, lifetime advance balance) |
+| `GET /payroll`, `GET /payroll/staff` | List + staff aggregates |
+| `POST /payroll`, `DELETE /payroll/:id` | Record/delete payments offline; non-deduction types mirror into `expenses` |
+| Analytics UI | Card title uses `cfg.labels.vendors` (“Outstanding Clients”); View All → Finance (Invoice Finance) |
+

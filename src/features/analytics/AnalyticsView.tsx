@@ -292,11 +292,11 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* Vendor Outstanding */}
+        {/* Client / vendor outstanding — service: invoice dues; View All → Invoice Finance */}
         <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="font-bold text-[13px] sm:text-base flex items-center gap-1.5 sm:gap-2">
-              <IndianRupee size={16} className="text-rose-500" /> Outstanding Vendors
+              <IndianRupee size={16} className="text-rose-500" /> Outstanding {cfg.labels.vendors}
             </h3>
             <button
               type="button"

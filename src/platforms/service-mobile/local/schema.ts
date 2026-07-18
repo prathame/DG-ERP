@@ -299,6 +299,11 @@ CREATE TABLE IF NOT EXISTS staff_payments (
   amount NUMERIC NOT NULL,
   payment_type TEXT DEFAULT 'salary',
   payment_date DATE,
+  payment_method TEXT DEFAULT 'Cash',
+  reference_number TEXT,
+  notes TEXT,
+  month TEXT,
+  year INT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -348,6 +353,11 @@ ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS joining_date DATE;
 ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS staff_name TEXT;
 ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'salary';
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'Cash';
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS reference_number TEXT;
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS month TEXT;
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS year INT;
 ALTER TABLE banks ADD COLUMN IF NOT EXISTS account_name TEXT;
 ALTER TABLE banks ADD COLUMN IF NOT EXISTS bank_name TEXT;
 ALTER TABLE banks ADD COLUMN IF NOT EXISTS branch TEXT;

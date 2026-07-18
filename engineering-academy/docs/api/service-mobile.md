@@ -30,6 +30,17 @@ Super Admin (JWT):
 
 **Never** accept ERP business mutations on these routes — local PGlite handles ERP.
 
+Local ERP (on-device router) also implements payroll and analytics overview:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/analytics/overview` | Money KPIs, recent activity, `topVendors` (client invoice dues), master counts |
+| GET | `/api/payroll` | List `staff_payments` (optional `month`/`year`/`staffName`) |
+| GET | `/api/payroll/summary` | Year totals + `byStaff` / `byMonth` + lifetime `advanceOutstanding` |
+| GET | `/api/payroll/staff` | Aggregate paid by staff name |
+| POST | `/api/payroll` | Record salary/advance/bonus/…; mirrors into `expenses` (non-deduction) |
+| DELETE | `/api/payroll/:id` | Delete a payment |
+
 ## User-owned backups (client)
 
 Staff export/restore encrypted JSON on the phone (`src/platforms/service-mobile/localBackup.ts`). Optional Gmail opens their mail app only — we do not store or email the file ourselves. Schedule: Settings → Auto Backup (daily / weekly / monthly).
