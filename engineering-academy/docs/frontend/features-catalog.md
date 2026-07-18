@@ -50,9 +50,11 @@ The landing tab (`activeTab: 'analytics'` is the default in `App.tsx`). Answers 
 
 ## Masters
 
-**`features/masters/MastersView.tsx` + `CustomerMasterView`, `VendorMasterView`, `BankMasterView`, `StaffMasterView`, `RewardRulesView`, `PriceListView`, `VendorCustomerMappingView`**
+**`features/masters/MastersView.tsx` + `CustomerMasterView`, `VendorMasterView`, `BankMasterView`, `StaffMasterView`, `RewardRulesView`, `PriceListView`, `VendorCustomerMappingView`, `ProductMasterView`**
 
 The "reference data" hub — customers, vendors, banks, staff, reward rules, and price lists. `MastersView` itself is a card-grid launcher (not a form) that lazy-loads whichever sub-master the user clicks, and fetches count badges from `api.masters.counts()` once on mount. Masters are filtered by both `businessType` (e.g., a `retail`/`dealer` tenant hides the separate Customer master because it sells direct — see `isDirectSell` in the component) and by role (`isVendor` sees only their own Customer master, a self-service view of who they've sold to).
+
+**Offline Mobile (`isServiceMobileMode`):** Inventory tab is hidden, so Products does **not** jump to Inventory — it opens `ProductMasterView` (catalog: name/SKU/price/GST, no stock). **Vendor-Customer Map** is hidden entirely (no local mapping routes). Cloud manufacturer Masters keep Inventory navigation and Mapping unchanged.
 
 **Business value:** every other module (sales, distribution, warranty) references a vendor/customer/product by ID — Masters is where those IDs are created and kept clean (deduplication via `uq_vendors_tenant_name`-style unique indexes server-side).
 

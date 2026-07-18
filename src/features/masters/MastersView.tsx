@@ -4,6 +4,7 @@ import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Walle
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
+import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
 import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
 
@@ -16,6 +17,7 @@ const VendorCustomerMappingView = lazy(() =>
 const RewardRulesView = lazy(() => import('./RewardRulesView').then(m => ({ default: m.RewardRulesView })));
 const PriceListView = lazy(() => import('./PriceListView').then(m => ({ default: m.PriceListView })));
 const StaffMasterView = lazy(() => import('./StaffMasterView').then(m => ({ default: m.StaffMasterView })));
+const ProductMasterView = lazy(() => import('./ProductMasterView').then(m => ({ default: m.ProductMasterView })));
 
 export type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList' | 'staff';
 
@@ -49,6 +51,7 @@ export function MastersView({
   businessType?: string;
 }) {
   const cfg = useBusinessConfig();
+  const serviceMobile = isServiceMobileMode();
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
   const isDirectSell = cfg.type === 'dealer' || cfg.type === 'retail';
   const tabConfig = (user?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>;
@@ -151,7 +154,8 @@ export function MastersView({
           },
         ]
       : []),
-    ...(hasCustomerTracking
+    // Offline Mobile has no mapping routes — hide entirely (cloud manufacturer keeps it).
+    ...(hasCustomerTracking && !serviceMobile
       ? [
           {
             id: 'mapping' as const,
@@ -239,6 +243,11 @@ export function MastersView({
 
   const openFull = (id: MasterType) => {
     if (id === 'item') {
+      // Offline service has no Inventory tab — catalog stays in Masters.
+      if (serviceMobile) {
+        setSelectedMaster('item');
+        return;
+      }
       setActiveTab('inventory');
       return;
     }
@@ -265,6 +274,23 @@ export function MastersView({
     return (
       <Suspense fallback={<MasterFallback />}>
         <BankMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} />
+      </Suspense>
+    );
+  if (selectedMaster === 'item')
+    return (
+      <Suspense fallback={<MasterFallback />}>
+        <ProductMasterView
+          onBack={() => {
+            setSelectedMaster(null);
+            setHubTab('item');
+            api.products
+              .list()
+              .then(setProducts)
+              .catch(() => setProducts([]));
+            refreshCounts();
+          }}
+          onRefresh={refreshCounts}
+        />
       </Suspense>
     );
   if (selectedMaster === 'mapping')
@@ -398,7 +424,7 @@ export function MastersView({
             <MobileEmptyState
               icon={<Package />}
               title="No products yet"
-              actionLabel="Open Products"
+              actionLabel={serviceMobile ? 'Add Product' : 'Open Products'}
               onAction={() => openFull('item')}
             />
           ) : (
@@ -408,7 +434,11 @@ export function MastersView({
                   <MobileListRow
                     icon={<Package className="text-orange-600" />}
                     title={p.name}
-                    subtitle={p.hsnCode || p.barcode || `Stock ${p.stock ?? 0}`}
+                    subtitle={
+                      serviceMobile
+                        ? (p as Product & { sku?: string | null }).sku || 'Catalog'
+                        : p.hsnCode || p.barcode || `Stock ${p.stock ?? 0}`
+                    }
                     trailing={typeof p.price === 'number' ? `₹${p.price.toLocaleString()}` : undefined}
                     onClick={() => openFull('item')}
                   />
