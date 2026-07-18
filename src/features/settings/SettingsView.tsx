@@ -59,6 +59,8 @@ const BILL_DEFAULTS: BillSettings = {
   showRewards: true,
   showBarcode: true,
   showWarranty: true,
+  /** Offline electricians: HSN off by default; cloud manufacturer keeps historical on. */
+  showHsnSac: !serviceMobile,
   footerText: 'Powered by Dhandho Management',
   invoiceTemplateStyle: 'modern',
 };
@@ -378,7 +380,7 @@ function BillCustomizationSection() {
     printBillInWindow(win, html, 'Bill Preview', { autoPrint: false });
   };
 
-  const toggleField = (field: 'showRewards' | 'showBarcode' | 'showWarranty') => (
+  const toggleField = (field: 'showRewards' | 'showBarcode' | 'showWarranty' | 'showHsnSac') => (
     <button
       type="button"
       onClick={() => setForm(p => ({ ...p, [field]: !p[field] }))}
@@ -704,35 +706,46 @@ function BillCustomizationSection() {
           </div>
         </div>
 
-        {/* Bill Section Toggles — manufacturer/cloud only (not Offline service) */}
-        {!serviceMobile && (
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase mb-3">Bill Sections</p>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-sm">Show Barcode</p>
-                  <p className="text-xs text-gray-500">Display barcode column on bills</p>
-                </div>
-                {toggleField('showBarcode')}
+        {/* Bill Section Toggles — HSN for all; barcode/warranty/rewards cloud only */}
+        <div>
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Bill Sections</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm">Show HSN/SAC</p>
+                <p className="text-xs text-gray-500">
+                  Show HSN/SAC on invoice lines and printed bills (optional; never required)
+                </p>
               </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-sm">Show Warranty</p>
-                  <p className="text-xs text-gray-500">Display warranty info on sales invoice</p>
-                </div>
-                {toggleField('showWarranty')}
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-sm">Show Rewards</p>
-                  <p className="text-xs text-gray-500">Display reward points earned on invoice</p>
-                </div>
-                {toggleField('showRewards')}
-              </div>
+              {toggleField('showHsnSac')}
             </div>
+            {!serviceMobile && (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Show Barcode</p>
+                    <p className="text-xs text-gray-500">Display barcode column on bills</p>
+                  </div>
+                  {toggleField('showBarcode')}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Show Warranty</p>
+                    <p className="text-xs text-gray-500">Display warranty info on sales invoice</p>
+                  </div>
+                  {toggleField('showWarranty')}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Show Rewards</p>
+                    <p className="text-xs text-gray-500">Display reward points earned on invoice</p>
+                  </div>
+                  {toggleField('showRewards')}
+                </div>
+              </>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Footer */}
         <div>

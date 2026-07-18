@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { isShowHsnSacEnabled } from '../../lib/billSettingsFlags';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
 import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
 
@@ -75,6 +76,7 @@ export function MastersView({
   const [products, setProducts] = useState<Product[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
+  const [showHsnSac, setShowHsnSac] = useState(() => isShowHsnSacEnabled(null));
 
   const refreshCounts = () => {
     api.masters
@@ -93,6 +95,13 @@ export function MastersView({
 
   useEffect(() => {
     refreshCounts();
+  }, []);
+
+  useEffect(() => {
+    api.settings
+      .getBillSettings()
+      .then(s => setShowHsnSac(isShowHsnSacEnabled(s)))
+      .catch(() => {});
   }, []);
 
   // Offline: no stock Products/Catalog pill — Price List (Catalog + Clients tabs) is the sellable catalog.
@@ -474,7 +483,7 @@ export function MastersView({
                   <MobileListRow
                     icon={<Package className="text-orange-600" />}
                     title={p.name}
-                    subtitle={p.hsnCode || p.barcode || `Stock ${p.stock ?? 0}`}
+                    subtitle={(showHsnSac && p.hsnCode) || p.barcode || `Stock ${p.stock ?? 0}`}
                     trailing={typeof p.price === 'number' ? `₹${p.price.toLocaleString()}` : undefined}
                     onClick={() => openFull('item')}
                   />

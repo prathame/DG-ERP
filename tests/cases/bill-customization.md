@@ -12,6 +12,7 @@ Covers invoice branding (logo, color, tagline), numbering prefix, bank details, 
 | 6 | Add Terms & Conditions | Enter T&C text; save | Terms & Conditions section appears at the bottom of invoices |
 | 7 | Set authorized signatory | Enter signatory name and upload signature image; save | Signatory name and signature appear on invoices |
 | 8 | Hide barcode on invoice | Toggle "Show Barcode" OFF; save | Product barcodes are not printed on invoices |
+| 8b | Show HSN/SAC (Offline default OFF) | Settings → Bill Customization → toggle "Show HSN/SAC" ON; save; open invoice create | HSN/SAC inputs appear on line items; PDF includes HSN/SAC column. With toggle OFF, neither form nor PDF shows HSN/SAC |
 | 9 | Hide warranty info on invoice | Toggle "Show Warranty" OFF; save | Warranty details are not printed on invoices |
 | 10 | Live preview updates | Change any setting (logo, color, tagline) | Preview panel updates in real time without saving |
 | 11 | Logo size limit enforcement | Try uploading a logo larger than the allowed size (e.g., > 2 MB) | Validation error: "Logo must be under 2 MB" |

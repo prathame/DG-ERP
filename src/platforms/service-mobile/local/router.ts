@@ -2248,7 +2248,8 @@ export async function handleLocalApiRequest(
             : settings && typeof settings === 'object'
               ? settings
               : {};
-        return json(200, parsed);
+        // Offline defaults: HSN/SAC off so electricians aren't forced to see it.
+        return json(200, { showHsnSac: false, ...parsed });
       }
       const b = ctx.body as Record<string, unknown>;
       await localQuery(

@@ -156,6 +156,8 @@ export interface BillSettings {
   showRewards: boolean;
   showBarcode: boolean;
   showWarranty: boolean;
+  /** When false, HSN/SAC is hidden on invoices/PDFs. Offline defaults off; cloud defaults on. */
+  showHsnSac: boolean;
   footerText: string;
   /** Invoice / tax-invoice PDF layout style */
   invoiceTemplateStyle: InvoiceTemplateStyle;

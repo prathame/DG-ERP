@@ -35,6 +35,7 @@ import {
 } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
+import { isShowHsnSacEnabled } from '../../lib/billSettingsFlags';
 import { session } from '../../lib/session';
 import { api } from '../../api';
 import type { Product, Vendor, Customer } from '../../types';
@@ -278,7 +279,9 @@ export function InvoicesView() {
       const taxSgst = typeof inv.taxSgst === 'number' ? inv.taxSgst : Math.round((inv.taxTotal - taxCgst) * 100) / 100;
       const taxIgst = typeof inv.taxIgst === 'number' ? inv.taxIgst : inv.taxTotal;
       const showDiscCol = inv.items.some(it => (it.discountPercent || 0) > 0);
-      const itemColspan = (hasGst ? 8 : 6) + (showDiscCol ? 1 : 0);
+      const showHsn = isShowHsnSacEnabled(bs as { showHsnSac?: boolean });
+      // Base cols without HSN: Sr, Desc, Qty, Rate, Amount (+ Disc + GST% + Tax when applicable)
+      const itemColspan = (hasGst ? 7 : 5) + (showDiscCol ? 1 : 0) + (showHsn ? 1 : 0);
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${invPrefix}${esc(inv.invoiceNumber)}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
@@ -365,13 +368,13 @@ export function InvoicesView() {
           <span style="font-weight:800;color:${color};">${esc(user.companyName || 'Dhandho')}</span>
           <span style="float:right;font-weight:700;">${invPrefix}${esc(inv.invoiceNumber)}</span>
         </th></tr>
-        <tr><th style="width:30px;">Sr</th><th class="left">Description</th><th>HSN/SAC</th><th>Qty</th><th class="right">Rate</th>${showDiscCol ? '<th class="right">Disc%</th>' : ''}${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr>
+        <tr><th style="width:30px;">Sr</th><th class="left">Description</th>${showHsn ? '<th>HSN/SAC</th>' : ''}<th>Qty</th><th class="right">Rate</th>${showDiscCol ? '<th class="right">Disc%</th>' : ''}${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr>
       </thead>
       <tbody>
         ${inv.items
           .map((it, i) => {
             const disc = it.discountPercent || 0;
-            return `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td><td>${esc(it.hsnSac || '—')}</td><td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${showDiscCol ? `<td class="right">${disc > 0 ? `${disc}%` : '—'}</td>` : ''}${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`;
+            return `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td>${showHsn ? `<td>${esc(it.hsnSac || '—')}</td>` : ''}<td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${showDiscCol ? `<td class="right">${disc > 0 ? `${disc}%` : '—'}</td>` : ''}${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`;
           })
           .join('')}
       </tbody>
@@ -865,6 +868,7 @@ export function CreateInvoiceModal({
   const [parties, setParties] = useState<InvoiceParty[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [priceRules, setPriceRules] = useState<PriceRule[]>([]);
+  const [showHsnSac, setShowHsnSac] = useState(() => isShowHsnSacEnabled(null));
   const [partyKey, setPartyKey] = useState(() => {
     if (initialParty?.partyType && initialParty?.partyId) {
       return `${initialParty.partyType}:${initialParty.partyId}`;
@@ -914,6 +918,12 @@ export function CreateInvoiceModal({
     fetchApi<{ number: string }>('/invoices/next-number')
       .then(r => {
         if (!cancelled) setInvoiceNumber(r.number);
+      })
+      .catch(() => {});
+    api.settings
+      .getBillSettings()
+      .then(s => {
+        if (!cancelled) setShowHsnSac(isShowHsnSacEnabled(s));
       })
       .catch(() => {});
     // allSettled: one failing list must not wipe parties/products
@@ -1147,7 +1157,7 @@ export function CreateInvoiceModal({
             row.qty || 1,
           )
         : null;
-    return [
+    const fields: LineItemCardField[] = [
       {
         key: 'product',
         label: serviceMobile ? 'Price List item' : 'Product',
@@ -1183,7 +1193,9 @@ export function CreateInvoiceModal({
           </>
         ),
       },
-      {
+    ];
+    if (showHsnSac) {
+      fields.push({
         key: 'hsn',
         label: 'HSN/SAC',
         node: (
@@ -1208,7 +1220,9 @@ export function CreateInvoiceModal({
             placeholder="9983"
           />
         ),
-      },
+      });
+    }
+    fields.push(
       {
         key: 'qty',
         label: 'Quantity',
@@ -1283,7 +1297,8 @@ export function CreateInvoiceModal({
           />
         ),
       },
-    ];
+    );
+    return fields;
   };
 
   const totalsBar = (
@@ -1483,7 +1498,7 @@ export function CreateInvoiceModal({
                 <thead className="bg-gray-50">
                   <tr className="text-xs font-bold text-gray-400 uppercase">
                     <th className="px-3 py-2 text-left min-w-[200px]">Item</th>
-                    <th className="px-3 py-2 w-24">HSN/SAC</th>
+                    {showHsnSac && <th className="px-3 py-2 w-24">HSN/SAC</th>}
                     <th className="px-3 py-2 w-16">Qty</th>
                     <th className="px-3 py-2 w-24">Rate</th>
                     <th className="px-3 py-2 w-16">Disc%</th>
@@ -1530,28 +1545,30 @@ export function CreateInvoiceModal({
                             </p>
                           )}
                         </td>
-                        <td className="px-3 py-2">
-                          <input
-                            value={row.hsnSac}
-                            onChange={e => {
-                              const v = e.target.value;
-                              const hint = suggestHsnRate(v);
-                              setRows(
-                                rows.map((r, i) =>
-                                  i === idx
-                                    ? {
-                                        ...r,
-                                        hsnSac: v,
-                                        ...(hint && r.gstPercent === 18 ? { gstPercent: hint.rate } : {}),
-                                      }
-                                    : r,
-                                ),
-                              );
-                            }}
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono"
-                            placeholder="9983"
-                          />
-                        </td>
+                        {showHsnSac && (
+                          <td className="px-3 py-2">
+                            <input
+                              value={row.hsnSac}
+                              onChange={e => {
+                                const v = e.target.value;
+                                const hint = suggestHsnRate(v);
+                                setRows(
+                                  rows.map((r, i) =>
+                                    i === idx
+                                      ? {
+                                          ...r,
+                                          hsnSac: v,
+                                          ...(hint && r.gstPercent === 18 ? { gstPercent: hint.rate } : {}),
+                                        }
+                                      : r,
+                                  ),
+                                );
+                              }}
+                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono"
+                              placeholder="9983"
+                            />
+                          </td>
+                        )}
                         <td className="px-3 py-2">
                           <input
                             type="number"

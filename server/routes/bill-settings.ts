@@ -24,6 +24,7 @@ const DEFAULTS = {
   showRewards: true,
   showBarcode: true,
   showWarranty: true,
+  showHsnSac: true,
   footerText: 'Powered by Dhandho Management',
   invoiceTemplateStyle: 'modern' as const,
 };
@@ -52,6 +53,7 @@ function rowToResponse(row: Record<string, unknown>) {
     showRewards: row.show_rewards !== false,
     showBarcode: row.show_barcode !== false,
     showWarranty: row.show_warranty !== false,
+    showHsnSac: row.show_hsn_sac !== false,
     footerText: (row.footer_text as string) || 'Powered by Dhandho Management',
     invoiceTemplateStyle: normalizeInvoiceTemplateStyle(row.invoice_template_style),
   };
@@ -122,15 +124,15 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         invoice_prefix, challan_prefix,
         bank_account_name, bank_account_number, bank_name, bank_branch, bank_ifsc, bank_upi_id,
         terms_and_conditions, signatory_name, signatory_designation, signature_base64,
-        show_rewards, show_barcode, show_warranty, footer_text, invoice_template_style, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21, NOW())
+        show_rewards, show_barcode, show_warranty, show_hsn_sac, footer_text, invoice_template_style, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22, NOW())
       ON CONFLICT (tenant_id) DO UPDATE SET
         logo_base64 = $2, primary_color = $3, tagline = $4,
         invoice_prefix = $5, challan_prefix = $6,
         bank_account_name = $7, bank_account_number = $8, bank_name = $9, bank_branch = $10, bank_ifsc = $11, bank_upi_id = $12,
         terms_and_conditions = $13, signatory_name = $14, signatory_designation = $15, signature_base64 = $16,
-        show_rewards = $17, show_barcode = $18, show_warranty = $19, footer_text = $20,
-        invoice_template_style = $21, updated_at = NOW()
+        show_rewards = $17, show_barcode = $18, show_warranty = $19, show_hsn_sac = $20, footer_text = $21,
+        invoice_template_style = $22, updated_at = NOW()
       RETURNING *
     `,
       [
@@ -153,6 +155,7 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         requestBody.showRewards !== false,
         requestBody.showBarcode !== false,
         requestBody.showWarranty !== false,
+        requestBody.showHsnSac !== false,
         requestBody.footerText || 'Powered by Dhandho Management',
         invoiceTemplateStyle,
       ],
