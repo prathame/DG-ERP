@@ -47,6 +47,15 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
 import { session } from '../../lib/session';
 import { generateQuotationHtml } from '../../lib/billTemplates';
+import { SearchSelect } from '../../components/ui/SearchSelect';
+
+function asApiList<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === 'object' && Array.isArray((value as { data?: unknown }).data)) {
+    return (value as { data: T[] }).data;
+  }
+  return [];
+}
 
 interface Quotation {
   id: string;
@@ -133,24 +142,39 @@ export function QuotationsView() {
 
   const load = () => {
     setLoadError(null);
-    Promise.all([
+    // allSettled: products failure must not wipe vendors (empty Client dropdown)
+    Promise.allSettled([
       fetchApi<Quotation[]>('/quotations'),
       api.products.list(),
       api.vendors.list(),
-      api.settings.getBillSettings().catch(() => null),
+      api.settings.getBillSettings(),
     ])
-      .then(([q, p, v, bill]) => {
+      .then(results => {
+        const q = asApiList<Quotation>(results[0].status === 'fulfilled' ? results[0].value : []);
+        const p = asApiList<Product>(results[1].status === 'fulfilled' ? results[1].value : []);
+        const v = asApiList<Vendor>(results[2].status === 'fulfilled' ? results[2].value : []);
         setQuotations(q);
         setProducts(p);
-        setVendors(v);
-        if (bill) setBillSettings(bill);
+        setVendors(v.filter(x => x && x.id && x.id !== 'OWNER'));
+        if (results[3].status === 'fulfilled' && results[3].value) {
+          setBillSettings(results[3].value as BillSettings);
+        }
+        if (results[0].status === 'rejected') {
+          setLoadError(results[0].reason instanceof Error ? results[0].reason.message : 'Failed to load quotations');
+        }
       })
-      .catch(err => setLoadError(err.message || 'Failed to load'))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     load();
   }, []);
+
+  const refreshVendors = () => {
+    void api.vendors
+      .list()
+      .then(rows => setVendors(asApiList<Vendor>(rows).filter(x => x && x.id && x.id !== 'OWNER')))
+      .catch(() => {});
+  };
 
   const printQuotation = async (q: Quotation) => {
     const w = openPrintWindow();
@@ -221,13 +245,7 @@ export function QuotationsView() {
       quantity: String(quantity),
     });
     if (vendorId) qs.set('vendorId', vendorId);
-    fetch(`/api/price-lists/resolve?${qs}`, {
-      headers: {
-        Authorization: `Bearer ${session.getToken()}`,
-        'X-Tenant-ID': session.getTenantId() || '',
-      },
-    })
-      .then(r => r.json())
+    fetchApi<{ price: number }>(`/price-lists/resolve?${qs}`)
       .then(d => {
         if (resolveTokenRef.current[idx] !== token) return;
         if (!d || typeof d.price !== 'number') return;
@@ -308,6 +326,7 @@ export function QuotationsView() {
         withGst: i.withGst !== false,
       })),
     );
+    refreshVendors();
     setModalOpen(true);
   };
 
@@ -686,6 +705,7 @@ export function QuotationsView() {
 
   const openCreate = () => {
     resetForm();
+    refreshVendors();
     setModalOpen(true);
   };
 
@@ -841,10 +861,15 @@ export function QuotationsView() {
             <div className="space-y-4">
               <FormGrid>
                 <FormField label={isService ? 'Client' : 'Vendor / Customer'}>
-                  <select
+                  <SearchSelect
                     value={form.vendorId}
-                    onChange={e => {
-                      const nextVendor = e.target.value;
+                    placeholder="Select or type below"
+                    options={vendors.map(v => ({
+                      value: v.id,
+                      label: v.name,
+                      sublabel: v.phone || undefined,
+                    }))}
+                    onChange={nextVendor => {
                       const v = vendors.find(x => x.id === nextVendor);
                       setForm({
                         ...form,
@@ -858,17 +883,13 @@ export function QuotationsView() {
                         }
                       });
                     }}
-                    className={formControlClass}
-                  >
-                    <option value="">Select or type below</option>
-                    {vendors
-                      .filter(v => v.id !== 'OWNER')
-                      .map(v => (
-                        <option key={v.id} value={v.id}>
-                          {v.name}
-                        </option>
-                      ))}
-                  </select>
+                    className="w-full [&_button]:min-h-11 [&_button]:rounded-xl [&_button]:px-3 [&_button]:sm:px-4"
+                  />
+                  {vendors.length === 0 && (
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      No {isService ? 'clients' : 'vendors'} yet — add in Masters, or type a name below
+                    </p>
+                  )}
                 </FormField>
                 <FormField label="Customer Name">
                   <input

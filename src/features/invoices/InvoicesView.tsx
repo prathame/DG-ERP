@@ -37,7 +37,17 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { session } from '../../lib/session';
 import { api } from '../../api';
-import type { Product } from '../../types';
+import type { Product, Vendor, Customer } from '../../types';
+import { SearchSelect } from '../../components/ui/SearchSelect';
+
+/** Normalize list API payloads (array or { data: [] }) so party dropdowns never go empty on shape mismatch. */
+function asApiList<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === 'object' && Array.isArray((value as { data?: unknown }).data)) {
+    return (value as { data: T[] }).data;
+  }
+  return [];
+}
 
 function esc(t: unknown): string {
   return String(t ?? '')
@@ -899,65 +909,79 @@ export function CreateInvoiceModal({
   };
 
   useEffect(() => {
+    let cancelled = false;
     fetchApi<{ number: string }>('/invoices/next-number')
-      .then(r => setInvoiceNumber(r.number))
+      .then(r => {
+        if (!cancelled) setInvoiceNumber(r.number);
+      })
       .catch(() => {});
-    // allSettled: one failing list must not wipe parties/products (blocks Offline create form)
+    // allSettled: one failing list must not wipe parties/products
     Promise.allSettled([
       api.vendors.list(),
       api.customers.list(),
       api.products.list(),
       fetchApi<PriceRule[]>('/price-lists'),
     ]).then(results => {
-      const vendors = results[0].status === 'fulfilled' && Array.isArray(results[0].value) ? results[0].value : [];
-      const customers = results[1].status === 'fulfilled' && Array.isArray(results[1].value) ? results[1].value : [];
-      const productList = results[2].status === 'fulfilled' && Array.isArray(results[2].value) ? results[2].value : [];
-      const rules = results[3].status === 'fulfilled' && Array.isArray(results[3].value) ? results[3].value : [];
+      if (cancelled) return;
+      const vendors = asApiList<Vendor>(results[0].status === 'fulfilled' ? results[0].value : []);
+      const customers = asApiList<Customer>(results[1].status === 'fulfilled' ? results[1].value : []);
+      const productList = asApiList<Product>(results[2].status === 'fulfilled' ? results[2].value : []);
+      const rules = asApiList<PriceRule>(results[3].status === 'fulfilled' ? results[3].value : []);
 
-      const fromVendors: InvoiceParty[] = vendors
-        .filter(v => v.id !== 'OWNER')
-        .map(v => ({
-          key: `vendor:${v.id}`,
-          label: `${v.name} (${vendorPartyKind})`,
-          name: v.name,
-          phone: v.phone || '',
-          address: v.address || '',
-          gstin: v.gstNumber || '',
-          partyType: 'vendor' as const,
-          partyId: v.id,
-        }));
-      const fromCustomers: InvoiceParty[] = customers.map(c => ({
-        key: `customer:${c.id}`,
-        label: `${c.name} (${isService ? 'Customer' : 'Client'})`,
-        name: c.name,
-        phone: c.phone || '',
-        address: c.address || '',
-        gstin: '',
-        partyType: 'customer' as const,
-        partyId: c.id,
-      }));
-      const list = [...fromVendors, ...fromCustomers].sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-      );
-      setParties(list);
-      setProducts(productList);
-      setPriceRules(rules.filter(r => r.isActive !== false));
-      // If opened from Finance with a party id, ensure fields filled once list loads
-      if (initialParty?.partyType && initialParty?.partyId) {
-        const key = `${initialParty.partyType}:${initialParty.partyId}`;
-        const party = list.find(p => p.key === key);
-        if (party) {
-          setPartyKey(key);
-          setForm(f => ({
-            ...f,
-            customerName: party.name || f.customerName,
-            customerPhone: party.phone || f.customerPhone,
-            customerAddress: party.address || f.customerAddress,
-            customerGstin: party.gstin || f.customerGstin,
+      try {
+        const fromVendors: InvoiceParty[] = vendors
+          .filter(v => v && v.id && v.id !== 'OWNER' && v.name)
+          .map(v => ({
+            key: `vendor:${v.id}`,
+            label: `${v.name} (${vendorPartyKind})`,
+            name: String(v.name),
+            phone: v.phone || '',
+            address: v.address || '',
+            gstin: v.gstNumber || (v as { gstin?: string }).gstin || '',
+            partyType: 'vendor' as const,
+            partyId: v.id,
           }));
+        const fromCustomers: InvoiceParty[] = customers
+          .filter(c => c && c.id && c.name)
+          .map(c => ({
+            key: `customer:${c.id}`,
+            label: `${c.name} (${isService ? 'Customer' : 'Client'})`,
+            name: String(c.name),
+            phone: c.phone || '',
+            address: c.address || '',
+            gstin: '',
+            partyType: 'customer' as const,
+            partyId: c.id,
+          }));
+        const list = [...fromVendors, ...fromCustomers].sort((a, b) =>
+          String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }),
+        );
+        setParties(list);
+        setProducts(productList);
+        setPriceRules(rules.filter(r => r && r.isActive !== false));
+        if (initialParty?.partyType && initialParty?.partyId) {
+          const key = `${initialParty.partyType}:${initialParty.partyId}`;
+          const party = list.find(p => p.key === key);
+          if (party) {
+            setPartyKey(key);
+            setForm(f => ({
+              ...f,
+              customerName: party.name || f.customerName,
+              customerPhone: party.phone || f.customerPhone,
+              customerAddress: party.address || f.customerAddress,
+              customerGstin: party.gstin || f.customerGstin,
+            }));
+          }
         }
+      } catch {
+        setParties([]);
+        setProducts(productList);
+        setPriceRules([]);
       }
     });
+    return () => {
+      cancelled = true;
+    };
   }, [initialParty?.partyType, initialParty?.partyId, vendorPartyKind, isService]);
 
   const selectParty = (key: string) => {
@@ -1345,14 +1369,18 @@ export function CreateInvoiceModal({
           <FormSection title="Customer" description="Select a party or type a new customer">
             <FormGrid>
               <FormField label={isService ? 'Client' : 'Customer / Vendor'} required className="sm:col-span-2">
-                <select value={partyKey} onChange={e => selectParty(e.target.value)} className={formControlClass}>
-                  <option value="">{isService ? 'Select client' : 'Select vendor or client'}</option>
-                  {parties.map(p => (
-                    <option key={p.key} value={p.key}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
+                <SearchSelect
+                  value={partyKey}
+                  onChange={selectParty}
+                  placeholder={isService ? 'Select client' : 'Select vendor or client'}
+                  options={parties.map(p => ({ value: p.key, label: p.label, sublabel: p.phone || undefined }))}
+                  className="w-full [&_button]:min-h-11 [&_button]:rounded-xl [&_button]:px-3 [&_button]:sm:px-4"
+                />
+                {parties.length === 0 && (
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    No {isService ? 'clients' : 'parties'} yet — add in Masters, or type a name below
+                  </p>
+                )}
               </FormField>
               <FormField label="Customer Name" required>
                 <input

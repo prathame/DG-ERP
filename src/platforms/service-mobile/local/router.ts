@@ -212,7 +212,16 @@ export async function handleLocalApiRequest(
     // Vendors = Clients for service
     if (ctx.path === '/vendors' || ctx.path === '/vendors/') {
       if (ctx.method === 'GET') {
-        const rows = await listTable('vendors', tid!);
+        let rows = await listTable('vendors', tid!, 'name ASC');
+        const search = (query.get('search') || '').trim().toLowerCase();
+        if (search) {
+          rows = rows.filter(r => {
+            const rec = r as Record<string, unknown>;
+            return [rec.name, rec.phone, rec.email, rec.address, rec.gstin]
+              .map(v => String(v || '').toLowerCase())
+              .some(v => v.includes(search));
+          });
+        }
         return json(
           200,
           rows.map(r => mapVendor(r as Record<string, unknown>)),
