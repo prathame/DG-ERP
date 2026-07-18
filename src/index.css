@@ -261,7 +261,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 html.dg-mobile-dense {
   --app-bottom-nav: 3.75rem;
-  font-size: 15px;
+  /* Slightly tighter than 15px — phone UI was still reading large */
+  font-size: 13.5px;
 }
 
 .safe-top {
@@ -308,27 +309,50 @@ html.dg-mobile-dense .app-mobile-content {
 }
 
 html.dg-mobile-dense .app-mobile-content .text-3xl {
-  font-size: 1.35rem !important;
+  font-size: 1.2rem !important;
   line-height: 1.25 !important;
 }
 html.dg-mobile-dense .app-mobile-content .text-2xl {
-  font-size: 1.25rem !important;
+  font-size: 1.1rem !important;
   line-height: 1.3 !important;
 }
 html.dg-mobile-dense .app-mobile-content .text-xl {
-  font-size: 1.05rem !important;
+  font-size: 1rem !important;
   line-height: 1.35 !important;
 }
 html.dg-mobile-dense .app-mobile-content .text-lg {
-  font-size: 0.95rem !important;
+  font-size: 0.9rem !important;
   line-height: 1.35 !important;
 }
 html.dg-mobile-dense .app-mobile-content .text-base {
-  font-size: 0.875rem !important;
+  font-size: 0.8125rem !important;
   line-height: 1.4 !important;
 }
 html.dg-mobile-dense .app-mobile-content .text-sm {
-  font-size: 0.8125rem !important;
+  font-size: 0.75rem !important;
+  line-height: 1.4 !important;
+}
+html.dg-mobile-dense .app-mobile-content .text-xs {
+  font-size: 0.6875rem !important;
+  line-height: 1.35 !important;
+}
+
+/* Header + bottom nav labels (outside .app-mobile-content) */
+html.dg-mobile-dense .app-header-safe h1 {
+  font-size: 0.9375rem !important;
+  line-height: 1.25 !important;
+}
+html.dg-mobile-dense .app-header-safe p {
+  font-size: 0.625rem !important;
+}
+html.dg-mobile-dense .app-bottom-nav span {
+  font-size: 9px !important;
+}
+html.dg-mobile-dense .fixed[role='presentation'] [role='dialog'] h3 {
+  font-size: 0.9375rem !important;
+}
+html.dg-mobile-dense aside nav button {
+  font-size: 0.75rem !important;
 }
 
 html.dg-mobile-dense .app-mobile-content .p-8 {
@@ -372,7 +396,7 @@ html.dg-mobile-dense input:not([type="checkbox"]):not([type="radio"]),
 html.dg-mobile-dense textarea,
 html.dg-mobile-dense select {
   min-height: 40px;
-  font-size: 14px !important;
+  font-size: 13px !important;
 }
 @supports (-webkit-touch-callout: none) {
   html.dg-mobile-dense input:not([type="checkbox"]):not([type="radio"]),
