@@ -12,7 +12,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5 | Offline ERP | Airplane mode → create client + invoice | Persists locally; no cloud ERP calls |
 | 5b | Local APIs | Purchases, Accounts Generate, Invoice Finance, Staff, Masters | No “not implemented” / “Failed to load”; empty lists OK on fresh install |
 | 5c | businessType | After login, Finance tab | Invoice Finance (clients), not Vendor “Distributed Value” |
-| 5d | Print / PDF | Invoices → Print / PDF (or Quotes / Price List) | In-app preview opens; system print sheet appears (Save as PDF). No “Pop-up blocked”; Print/PDF is not a no-op |
+| 5d | Download PDF | Invoices → Download PDF (or Quotes / Price List) | PDF downloads directly (or share/save sheet on device). No system print dialog; no “Pop-up blocked” |
 | 5e | No chatbot | Any screen (sidebar / floating help) | No “May I help you?” widget; chatbot not in Offline Mobile |
 | 5f | UI density | Masters hub, Invoices, bottom nav | Smaller titles/body than desktop web; compact header + tab bar; forms not oversized |
 | 5g | Invoice create mobile | Invoices → New → Party → Items → Review | Stepper on phone; line items as cards (no sideways scroll); stacked Cancel/Draft/Send |
@@ -23,6 +23,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5l | Masters hub | Masters tab on phone | Icon pills (Products/Vendors/…); list cards for selected pill; circular + FAB opens manage |
 | 5m | Invoice hub phone | Invoices list | Outstanding/Collected KPIs; status pills; FAB creates invoice |
 | 5n | More shortcuts | More drawer | Shortcut grid includes Stock, Finance, Accounts, Settings |
+| 5o | Accounts tab toggle | Settings → Appearance → Show Accounts off/on | Off: Accounts gone from More / sidebar / command palette; On: Accounts returns. Preference survives reload (localStorage) |
 | 6 | Hard sync settings | SA push tab/settings → phone Sync / wait heartbeat | Settings applied; force sync reloads UI |
 | 7 | SA Bell | SA notify on license → phone online | Message appears in in-app Bell |
 | 8 | Local backup file | Settings → Save Backup File | JSON file downloads to phone; nothing stored on our cloud |

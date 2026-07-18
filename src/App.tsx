@@ -39,6 +39,7 @@ import {
   getLocalDb,
   ServiceMobileOnboarding,
   startServiceMobileHeartbeat,
+  getAccountsTabVisiblePref,
 } from './platforms/service-mobile';
 import { ServiceCloudGate } from './platforms/service-cloud';
 
@@ -297,6 +298,8 @@ export default function App() {
     companyName?: string;
     vendorId?: string | null;
     autoWhatsapp?: boolean;
+    businessType?: string;
+    tabConfig?: Record<string, { label: string; visible: boolean }> | null;
   } | null>(() => {
     try {
       const u = session.getUser() as
@@ -389,7 +392,12 @@ export default function App() {
   const userConfig = user as Record<string, unknown>;
   const tabConfig = (userConfig?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>;
   const tc = (key: string, fallback: string) => tabConfig[key]?.label || fallback;
-  const tv = (key: string) => tabConfig[key]?.visible !== false;
+  /** Tenant tabConfig, plus Offline Mobile Settings override for Accounts. */
+  const tv = (key: string) => {
+    if (tabConfig[key]?.visible === false) return false;
+    if (key === 'accounts' && serviceMobile) return getAccountsTabVisiblePref();
+    return true;
+  };
 
   const navSections = [
     {
@@ -484,9 +492,11 @@ export default function App() {
       setActiveTabRaw('analytics');
       return;
     }
-    if (!canAccess(activeTab)) {
+    const tabHidden = activeTab !== 'settings' && !tv(activeTab);
+    if (!canAccess(activeTab) || tabHidden) {
       const fallback =
-        (['analytics', 'distribution', 'finance', 'inventory'] as Tab[]).find(t => canAccess(t)) ?? 'analytics';
+        (['analytics', 'distribution', 'finance', 'inventory'] as Tab[]).find(t => canAccess(t) && tv(t)) ??
+        'analytics';
       setActiveTabRaw(fallback);
     }
   }, [activeTab, user]);
@@ -1075,7 +1085,7 @@ export default function App() {
                         <VendorFinanceView user={user} accessLevel={getAccess('finance')} />
                       ))}
                     {canAccess(activeTab) && activeTab === 'analytics' && <AnalyticsView setActiveTab={setActiveTab} />}
-                    {canAccess(activeTab) && activeTab === 'accounts' && (
+                    {canAccess(activeTab) && tv('accounts') && activeTab === 'accounts' && (
                       <AccountsView accessLevel={getAccess('accounts')} />
                     )}
                   </div>

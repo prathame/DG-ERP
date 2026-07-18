@@ -1,4 +1,5 @@
 export { isServiceMobileMode, serviceMobileAppVersion } from './mode';
+export { getAccountsTabVisiblePref, setAccountsTabVisiblePref } from './tabPrefs';
 export { getOrCreateDeviceId } from './deviceId';
 export { loadLicense, saveLicense, clearLicense, type ServiceMobileLicense } from './licenseStore';
 export {
