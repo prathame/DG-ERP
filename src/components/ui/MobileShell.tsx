@@ -26,8 +26,13 @@ export function MobilePillTabs({
             aria-selected={active}
             onClick={() => onChange(item.id)}
             className={cn(
-              'shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 h-8 text-[11px] font-bold border transition-colors',
-              active ? 'bg-brand text-white border-brand' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50',
+              // Fixed h/min/max so active brand fill never looks larger than idle pills
+              'dg-pill-tab shrink-0 inline-flex items-center justify-center gap-1 rounded-full',
+              'box-border h-7 min-h-7 max-h-7 !min-h-7 px-2.5 py-0 leading-none',
+              'text-[11px] font-bold border border-solid transition-colors',
+              active
+                ? 'bg-brand text-white border-brand'
+                : 'bg-gray-100 text-gray-600 border-transparent hover:bg-gray-200',
             )}
           >
             {item.icon ? <span className="opacity-90 [&_svg]:size-3.5">{item.icon}</span> : null}

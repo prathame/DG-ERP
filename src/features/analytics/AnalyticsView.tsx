@@ -223,7 +223,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
                 type="button"
                 onClick={() => setRange(r.id)}
                 className={cn(
-                  'px-3 py-1 rounded-full text-xs font-bold transition-colors',
+                  'dg-pill-tab inline-flex items-center justify-center box-border h-7 min-h-7 max-h-7 px-3 py-0 leading-none rounded-full text-xs font-bold transition-colors',
                   range === r.id ? 'bg-brand text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
                 )}
               >

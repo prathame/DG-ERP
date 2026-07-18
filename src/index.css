@@ -239,7 +239,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 /* Touch targets — phone web only (not Offline Mobile dense mode; see dg-mobile-dense) */
 @media (max-width: 768px) {
-  html:not(.dg-mobile-dense) button,
+  html:not(.dg-mobile-dense) button:not(.dg-pill-tab),
   html:not(.dg-mobile-dense) a[role="button"],
   html:not(.dg-mobile-dense) select {
     min-height: 44px;
