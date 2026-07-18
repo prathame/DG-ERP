@@ -156,8 +156,8 @@ export function InvoicesView() {
 
   const load = () => {
     fetchApi<Invoice[]>('/invoices')
-      .then(setInvoices)
-      .catch(() => {})
+      .then(rows => setInvoices(Array.isArray(rows) ? rows : []))
+      .catch(() => setInvoices([]))
       .finally(() => setLoading(false));
   };
   useEffect(() => {

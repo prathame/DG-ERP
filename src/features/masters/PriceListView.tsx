@@ -108,9 +108,9 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
       userId ? api.settings.getProfile(userId).catch(() => null) : Promise.resolve(null),
     ])
       .then(([r, p, v, billSettings, profile]) => {
-        setRules(r);
-        setProducts(p);
-        setVendors(v);
+        setRules(Array.isArray(r) ? r : []);
+        setProducts(Array.isArray(p) ? p : []);
+        setVendors(Array.isArray(v) ? v : []);
         if (billSettings) setBill(billSettings);
         const fromSession = (() => {
           try {

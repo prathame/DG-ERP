@@ -35,7 +35,7 @@ export function VendorMasterView({
 }) {
   const cfg = useBusinessConfig();
   // service → Client | dealer/retail → Customer | manufacturer → Vendor
-  const label = cfg.labels.vendors.replace(/s$/, '');
+  const label = (cfg.labels.vendors || 'Vendors').replace(/s$/, '');
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
   const [list, setList] = useState<Vendor[]>([]);
@@ -58,7 +58,7 @@ export function VendorMasterView({
   const load = () => {
     api.vendors
       .list(debouncedSearch || undefined)
-      .then(setList)
+      .then(rows => setList(Array.isArray(rows) ? rows : []))
       .catch(() => setList([]))
       .finally(() => setLoading(false));
     onRefresh();

@@ -172,69 +172,86 @@ export function MastersView({
       : []),
   ];
   const masters = isVendor ? allMasters.filter(m => m.id === 'customer') : allMasters;
+  const masterIdsKey = masters.map(m => m.id).join(',');
+
+  // Sync: never treat a removed pill (e.g. Products Offline) as active — avoids first-paint crash
+  // before the repair effect runs (HMR / preserved state after af26121).
+  const active: MasterType | undefined = hubTab && masters.some(m => m.id === hubTab) ? hubTab : masters[0]?.id;
 
   // Default / repair phone hub tab when the active pill was filtered out (e.g. Products Offline)
   useEffect(() => {
+    const first = masters[0]?.id ?? null;
     if (hubTab && !masters.some(m => m.id === hubTab)) {
-      setHubTab(masters[0]?.id ?? null);
+      setHubTab(first);
       return;
     }
-    if (!hubTab && masters.length) setHubTab(masters[0].id);
-  }, [masters, hubTab]);
+    if (!hubTab && first) setHubTab(first);
+    // masterIdsKey — stable when category set unchanged (avoids effect churn / update loops)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- masters identity changes every render
+  }, [masterIdsKey, hubTab]);
 
-  // Load list for active hub pill
+  // ProductMasterView was removed Offline — clear stale selectedMaster from HMR/session
   useEffect(() => {
-    if (!hubTab) return;
+    if (selectedMaster === 'item') {
+      setSelectedMaster(null);
+      if (!serviceMobile) setActiveTab('inventory');
+    }
+  }, [selectedMaster, serviceMobile, setActiveTab]);
+
+  // Load list for active hub pill (use resolved `active`, not stale hubTab)
+  useEffect(() => {
+    if (!active || (active === 'item' && serviceMobile)) return;
     let cancelled = false;
     setHubLoading(true);
     const done = () => {
       if (!cancelled) setHubLoading(false);
     };
-    if (hubTab === 'vendor') {
+    const asArray = <T,>(rows: unknown): T[] => (Array.isArray(rows) ? rows : []);
+    if (active === 'vendor') {
       api.vendors
         .list()
         .then(rows => {
-          if (!cancelled) setVendors(rows);
+          if (!cancelled) setVendors(asArray(rows));
         })
         .catch(() => {
           if (!cancelled) setVendors([]);
         })
         .finally(done);
-    } else if (hubTab === 'customer') {
+    } else if (active === 'customer') {
       api.customers
         .list()
         .then(rows => {
-          if (!cancelled) setCustomers(rows);
+          if (!cancelled) setCustomers(asArray(rows));
         })
         .catch(() => {
           if (!cancelled) setCustomers([]);
         })
         .finally(done);
-    } else if (hubTab === 'item') {
+    } else if (active === 'item') {
       api.products
         .list()
         .then(rows => {
-          if (!cancelled) setProducts(rows);
+          if (!cancelled) setProducts(asArray(rows));
         })
         .catch(() => {
           if (!cancelled) setProducts([]);
         })
         .finally(done);
-    } else if (hubTab === 'bank') {
+    } else if (active === 'bank') {
       api.banks
         .list()
         .then(rows => {
-          if (!cancelled) setBanks(rows);
+          if (!cancelled) setBanks(asArray(rows));
         })
         .catch(() => {
           if (!cancelled) setBanks([]);
         })
         .finally(done);
-    } else if (hubTab === 'staff') {
+    } else if (active === 'staff') {
       api.staff
         .list()
         .then(rows => {
-          if (!cancelled) setStaff(rows as StaffRow[]);
+          if (!cancelled) setStaff(asArray<StaffRow>(rows));
         })
         .catch(() => {
           if (!cancelled) setStaff([]);
@@ -246,11 +263,12 @@ export function MastersView({
     return () => {
       cancelled = true;
     };
-  }, [hubTab]);
+  }, [active, serviceMobile]);
 
   const openFull = (id: MasterType) => {
     if (id === 'item') {
-      // Cloud manufacturer: Products → Inventory. Offline service never shows this pill.
+      // Offline has no Inventory / ProductMasterView — ignore (pill is hidden).
+      if (serviceMobile) return;
       setActiveTab('inventory');
       return;
     }
@@ -304,14 +322,16 @@ export function MastersView({
       </Suspense>
     );
 
-  const active = hubTab || masters[0]?.id;
   const activeMeta = masters.find(m => m.id === active);
+  const ActiveIcon = activeMeta?.icon;
   const listHubTabs = new Set<MasterType>(['vendor', 'customer', 'item', 'bank', 'staff']);
-  const showList = active && listHubTabs.has(active);
+  // Offline never lists Products in the hub (pill removed).
+  const showList = Boolean(active && listHubTabs.has(active) && !(serviceMobile && active === 'item'));
+  const partyLabel = cfg.labels.vendors || 'Clients';
 
   const fabLabel =
     active === 'vendor'
-      ? cfg.labels.vendors.replace(/s$/, '')
+      ? partyLabel.replace(/s$/, '')
       : active === 'customer'
         ? 'Customer'
         : active === 'item'
@@ -332,11 +352,14 @@ export function MastersView({
       <div className="sm:hidden space-y-3">
         <p className="text-[11px] text-gray-500 px-0.5">Catalog &amp; partners</p>
         <MobilePillTabs
-          items={masters.map(m => ({
-            id: m.id,
-            label: PILL_LABEL[m.id] || m.name,
-            icon: m.id === 'vendor' ? <Truck /> : <m.icon />,
-          }))}
+          items={masters.map(m => {
+            const Icon = m.icon;
+            return {
+              id: m.id,
+              label: PILL_LABEL[m.id] || m.name,
+              icon: m.id === 'vendor' ? <Truck /> : Icon ? <Icon /> : undefined,
+            };
+          })}
           value={active || ''}
           onChange={id => {
             const next = id as MasterType;
@@ -344,6 +367,7 @@ export function MastersView({
               openFull(next);
               return;
             }
+            if (next === 'item' && serviceMobile) return;
             setHubTab(next);
           }}
         />
@@ -356,7 +380,7 @@ export function MastersView({
           vendors.length === 0 ? (
             <MobileEmptyState
               icon={<Truck />}
-              title={`No ${cfg.labels.vendors.toLowerCase()} yet`}
+              title={`No ${partyLabel.toLowerCase()} yet`}
               subtitle="Add your first partner to get started"
               actionLabel={`Add ${fabLabel}`}
               onAction={() => openFull('vendor')}
@@ -472,7 +496,7 @@ export function MastersView({
           )
         ) : (
           <MobileEmptyState
-            icon={activeMeta ? <activeMeta.icon /> : <ShoppingCart />}
+            icon={ActiveIcon ? <ActiveIcon /> : <ShoppingCart />}
             title={activeMeta?.name || 'Masters'}
             subtitle="Open to manage records"
             actionLabel="Open"
@@ -485,31 +509,34 @@ export function MastersView({
 
       {/* Desktop / tablet cards */}
       <div className="hidden sm:grid grid-cols-1 md:grid-cols-2 gap-6">
-        {masters.map(m => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => handleMasterClick(m.id)}
-            className="w-full text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-4 min-w-0">
-                <div className={cn('p-4 rounded-2xl transition-transform group-hover:scale-110 shrink-0', m.bg)}>
-                  <m.icon className={m.color} size={22} />
+        {masters.map(m => {
+          const Icon = m.icon;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => handleMasterClick(m.id)}
+              className="w-full text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className={cn('p-4 rounded-2xl transition-transform group-hover:scale-110 shrink-0', m.bg)}>
+                    {Icon ? <Icon className={m.color} size={22} /> : null}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-lg truncate">{m.name}</h3>
+                    <p className="text-sm text-gray-500 truncate">
+                      {typeof m.count === 'number' ? `${m.count} records found` : 'View & manage mapping'}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <h3 className="font-bold text-lg truncate">{m.name}</h3>
-                  <p className="text-sm text-gray-500 truncate">
-                    {typeof m.count === 'number' ? `${m.count} records found` : 'View & manage mapping'}
-                  </p>
+                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-brand group-hover:text-white transition-colors shrink-0">
+                  <Plus size={18} />
                 </div>
               </div>
-              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-brand group-hover:text-white transition-colors shrink-0">
-                <Plus size={18} />
-              </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
     </motion.div>
   );

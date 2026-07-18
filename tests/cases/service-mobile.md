@@ -25,6 +25,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5l | Masters hub | Masters tab on phone | Icon pills (**Clients**, Customers, Banks, Staff, Prices, …) — **no Products**; list cards for selected pill; circular + FAB “Add Client” opens manage |
 | 5l1 | Client wording | Masters / Invoice create / Quotes / Analytics | UI says **Client(s)** not Vendor(s). API paths remain `/vendors`. Cloud manufacturer still says Vendor |
 | 5l2 | Masters no Products | Masters pills / desktop cards | **Products** absent Offline (service has no inventory). Price List / invoice lines still work. Cloud manufacturer Masters still show Products → Inventory |
+| 5l4 | Masters no ErrorBoundary | Hard refresh → Masters (Chrome localhost OK) | Hub loads Clients/Banks/Staff/Prices — no “Something went wrong”. Stale Products pill/state must not crash |
 | 5l3 | Masters no Vendor-Customer Map | Masters pills / desktop cards | **Vendor-Customer Map** absent Offline (no mapping routes). Cloud manufacturer Masters still show Mapping |
 | 5m | Invoice hub phone | Invoices list | Outstanding/Collected KPIs; status pills; FAB creates invoice |
 | 5n | More shortcuts | More drawer | Shortcut grid includes Stock, Finance, Accounts, Settings |
