@@ -6,19 +6,7 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
-import {
-  LoadingSpinner,
-  MobilePillTabs,
-  MobileListRow,
-  MobileFab,
-  MobileEmptyState,
-  AppModal,
-  ModalActions,
-  ModalActionButton,
-  FormField,
-  formControlClass,
-  useToast,
-} from '../../components/ui';
+import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
 
 const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
 const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
@@ -51,8 +39,7 @@ const PILL_LABEL: Partial<Record<MasterType, string>> = {
   rewardRules: 'Rewards',
 };
 
-function pillLabel(id: MasterType, serviceMobile: boolean): string {
-  if (id === 'item' && serviceMobile) return 'Catalog';
+function pillLabel(id: MasterType): string {
   return PILL_LABEL[id] || '';
 }
 
@@ -66,7 +53,6 @@ export function MastersView({
   businessType?: string;
 }) {
   const cfg = useBusinessConfig();
-  const { toast } = useToast();
   const serviceMobile = isServiceMobileMode();
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
   const isDirectSell = cfg.type === 'dealer' || cfg.type === 'retail';
@@ -85,10 +71,6 @@ export function MastersView({
   const [products, setProducts] = useState<Product[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
-  /** Offline Mobile: lightweight catalog create (no Inventory / barcode UI). */
-  const [catalogOpen, setCatalogOpen] = useState(false);
-  const [catalogSaving, setCatalogSaving] = useState(false);
-  const [catalogForm, setCatalogForm] = useState({ name: '', price: '', gstRate: '18', hsnCode: '' });
 
   const refreshCounts = () => {
     api.masters
@@ -109,16 +91,29 @@ export function MastersView({
     refreshCounts();
   }, []);
 
+  // Offline: no stock Products/Catalog pill — Price List (Catalog + Clients tabs) is the sellable catalog.
+  const productsMaster = !serviceMobile
+    ? [
+        {
+          id: 'item' as const,
+          name: 'Products',
+          count: masterCounts.item as number | string,
+          icon: Package,
+          color: 'text-orange-600',
+          bg: 'bg-orange-50',
+        },
+      ]
+    : [];
+  const priceListMaster = {
+    id: 'priceList' as const,
+    name: 'Price List',
+    count: '' as number | string,
+    icon: Tag,
+    color: 'text-rose-600',
+    bg: 'bg-rose-50',
+  };
   const allMasters = [
-    // Offline: catalog Products (name/price/GST) for invoices & price lists — not inventory/barcodes.
-    {
-      id: 'item' as const,
-      name: serviceMobile ? 'Catalog' : 'Products',
-      count: masterCounts.item as number | string,
-      icon: Package,
-      color: 'text-orange-600',
-      bg: 'bg-orange-50',
-    },
+    ...productsMaster,
     {
       id: 'vendor' as const,
       name: cfg.labels.vendors,
@@ -127,6 +122,8 @@ export function MastersView({
       color: 'text-brand',
       bg: 'bg-orange-50',
     },
+    // Offline: Price List next to Clients — Catalog/Clients scope tabs live inside Price ListView.
+    ...(serviceMobile ? [priceListMaster] : []),
     ...(hasCustomerTracking && !isDirectSell
       ? [
           {
@@ -155,14 +152,7 @@ export function MastersView({
       color: 'text-indigo-600',
       bg: 'bg-indigo-50',
     },
-    {
-      id: 'priceList' as const,
-      name: 'Price List',
-      count: '' as number | string,
-      icon: Tag,
-      color: 'text-rose-600',
-      bg: 'bg-rose-50',
-    },
+    ...(!serviceMobile ? [priceListMaster] : []),
     ...(tv('rewards')
       ? [
           {
@@ -208,7 +198,7 @@ export function MastersView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- masters identity changes every render
   }, [masterIdsKey, hubTab]);
 
-  // Cloud: Products pill opens Inventory. Offline: stay on hub catalog list (no Inventory tab).
+  // Cloud: Products pill opens Inventory. Offline never shows Products (Price List is the catalog).
   useEffect(() => {
     if (selectedMaster === 'item' && !serviceMobile) {
       setSelectedMaster(null);
@@ -283,50 +273,9 @@ export function MastersView({
     };
   }, [active, serviceMobile]);
 
-  const openCatalogCreate = () => {
-    setCatalogForm({ name: '', price: '', gstRate: '18', hsnCode: '' });
-    setCatalogOpen(true);
-  };
-
-  const saveCatalogProduct = async () => {
-    const name = catalogForm.name.trim();
-    if (!name) {
-      toast('Product name is required', 'error');
-      return;
-    }
-    const price = Number(catalogForm.price) || 0;
-    if (price <= 0) {
-      toast('Price must be greater than 0', 'error');
-      return;
-    }
-    setCatalogSaving(true);
-    try {
-      await api.products.create({
-        name,
-        price,
-        gstRate: Number(catalogForm.gstRate) || 18,
-        hsnCode: catalogForm.hsnCode.trim() || undefined,
-        stock: 0,
-        warrantyMonths: 0,
-      });
-      toast('Catalog item added', 'success');
-      setCatalogOpen(false);
-      refreshCounts();
-      const rows = await api.products.list();
-      setProducts(Array.isArray(rows) ? rows : []);
-    } catch (err) {
-      toast((err as Error).message || 'Failed to add product', 'error');
-    } finally {
-      setCatalogSaving(false);
-    }
-  };
-
   const openFull = (id: MasterType) => {
     if (id === 'item') {
-      if (serviceMobile) {
-        openCatalogCreate();
-        return;
-      }
+      // Cloud manufacturer only — Offline never lists this pill.
       setActiveTab('inventory');
       return;
     }
@@ -407,13 +356,15 @@ export function MastersView({
     >
       {/* Phone hub — Emergent-style: pills + list + FAB */}
       <div className="sm:hidden space-y-3">
-        <p className="text-[11px] text-gray-500 px-0.5">Catalog &amp; partners</p>
+        <p className="text-[11px] text-gray-500 px-0.5">
+          {serviceMobile ? 'Clients &amp; rates' : 'Catalog &amp; partners'}
+        </p>
         <MobilePillTabs
           items={masters.map(m => {
             const Icon = m.icon;
             return {
               id: m.id,
-              label: pillLabel(m.id, serviceMobile) || m.name,
+              label: pillLabel(m.id) || m.name,
               icon: m.id === 'vendor' ? <Truck /> : Icon ? <Icon /> : undefined,
             };
           })}
@@ -487,8 +438,8 @@ export function MastersView({
           products.length === 0 ? (
             <MobileEmptyState
               icon={<Package />}
-              title={serviceMobile ? 'No catalog items yet' : 'No products yet'}
-              actionLabel={serviceMobile ? 'Add Item' : 'Open Products'}
+              title="No products yet"
+              actionLabel="Open Products"
               onAction={() => openFull('item')}
             />
           ) : (
@@ -498,13 +449,7 @@ export function MastersView({
                   <MobileListRow
                     icon={<Package className="text-orange-600" />}
                     title={p.name}
-                    subtitle={
-                      serviceMobile
-                        ? p.hsnCode
-                          ? `HSN ${p.hsnCode} · GST ${p.gstRate ?? 18}%`
-                          : `GST ${p.gstRate ?? 18}%`
-                        : p.hsnCode || p.barcode || `Stock ${p.stock ?? 0}`
-                    }
+                    subtitle={p.hsnCode || p.barcode || `Stock ${p.stock ?? 0}`}
                     trailing={typeof p.price === 'number' ? `₹${p.price.toLocaleString()}` : undefined}
                     onClick={() => openFull('item')}
                   />
@@ -600,70 +545,6 @@ export function MastersView({
           );
         })}
       </div>
-
-      {serviceMobile && catalogOpen && (
-        <AppModal
-          title="Add catalog item"
-          onClose={() => {
-            if (!catalogSaving) setCatalogOpen(false);
-          }}
-          size="sm"
-          footer={
-            <ModalActions>
-              <ModalActionButton variant="secondary" onClick={() => setCatalogOpen(false)} disabled={catalogSaving}>
-                Cancel
-              </ModalActionButton>
-              <ModalActionButton variant="primary" onClick={() => void saveCatalogProduct()} disabled={catalogSaving}>
-                {catalogSaving ? 'Saving…' : 'Save'}
-              </ModalActionButton>
-            </ModalActions>
-          }
-        >
-          <div className="space-y-3">
-            <FormField label="Name" required>
-              <input
-                className={formControlClass}
-                value={catalogForm.name}
-                onChange={e => setCatalogForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="Service or product name"
-                autoFocus
-              />
-            </FormField>
-            <FormField label="Price (₹)" required>
-              <input
-                className={formControlClass}
-                type="number"
-                inputMode="decimal"
-                min={0}
-                value={catalogForm.price}
-                onChange={e => setCatalogForm(f => ({ ...f, price: e.target.value }))}
-                placeholder="0"
-              />
-            </FormField>
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="GST %">
-                <input
-                  className={formControlClass}
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={28}
-                  value={catalogForm.gstRate}
-                  onChange={e => setCatalogForm(f => ({ ...f, gstRate: e.target.value }))}
-                />
-              </FormField>
-              <FormField label="HSN / SAC">
-                <input
-                  className={formControlClass}
-                  value={catalogForm.hsnCode}
-                  onChange={e => setCatalogForm(f => ({ ...f, hsnCode: e.target.value }))}
-                  placeholder="Optional"
-                />
-              </FormField>
-            </div>
-          </div>
-        </AppModal>
-      )}
     </motion.div>
   );
 }

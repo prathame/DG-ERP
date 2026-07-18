@@ -16,8 +16,11 @@ import { useToast, LoadingSpinner, MobilePillTabs } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 
 type PriceTab = 'generic' | 'vendor';
+/** Offline: create sellable item from Price List (no separate Masters Catalog pill). */
+const NEW_ITEM = '__new__';
 
 function esc(t: unknown): string {
   return String(t ?? '')
@@ -64,6 +67,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const cfg = useBusinessConfig();
   const partyLabel = cfg.labels.vendors; // Vendors | Customers | Clients
   const isService = cfg.type === 'service';
+  const serviceMobile = isServiceMobileMode();
   const [tab, setTab] = useState<PriceTab>(isService ? 'generic' : 'vendor');
   const [rules, setRules] = useState<PriceRule[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -76,7 +80,8 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const emptyForm = () => ({
     name: '',
-    productId: '',
+    productId: serviceMobile ? NEW_ITEM : '',
+    newItemName: '',
     vendorId: '',
     minQty: '1',
     maxQty: '',
@@ -135,20 +140,40 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   }, []);
 
   const handleCreate = async () => {
-    if (!form.productId || !form.price) {
-      toast('Product and price required', 'error');
+    if (!form.price) {
+      toast('Price is required', 'error');
       return;
     }
     if (tab === 'vendor' && !form.vendorId) {
       toast(`Select a ${partyLabel.replace(/s$/, '').toLowerCase()}`, 'error');
       return;
     }
+    const creatingNew = serviceMobile && (form.productId === NEW_ITEM || !form.productId);
+    if (creatingNew && !form.newItemName.trim()) {
+      toast('Item name is required', 'error');
+      return;
+    }
+    if (!creatingNew && !form.productId) {
+      toast('Select an item', 'error');
+      return;
+    }
     const vendorId = tab === 'generic' ? undefined : form.vendorId || undefined;
     setSubmitting(true);
     try {
+      let productId = form.productId;
+      if (creatingNew) {
+        const created = await api.products.create({
+          name: form.newItemName.trim(),
+          price: Number(form.price) || 0,
+          gstRate: 18,
+          stock: 0,
+          warrantyMonths: 0,
+        });
+        productId = created.id;
+      }
       const body: Record<string, unknown> = {
         name: form.name || (vendorId ? `${partyLabel.replace(/s$/, '')} rate` : 'Catalog rate'),
-        productId: form.productId,
+        productId,
         vendorId,
         minQty: Number(form.minQty) || 1,
         maxQty: form.maxQty ? Number(form.maxQty) : undefined,
@@ -593,20 +618,35 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
               </p>
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Product *</label>
+                  <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
+                    {serviceMobile ? 'Item *' : 'Product *'}
+                  </label>
                   <select
                     required
                     value={form.productId}
-                    onChange={e => setForm({ ...form, productId: e.target.value })}
+                    onChange={e => setForm({ ...form, productId: e.target.value, newItemName: '' })}
                     className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
                   >
-                    <option value="">Select product</option>
+                    {serviceMobile ? (
+                      <option value={NEW_ITEM}>+ New item</option>
+                    ) : (
+                      <option value="">Select product</option>
+                    )}
                     {products.map(p => (
                       <option key={p.id} value={p.id}>
                         {p.name} (₹{Number(p.price).toLocaleString()})
                       </option>
                     ))}
                   </select>
+                  {serviceMobile && form.productId === NEW_ITEM && (
+                    <input
+                      className="w-full mt-2 px-4 py-2 border border-gray-200 rounded-xl text-sm"
+                      value={form.newItemName}
+                      onChange={e => setForm({ ...form, newItemName: e.target.value })}
+                      placeholder="e.g. Wiring repair, Fan install"
+                      autoFocus
+                    />
+                  )}
                 </div>
                 {tab === 'vendor' && (
                   <div>

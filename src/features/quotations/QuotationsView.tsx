@@ -117,9 +117,23 @@ export function QuotationsView() {
     validUntil: '',
     notes: '',
   });
-  const [rows, setRows] = useState<
-    { productId: string; quantity: number; customPrice: string; discount: number; withGst: boolean }[]
-  >([{ productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }]);
+  type QuoteLineRow = {
+    productId: string;
+    description: string;
+    quantity: number;
+    customPrice: string;
+    discount: number;
+    withGst: boolean;
+  };
+  const emptyQuoteRow = (): QuoteLineRow => ({
+    productId: '',
+    description: '',
+    quantity: 1,
+    customPrice: '',
+    discount: 0,
+    withGst: true,
+  });
+  const [rows, setRows] = useState<QuoteLineRow[]>([emptyQuoteRow()]);
   const [billSettings, setBillSettings] = useState<BillSettings | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -294,7 +308,7 @@ export function QuotationsView() {
 
   const resetForm = () => {
     setEditingId(null);
-    setRows([{ productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }]);
+    setRows([emptyQuoteRow()]);
     setForm({
       vendorId: '',
       customerName: '',
@@ -319,7 +333,8 @@ export function QuotationsView() {
     });
     setRows(
       q.items.map(i => ({
-        productId: i.productId,
+        productId: i.productId || '',
+        description: i.productId ? '' : i.productName || '',
         quantity: i.quantity,
         customPrice: String(i.price),
         discount: i.discountPercent || 0,
@@ -331,9 +346,18 @@ export function QuotationsView() {
   };
 
   const handleCreate = async () => {
-    const validRows = rows.filter(r => r.productId && r.quantity > 0);
+    const validRows = rows.filter(r => {
+      if (!(r.quantity > 0)) return false;
+      if (r.productId) return true;
+      // Offline (and service): custom free-text line with rate
+      return Boolean(r.description.trim() && parseFloat(r.customPrice) > 0);
+    });
     if (validRows.length === 0) {
-      toast('Add at least one product', 'error');
+      toast(offlinePdf ? 'Add at least one line (Price List item or custom)' : 'Add at least one product', 'error');
+      return;
+    }
+    if (!offlinePdf && validRows.some(r => !r.productId)) {
+      toast('Select a product for each line', 'error');
       return;
     }
     setSubmitting(true);
@@ -348,7 +372,7 @@ export function QuotationsView() {
         gstRate: defaultGstRate,
         notes: form.notes || undefined,
         items: validRows.map(r => ({
-          productId: r.productId,
+          ...(r.productId ? { productId: r.productId } : { description: r.description.trim() }),
           quantity: r.quantity,
           customPrice: r.customPrice ? parseFloat(r.customPrice) : undefined,
           discountPercent: r.discount > 0 ? r.discount : undefined,
@@ -925,7 +949,9 @@ export function QuotationsView() {
                 </FormField>
               </FormGrid>
               <p className="text-xs text-gray-500">
-                Defaults: vendor/client price list → generic → inventory. Edit any line to negotiate.
+                {offlinePdf
+                  ? 'Pick a Price List item (Catalog / Clients rates) or type a custom line.'
+                  : 'Defaults: vendor/client price list → generic → inventory. Edit any line to negotiate.'}
               </p>
 
               <div className="sm:hidden space-y-3">
@@ -935,7 +961,7 @@ export function QuotationsView() {
                   const qFields: LineItemCardField[] = [
                     {
                       key: 'product',
-                      label: 'Product',
+                      label: offlinePdf ? 'Price List item' : 'Product',
                       wide: true,
                       node: (
                         <select
@@ -949,7 +975,8 @@ export function QuotationsView() {
                                   ? {
                                       ...r,
                                       productId: pid,
-                                      customPrice: sel ? String(sel.price) : '',
+                                      description: pid ? '' : r.description,
+                                      customPrice: sel ? String(sel.price) : r.customPrice,
                                     }
                                   : r,
                               ),
@@ -958,7 +985,7 @@ export function QuotationsView() {
                           }}
                           className={formControlClass}
                         >
-                          <option value="">Select</option>
+                          <option value="">{offlinePdf ? 'Custom item' : 'Select'}</option>
                           {products.map(pr => (
                             <option key={pr.id} value={pr.id}>
                               {pr.name} (₹{pr.price.toLocaleString()})
@@ -967,6 +994,25 @@ export function QuotationsView() {
                         </select>
                       ),
                     },
+                    ...(offlinePdf && !row.productId
+                      ? [
+                          {
+                            key: 'description',
+                            label: 'Description',
+                            wide: true as const,
+                            node: (
+                              <input
+                                value={row.description}
+                                onChange={e =>
+                                  setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))
+                                }
+                                className={formControlClass}
+                                placeholder="Type custom service"
+                              />
+                            ),
+                          },
+                        ]
+                      : []),
                     {
                       key: 'qty',
                       label: 'Quantity',
@@ -998,7 +1044,7 @@ export function QuotationsView() {
                           onChange={e =>
                             setRows(rows.map((r, i) => (i === idx ? { ...r, customPrice: e.target.value } : r)))
                           }
-                          placeholder={p ? `₹${p.price}` : '—'}
+                          placeholder={p ? `₹${p.price}` : offlinePdf ? 'Rate' : '—'}
                           className={formControlClass}
                         />
                       ),
@@ -1044,7 +1090,7 @@ export function QuotationsView() {
                     <div key={idx}>
                       <LineItemCard
                         index={idx}
-                        title={p?.name || `Item ${idx + 1}`}
+                        title={p?.name || row.description || `Item ${idx + 1}`}
                         amountLabel={lineTotal > 0 ? `₹${lineTotal.toLocaleString()}` : undefined}
                         canRemove={rows.length > 1}
                         onRemove={() => setRows(rows.filter((_, i) => i !== idx))}
@@ -1060,7 +1106,7 @@ export function QuotationsView() {
                   <thead className="bg-gray-50">
                     <tr className="text-xs font-bold text-gray-400 uppercase">
                       <th className="px-3 py-3 w-8">#</th>
-                      <th className="px-3 py-3">Product</th>
+                      <th className="px-3 py-3">{offlinePdf ? 'Item' : 'Product'}</th>
                       <th className="px-3 py-3 w-16">Qty</th>
                       <th className="px-3 py-3 w-24">Price</th>
                       <th className="px-3 py-3 w-16">Disc%</th>
@@ -1076,7 +1122,7 @@ export function QuotationsView() {
                       return (
                         <tr key={idx}>
                           <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2 space-y-1.5">
                             <select
                               value={row.productId}
                               onChange={e => {
@@ -1088,7 +1134,8 @@ export function QuotationsView() {
                                       ? {
                                           ...r,
                                           productId: pid,
-                                          customPrice: sel ? String(sel.price) : '',
+                                          description: pid ? '' : r.description,
+                                          customPrice: sel ? String(sel.price) : r.customPrice,
                                         }
                                       : r,
                                   ),
@@ -1097,13 +1144,23 @@ export function QuotationsView() {
                               }}
                               className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
                             >
-                              <option value="">Select</option>
+                              <option value="">{offlinePdf ? 'Custom item' : 'Select'}</option>
                               {products.map(pr => (
                                 <option key={pr.id} value={pr.id}>
                                   {pr.name} (₹{pr.price.toLocaleString()})
                                 </option>
                               ))}
                             </select>
+                            {offlinePdf && !row.productId && (
+                              <input
+                                value={row.description}
+                                onChange={e =>
+                                  setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))
+                                }
+                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
+                                placeholder="Type custom service"
+                              />
+                            )}
                           </td>
                           <td className="px-3 py-2">
                             <input
@@ -1183,12 +1240,10 @@ export function QuotationsView() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setRows([...rows, { productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }])
-                }
+                onClick={() => setRows([...rows, emptyQuoteRow()])}
                 className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
               >
-                + Add Product
+                {offlinePdf ? '+ Add Line' : '+ Add Product'}
               </button>
               <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-xs sm:text-sm text-gray-600">
@@ -1225,7 +1280,7 @@ export function QuotationsView() {
               </p>
               <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
                 {partialConvert.lines.map((line, idx) => (
-                  <div key={line.productId} className="flex items-center justify-between gap-3 text-sm">
+                  <div key={line.lineIndex} className="flex items-center justify-between gap-3 text-sm">
                     <div className="min-w-0">
                       <div className="font-medium truncate">{line.productName}</div>
                       <div className="text-xs text-gray-400">Remaining {line.remaining}</div>

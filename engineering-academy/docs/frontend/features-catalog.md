@@ -54,7 +54,7 @@ The landing tab (`activeTab: 'analytics'` is the default in `App.tsx`). Answers 
 
 The "reference data" hub — customers, vendors, banks, staff, reward rules, and price lists. `MastersView` itself is a card-grid launcher (not a form) that lazy-loads whichever sub-master the user clicks, and fetches count badges from `api.masters.counts()` once on mount. Masters are filtered by both `businessType` (e.g., a `retail`/`dealer` tenant hides the separate Customer master because it sells direct — see `isDirectSell` in the component) and by role (`isVendor` sees only their own Customer master, a self-service view of who they've sold to).
 
-**Offline Mobile (`isServiceMobileMode`):** **Products** and **Vendor-Customer Map** are hidden from Masters (service type has no inventory; no local mapping routes). Price List and invoice/quote lines may still resolve products via API. Cloud manufacturer Masters keep Products → Inventory and Mapping unchanged.
+**Offline Mobile (`isServiceMobileMode`):** **Products / Catalog inventory pill** and **Vendor-Customer Map** are hidden from Masters (no stock inventory; no local mapping routes). **Price List** remains with **Catalog** + **Clients** scope tabs as the sellable rate book; invoice/quote lines pick Price List items (resolve) or custom free-text. Cloud manufacturer Masters keep Products → Inventory and Mapping unchanged.
 
 **Service labels:** `businessTypeConfig` sets `labels.vendors` to **Clients** for `service` (manufacturer keeps **Vendors**). Offline Masters pills, VendorMaster headers/FABs, invoice/quote party fields, Analytics “Outstanding Clients”, and Accounts party columns use that config — API paths stay `/vendors`.
 

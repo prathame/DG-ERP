@@ -15,7 +15,10 @@ export type LineItem = {
 };
 
 export type LineInput = {
-  productId: string;
+  /** Empty/omitted = custom free-text line (productName/description required). */
+  productId?: string;
+  description?: string;
+  productName?: string;
   quantity?: number;
   customPrice?: unknown;
   discountPercent?: number;
@@ -45,16 +48,37 @@ export async function buildLineItems(
   let gstAmount = 0;
   const resolvedItems: LineItem[] = [];
   for (const item of items) {
-    const { rows } = await localQuery(`SELECT id, name, price FROM products WHERE id=$1 AND tenant_id=$2`, [
-      item.productId,
-      tenantId,
-    ]);
-    const product = rows[0] as { id: string; name: string; price: number } | undefined;
-    if (!product) return { error: `Product not found: ${item.productId}` };
     const qty = Math.max(1, Number(item.quantity) || 1);
-    const unit = item.customPrice != null && item.customPrice !== '' ? Number(item.customPrice) : Number(product.price);
     const discountPercent = Math.max(0, Math.min(100, Number(item.discountPercent) || 0));
     const withGst = item.withGst !== false;
+    const productId = item.productId?.trim() || '';
+
+    let unit: number;
+    let productName: string;
+    let resolvedProductId: string;
+
+    if (!productId) {
+      const customName = String(item.description || item.productName || '').trim();
+      if (!customName) return { error: 'Custom line needs a description' };
+      if (item.customPrice == null || item.customPrice === '') {
+        return { error: `Rate required for custom line: ${customName}` };
+      }
+      unit = Number(item.customPrice);
+      if (!(unit > 0)) return { error: `Rate required for custom line: ${customName}` };
+      productName = customName;
+      resolvedProductId = '';
+    } else {
+      const { rows } = await localQuery(`SELECT id, name, price FROM products WHERE id=$1 AND tenant_id=$2`, [
+        productId,
+        tenantId,
+      ]);
+      const product = rows[0] as { id: string; name: string; price: number } | undefined;
+      if (!product) return { error: `Product not found: ${productId}` };
+      unit = item.customPrice != null && item.customPrice !== '' ? Number(item.customPrice) : Number(product.price);
+      productName = product.name;
+      resolvedProductId = product.id;
+    }
+
     const gross = unit * qty;
     const lineNet = Math.round(gross * (1 - discountPercent / 100) * 100) / 100;
     const lineGst = withGst ? Math.round(((lineNet * rate) / 100) * 100) / 100 : 0;
@@ -62,8 +86,8 @@ export async function buildLineItems(
     subtotal += lineNet;
     gstAmount += lineGst;
     resolvedItems.push({
-      productId: product.id,
-      productName: product.name,
+      productId: resolvedProductId,
+      productName,
       quantity: qty,
       price: unit,
       discountPercent,

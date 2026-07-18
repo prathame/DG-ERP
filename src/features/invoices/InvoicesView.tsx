@@ -847,6 +847,7 @@ export function CreateInvoiceModal({
   const { toast } = useToast();
   const cfg = useBusinessConfig();
   const isService = cfg.type === 'service';
+  const serviceMobile = isServiceMobileMode();
   const vendorPartyKind = isService ? 'Client' : 'Vendor';
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [form, setForm] = useState({
@@ -1149,7 +1150,7 @@ export function CreateInvoiceModal({
     return [
       {
         key: 'product',
-        label: 'Product',
+        label: serviceMobile ? 'Price List item' : 'Product',
         wide: true as const,
         node: (
           <select
@@ -1448,7 +1449,14 @@ export function CreateInvoiceModal({
 
         {/* Step 1 — Items */}
         <div className={cn(step !== 1 && 'hidden', 'sm:block space-y-3')}>
-          <FormSection title="Line Items" description="Pick from Masters / Price List, or choose Custom">
+          <FormSection
+            title="Line Items"
+            description={
+              serviceMobile
+                ? 'Pick from Price List (Catalog / Clients rates), or type a custom line'
+                : 'Pick from Masters / Price List, or choose Custom'
+            }
+          >
             {/* Mobile cards */}
             <div className="sm:hidden space-y-3">
               {rows.map((row, idx) => {
