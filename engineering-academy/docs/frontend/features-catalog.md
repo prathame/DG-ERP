@@ -56,6 +56,8 @@ The "reference data" hub — customers, vendors, banks, staff, reward rules, and
 
 **Offline Mobile (`isServiceMobileMode`):** **Products** and **Vendor-Customer Map** are hidden from Masters (service type has no inventory; no local mapping routes). Price List and invoice/quote lines may still resolve products via API. Cloud manufacturer Masters keep Products → Inventory and Mapping unchanged.
 
+**Service labels:** `businessTypeConfig` sets `labels.vendors` to **Clients** for `service` (manufacturer keeps **Vendors**). Offline Masters pills, VendorMaster headers/FABs, invoice/quote party fields, Analytics “Outstanding Clients”, and Accounts party columns use that config — API paths stay `/vendors`.
+
 **Business value:** every other module (sales, distribution, warranty) references a vendor/customer/product by ID — Masters is where those IDs are created and kept clean (deduplication via `uq_vendors_tenant_name`-style unique indexes server-side).
 
 ## Inventory

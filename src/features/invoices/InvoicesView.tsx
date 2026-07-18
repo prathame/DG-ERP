@@ -13,6 +13,7 @@ import {
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { fetchApi } from '../../api';
 import {
   useToast,
@@ -834,6 +835,9 @@ export function CreateInvoiceModal({
   initialParty?: InvoicePartyPrefill | null;
 }) {
   const { toast } = useToast();
+  const cfg = useBusinessConfig();
+  const isService = cfg.type === 'service';
+  const vendorPartyKind = isService ? 'Client' : 'Vendor';
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [form, setForm] = useState({
     customerName: initialParty?.customerName || '',
@@ -910,7 +914,7 @@ export function CreateInvoiceModal({
           .filter(v => v.id !== 'OWNER')
           .map(v => ({
             key: `vendor:${v.id}`,
-            label: `${v.name} (Vendor)`,
+            label: `${v.name} (${vendorPartyKind})`,
             name: v.name,
             phone: v.phone || '',
             address: v.address || '',
@@ -920,7 +924,7 @@ export function CreateInvoiceModal({
           }));
         const fromCustomers: InvoiceParty[] = customers.map(c => ({
           key: `customer:${c.id}`,
-          label: `${c.name} (Client)`,
+          label: `${c.name} (${isService ? 'Customer' : 'Client'})`,
           name: c.name,
           phone: c.phone || '',
           address: c.address || '',
@@ -955,7 +959,7 @@ export function CreateInvoiceModal({
         setProducts([]);
         setPriceRules([]);
       });
-  }, [initialParty?.partyType, initialParty?.partyId]);
+  }, [initialParty?.partyType, initialParty?.partyId, vendorPartyKind, isService]);
 
   const selectParty = (key: string) => {
     setPartyKey(key);
@@ -1341,9 +1345,9 @@ export function CreateInvoiceModal({
         <div className={cn(step !== 0 && 'hidden', 'sm:block space-y-4')}>
           <FormSection title="Customer" description="Select a party or type a new customer">
             <FormGrid>
-              <FormField label="Customer / Vendor" required className="sm:col-span-2">
+              <FormField label={isService ? 'Client' : 'Customer / Vendor'} required className="sm:col-span-2">
                 <select value={partyKey} onChange={e => selectParty(e.target.value)} className={formControlClass}>
-                  <option value="">Select vendor or client</option>
+                  <option value="">{isService ? 'Select client' : 'Select vendor or client'}</option>
                   {parties.map(p => (
                     <option key={p.key} value={p.key}>
                       {p.label}

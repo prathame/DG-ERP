@@ -56,6 +56,7 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
   const { toast } = useToast();
   const cfg = useBusinessConfig();
   const ds = cfg.type === 'dealer' || cfg.type === 'retail';
+  const partySingular = cfg.labels.vendors.replace(/s$/, ''); // Vendor | Customer | Client
   const businessType = cfg.type;
   const [tab, setTab] = useState<AccountTab>('pnl');
   const now = new Date();
@@ -398,13 +399,13 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
       {!loading && data && (
         <div id="accounts-content">
           {tab === 'pnl' && <ProfitLoss data={data} ds={ds} cfg={cfg} />}
-          {tab === 'balance' && <BalanceSheet data={data} ds={ds} />}
-          {tab === 'cashflow' && <CashFlow data={data} ds={ds} />}
+          {tab === 'balance' && <BalanceSheet data={data} partySingular={partySingular} />}
+          {tab === 'cashflow' && <CashFlow data={data} ds={ds} partySingular={partySingular} />}
           {tab === 'ledger' && <Ledger data={data} />}
           {tab === 'daybook' && <DayBook data={data} ds={ds} />}
-          {tab === 'notes' && <NotesView data={data} onRefresh={loadData} />}
+          {tab === 'notes' && <NotesView data={data} onRefresh={loadData} partySingular={partySingular} />}
           {['sales', 'distribution', 'outstanding', 'payments', 'stock', 'gst'].includes(tab) && (
-            <ReportTable tab={tab} data={data} ds={ds} />
+            <ReportTable tab={tab} data={data} ds={ds} partySingular={partySingular} />
           )}
         </div>
       )}
@@ -533,7 +534,7 @@ function ProfitLoss({
   );
 }
 
-function BalanceSheet({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
+function BalanceSheet({ data, partySingular }: { data: Record<string, unknown>; partySingular: string }) {
   const assets = data.assets as {
     inventory: number;
     receivables: number;
@@ -568,7 +569,7 @@ function BalanceSheet({ data, ds }: { data: Record<string, unknown>; ds: boolean
             )}
             {(assets.distributionReceivables || 0) > 0 && (
               <div className="flex justify-between">
-                <span className="text-sm">{ds ? 'Customer Receivables' : 'Vendor Receivables'}</span>
+                <span className="text-sm">{partySingular} Receivables</span>
                 <span className="font-bold">{fmtCurrency(assets.distributionReceivables || 0)}</span>
               </div>
             )}
@@ -623,7 +624,7 @@ function BalanceSheet({ data, ds }: { data: Record<string, unknown>; ds: boolean
   );
 }
 
-function CashFlow({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
+function CashFlow({ data, ds, partySingular }: { data: Record<string, unknown>; ds: boolean; partySingular: string }) {
   const inflows = data.inflows as { vendorPayments: number; invoicePayments?: number; total: number };
   const outflows = data.outflows as {
     supplierPayments: number;
@@ -640,7 +641,7 @@ function CashFlow({ data, ds }: { data: Record<string, unknown>; ds: boolean }) 
           label="Total Inflows"
           value={fmtCurrency(inflows.total)}
           color="text-emerald-600"
-          sub={ds ? 'Payments received' : 'Received from vendors & invoices'}
+          sub={ds ? 'Payments received' : `Received from ${partySingular.toLowerCase()}s & invoices`}
         />
         <StatCard
           label="Total Outflows"
@@ -661,7 +662,7 @@ function CashFlow({ data, ds }: { data: Record<string, unknown>; ds: boolean }) 
             <div className="space-y-2">
               {inflows.vendorPayments > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">{ds ? 'Customer Payments' : 'Vendor Payments'}</span>
+                  <span className="text-gray-600">{partySingular} Payments</span>
                   <span className="font-bold text-emerald-600">{fmtCurrency(inflows.vendorPayments)}</span>
                 </div>
               )}
@@ -929,7 +930,15 @@ function DayBook({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
   );
 }
 
-function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefresh: () => void }) {
+function NotesView({
+  data,
+  onRefresh,
+  partySingular,
+}: {
+  data: Record<string, unknown>;
+  onRefresh: () => void;
+  partySingular: string;
+}) {
   const notes = (Array.isArray(data) ? data : []) as {
     id: string;
     noteNumber: string;
@@ -1068,7 +1077,7 @@ function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefre
                 value={noteForm.vendorName}
                 onChange={e => setNoteForm({ ...noteForm, vendorName: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
-                placeholder="Vendor or customer name"
+                placeholder={`${partySingular} or customer name`}
               />
             </div>
             <div>
@@ -1211,7 +1220,17 @@ function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefre
   );
 }
 
-function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unknown>; ds: boolean }) {
+function ReportTable({
+  tab,
+  data,
+  ds,
+  partySingular,
+}: {
+  tab: string;
+  data: Record<string, unknown>;
+  ds: boolean;
+  partySingular: string;
+}) {
   const rows = (data.rows as Record<string, unknown>[]) || [];
   const totals = (data.totals as Record<string, number>) || {};
   const count = (data.count as number) || rows.length;
@@ -1245,7 +1264,7 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-xs font-bold text-gray-400 uppercase">
-                    <th className="px-3 py-2 text-left">{ds ? 'Customer' : 'Vendor'}</th>
+                    <th className="px-3 py-2 text-left">{partySingular}</th>
                     <th className="px-3 py-2 text-left">GSTIN</th>
                     <th className="px-3 py-2 text-right">Taxable</th>
                     <th className="px-3 py-2 text-right">CGST</th>
@@ -1328,7 +1347,7 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
   const cols =
     tab === 'outstanding'
       ? [
-          { k: 'vendorName', l: ds ? 'Customer' : 'Vendor' },
+          { k: 'vendorName', l: partySingular },
           { k: 'totalBilled', l: 'Billed', r: true },
           { k: 'totalPaid', l: 'Paid', r: true },
           { k: 'balance', l: 'Balance', r: true },
@@ -1343,7 +1362,7 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
             { k: 'hsnCode', l: 'HSN' },
             { k: 'unitPrice', l: 'Price', r: true },
             { k: 'inStock', l: 'InStock', r: true },
-            ...(!ds ? [{ k: 'withVendors', l: 'Vendors', r: true }] : []),
+            ...(!ds ? [{ k: 'withVendors', l: `${partySingular}s`, r: true }] : []),
             { k: 'sold', l: 'Sold', r: true },
             { k: 'closingStock', l: 'Closing', r: true },
             { k: 'stockValue', l: 'Value', r: true },
@@ -1351,7 +1370,7 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
         : tab === 'payments'
           ? [
               { k: 'date', l: 'Date' },
-              { k: 'vendorName', l: ds ? 'Customer' : 'Vendor' },
+              { k: 'vendorName', l: partySingular },
               { k: 'amount', l: 'Amount', r: true },
               { k: 'method', l: 'Method' },
               { k: 'reference', l: 'Ref' },
@@ -1369,7 +1388,7 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
               ]
             : [
                 { k: 'date', l: 'Date' },
-                { k: 'vendorName', l: ds ? 'Customer' : 'Vendor' },
+                { k: 'vendorName', l: partySingular },
                 { k: 'productName', l: 'Product' },
                 { k: 'hsnCode', l: 'HSN' },
                 { k: 'taxableValue', l: 'Taxable', r: true },

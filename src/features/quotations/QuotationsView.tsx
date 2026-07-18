@@ -117,6 +117,7 @@ export function QuotationsView() {
   const sessionUser = session.getUser() as Record<string, unknown> | null;
   const companyName = String(sessionUser?.companyName || '');
   const isService = String(sessionUser?.businessType || '') === 'service';
+  const partyLabel = isService ? 'Client' : 'Vendor';
   const convertLabel = isService ? 'Convert to Invoice' : 'Convert to Distribution';
 
   useEscapeKey(() => {
@@ -621,7 +622,7 @@ export function QuotationsView() {
             )}
             {selected.vendorName && (
               <p className="text-sm text-gray-600 mb-4">
-                Vendor: <strong>{selected.vendorName}</strong>
+                {partyLabel}: <strong>{selected.vendorName}</strong>
               </p>
             )}
             <div className="overflow-x-auto -mx-1 mb-4">
@@ -839,7 +840,7 @@ export function QuotationsView() {
           >
             <div className="space-y-4">
               <FormGrid>
-                <FormField label="Vendor / Customer">
+                <FormField label={isService ? 'Client' : 'Vendor / Customer'}>
                   <select
                     value={form.vendorId}
                     onChange={e => {
@@ -874,7 +875,7 @@ export function QuotationsView() {
                     value={form.customerName}
                     onChange={e => setForm({ ...form, customerName: e.target.value })}
                     className={formControlClass}
-                    placeholder="If not a vendor"
+                    placeholder={isService ? 'If not selecting a client above' : 'If not a vendor'}
                   />
                 </FormField>
                 <FormField label="Phone">

@@ -28,10 +28,9 @@ const MasterFallback = () => (
   </div>
 );
 
-/** Short pill labels for phone hub (Emergent-style). */
+/** Short pill labels for phone hub (Emergent-style). Vendor/Client uses `m.name` from cfg.labels.vendors. */
 const PILL_LABEL: Partial<Record<MasterType, string>> = {
   item: 'Products',
-  vendor: 'Vendors',
   customer: 'Customers',
   bank: 'Banks',
   staff: 'Staff',
@@ -271,7 +270,7 @@ export function MastersView({
   if (selectedMaster === 'vendor')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <VendorMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} />
+        <VendorMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} businessType={cfg.type} />
       </Suspense>
     );
   if (selectedMaster === 'bank')
@@ -312,9 +311,7 @@ export function MastersView({
 
   const fabLabel =
     active === 'vendor'
-      ? cfg.labels.vendors === 'Clients'
-        ? 'Client'
-        : 'Vendor'
+      ? cfg.labels.vendors.replace(/s$/, '')
       : active === 'customer'
         ? 'Customer'
         : active === 'item'

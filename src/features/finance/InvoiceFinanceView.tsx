@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Trash2, FileText, IndianRupee, Clock, Search } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { api } from '../../api';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useToast, LoadingSpinner, isBillFullyPaid, PaidBadge, PaidStamp } from '../../components/ui';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
@@ -14,6 +15,8 @@ const fmt = (n: number) => `₹${Math.abs(n).toLocaleString()}`;
 
 export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' }) {
   const { toast } = useToast();
+  const cfg = useBusinessConfig();
+  const isService = cfg.type === 'service';
   const { confirm, ConfirmRenderer } = useConfirm();
   const [summary, setSummary] = useState<Summary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -505,7 +508,16 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map(c => {
               const paid = isBillFullyPaid(c.totalInvoiced, c.balance);
-              const kind = c.partyType === 'vendor' ? 'Vendor' : c.partyType === 'customer' ? 'Client' : null;
+              const kind =
+                c.partyType === 'vendor'
+                  ? isService
+                    ? 'Client'
+                    : 'Vendor'
+                  : c.partyType === 'customer'
+                    ? isService
+                      ? 'Customer'
+                      : 'Client'
+                    : null;
               return (
                 <button
                   key={c.partyKey}
