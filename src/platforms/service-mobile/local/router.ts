@@ -1792,82 +1792,112 @@ export async function handleLocalApiRequest(
 
     // Analytics overview (phone Analytics tab)
     if (ctx.path === '/analytics/overview' && ctx.method === 'GET') {
-      const from = query.get('from');
-      const to = query.get('to');
-      const rangeParams = from && to ? [tid, from, to] : from ? [tid, from] : [tid];
-      const invFilter = from && to ? 'AND invoice_date BETWEEN $2 AND $3' : from ? 'AND invoice_date >= $2' : '';
-      const expFilter = from && to ? 'AND expense_date BETWEEN $2 AND $3' : from ? 'AND expense_date >= $2' : '';
-      const payFilter = from && to ? 'AND payment_date BETWEEN $2 AND $3' : from ? 'AND payment_date >= $2' : '';
-      const [collectionsR, invoiceRevR, expensesR, outstandingR, activityR, countsR] = await Promise.all([
-        localQuery(
-          `SELECT COALESCE(SUM(amount),0) AS v FROM invoice_payments WHERE tenant_id=$1 ${payFilter}`,
-          rangeParams,
-        ),
-        localQuery(
-          `SELECT COALESCE(SUM(COALESCE(grand_total,total,0)),0) AS v FROM standalone_invoices
-           WHERE tenant_id=$1 AND status!='cancelled' ${invFilter}`,
-          rangeParams,
-        ),
-        localQuery(`SELECT COALESCE(SUM(amount),0) AS v FROM expenses WHERE tenant_id=$1 ${expFilter}`, rangeParams),
-        localQuery(
-          `SELECT COALESCE(SUM(COALESCE(grand_total,total,0)),0) AS v FROM standalone_invoices
-           WHERE tenant_id=$1 AND status NOT IN ('paid','cancelled')`,
-          [tid],
-        ),
-        localQuery(
-          `SELECT type, id, label, amount, date FROM (
-             SELECT 'invoice' AS type, id, COALESCE(customer_name,client_name,'Customer') AS label,
-                    COALESCE(grand_total,total,0) AS amount, invoice_date::text AS date
-             FROM standalone_invoices WHERE tenant_id=$1 AND status!='cancelled'
-             UNION ALL
-             SELECT 'payment', id, invoice_id, amount, payment_date::text
-             FROM invoice_payments WHERE tenant_id=$1
-             UNION ALL
-             SELECT 'expense', id, COALESCE(category,'Expense'), amount, expense_date::text
-             FROM expenses WHERE tenant_id=$1
-           ) t ORDER BY date DESC NULLS LAST LIMIT 15`,
-          [tid],
-        ),
-        localQuery(
-          `SELECT
-             (SELECT COUNT(*)::int FROM customers WHERE tenant_id=$1) AS customers,
-             (SELECT COUNT(*)::int FROM vendors WHERE tenant_id=$1) AS vendors,
-             (SELECT COUNT(*)::int FROM products WHERE tenant_id=$1) AS items,
-             (SELECT COUNT(*)::int FROM banks WHERE tenant_id=$1) AS banks,
-             (SELECT COUNT(*)::int FROM staff_members WHERE tenant_id=$1) AS staff`,
-          [tid],
-        ),
-      ]);
-      const collections = Number((collectionsR.rows[0] as { v: number }).v) || 0;
-      const invoiceRev = Number((invoiceRevR.rows[0] as { v: number }).v) || 0;
-      const expenses = Number((expensesR.rows[0] as { v: number }).v) || 0;
-      const invoiceOutstanding = Number((outstandingR.rows[0] as { v: number }).v) || 0;
-      const c = countsR.rows[0] as Record<string, number>;
-      return json(200, {
+      const emptyOverview = {
         money: {
-          collections,
-          revenue: invoiceRev,
+          collections: 0,
+          revenue: 0,
           distribution: 0,
-          expenses,
+          expenses: 0,
           outstanding: 0,
-          invoiceOutstanding,
+          invoiceOutstanding: 0,
         },
-        recentActivity: activityR.rows.map((r: Record<string, unknown>) => ({
-          type: r.type,
-          id: r.id,
-          label: r.label,
-          amount: Number(r.amount) || 0,
-          date: r.date,
-        })),
-        topVendors: [],
+        recentActivity: [] as {
+          type: string;
+          id: string;
+          label: string;
+          amount: number;
+          date: unknown;
+        }[],
+        topVendors: [] as { vendorId: string; vendorName: string; balance: number }[],
         counts: {
-          customerMaster: Number(c.customers) || 0,
-          vendorMaster: Number(c.vendors) || 0,
-          itemMaster: Number(c.items) || 0,
-          bankMaster: Number(c.banks) || 0,
-          staffCount: Number(c.staff) || 0,
+          customerMaster: 0,
+          vendorMaster: 0,
+          itemMaster: 0,
+          bankMaster: 0,
+          staffCount: 0,
         },
-      });
+      };
+      try {
+        const from = query.get('from');
+        const to = query.get('to');
+        const rangeParams = from && to ? [tid, from, to] : from ? [tid, from] : [tid];
+        const invFilter = from && to ? 'AND invoice_date BETWEEN $2 AND $3' : from ? 'AND invoice_date >= $2' : '';
+        const expFilter = from && to ? 'AND expense_date BETWEEN $2 AND $3' : from ? 'AND expense_date >= $2' : '';
+        const payFilter = from && to ? 'AND payment_date BETWEEN $2 AND $3' : from ? 'AND payment_date >= $2' : '';
+        const [collectionsR, invoiceRevR, expensesR, outstandingR, activityR, countsR] = await Promise.all([
+          localQuery(
+            `SELECT COALESCE(SUM(amount),0) AS v FROM invoice_payments WHERE tenant_id=$1 ${payFilter}`,
+            rangeParams,
+          ),
+          localQuery(
+            `SELECT COALESCE(SUM(COALESCE(grand_total,total,0)),0) AS v FROM standalone_invoices
+             WHERE tenant_id=$1 AND status!='cancelled' ${invFilter}`,
+            rangeParams,
+          ),
+          localQuery(`SELECT COALESCE(SUM(amount),0) AS v FROM expenses WHERE tenant_id=$1 ${expFilter}`, rangeParams),
+          localQuery(
+            `SELECT COALESCE(SUM(COALESCE(grand_total,total,0)),0) AS v FROM standalone_invoices
+             WHERE tenant_id=$1 AND status NOT IN ('paid','cancelled')`,
+            [tid],
+          ),
+          localQuery(
+            `SELECT type, id, label, amount, date FROM (
+               SELECT 'invoice' AS type, id, COALESCE(customer_name,client_name,'Customer') AS label,
+                      COALESCE(grand_total,total,0) AS amount, invoice_date::text AS date
+               FROM standalone_invoices WHERE tenant_id=$1 AND status!='cancelled'
+               UNION ALL
+               SELECT 'payment', id, invoice_id, amount, payment_date::text
+               FROM invoice_payments WHERE tenant_id=$1
+               UNION ALL
+               SELECT 'expense', id, COALESCE(category,'Expense'), amount, expense_date::text
+               FROM expenses WHERE tenant_id=$1
+             ) t ORDER BY date DESC NULLS LAST LIMIT 15`,
+            [tid],
+          ),
+          localQuery(
+            `SELECT
+               (SELECT COUNT(*)::int FROM customers WHERE tenant_id=$1) AS customers,
+               (SELECT COUNT(*)::int FROM vendors WHERE tenant_id=$1) AS vendors,
+               (SELECT COUNT(*)::int FROM products WHERE tenant_id=$1) AS items,
+               (SELECT COUNT(*)::int FROM banks WHERE tenant_id=$1) AS banks,
+               (SELECT COUNT(*)::int FROM staff_members WHERE tenant_id=$1) AS staff`,
+            [tid],
+          ),
+        ]);
+        const collections = Number((collectionsR.rows[0] as { v: number }).v) || 0;
+        const invoiceRev = Number((invoiceRevR.rows[0] as { v: number }).v) || 0;
+        const expenses = Number((expensesR.rows[0] as { v: number }).v) || 0;
+        const invoiceOutstanding = Number((outstandingR.rows[0] as { v: number }).v) || 0;
+        const c = (countsR.rows[0] as Record<string, number>) || {};
+        return json(200, {
+          money: {
+            collections,
+            revenue: invoiceRev,
+            distribution: 0,
+            expenses,
+            outstanding: 0,
+            invoiceOutstanding,
+          },
+          recentActivity: (activityR.rows || []).map((r: Record<string, unknown>) => ({
+            type: r.type,
+            id: r.id,
+            label: r.label,
+            amount: Number(r.amount) || 0,
+            date: r.date,
+          })),
+          topVendors: [],
+          counts: {
+            customerMaster: Number(c.customers) || 0,
+            vendorMaster: Number(c.vendors) || 0,
+            itemMaster: Number(c.items) || 0,
+            bankMaster: Number(c.banks) || 0,
+            staffCount: Number(c.staff) || 0,
+          },
+        });
+      } catch (overviewErr) {
+        console.warn('[service-mobile] /analytics/overview failed; returning empty safe payload', overviewErr);
+        return json(200, emptyOverview);
+      }
     }
 
     // Notifications (local Bell) — same feed shape as cloud
@@ -1954,23 +1984,32 @@ export async function handleLocalApiRequest(
           defaultGstRate: 18,
         };
       }
-      // Schema default is '{}'; empty map must not reach the shell as object RBAC
+      // Schema default is '{}'; empty map/array/string must not reach the shell as RBAC
       // (getAccess would deny every tab → blank Analytics + only More in bottom nav).
-      const rawPerms = row.permissions;
+      let rawPerms: unknown = row.permissions;
+      if (typeof rawPerms === 'string') {
+        try {
+          rawPerms = JSON.parse(rawPerms);
+        } catch {
+          rawPerms = null;
+        }
+      }
       const permissions =
         rawPerms &&
         typeof rawPerms === 'object' &&
         !Array.isArray(rawPerms) &&
         Object.keys(rawPerms as object).length > 0
           ? rawPerms
-          : null;
+          : Array.isArray(rawPerms) && rawPerms.length > 0
+            ? rawPerms
+            : null;
       return {
         id: row.id,
         email: row.email,
         name: row.name,
         phone: row.phone ?? null,
         address: row.address ?? null,
-        role: row.role,
+        role: (row.role as string) || 'Admin',
         companyName: row.company_name || row.tenant_company || null,
         permissions,
         autoWhatsapp: !!row.auto_whatsapp,

@@ -28,10 +28,15 @@ export function resolveTabAccess(
       return 'hidden';
     }
   } else if (Array.isArray(perms)) {
-    if (perms.includes(tabId)) return 'full';
-    if (tabId === 'analytics' && perms.includes('dashboard')) return 'full';
-    if (tabId === 'dashboard' && perms.includes('analytics')) return 'full';
-    return 'hidden';
+    // Empty array is also an unset Offline default — do not deny-all.
+    if (perms.length === 0) {
+      // fall through to role defaults
+    } else {
+      if (perms.includes(tabId)) return 'full';
+      if (tabId === 'analytics' && perms.includes('dashboard')) return 'full';
+      if (tabId === 'dashboard' && perms.includes('analytics')) return 'full';
+      return 'hidden';
+    }
   }
 
   const role = user.role ?? '';

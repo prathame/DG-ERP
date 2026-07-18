@@ -11,6 +11,11 @@ describe('resolveTabAccess', () => {
     expect(resolveTabAccess('settings', user)).toBe('full');
   });
 
+  it('treats empty permissions array as unset', () => {
+    expect(resolveTabAccess('analytics', { role: 'Admin', permissions: [] })).toBe('full');
+    expect(resolveTabAccess('masters', { role: 'Admin', permissions: [] })).toBe('full');
+  });
+
   it('uses role defaults when permissions is null', () => {
     expect(resolveTabAccess('analytics', { role: 'Admin', permissions: null })).toBe('full');
     expect(resolveTabAccess('settings', { role: 'Manager', permissions: null })).toBe('view');

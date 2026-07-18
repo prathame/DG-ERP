@@ -106,16 +106,33 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
     api.dashboard
       .overview(from, to)
       .then(data => {
-        setMoney(data.money);
-        setActivity(data.recentActivity);
-        setVendors(data.topVendors);
-        setCounts(data.counts);
+        // Offline stubs / partial payloads must not leave arrays undefined (crashes .length).
+        setMoney(data?.money ?? null);
+        setActivity(Array.isArray(data?.recentActivity) ? data.recentActivity : []);
+        setVendors(Array.isArray(data?.topVendors) ? data.topVendors : []);
+        setCounts(data?.counts ?? null);
       })
       .catch(() => {});
     const year = new Date().getFullYear();
     api.payroll
       .summary(year)
-      .then(data => setPayroll(data))
+      .then(data => {
+        // Wrong stub shape ({ totalPaid }) used to crash on payroll.byStaff.length → blank screen.
+        if (!data || typeof data !== 'object') {
+          setPayroll(null);
+          return;
+        }
+        setPayroll({
+          grandTotal: Number((data as { grandTotal?: number }).grandTotal) || 0,
+          advanceOutstanding: Number((data as { advanceOutstanding?: number }).advanceOutstanding) || 0,
+          byStaff: Array.isArray((data as { byStaff?: unknown }).byStaff)
+            ? (data as { byStaff: { name: string; total: number; payments: number }[] }).byStaff
+            : [],
+          byMonth: Array.isArray((data as { byMonth?: unknown }).byMonth)
+            ? (data as { byMonth: { month: string; total: number }[] }).byMonth
+            : [],
+        });
+      })
       .catch(() => {});
   }, [range, fromDate, toDate]);
 
@@ -396,7 +413,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
             </div>
             <div className="bg-gray-50 rounded-lg sm:rounded-xl p-2.5 sm:p-3">
               <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Staff</p>
-              <p className="text-sm sm:text-lg font-bold tabular-nums">{payroll.byStaff.length}</p>
+              <p className="text-sm sm:text-lg font-bold tabular-nums">{payroll.byStaff?.length ?? 0}</p>
             </div>
             <div className="bg-amber-50 rounded-lg sm:rounded-xl p-2.5 sm:p-3">
               <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Advances</p>
@@ -405,7 +422,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
               </p>
             </div>
           </div>
-          {payroll.byStaff.length > 0 && (
+          {(payroll.byStaff?.length ?? 0) > 0 && (
             <div className="space-y-1.5 sm:space-y-2">
               <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase">Top Staff by Payment</p>
               {payroll.byStaff.slice(0, 5).map(s => (
