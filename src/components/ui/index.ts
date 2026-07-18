@@ -11,3 +11,12 @@ export { ModalActions, ModalActionButton } from './ModalActions';
 export { FormSection, FormGrid, FormField, formControlClass } from './FormSection';
 export { MobileStepper } from './MobileStepper';
 export { LineItemCard, type LineItemCardField } from './LineItemCard';
+export {
+  MobilePillTabs,
+  MobileKpiCard,
+  MobileSectionTitle,
+  MobileEmptyState,
+  MobileFab,
+  MobileListRow,
+  MobileQuickActions,
+} from './MobileShell';

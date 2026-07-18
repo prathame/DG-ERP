@@ -26,6 +26,10 @@ import {
   MobileStepper,
   LineItemCard,
   type LineItemCardField,
+  MobilePillTabs,
+  MobileKpiCard,
+  MobileFab,
+  MobileEmptyState,
 } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
@@ -196,6 +200,7 @@ export function InvoicesView() {
   const [pdfStyle, setPdfStyle] = useState<'modern' | 'classic' | 'minimal'>(
     () => (localStorage.getItem('dg_inv_style') as 'modern' | 'classic' | 'minimal') || 'modern',
   );
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'sent' | 'paid' | 'cancelled'>('all');
 
   const printInvoice = async (inv: Invoice) => {
     // Open sync with the click — await before window.open gets blocked (Electron / pop-up blockers).
@@ -389,19 +394,28 @@ export function InvoicesView() {
       </div>
     );
 
+  const outstanding = invoices
+    .filter(i => i.status !== 'paid' && i.status !== 'cancelled')
+    .reduce((s, i) => s + (i.grandTotal || 0), 0);
+  const paidTotal = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.grandTotal || 0), 0);
+  const filteredInvoices = statusFilter === 'all' ? invoices : invoices.filter(i => i.status === statusFilter);
+
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-3 sm:space-y-6 pb-14 sm:pb-0"
+    >
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <h2 className="text-lg sm:text-xl font-bold flex items-center gap-1.5">
-            <FileText size={18} className="shrink-0 sm:hidden" />
-            <FileText size={22} className="shrink-0 hidden sm:block" /> {invoicesLabel}
+        <div className="min-w-0 hidden sm:block">
+          <h2 className="text-xl font-bold flex items-center gap-1.5">
+            <FileText size={22} className="shrink-0" /> {invoicesLabel}
           </h2>
-          <p className="text-xs sm:text-sm text-gray-500">
+          <p className="text-sm text-gray-500">
             {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
           <select
             value={pdfStyle}
             onChange={e => {
@@ -409,7 +423,7 @@ export function InvoicesView() {
               setPdfStyle(v);
               localStorage.setItem('dg_inv_style', v);
             }}
-            className="px-2 sm:px-3 py-2 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm bg-white focus:ring-2 focus:ring-brand"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-200 rounded-lg sm:rounded-xl text-[11px] sm:text-sm bg-white focus:ring-2 focus:ring-brand"
           >
             <option value="modern">Modern</option>
             <option value="classic">Classic (Tally)</option>
@@ -418,91 +432,126 @@ export function InvoicesView() {
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 bg-brand text-white rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-brand/20"
+            className="hidden sm:flex items-center gap-1.5 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
           >
-            <Plus size={16} /> <span className="sm:hidden">New</span>
-            <span className="hidden sm:inline">New Invoice</span>
+            <Plus size={16} /> New Invoice
           </button>
         </div>
       </div>
 
+      {/* Phone summary + filters */}
+      <div className="sm:hidden space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <MobileKpiCard label="Outstanding" value={`₹${outstanding.toLocaleString()}`} accent="rose" />
+          <MobileKpiCard label="Collected" value={`₹${paidTotal.toLocaleString()}`} accent="green" />
+        </div>
+        <MobilePillTabs
+          items={[
+            { id: 'all', label: 'All' },
+            { id: 'draft', label: 'Draft' },
+            { id: 'sent', label: 'Sent' },
+            { id: 'paid', label: 'Paid' },
+          ]}
+          value={statusFilter}
+          onChange={id => setStatusFilter(id as typeof statusFilter)}
+        />
+      </div>
+
       {/* Invoice list */}
       {invoices.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-          <FileText size={48} className="mx-auto mb-3 text-gray-300" />
-          <p className="text-gray-500 font-medium text-lg">No invoices yet</p>
-          <p className="text-gray-400 text-sm mt-1">
-            Create your first standalone invoice for services or custom billing
-          </p>
-        </div>
+        <>
+          <div className="sm:hidden">
+            <MobileEmptyState
+              icon={<FileText />}
+              title="No invoices yet"
+              subtitle="Create your first invoice for services or custom billing"
+              actionLabel="New Invoice"
+              onAction={() => setCreateOpen(true)}
+            />
+          </div>
+          <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+            <FileText size={48} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-gray-500 font-medium text-lg">No invoices yet</p>
+            <p className="text-gray-400 text-sm mt-1">
+              Create your first standalone invoice for services or custom billing
+            </p>
+          </div>
+        </>
       ) : (
         <>
-          {/* Mobile cards — summary is a button; actions are siblings (no nested interactive) */}
-          <div className="sm:hidden space-y-3">
-            {invoices.map(inv => (
-              <div key={inv.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setSelectedInvoice(inv)}
-                  className="w-full text-left p-4 space-y-2 hover:bg-gray-50/80 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-mono font-semibold text-sm text-gray-900 truncate">{inv.invoiceNumber}</p>
-                      <p className="font-medium text-gray-800 truncate">{inv.customerName}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{formatDate(inv.invoiceDate)}</p>
+          {filteredInvoices.length === 0 ? (
+            <div className="sm:hidden py-8 text-center text-[12px] text-gray-400 font-medium">No matching invoices</div>
+          ) : (
+            <div className="sm:hidden space-y-2">
+              {filteredInvoices.map(inv => (
+                <div key={inv.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedInvoice(inv)}
+                    className="w-full text-left px-2.5 py-2 active:bg-gray-50"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono font-semibold text-[12px] text-gray-900 truncate">
+                          {inv.invoiceNumber}
+                        </p>
+                        <p className="text-[13px] font-bold text-gray-800 truncate">{inv.customerName}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(inv.invoiceDate)}</p>
+                      </div>
+                      <div className="text-right shrink-0 space-y-0.5">
+                        <p className="text-[13px] font-bold text-gray-900 tabular-nums">
+                          ₹{inv.grandTotal.toLocaleString()}
+                        </p>
+                        {statusBadge(inv.status)}
+                      </div>
                     </div>
-                    <div className="text-right shrink-0 space-y-1">
-                      <p className="font-bold text-gray-900">₹{inv.grandTotal.toLocaleString()}</p>
-                      {statusBadge(inv.status)}
-                    </div>
+                  </button>
+                  <div className="flex items-center justify-end gap-0.5 border-t border-gray-50 px-1.5 py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => printInvoice(inv)}
+                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
+                      title="Print/PDF"
+                      aria-label="Print invoice"
+                    >
+                      <Printer size={14} />
+                    </button>
+                    {inv.status === 'draft' && (
+                      <button
+                        type="button"
+                        onClick={() => handleStatus(inv, 'sent')}
+                        className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Mark Sent"
+                        aria-label="Mark sent"
+                      >
+                        <Send size={14} />
+                      </button>
+                    )}
+                    {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                      <button
+                        type="button"
+                        onClick={() => handleStatus(inv, 'paid')}
+                        className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                        title="Mark Paid"
+                        aria-label="Mark paid"
+                      >
+                        <Check size={14} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(inv)}
+                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg"
+                      title="Delete"
+                      aria-label="Delete invoice"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
-                </button>
-                <div className="flex items-center justify-end gap-1 border-t border-gray-50 px-3 pb-2">
-                  <button
-                    type="button"
-                    onClick={() => printInvoice(inv)}
-                    className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
-                    title="Print/PDF"
-                    aria-label="Print invoice"
-                  >
-                    <Printer size={15} />
-                  </button>
-                  {inv.status === 'draft' && (
-                    <button
-                      type="button"
-                      onClick={() => handleStatus(inv, 'sent')}
-                      className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-lg"
-                      title="Mark Sent"
-                      aria-label="Mark sent"
-                    >
-                      <Send size={15} />
-                    </button>
-                  )}
-                  {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                    <button
-                      type="button"
-                      onClick={() => handleStatus(inv, 'paid')}
-                      className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                      title="Mark Paid"
-                      aria-label="Mark paid"
-                    >
-                      <Check size={15} />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(inv)}
-                    className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg"
-                    title="Delete"
-                    aria-label="Delete invoice"
-                  >
-                    <Trash2 size={15} />
-                  </button>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Desktop / tablet table */}
           <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
@@ -579,6 +628,8 @@ export function InvoicesView() {
           </div>
         </>
       )}
+
+      {invoices.length > 0 && <MobileFab label="Invoice" onClick={() => setCreateOpen(true)} />}
 
       {/* Create modal */}
       <AnimatePresence>

@@ -267,7 +267,7 @@ export default function App() {
     setTabKey(k => k + 1);
     window.history.pushState({ tab }, '', window.location.pathname);
   };
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     try {
@@ -696,10 +696,20 @@ export default function App() {
     );
   }
 
+  /** Phone shell IA (Emergent-style): Analytics · Masters · Invoice · Quotes · More */
   const mobileNavIds =
     user?.role === 'Vendor'
-      ? ['analytics', 'distribution', 'finance', 'inventory', 'settings']
-      : ['analytics', 'masters', 'inventory', 'finance', 'quotations'];
+      ? ['analytics', 'distribution', 'finance', 'inventory']
+      : ['analytics', 'masters', 'invoices', 'quotations'];
+  const mobileNavLabel: Record<string, string> = {
+    analytics: 'Analytics',
+    masters: 'Masters',
+    invoices: 'Invoice',
+    quotations: 'Quotes',
+    distribution: 'Dispatch',
+    finance: 'Finance',
+    inventory: 'Stock',
+  };
   const mobileNavItems = mobileNavIds
     .map(id => visibleNavItems.find(n => n.id === id))
     .filter((n): n is NonNullable<typeof n> => !!n)
@@ -728,10 +738,17 @@ export default function App() {
             )}
           >
             {/* Sticky brand / profile */}
-            <div className="shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 border-b border-gray-100 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-2.5 lg:h-16 lg:pt-0 lg:pb-0">
+            <div className="shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 border-b border-gray-100 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-2 lg:h-16 lg:pt-0 lg:pb-0">
               {isSidebarOpen && (
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <img src="/icons/logo-full.png" alt="Dhando" className="h-7 lg:h-8 w-auto object-contain shrink-0" />
+                  <div className="lg:hidden w-9 h-9 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white text-xs font-bold shrink-0">
+                    {user?.name?.charAt(0) ?? '?'}
+                  </div>
+                  <img
+                    src="/icons/logo-full.png"
+                    alt="Dhando"
+                    className="hidden lg:block h-8 w-auto object-contain shrink-0"
+                  />
                   <div className="min-w-0">
                     <p className="font-semibold text-gray-900 text-xs lg:text-sm truncate leading-tight">
                       {user?.companyName}
@@ -751,6 +768,45 @@ export default function App() {
                 {isSidebarOpen ? <X size={18} /> : <Menu size={18} />}
               </button>
             </div>
+
+            {/* Phone: more destinations not on bottom bar */}
+            {isSidebarOpen && (
+              <div className="lg:hidden shrink-0 px-3 pt-2.5 pb-1 border-b border-gray-50">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-0.5 mb-1.5">More</p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      { id: 'inventory', label: 'Stock', icon: Package },
+                      { id: 'finance', label: 'Finance', icon: IndianRupee },
+                      { id: 'accounts', label: 'Accounts', icon: BarChart3 },
+                      { id: 'purchases', label: 'Purchases', icon: ShoppingBag },
+                      { id: 'sales', label: 'Sales', icon: ShoppingCart },
+                      { id: 'settings', label: 'Settings', icon: Settings },
+                    ] as const
+                  )
+                    .filter(x => x.id === 'settings' || (canAccess(x.id) && tv(x.id)))
+                    .map(item => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(item.id as Tab);
+                          setIsSidebarOpen(false);
+                        }}
+                        className={cn(
+                          'flex flex-col items-center gap-1 rounded-xl border px-1 py-2 min-h-[56px]',
+                          activeTab === item.id
+                            ? 'border-brand/30 bg-brand/5 text-brand'
+                            : 'border-gray-100 bg-gray-50 text-gray-600',
+                        )}
+                      >
+                        <item.icon size={16} />
+                        <span className="text-[9px] font-bold leading-tight">{item.label}</span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
 
             {/* Scrollable menu */}
             <nav className="flex-1 min-h-0 px-2.5 lg:px-3 py-2 lg:py-3 overflow-y-auto overscroll-contain">
@@ -1083,25 +1139,25 @@ export default function App() {
                     type="button"
                     onClick={() => setActiveTab(item.id as Tab)}
                     className={cn(
-                      'flex flex-1 flex-col items-center justify-center gap-0 py-1.5 px-0.5 rounded-lg min-h-[44px] transition-colors',
+                      'flex flex-1 flex-col items-center justify-center gap-0 py-1 px-0.5 rounded-lg min-h-[42px] transition-colors',
                       active ? 'text-brand' : 'text-gray-400',
                     )}
                   >
                     <span
                       className={cn(
-                        'flex items-center justify-center w-9 h-7 rounded-lg transition-colors',
+                        'flex items-center justify-center w-8 h-6 rounded-md transition-colors',
                         active && 'bg-brand/10',
                       )}
                     >
-                      <item.icon size={18} strokeWidth={active ? 2.5 : 2} />
+                      <item.icon size={17} strokeWidth={active ? 2.5 : 2} />
                     </span>
                     <span
                       className={cn(
-                        'text-[10px] leading-tight max-w-[4.25rem] truncate',
+                        'text-[9px] leading-tight max-w-[4.5rem] truncate',
                         active ? 'font-bold' : 'font-medium',
                       )}
                     >
-                      {item.label.split(' ')[0]}
+                      {mobileNavLabel[item.id] || item.label.split(' ')[0]}
                     </span>
                   </button>
                 );
@@ -1110,21 +1166,21 @@ export default function App() {
                 type="button"
                 onClick={() => setIsSidebarOpen(true)}
                 className={cn(
-                  'flex flex-1 flex-col items-center justify-center gap-0 py-1.5 px-0.5 rounded-lg min-h-[44px] transition-colors',
+                  'flex flex-1 flex-col items-center justify-center gap-0 py-1 px-0.5 rounded-lg min-h-[42px] transition-colors',
                   mobileMoreActive || isSidebarOpen ? 'text-brand' : 'text-gray-400',
                 )}
               >
                 <span
                   className={cn(
-                    'flex items-center justify-center w-9 h-7 rounded-lg transition-colors',
+                    'flex items-center justify-center w-8 h-6 rounded-md transition-colors',
                     (mobileMoreActive || isSidebarOpen) && 'bg-brand/10',
                   )}
                 >
-                  <Menu size={18} />
+                  <Menu size={17} />
                 </span>
                 <span
                   className={cn(
-                    'text-[10px] leading-tight font-medium',
+                    'text-[9px] leading-tight font-medium',
                     (mobileMoreActive || isSidebarOpen) && 'font-bold',
                   )}
                 >

@@ -1,11 +1,11 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet } from 'lucide-react';
+import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet, ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import type { Tab } from '../../types';
-import { LoadingSpinner } from '../../components/ui';
+import { LoadingSpinner, MobilePillTabs } from '../../components/ui';
 
 const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
 const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
@@ -142,6 +142,27 @@ export function MastersView({
     },
   ];
   const masters = isVendor ? allMasters.filter(m => m.id === 'customer') : allMasters;
+  const [filter, setFilter] = useState<'all' | 'parties' | 'catalog' | 'finance'>('all');
+
+  const filterItems = [
+    { id: 'all', label: 'All' },
+    { id: 'parties', label: 'Parties' },
+    { id: 'catalog', label: 'Catalog' },
+    { id: 'finance', label: 'Finance' },
+  ];
+
+  const filteredMasters = useMemo(() => {
+    if (filter === 'all') return masters;
+    const parties = new Set(['customer', 'vendor', 'mapping', 'staff']);
+    const catalog = new Set(['item', 'priceList', 'rewardRules']);
+    const finance = new Set(['bank']);
+    return masters.filter(m => {
+      if (filter === 'parties') return parties.has(m.id);
+      if (filter === 'catalog') return catalog.has(m.id);
+      if (filter === 'finance') return finance.has(m.id);
+      return true;
+    });
+  }, [masters, filter]);
 
   const handleMasterClick = (id: MasterType) => {
     if (id === 'item') {
@@ -195,41 +216,62 @@ export function MastersView({
     );
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6"
-    >
-      {masters.map(m => (
-        <button
-          key={m.id}
-          type="button"
-          onClick={() => handleMasterClick(m.id)}
-          className="w-full text-left bg-white p-3.5 sm:p-6 rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-              <div
-                className={cn(
-                  'p-2.5 sm:p-4 rounded-xl sm:rounded-2xl transition-transform group-hover:scale-110 shrink-0',
-                  m.bg,
-                )}
-              >
-                <m.icon className={m.color} size={22} />
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 sm:space-y-4">
+      <div className="sm:hidden">
+        <MobilePillTabs items={filterItems} value={filter} onChange={id => setFilter(id as typeof filter)} />
+      </div>
+
+      {/* Phone: dense list rows */}
+      <div className="sm:hidden space-y-1.5">
+        {filteredMasters.map(m => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => handleMasterClick(m.id)}
+            className="w-full flex items-center gap-2.5 rounded-xl border border-gray-100 bg-white px-2.5 py-2 text-left active:bg-gray-50"
+          >
+            <div className={cn('shrink-0 w-9 h-9 rounded-lg flex items-center justify-center', m.bg)}>
+              <m.icon className={m.color} size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-bold text-gray-900 truncate">{m.name}</p>
+              <p className="text-[11px] text-gray-500 truncate">
+                {typeof m.count === 'number' ? `${m.count} records` : 'Manage'}
+              </p>
+            </div>
+            <ChevronRight size={16} className="text-gray-300 shrink-0" />
+          </button>
+        ))}
+      </div>
+
+      {/* Desktop / tablet cards */}
+      <div className="hidden sm:grid grid-cols-1 md:grid-cols-2 gap-6">
+        {masters.map(m => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => handleMasterClick(m.id)}
+            className="w-full text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className={cn('p-4 rounded-2xl transition-transform group-hover:scale-110 shrink-0', m.bg)}>
+                  <m.icon className={m.color} size={22} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-lg truncate">{m.name}</h3>
+                  <p className="text-sm text-gray-500 truncate">
+                    {typeof m.count === 'number' ? `${m.count} records found` : 'View & manage mapping'}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h3 className="font-bold text-base sm:text-lg truncate">{m.name}</h3>
-                <p className="text-xs sm:text-sm text-gray-500 truncate">
-                  {typeof m.count === 'number' ? `${m.count} records found` : 'View & manage mapping'}
-                </p>
+              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-brand group-hover:text-white transition-colors shrink-0">
+                <Plus size={18} />
               </div>
             </div>
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-brand group-hover:text-white transition-colors shrink-0">
-              <Plus size={18} />
-            </div>
-          </div>
-        </button>
-      ))}
+          </button>
+        ))}
+      </div>
     </motion.div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   FileText,
@@ -36,6 +36,10 @@ import {
   formControlClass,
   LineItemCard,
   type LineItemCardField,
+  MobilePillTabs,
+  MobileFab,
+  MobileEmptyState,
+  MobileListRow,
 } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
@@ -668,9 +672,14 @@ export function QuotationsView() {
     );
   }
 
+  const openCreate = () => {
+    resetForm();
+    setModalOpen(true);
+  };
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3 sm:space-y-6 pb-14 sm:pb-0">
+      <div className="hidden sm:flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
             <FileText size={22} /> Quotations
@@ -679,17 +688,27 @@ export function QuotationsView() {
         </div>
         <button
           type="button"
-          onClick={() => {
-            resetForm();
-            setModalOpen(true);
-          }}
+          onClick={openCreate}
           className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
         >
           <Plus size={16} /> New Quotation
         </button>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
+      {/* Phone pills */}
+      <div className="sm:hidden">
+        <MobilePillTabs
+          items={(['all', 'Draft', 'Sent', 'Accepted', 'Converted'] as const).map(s => ({
+            id: s,
+            label: s === 'all' ? 'All' : s,
+          }))}
+          value={statusFilter}
+          onChange={id => setStatusFilter(id as typeof statusFilter)}
+        />
+      </div>
+
+      {/* Desktop filters */}
+      <div className="hidden sm:flex gap-2 flex-wrap">
         {(['all', 'Draft', 'Sent', 'Accepted', 'Converted'] as const).map(s => (
           <button
             key={s}
@@ -706,41 +725,78 @@ export function QuotationsView() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
-          <FileText size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="font-medium">{quotations.length === 0 ? 'No quotations yet' : 'No matching quotations'}</p>
-        </div>
+        <>
+          <div className="sm:hidden">
+            <MobileEmptyState
+              icon={<FileText />}
+              title={quotations.length === 0 ? 'No quotations yet' : 'No matching quotations'}
+              subtitle={quotations.length === 0 ? 'Create a quote, share it, and convert when accepted' : undefined}
+              actionLabel={quotations.length === 0 ? 'New Quote' : undefined}
+              onAction={quotations.length === 0 ? openCreate : undefined}
+            />
+          </div>
+          <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
+            <FileText size={48} className="mx-auto mb-3 opacity-30" />
+            <p className="font-medium">{quotations.length === 0 ? 'No quotations yet' : 'No matching quotations'}</p>
+          </div>
+        </>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-100">
-          {filtered.map(q => (
-            <button
-              key={q.id}
-              type="button"
-              onClick={() => {
-                setSelectedId(q.id);
-                fetchApi<Quotation>(`/quotations/${q.id}`)
-                  .then(setSelected)
-                  .catch(err => toast(err.message, 'error'));
-              }}
-              className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-bold">{q.quotationNumber}</p>
-                  <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold', statusColors[q.status])}>
-                    {q.status}
-                  </span>
+        <>
+          {/* Phone dense rows */}
+          <div className="sm:hidden space-y-1.5">
+            {filtered.map(q => (
+              <Fragment key={q.id}>
+                <MobileListRow
+                  icon={<FileText />}
+                  title={q.quotationNumber}
+                  subtitle={`${q.customerName || q.vendorName || 'No customer'} · ${formatDate(q.quotationDate)}`}
+                  trailing={`₹${q.total.toLocaleString()}`}
+                  meta={q.status}
+                  onClick={() => {
+                    setSelectedId(q.id);
+                    fetchApi<Quotation>(`/quotations/${q.id}`)
+                      .then(setSelected)
+                      .catch(err => toast(err.message, 'error'));
+                  }}
+                />
+              </Fragment>
+            ))}
+          </div>
+
+          {/* Desktop list */}
+          <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-100">
+            {filtered.map(q => (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => {
+                  setSelectedId(q.id);
+                  fetchApi<Quotation>(`/quotations/${q.id}`)
+                    .then(setSelected)
+                    .catch(err => toast(err.message, 'error'));
+                }}
+                className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-bold">{q.quotationNumber}</p>
+                    <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold', statusColors[q.status])}>
+                      {q.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {q.customerName || q.vendorName || 'No customer'} • {formatDate(q.quotationDate)} • {q.items.length}{' '}
+                    item{q.items.length !== 1 ? 's' : ''}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {q.customerName || q.vendorName || 'No customer'} • {formatDate(q.quotationDate)} • {q.items.length}{' '}
-                  item{q.items.length !== 1 ? 's' : ''}
-                </p>
-              </div>
-              <span className="text-sm font-bold text-brand shrink-0">₹{q.total.toLocaleString()}</span>
-            </button>
-          ))}
-        </div>
+                <span className="text-sm font-bold text-brand shrink-0">₹{q.total.toLocaleString()}</span>
+              </button>
+            ))}
+          </div>
+        </>
       )}
+
+      {quotations.length > 0 && <MobileFab label="Quote" onClick={openCreate} />}
 
       {/* Create Quotation Modal */}
       <AnimatePresence>
