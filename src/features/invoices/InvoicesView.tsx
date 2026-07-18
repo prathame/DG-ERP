@@ -1027,6 +1027,7 @@ export function CreateInvoiceModal({
         method: 'POST',
         body: JSON.stringify({
           ...form,
+          dueDate: form.dueDate?.trim() || null,
           invoiceNumber,
           items: validRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId }) => ({
             description,
@@ -1363,15 +1364,16 @@ export function CreateInvoiceModal({
                   placeholder="Optional"
                 />
               </FormField>
-              <FormField label="Invoice Date">
+              <FormField label="Invoice Date" required>
                 <input
                   type="date"
                   value={form.invoiceDate}
                   onChange={e => setForm({ ...form, invoiceDate: e.target.value })}
                   className={formControlClass}
+                  required
                 />
               </FormField>
-              <FormField label="Due Date">
+              <FormField label="Due Date" hint="Optional — leave blank if not needed">
                 <input
                   type="date"
                   value={form.dueDate}
