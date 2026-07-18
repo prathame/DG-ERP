@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion } from 'motion/react';
-import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet, ChevronRight } from 'lucide-react';
+import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
@@ -196,7 +196,7 @@ export function MastersView({
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 sm:space-y-4">
-      {/* Phone: masters as horizontal pills (Clients, Products, Banks…) */}
+      {/* Phone: masters as horizontal pills only */}
       <div className="sm:hidden">
         <MobilePillTabs
           items={masters.map(m => ({
@@ -207,29 +207,6 @@ export function MastersView({
           value=""
           onChange={id => handleMasterClick(id as MasterType)}
         />
-      </div>
-
-      {/* Phone: dense list under the pills */}
-      <div className="sm:hidden space-y-1.5">
-        {masters.map(m => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => handleMasterClick(m.id)}
-            className="w-full flex items-center gap-2.5 rounded-xl border border-gray-100 bg-white px-2.5 py-2 text-left active:bg-gray-50"
-          >
-            <div className={cn('shrink-0 w-9 h-9 rounded-lg flex items-center justify-center', m.bg)}>
-              <m.icon className={m.color} size={18} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-bold text-gray-900 truncate">{m.name}</p>
-              <p className="text-[11px] text-gray-500 truncate">
-                {typeof m.count === 'number' ? `${m.count} records` : 'Manage'}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-gray-300 shrink-0" />
-          </button>
-        ))}
       </div>
 
       {/* Desktop / tablet cards */}
