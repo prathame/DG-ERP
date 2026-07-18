@@ -28,7 +28,7 @@ import {
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
-import { useToast, LoadingSpinner } from '../../components/ui';
+import { useToast, LoadingSpinner, MobilePillTabs, dateControlClass } from '../../components/ui';
 import { fetchApi } from '../../api';
 import { esc } from '../../lib/billTemplates';
 
@@ -186,59 +186,84 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
   ];
   const TABS = ALL_TABS.filter(t => !t.hide);
 
+  const accountTabs = TABS.filter(t => t.group === 'accounts');
+  const reportTabs = TABS.filter(t => t.group === 'reports');
+  const showDateRange = tab !== 'balance' && tab !== 'outstanding' && tab !== 'stock' && tab !== 'gst';
+  const selectTab = (key: string) => {
+    setTab(key as AccountTab);
+    setData(null);
+  };
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3 sm:space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-4">
+        <div className="hidden sm:block">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <BarChart3 size={22} /> {useTabLabel('accounts', 'Accounts & Reports')}
           </h2>
           <p className="text-sm text-gray-500">Financial statements, GST reports, registers — all in one place</p>
         </div>
         {data && (
-          <div className="flex gap-2">
-            {data && ((data as Record<string, unknown>).entries || (data as Record<string, unknown>).rows) && (
+          <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
+            {((data as Record<string, unknown>).entries || (data as Record<string, unknown>).rows) && (
               <button
                 type="button"
                 onClick={() => {
                   const rows = (data as Record<string, unknown>).entries || (data as Record<string, unknown>).rows;
                   if (Array.isArray(rows)) exportToCsv(rows as Record<string, unknown>[], tab);
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"
+                className="flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 text-white rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold"
               >
-                <Download size={16} /> CSV
+                <Download size={14} /> CSV
               </button>
             )}
             <button
               type="button"
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200"
+              className="flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold hover:bg-gray-200"
             >
-              <Printer size={16} /> Print
+              <Printer size={14} /> Print
             </button>
           </div>
         )}
       </div>
 
-      <div className="space-y-3">
+      {/* Phone: scrollable pill groups */}
+      <div className="sm:hidden space-y-2.5">
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1 px-0.5">Accounts</p>
+          <MobilePillTabs
+            items={accountTabs.map(t => ({ id: t.key, label: t.shortLabel, icon: <t.icon /> }))}
+            value={tab}
+            onChange={selectTab}
+          />
+        </div>
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1 px-0.5">Reports</p>
+          <MobilePillTabs
+            items={reportTabs.map(t => ({ id: t.key, label: t.shortLabel, icon: <t.icon /> }))}
+            value={tab}
+            onChange={selectTab}
+          />
+        </div>
+      </div>
+
+      {/* Desktop tab chips */}
+      <div className="hidden sm:block space-y-3">
         <div>
           <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Accounts</p>
           <div className="flex gap-1.5 flex-wrap">
-            {TABS.filter(t => t.group === 'accounts').map(t => (
+            {accountTabs.map(t => (
               <button
                 key={t.key}
                 type="button"
-                onClick={() => {
-                  setTab(t.key);
-                  setData(null);
-                }}
+                onClick={() => selectTab(t.key)}
                 className={cn(
                   'flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
                   tab === t.key ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
                 )}
               >
-                <t.icon size={14} /> <span className="hidden sm:inline">{t.label}</span>
-                <span className="sm:hidden">{t.shortLabel}</span>
+                <t.icon size={14} /> {t.label}
               </button>
             ))}
           </div>
@@ -246,59 +271,53 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
         <div>
           <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Reports</p>
           <div className="flex gap-1.5 flex-wrap">
-            {TABS.filter(t => t.group === 'reports').map(t => (
+            {reportTabs.map(t => (
               <button
                 key={t.key}
                 type="button"
-                onClick={() => {
-                  setTab(t.key);
-                  setData(null);
-                }}
+                onClick={() => selectTab(t.key)}
                 className={cn(
                   'flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
                   tab === t.key ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
                 )}
               >
-                <t.icon size={14} /> <span className="hidden sm:inline">{t.label}</span>
-                <span className="sm:hidden">{t.shortLabel}</span>
+                <t.icon size={14} /> {t.label}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-        <div className="flex items-end gap-3 flex-wrap">
-          {tab !== 'balance' && tab !== 'outstanding' && tab !== 'stock' && tab !== 'gst' && (
+      {/* Filters / date bar */}
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-4">
+        <div
+          className={cn(
+            'grid gap-2 sm:flex sm:items-end sm:gap-3 sm:flex-wrap',
+            showDateRange || tab === 'gst' || tab === 'ledger' ? 'grid-cols-2' : 'grid-cols-1',
+          )}
+        >
+          {showDateRange && (
             <>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">From</label>
-                <input
-                  type="date"
-                  value={from}
-                  onChange={e => setFrom(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                />
+              <div className="min-w-0">
+                <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                  From
+                </label>
+                <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={dateControlClass} />
               </div>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">To</label>
-                <input
-                  type="date"
-                  value={to}
-                  onChange={e => setTo(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                />
+              <div className="min-w-0">
+                <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                  To
+                </label>
+                <input type="date" value={to} onChange={e => setTo(e.target.value)} className={dateControlClass} />
               </div>
             </>
           )}
           {tab === 'ledger' && (
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Type</label>
-              <select
-                value={ledgerFilter}
-                onChange={e => setLedgerFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-              >
+            <div className="col-span-2 sm:col-span-1 min-w-0 sm:min-w-[10rem]">
+              <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                Type
+              </label>
+              <select value={ledgerFilter} onChange={e => setLedgerFilter(e.target.value)} className={dateControlClass}>
                 <option value="all">All</option>
                 <option value="sales">Sales/Distribution</option>
                 <option value="purchases">Purchases</option>
@@ -308,12 +327,14 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
           )}
           {tab === 'gst' && (
             <>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Month</label>
+              <div className="min-w-0">
+                <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                  Month
+                </label>
                 <select
                   value={gstMonth}
                   onChange={e => setGstMonth(parseInt(e.target.value))}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  className={dateControlClass}
                 >
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
                     <option key={m} value={m}>
@@ -322,13 +343,15 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Year</label>
+              <div className="min-w-0">
+                <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                  Year
+                </label>
                 <input
                   type="number"
                   value={gstYear}
                   onChange={e => setGstYear(parseInt(e.target.value))}
-                  className="w-24 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  className={dateControlClass}
                 />
               </div>
             </>
@@ -337,9 +360,9 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
             type="button"
             onClick={loadData}
             disabled={loading}
-            className="flex items-center gap-1.5 px-5 py-2 bg-brand text-white rounded-lg text-sm font-bold disabled:opacity-60"
+            className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-10 px-4 sm:px-5 bg-brand text-white rounded-lg text-[13px] sm:text-sm font-bold disabled:opacity-60"
           >
-            <Search size={16} /> {loading ? 'Loading...' : 'Generate'}
+            <Search size={15} /> {loading ? 'Loading...' : 'Generate'}
           </button>
           {tab === 'gst' && (
             <button
@@ -358,16 +381,16 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
                   alert((e as Error).message);
                 }
               }}
-              className="flex items-center gap-1.5 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700"
+              className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-10 px-4 sm:px-5 bg-emerald-600 text-white rounded-lg text-[13px] sm:text-sm font-bold hover:bg-emerald-700"
             >
-              <Download size={16} /> GSTR-1 JSON
+              <Download size={15} /> GSTR-1 JSON
             </button>
           )}
         </div>
       </div>
 
       {loading && (
-        <div className="py-20 text-center">
+        <div className="py-16 sm:py-20 text-center">
           <LoadingSpinner />
         </div>
       )}
@@ -390,9 +413,9 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
       {tab === 'gstr3b' && !loading && data && <Gstr3bView data={data as Record<string, unknown>} />}
 
       {!loading && !data && tab !== 'gstr2b' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
-          <BarChart3 size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="font-medium">Select a statement and click Generate</p>
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-8 sm:p-12 text-center text-gray-400">
+          <BarChart3 size={40} className="mx-auto mb-2.5 opacity-30 sm:mb-3 sm:size-12" />
+          <p className="font-medium text-sm sm:text-base">Select a statement and click Generate</p>
         </div>
       )}
     </motion.div>

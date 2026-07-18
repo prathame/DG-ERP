@@ -1,20 +1,74 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
 
-export function DateRangeFilter({ value, onChange }: { value: { range: string; from: string; to: string }; onChange: (v: { range: string; from: string; to: string }) => void }) {
+/** Shared dense date input — full-width friendly on phone. */
+export const dateControlClass =
+  'w-full min-h-10 h-10 px-2.5 border border-gray-200 rounded-lg text-[13px] sm:text-sm bg-white focus:ring-2 focus:ring-brand focus:outline-none';
+
+const PRESETS = [
+  { id: 'all', label: 'All' },
+  { id: 'today', label: 'Today' },
+  { id: 'week', label: 'Week' },
+  { id: 'month', label: 'Month' },
+  { id: 'custom', label: 'Custom' },
+] as const;
+
+export function DateRangeFilter({
+  value,
+  onChange,
+  className,
+}: {
+  value: { range: string; from: string; to: string };
+  onChange: (v: { range: string; from: string; to: string }) => void;
+  className?: string;
+}) {
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      {['all', 'today', 'week', 'month'].map((r) => (
-        <button key={r} type="button" onClick={() => onChange({ range: r, from: '', to: '' })} className={cn("px-3 py-1.5 text-xs font-bold rounded-full transition-colors", value.range === r ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
-          {r === 'all' ? 'All' : r === 'today' ? 'Today' : r === 'week' ? 'This Week' : 'This Month'}
-        </button>
-      ))}
-      <button type="button" onClick={() => onChange({ ...value, range: 'custom' })} className={cn("px-3 py-1.5 text-xs font-bold rounded-full transition-colors", value.range === 'custom' ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>Custom</button>
+    <div className={cn('w-full min-w-0 space-y-2', className)}>
+      <div
+        className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-0.5 px-0.5 pb-0.5"
+        role="group"
+        aria-label="Date range"
+      >
+        {PRESETS.map(r => {
+          const active = value.range === r.id;
+          return (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() =>
+                onChange(r.id === 'custom' ? { ...value, range: 'custom' } : { range: r.id, from: '', to: '' })
+              }
+              className={cn(
+                'shrink-0 inline-flex items-center rounded-full px-2.5 h-8 text-[11px] font-bold border transition-colors',
+                active ? 'bg-brand text-white border-brand' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50',
+              )}
+            >
+              {r.label}
+            </button>
+          );
+        })}
+      </div>
+
       {value.range === 'custom' && (
-        <div className="flex items-center gap-2">
-          <input type="date" value={value.from} onChange={(e) => onChange({ ...value, from: e.target.value })} className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" />
-          <span className="text-xs text-gray-400">to</span>
-          <input type="date" value={value.to} onChange={(e) => onChange({ ...value, to: e.target.value })} className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand" />
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
+          <div className="min-w-0">
+            <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">From</label>
+            <input
+              type="date"
+              value={value.from}
+              onChange={e => onChange({ ...value, from: e.target.value })}
+              className={dateControlClass}
+            />
+          </div>
+          <div className="min-w-0">
+            <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">To</label>
+            <input
+              type="date"
+              value={value.to}
+              onChange={e => onChange({ ...value, to: e.target.value })}
+              className={dateControlClass}
+            />
+          </div>
         </div>
       )}
     </div>

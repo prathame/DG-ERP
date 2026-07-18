@@ -24,6 +24,7 @@ import {
   MobileSectionTitle,
   MobileListRow,
   MobileQuickActions,
+  dateControlClass,
 } from '../../components/ui';
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString();
@@ -240,20 +241,25 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
           />
         </div>
         {range === 'custom' && (
-          <div className="flex items-center gap-2 mb-3 sm:mb-4 flex-wrap">
-            <input
-              type="date"
-              value={fromDate}
-              onChange={e => setFromDate(e.target.value)}
-              className="px-2.5 sm:px-3 py-1.5 border border-gray-200 rounded-lg text-xs sm:text-sm"
-            />
-            <span className="text-gray-400 text-xs sm:text-sm">to</span>
-            <input
-              type="date"
-              value={toDate}
-              onChange={e => setToDate(e.target.value)}
-              className="px-2.5 sm:px-3 py-1.5 border border-gray-200 rounded-lg text-xs sm:text-sm"
-            />
+          <div className="grid grid-cols-2 gap-2 mb-3 sm:mb-4 sm:flex sm:items-end sm:gap-2">
+            <div className="min-w-0">
+              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">From</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={e => setFromDate(e.target.value)}
+                className={dateControlClass}
+              />
+            </div>
+            <div className="min-w-0">
+              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">To</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={e => setToDate(e.target.value)}
+                className={dateControlClass}
+              />
+            </div>
           </div>
         )}
         {money ? (
