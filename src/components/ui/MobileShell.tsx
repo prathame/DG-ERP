@@ -28,14 +28,14 @@ export function MobilePillTabs({
             className={cn(
               // Fixed h/min/max so active brand fill never looks larger than idle pills
               'dg-pill-tab shrink-0 inline-flex items-center justify-center gap-1 rounded-full',
-              'box-border h-7 min-h-7 max-h-7 !min-h-7 px-2.5 py-0 leading-none',
+              'box-border h-8 min-h-8 max-h-8 !min-h-8 px-3 py-0 leading-none',
               'text-[11px] font-bold border border-solid transition-colors',
-              active
-                ? 'bg-brand text-white border-brand'
-                : 'bg-gray-100 text-gray-600 border-transparent hover:bg-gray-200',
+              active ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50',
             )}
           >
-            {item.icon ? <span className="opacity-90 [&_svg]:size-3.5">{item.icon}</span> : null}
+            {item.icon ? (
+              <span className={cn('[&_svg]:size-3.5', active ? 'text-white' : 'text-gray-500')}>{item.icon}</span>
+            ) : null}
             {item.label}
           </button>
         );
@@ -146,30 +146,35 @@ export function MobileEmptyState({
   );
 }
 
-/** Floating action — compact pill, not huge. */
+/** Floating action — compact pill, or circular icon-only. */
 export function MobileFab({
   label,
   onClick,
   className,
+  iconOnly = false,
 }: {
   label: string;
   onClick: () => void;
   className?: string;
+  /** Circular + button (Emergent Masters-style). */
+  iconOnly?: boolean;
 }): JSX.Element {
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-label={label}
       className={cn(
         'fixed z-30 sm:hidden',
         'right-3 bottom-[calc(var(--app-bottom-nav)+var(--safe-bottom)+0.75rem)]',
-        'inline-flex items-center gap-0.5 h-6 px-2 rounded-full',
-        'bg-brand text-white text-[10px] font-bold shadow-md shadow-brand/20',
+        'inline-flex items-center justify-center rounded-full',
+        'bg-brand text-white font-bold shadow-md shadow-brand/20',
+        iconOnly ? 'h-11 w-11' : 'gap-0.5 h-6 px-2 text-[10px]',
         className,
       )}
     >
-      <Plus size={10} strokeWidth={1.5} absoluteStrokeWidth />
-      {label}
+      <Plus size={iconOnly ? 20 : 10} strokeWidth={iconOnly ? 2 : 1.5} absoluteStrokeWidth={!iconOnly} />
+      {!iconOnly ? label : null}
     </button>
   );
 }

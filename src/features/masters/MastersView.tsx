@@ -1,11 +1,11 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense, Fragment } from 'react';
 import { motion } from 'motion/react';
-import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet } from 'lucide-react';
+import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet, Truck } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
-import type { Tab } from '../../types';
-import { LoadingSpinner, MobilePillTabs } from '../../components/ui';
+import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
+import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
 
 const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
 const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
@@ -19,11 +19,25 @@ const StaffMasterView = lazy(() => import('./StaffMasterView').then(m => ({ defa
 
 export type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList' | 'staff';
 
+type StaffRow = { id: string; name: string; phone?: string; role?: string };
+
 const MasterFallback = () => (
   <div className="flex items-center justify-center py-16">
     <LoadingSpinner size="lg" />
   </div>
 );
+
+/** Short pill labels for phone hub (Emergent-style). */
+const PILL_LABEL: Partial<Record<MasterType, string>> = {
+  item: 'Products',
+  vendor: 'Vendors',
+  customer: 'Customers',
+  bank: 'Banks',
+  staff: 'Staff',
+  priceList: 'Prices',
+  mapping: 'Mapping',
+  rewardRules: 'Rewards',
+};
 
 export function MastersView({
   setActiveTab,
@@ -42,7 +56,16 @@ export function MastersView({
   const hasCustomerTracking = tv('sales') && cfg.features.customerTracking;
 
   const [masterCounts, setMasterCounts] = useState({ customer: 0, vendor: 0, item: 0, bank: 0, staff: 0 });
+  /** Full-screen detail (desktop flow + phone “open manage”). */
   const [selectedMaster, setSelectedMaster] = useState<MasterType | null>(null);
+  /** Phone hub selected pill. */
+  const [hubTab, setHubTab] = useState<MasterType | null>(null);
+  const [hubLoading, setHubLoading] = useState(false);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [staff, setStaff] = useState<StaffRow[]>([]);
 
   const refreshCounts = () => {
     api.masters
@@ -61,9 +84,25 @@ export function MastersView({
 
   useEffect(() => {
     refreshCounts();
-  }, []); // ponytail: fetch once on mount, not on every selectedMaster change
+  }, []);
 
   const allMasters = [
+    {
+      id: 'item' as const,
+      name: 'Products',
+      count: masterCounts.item as number | string,
+      icon: Package,
+      color: 'text-orange-600',
+      bg: 'bg-orange-50',
+    },
+    {
+      id: 'vendor' as const,
+      name: cfg.labels.vendors,
+      count: masterCounts.vendor as number | string,
+      icon: Truck,
+      color: 'text-brand',
+      bg: 'bg-orange-50',
+    },
     ...(hasCustomerTracking && !isDirectSell
       ? [
           {
@@ -77,12 +116,28 @@ export function MastersView({
         ]
       : []),
     {
-      id: 'vendor' as const,
-      name: cfg.labels.vendors,
-      count: masterCounts.vendor as number | string,
-      icon: ShoppingCart,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50',
+      id: 'bank' as const,
+      name: 'Banks',
+      count: masterCounts.bank as number | string,
+      icon: CreditCard,
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-50',
+    },
+    {
+      id: 'staff' as const,
+      name: 'Staff',
+      count: masterCounts.staff as number | string,
+      icon: Wallet,
+      color: 'text-indigo-600',
+      bg: 'bg-indigo-50',
+    },
+    {
+      id: 'priceList' as const,
+      name: 'Price List',
+      count: '' as number | string,
+      icon: Tag,
+      color: 'text-rose-600',
+      bg: 'bg-rose-50',
     },
     ...(tv('rewards')
       ? [
@@ -108,47 +163,90 @@ export function MastersView({
           },
         ]
       : []),
-    {
-      id: 'item' as const,
-      name: 'Products',
-      count: masterCounts.item as number | string,
-      icon: Package,
-      color: 'text-orange-600',
-      bg: 'bg-orange-50',
-    },
-    {
-      id: 'bank' as const,
-      name: 'Banks',
-      count: masterCounts.bank as number | string,
-      icon: CreditCard,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50',
-    },
-    {
-      id: 'staff' as const,
-      name: 'Staff',
-      count: masterCounts.staff as number | string,
-      icon: Wallet,
-      color: 'text-indigo-600',
-      bg: 'bg-indigo-50',
-    },
-    {
-      id: 'priceList' as const,
-      name: 'Price List',
-      count: '' as number | string,
-      icon: Tag,
-      color: 'text-rose-600',
-      bg: 'bg-rose-50',
-    },
   ];
   const masters = isVendor ? allMasters.filter(m => m.id === 'customer') : allMasters;
 
-  const handleMasterClick = (id: MasterType) => {
+  // Default phone hub tab
+  useEffect(() => {
+    if (!hubTab && masters.length) setHubTab(masters[0].id);
+  }, [masters, hubTab]);
+
+  // Load list for active hub pill
+  useEffect(() => {
+    if (!hubTab) return;
+    let cancelled = false;
+    setHubLoading(true);
+    const done = () => {
+      if (!cancelled) setHubLoading(false);
+    };
+    if (hubTab === 'vendor') {
+      api.vendors
+        .list()
+        .then(rows => {
+          if (!cancelled) setVendors(rows);
+        })
+        .catch(() => {
+          if (!cancelled) setVendors([]);
+        })
+        .finally(done);
+    } else if (hubTab === 'customer') {
+      api.customers
+        .list()
+        .then(rows => {
+          if (!cancelled) setCustomers(rows);
+        })
+        .catch(() => {
+          if (!cancelled) setCustomers([]);
+        })
+        .finally(done);
+    } else if (hubTab === 'item') {
+      api.products
+        .list()
+        .then(rows => {
+          if (!cancelled) setProducts(rows);
+        })
+        .catch(() => {
+          if (!cancelled) setProducts([]);
+        })
+        .finally(done);
+    } else if (hubTab === 'bank') {
+      api.banks
+        .list()
+        .then(rows => {
+          if (!cancelled) setBanks(rows);
+        })
+        .catch(() => {
+          if (!cancelled) setBanks([]);
+        })
+        .finally(done);
+    } else if (hubTab === 'staff') {
+      api.staff
+        .list()
+        .then(rows => {
+          if (!cancelled) setStaff(rows as StaffRow[]);
+        })
+        .catch(() => {
+          if (!cancelled) setStaff([]);
+        })
+        .finally(done);
+    } else {
+      done();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [hubTab]);
+
+  const openFull = (id: MasterType) => {
     if (id === 'item') {
       setActiveTab('inventory');
-    } else {
-      setSelectedMaster(id);
+      return;
     }
+    setSelectedMaster(id);
+  };
+
+  const handleMasterClick = (id: MasterType) => {
+    openFull(id);
   };
 
   if (selectedMaster === 'customer')
@@ -194,15 +292,185 @@ export function MastersView({
       </Suspense>
     );
 
+  const active = hubTab || masters[0]?.id;
+  const activeMeta = masters.find(m => m.id === active);
+  const listHubTabs = new Set<MasterType>(['vendor', 'customer', 'item', 'bank', 'staff']);
+  const showList = active && listHubTabs.has(active);
+
+  const fabLabel =
+    active === 'vendor'
+      ? cfg.labels.vendors === 'Clients'
+        ? 'Client'
+        : 'Vendor'
+      : active === 'customer'
+        ? 'Customer'
+        : active === 'item'
+          ? 'Product'
+          : active === 'bank'
+            ? 'Bank'
+            : active === 'staff'
+              ? 'Staff'
+              : 'Add';
+
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 sm:space-y-4">
-      {/* Phone: text-only pills like Analytics range chips */}
-      <div className="sm:hidden">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-3 sm:space-y-4 pb-14 sm:pb-0"
+    >
+      {/* Phone hub — Emergent-style: pills + list + FAB */}
+      <div className="sm:hidden space-y-3">
+        <p className="text-[11px] text-gray-500 px-0.5">Catalog &amp; partners</p>
         <MobilePillTabs
-          items={masters.map(m => ({ id: m.id, label: m.name }))}
-          value=""
-          onChange={id => handleMasterClick(id as MasterType)}
+          items={masters.map(m => ({
+            id: m.id,
+            label: PILL_LABEL[m.id] || m.name,
+            icon: m.id === 'vendor' ? <Truck /> : <m.icon />,
+          }))}
+          value={active || ''}
+          onChange={id => {
+            const next = id as MasterType;
+            if (next === 'priceList' || next === 'mapping' || next === 'rewardRules') {
+              openFull(next);
+              return;
+            }
+            setHubTab(next);
+          }}
         />
+
+        {hubLoading ? (
+          <div className="py-12">
+            <LoadingSpinner />
+          </div>
+        ) : showList && active === 'vendor' ? (
+          vendors.length === 0 ? (
+            <MobileEmptyState
+              icon={<Truck />}
+              title={`No ${cfg.labels.vendors.toLowerCase()} yet`}
+              subtitle="Add your first partner to get started"
+              actionLabel={`Add ${fabLabel}`}
+              onAction={() => openFull('vendor')}
+            />
+          ) : (
+            <div className="space-y-1.5">
+              {vendors.map(v => (
+                <Fragment key={v.id}>
+                  <MobileListRow
+                    icon={<Truck className="text-brand" />}
+                    title={v.name}
+                    subtitle={v.gstNumber ? `GSTIN: ${v.gstNumber}` : v.phone || v.contactPerson || '—'}
+                    trailing={
+                      typeof v.totalSales === 'number' && v.totalSales > 0
+                        ? `₹${v.totalSales.toLocaleString()}`
+                        : undefined
+                    }
+                    meta={typeof v.totalSales === 'number' && v.totalSales > 0 ? 'Sales' : undefined}
+                    onClick={() => openFull('vendor')}
+                  />
+                </Fragment>
+              ))}
+            </div>
+          )
+        ) : showList && active === 'customer' ? (
+          customers.length === 0 ? (
+            <MobileEmptyState
+              icon={<Users />}
+              title="No customers yet"
+              actionLabel="Add Customer"
+              onAction={() => openFull('customer')}
+            />
+          ) : (
+            <div className="space-y-1.5">
+              {customers.map(c => (
+                <Fragment key={c.id}>
+                  <MobileListRow
+                    icon={<Users className="text-blue-600" />}
+                    title={c.name}
+                    subtitle={c.phone || c.email || '—'}
+                    onClick={() => openFull('customer')}
+                  />
+                </Fragment>
+              ))}
+            </div>
+          )
+        ) : showList && active === 'item' ? (
+          products.length === 0 ? (
+            <MobileEmptyState
+              icon={<Package />}
+              title="No products yet"
+              actionLabel="Open Products"
+              onAction={() => openFull('item')}
+            />
+          ) : (
+            <div className="space-y-1.5">
+              {products.map(p => (
+                <Fragment key={p.id}>
+                  <MobileListRow
+                    icon={<Package className="text-orange-600" />}
+                    title={p.name}
+                    subtitle={p.hsnCode || p.barcode || `Stock ${p.stock ?? 0}`}
+                    trailing={typeof p.price === 'number' ? `₹${p.price.toLocaleString()}` : undefined}
+                    onClick={() => openFull('item')}
+                  />
+                </Fragment>
+              ))}
+            </div>
+          )
+        ) : showList && active === 'bank' ? (
+          banks.length === 0 ? (
+            <MobileEmptyState
+              icon={<CreditCard />}
+              title="No banks yet"
+              actionLabel="Add Bank"
+              onAction={() => openFull('bank')}
+            />
+          ) : (
+            <div className="space-y-1.5">
+              {banks.map(b => (
+                <Fragment key={b.id}>
+                  <MobileListRow
+                    icon={<CreditCard className="text-emerald-600" />}
+                    title={b.name}
+                    subtitle={b.bankName || b.accountNumber || '—'}
+                    onClick={() => openFull('bank')}
+                  />
+                </Fragment>
+              ))}
+            </div>
+          )
+        ) : showList && active === 'staff' ? (
+          staff.length === 0 ? (
+            <MobileEmptyState
+              icon={<Wallet />}
+              title="No staff yet"
+              actionLabel="Add Staff"
+              onAction={() => openFull('staff')}
+            />
+          ) : (
+            <div className="space-y-1.5">
+              {staff.map(s => (
+                <Fragment key={s.id}>
+                  <MobileListRow
+                    icon={<Wallet className="text-indigo-600" />}
+                    title={s.name}
+                    subtitle={s.role || s.phone || '—'}
+                    onClick={() => openFull('staff')}
+                  />
+                </Fragment>
+              ))}
+            </div>
+          )
+        ) : (
+          <MobileEmptyState
+            icon={activeMeta ? <activeMeta.icon /> : <ShoppingCart />}
+            title={activeMeta?.name || 'Masters'}
+            subtitle="Open to manage records"
+            actionLabel="Open"
+            onAction={() => active && openFull(active)}
+          />
+        )}
+
+        {showList && <MobileFab label={fabLabel} iconOnly onClick={() => active && openFull(active)} />}
       </div>
 
       {/* Desktop / tablet cards */}
