@@ -66,9 +66,12 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
       allowedHosts: true as const,
-      // Cap/Android build outputs are not part of the Vite app graph (they break dep scan).
+      // Cap/Android build outputs are not part of the Vite app graph (they break dep scan / crash HMR).
       fs: {
         deny: ['**/android/**', '**/ios/**', '**/dist-apk/**', '**/dist-service-mobile/**'],
+      },
+      watch: {
+        ignored: ['**/android/**', '**/ios/**', '**/dist-apk/**', '**/dist-service-mobile/**', '**/node_modules/**'],
       },
       proxy: {
         // Offline Mobile Vite: proxy license APIs to cloud (avoids CORS on localhost:*).

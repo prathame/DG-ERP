@@ -30,6 +30,17 @@ Super Admin (JWT):
 
 **Never** accept ERP business mutations on these routes — local PGlite handles ERP.
 
+### Local ERP Masters contract (on-device router)
+
+One router (`src/platforms/service-mobile/local/router.ts`) — not a separate codebase. Contract tests: `tests/unit/service-mobile-local-api-contract.test.ts`.
+
+| Masters tab | Endpoints (must return UI camelCase arrays/objects; never “not implemented”) |
+|-------------|-------------------------------------------------------------------------------|
+| Clients | `GET/POST /vendors`, `POST /vendors/bulk`, `PUT/DELETE /vendors/:id` |
+| Prices | `GET/POST /price-lists`, `POST /price-lists/bulk`, `DELETE /price-lists/:id`, `GET /price-lists/resolve` (+ silent product create when Catalog pill hidden) |
+| Banks | `GET/POST /banks`, `POST /banks/batch`, `PUT/DELETE /banks/:id` (`ifscCode`) |
+| Staff | `GET/POST /staff`, `POST /staff/batch`, `PUT/DELETE /staff/:id` |
+
 Local ERP (on-device router) also implements payroll and analytics overview:
 
 | Method | Path | Purpose |

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  mapBank,
   mapInvoice,
   mapProduct,
   mapSupplier,
@@ -104,6 +105,20 @@ describe('service-mobile local mappers', () => {
     expect(r.vendorId).toBe('V-1');
     expect(r.price).toBe(99.5);
     expect(r.isActive).toBe(true);
+  });
+
+  it('maps bank ifscCode for BankMasterView (not ifsc alone)', () => {
+    const b = mapBank({
+      id: 'B-1',
+      name: 'Main',
+      account_number: '123',
+      bank_name: 'HDFC',
+      branch: 'SG Hwy',
+      ifsc: 'HDFC0001234',
+    });
+    expect(b.ifscCode).toBe('HDFC0001234');
+    expect(b.accountNumber).toBe('123');
+    expect(b.bankName).toBe('HDFC');
   });
 });
 

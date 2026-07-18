@@ -28,6 +28,8 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5l1b | Client email optional | Masters → Clients → Add Client with name + phone only (no email); CSV import without email | Saves successfully; email field/CSV column marked optional; duplicate-email check only when email provided |
 | 5l2 | Masters no Products | Masters pills / desktop cards | **Products / Catalog inventory** absent Offline. **Price List** kept with **Catalog** + **Clients** tabs (rate book). Cloud manufacturer Masters still show Products → Inventory |
 | 5l2b | Price List tabs Offline | Masters → Prices | **Catalog** and **Clients** scope tabs both work; Add Rule can create a new item; rules list/filter correctly |
+| 5l2d | Masters Offline CRUD | Masters → Prices / Banks / Staff — list, add, edit/delete, CSV if shown | No Local API 404; Banks IFSC shows/saves (`ifscCode`); Price CSV creates missing items; Staff list maps without crash |
+| 5l2e | Local API contract | `npm test -- tests/unit/service-mobile-local-api-contract.test.ts` | Banks/Staff/Vendors/Price-lists GET arrays + critical POSTs pass |
 | 5l2c | Invoice custom or Price List | Invoice create → Items | Can pick Price List item (rate resolves) **or** Custom item (description + qty + rate). Neither path mandatory alone |
 | 5l4 | Masters no ErrorBoundary | Hard refresh → Masters (Chrome localhost OK) | Hub loads Clients/Banks/Staff/Prices — no “Something went wrong”. Stale Products pill/state must not crash |
 | 5l3 | Masters no Vendor-Customer Map | Masters pills / desktop cards | **Vendor-Customer Map** absent Offline (no mapping routes). Cloud manufacturer Masters still show Mapping |

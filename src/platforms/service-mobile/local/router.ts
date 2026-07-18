@@ -1,6 +1,10 @@
 /**
  * In-process local API for Service Mobile — ERP traffic stays on-device.
  * Cloud license/sync/backup paths are NOT handled here (see cloud.ts).
+ *
+ * Masters contract (UI → paths): Clients=/vendors, Prices=/price-lists,
+ * Banks=/banks, Staff=/staff. Keep camelCase shapes + batch routes green via
+ * tests/unit/service-mobile-local-api-contract.test.ts — do not fork a second API.
  */
 import bcrypt from 'bcryptjs';
 import { localQuery } from './db';
@@ -479,6 +483,8 @@ export async function handleLocalApiRequest(
     }
     if (ctx.path === '/products' && ctx.method === 'POST') {
       const b = ctx.body as Record<string, unknown>;
+      const name = String(b.name || '').trim();
+      if (!name) return json(400, { error: 'Name is required' });
       const id = uid('P');
       const gst = Number(b.gstRate ?? b.gstPercent ?? b.gst_rate ?? b.gst_percent) || 18;
       await localQuery(
@@ -488,7 +494,7 @@ export async function handleLocalApiRequest(
         [
           id,
           tid,
-          b.name,
+          name,
           b.sku ?? null,
           b.barcode ?? null,
           b.price ?? 0,
@@ -771,10 +777,10 @@ export async function handleLocalApiRequest(
       return json(201, { id, ok: true });
     }
 
-    // Staff
+    // Staff (Masters → Staff)
     if (ctx.path === '/staff' && ctx.method === 'GET') {
-      const { rows } = await localQuery(
-        `SELECT s.*,
+      const search = (query.get('search') || '').trim();
+      let sql = `SELECT s.*,
            COALESCE(agg.total_paid,0) AS total_paid,
            COALESCE(agg.total_advance,0) AS total_advance,
            COALESCE(agg.total_repaid,0) AS total_repaid,
@@ -790,9 +796,14 @@ export async function handleLocalApiRequest(
              MAX(payment_date) AS last_payment
            FROM staff_payments WHERE tenant_id=$1 GROUP BY staff_name
          ) agg ON agg.staff_name = s.name
-         WHERE s.tenant_id=$1 ORDER BY s.name`,
-        [tid],
-      );
+         WHERE s.tenant_id=$1`;
+      const params: unknown[] = [tid];
+      if (search) {
+        sql += ` AND (s.name ILIKE $2 OR COALESCE(s.phone,'') ILIKE $2 OR COALESCE(s.role,'') ILIKE $2)`;
+        params.push(`%${search}%`);
+      }
+      sql += ' ORDER BY s.name';
+      const { rows } = await localQuery(sql, params);
       return json(
         200,
         rows.map(r => mapStaff(r as Record<string, unknown>)),
@@ -800,7 +811,13 @@ export async function handleLocalApiRequest(
     }
     if (ctx.path === '/staff' && ctx.method === 'POST') {
       const b = ctx.body as Record<string, unknown>;
-      if (!b.name || !String(b.name).trim()) return json(400, { error: 'Name is required' });
+      const name = String(b.name || '').trim();
+      if (!name) return json(400, { error: 'Name is required' });
+      const dup = await localQuery(`SELECT id FROM staff_members WHERE tenant_id=$1 AND LOWER(name)=LOWER($2)`, [
+        tid,
+        name,
+      ]);
+      if (dup.rows[0]) return json(400, { error: `"${name}" already exists` });
       const id = uid('ST');
       await localQuery(
         `INSERT INTO staff_members (id, tenant_id, name, phone, role, address, salary, joining_date, status)
@@ -808,12 +825,12 @@ export async function handleLocalApiRequest(
         [
           id,
           tid,
-          String(b.name).trim(),
-          b.phone ?? null,
-          b.role ?? null,
-          b.address ?? null,
-          b.salary ?? 0,
-          b.joiningDate ?? null,
+          name,
+          b.phone ? String(b.phone).trim() : null,
+          b.role ? String(b.role).trim() : null,
+          b.address ? String(b.address).trim() : null,
+          b.salary != null && b.salary !== '' ? Number(b.salary) : 0,
+          b.joiningDate || null,
           b.status ?? 'active',
         ],
       );
@@ -866,19 +883,23 @@ export async function handleLocalApiRequest(
       const id = staffMatch[1]!;
       if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
         const b = ctx.body as Record<string, unknown>;
+        const exists = await localQuery(`SELECT id FROM staff_members WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        if (!exists.rows[0]) return json(404, { error: 'Staff not found' });
         await localQuery(
           `UPDATE staff_members SET
-             name=COALESCE($1,name), phone=COALESCE($2,phone), role=COALESCE($3,role),
-             address=COALESCE($4,address), salary=COALESCE($5,salary),
-             joining_date=COALESCE($6,joining_date), status=COALESCE($7,status)
+             name=COALESCE($1,name),
+             phone=$2, role=$3, address=$4,
+             salary=COALESCE($5,salary),
+             joining_date=COALESCE($6,joining_date),
+             status=COALESCE($7,status)
            WHERE id=$8 AND tenant_id=$9`,
           [
-            b.name ?? null,
-            b.phone ?? null,
-            b.role ?? null,
-            b.address ?? null,
-            b.salary != null ? Number(b.salary) : null,
-            b.joiningDate ?? null,
+            b.name != null && String(b.name).trim() ? String(b.name).trim() : null,
+            b.phone ? String(b.phone).trim() : null,
+            b.role ? String(b.role).trim() : null,
+            b.address ? String(b.address).trim() : null,
+            b.salary != null && b.salary !== '' ? Number(b.salary) : null,
+            b.joiningDate || null,
             b.status ?? null,
             id,
             tid,
@@ -887,6 +908,12 @@ export async function handleLocalApiRequest(
         return json(200, { ok: true });
       }
       if (ctx.method === 'DELETE') {
+        const staff = await localQuery<{ name: string }>(
+          `SELECT name FROM staff_members WHERE id=$1 AND tenant_id=$2`,
+          [id, tid],
+        );
+        if (!staff.rows[0]) return json(404, { error: 'Staff not found' });
+        await localQuery(`DELETE FROM staff_payments WHERE staff_name=$1 AND tenant_id=$2`, [staff.rows[0].name, tid]);
         await localQuery(`DELETE FROM staff_members WHERE id=$1 AND tenant_id=$2`, [id, tid]);
         return json(200, { ok: true });
       }
@@ -1831,9 +1858,18 @@ export async function handleLocalApiRequest(
       return new Response(null, { status: 204 });
     }
 
-    // Banks
+    // Banks (Masters → Banks)
     if (ctx.path === '/banks' && ctx.method === 'GET') {
-      const rows = await listTable('banks', tid!);
+      let rows = await listTable('banks', tid!, 'name ASC');
+      const search = (query.get('search') || '').trim().toLowerCase();
+      if (search) {
+        rows = rows.filter(r => {
+          const rec = r as Record<string, unknown>;
+          return [rec.name, rec.account_number, rec.bank_name, rec.ifsc, rec.branch]
+            .map(v => String(v || '').toLowerCase())
+            .some(v => v.includes(search));
+        });
+      }
       return json(
         200,
         rows.map(r => mapBank(r as Record<string, unknown>)),
@@ -1841,20 +1877,28 @@ export async function handleLocalApiRequest(
     }
     if (ctx.path === '/banks' && ctx.method === 'POST') {
       const b = ctx.body as Record<string, unknown>;
+      const name = String(b.name || '').trim();
+      if (!name) return json(400, { error: 'Account name is required' });
+      const acNo = b.accountNumber != null && String(b.accountNumber).trim() ? String(b.accountNumber).trim() : null;
+      if (acNo) {
+        const dup = await localQuery(`SELECT id FROM banks WHERE tenant_id=$1 AND account_number=$2`, [tid, acNo]);
+        if (dup.rows[0]) return json(400, { error: `Account number "${acNo}" already exists` });
+      }
       const id = uid('B');
+      const ifsc = b.ifscCode ?? b.ifsc ?? null;
       await localQuery(
         `INSERT INTO banks (id, tenant_id, name, account_number, ifsc, balance, account_name, bank_name, branch)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [
           id,
           tid,
-          b.name ?? b.bankName ?? 'Bank',
-          b.accountNumber ?? null,
-          b.ifsc ?? b.ifscCode ?? null,
+          name,
+          acNo,
+          ifsc ? String(ifsc).trim() : null,
           b.balance ?? 0,
-          b.accountName ?? null,
-          b.bankName ?? null,
-          b.branch ?? null,
+          b.accountName ? String(b.accountName).trim() : name,
+          b.bankName ? String(b.bankName).trim() : null,
+          b.branch ? String(b.branch).trim() : null,
         ],
       );
       const { rows } = await localQuery(`SELECT * FROM banks WHERE id=$1`, [id]);
@@ -1899,28 +1943,33 @@ export async function handleLocalApiRequest(
       const id = bankMatch[1]!;
       if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
         const b = ctx.body as Record<string, unknown>;
+        const ifscVal = 'ifscCode' in b || 'ifsc' in b ? (b.ifscCode ?? b.ifsc ?? null) : null;
+        const touchIfsc = 'ifscCode' in b || 'ifsc' in b;
         await localQuery(
           `UPDATE banks SET name=COALESCE($1,name), account_number=COALESCE($2,account_number),
-           ifsc=COALESCE($3,ifsc), balance=COALESCE($4,balance), account_name=COALESCE($5,account_name),
-           bank_name=COALESCE($6,bank_name), branch=COALESCE($7,branch)
-           WHERE id=$8 AND tenant_id=$9`,
+           ifsc=CASE WHEN $3::boolean THEN $4 ELSE ifsc END,
+           balance=COALESCE($5,balance), account_name=COALESCE($6,account_name),
+           bank_name=COALESCE($7,bank_name), branch=COALESCE($8,branch)
+           WHERE id=$9 AND tenant_id=$10`,
           [
-            b.name ?? b.bankName ?? null,
-            b.accountNumber ?? null,
-            b.ifsc ?? null,
+            b.name != null && String(b.name).trim() ? String(b.name).trim() : null,
+            b.accountNumber != null ? String(b.accountNumber).trim() || null : null,
+            touchIfsc,
+            ifscVal != null && String(ifscVal).trim() ? String(ifscVal).trim() : null,
             b.balance != null ? Number(b.balance) : null,
-            b.accountName ?? null,
-            b.bankName ?? null,
-            b.branch ?? null,
+            b.accountName != null ? String(b.accountName).trim() || null : null,
+            b.bankName != null ? String(b.bankName).trim() || null : null,
+            b.branch != null ? String(b.branch).trim() || null : null,
             id,
             tid,
           ],
         );
-        const { rows } = await localQuery(`SELECT * FROM banks WHERE id=$1`, [id]);
+        const { rows } = await localQuery(`SELECT * FROM banks WHERE id=$1 AND tenant_id=$2`, [id, tid]);
         return rows[0] ? json(200, mapBank(rows[0] as Record<string, unknown>)) : json(404, { error: 'Not found' });
       }
       if (ctx.method === 'DELETE') {
-        await localQuery(`DELETE FROM banks WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        const del = await localQuery(`DELETE FROM banks WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        if (!del.rowCount) return json(404, { error: 'Not found' });
         return json(200, { ok: true });
       }
     }
@@ -1935,7 +1984,7 @@ export async function handleLocalApiRequest(
       return json(200, resolved);
     }
 
-    // Price lists (per-product / per-vendor rules — same shape as cloud)
+    // Price lists (Masters → Prices — rate book; Catalog pill hidden Offline)
     if (ctx.path === '/price-lists' && ctx.method === 'GET') {
       const { rows } = await localQuery(
         `SELECT pl.*, p.name AS product_name, v.name AS vendor_name
@@ -1953,8 +2002,30 @@ export async function handleLocalApiRequest(
     }
     if (ctx.path === '/price-lists' && ctx.method === 'POST') {
       const b = ctx.body as Record<string, unknown>;
-      if (!b.productId) return json(400, { error: 'productId required' });
+      let productId = b.productId ? String(b.productId) : '';
+      // Offline Add Rule may send productName when Catalog pill is hidden — create product silently.
+      const productName = String(b.productName || b.newItemName || '').trim();
+      if (!productId && productName) {
+        const existing = await localQuery<{ id: string }>(
+          `SELECT id FROM products WHERE tenant_id=$1 AND LOWER(name)=LOWER($2) LIMIT 1`,
+          [tid, productName],
+        );
+        if (existing.rows[0]) {
+          productId = String(existing.rows[0].id);
+        } else {
+          productId = uid('P');
+          const price = Number(b.price) || 0;
+          await localQuery(
+            `INSERT INTO products
+               (id, tenant_id, name, price, gst_percent, gst_rate, stock, warranty_months, price_includes_gst)
+             VALUES ($1,$2,$3,$4,18,18,0,0,false)`,
+            [productId, tid, productName, price],
+          );
+        }
+      }
+      if (!productId) return json(400, { error: 'productId required' });
       const id = uid('PL');
+      const ruleName = String(b.name || '').trim() || 'Rate';
       await localQuery(
         `INSERT INTO price_lists
            (id, tenant_id, name, product_id, vendor_id, min_qty, max_qty, price, valid_from, valid_to, is_active)
@@ -1962,14 +2033,14 @@ export async function handleLocalApiRequest(
         [
           id,
           tid,
-          b.name || 'Rate',
-          b.productId,
-          b.vendorId ?? null,
-          b.minQty ?? 1,
-          b.maxQty ?? null,
-          b.price ?? 0,
-          b.validFrom ?? null,
-          b.validTo ?? null,
+          ruleName,
+          productId,
+          b.vendorId || null,
+          b.minQty != null ? Number(b.minQty) || 1 : 1,
+          b.maxQty != null && b.maxQty !== '' ? Number(b.maxQty) : null,
+          b.price != null ? Number(b.price) : 0,
+          b.validFrom || null,
+          b.validTo || null,
         ],
       );
       const { rows } = await localQuery(
@@ -2020,14 +2091,28 @@ export async function handleLocalApiRequest(
           errors.push(`Row ${rowNum}: productName is required`);
           continue;
         }
-        const productId = productByName.get(productName.toLowerCase());
-        if (!productId) {
-          errors.push(`Row ${rowNum}: product "${productName}" not found — add it in Masters first`);
-          continue;
-        }
         if (!price || price <= 0 || Number.isNaN(price)) {
           errors.push(`Row ${rowNum}: price must be greater than 0`);
           continue;
+        }
+        // Offline: Catalog pill is hidden — create missing sellable items from CSV (same as Add Rule).
+        let productId = productByName.get(productName.toLowerCase());
+        if (!productId) {
+          productId = uid('P');
+          try {
+            await localQuery(
+              `INSERT INTO products
+                 (id, tenant_id, name, price, gst_percent, gst_rate, stock, warranty_months, price_includes_gst)
+               VALUES ($1,$2,$3,$4,18,18,0,0,false)`,
+              [productId, tid, productName, price],
+            );
+            productByName.set(productName.toLowerCase(), productId);
+          } catch (err) {
+            errors.push(
+              `Row ${rowNum}: could not create product "${productName}": ${err instanceof Error ? err.message : 'failed'}`,
+            );
+            continue;
+          }
         }
         let vendorId: string | null = null;
         if (vendorName) {
@@ -2076,6 +2161,8 @@ export async function handleLocalApiRequest(
       const id = priceListMatch[1]!;
       if (ctx.method === 'PUT' || ctx.method === 'PATCH') {
         const b = ctx.body as Record<string, unknown>;
+        const exists = await localQuery(`SELECT id FROM price_lists WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        if (!exists.rows[0]) return json(404, { error: 'Not found' });
         // Only overwrite optional fields when the key is present (avoid wiping vendor/dates).
         await localQuery(
           `UPDATE price_lists SET
@@ -2108,7 +2195,8 @@ export async function handleLocalApiRequest(
         return json(200, { ok: true });
       }
       if (ctx.method === 'DELETE') {
-        await localQuery(`DELETE FROM price_lists WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        const del = await localQuery(`DELETE FROM price_lists WHERE id=$1 AND tenant_id=$2`, [id, tid]);
+        if (!del.rowCount) return json(404, { error: 'Not found' });
         return json(200, { ok: true });
       }
     }

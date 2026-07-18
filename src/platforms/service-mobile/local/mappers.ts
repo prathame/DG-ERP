@@ -58,14 +58,17 @@ export function mapProduct(r: Record<string, unknown>) {
 }
 
 export function mapBank(r: Record<string, unknown>) {
+  const ifscCode = (r.ifsc_code ?? r.ifsc ?? null) as string | null;
   return {
     id: r.id,
     name: r.name,
     accountNumber: r.account_number ?? null,
     accountName: r.account_name ?? r.name ?? null,
-    bankName: r.bank_name ?? r.name ?? null,
+    bankName: r.bank_name ?? null,
     branch: r.branch ?? null,
-    ifsc: r.ifsc ?? null,
+    /** BankMasterView / types.Bank read ifscCode (cloud shape). */
+    ifscCode,
+    ifsc: ifscCode,
     balance: Number(r.balance) || 0,
     createdAt: r.created_at,
   };

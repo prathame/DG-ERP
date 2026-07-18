@@ -74,7 +74,7 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
   const load = () => {
     api.staff
       .list(debouncedSearch || undefined)
-      .then(setList)
+      .then(rows => setList(Array.isArray(rows) ? rows : []))
       .catch(() => setList([]))
       .finally(() => setLoading(false));
   };
@@ -195,8 +195,9 @@ export function StaffMasterView({ onBack, onRefresh }: { onBack: () => void; onR
         notes: '',
       });
       const refreshed = await api.staff.list();
-      setList(refreshed);
-      const updated = refreshed.find(s => s.id === selected.id);
+      const next = Array.isArray(refreshed) ? refreshed : [];
+      setList(next);
+      const updated = next.find(s => s.id === selected.id);
       if (updated) selectStaff(updated);
     } catch (e) {
       toast((e as Error).message, 'error');
