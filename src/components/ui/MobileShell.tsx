@@ -137,9 +137,9 @@ export function MobileEmptyState({
         <button
           type="button"
           onClick={onAction}
-          className="mt-3 inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-brand text-white text-[11px] font-bold"
+          className="mt-3 inline-flex items-center gap-0.5 h-6 px-2 rounded-full bg-brand text-white text-[10px] font-bold"
         >
-          <Plus size={11} strokeWidth={1.5} absoluteStrokeWidth /> {actionLabel}
+          <Plus size={10} strokeWidth={1.5} absoluteStrokeWidth /> {actionLabel}
         </button>
       ) : null}
     </div>
@@ -163,12 +163,12 @@ export function MobileFab({
       className={cn(
         'fixed z-30 sm:hidden',
         'right-3 bottom-[calc(var(--app-bottom-nav)+var(--safe-bottom)+0.75rem)]',
-        'inline-flex items-center gap-1 h-7 px-2.5 rounded-full',
-        'bg-brand text-white text-[11px] font-bold shadow-lg shadow-brand/25',
+        'inline-flex items-center gap-0.5 h-6 px-2 rounded-full',
+        'bg-brand text-white text-[10px] font-bold shadow-md shadow-brand/20',
         className,
       )}
     >
-      <Plus size={11} strokeWidth={1.5} absoluteStrokeWidth />
+      <Plus size={10} strokeWidth={1.5} absoluteStrokeWidth />
       {label}
     </button>
   );
