@@ -12,7 +12,6 @@ import {
   ArrowRight,
   FileText,
   Wallet,
-  Receipt,
 } from 'lucide-react';
 import { cn, formatDate, useTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -23,7 +22,6 @@ import {
   MobileKpiCard,
   MobileSectionTitle,
   MobileListRow,
-  MobileQuickActions,
   dateControlClass,
 } from '../../components/ui';
 
@@ -169,43 +167,6 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
       <div className="hidden sm:block">
         <h2 className="text-xl font-bold">{useTabLabel('analytics', 'Analytics')}</h2>
         <p className="text-sm text-gray-500">Business overview and activity</p>
-      </div>
-
-      {/* Phone: quick actions */}
-      <div className="sm:hidden space-y-2">
-        <MobileSectionTitle title="Quick actions" />
-        <MobileQuickActions
-          actions={[
-            {
-              id: 'invoice',
-              label: 'New Invoice',
-              icon: <Receipt />,
-              onClick: () => setActiveTab('invoices'),
-              tint: 'bg-orange-100 text-brand',
-            },
-            {
-              id: 'quotes',
-              label: 'Quotations',
-              icon: <FileText />,
-              onClick: () => setActiveTab('quotations'),
-              tint: 'bg-violet-100 text-violet-600',
-            },
-            {
-              id: 'masters',
-              label: 'Masters',
-              icon: <Users />,
-              onClick: () => setActiveTab('masters'),
-              tint: 'bg-blue-100 text-blue-600',
-            },
-            {
-              id: 'finance',
-              label: 'Finance',
-              icon: <Wallet />,
-              onClick: () => setActiveTab('finance'),
-              tint: 'bg-emerald-100 text-emerald-600',
-            },
-          ]}
-        />
       </div>
 
       {/* Money Overview */}
