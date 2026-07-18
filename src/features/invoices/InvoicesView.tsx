@@ -139,7 +139,7 @@ function resolveCatalogPrice(product: Product, rules: PriceRule[], vendorId: str
 export function InvoicesView() {
   const { toast } = useToast();
   const invoicesLabel = useTabLabel('invoices', 'Invoices');
-  const offlinePdf = isServiceMobileMode();
+  const serviceMobile = isServiceMobileMode();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -441,12 +441,14 @@ export function InvoicesView() {
         </div>
       </div>
 
-      {/* Phone summary + filters */}
+      {/* Phone summary + filters — Outstanding/Collected live on Analytics for Offline Mobile */}
       <div className="sm:hidden space-y-2">
-        <div className="grid grid-cols-2 gap-2">
-          <MobileKpiCard label="Outstanding" value={`₹${outstanding.toLocaleString()}`} accent="rose" />
-          <MobileKpiCard label="Collected" value={`₹${paidTotal.toLocaleString()}`} accent="green" />
-        </div>
+        {!serviceMobile && (
+          <div className="grid grid-cols-2 gap-2">
+            <MobileKpiCard label="Outstanding" value={`₹${outstanding.toLocaleString()}`} accent="rose" />
+            <MobileKpiCard label="Collected" value={`₹${paidTotal.toLocaleString()}`} accent="green" />
+          </div>
+        )}
         <MobilePillTabs
           items={[
             { id: 'all', label: 'All' },
@@ -513,10 +515,10 @@ export function InvoicesView() {
                       type="button"
                       onClick={() => printInvoice(inv)}
                       className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
-                      title={offlinePdf ? 'Download PDF' : 'Print/PDF'}
-                      aria-label={offlinePdf ? 'Download invoice PDF' : 'Print invoice'}
+                      title={serviceMobile ? 'Download PDF' : 'Print/PDF'}
+                      aria-label={serviceMobile ? 'Download invoice PDF' : 'Print invoice'}
                     >
-                      {offlinePdf ? <Download size={14} /> : <Printer size={14} />}
+                      {serviceMobile ? <Download size={14} /> : <Printer size={14} />}
                     </button>
                     {inv.status === 'draft' && (
                       <button
@@ -589,10 +591,10 @@ export function InvoicesView() {
                           type="button"
                           onClick={() => printInvoice(inv)}
                           className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
-                          title={offlinePdf ? 'Download PDF' : 'Print/PDF'}
-                          aria-label={offlinePdf ? 'Download invoice PDF' : 'Print invoice'}
+                          title={serviceMobile ? 'Download PDF' : 'Print/PDF'}
+                          aria-label={serviceMobile ? 'Download invoice PDF' : 'Print invoice'}
                         >
-                          {offlinePdf ? <Download size={15} /> : <Printer size={15} />}
+                          {serviceMobile ? <Download size={15} /> : <Printer size={15} />}
                         </button>
                         {inv.status === 'draft' && (
                           <button
@@ -715,7 +717,7 @@ export function InvoicesView() {
                   onClick={() => printInvoice(selectedInvoice)}
                   className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold flex items-center justify-center gap-2"
                 >
-                  {offlinePdf ? (
+                  {serviceMobile ? (
                     <>
                       <Download size={16} /> Download PDF
                     </>
