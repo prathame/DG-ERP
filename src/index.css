@@ -351,9 +351,6 @@ html.dg-mobile-dense .app-bottom-nav span {
 html.dg-mobile-dense .fixed[role='presentation'] [role='dialog'] h3 {
   font-size: 0.9375rem !important;
 }
-html.dg-mobile-dense aside nav button {
-  font-size: 0.75rem !important;
-}
 
 html.dg-mobile-dense .app-mobile-content .p-8 {
   padding: 1rem !important;
@@ -425,7 +422,7 @@ html.dg-mobile-dense aside nav button {
   min-height: 40px;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
 
 /* —— Mobile-friendly content density (phones + Capacitor) —— */
