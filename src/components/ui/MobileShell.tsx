@@ -139,7 +139,7 @@ export function MobileEmptyState({
           onClick={onAction}
           className="mt-4 inline-flex items-center gap-1 h-9 px-4 rounded-full bg-brand text-white text-[12px] font-bold"
         >
-          <Plus size={14} /> {actionLabel}
+          <Plus size={14} strokeWidth={1.75} /> {actionLabel}
         </button>
       ) : null}
     </div>
@@ -168,7 +168,7 @@ export function MobileFab({
         className,
       )}
     >
-      <Plus size={16} strokeWidth={2.5} />
+      <Plus size={15} strokeWidth={1.75} />
       {label}
     </button>
   );
