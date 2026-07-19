@@ -3,18 +3,25 @@ import { twMerge } from 'tailwind-merge';
 
 import { session } from './session';
 
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buf = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
 /** Fetch an image URL and return a base64 data URL — ensures it's embedded inline in PDFs */
 export async function fetchImageAsDataUrl(url: string, timeoutMs = 4000): Promise<string> {
   try {
     const resp = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!resp.ok) return url;
     const blob = await resp.blob();
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+    const mime = blob.type || 'application/octet-stream';
+    return `data:${mime};base64,${await blobToBase64(blob)}`;
   } catch {
     return url;
   }
@@ -35,7 +42,7 @@ export function bizTypeLabel(type: string | null | undefined, companyName?: stri
 }
 
 /** Returns the super-admin-renamed label for a tab, falling back to the provided default. */
-export function useTabLabel(tabId: string, defaultLabel: string): string {
+export function getTabLabel(tabId: string, defaultLabel: string): string {
   try {
     const user = session.getUser() as Record<string, unknown> | null;
     const tabConfig = user?.tabConfig as Record<string, { label?: string }> | undefined;
@@ -110,17 +117,6 @@ function escapeHtmlLite(s: string): string {
 function safePdfFilename(filename?: string): string {
   const base = (filename || 'Document').replace(/[^\w.\- ()#]+/g, '_').slice(0, 80);
   return base.toLowerCase().endsWith('.pdf') ? base : `${base}.pdf`;
-}
-
-async function blobToBase64(blob: Blob): Promise<string> {
-  const buf = await blob.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  let binary = '';
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
 }
 
 /** Capacitor: write PDF to cache and open native share/save sheet (WebView download is a no-op). */

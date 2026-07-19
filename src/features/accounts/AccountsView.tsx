@@ -22,7 +22,7 @@ import {
   cn,
   exportToCsv,
   formatDate,
-  useTabLabel,
+  getTabLabel,
   openPrintWindow,
   withPrintPagination,
   PRINT_POPUP_BLOCKED,
@@ -200,7 +200,7 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
       <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-4">
         <div className="hidden sm:block">
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <BarChart3 size={22} /> {useTabLabel('accounts', 'Accounts & Reports')}
+            <BarChart3 size={22} /> {getTabLabel('accounts', 'Accounts & Reports')}
           </h2>
           <p className="text-sm text-gray-500">Financial statements, GST reports, registers — all in one place</p>
         </div>

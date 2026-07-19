@@ -24,11 +24,6 @@ export function isGstBillingEnabled(settings?: GstBillSettings): boolean {
   return flag !== false;
 }
 
-/** @deprecated Use isGstBillingEnabled — HSN is clubbed into the GST toggle. */
-export function isShowHsnSacEnabled(settings?: GstBillSettings): boolean {
-  return isGstBillingEnabled(settings);
-}
-
 /** Print/PDF: use the invoice’s frozen GST mode; never re-read live bill settings. */
 export function invoiceHasGst(inv: { gstEnabled?: boolean | null; taxTotal?: number | null }): boolean {
   if (typeof inv.gstEnabled === 'boolean') return inv.gstEnabled;

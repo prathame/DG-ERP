@@ -12,14 +12,13 @@ describe('GST bill settings flags', () => {
     vi.doMock('../../src/platforms/service-cloud/mode', () => ({
       isServicePhoneUx: () => false,
     }));
-    const { isGstBillingEnabled, isShowHsnSacEnabled, invoiceHasGst } = await import('../../src/lib/billSettingsFlags');
+    const { isGstBillingEnabled, invoiceHasGst } = await import('../../src/lib/billSettingsFlags');
     expect(isGstBillingEnabled(null)).toBe(true);
     expect(isGstBillingEnabled({})).toBe(true);
     expect(isGstBillingEnabled({ showGst: true })).toBe(true);
     expect(isGstBillingEnabled({ showGst: false })).toBe(false);
     // legacy HSN key still works
     expect(isGstBillingEnabled({ showHsnSac: false })).toBe(false);
-    expect(isShowHsnSacEnabled({ showGst: true })).toBe(true);
     expect(invoiceHasGst({ gstEnabled: true, taxTotal: 0 })).toBe(true);
     expect(invoiceHasGst({ gstEnabled: false, taxTotal: 100 })).toBe(false);
     expect(invoiceHasGst({ taxTotal: 50 })).toBe(true);
