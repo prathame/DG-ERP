@@ -2,29 +2,28 @@
  * Super Admin Analytics — tailored metrics per deployment type.
  * Cloud: MRR, growth, plan distribution, feature adoption, churn
  * On-Prem: version distribution, expiry timeline, business types, license health
+ * Offline Mobile (Service Mobile): fleet/license health from heartbeats only — no ERP KPIs
  */
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   Cloud,
   Monitor,
+  Smartphone,
   BarChart3,
   Users,
   IndianRupee,
   TrendingUp,
-  RefreshCw,
   Wifi,
   WifiOff,
   AlertTriangle,
   CheckCircle,
-  Package,
   Zap,
-  Clock,
 } from 'lucide-react';
 import { cn, bizTypeLabel } from '../../lib/utils';
 import { session } from '../../lib/session';
 
-type Mode = 'cloud' | 'onprem';
+type Mode = 'cloud' | 'onprem' | 'service-mobile';
 
 // ── Shared UI pieces ───────────────────────────────────────────────────────────
 function StatCard({
@@ -287,14 +286,19 @@ function VersionControlPanel() {
   const [cfg, setCfg] = useState<{
     latestOnpremVersion: string | null;
     minOnpremVersion: string | null;
+    latestServiceMobileVersion: string | null;
+    minServiceMobileVersion: string | null;
     serviceCloudAppUrl: string | null;
     serviceMobileAppUrl: string | null;
     desktopAppUrl: string | null;
     cloudVersion: string;
     onpremVersions: { version: string; count: string; latest_seen: string }[];
+    serviceMobileVersions: { version: string; count: string; latest_seen: string }[];
   } | null>(null);
   const [latest, setLatest] = useState('');
   const [min, setMin] = useState('');
+  const [latestSm, setLatestSm] = useState('');
+  const [minSm, setMinSm] = useState('');
   const [serviceCloudUrl, setServiceCloudUrl] = useState('');
   const [serviceMobileUrl, setServiceMobileUrl] = useState('');
   const [desktopUrl, setDesktopUrl] = useState('');
@@ -309,6 +313,8 @@ function VersionControlPanel() {
       setCfg(d);
       setLatest(d.latestOnpremVersion || '');
       setMin(d.minOnpremVersion || '');
+      setLatestSm(d.latestServiceMobileVersion || '');
+      setMinSm(d.minServiceMobileVersion || '');
       setServiceCloudUrl(d.serviceCloudAppUrl || '');
       setServiceMobileUrl(d.serviceMobileAppUrl || '');
       setDesktopUrl(d.desktopAppUrl || '');
@@ -326,6 +332,8 @@ function VersionControlPanel() {
       body: JSON.stringify({
         latestOnpremVersion: latest || null,
         minOnpremVersion: min || null,
+        latestServiceMobileVersion: latestSm || null,
+        minServiceMobileVersion: minSm || null,
         serviceCloudAppUrl: serviceCloudUrl || null,
         serviceMobileAppUrl: serviceMobileUrl || null,
         desktopAppUrl: desktopUrl || null,
@@ -432,27 +440,51 @@ function VersionControlPanel() {
         </div>
       </div>
 
-      {/* Version inputs */}
+      {/* On-prem version gates */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Latest Version (optional update)</label>
+          <label className="text-xs font-bold text-gray-400 uppercase">On-Prem Latest Version</label>
           <input
             value={latest}
             onChange={e => setLatest(e.target.value)}
             placeholder="e.g. 2.2.0"
             className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
           />
-          <p className="text-[10px] text-gray-400 mt-1">Shows update notification in customer app</p>
+          <p className="text-[10px] text-gray-400 mt-1">Shows update notification in on-prem app</p>
         </div>
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Minimum Version (force update)</label>
+          <label className="text-xs font-bold text-gray-400 uppercase">On-Prem Minimum Version</label>
           <input
             value={min}
             onChange={e => setMin(e.target.value)}
             placeholder="e.g. 2.0.0"
             className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
           />
-          <p className="text-[10px] text-gray-400 mt-1">Blocks app until customer updates</p>
+          <p className="text-[10px] text-gray-400 mt-1">Blocks on-prem until customer updates</p>
+        </div>
+      </div>
+
+      {/* Offline Mobile version gates (heartbeat keys) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Offline Mobile Latest Version</label>
+          <input
+            value={latestSm}
+            onChange={e => setLatestSm(e.target.value)}
+            placeholder="e.g. 1.2.0"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+          <p className="text-[10px] text-gray-400 mt-1">Optional update nudge via Service Mobile heartbeat</p>
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Offline Mobile Minimum Version</label>
+          <input
+            value={minSm}
+            onChange={e => setMinSm(e.target.value)}
+            placeholder="e.g. 1.0.0"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+          <p className="text-[10px] text-gray-400 mt-1">Force-update gate for Offline Mobile APK</p>
         </div>
       </div>
 
@@ -461,7 +493,7 @@ function VersionControlPanel() {
         disabled={saving}
         className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 disabled:opacity-50"
       >
-        {saving ? 'Saving...' : 'Save download links & on-prem version config'}
+        {saving ? 'Saving...' : 'Save download links & version config'}
       </button>
     </div>
   );
@@ -648,9 +680,167 @@ function OnPremAnalytics() {
   );
 }
 
+// ── Offline Mobile (Service Mobile) Analytics — fleet health only ──────────────
+function ServiceMobileAnalytics() {
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    const r = await fetch('/api/super-admin/service-mobile-analytics', {
+      headers: { Authorization: `Bearer ${session.getToken()}` },
+    });
+    if (r.ok) setData(await r.json());
+    setLoading(false);
+  };
+  useEffect(() => {
+    load();
+  }, []);
+
+  if (loading) {
+    return <div className="py-12 text-center text-gray-400 text-sm">Loading Offline Mobile analytics...</div>;
+  }
+  if (!data) return <div className="py-12 text-center text-gray-400 text-sm">Failed to load</div>;
+
+  const versions = data.versionDistribution as { version: string; count: string }[];
+  const expiry = data.expiryTimeline as Record<string, string>;
+  const statusRows = data.statusBreakdown as { status: string; count: string }[];
+  const total = Number(data.total) || 0;
+  const maxVer = Math.max(...versions.map(v => Number(v.count)), 1);
+  const activeCount = Number(statusRows.find(s => s.status === 'active')?.count) || 0;
+
+  return (
+    <div className="space-y-8">
+      <div className="bg-sky-50 border border-sky-100 rounded-2xl px-4 py-3 text-sm text-sky-800">
+        Fleet and license health from device heartbeats only. Offline Mobile ERP data (invoices, clients, revenue) never
+        leaves the phone — nothing here is business analytics.
+      </div>
+
+      {/* KPIs */}
+      <div>
+        <SectionHeader title="License Health" sub="Real-time status of Offline Mobile installations" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard
+            label="Total Licenses"
+            value={total}
+            icon={Smartphone}
+            color="text-sky-600"
+            sub={`${activeCount} active`}
+          />
+          <StatCard
+            label="Online Now"
+            value={Number(data.online) || 0}
+            icon={Wifi}
+            color="text-emerald-600"
+            sub="Heartbeat < 70 min ago"
+            badge={{
+              text: `${total > 0 ? Math.round((Number(data.online) / total) * 100) : 0}% connected`,
+              color: 'bg-emerald-50 text-emerald-700',
+            }}
+          />
+          <StatCard
+            label="Offline"
+            value={Number(data.offline) || 0}
+            icon={WifiOff}
+            color="text-gray-400"
+            sub="Not seen recently"
+          />
+          <StatCard
+            label="Expiring Soon"
+            value={Number(data.expiringSoon) || 0}
+            icon={AlertTriangle}
+            color={Number(data.expiringSoon) > 0 ? 'text-amber-500' : 'text-gray-400'}
+            sub="Within 30 days"
+            badge={
+              Number(data.expiringSoon) > 0 ? { text: 'Action needed', color: 'bg-amber-50 text-amber-600' } : undefined
+            }
+          />
+        </div>
+      </div>
+
+      {/* Expiry timeline + Status */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <SectionHeader title="License Expiry Timeline" sub="When active licenses expire" />
+          <div className="space-y-3 mt-2">
+            {[
+              { label: 'Expired', value: Number(expiry?.expired) || 0, color: 'bg-rose-500' },
+              { label: 'Expires in 30 days', value: Number(expiry?.expiring_30d) || 0, color: 'bg-amber-500' },
+              { label: 'Expires in 31–90 days', value: Number(expiry?.expiring_90d) || 0, color: 'bg-yellow-400' },
+              { label: 'Expires later', value: Number(expiry?.expiring_later) || 0, color: 'bg-emerald-500' },
+              { label: 'Lifetime', value: Number(expiry?.lifetime) || 0, color: 'bg-blue-500' },
+            ].map(e => (
+              <div key={e.label} className="flex items-center gap-3">
+                <div className={cn('w-2.5 h-2.5 rounded-full shrink-0', e.color)} />
+                <span className="text-sm text-gray-600 flex-1">{e.label}</span>
+                <span className="text-sm font-bold">{e.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <SectionHeader title="License Status" sub="Active vs suspended" />
+          <div className="space-y-3 mt-2">
+            {statusRows.length === 0 ? (
+              <p className="text-sm text-gray-400 py-4 text-center">No licenses yet</p>
+            ) : (
+              statusRows.map(s => (
+                <div key={s.status} className="flex items-center gap-3">
+                  <CheckCircle
+                    size={14}
+                    className={
+                      s.status === 'active'
+                        ? 'text-emerald-500'
+                        : s.status === 'suspended'
+                          ? 'text-amber-500'
+                          : 'text-rose-500'
+                    }
+                  />
+                  <span className="text-sm text-gray-600 flex-1 capitalize">{s.status}</span>
+                  <span className="text-sm font-bold">{s.count}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* App version distribution */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <SectionHeader title="App Version Distribution" sub="Which Offline Mobile APK each license last reported" />
+        {versions.length === 0 ? (
+          <p className="text-sm text-gray-400 py-4 text-center">No version data yet (first heartbeat needed)</p>
+        ) : (
+          <div className="space-y-3 mt-2 max-w-xl">
+            {versions.map(v => (
+              <React.Fragment key={v.version}>
+                <BarRow label={`v${v.version}`} value={Number(v.count)} max={maxVer} color="bg-sky-500" />
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+        {versions.length > 1 && (
+          <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
+            <AlertTriangle size={11} /> {versions.length} distinct versions in the field — set Offline Mobile gates in
+            the On-Prem Version Control panel if you need a force update
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Analytics View ────────────────────────────────────────────────────────
 export function SAAnalyticsView() {
   const [mode, setMode] = useState<Mode>('cloud');
+
+  const subtitle =
+    mode === 'cloud'
+      ? 'SaaS business metrics — MRR, growth, feature adoption'
+      : mode === 'onprem'
+        ? 'Deployment health — versions, expiry, license distribution'
+        : 'Offline Mobile fleet health — heartbeats, versions, license status (no ERP KPIs)';
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -660,17 +850,13 @@ export function SAAnalyticsView() {
           <h2 className="text-xl font-bold flex items-center gap-2">
             <BarChart3 size={22} /> Platform Analytics
           </h2>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {mode === 'cloud'
-              ? 'SaaS business metrics — MRR, growth, feature adoption'
-              : 'Deployment health — versions, expiry, license distribution'}
-          </p>
+          <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
         </div>
         <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl">
           <button
             onClick={() => setMode('cloud')}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all',
+              'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold transition-all',
               mode === 'cloud' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700',
             )}
           >
@@ -679,16 +865,25 @@ export function SAAnalyticsView() {
           <button
             onClick={() => setMode('onprem')}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all',
+              'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold transition-all',
               mode === 'onprem' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500 hover:text-gray-700',
             )}
           >
             <Monitor size={14} /> On-Prem
           </button>
+          <button
+            onClick={() => setMode('service-mobile')}
+            className={cn(
+              'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold transition-all',
+              mode === 'service-mobile' ? 'bg-white text-sky-600 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
+            <Smartphone size={14} /> Offline Mobile
+          </button>
         </div>
       </div>
 
-      {mode === 'cloud' ? <CloudAnalytics /> : <OnPremAnalytics />}
+      {mode === 'cloud' ? <CloudAnalytics /> : mode === 'onprem' ? <OnPremAnalytics /> : <ServiceMobileAnalytics />}
     </motion.div>
   );
 }
