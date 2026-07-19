@@ -45,8 +45,6 @@ import {
   getAccountsTabVisiblePref,
 } from './platforms/service-mobile';
 import { serviceMobileOnlineStatusAdapter } from './platforms/service-mobile/serviceMobileOnlineStatusAdapter';
-import { ensureElectricianDemoSeeded } from './platforms/service-mobile/local/seedElectricianDemo';
-import { localQuery } from './platforms/service-mobile/local/db';
 import { ServiceCloudGate, isServicePhoneUx } from './platforms/service-cloud';
 
 const LandingPage = lazy(() => import('./components/layout/LandingPage').then(m => ({ default: m.LandingPage })));
@@ -254,11 +252,6 @@ export default function App() {
           else {
             const slug = await getLocalSlug();
             if (slug) session.setSlug(slug);
-            const tidRow = await localQuery<{ value: string }>(
-              `SELECT value FROM sm_meta WHERE key = 'tenant_id' LIMIT 1`,
-            );
-            const tenantId = tidRow.rows[0]?.value;
-            if (tenantId) await ensureElectricianDemoSeeded(tenantId);
             setSmBoot('ready');
             startServiceMobileHeartbeat();
           }

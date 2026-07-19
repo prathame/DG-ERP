@@ -2,7 +2,6 @@ import bcrypt from 'bcryptjs';
 import { localQuery } from './db';
 import { SERVICE_TAB_PRESET } from './schema';
 import type { ServiceMobileLicense } from '../licenseStore';
-import { ensureElectricianDemoSeeded } from './seedElectricianDemo';
 
 function uid(prefix: string): string {
   return `${prefix}-${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
@@ -72,9 +71,6 @@ export async function provisionLocalTenant(
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
     [slug, tenantId],
   );
-
-  // Electrician sample clients + catalog rates for Offline Mobile QA
-  await ensureElectricianDemoSeeded(tenantId);
 
   return { tenantId, slug, adminEmail };
 }
