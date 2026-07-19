@@ -897,6 +897,7 @@ export function CreateInvoiceModal({
   initialParty?: InvoicePartyPrefill | null;
 }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const cfg = useBusinessConfig();
   const isService = cfg.type === 'service';
   const servicePhoneUx = isServicePhoneUx(cfg.type);
