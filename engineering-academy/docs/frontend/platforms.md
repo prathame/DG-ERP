@@ -28,8 +28,10 @@ graph TD
 | `shared/` | Web + Electron | `resolveApiUrl` / optional `VITE_API_ORIGIN` |
 | `desktop/online/` | Electron cloud | Thin wrapper around hosted app |
 | `desktop/offline/` | Electron on-prem | `OnlineStatus` for license sync |
-| `service-cloud/` | Electron cloud + online Capacitor | Device claim + company-wide session lock; `ServiceCloudGate` freeze overlay |
-| `service-mobile/` | Capacitor phone | Offline PGlite + SA `DG-SM-` licenses; service type only |
+| `service-cloud/` | Electron cloud + online Capacitor | Device claim + company-wide session lock; `ServiceCloudGate` freeze overlay; `isServicePhoneUx()` for Emergent phone IA when Capacitor + `businessType=service` |
+| `service-mobile/` | Capacitor phone | Offline PGlite + SA `DG-SM-` licenses; service type only; also makes `isServicePhoneUx` true |
+
+**Phone IA vs Offline runtime:** `isServicePhoneUx` shares bottom nav / Masters pills / dense hubs across Offline Mobile and online Service Cloud Capacitor (service). Sync, demo seed, Show Accounts, advances, and PGlite stay behind `isServiceMobileMode` only. Seat lock stays on `ServiceCloudGate` (unchanged).
 
 **Do not mix** Service Cloud (online seats) with Service Mobile (offline `DG-SM`). Different Capacitor configs, download URLs, and SA panels.
 

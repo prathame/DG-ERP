@@ -4,7 +4,7 @@ import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Walle
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
-import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { isShowHsnSacEnabled } from '../../lib/billSettingsFlags';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
 import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
@@ -47,7 +47,7 @@ function pillLabel(id: MasterType): string {
 export function MastersView({
   setActiveTab,
   user,
-  businessType: _businessType = 'manufacturer',
+  businessType = 'manufacturer',
   launch,
   onLaunchConsumed,
 }: {
@@ -64,7 +64,7 @@ export function MastersView({
   onLaunchConsumed?: () => void;
 }) {
   const cfg = useBusinessConfig();
-  const serviceMobile = isServiceMobileMode();
+  const servicePhoneUx = isServicePhoneUx(businessType ?? cfg.type);
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
   const isDirectSell = cfg.type === 'dealer' || cfg.type === 'retail';
   const tabConfig = (user?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>;
@@ -119,7 +119,7 @@ export function MastersView({
   useEffect(() => {
     if (!launch?.master) return;
     const master = launch.master;
-    if (master === 'item' && !serviceMobile) {
+    if (master === 'item' && !servicePhoneUx) {
       setActiveTab('inventory');
       onLaunchConsumed?.();
       return;
@@ -141,10 +141,10 @@ export function MastersView({
       setSelectedMaster(master);
     }
     onLaunchConsumed?.();
-  }, [launch]);
+  }, [launch, servicePhoneUx, setActiveTab, onLaunchConsumed]);
 
-  // Offline: no stock Products/Catalog pill — Price List (Catalog + Clients tabs) is the sellable catalog.
-  const productsMaster = !serviceMobile
+  // Service phone UX: no stock Products pill — Price List (Catalog + Clients) is the sellable catalog.
+  const productsMaster = !servicePhoneUx
     ? [
         {
           id: 'item' as const,
@@ -174,8 +174,8 @@ export function MastersView({
       color: 'text-brand',
       bg: 'bg-orange-50',
     },
-    // Offline: Price List next to Clients — Catalog/Clients scope tabs live inside Price ListView.
-    ...(serviceMobile ? [priceListMaster] : []),
+    // Service phone: Price List next to Clients — Catalog/Clients scope tabs live inside Price ListView.
+    ...(servicePhoneUx ? [priceListMaster] : []),
     ...(hasCustomerTracking && !isDirectSell
       ? [
           {
@@ -204,7 +204,7 @@ export function MastersView({
       color: 'text-indigo-600',
       bg: 'bg-indigo-50',
     },
-    ...(!serviceMobile ? [priceListMaster] : []),
+    ...(!servicePhoneUx ? [priceListMaster] : []),
     ...(tv('rewards')
       ? [
           {
@@ -217,8 +217,8 @@ export function MastersView({
           },
         ]
       : []),
-    // Offline Mobile has no mapping routes — hide entirely (cloud manufacturer keeps it).
-    ...(hasCustomerTracking && !serviceMobile
+    // Service phone has no mapping routes — hide (manufacturer cloud keeps it).
+    ...(hasCustomerTracking && !servicePhoneUx
       ? [
           {
             id: 'mapping' as const,
@@ -250,13 +250,13 @@ export function MastersView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- masters identity changes every render
   }, [masterIdsKey, hubTab]);
 
-  // Cloud: Products pill opens Inventory. Offline never shows Products (Price List is the catalog).
+  // Non-service phone: Products pill opens Inventory. Service phone never shows Products (Price List is catalog).
   useEffect(() => {
-    if (selectedMaster === 'item' && !serviceMobile) {
+    if (selectedMaster === 'item' && !servicePhoneUx) {
       setSelectedMaster(null);
       setActiveTab('inventory');
     }
-  }, [selectedMaster, serviceMobile, setActiveTab]);
+  }, [selectedMaster, servicePhoneUx, setActiveTab]);
 
   // Load list for active hub pill (use resolved `active`, not stale hubTab)
   useEffect(() => {
@@ -323,7 +323,7 @@ export function MastersView({
     return () => {
       cancelled = true;
     };
-  }, [active, serviceMobile]);
+  }, [active, servicePhoneUx]);
 
   const openFull = (id: MasterType, opts?: { staffId?: string; vendorId?: string }) => {
     if (id === 'item') {
@@ -432,7 +432,7 @@ export function MastersView({
       {/* Phone hub — Emergent-style: pills + list + FAB */}
       <div className="sm:hidden space-y-3">
         <p className="text-[11px] text-gray-500 px-0.5">
-          {serviceMobile ? 'Clients &amp; rates' : 'Catalog &amp; partners'}
+          {servicePhoneUx ? 'Clients &amp; rates' : 'Catalog &amp; partners'}
         </p>
         <MobilePillTabs
           items={masters.map(m => {

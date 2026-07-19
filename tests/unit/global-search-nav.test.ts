@@ -18,19 +18,29 @@ describe('navigateForGlobalSearchHit', () => {
     });
   });
 
-  it('maps product to inventory when visible; Offline Mobile → priceList', () => {
+  it('maps product to inventory when visible; service phone UX → priceList', () => {
     expect(navigateForGlobalSearchHit('product', { id: 'P1' }, { inventoryVisible: true })).toEqual({
       tab: 'inventory',
     });
+    // Preferred flag (Service Cloud Capacitor service + Offline Mobile)
+    expect(navigateForGlobalSearchHit('product', { id: 'P1' }, { servicePhoneUx: true })).toEqual({
+      tab: 'masters',
+      master: 'priceList',
+    });
+    // Deprecated alias still works
     expect(navigateForGlobalSearchHit('product', { id: 'P1' }, { serviceMobile: true })).toEqual({
       tab: 'masters',
       master: 'priceList',
     });
   });
 
-  it('maps barcode to inventory (not verify)', () => {
+  it('maps barcode to inventory (not verify); servicePhoneUx → priceList', () => {
     expect(navigateForGlobalSearchHit('barcode', { productId: 'P1' }, { inventoryVisible: true })).toEqual({
       tab: 'inventory',
+    });
+    expect(navigateForGlobalSearchHit('barcode', { productId: 'P1' }, { servicePhoneUx: true })).toEqual({
+      tab: 'masters',
+      master: 'priceList',
     });
   });
 

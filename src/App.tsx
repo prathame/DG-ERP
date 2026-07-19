@@ -47,7 +47,7 @@ import {
 import { serviceMobileOnlineStatusAdapter } from './platforms/service-mobile/serviceMobileOnlineStatusAdapter';
 import { ensureElectricianDemoSeeded } from './platforms/service-mobile/local/seedElectricianDemo';
 import { localQuery } from './platforms/service-mobile/local/db';
-import { ServiceCloudGate } from './platforms/service-cloud';
+import { ServiceCloudGate, isServicePhoneUx } from './platforms/service-cloud';
 
 const LandingPage = lazy(() => import('./components/layout/LandingPage').then(m => ({ default: m.LandingPage })));
 const LoginScreen = lazy(() => import('./components/layout/LoginScreen').then(m => ({ default: m.LoginScreen })));
@@ -707,8 +707,9 @@ export default function App() {
     );
   }
 
-  /** Phone bottom nav — Emergent IA only on Offline Mobile; cloud keeps prior destinations */
-  const mobileNavIds = serviceMobile
+  /** Emergent phone IA: Offline Mobile + online Service Cloud Capacitor (not manufacturer cloud). */
+  const servicePhoneUx = isServicePhoneUx(userConfig?.businessType as string | undefined);
+  const mobileNavIds = servicePhoneUx
     ? user?.role === 'Vendor'
       ? ['analytics', 'distribution', 'finance', 'inventory']
       : ['analytics', 'masters', 'invoices', 'quotations']
@@ -1091,7 +1092,7 @@ export default function App() {
                     {canAccess(activeTab) &&
                       activeTab === 'finance' &&
                       // Offline Mobile is always service; also honor businessType so Finance never opens Vendor Finance offline
-                      (isServiceMobileMode() || (userConfig?.businessType as string) === 'service' ? (
+                      (servicePhoneUx || (userConfig?.businessType as string) === 'service' ? (
                         <InvoiceFinanceView accessLevel={getAccess('finance')} />
                       ) : (
                         <VendorFinanceView user={user} accessLevel={getAccess('finance')} />
@@ -1185,7 +1186,7 @@ export default function App() {
               onClose={() => setCmdOpen(false)}
               inventoryVisible={tv('inventory')}
               distributionVisible={tv('distribution')}
-              serviceMobile={serviceMobile}
+              serviceMobile={servicePhoneUx}
             />
           )}
         </AnimatePresence>

@@ -19,7 +19,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5g | Invoice create mobile | Invoices → New → Party → Items → Review | Stepper on phone; line items as cards (no sideways scroll); stacked Cancel/Draft/Send |
 | 5h | Purchase/Quote lines | Purchases / Quotations create modals | Line items as cards on phone; desktop table unchanged |
 | 5i | Drawer + toast | More → drawer; trigger a toast | Settings pinned at bottom; toast below status bar / safe area |
-| 5j | Bottom nav IA | Glance at phone tab bar | Analytics · Masters · Invoice · Quotes · More (not Inventory/Finance as primary) |
+| 5j | Bottom nav IA | Glance at phone tab bar | Analytics · Masters · Invoice · Quotes · More (not Inventory/Finance as primary). Same Emergent IA as Service Cloud Capacitor service via `isServicePhoneUx`; Sync / demo seed / Show Accounts / advances stay Offline-only here |
 | 5k | Analytics phone | Analytics tab | Quick actions + dense KPI cards + range pills |
 | 5k2 | Analytics outstanding | Create unpaid invoice for a client → Analytics | Outstanding Clients lists that client with balance; View All opens Invoice Finance |
 | 5k3 | Analytics payroll | Masters → Staff → Record salary payment → Analytics | Staff Payroll shows Total Paid / staff row; Advances if advance type used |
@@ -51,4 +51,4 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 11b | Public download link | Open `/download` → Offline Mobile Download | Hits evergreen GitHub APK (`…/releases/download/offline-mobile/offline-mobile-service-debug.apk`) unless SA overrode URL |
 | 12 | Download page | Open `/download` | **Service Mobile OFFLINE** card present; distinct from Service Cloud ONLINE |
 
-**Automated:** `tests/api/http-service-mobile.test.ts` (license lifecycle; cloud backup disabled) · `tests/api/http-cors-capacitor.test.ts` (Capacitor origins).
+**Automated:** `tests/api/http-service-mobile.test.ts` (license lifecycle; cloud backup disabled) · `tests/api/http-cors-capacitor.test.ts` (Capacitor origins) · `tests/unit/service-phone-ux.test.ts` (shared phone UX helper) · `tests/unit/global-search-nav.test.ts` (search → Price List). Masters pill filter stays manual (#5l / #5l2) — logic inline in `MastersView`.

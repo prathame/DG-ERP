@@ -76,13 +76,33 @@ Global CSS under `max-width: 1023px` also clamps `.fixed.inset-0 .max-w-*` (thro
 
 Use `useEscapeKey(onClose, open)` from `src/lib/useEscapeKey.ts` for full-screen mobile panels (chat, large sheets). Unit contract: `tests/unit/useEscapeKey.test.ts`.
 
+## Service phone UX (shared Emergent IA)
+
+Online **Service Cloud Capacitor** with `businessType=service` shares the Emergent phone shell with Offline Mobile. Gate helper:
+
+```ts
+// src/platforms/service-cloud/mode.ts
+isServicePhoneUx(businessType) // true for Offline Mobile OR (Capacitor cloud + businessType=service)
+```
+
+| Shared when `isServicePhoneUx` | Stays Offline-only (`isServiceMobileMode`) |
+|--------------------------------|--------------------------------------------|
+| Bottom nav: Analytics · Masters · Invoice · Quotes · More | Sync Now / hard sync / SA force-sync |
+| Masters pills: Clients + Prices (no Products / Vendor-Customer Map) | Demo electrician seed, PGlite, local backup |
+| Dense hubs, PDF download affordances, global search → Price List | Show Accounts toggle, client advances API |
+| Invoice/Quote phone density | License activate / heartbeat |
+
+**`ServiceCloudGate` is unchanged** — company-wide session lock (“In use”) still wraps the tenant shell for `businessType=service` on enrolled Electron/Capacitor clients. Phone IA does not relax seats.
+
+Do **not** use `isServicePhoneUx` for PGlite, Sync, license, or demo seed — those stay Offline-only.
+
 ## Manual QA
 
-`tests/cases/cloud-mobile.md` — notch, bottom nav, SA drawer, invoice cards, chat dismiss, confirm sheet, table overflow, touch targets.
+`tests/cases/cloud-mobile.md` — notch, bottom nav, SA drawer, invoice cards, chat dismiss, confirm sheet, table overflow, touch targets, Service phone IA (#16–19).
 
 ## Coverage note
 
-Vitest gates (`server/utils`, `server/services`) do **not** cover CSS/layout. Treat Knowledge Center cases as the release gate for phone regressions.
+Vitest gates (`server/utils`, `server/services`) do **not** cover CSS/layout. Helper + nav: `tests/unit/service-phone-ux.test.ts`, `tests/unit/global-search-nav.test.ts`. Treat Knowledge Center cases as the release gate for phone regressions.
 
 ## Related
 

@@ -24,7 +24,7 @@ import {
   fetchImageAsDataUrl,
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
-import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { api, fetchApi } from '../../api';
 import type { BillSettings, Product, Vendor } from '../../types';
 import {
@@ -92,7 +92,6 @@ interface Quotation {
 export function QuotationsView() {
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
-  const offlinePdf = isServiceMobileMode();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -140,6 +139,7 @@ export function QuotationsView() {
   const sessionUser = session.getUser() as Record<string, unknown> | null;
   const companyName = String(sessionUser?.companyName || '');
   const isService = String(sessionUser?.businessType || '') === 'service';
+  const offlinePdf = isServicePhoneUx(String(sessionUser?.businessType || ''));
   const partyLabel = isService ? 'Client' : 'Vendor';
   const convertLabel = isService ? 'Convert to Invoice' : 'Convert to Distribution';
 

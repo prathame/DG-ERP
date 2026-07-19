@@ -43,11 +43,17 @@ export function globalSearchHasHits(r: GlobalSearchResults | null | undefined): 
 export function navigateForGlobalSearchHit(
   kind: GlobalSearchEntityKind,
   hit: { id?: string; name?: string; productId?: string },
-  opts?: { inventoryVisible?: boolean; distributionVisible?: boolean; serviceMobile?: boolean },
+  opts?: {
+    inventoryVisible?: boolean;
+    distributionVisible?: boolean;
+    /** @deprecated use servicePhoneUx */
+    serviceMobile?: boolean;
+    servicePhoneUx?: boolean;
+  },
 ): GlobalSearchNavigate {
   const inventoryVisible = opts?.inventoryVisible !== false;
   const distributionVisible = opts?.distributionVisible !== false;
-  const serviceMobile = !!opts?.serviceMobile;
+  const serviceMobile = !!(opts?.servicePhoneUx ?? opts?.serviceMobile);
 
   switch (kind) {
     case 'product':
