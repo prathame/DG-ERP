@@ -50,23 +50,29 @@ gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clo
 
 Workflow: [`.github/workflows/apk-build.yml`](../../../.github/workflows/apk-build.yml)
 
-Builds **two** products in parallel (do not mix installers):
+Builds each product **only when selected** (do not mix installers):
 
 | Job | Evergreen release | App id |
 |-----|-------------------|--------|
 | Offline Mobile | `offline-mobile` / `offline-mobile-service-debug.apk` | `in.dhandho.service` |
 | Service Cloud ONLINE | `service-cloud` / `service-cloud-online-debug.apk` | `in.dhandho.servicecloud` |
 
-**How to mark a PR as mobile:** add GitHub label **`mobile`** (aliases: `apk`, `apk-build`).
+**Labels (merge → evergreen; add label on open PR → preview):**
+
+| Label | Builds |
+|-------|--------|
+| `offline` / `offline-mobile` / `service-mobile` | Offline only |
+| `online` / `service-cloud` | Online only |
+| `mobile` / `apk` / `apk-build` | Both (legacy) |
 
 | Trigger | What happens |
 |---------|----------------|
-| **Merge PR that has label `mobile`** (recommended) | Build both APKs from merge → overwrite both evergreen releases |
-| Push to `main` touching mobile paths | Safety net if someone forgot the label (Capacitor, `service-mobile` / `service-cloud`, invoice UI, etc.) |
-| PR comment `apk build` / `/apk-build` | Preview artifacts only — does **not** overwrite evergreen |
-| Actions → APK Build (manual) | Optional override |
+| **Merge PR with a product label** (recommended) | Build matching APK(s) → overwrite matching evergreen release(s) |
+| Push to `main` touching product paths | Builds only Offline and/or Online based on which paths changed (shared UI → both) |
+| PR comment `apk build` / `apk build offline` / `apk build online` | Preview artifact(s) only — does **not** overwrite evergreen |
+| Actions → APK Build (manual) | Choose product: both / offline / online |
 
-Docs-only / server-desktop PRs without the `mobile` label do **not** rebuild APKs.
+Docs-only / server-desktop PRs without a product label do **not** rebuild APKs (unless the push path filter matches).
 
 ## Mobile UI / safe areas
 
