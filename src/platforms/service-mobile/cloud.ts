@@ -2,6 +2,7 @@
  * Cloud API client for Service Mobile license / sync / backup.
  * Business ERP traffic never goes here — only activate, heartbeat, backup.
  */
+import { clientLogger } from '../../lib/logger';
 
 export type ServiceMobileActivateResult = {
   valid: boolean;
@@ -63,23 +64,43 @@ export async function activateLicense(input: {
   osInfo?: string;
   appVersion?: string;
 }): Promise<ServiceMobileActivateResult> {
-  const { status, data } = await cloudPost<ServiceMobileActivateResult>('/api/service-mobile/activate', input);
-  if (status >= 400) {
-    return {
-      valid: false,
-      licenseKey: input.licenseKey,
-      companyName: '',
-      businessType: 'service',
-      maxUsers: 1,
-      validUntil: null,
-      adminEmail: null,
-      settings: {},
-      tabConfig: {},
-      hasBackup: false,
-      error: (data as { error?: string }).error || 'Activation failed',
-    };
+  try {
+    const { status, data } = await cloudPost<ServiceMobileActivateResult>('/api/service-mobile/activate', input);
+    if (status >= 400) {
+      const error = (data as { error?: string }).error || 'Activation failed';
+      clientLogger.warn('License activation failed', {
+        path: '/api/service-mobile/activate',
+        statusCode: status,
+        error,
+        licenseKeyPrefix: input.licenseKey.slice(0, 8),
+      });
+      return {
+        valid: false,
+        licenseKey: input.licenseKey,
+        companyName: '',
+        businessType: 'service',
+        maxUsers: 1,
+        validUntil: null,
+        adminEmail: null,
+        settings: {},
+        tabConfig: {},
+        hasBackup: false,
+        error,
+      };
+    }
+    clientLogger.info('License activation ok', {
+      path: '/api/service-mobile/activate',
+      statusCode: status,
+      licenseKeyPrefix: input.licenseKey.slice(0, 8),
+    });
+    return data;
+  } catch (err) {
+    clientLogger.exception('License activation network error', err, {
+      path: '/api/service-mobile/activate',
+      licenseKeyPrefix: input.licenseKey.slice(0, 8),
+    });
+    throw err;
   }
-  return data;
 }
 
 export async function heartbeat(input: {

@@ -4,6 +4,8 @@ import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { PasswordInput } from '../ui/PasswordInput';
 import { session } from '../../lib/session';
+import { shareBugReport } from '../../lib/bugReport';
+import { isMobileAppShell } from '../../lib/mobileAppShell';
 
 type LoginMode = 'login' | 'forgot' | 'reset';
 
@@ -48,6 +50,8 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenProps) {
+  const mobileApp = isMobileAppShell();
+  const [sharingReport, setSharingReport] = useState(false);
   const urlToken = new URLSearchParams(window.location.search).get('token');
   const [mode, setMode] = useState<LoginMode>(urlToken ? 'reset' : 'login');
   const [form, setForm] = useState({
@@ -362,6 +366,33 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
               className="w-full mt-5 py-3 text-sm text-gray-400 hover:text-white border border-white/10 rounded-xl transition-colors"
             >
               Change company
+            </button>
+          )}
+          {mobileApp && (
+            <button
+              type="button"
+              disabled={sharingReport}
+              onClick={async () => {
+                setSharingReport(true);
+                try {
+                  const how = await shareBugReport({ lastError: error || undefined });
+                  setSuccessMessage(
+                    how === 'shared'
+                      ? 'Bug report ready to share'
+                      : how === 'copied'
+                        ? 'Bug report copied — paste into WhatsApp/email'
+                        : 'Bug report downloaded',
+                  );
+                  setError('');
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Could not create bug report');
+                } finally {
+                  setSharingReport(false);
+                }
+              }}
+              className="w-full mt-4 py-2.5 text-xs text-gray-500 hover:text-white border border-white/10 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {sharingReport ? 'Preparing report…' : 'Share bug report'}
             </button>
           )}
         </div>
