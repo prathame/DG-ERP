@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Wifi, WifiOff, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '../../../lib/utils';
+import { useTranslation } from '../../../i18n';
 
 export interface ConnectionStatus {
   status: 'online' | 'offline' | 'syncing';
@@ -53,6 +54,7 @@ export function OnlineStatus({
   });
   const [showPopup, setShowPopup] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const { t } = useTranslation();
 
   const refresh = useCallback(async () => {
     try {
@@ -129,10 +131,16 @@ export function OnlineStatus({
         {!collapsed && (
           <div className="flex-1 min-w-0">
             <p className={cn('text-xs font-bold', statusColor)}>
-              {conn.status === 'online' ? 'Online · Synced' : conn.status === 'syncing' ? 'Syncing...' : 'Offline'}
+              {conn.status === 'online'
+                ? t('common.onlineSynced')
+                : conn.status === 'syncing'
+                  ? t('common.syncing')
+                  : t('common.offline')}
               {expiringWarning && <AlertTriangle size={10} className="inline ml-1 text-amber-500" />}
             </p>
-            <p className="text-[10px] text-gray-400 truncate">Last sync: {formatSync(conn.lastSync)}</p>
+            <p className="text-[10px] text-gray-400 truncate">
+              {t('common.lastSync')}: {formatSync(conn.lastSync)}
+            </p>
           </div>
         )}
       </button>
@@ -146,11 +154,11 @@ export function OnlineStatus({
             </h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500">Status</span>
+                <span className="text-gray-500">{t('common.status')}</span>
                 <span className={cn('font-bold capitalize', statusColor)}>{conn.status}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Last sync</span>
+                <span className="text-gray-500">{t('common.lastSync')}</span>
                 <span className="font-medium">{formatSync(conn.lastSync)}</span>
               </div>
               <div className="flex justify-between">
@@ -192,7 +200,7 @@ export function OnlineStatus({
               className="mt-3 w-full py-1.5 border border-gray-200 rounded-lg text-xs font-bold hover:bg-gray-50 flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
               <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
-              {syncing ? 'Syncing...' : 'Sync Now'}
+              {syncing ? t('common.syncing') : t('common.syncNow')}
             </button>
           </div>
         </>

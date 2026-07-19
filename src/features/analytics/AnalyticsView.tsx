@@ -17,6 +17,7 @@ import { cn, formatDate, useTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { api } from '../../api';
+import { useTranslation } from '../../i18n';
 import type { Tab } from '../../types';
 import {
   MobilePillTabs,
@@ -28,36 +29,39 @@ import {
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString();
 
-const RANGE_PRESETS = [
-  { id: 'today', label: 'Today' },
-  { id: 'week', label: 'This Week' },
-  { id: 'month', label: 'This Month' },
-  { id: 'overall', label: 'Overall' },
-  { id: 'custom', label: 'Custom' },
-] as const;
-type RangeId = (typeof RANGE_PRESETS)[number]['id'];
+const RANGE_IDS = ['today', 'week', 'month', 'overall', 'custom'] as const;
+type RangeId = (typeof RANGE_IDS)[number];
 
-const ACTIVITY_ICONS: Record<string, { icon: typeof IndianRupee; color: string; label: string }> = {
-  sale: { icon: ShoppingCart, color: 'text-blue-600', label: 'Sale' },
-  invoice: { icon: FileText, color: 'text-violet-600', label: 'Invoice' },
-  payment: { icon: IndianRupee, color: 'text-emerald-600', label: 'Payment' },
-  distribution: { icon: Package, color: 'text-orange-600', label: 'Dispatch' },
-  expense: { icon: CreditCard, color: 'text-rose-600', label: 'Expense' },
+const ACTIVITY_META: Record<string, { icon: typeof IndianRupee; color: string; labelKey: string }> = {
+  sale: { icon: ShoppingCart, color: 'text-blue-600', labelKey: 'dashboard.sale' },
+  invoice: { icon: FileText, color: 'text-violet-600', labelKey: 'dashboard.invoice' },
+  payment: { icon: IndianRupee, color: 'text-emerald-600', labelKey: 'dashboard.payment' },
+  distribution: { icon: Package, color: 'text-orange-600', labelKey: 'dashboard.dispatch' },
+  expense: { icon: CreditCard, color: 'text-rose-600', labelKey: 'dashboard.expense' },
 };
 
-function relativeTime(dateStr: string) {
+function relativeTime(dateStr: string, t: (key: string) => string) {
   const d = new Date(dateStr);
   const diff = Date.now() - d.getTime();
   const days = Math.floor(diff / 86400000);
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
+  if (days === 0) return t('common.today');
+  if (days === 1) return t('common.yesterday');
   if (days < 7) return `${days}d ago`;
   return formatDate(dateStr);
 }
 
 export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => void }) {
+  const { t } = useTranslation();
   const cfg = useBusinessConfig();
   const serviceMobile = isServiceMobileMode();
+  const rangePresets = [
+    { id: 'today' as const, label: t('common.today') },
+    { id: 'week' as const, label: t('common.thisWeek') },
+    { id: 'month' as const, label: t('common.thisMonth') },
+    { id: 'overall' as const, label: t('common.overall') },
+    { id: 'custom' as const, label: t('common.custom') },
+  ];
+  const outstandingLabel = t('dashboard.outstanding');
   const [range, setRange] = useState<RangeId>('month');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -142,37 +146,43 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
     ? (
         [
           {
+            id: 'collections',
             label: cfg.analytics.collectionsLabel,
             value: money.collections,
             accent: 'green' as const,
             show: true,
           },
           {
+            id: 'revenue',
             label: cfg.analytics.revenueLabel,
             value: money.revenue,
             accent: 'blue' as const,
             show: true,
           },
           {
-            label: 'Dispatched',
+            id: 'dispatched',
+            label: t('dashboard.dispatched'),
             value: money.distribution,
             accent: 'amber' as const,
             show: cfg.analytics.showDispatched,
           },
           {
-            label: 'Expenses',
+            id: 'expenses',
+            label: t('dashboard.expenses'),
             value: money.expenses,
             accent: 'rose' as const,
             show: true,
           },
           {
-            label: cfg.analytics.outstandingLabel,
+            id: 'outstanding',
+            label: cfg.analytics.outstandingLabel || outstandingLabel,
             value: money[cfg.analytics.outstandingKey],
             accent: (money[cfg.analytics.outstandingKey] > 0 ? 'rose' : 'green') as 'rose' | 'green',
             show: true,
           },
           {
-            label: 'Net In',
+            id: 'netIn',
+            label: t('dashboard.netIn'),
             // Offline Service: collections = invoice_payments and revenue = invoice totals —
             // summing both double-counts the same money. Use cash in − expenses instead.
             value: serviceMobile
@@ -185,15 +195,21 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
               : 'rose') as 'green' | 'rose',
             show: true,
           },
-        ] as { label: string; value: number; accent: 'brand' | 'blue' | 'green' | 'rose' | 'amber'; show: boolean }[]
-      ).filter(t => t.show)
+        ] as {
+          id: string;
+          label: string;
+          value: number;
+          accent: 'brand' | 'blue' | 'green' | 'rose' | 'amber';
+          show: boolean;
+        }[]
+      ).filter(tile => tile.show)
     : [];
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-6">
       <div className="hidden sm:block">
-        <h2 className="text-xl font-bold">{useTabLabel('analytics', 'Analytics')}</h2>
-        <p className="text-sm text-gray-500">Business overview and activity</p>
+        <h2 className="text-xl font-bold">{useTabLabel('analytics', t('nav.analytics'))}</h2>
+        <p className="text-sm text-gray-500">{t('dashboard.subtitle')}</p>
       </div>
 
       {/* Money Overview */}
@@ -201,11 +217,11 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
         <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-3 mb-3 sm:mb-5">
           <h3 className="font-bold text-[13px] sm:text-base flex items-center gap-1.5 sm:gap-2">
             <CreditCard size={16} className="text-emerald-500 sm:hidden" />
-            <CreditCard size={18} className="text-emerald-500 hidden sm:block" /> Money Overview
+            <CreditCard size={18} className="text-emerald-500 hidden sm:block" /> {t('dashboard.moneyOverview')}
           </h3>
           {/* Desktop pills */}
           <div className="hidden sm:flex items-center gap-2 flex-wrap">
-            {RANGE_PRESETS.map(r => (
+            {rangePresets.map(r => (
               <button
                 key={r.id}
                 type="button"
@@ -223,7 +239,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
         {/* Phone pills */}
         <div className="sm:hidden mb-3">
           <MobilePillTabs
-            items={RANGE_PRESETS.map(r => ({ id: r.id, label: r.label }))}
+            items={rangePresets.map(r => ({ id: r.id, label: r.label }))}
             value={range}
             onChange={id => setRange(id as RangeId)}
           />
@@ -231,7 +247,9 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
         {range === 'custom' && (
           <div className="grid grid-cols-2 gap-2 mb-3 sm:mb-4 sm:flex sm:items-end sm:gap-2">
             <div className="min-w-0">
-              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">From</label>
+              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">
+                {t('common.from')}
+              </label>
               <input
                 type="date"
                 value={fromDate}
@@ -240,7 +258,9 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
               />
             </div>
             <div className="min-w-0">
-              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">To</label>
+              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">
+                {t('common.to')}
+              </label>
               <input
                 type="date"
                 value={toDate}
@@ -254,20 +274,20 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
           <>
             {/* Phone KPI cards */}
             <div className="sm:hidden grid grid-cols-2 gap-2">
-              {moneyTiles.map(({ label, value, accent }) => (
-                <Fragment key={label}>
+              {moneyTiles.map(({ id, label, value, accent }) => (
+                <Fragment key={id}>
                   <MobileKpiCard
                     label={label}
                     value={fmt(value)}
                     accent={accent}
-                    hint={label === 'Outstanding' && value < 0 ? 'credit' : undefined}
+                    hint={id === 'outstanding' && value < 0 ? t('common.credit') : undefined}
                   />
                 </Fragment>
               ))}
             </div>
             {/* Desktop tiles */}
             <div className="hidden sm:grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {moneyTiles.map(({ label, value, accent }) => {
+              {moneyTiles.map(({ id, label, value, accent }) => {
                 const bgMap: Record<string, string> = {
                   green: 'bg-emerald-50',
                   blue: 'bg-blue-50',
@@ -283,11 +303,11 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
                   brand: 'text-brand',
                 };
                 return (
-                  <div key={label} className={cn('rounded-xl p-3', bgMap[accent] || 'bg-gray-50')}>
+                  <div key={id} className={cn('rounded-xl p-3', bgMap[accent] || 'bg-gray-50')}>
                     <p className="text-xs text-gray-500 font-medium mb-1">{label}</p>
                     <p className={cn('text-base font-bold', colorMap[accent])}>{fmt(value)}</p>
-                    {label === 'Outstanding' && value < 0 && (
-                      <p className="text-[10px] text-emerald-600 font-medium">credit</p>
+                    {id === 'outstanding' && value < 0 && (
+                      <p className="text-[10px] text-emerald-600 font-medium">{t('common.credit')}</p>
                     )}
                   </div>
                 );
@@ -295,7 +315,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
             </div>
           </>
         ) : (
-          <div className="h-16 flex items-center justify-center text-gray-400 text-sm">Loading...</div>
+          <div className="h-16 flex items-center justify-center text-gray-400 text-sm">{t('common.loading')}</div>
         )}
       </div>
 
@@ -304,18 +324,18 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
         <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="font-bold text-[13px] sm:text-base flex items-center gap-1.5 sm:gap-2">
-              <IndianRupee size={16} className="text-rose-500" /> Outstanding {cfg.labels.vendors}
+              <IndianRupee size={16} className="text-rose-500" /> {outstandingLabel} {cfg.labels.vendors}
             </h3>
             <button
               type="button"
               onClick={() => setActiveTab('finance')}
               className="text-[11px] sm:text-xs text-brand font-bold flex items-center gap-1 hover:underline"
             >
-              View All <ArrowRight size={12} />
+              {t('common.viewAll')} <ArrowRight size={12} />
             </button>
           </div>
           {vendors.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-6">No outstanding balances</p>
+            <p className="text-sm text-gray-400 text-center py-6">{t('dashboard.noOutstanding')}</p>
           ) : (
             <div className="space-y-1.5 sm:space-y-2">
               {vendors.map((v, i) => (
@@ -339,22 +359,22 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
         {/* Recent Activity */}
         <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5">
           <h3 className="font-bold text-[13px] sm:text-base flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-            <TrendingUp size={16} className="text-brand" /> Recent Activity
+            <TrendingUp size={16} className="text-brand" /> {t('dashboard.recentActivity')}
           </h3>
           {activity.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-6">No recent activity</p>
+            <p className="text-sm text-gray-400 text-center py-6">{t('dashboard.noActivity')}</p>
           ) : (
             <>
               <div className="sm:hidden space-y-1.5">
                 {activity.map(a => {
-                  const meta = ACTIVITY_ICONS[a.type] ?? ACTIVITY_ICONS.sale;
+                  const meta = ACTIVITY_META[a.type] ?? ACTIVITY_META.sale;
                   const Icon = meta.icon;
                   return (
                     <Fragment key={a.id + a.type}>
                       <MobileListRow
                         icon={<Icon className={meta.color} />}
                         title={a.label}
-                        subtitle={`${meta.label} · ${relativeTime(a.date)}`}
+                        subtitle={`${t(meta.labelKey)} · ${relativeTime(a.date, t)}`}
                         trailing={
                           <span className={a.type === 'expense' ? 'text-rose-600' : 'text-emerald-600'}>
                             {a.type === 'expense' ? '-' : '+'}
@@ -368,7 +388,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
               </div>
               <div className="hidden sm:block space-y-2">
                 {activity.map(a => {
-                  const meta = ACTIVITY_ICONS[a.type] ?? ACTIVITY_ICONS.sale;
+                  const meta = ACTIVITY_META[a.type] ?? ACTIVITY_META.sale;
                   const Icon = meta.icon;
                   return (
                     <div
@@ -381,7 +401,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{a.label}</p>
                         <p className="text-xs text-gray-400">
-                          {meta.label} · {relativeTime(a.date)}
+                          {t(meta.labelKey)} · {relativeTime(a.date, t)}
                         </p>
                       </div>
                       <span
@@ -406,27 +426,28 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
         <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="font-bold text-[13px] sm:text-base flex items-center gap-1.5 sm:gap-2">
-              <Wallet size={16} className="text-indigo-500" /> Staff Payroll — {new Date().getFullYear()}
+              <Wallet size={16} className="text-indigo-500" /> {t('dashboard.staffPayroll')} —{' '}
+              {new Date().getFullYear()}
             </h3>
             <button
               type="button"
               onClick={() => setActiveTab('masters')}
               className="text-[11px] sm:text-xs text-brand font-bold flex items-center gap-1 hover:underline"
             >
-              Manage Staff <ArrowRight size={12} />
+              {t('dashboard.manageStaff')} <ArrowRight size={12} />
             </button>
           </div>
           <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-3 sm:mb-4">
             <div className="bg-indigo-50 rounded-lg sm:rounded-xl p-2.5 sm:p-3">
-              <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Total Paid</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">{t('dashboard.totalPaid')}</p>
               <p className="text-sm sm:text-lg font-bold text-indigo-600 tabular-nums">{fmt(payroll.grandTotal)}</p>
             </div>
             <div className="bg-gray-50 rounded-lg sm:rounded-xl p-2.5 sm:p-3">
-              <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Staff</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">{t('dashboard.staff')}</p>
               <p className="text-sm sm:text-lg font-bold tabular-nums">{payroll.byStaff?.length ?? 0}</p>
             </div>
             <div className="bg-amber-50 rounded-lg sm:rounded-xl p-2.5 sm:p-3">
-              <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Advances</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">{t('dashboard.advances')}</p>
               <p className="text-sm sm:text-lg font-bold text-amber-600 tabular-nums">
                 {fmt(payroll.advanceOutstanding ?? 0)}
               </p>
@@ -434,7 +455,9 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
           </div>
           {(payroll.byStaff?.length ?? 0) > 0 && (
             <div className="space-y-1.5 sm:space-y-2">
-              <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase">Top Staff by Payment</p>
+              <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase">
+                {t('dashboard.topStaffByPayment')}
+              </p>
               {payroll.byStaff.slice(0, 5).map(s => (
                 <div
                   key={s.name}
@@ -442,7 +465,9 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
                 >
                   <div className="min-w-0">
                     <p className="text-[13px] sm:text-sm font-medium truncate">{s.name}</p>
-                    <p className="text-[10px] sm:text-xs text-gray-400">{s.payments} payments</p>
+                    <p className="text-[10px] sm:text-xs text-gray-400">
+                      {s.payments} {t('dashboard.payments')}
+                    </p>
                   </div>
                   <span className="text-[13px] sm:text-sm font-bold text-indigo-600 tabular-nums shrink-0">
                     {fmt(s.total)}
@@ -456,11 +481,11 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
 
       {!serviceMobile && counts && (
         <div>
-          <MobileSectionTitle title="Master Summary" className="mb-2 sm:mb-3 sm:[&_h3]:text-base" />
+          <MobileSectionTitle title={t('dashboard.masterSummary')} className="mb-2 sm:mb-3 sm:[&_h3]:text-base" />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             {[
               {
-                label: 'Customers',
+                label: t('masters.customers'),
                 count: counts.customerMaster,
                 icon: Users,
                 color: 'text-blue-600',
@@ -468,7 +493,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
                 tab: 'sales' as Tab,
               },
               {
-                label: 'Vendors',
+                label: t('masters.vendors'),
                 count: counts.vendorMaster,
                 icon: UserRound,
                 color: 'text-purple-600',
@@ -476,7 +501,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
                 tab: 'finance' as Tab,
               },
               {
-                label: 'Products',
+                label: t('dashboard.products'),
                 count: counts.itemMaster,
                 icon: Package,
                 color: 'text-orange-600',
@@ -484,7 +509,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
                 tab: 'inventory' as Tab,
               },
               {
-                label: 'Banks',
+                label: t('masters.banks'),
                 count: counts.bankMaster,
                 icon: Landmark,
                 color: 'text-emerald-600',

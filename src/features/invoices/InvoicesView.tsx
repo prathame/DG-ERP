@@ -38,6 +38,7 @@ import { suggestHsnRate } from '../../lib/hsnRates';
 import { isShowHsnSacEnabled } from '../../lib/billSettingsFlags';
 import { session } from '../../lib/session';
 import { api } from '../../api';
+import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 
@@ -154,7 +155,8 @@ function resolveCatalogPrice(product: Product, rules: PriceRule[], vendorId: str
 
 export function InvoicesView() {
   const { toast } = useToast();
-  const invoicesLabel = useTabLabel('invoices', 'Invoices');
+  const { t } = useTranslation();
+  const invoicesLabel = useTabLabel('invoices', t('invoices.title'));
   const cfg = useBusinessConfig();
   const servicePhoneUx = isServicePhoneUx(cfg.type);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -496,7 +498,7 @@ export function InvoicesView() {
             onClick={() => setCreateOpen(true)}
             className="hidden sm:flex items-center gap-1.5 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
           >
-            <Plus size={16} /> New Invoice
+            <Plus size={16} /> {t('invoices.newInvoice')}
           </button>
         </div>
       </div>
@@ -505,16 +507,16 @@ export function InvoicesView() {
       <div className="sm:hidden space-y-2">
         {!servicePhoneUx && (
           <div className="grid grid-cols-2 gap-2">
-            <MobileKpiCard label="Outstanding" value={`₹${outstanding.toLocaleString()}`} accent="rose" />
-            <MobileKpiCard label="Collected" value={`₹${paidTotal.toLocaleString()}`} accent="green" />
+            <MobileKpiCard label={t('invoices.outstanding')} value={`₹${outstanding.toLocaleString()}`} accent="rose" />
+            <MobileKpiCard label={t('invoices.collected')} value={`₹${paidTotal.toLocaleString()}`} accent="green" />
           </div>
         )}
         <MobilePillTabs
           items={[
-            { id: 'all', label: 'All' },
-            { id: 'draft', label: 'Draft' },
-            { id: 'sent', label: 'Sent' },
-            { id: 'paid', label: 'Paid' },
+            { id: 'all', label: t('common.all') },
+            { id: 'draft', label: t('common.draft') },
+            { id: 'sent', label: t('common.sent') },
+            { id: 'paid', label: t('common.paid') },
           ]}
           value={statusFilter}
           onChange={id => setStatusFilter(id as typeof statusFilter)}
@@ -527,24 +529,24 @@ export function InvoicesView() {
           <div className="sm:hidden">
             <MobileEmptyState
               icon={<FileText />}
-              title="No invoices yet"
-              subtitle="Create your first invoice for services or custom billing"
-              actionLabel="New Invoice"
+              title={t('invoices.noInvoicesYet')}
+              subtitle={t('invoices.emptySubtitle')}
+              actionLabel={t('invoices.newInvoice')}
               onAction={() => setCreateOpen(true)}
             />
           </div>
           <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
             <FileText size={48} className="mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500 font-medium text-lg">No invoices yet</p>
-            <p className="text-gray-400 text-sm mt-1">
-              Create your first standalone invoice for services or custom billing
-            </p>
+            <p className="text-gray-500 font-medium text-lg">{t('invoices.noInvoicesYet')}</p>
+            <p className="text-gray-400 text-sm mt-1">{t('invoices.emptySubtitle')}</p>
           </div>
         </>
       ) : (
         <>
           {filteredInvoices.length === 0 ? (
-            <div className="sm:hidden py-8 text-center text-[12px] text-gray-400 font-medium">No matching invoices</div>
+            <div className="sm:hidden py-8 text-center text-[12px] text-gray-400 font-medium">
+              {t('invoices.noMatching')}
+            </div>
           ) : (
             <div className="sm:hidden space-y-2">
               {filteredInvoices.map(inv => (
@@ -583,8 +585,8 @@ export function InvoicesView() {
                       type="button"
                       onClick={() => printInvoice(inv)}
                       className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
-                      title={servicePhoneUx ? 'Download PDF' : 'Print/PDF'}
-                      aria-label={servicePhoneUx ? 'Download invoice PDF' : 'Print invoice'}
+                      title={servicePhoneUx ? t('common.downloadPdf') : t('invoices.printPdf')}
+                      aria-label={servicePhoneUx ? t('common.downloadPdf') : t('common.print')}
                     >
                       {servicePhoneUx ? <Download size={14} /> : <Printer size={14} />}
                     </button>
@@ -1413,7 +1415,7 @@ export function CreateInvoiceModal({
 
   return (
     <AppModal
-      title="New Invoice"
+      title={t('invoices.newInvoice')}
       subtitle={<span className="font-mono">{invoiceNumber}</span>}
       onClose={onClose}
       footer={footer}

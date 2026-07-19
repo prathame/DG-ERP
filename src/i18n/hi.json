@@ -16,7 +16,14 @@
     "settings": "सेटिंग्स",
     "analytics": "विश्लेषण",
     "masters": "मास्टर्स",
-    "invoices": "चालान"
+    "invoices": "चालान",
+    "purchaseExpense": "खरीद / खर्च",
+    "quotesOrders": "कोट्स और ऑर्डर",
+    "more": "और",
+    "invoiceShort": "चालान",
+    "quotesShort": "कोट्स",
+    "dispatch": "डिस्पैच",
+    "stock": "स्टॉक"
   },
   "common": {
     "save": "सेव करें",
@@ -63,7 +70,29 @@
     "refresh": "रिफ्रेश",
     "view": "देखें",
     "details": "विवरण",
-    "poweredBy": "Dhandho द्वारा संचालित"
+    "poweredBy": "Dhandho द्वारा संचालित",
+    "downloadPdf": "PDF डाउनलोड",
+    "viewAll": "सभी देखें",
+    "syncNow": "अभी सिंक करें",
+    "syncing": "सिंक हो रहा है...",
+    "onlineSynced": "ऑनलाइन · सिंक",
+    "offline": "ऑफलाइन",
+    "lastSync": "अंतिम सिंक",
+    "from": "से",
+    "to": "तक",
+    "today": "आज",
+    "yesterday": "कल",
+    "thisWeek": "इस सप्ताह",
+    "thisMonth": "इस महीने",
+    "overall": "कुल",
+    "custom": "कस्टम",
+    "draft": "ड्राफ्ट",
+    "sent": "भेजा गया",
+    "paid": "भुगतान",
+    "accepted": "स्वीकृत",
+    "converted": "कन्वर्टेड",
+    "retry": "पुनः प्रयास",
+    "credit": "क्रेडिट"
   },
   "dashboard": {
     "title": "डैशबोर्ड",
@@ -77,7 +106,31 @@
     "itemsSold": "बेची गई वस्तुएं",
     "salesChart": "बिक्री चार्ट",
     "topProducts": "शीर्ष उत्पाद",
-    "topVendors": "शीर्ष विक्रेता"
+    "topVendors": "शीर्ष विक्रेता",
+    "subtitle": "व्यवसाय अवलोकन और गतिविधि",
+    "moneyOverview": "पैसे का अवलोकन",
+    "dispatched": "डिस्पैच",
+    "expenses": "खर्च",
+    "netIn": "नेट इन",
+    "outstanding": "बकाया",
+    "collected": "एकत्रित",
+    "recentActivity": "हाल की गतिविधि",
+    "noOutstanding": "कोई बकाया नहीं",
+    "noActivity": "कोई हाल की गतिविधि नहीं",
+    "staffPayroll": "स्टाफ पेरोल",
+    "manageStaff": "स्टाफ प्रबंधित करें",
+    "totalPaid": "कुल भुगतान",
+    "staff": "स्टाफ",
+    "advances": "एडवांस",
+    "topStaffByPayment": "भुगतान के अनुसार टॉप स्टाफ",
+    "payments": "भुगतान",
+    "masterSummary": "मास्टर सारांश",
+    "products": "उत्पाद",
+    "sale": "बिक्री",
+    "invoice": "चालान",
+    "payment": "भुगतान",
+    "dispatch": "डिस्पैच",
+    "expense": "खर्च"
   },
   "sales": {
     "title": "बिक्री एंट्री",
@@ -177,7 +230,25 @@
     "contactPerson": "संपर्क व्यक्ति",
     "accountNumber": "खाता संख्या",
     "ifscCode": "IFSC कोड",
-    "bankName": "बैंक का नाम"
+    "bankName": "बैंक का नाम",
+    "clients": "क्लाइंट",
+    "staff": "स्टाफ",
+    "products": "उत्पाद",
+    "prices": "कीमतें",
+    "mapping": "मैपिंग",
+    "addStaff": "स्टाफ जोड़ें",
+    "openProducts": "उत्पाद खोलें",
+    "customer": "ग्राहक",
+    "product": "उत्पाद",
+    "bank": "बैंक",
+    "clientsRates": "क्लाइंट और दरें",
+    "catalogPartners": "कैटलॉग और पार्टनर",
+    "noClientsYet": "अभी कोई क्लाइंट नहीं",
+    "noCustomersYet": "अभी कोई ग्राहक नहीं",
+    "noProductsYet": "अभी कोई उत्पाद नहीं",
+    "noBanksYet": "अभी कोई बैंक नहीं",
+    "noStaffYet": "अभी कोई स्टाफ नहीं",
+    "addFirstPartner": "शुरू करने के लिए अपना पहला पार्टनर जोड़ें"
   },
   "settings": {
     "title": "सेटिंग्स",
@@ -228,7 +299,13 @@
     "userManagement": "उपयोगकर्ता प्रबंधन",
     "addUser": "उपयोगकर्ता जोड़ें",
     "role": "भूमिका",
-    "permissions": "अनुमतियां"
+    "permissions": "अनुमतियां",
+    "downloadBackupNow": "अभी बैकअप डाउनलोड करें",
+    "saveBackupFile": "बैकअप फ़ाइल सेव करें",
+    "restoreBackup": "बैकअप से पुनर्स्थापित करें",
+    "showAccounts": "अकाउंट्स दिखाएं",
+    "showAccountsDesc": "बंद होने पर, इस डिवाइस पर More और टैब नेविगेशन से अकाउंट्स छिप जाते हैं।",
+    "fullName": "पूरा नाम"
   },
   "auth": {
     "loginTitle": "लॉगिन",
@@ -239,5 +316,29 @@
     "passwordsDoNotMatch": "पासवर्ड मेल नहीं खाते",
     "authFailed": "प्रमाणीकरण विफल",
     "enterpriseResourcePlanning": "एंटरप्राइज रिसोर्स प्लानिंग"
+  },
+  "navSections": {
+    "supplyChain": "सप्लाई चेन",
+    "financeReports": "वित्त और रिपोर्ट",
+    "afterSales": "आफ्टर सेल्स"
+  },
+  "invoices": {
+    "title": "चालान",
+    "newInvoice": "नया चालान",
+    "noInvoicesYet": "अभी कोई चालान नहीं",
+    "noMatching": "कोई मेल खाता चालान नहीं",
+    "emptySubtitle": "सेवाओं या कस्टम बिलिंग के लिए अपना पहला चालान बनाएं",
+    "outstanding": "बकाया",
+    "collected": "एकत्रित",
+    "printPdf": "प्रिंट/PDF"
+  },
+  "quotations": {
+    "title": "कोटेशन",
+    "newQuote": "नया कोट",
+    "noQuotationsYet": "अभी कोई कोटेशन नहीं",
+    "noMatching": "कोई मेल खाता कोटेशन नहीं",
+    "loadFailed": "कोटेशन लोड करने में विफल",
+    "client": "क्लाइंट",
+    "vendor": "विक्रेता"
   }
 }
