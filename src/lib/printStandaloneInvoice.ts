@@ -23,7 +23,9 @@ export async function printStandaloneInvoice(
   inv: PrintableStandaloneInvoice,
   options?: { billSettings?: Record<string, unknown>; businessType?: string },
 ): Promise<void> {
-  const w = openPrintWindow('Preparing invoice…');
+  // No html2pdf Download — canvas capture collapses Tax Invoice borders/tables.
+  // Use system Print → Save as PDF for correct layout.
+  const w = openPrintWindow('Preparing invoice…', { hidePdfDownload: true });
   if (!w) {
     throw new Error(PRINT_POPUP_BLOCKED);
   }

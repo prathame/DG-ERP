@@ -29,7 +29,6 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
 import { printStandaloneInvoiceById } from '../../lib/printStandaloneInvoice';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
-import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
 type PayModal = {
@@ -505,10 +504,9 @@ export function VendorMasterView({
                             type="button"
                             onClick={() => void printInvoicePdf(inv.id)}
                             className="flex items-center gap-1 px-3 py-1.5 min-h-[36px] border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50"
-                            title={isServicePhoneUx(cfg.type) ? 'Download PDF' : 'Print / Download PDF'}
+                            title="Print invoice"
                           >
-                            {isServicePhoneUx(cfg.type) ? <Download size={12} /> : <Printer size={12} />}
-                            PDF
+                            <Printer size={12} /> Print
                           </button>
                           {!paid && inv.balance > 0 && (
                             <button

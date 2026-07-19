@@ -426,18 +426,29 @@ async function triggerOverlayPrint(): Promise<void> {
   }
 }
 
+export type OpenPrintWindowOpts = {
+  /**
+   * Hide html2pdf "Download PDF" on Capacitor overlay.
+   * Use for Tax Invoice / bordered bills — canvas capture collapses tables and borders.
+   * Prefer system Print → Save as PDF instead.
+   */
+  hidePdfDownload?: boolean;
+};
+
 /**
  * Fullscreen in-app overlay when window.open is unavailable.
- * Offline Mobile / Capacitor → preview + explicit Download PDF; cloud popup-blocked → classic Print / PDF.
+ * Offline Mobile / Capacitor → preview + Print (optional Download PDF); cloud popup-blocked → classic Print / PDF.
  * Returns the iframe's contentWindow so existing printBillInWindow() callers keep working.
  */
-function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
+function openPrintOverlay(placeholder = 'Preparing…', opts?: OpenPrintWindowOpts): Window | null {
   closePrintOverlay();
   const nativePdf = needsNativePrintPath();
+  const hideDownload = !!opts?.hidePdfDownload;
   const host = document.createElement('div');
   host.id = PRINT_OVERLAY_ID;
   host.setAttribute('role', 'dialog');
-  host.setAttribute('aria-label', nativePdf ? 'PDF preview' : 'Print preview');
+  host.setAttribute('aria-label', nativePdf ? 'Print preview' : 'Print preview');
+  if (hideDownload) host.setAttribute('data-hide-pdf-download', '1');
   host.style.cssText =
     'position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#0f172a;';
 
@@ -466,23 +477,25 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
     printBtn.setAttribute('data-pdf-print', '1');
     printBtn.textContent = 'Print';
     printBtn.style.cssText =
-      'padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#fff;font-weight:700;font-size:13px;';
+      'padding:8px 12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:13px;';
     printBtn.onclick = () => {
       void triggerOverlayNativePrint();
     };
-
-    const actionBtn = document.createElement('button');
-    actionBtn.type = 'button';
-    actionBtn.setAttribute('data-pdf-download', '1');
-    actionBtn.textContent = 'Download PDF';
-    actionBtn.style.cssText =
-      'padding:8px 12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:13px;';
-    actionBtn.onclick = () => {
-      void triggerOverlayDownload();
-    };
-
     actions.appendChild(printBtn);
-    actions.appendChild(actionBtn);
+
+    // html2pdf canvas capture breaks bordered Tax Invoice tables — omit for invoices
+    if (!hideDownload) {
+      const actionBtn = document.createElement('button');
+      actionBtn.type = 'button';
+      actionBtn.setAttribute('data-pdf-download', '1');
+      actionBtn.textContent = 'Download PDF';
+      actionBtn.style.cssText =
+        'padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#fff;font-weight:700;font-size:13px;';
+      actionBtn.onclick = () => {
+        void triggerOverlayDownload();
+      };
+      actions.appendChild(actionBtn);
+    }
   } else {
     const actionBtn = document.createElement('button');
     actionBtn.type = 'button';
@@ -525,12 +538,12 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
 /**
  * Open a print/PDF window immediately.
  * Must be called synchronously from a click handler — never after await.
- * Offline Mobile / Capacitor uses in-app preview + Download PDF; cloud desktop uses window.open + print.
+ * Offline Mobile / Capacitor uses in-app preview + Print; cloud desktop uses window.open + print.
  * Popup-blocked cloud falls back to in-app Print / PDF (not forced download).
  */
-export function openPrintWindow(placeholder = 'Preparing…'): Window | null {
+export function openPrintWindow(placeholder = 'Preparing…', opts?: OpenPrintWindowOpts): Window | null {
   if (needsNativePrintPath()) {
-    return openPrintOverlay(placeholder);
+    return openPrintOverlay(placeholder, opts);
   }
 
   let win: Window | null = null;
@@ -559,7 +572,7 @@ export function openPrintWindow(placeholder = 'Preparing…'): Window | null {
     return win;
   }
   // Desktop pop-up blocked → in-app classic print preview
-  return openPrintOverlay(placeholder);
+  return openPrintOverlay(placeholder, opts);
 }
 
 function applyPrintTitle(html: string, filename?: string): string {

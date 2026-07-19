@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Trash2, FileText, IndianRupee, Clock, Search, Printer, Download } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText, IndianRupee, Clock, Search, Printer } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -9,7 +9,6 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
 import { printStandaloneInvoiceById } from '../../lib/printStandaloneInvoice';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
-import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 
 type Summary = Awaited<ReturnType<typeof api.invoiceFinance.summary>>[number];
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
@@ -380,10 +379,9 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                             type="button"
                             onClick={() => void printInvoicePdf(inv.id)}
                             className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50"
-                            title={isServicePhoneUx(cfg.type) ? 'Download PDF' : 'Print / Download PDF'}
+                            title="Print invoice"
                           >
-                            {isServicePhoneUx(cfg.type) ? <Download size={12} /> : <Printer size={12} />}
-                            PDF
+                            <Printer size={12} /> Print
                           </button>
                           {!isReadOnly && !paid && inv.balance > 0 && (
                             <button

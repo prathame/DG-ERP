@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Trash2, Download, Send, Check, X, Printer } from 'lucide-react';
+import { Plus, FileText, Trash2, Send, Check, X, Printer } from 'lucide-react';
 import { cn, formatDate, exportToCsv, useTabLabel } from '../../lib/utils';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -366,10 +366,10 @@ export function InvoicesView() {
                       type="button"
                       onClick={() => printInvoice(inv)}
                       className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
-                      title={servicePhoneUx ? t('common.downloadPdf') : t('invoices.printPdf')}
-                      aria-label={servicePhoneUx ? t('common.downloadPdf') : t('common.print')}
+                      title={t('invoices.printPdf')}
+                      aria-label={t('common.print')}
                     >
-                      {servicePhoneUx ? <Download size={14} /> : <Printer size={14} />}
+                      <Printer size={14} />
                     </button>
                     {inv.status === 'draft' && (
                       <button
@@ -442,10 +442,10 @@ export function InvoicesView() {
                           type="button"
                           onClick={() => printInvoice(inv)}
                           className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
-                          title={servicePhoneUx ? 'Download PDF' : 'Print/PDF'}
-                          aria-label={servicePhoneUx ? 'Download invoice PDF' : 'Print invoice'}
+                          title="Print"
+                          aria-label="Print invoice"
                         >
-                          {servicePhoneUx ? <Download size={15} /> : <Printer size={15} />}
+                          <Printer size={15} />
                         </button>
                         {inv.status === 'draft' && (
                           <button
@@ -580,15 +580,7 @@ export function InvoicesView() {
                   onClick={() => printInvoice(selectedInvoice)}
                   className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold flex items-center justify-center gap-2"
                 >
-                  {servicePhoneUx ? (
-                    <>
-                      <Download size={16} /> Download PDF
-                    </>
-                  ) : (
-                    <>
-                      <Printer size={16} /> Print / PDF
-                    </>
-                  )}
+                  <Printer size={16} /> Print
                 </button>
                 <button
                   type="button"
@@ -963,7 +955,7 @@ export function CreateInvoiceModal({
         }),
       });
       toast(`Invoice ${created?.invoiceNumber || invoiceNumber} created`, 'success');
-      // Stay open so vendor/client create can Print/Download PDF immediately
+      // Stay open so vendor/client create can Print immediately
       if (created?.items && Array.isArray(created.items)) {
         setCreatedInvoice(created);
       } else {
@@ -1197,15 +1189,7 @@ export function CreateInvoiceModal({
         Done
       </ModalActionButton>
       <ModalActionButton variant="primary" onClick={() => void printCreated()}>
-        {servicePhoneUx ? (
-          <>
-            <Download size={14} className="inline mr-1" /> Download PDF
-          </>
-        ) : (
-          <>
-            <Printer size={14} className="inline mr-1" /> Print / Download PDF
-          </>
-        )}
+        <Printer size={14} className="inline mr-1" /> Print
       </ModalActionButton>
     </ModalActions>
   ) : (
@@ -1273,7 +1257,9 @@ export function CreateInvoiceModal({
             <p className="text-sm text-gray-500">
               {createdInvoice.customerName} · ₹{Number(createdInvoice.grandTotal || 0).toLocaleString('en-IN')}
             </p>
-            <p className="text-xs text-gray-400">Print or download the PDF now, or tap Done to continue.</p>
+            <p className="text-xs text-gray-400">
+              Print the bill now (Save as PDF from the print dialog), or tap Done.
+            </p>
           </div>
         ) : null}
         {!createdInvoice && (
