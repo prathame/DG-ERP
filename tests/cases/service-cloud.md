@@ -22,5 +22,9 @@ Online-only seats on a **service** cloud tenant. Clients: Cloud Electron + onlin
 | 16 | Download page split | Open `/download` | **Service Cloud ONLINE** and **Service Mobile OFFLINE** are separate cards; one evergreen URL each (no version list) |
 | 17 | Set download URL | SA → Analytics → paste Service Cloud URL → Save → open `/download` | Single Download button uses that URL |
 | 18 | Default Offline Mobile APK | Clear `service_mobile_app_url` (or fresh DB) → open `/download` | Offline Mobile Download uses GitHub evergreen APK URL without SA paste |
+| 19 | Share reset link | Seats user card → Share reset link → Copy | Modal shows link; user can reset on Cap or Electron |
+| 20 | Notify one user | Seats → Notify on user A; login as A and B | Only A sees the in-app message |
+| 21 | Live badge (Cap) | Online Cap + service tenant logged in | Sidebar shows Live · Online; no Sync control. Desktop Electron chrome unchanged |
+| 22 | Airplane Cap | Cap holder → airplane mode | Freeze “No internet”; app unresponsive |
 
-**Automated:** `tests/api/http-service-cloud.test.ts` · `tests/unit/service-cloud-mode.test.ts` · `tests/unit/service-phone-ux.test.ts` (phone IA helper; seats APIs unchanged)
+**Automated:** `tests/api/http-service-cloud.test.ts` · `tests/api/http-notifications.test.ts` (per-user notify, invalid `userId`, read-all isolation) · `tests/unit/service-cloud-mode.test.ts` (Cap-only Live badge surface) · `tests/unit/service-phone-ux.test.ts` · `tests/unit/bill-settings-flags.test.ts`

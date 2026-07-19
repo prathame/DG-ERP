@@ -98,8 +98,8 @@ export function ServiceCloudGate({ enabled, children }: Props) {
               <>
                 <p className="text-lg font-bold text-gray-900">In use</p>
                 <p className="text-sm text-gray-600 mt-2">
-                  <strong>{state.holder.userName || 'Another user'}</strong> is using the app
-                  {state.holder.client ? ` on ${state.holder.client}` : ''}.
+                  <strong>{state.holder.userName || 'Another user'}</strong> is using the company app
+                  {state.holder.client ? ` on ${state.holder.client}` : ''}. Only one live session at a time.
                 </p>
                 <p className="text-xs text-gray-500 mt-3">
                   This screen stays locked until they leave or are idle for 5 minutes. No takeover in this version.
@@ -110,7 +110,8 @@ export function ServiceCloudGate({ enabled, children }: Props) {
               <>
                 <p className="text-lg font-bold text-gray-900">No internet</p>
                 <p className="text-sm text-gray-600 mt-2">
-                  Service cloud seats require a live connection. The app is frozen until you are back online.
+                  Service Cloud is online-only. The app is frozen until you are back online — there is no offline mode
+                  or Sync.
                 </p>
               </>
             )}

@@ -274,7 +274,8 @@ router.get('/api/notifications', async (req: AuthRequest, res) => {
     const role = req.user?.role;
     const permissions = req.user?.permissions as Record<string, AccessLevel> | undefined;
 
-    // SA / control-panel messages: unread first, then recent read (7 days), unexpired
+    // SA / control-panel messages: tenant-wide (user_id NULL) or targeted to this user
+    const viewerId = req.user?.userId || null;
     const saRows = (
       await pool.query(
         `SELECT id, title, body, type, source, created_at, read_at
@@ -282,9 +283,10 @@ router.get('/api/notifications', async (req: AuthRequest, res) => {
          WHERE tenant_id = $1
            AND (expires_at IS NULL OR expires_at > NOW())
            AND (read_at IS NULL OR read_at > NOW() - INTERVAL '7 days')
+           AND (user_id IS NULL OR user_id = $2)
          ORDER BY (read_at IS NULL) DESC, created_at DESC
          LIMIT 10`,
-        [tenantId],
+        [tenantId, viewerId],
       )
     ).rows as Record<string, unknown>[];
 
@@ -323,16 +325,19 @@ router.post('/api/notifications/:id/read', async (req: AuthRequest, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const notifId = req.params.id as string;
+    const viewerId = req.user?.userId || null;
     const result = await pool.query(
       `UPDATE tenant_notifications SET read_at = NOW()
-       WHERE id = $1 AND tenant_id = $2 AND read_at IS NULL`,
-      [notifId, tenantId],
+       WHERE id = $1 AND tenant_id = $2 AND read_at IS NULL
+         AND (user_id IS NULL OR user_id = $3)`,
+      [notifId, tenantId, viewerId],
     );
     if (result.rowCount === 0) {
-      const exists = await pool.query('SELECT id FROM tenant_notifications WHERE id = $1 AND tenant_id = $2', [
-        notifId,
-        tenantId,
-      ]);
+      const exists = await pool.query(
+        `SELECT id FROM tenant_notifications
+         WHERE id = $1 AND tenant_id = $2 AND (user_id IS NULL OR user_id = $3)`,
+        [notifId, tenantId, viewerId],
+      );
       if (exists.rowCount === 0) return res.status(404).json({ error: 'Notification not found' });
     } else {
       logger.info('Notification marked read', {
@@ -351,10 +356,12 @@ router.post('/api/notifications/read-all', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const viewerId = req.user?.userId || null;
     const result = await pool.query(
       `UPDATE tenant_notifications SET read_at = NOW()
-       WHERE tenant_id = $1 AND read_at IS NULL`,
-      [tenantId],
+       WHERE tenant_id = $1 AND read_at IS NULL
+         AND (user_id IS NULL OR user_id = $2)`,
+      [tenantId, viewerId],
     );
     const marked = result.rowCount ?? 0;
     if (marked > 0) {

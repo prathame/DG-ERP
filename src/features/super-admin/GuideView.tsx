@@ -373,13 +373,16 @@ export function GuideView() {
             </div>
           </Step>
 
-          <Step n={2} title="Set access mode + users + device slots">
+          <Step n={2} title="Set access mode + manage each user">
             <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
               <p>
                 Access mode: <strong>mobile</strong> / <strong>desktop</strong> / <strong>both</strong> (SA only)
               </p>
-              <p>Create users with credentials; set mobile slots and desktop slots per user</p>
-              <p>Devices bind on first install; SA can unbind a lost phone/laptop</p>
+              <p>
+                Per user card: credentials, <strong>Mobile</strong> + <strong>Laptop/Desktop</strong> slots, Share reset
+                link, Notify (that user only), Unbind
+              </p>
+              <p>One live session company-wide — not one session per user</p>
             </div>
           </Step>
 

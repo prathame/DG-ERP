@@ -24,10 +24,18 @@ const DEFAULTS = {
   showRewards: true,
   showBarcode: true,
   showWarranty: true,
-  showHsnSac: true,
+  showGst: true,
+  showHsnSac: true, // deprecated alias of showGst
   footerText: 'Powered by Dhandho Management',
   invoiceTemplateStyle: 'modern' as const,
 };
+
+/** Prefer showGst; legacy clients still send showHsnSac. */
+function resolveShowGst(body: Record<string, unknown>, fallback = true): boolean {
+  if (typeof body.showGst === 'boolean') return body.showGst;
+  if (typeof body.showHsnSac === 'boolean') return body.showHsnSac;
+  return fallback;
+}
 
 function normalizeInvoiceTemplateStyle(v: unknown): 'modern' | 'classic' | 'minimal' {
   return v === 'classic' || v === 'minimal' || v === 'modern' ? v : 'modern';
@@ -53,6 +61,8 @@ function rowToResponse(row: Record<string, unknown>) {
     showRewards: row.show_rewards !== false,
     showBarcode: row.show_barcode !== false,
     showWarranty: row.show_warranty !== false,
+    // Column remains show_hsn_sac; API exposes showGst (HSN clubbed into GST)
+    showGst: row.show_hsn_sac !== false,
     showHsnSac: row.show_hsn_sac !== false,
     footerText: (row.footer_text as string) || 'Powered by Dhandho Management',
     invoiceTemplateStyle: normalizeInvoiceTemplateStyle(row.invoice_template_style),
@@ -155,7 +165,7 @@ router.put('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
         requestBody.showRewards !== false,
         requestBody.showBarcode !== false,
         requestBody.showWarranty !== false,
-        requestBody.showHsnSac !== false,
+        resolveShowGst(requestBody, true),
         requestBody.footerText || 'Powered by Dhandho Management',
         invoiceTemplateStyle,
       ],

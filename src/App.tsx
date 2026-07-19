@@ -45,7 +45,12 @@ import {
   getAccountsTabVisiblePref,
 } from './platforms/service-mobile';
 import { serviceMobileOnlineStatusAdapter } from './platforms/service-mobile/serviceMobileOnlineStatusAdapter';
-import { ServiceCloudGate, isServicePhoneUx } from './platforms/service-cloud';
+import {
+  ServiceCloudGate,
+  ServiceCloudLiveBadge,
+  isServiceCloudMobile,
+  isServicePhoneUx,
+} from './platforms/service-cloud';
 
 const LandingPage = lazy(() => import('./components/layout/LandingPage').then(m => ({ default: m.LandingPage })));
 const LoginScreen = lazy(() => import('./components/layout/LoginScreen').then(m => ({ default: m.LoginScreen })));
@@ -607,8 +612,8 @@ export default function App() {
         <div
           className="min-h-[100dvh] flex items-center justify-center bg-emerald-50"
           style={{
-            paddingTop: 'env(safe-area-inset-top, 0px)',
-            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            paddingTop: 'var(--safe-top)',
+            paddingBottom: 'var(--safe-bottom)',
           }}
         >
           <LoadingSpinner size="lg" />
@@ -756,7 +761,7 @@ export default function App() {
             )}
           >
             {/* Sticky brand / profile */}
-            <div className="shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 border-b border-gray-100 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-2 lg:h-16 lg:pt-0 lg:pb-0">
+            <div className="shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 border-b border-gray-100 pt-[max(0.5rem,var(--safe-top))] pb-2 lg:h-16 lg:pt-0 lg:pb-0">
               {isSidebarOpen && (
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="lg:hidden w-9 h-9 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white text-xs font-bold shrink-0">
@@ -851,7 +856,7 @@ export default function App() {
             </nav>
 
             {/* Pinned footer: chatbot (cloud), settings, status */}
-            <div className="shrink-0 border-t border-gray-100 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] lg:pb-2">
+            <div className="shrink-0 border-t border-gray-100 bg-white pb-[max(0.5rem,var(--safe-bottom))] lg:pb-2">
               {!serviceMobile && tv('chatbot') && (
                 <div className="px-3 pt-2">
                   <Suspense fallback={null}>
@@ -859,7 +864,7 @@ export default function App() {
                   </Suspense>
                 </div>
               )}
-              {/* Sync above Settings (on-prem desktop + Offline Mobile) */}
+              {/* Sync: on-prem desktop + Offline Mobile only — never Cloud Electron chrome changes */}
               {(serviceMobile ||
                 ((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)
                   ?.deploymentMode === 'onprem') && (
@@ -868,6 +873,12 @@ export default function App() {
                     collapsed={!isSidebarOpen}
                     adapter={serviceMobile ? serviceMobileOnlineStatusAdapter : undefined}
                   />
+                </div>
+              )}
+              {/* Online Cap only — Live chip (no Sync); desktop Electron UI untouched */}
+              {isServiceCloudMobile() && (userConfig?.businessType as string) === 'service' && (
+                <div className="px-2.5 lg:px-3 pt-2">
+                  <ServiceCloudLiveBadge collapsed={!isSidebarOpen} />
                 </div>
               )}
               {canAccess('settings') && (

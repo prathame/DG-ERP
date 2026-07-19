@@ -90,9 +90,12 @@ isServicePhoneUx(businessType) // true for Offline Mobile OR (Capacitor cloud + 
 | Bottom nav: Analytics · Masters · Invoice · Quotes · More | Sync Now / hard sync / SA force-sync |
 | Masters pills: Clients + Prices (no Products / Vendor-Customer Map) | Demo electrician seed, PGlite, local backup |
 | Dense hubs, PDF download affordances, global search → Price List | Show Accounts toggle, client advances API |
-| Invoice/Quote phone density | License activate / heartbeat |
+| Invoice/Quote phone density; Analytics net-in + hide Master Summary | License activate / heartbeat |
+| Bill settings: hide Challan / Barcode / Warranty; HSN opt-in | — |
 
-**`ServiceCloudGate` is unchanged** — company-wide session lock (“In use”) still wraps the tenant shell for `businessType=service` on enrolled Electron/Capacitor clients. Phone IA does not relax seats.
+**Online Cap only:** `ServiceCloudLiveBadge` (“Live · Online”) in the sidebar — **no Sync**. Cloud Electron desktop chrome is unchanged.
+
+**`ServiceCloudGate` is unchanged** — company-wide session lock (“In use”) still wraps the tenant shell for `businessType=service` on enrolled Electron/Capacitor clients. Phone IA does not relax seats. No internet → frozen (online-only).
 
 Do **not** use `isServicePhoneUx` for PGlite, Sync, license, or demo seed — those stay Offline-only.
 

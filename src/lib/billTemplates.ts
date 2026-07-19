@@ -19,6 +19,45 @@ export function safeImgSrc(src: unknown): string {
   return '';
 }
 
+/** Shared print/PDF CSS — full A4 width, no gray/zebra fills (toner banding). */
+function billDocCss(color: string): string {
+  return `
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:100%;background:#fff;color:#111;}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:8mm;margin:0;font-size:11px;}
+  table{border-collapse:collapse;width:100%;}
+  .outer{border:1px solid #222;width:100%;}
+  .outer td,.outer th{border:1px solid #ccc;padding:4px 8px;font-size:11px;}
+  .doc-title{text-align:center;font-size:18px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;margin:0 0 10px;color:#111;}
+  .hdr td{border:none;padding:8px 12px;vertical-align:top;}
+  .hdr{border-bottom:1.5px solid #222;}
+  .tagline{border:1px solid ${color};color:${color};background:transparent;text-align:center;padding:4px;font-size:11px;font-weight:600;}
+  .title-row td{padding:6px 12px;font-size:12px;border-bottom:1.5px solid #222;}
+  .gstin-text{font-family:monospace;font-weight:700;font-size:12px;}
+  .title-text{font-size:15px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;}
+  .cust-row td{padding:4px 8px;border-bottom:1px solid #ddd;font-size:11px;background:transparent!important;}
+  .cust-label{font-weight:700;width:100px;color:#555;}
+  .section-head{font-weight:700;font-size:10px;text-transform:uppercase;color:${color};border-bottom:1px solid #222;background:transparent!important;}
+  .items th{background:transparent!important;border-top:1.5px solid #222;border-bottom:1.5px solid #222;font-size:10px;text-transform:uppercase;letter-spacing:0.3px;padding:6px;text-align:center;font-weight:700;}
+  .items td{padding:5px 6px;text-align:center;background:transparent!important;}
+  .items tbody tr,.items tbody tr:nth-child(even),.items tbody tr:nth-child(odd){background:transparent!important;}
+  .items tbody tr{break-inside:avoid;page-break-inside:avoid;}
+  .items .left{text-align:left;}
+  .items .right{text-align:right;}
+  .items .total-row,.items .total-row td{font-weight:700;background:transparent!important;border-top:1.5px solid #222;}
+  .summary-label{font-weight:700;color:#555;}
+  .grand-total{font-size:14px;font-weight:800;color:#111;}
+  .bank-section td{padding:3px 8px;font-size:11px;border:none;}
+  .bank-label{font-weight:600;color:#555;width:90px;}
+  .footer-text{font-size:9px;color:#666;text-align:center;margin-top:8px;}
+  .reward-badge{display:inline-block;margin:8px auto;padding:6px 16px;background:transparent;border:1px solid #666;border-radius:4px;font-size:12px;font-weight:600;color:#333;}
+  .repeat-banner th{background:transparent!important;border-bottom:1.5px solid #222;text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
+  .paid-stamp{position:absolute;top:80px;right:40px;padding:8px 14px;border:2px solid #222;color:#111;background:transparent;border-radius:4px;font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;transform:rotate(-12deg);}
+  @media print{body{padding:0;} @page{margin:8mm;size:A4;} thead{display:table-header-group;} .no-print{display:none;}
+    *{-webkit-print-color-adjust:economy;print-color-adjust:economy;}}
+`;
+}
+
 const STATE_NAMES: Record<string, string> = {
   '01': 'Jammu & Kashmir',
   '02': 'Himachal Pradesh',
@@ -131,15 +170,17 @@ export function generateSalesInvoiceHtml(
   const showWarranty = billConfig.showWarranty !== false;
   const showRewards = billConfig.showRewards !== false;
   const showBarcode = billConfig.showBarcode !== false;
-  const showHsnSac = billConfig.showHsnSac !== false;
+  // HSN clubbed into GST print mode (settings showGst / legacy showHsnSac)
+  const gstSettingOn =
+    typeof billConfig.showGst === 'boolean' ? billConfig.showGst !== false : billConfig.showHsnSac !== false;
   const footerText = (billConfig.footerText as string) || 'Powered by Dhandho Management';
-  const showHsnCol = showHsnSac && showGst && !!bill.hsnCode;
+  const showHsnCol = showGst && gstSettingOn && !!bill.hsnCode;
 
   const warrantySection =
     showWarranty && bill.warranty
       ? `
-    <div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
-      <strong style="color:#166534;">Warranty Information</strong>
+    <div style="margin-top:20px;padding:12px 16px;background:transparent;border:1px solid #666;border-radius:4px;">
+      <strong style="color:#111;">Warranty Information</strong>
       <table style="width:100%;margin-top:8px;font-size:13px;">
         <tr><td style="color:#6b7280;">Duration</td><td><strong>${bill.warrantyMonths} months</strong></td>
             <td style="color:#6b7280;">Status</td><td><strong>${esc(bill.warranty.status)}</strong></td></tr>
@@ -256,58 +297,30 @@ export function generateSalesInvoiceHtml(
   };
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Invoice'} - ${esc(invPrefix)}${esc(bill.id)}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
-  table{border-collapse:collapse;}
-  .outer{border:2px solid ${color};width:100%;}
-  .outer td,.outer th{border:1px solid #ccc;padding:4px 8px;font-size:11px;}
-  .hdr td{border:none;padding:8px 12px;vertical-align:top;}
-  .title-row td{padding:6px 12px;font-size:12px;border-bottom:2px solid ${color};}
-  .gstin-text{font-family:monospace;font-weight:700;font-size:13px;}
-  .title-text{font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
-  .cust-row td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px;}
-  .cust-label{font-weight:700;width:100px;color:#555;}
-  .items th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:6px 6px;text-align:center;font-weight:700;}
-  .items td{padding:5px 6px;text-align:center;}
-  .items tbody tr{break-inside:avoid;page-break-inside:avoid;}
-  .items .left{text-align:left;}
-  .items .right{text-align:right;}
-  .items .total-row{font-weight:700;background:#f0f0f0;}
-  .summary-label{font-weight:700;color:#555;}
-  .grand-total{font-size:16px;font-weight:900;color:${color};}
-  .bank-section td{padding:3px 8px;font-size:11px;border:none;}
-  .bank-label{font-weight:600;color:#555;width:90px;}
-  .footer-text{font-size:9px;color:#999;text-align:center;margin-top:8px;}
-  .reward-badge{display:inline-block;margin:8px auto;padding:6px 16px;background:#fef3c7;border:1px solid #fcd34d;border-radius:20px;font-size:12px;font-weight:600;color:#92400e;}
-  .repeat-banner th{background:#fff;border-bottom:2px solid ${color};text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
-  @media print{body{padding:10px;} @page{margin:10mm;} thead{display:table-header-group;} .no-print{display:none;}}
-</style></head><body>
+<style>${billDocCss(color)}</style></head><body>
+<div class="doc-title">${showGst ? 'Tax Invoice' : 'Sales Invoice'}</div>
 <table class="outer avoid-break">
-  <tr class="hdr" style="border-bottom:2px solid ${color};">
+  <tr class="hdr">
     <td colspan="2" style="width:65%;">
       <div style="display:flex;align-items:center;gap:10px;">
         ${logoHtml}
         <div>
-          <div style="font-size:20px;font-weight:700;color:${color};">${esc(bill.company.name)}</div>
+          <div style="font-size:18px;font-weight:700;color:${color};">${esc(bill.company.name)}</div>
           ${bill.company.address ? `<div style="font-size:10px;color:#555;">${esc(bill.company.address)}</div>` : ''}
           ${bill.company.phone ? `<div style="font-size:10px;color:#555;">Ph: ${esc(bill.company.phone)}</div>` : ''}
+          ${showGst && bill.company.gstNumber ? `<div class="gstin-text" style="font-size:11px;margin-top:2px;">GSTIN: ${esc(bill.company.gstNumber)}</div>` : ''}
         </div>
       </div>
     </td>
     <td colspan="2" style="text-align:right;font-size:10px;color:#555;">
       ${tagline ? `<div>${esc(tagline)}</div>` : ''}
+      <div style="font-weight:600;margin-top:4px;">ORIGINAL FOR RECIPIENT</div>
     </td>
   </tr>
-  <tr class="title-row">
-    <td colspan="1">${showGst && bill.company.gstNumber ? `<span class="gstin-text">GSTIN : ${esc(bill.company.gstNumber)}</span>` : '&nbsp;'}</td>
-    <td colspan="2" style="text-align:center;"><span class="title-text">${showGst ? 'TAX INVOICE' : 'SALES INVOICE'}</span></td>
-    <td colspan="1" style="text-align:right;font-size:10px;font-weight:600;">ORIGINAL FOR RECIPIENT</td>
-  </tr>
   <tr>
-    <td colspan="2" style="padding:0;border-right:2px solid ${color};">
+    <td colspan="2" style="padding:0;border-right:1px solid #222;">
       <table style="width:100%;">
-        <tr class="cust-row"><td colspan="2" style="background:#f5f5f5;font-weight:700;font-size:10px;text-transform:uppercase;color:${color};">Customer Details</td></tr>
+        <tr class="cust-row"><td colspan="2" class="section-head">Bill To</td></tr>
         <tr class="cust-row"><td class="cust-label">Name</td><td><strong>${esc(bill.customerName)}</strong></td></tr>
         <tr class="cust-row"><td class="cust-label">Phone</td><td>${esc(bill.customerPhone)}</td></tr>
         ${bill.customerEmail ? `<tr class="cust-row"><td class="cust-label">Email</td><td>${esc(bill.customerEmail)}</td></tr>` : ''}
@@ -323,12 +336,8 @@ export function generateSalesInvoiceHtml(
     </td>
   </tr>
 </table>
-<table class="outer items">
+<table class="outer items" style="margin-top:-1px;">
   <thead>
-    <tr class="repeat-banner"><th colspan="${5 + (showBarcode ? 1 : 0) + (showHsnCol ? 1 : 0) + (showGst ? 2 : 0)}">
-      <span style="font-weight:800;color:${color};">${esc(bill.company.name)}</span>
-      <span style="float:right;font-weight:700;">${esc(invPrefix)}${esc(bill.id)}</span>
-    </th></tr>
     <tr>
     <th style="width:30px;">Sr.</th>
     ${showBarcode ? '<th>Barcode</th>' : ''}
@@ -356,7 +365,7 @@ export function generateSalesInvoiceHtml(
 <div class="print-end avoid-break">
 <table class="outer">
   <tr>
-    <td style="width:55%;border-right:2px solid ${color};vertical-align:top;padding:8px;">
+    <td style="width:55%;border-right:1px solid #222;vertical-align:top;padding:8px;">
       <div class="summary-label">Total in words</div>
       <div style="text-transform:uppercase;font-size:10px;margin-top:2px;">${numberToWords(grandTotal)}</div>
     </td>
@@ -380,7 +389,7 @@ ${warrantySection}
 ${showRewards && bill.rewardPointsEarned > 0 ? `<div style="text-align:center;"><span class="reward-badge">+${bill.rewardPointsEarned} Reward Points Earned</span></div>` : ''}
 <table class="outer" style="margin-top:-1px;">
   <tr>
-    <td style="width:55%;padding:8px 12px;border-right:2px solid ${color};vertical-align:top;">
+    <td style="width:55%;padding:8px 12px;border-right:1px solid #222;vertical-align:top;">
       ${
         hasBankDetails
           ? `<div style="font-weight:700;font-size:11px;margin-bottom:6px;">Bank Details</div>
@@ -436,7 +445,9 @@ export function generateDistributionChallanHtml(
   const tagline = (billConfig.tagline as string) || '';
   const chPrefix = (billConfig.challanPrefix as string) || '';
   const footerText = (billConfig.footerText as string) || 'Powered by Dhandho Management';
-  const showHsnCol = showGst && billConfig.showHsnSac !== false;
+  const showHsnCol =
+    showGst &&
+    (typeof billConfig.showGst === 'boolean' ? billConfig.showGst !== false : billConfig.showHsnSac !== false);
   const ewbNumber = bill.ewbNumber || '';
   const irn = bill.irn || '';
   const irnAckNo = bill.irnAckNo || '';
@@ -556,79 +567,37 @@ export function generateDistributionChallanHtml(
   };
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Challan'} - ${esc(chPrefix)}${esc(bill.challanId)}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
-  table{border-collapse:collapse;}
-  .outer{border:2px solid ${color};width:100%;}
-  .outer td,.outer th{border:1px solid #ccc;padding:4px 8px;font-size:11px;}
-  .hdr{border-bottom:2px solid ${color};}
-  .hdr td{border:none;padding:8px 12px;vertical-align:top;}
-  .tagline{background:${color};color:white;text-align:center;padding:4px;font-size:11px;font-weight:600;letter-spacing:1px;}
-  .title-row td{padding:6px 12px;font-size:12px;border-bottom:2px solid ${color};}
-  .gstin-text{font-family:monospace;font-weight:700;font-size:13px;}
-  .title-text{font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
-  .cust-row td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px;}
-  .cust-label{font-weight:700;width:100px;color:#555;}
-  .items th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:6px 6px;text-align:center;font-weight:700;}
-  .items td{padding:5px 6px;text-align:center;}
-  .items tbody tr{break-inside:avoid;page-break-inside:avoid;}
-  .items .left{text-align:left;}
-  .items .right{text-align:right;}
-  .items .total-row{font-weight:700;background:#f0f0f0;}
+<style>${billDocCss(color)}
   .summary-row td{padding:4px 8px;font-size:11px;vertical-align:top;}
-  .summary-label{font-weight:700;color:#555;}
-  .grand-total{font-size:16px;font-weight:900;color:${color};}
-  .bank-section td{padding:3px 8px;font-size:11px;border:none;}
-  .bank-label{font-weight:600;color:#555;width:90px;}
   .sig-section{margin-top:0;}
   .sig-section td{border:none;padding:6px 12px;vertical-align:bottom;height:60px;}
-  .footer-text{font-size:9px;color:#999;text-align:center;margin-top:8px;}
-  .repeat-banner th{background:#fff;border-bottom:2px solid ${color};text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
-  .paid-stamp{position:absolute;top:80px;right:40px;padding:8px 14px;border:3px solid #059669;color:#059669;background:#ecfdf5;border-radius:8px;font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;transform:rotate(-12deg);}
-  @media print{body{padding:10px;} @page{margin:10mm;} thead{display:table-header-group;} .no-print{display:none;}}
 </style></head><body>
 <div style="position:relative;">
-${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
+${fullyPaid ? '<div class="paid-stamp">PAID</div>' : ''}
+<div class="doc-title">${showGst ? 'Tax Invoice' : 'Challan'}</div>
 <table class="outer">
-  <!-- Header Row: Logo+Company Left, Info Right -->
   <tr class="hdr">
     <td colspan="2" style="width:65%;">
       <div style="display:flex;align-items:center;gap:10px;">
         ${logoHtml}
         <div>
-          <div style="font-size:20px;font-weight:700;color:${color};">${esc(bill.company.name)}</div>
+          <div style="font-size:18px;font-weight:700;color:${color};">${esc(bill.company.name)}</div>
           ${bill.company.address ? `<div style="font-size:10px;color:#555;">${esc(bill.company.address)}</div>` : ''}
           ${bill.company.phone ? `<div style="font-size:10px;color:#555;">Ph: ${esc(bill.company.phone)}</div>` : ''}
+          ${showGst && bill.company.gstNumber ? `<div class="gstin-text" style="font-size:11px;margin-top:2px;">GSTIN: ${esc(bill.company.gstNumber)}</div>` : ''}
         </div>
       </div>
     </td>
     <td colspan="2" style="text-align:right;font-size:10px;color:#555;">
       ${tagline ? `<div style="font-size:10px;color:#666;">${esc(tagline)}</div>` : ''}
+      <div style="font-weight:600;margin-top:4px;">ORIGINAL FOR RECIPIENT</div>
     </td>
   </tr>
 
-  <!-- Tagline Bar (if exists) -->
-  ${tagline ? '' : ''}
-
-  <!-- GSTIN + TAX INVOICE + ORIGINAL -->
-  <tr class="title-row">
-    <td colspan="1" style="width:35%;">
-      ${showGst && bill.company.gstNumber ? `<span class="gstin-text">GSTIN : ${esc(bill.company.gstNumber)}</span>` : '&nbsp;'}
-    </td>
-    <td colspan="2" style="text-align:center;">
-      <span class="title-text">${showGst ? 'TAX INVOICE' : 'CHALLAN'}</span>
-    </td>
-    <td colspan="1" style="text-align:right;font-size:10px;font-weight:600;">
-      ORIGINAL FOR RECIPIENT
-    </td>
-  </tr>
-
-  <!-- Customer Detail + Invoice Info -->
   <tr>
-    <td colspan="2" style="padding:0;border-right:2px solid ${color};">
+    <td colspan="2" style="padding:0;border-right:1px solid #222;">
       <table style="width:100%;">
-        <tr class="cust-row"><td colspan="2" style="background:#f5f5f5;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:${color};">Buyer Details</td></tr>
+        <tr class="cust-row"><td colspan="2" class="section-head">Bill To</td></tr>
         <tr class="cust-row"><td class="cust-label">Name</td><td><strong>${esc(bill.vendor.name)}</strong></td></tr>
         <tr class="cust-row"><td class="cust-label">Address</td><td>${esc(bill.vendor.address || '-')}</td></tr>
         <tr class="cust-row"><td class="cust-label">Phone</td><td>${esc(bill.vendor.phone || '-')}</td></tr>
@@ -658,12 +627,8 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
 </table>
 
 <!-- Item Table -->
-<table class="outer items">
+<table class="outer items" style="margin-top:-1px;">
   <thead>
-    <tr class="repeat-banner"><th colspan="${(showGst ? 8 : 6) + (showHsnCol ? 1 : 0)}">
-      <span style="font-weight:800;color:${color};">${esc(bill.company.name)}</span>
-      <span style="float:right;font-weight:700;">${esc(chPrefix)}${esc(bill.challanId)}</span>
-    </th></tr>
     <tr>
     <th style="width:30px;">Sr.<br>No.</th>
     <th class="left">Name of Product / Service</th>
@@ -714,7 +679,7 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
 <!-- Summary: Total in Words + Tax Breakdown -->
 <table class="outer">
   <tr class="summary-row">
-    <td style="width:55%;border-right:2px solid ${color};">
+    <td style="width:55%;border-right:1px solid #222;">
       <div class="summary-label">Total in words</div>
       <div style="text-transform:uppercase;font-size:10px;margin-top:2px;">${numberToWords(grandTotal)}</div>
     </td>
@@ -740,7 +705,7 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
 <!-- Bank Details + Signature -->
 <table class="outer" style="margin-top:-1px;">
   <tr>
-    <td style="width:55%;padding:8px 12px;border-right:2px solid ${color};vertical-align:top;">
+    <td style="width:55%;padding:8px 12px;border-right:1px solid #222;vertical-align:top;">
       ${
         hasBankDetails
           ? `<div style="font-weight:700;font-size:11px;margin-bottom:6px;">Bank Details</div>
@@ -903,23 +868,8 @@ export function generateQuotationHtml(q: QuotationBillInput, options?: { qrDataU
     .join('');
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quotation — ${esc(q.quotationNumber)}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
-  table{border-collapse:collapse;}.outer{border:2px solid ${color};width:100%;}.outer td,.outer th{border:1px solid #ccc;padding:4px 8px;font-size:11px;}
-  .hdr{border-bottom:2px solid ${color};}.hdr td{border:none;padding:8px 12px;vertical-align:top;}
-  .tagline{background:${color};color:white;text-align:center;padding:4px;font-size:11px;font-weight:600;letter-spacing:1px;}
-  .title-row td{padding:6px 12px;font-size:12px;border-bottom:2px solid ${color};}
-  .gstin-text{font-family:monospace;font-weight:700;font-size:13px;}
-  .title-text{font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
-  .items th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:6px;text-align:center;font-weight:700;}
-  .items td{padding:5px 6px;text-align:center;}.items .left{text-align:left;}.items .right{text-align:right;}
-  .items tbody tr{break-inside:avoid;page-break-inside:avoid;}
-  .items .total-row{font-weight:700;background:#f0f0f0;}
-  .grand-total{font-size:16px;font-weight:900;color:${color};}
-  .footer-text{font-size:9px;color:#999;text-align:center;margin-top:8px;}
-  .repeat-banner th{background:#fff;border-bottom:2px solid ${color};text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
-  @media print{body{padding:10px;} @page{margin:10mm;} thead{display:table-header-group;}}
-</style></head><body>
+<style>${billDocCss(color)}</style></head><body>
+<div class="doc-title">Quotation</div>
 <table class="outer avoid-break">
   <tr class="hdr">
     <td colspan="2" style="width:65%;">
@@ -928,33 +878,26 @@ export function generateQuotationHtml(q: QuotationBillInput, options?: { qrDataU
         ${q.company.address ? `<div style="font-size:10px;color:#555;margin-top:2px;">${esc(q.company.address)}</div>` : ''}
         ${q.company.phone ? `<div style="font-size:10px;color:#555;">Ph: ${esc(q.company.phone)}</div>` : ''}
         ${q.company.email ? `<div style="font-size:10px;color:#555;">${esc(q.company.email)}</div>` : ''}
+        ${q.company.gstNumber ? `<div class="gstin-text" style="font-size:11px;margin-top:2px;">GSTIN: ${esc(q.company.gstNumber)}</div>` : ''}
       </div></div>
     </td>
     <td colspan="2" style="text-align:right;width:35%;">
-      <div class="title-text" style="color:${color};">QUOTATION</div>
-      <div style="font-size:11px;margin-top:4px;"><strong>${esc(q.quotationNumber)}</strong></div>
+      <div style="font-size:11px;"><strong>${esc(q.quotationNumber)}</strong></div>
       <div style="font-size:10px;color:#555;">Date: ${fmtDate(q.quotationDate)}</div>
       ${q.validUntil ? `<div style="font-size:10px;color:#555;">Valid until: ${fmtDate(q.validUntil)}</div>` : ''}
+      <div style="font-size:11px;font-weight:700;color:#555;margin-top:4px;">${esc(q.status)}</div>
     </td>
   </tr>
   ${tagline ? `<tr><td colspan="4" class="tagline">${esc(tagline)}</td></tr>` : ''}
-  <tr class="title-row">
-    <td colspan="2">${q.company.gstNumber ? `<span class="gstin-text">GSTIN: ${esc(q.company.gstNumber)}</span>` : ''}</td>
-    <td colspan="2" style="text-align:right;font-size:11px;font-weight:700;color:#555;">${esc(q.status)}</td>
-  </tr>
   <tr><td colspan="4" style="padding:8px 12px;">
-    <strong style="font-size:10px;color:#555;">QUOTE TO:</strong><br/>
+    <strong style="font-size:10px;color:#555;">Bill To:</strong><br/>
     <strong>${esc(billTo)}</strong>
     ${q.customerPhone ? `<br/><span style="font-size:10px;">Ph: ${esc(q.customerPhone)}</span>` : ''}
     ${q.customerEmail ? `<br/><span style="font-size:10px;">${esc(q.customerEmail)}</span>` : ''}
   </td></tr>
 </table>
-<table class="outer items" style="margin-top:-2px;">
+<table class="outer items" style="margin-top:-1px;">
   <thead>
-    <tr class="repeat-banner"><th colspan="${hasGst ? 8 : 7}">
-      <span style="font-weight:800;color:${color};">${esc(q.company.name || 'Dhandho')}</span>
-      <span style="float:right;font-weight:700;">QUOTATION ${esc(q.quotationNumber)}</span>
-    </th></tr>
     <tr>
     <th style="width:30px;">Sr</th>
     <th class="left">Product</th>

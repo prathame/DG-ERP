@@ -92,6 +92,7 @@ export function mapInvoice(r: Record<string, unknown>) {
     taxSgst: Number(r.tax_sgst) || 0,
     taxIgst: Number(r.tax_igst) || 0,
     isInterstate: !!r.is_interstate,
+    gstEnabled: r.gst_enabled == null ? (Number(r.tax_total ?? r.tax) || 0) > 0 : !!r.gst_enabled,
     grandTotal: Number(r.grand_total ?? r.total) || 0,
     notes: r.notes ?? null,
     terms: r.terms ?? null,

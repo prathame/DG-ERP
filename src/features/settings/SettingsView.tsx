@@ -30,6 +30,7 @@ import { session } from '../../lib/session';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 import { useConfirm } from '../../hooks/useConfirm';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { isGstBillingEnabled, isServicePhoneBillUx } from '../../lib/billSettingsFlags';
 import {
   exportLocalBackupNow,
   restoreFromLocalBackupFile,
@@ -40,30 +41,34 @@ import {
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
 const serviceMobile = isServiceMobileMode();
 
-const BILL_DEFAULTS: BillSettings = {
-  logoBase64: null,
-  primaryColor: '#F27D26',
-  tagline: null,
-  invoicePrefix: null,
-  challanPrefix: null,
-  bankAccountName: null,
-  bankAccountNumber: null,
-  bankName: null,
-  bankBranch: null,
-  bankIfsc: null,
-  bankUpiId: null,
-  termsAndConditions: null,
-  signatoryName: null,
-  signatoryDesignation: null,
-  signatureBase64: null,
-  showRewards: true,
-  showBarcode: true,
-  showWarranty: true,
-  /** Offline electricians: HSN off by default; cloud manufacturer keeps historical on. */
-  showHsnSac: !serviceMobile,
-  footerText: 'Powered by Dhandho Management',
-  invoiceTemplateStyle: 'modern',
-};
+function billDefaults(): BillSettings {
+  const phoneBill = isServicePhoneBillUx();
+  return {
+    logoBase64: null,
+    primaryColor: '#F27D26',
+    tagline: null,
+    invoicePrefix: null,
+    challanPrefix: null,
+    bankAccountName: null,
+    bankAccountNumber: null,
+    bankName: null,
+    bankBranch: null,
+    bankIfsc: null,
+    bankUpiId: null,
+    termsAndConditions: null,
+    signatoryName: null,
+    signatoryDesignation: null,
+    signatureBase64: null,
+    showRewards: true,
+    showBarcode: true,
+    showWarranty: true,
+    /** Service phone UX: GST off by default; manufacturer cloud keeps historical on. */
+    showGst: !phoneBill,
+    showHsnSac: !phoneBill,
+    footerText: 'Powered by Dhandho Management',
+    invoiceTemplateStyle: 'modern',
+  };
+}
 
 function normalizeInvoiceTemplateStyle(v: unknown): BillSettings['invoiceTemplateStyle'] {
   return v === 'classic' || v === 'minimal' || v === 'modern' ? v : 'modern';
@@ -277,7 +282,8 @@ function GstApiSection() {
 
 function BillCustomizationSection() {
   const { toast } = useToast();
-  const [form, setForm] = useState<BillSettings>(BILL_DEFAULTS);
+  const phoneBillUx = isServicePhoneBillUx();
+  const [form, setForm] = useState<BillSettings>(() => billDefaults());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [banks, setBanks] = useState<
@@ -291,7 +297,14 @@ function BillCustomizationSection() {
         // Migrate legacy Invoices toolbar localStorage key into bill settings.
         const legacy = localStorage.getItem('dg_inv_style');
         const style = normalizeInvoiceTemplateStyle(s?.invoiceTemplateStyle ?? legacy);
-        setForm({ ...BILL_DEFAULTS, ...s, invoiceTemplateStyle: style });
+        const gstOn = isGstBillingEnabled(s);
+        setForm({
+          ...billDefaults(),
+          ...s,
+          showGst: gstOn,
+          showHsnSac: gstOn,
+          invoiceTemplateStyle: style,
+        });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -324,13 +337,16 @@ function BillCustomizationSection() {
     }
     setSaving(true);
     try {
+      const gstOn = !!form.showGst;
       const payload = {
         ...form,
+        showGst: gstOn,
+        showHsnSac: gstOn,
         invoiceTemplateStyle: normalizeInvoiceTemplateStyle(form.invoiceTemplateStyle),
       };
       const saved = await api.settings.updateBillSettings(payload);
       const style = normalizeInvoiceTemplateStyle(saved?.invoiceTemplateStyle ?? payload.invoiceTemplateStyle);
-      setForm({ ...BILL_DEFAULTS, ...saved, invoiceTemplateStyle: style });
+      setForm({ ...billDefaults(), ...saved, invoiceTemplateStyle: style });
       localStorage.setItem('dg_inv_style', style);
       toast('Bill settings saved', 'success');
     } catch (err) {
@@ -380,10 +396,17 @@ function BillCustomizationSection() {
     printBillInWindow(win, html, 'Bill Preview', { autoPrint: false });
   };
 
-  const toggleField = (field: 'showRewards' | 'showBarcode' | 'showWarranty' | 'showHsnSac') => (
+  const toggleField = (field: 'showRewards' | 'showBarcode' | 'showWarranty' | 'showGst') => (
     <button
       type="button"
-      onClick={() => setForm(p => ({ ...p, [field]: !p[field] }))}
+      onClick={() =>
+        setForm(p => {
+          const next = !p[field];
+          // GST toggle also drives legacy showHsnSac (HSN clubbed into GST)
+          if (field === 'showGst') return { ...p, showGst: next, showHsnSac: next };
+          return { ...p, [field]: next };
+        })
+      }
       className={cn(
         'relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors',
         form[field] ? 'bg-green-500' : 'bg-gray-300',
@@ -513,7 +536,7 @@ function BillCustomizationSection() {
                 maxLength={20}
               />
             </div>
-            {!serviceMobile && (
+            {!phoneBillUx && (
               <div>
                 <label htmlFor="settings-field-6" className="text-xs font-bold text-gray-500 block mb-1">
                   Challan Prefix
@@ -706,20 +729,21 @@ function BillCustomizationSection() {
           </div>
         </div>
 
-        {/* Bill Section Toggles — HSN for all; barcode/warranty/rewards cloud only */}
+        {/* Bill Section Toggles — GST (includes HSN) for all; barcode/warranty/rewards cloud only */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Bill Sections</p>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-sm">Show HSN/SAC</p>
+                <p className="font-medium text-sm">GST</p>
                 <p className="text-xs text-gray-500">
-                  Show HSN/SAC on invoice lines and printed bills (optional; never required)
+                  GST on new invoices (tax %, HSN/SAC, Tax Invoice). Each invoice keeps its own GST/non-GST mode when
+                  printed — changing this later does not rewrite old bills.
                 </p>
               </div>
-              {toggleField('showHsnSac')}
+              {toggleField('showGst')}
             </div>
-            {!serviceMobile && (
+            {!phoneBillUx && (
               <>
                 <div className="flex items-center justify-between">
                   <div>

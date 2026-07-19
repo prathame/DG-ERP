@@ -140,8 +140,8 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
     <div
       className="min-h-[100dvh] bg-gradient-to-b from-emerald-50 to-white flex items-start sm:items-center justify-center px-4 py-6 overflow-y-auto"
       style={{
-        paddingTop: 'max(1.5rem, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))',
+        paddingTop: 'max(1.5rem, var(--safe-top))',
+        paddingBottom: 'max(1.5rem, var(--safe-bottom))',
       }}
     >
       <div className="w-full max-w-md bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 space-y-4 my-auto">

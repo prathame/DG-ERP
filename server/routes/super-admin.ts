@@ -1406,22 +1406,39 @@ router.get('/api/super-admin/tenants/:id/export', superAdminMiddleware, async (r
   }
 });
 
-// Push in-app notification to tenant (appears in tenant Bell feed)
+// Push in-app notification to tenant (or one user). Appears in Bell feed.
 router.post('/api/super-admin/tenants/:id/notify', superAdminMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, message, type = 'info' } = req.body;
+    const {
+      title,
+      message,
+      type = 'info',
+      userId,
+    } = req.body as {
+      title?: string;
+      message?: string;
+      type?: string;
+      userId?: string;
+    };
     if (!title || !message) return res.status(400).json({ error: 'title and message required' });
     const notifType = ['info', 'warning', 'success'].includes(type) ? type : 'info';
     const tenant = (await pool.query('SELECT id FROM tenants WHERE id = $1', [id])).rows[0];
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
+    let targetUserId: string | null = null;
+    if (userId) {
+      const u = (await pool.query(`SELECT id FROM users WHERE id = $1 AND tenant_id = $2`, [userId, id])).rows[0];
+      if (!u) return res.status(404).json({ error: 'User not found in this tenant' });
+      targetUserId = userId;
+    }
+
     const notifId = uid('TN');
     const safeTitle = String(title).slice(0, 200);
     await pool.query(
-      `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, expires_at)
-       VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days')`,
-      [notifId, id, safeTitle, String(message).slice(0, 2000), notifType],
+      `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, expires_at, user_id)
+       VALUES ($1,$2,$3,$4,$5,'super_admin', NOW() + INTERVAL '30 days', $6)`,
+      [notifId, id, safeTitle, String(message).slice(0, 2000), notifType, targetUserId],
     );
     const saId = (req as AuthRequest).user?.userId;
     await logAudit(
@@ -1430,12 +1447,18 @@ router.post('/api/super-admin/tenants/:id/notify', superAdminMiddleware, async (
       'SYSTEM_NOTIFICATION',
       'notification',
       notifId,
-      `SA notify: ${safeTitle} (${notifType})`,
+      `SA notify: ${safeTitle} (${notifType})${targetUserId ? ` → ${targetUserId}` : ' → all'}`,
       saId,
       'Super Admin',
     );
-    logger.info('SA tenant notification sent', { tenantId: id, notifId, type: notifType, userId: saId });
-    res.json({ ok: true, id: notifId });
+    logger.info('SA tenant notification sent', {
+      tenantId: id,
+      notifId,
+      type: notifType,
+      userId: saId,
+      targetUserId,
+    });
+    res.json({ ok: true, id: notifId, userId: targetUserId });
   } catch (err) {
     return handleApiError(req, res, err);
   }

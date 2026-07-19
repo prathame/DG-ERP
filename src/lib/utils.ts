@@ -164,94 +164,200 @@ export async function printHtmlNative(html: string, name = 'Document'): Promise<
   }
 }
 
+async function waitForImages(root: ParentNode, timeoutMs = 3000): Promise<void> {
+  const imgs = Array.from(root.querySelectorAll('img'));
+  await Promise.all(
+    imgs.map(
+      img =>
+        new Promise<void>(resolve => {
+          if (img.complete && img.naturalWidth > 0) {
+            resolve();
+            return;
+          }
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          setTimeout(resolve, timeoutMs);
+        }),
+    ),
+  );
+}
+
+/** html2canvas blanks elements at left:-10000px — keep capture target on-screen (opacity 0). */
+function createOnscreenPdfHost(): HTMLDivElement {
+  const host = document.createElement('div');
+  host.setAttribute('aria-hidden', 'true');
+  host.setAttribute('data-pdf-capture-host', '1');
+  host.style.cssText = [
+    'position:fixed',
+    'left:0',
+    'top:0',
+    'width:210mm',
+    'min-height:297mm',
+    'max-width:100vw',
+    'padding:0',
+    'margin:0',
+    'background:#fff',
+    'color:#111',
+    'opacity:0',
+    'pointer-events:none',
+    'z-index:2147483001',
+    'overflow:visible',
+  ].join(';');
+  return host;
+}
+
+async function renderElementToPdfBlob(element: HTMLElement, safeName: string): Promise<Blob | null> {
+  // Force layout before capture (WebView often needs a paint)
+  element.getBoundingClientRect();
+  await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+  await waitForImages(element);
+
+  const html2pdf = (await import('html2pdf.js')).default;
+  const worker = html2pdf().set({
+    margin: [6, 6, 6, 6],
+    filename: safeName,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      windowWidth: 794,
+      backgroundColor: '#ffffff',
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
+      // Avoid 0×0 capture when parent scrolls / transforms
+      onclone: (clonedDoc: Document) => {
+        const cloned = clonedDoc.querySelector('[data-pdf-capture-host], body') as HTMLElement | null;
+        if (cloned) {
+          cloned.style.opacity = '1';
+          cloned.style.transform = 'none';
+          cloned.style.left = '0';
+          cloned.style.top = '0';
+        }
+      },
+    },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    ...({ pagebreak: { mode: ['css', 'legacy'] } } as object),
+  });
+
+  const blob = (await worker.from(element).outputPdf('blob')) as Blob;
+  if (!(blob instanceof Blob) || blob.size < 500) return null;
+  return blob;
+}
+
+async function deliverPdfBlob(blob: Blob, safeName: string): Promise<boolean> {
+  if (isNativeCapacitor()) {
+    const shared = await sharePdfNative(blob, safeName);
+    if (shared) return true;
+    if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
+      try {
+        const file = new File([blob], safeName, { type: 'application/pdf' });
+        const payload = { files: [file], title: safeName };
+        if (!navigator.canShare || navigator.canShare(payload)) {
+          await navigator.share(payload);
+          return true;
+        }
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError') return true;
+      }
+    }
+    return false;
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = safeName;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  return true;
+}
+
+/**
+ * Prefer the visible print-preview iframe (same pixels the user sees).
+ * Off-screen hosts often yield empty PDFs in Android WebView / html2canvas.
+ */
+async function pdfBlobFromOverlayFrame(safeName: string): Promise<Blob | null> {
+  const frame = document.getElementById(PRINT_FRAME_ID) as HTMLIFrameElement | null;
+  const doc = frame?.contentDocument;
+  const body = doc?.body;
+  if (!frame || !doc || !body || body.childElementCount === 0) return null;
+
+  const prev = {
+    opacity: body.style.opacity,
+    background: body.style.background,
+    width: body.style.width,
+    minHeight: body.style.minHeight,
+  };
+  try {
+    body.style.opacity = '1';
+    body.style.background = '#fff';
+    body.style.width = '210mm';
+    body.style.minHeight = '297mm';
+    body.setAttribute('data-pdf-capture-host', '1');
+    return await renderElementToPdfBlob(body, safeName);
+  } finally {
+    body.style.opacity = prev.opacity;
+    body.style.background = prev.background;
+    body.style.width = prev.width;
+    body.style.minHeight = prev.minHeight;
+    body.removeAttribute('data-pdf-capture-host');
+  }
+}
+
 /**
  * Render bill/quote/invoice HTML to a PDF and download (web) or share/save (Capacitor).
  */
 export async function downloadHtmlAsPdf(html: string, filename?: string): Promise<boolean> {
   const safeName = safePdfFilename(filename);
-  const host = document.createElement('div');
-  host.setAttribute('aria-hidden', 'true');
-  host.style.cssText =
-    'position:fixed;left:-10000px;top:0;width:210mm;min-height:297mm;background:#fff;color:#111;z-index:-1;';
-  document.body.appendChild(host);
 
   try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(withPrintPagination(html), 'text/html');
-    for (const node of Array.from(doc.head.querySelectorAll('style, link[rel="stylesheet"]'))) {
-      host.appendChild(node.cloneNode(true));
-    }
-    host.appendChild(doc.body.cloneNode(true));
+    // 1) Overlay preview already painted → capture that (fixes empty download)
+    const fromPreview = await pdfBlobFromOverlayFrame(safeName);
+    if (fromPreview) return deliverPdfBlob(fromPreview, safeName);
 
-    // Wait for images so html2canvas captures logos / QR codes
-    const imgs = Array.from(host.querySelectorAll('img'));
-    await Promise.all(
-      imgs.map(
-        img =>
-          new Promise<void>(resolve => {
-            if (img.complete) {
-              resolve();
-              return;
-            }
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            setTimeout(resolve, 3000);
-          }),
-      ),
-    );
-
-    const html2pdf = (await import('html2pdf.js')).default;
-    const worker = html2pdf().set({
-      margin: [10, 10, 10, 10],
-      filename: safeName,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 794 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      // html2pdf.js supports pagebreak; types omit it
-      ...({ pagebreak: { mode: ['css', 'legacy'] } } as object),
-    });
-
-    const blob = (await worker.from(host).outputPdf('blob')) as Blob;
-    if (!(blob instanceof Blob) || blob.size < 100) return false;
-
-    // Capacitor: Filesystem + Share (navigator.share / <a download> often fail in WebView)
-    if (isNativeCapacitor()) {
-      const shared = await sharePdfNative(blob, safeName);
-      if (shared) return true;
-      // Last resort: Web Share API with File
-      if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
-        try {
-          const file = new File([blob], safeName, { type: 'application/pdf' });
-          const payload = { files: [file], title: safeName };
-          if (!navigator.canShare || navigator.canShare(payload)) {
-            await navigator.share(payload);
-            return true;
-          }
-        } catch (err) {
-          if ((err as Error)?.name === 'AbortError') return true;
+    // 2) Fallback: on-screen invisible host (never left:-10000px — blank canvas on WebView)
+    const host = createOnscreenPdfHost();
+    document.body.appendChild(host);
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(withPrintPagination(html), 'text/html');
+      // Apply body styles to the host so layout matches print (selectors target `body`)
+      const bodyStyle = doc.body.getAttribute('style') || '';
+      host.style.cssText += `;${bodyStyle}`;
+      for (const node of Array.from(doc.head.querySelectorAll('style, link[rel="stylesheet"]'))) {
+        host.appendChild(document.importNode(node, true));
+      }
+      // Rewrite body{} rules onto the capture host so typography/spacing apply
+      for (const styleEl of Array.from(host.querySelectorAll('style'))) {
+        const css = styleEl.textContent || '';
+        if (css.includes('body')) {
+          styleEl.textContent = css
+            .replace(/\bhtml\s*,\s*body\b/g, '[data-pdf-capture-host]')
+            .replace(/\bbody\b/g, '[data-pdf-capture-host]');
         }
       }
-      return false;
+      while (doc.body.firstChild) {
+        host.appendChild(document.importNode(doc.body.firstChild, true));
+      }
+      const blob = await renderElementToPdfBlob(host, safeName);
+      if (!blob) return false;
+      return deliverPdfBlob(blob, safeName);
+    } finally {
+      try {
+        host.remove();
+      } catch {
+        /* ignore */
+      }
     }
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = safeName;
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-    return true;
   } catch {
     return false;
-  } finally {
-    try {
-      host.remove();
-    } catch {
-      /* ignore */
-    }
   }
 }
 
@@ -285,6 +391,7 @@ async function triggerOverlayDownload(): Promise<boolean> {
   const payload = readOverlayPrintHtml();
   if (!payload) return false;
   setOverlayDownloadBusy(true);
+  // downloadHtmlAsPdf prefers capturing the visible preview iframe (avoids empty PDF)
   const ok = await downloadHtmlAsPdf(payload.html, payload.name);
   // Keep preview open until the user taps Close (including cancelled share / AbortError).
   setOverlayDownloadBusy(false, ok ? 'Download PDF' : 'Retry download');
@@ -473,11 +580,12 @@ function applyPrintTitle(html: string, filename?: string): string {
  */
 const PRINT_PAGINATION_CSS = `
 @media print {
-  @page { margin: 10mm; size: A4; }
-  html, body { height: auto !important; overflow: visible !important; }
+  @page { margin: 8mm; size: A4; }
+  html, body { height: auto !important; overflow: visible !important; width: 100% !important; }
   body {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    /* economy: do not force gray fills / zebra bands onto toner printers */
+    -webkit-print-color-adjust: economy !important;
+    print-color-adjust: economy !important;
   }
   thead { display: table-header-group !important; }
   tfoot { display: table-footer-group !important; }

@@ -1,0 +1,345 @@
+# Offline Mobile debug APK
+#
+# Publish evergreen APK after merge when the PR is mobile-related:
+#   Add label:  mobile
+#   (aliases:  apk  |  apk-build)
+#
+# Optional safety net: push to main that touches mobile paths (below) also builds.
+#
+# Pre-merge preview (artifact only, does NOT overwrite evergreen):
+#   Comment on PR:  apk build  |  /apk-build
+#
+# Manual: Actions → APK Build → Run workflow
+name: APK Build
+
+on:
+  # Merged PR → check labels in gate (only build if labeled mobile/apk)
+  pull_request:
+    types: [closed, labeled]
+    branches: [main]
+  # Path safety net: mobile-related files landed on main without the label
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - 'capacitor.cloud.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.env.service-mobile.example'
+      - 'src/platforms/service-mobile/**'
+      - 'src/platforms/service-cloud/**'
+      - 'src/App.tsx'
+      - 'src/main.tsx'
+      - 'src/index.css'
+      - 'src/lib/billTemplates.ts'
+      - 'src/lib/utils.ts'
+      - 'src/lib/billSettingsFlags.ts'
+      - 'src/features/invoices/**'
+      - 'src/features/settings/SettingsView.tsx'
+      - 'src/components/layout/LoginScreen.tsx'
+      - 'src/components/ui/AppModal.tsx'
+      - 'src/components/ui/ConfirmDialog.tsx'
+      - 'src/components/ui/Toast.tsx'
+      - 'src/components/ui/MobileShell.tsx'
+      - '.github/workflows/apk-build.yml'
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to build (leave empty for main tip)'
+        required: false
+      push_release:
+        description: 'Upload to evergreen offline-mobile release'
+        type: boolean
+        default: true
+
+concurrency:
+  group: apk-build-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+
+jobs:
+  gate:
+    name: Check trigger
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
+      head_sha: ${{ steps.check.outputs.head_sha }}
+      head_ref: ${{ steps.check.outputs.head_ref }}
+      push_release: ${{ steps.check.outputs.push_release }}
+      trigger: ${{ steps.check.outputs.trigger }}
+    steps:
+      - name: Decide whether to build
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const MOBILE_LABELS = new Set(['mobile', 'apk', 'apk-build']);
+
+            const event = context.eventName;
+            const actor = context.payload.sender?.login || '';
+            const assoc = context.payload.comment?.author_association
+              || context.payload.sender?.author_association
+              || '';
+            const allowed = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(assoc)
+              || ['prathame'].includes(actor);
+
+            const labelNames = (pr) =>
+              (pr.labels || []).map((l) => String(l.name || '').toLowerCase());
+            const hasMobileLabel = (pr) =>
+              labelNames(pr).some((n) => MOBILE_LABELS.has(n));
+
+            const set = (should, opts = {}) => {
+              core.setOutput('should_run', should ? 'true' : 'false');
+              core.setOutput('pr_number', opts.pr || '');
+              core.setOutput('head_sha', opts.sha || '');
+              core.setOutput('head_ref', opts.ref || '');
+              core.setOutput('push_release', opts.pushRelease ?? 'true');
+              core.setOutput('trigger', opts.trigger || event);
+            };
+
+            // ── Merge to main with mobile label → evergreen APK ─────────────
+            if (event === 'pull_request' && context.payload.action === 'closed') {
+              const pr = context.payload.pull_request;
+              if (!pr?.merged) {
+                set(false);
+                return;
+              }
+              if (!hasMobileLabel(pr)) {
+                core.info(
+                  `PR #${pr.number} merged without mobile/apk label — skip APK ` +
+                    `(add label \`mobile\` on mobile PRs, or rely on path filter push).`,
+                );
+                set(false);
+                return;
+              }
+              set(true, {
+                pr: String(pr.number),
+                sha: pr.merge_commit_sha || pr.head.sha,
+                ref: 'main',
+                pushRelease: 'true',
+                trigger: 'merge-mobile-label',
+              });
+              return;
+            }
+
+            // ── Path-filtered push to main (safety net) ────────────────────
+            if (event === 'push') {
+              set(true, {
+                sha: context.sha,
+                ref: context.ref,
+                pushRelease: 'true',
+                trigger: 'push-main-mobile-paths',
+              });
+              return;
+            }
+
+            // ── PR comment: preview only ───────────────────────────────────
+            if (event === 'issue_comment') {
+              const issue = context.payload.issue;
+              if (!issue?.pull_request) {
+                set(false);
+                return;
+              }
+              const body = String(context.payload.comment?.body || '').toLowerCase();
+              const hit = /\bapk[\s_-]*build\b/.test(body) || /(^|\s)\/apk(-build)?\b/.test(body);
+              if (!hit) {
+                set(false);
+                return;
+              }
+              if (!allowed) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: `⛔ @${actor} cannot trigger APK builds (need repo write access).`,
+                });
+                set(false);
+                return;
+              }
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: issue.number,
+              });
+              await github.rest.reactions.createForIssueComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: context.payload.comment.id,
+                content: 'eyes',
+              });
+              set(true, {
+                pr: String(pr.number),
+                sha: pr.head.sha,
+                ref: pr.head.ref,
+                pushRelease: 'false',
+                trigger: 'pr-comment',
+              });
+              return;
+            }
+
+            // ── Label added on open PR: preview only (not a merge) ─────────
+            if (event === 'pull_request' && context.payload.action === 'labeled') {
+              const label = String(context.payload.label?.name || '').toLowerCase();
+              if (!MOBILE_LABELS.has(label)) {
+                set(false);
+                return;
+              }
+              const pr = context.payload.pull_request;
+              if (pr.state === 'closed' && pr.merged) {
+                // Merge already handled by closed; avoid double-build on label after merge
+                set(false);
+                return;
+              }
+              set(true, {
+                pr: String(pr.number),
+                sha: pr.head.sha,
+                ref: pr.head.ref,
+                pushRelease: 'false',
+                trigger: 'pr-label-preview',
+              });
+              return;
+            }
+
+            if (event === 'workflow_dispatch') {
+              const prNum = String(context.payload.inputs?.pr_number || '').trim();
+              const push = String(context.payload.inputs?.push_release ?? 'true');
+              if (prNum) {
+                const { data: pr } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: Number(prNum),
+                });
+                set(true, {
+                  pr: String(pr.number),
+                  sha: pr.head.sha,
+                  ref: pr.head.ref,
+                  pushRelease: push,
+                  trigger: 'dispatch',
+                });
+              } else {
+                set(true, {
+                  sha: context.sha,
+                  ref: context.ref,
+                  pushRelease: push,
+                  trigger: 'dispatch',
+                });
+              }
+              return;
+            }
+
+            set(false);
+
+  build-apk:
+    name: Build Offline Mobile APK
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Service Mobile env
+        env:
+          VITE_API_ORIGIN_SECRET: ${{ secrets.VITE_API_ORIGIN }}
+        run: |
+          cp .env.service-mobile.example .env.service-mobile
+          if [ -n "$VITE_API_ORIGIN_SECRET" ]; then
+            printf 'VITE_API_ORIGIN=%s\n' "$VITE_API_ORIGIN_SECRET" > .env.service-mobile.origin
+            grep -v '^VITE_API_ORIGIN=' .env.service-mobile >> .env.service-mobile.origin || true
+            mv .env.service-mobile.origin .env.service-mobile
+            grep -q '^VITE_DEPLOYMENT_MODE=' .env.service-mobile || echo 'VITE_DEPLOYMENT_MODE=service-mobile' >> .env.service-mobile
+          fi
+          echo "VITE_APP_VERSION=ci-${GITHUB_RUN_NUMBER}" >> .env.service-mobile
+          echo "Env keys:"; cut -d= -f1 .env.service-mobile
+
+      - name: Build web + Capacitor sync
+        run: |
+          npm run build:service-mobile
+          npx cap sync android
+
+      - name: Assemble debug APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+
+      - name: Stage APK
+        run: |
+          mkdir -p dist-apk
+          SRC=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
+          cp "$SRC" dist-apk/offline-mobile-service-debug.apk
+          ls -lh dist-apk/
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-mobile-service-debug
+          path: dist-apk/offline-mobile-service-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Push evergreen release asset
+        if: needs.gate.outputs.push_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view offline-mobile >/dev/null 2>&1 || \
+            gh release create offline-mobile --title "Offline Mobile (evergreen APK)" --notes "Sideload testing APK — published when a \`mobile\`-labeled PR merges (or mobile paths change on main)."
+          gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clobber
+
+      - name: Comment on PR
+        if: needs.gate.outputs.pr_number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = '${{ needs.gate.outputs.pr_number }}';
+            const sha = '${{ needs.gate.outputs.head_sha }}'.slice(0, 7);
+            const trigger = '${{ needs.gate.outputs.trigger }}';
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const evergreen = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/offline-mobile/offline-mobile-service-debug.apk`;
+            const pushed = '${{ needs.gate.outputs.push_release }}' === 'true';
+            const title = pushed
+              ? '## ✅ Offline Mobile APK published (evergreen)'
+              : '## ✅ Offline Mobile APK ready (PR preview)';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(pr),
+              body: [
+                title,
+                ``,
+                `| | |`,
+                `|---|---|`,
+                `| Trigger | \`${trigger}\` |`,
+                `| Commit | \`${sha}\` |`,
+                `| Workflow | [run](${runUrl}) |`,
+                `| Artifact | Actions → **Artifacts** → \`offline-mobile-service-debug\` |`,
+                pushed
+                  ? `| Evergreen | [${evergreen}](${evergreen}) |`
+                  : `| Evergreen | not updated — add label \`mobile\` and merge to publish |`,
+              ].join('\n'),
+            });

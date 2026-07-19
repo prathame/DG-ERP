@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { cn, formatDate, useTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
-import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
 import type { Tab } from '../../types';
@@ -53,7 +53,8 @@ function relativeTime(dateStr: string, t: (key: string) => string) {
 export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => void }) {
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
-  const serviceMobile = isServiceMobileMode();
+  /** Offline Mobile + online Cap service — same phone analytics chrome */
+  const servicePhoneUx = isServicePhoneUx(cfg.type);
   const rangePresets = [
     { id: 'today' as const, label: t('common.today') },
     { id: 'week' as const, label: t('common.thisWeek') },
@@ -185,10 +186,10 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
             label: t('dashboard.netIn'),
             // Offline Service: collections = invoice_payments and revenue = invoice totals —
             // summing both double-counts the same money. Use cash in − expenses instead.
-            value: serviceMobile
+            value: servicePhoneUx
               ? money.collections - money.expenses
               : money.collections + money.revenue - money.expenses,
-            accent: ((serviceMobile
+            accent: ((servicePhoneUx
               ? money.collections - money.expenses
               : money.collections + money.revenue - money.expenses) >= 0
               ? 'green'
@@ -479,7 +480,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
         </div>
       )}
 
-      {!serviceMobile && counts && (
+      {!servicePhoneUx && counts && (
         <div>
           <MobileSectionTitle title={t('dashboard.masterSummary')} className="mb-2 sm:mb-3 sm:[&_h3]:text-base" />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">

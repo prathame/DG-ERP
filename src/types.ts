@@ -156,7 +156,12 @@ export interface BillSettings {
   showRewards: boolean;
   showBarcode: boolean;
   showWarranty: boolean;
-  /** When false, HSN/SAC is hidden on invoices/PDFs. Offline defaults off; cloud defaults on. */
+  /**
+   * GST on new invoices (GST %, tax columns, HSN/SAC, Tax Invoice title).
+   * Replaces the old HSN-only toggle — HSN is shown only when GST is on.
+   */
+  showGst: boolean;
+  /** @deprecated Alias of showGst (same stored value). */
   showHsnSac: boolean;
   footerText: string;
   /** Invoice / tax-invoice PDF layout style */

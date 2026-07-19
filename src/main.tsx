@@ -13,8 +13,13 @@ installGlobalErrorHandlers();
 function applyMobileDenseClass() {
   try {
     const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-    if (isServiceMobileMode() || Boolean(cap?.isNativePlatform?.())) {
+    const native = Boolean(cap?.isNativePlatform?.());
+    if (isServiceMobileMode() || native) {
       document.documentElement.classList.add('dg-mobile-dense');
+    }
+    if (native) {
+      // Status-bar / nav insets — pairs with Capacitor SystemBars CSS injection
+      document.documentElement.classList.add('dg-capacitor-native');
     }
   } catch {
     /* ignore */

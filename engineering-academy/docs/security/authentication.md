@@ -112,7 +112,7 @@ Two things stand out here, both worth understanding as deliberate:
 > [!CAUTION]
 > **5-minute token expiry is short — intentionally.** Because the token has to be manually relayed by a second human (the admin), rather than clicked directly from an email a user just received, there's an inherent extra delay in this flow already. A 5-minute window forces that relay to happen essentially immediately (the admin reads it off a `GET /api/admin/reset-tokens` screen and tells the user right away, live), which limits the exposure window if the token is ever intercepted or the admin's session is compromised.
 
-**Super-admin generated reset** (`POST /api/super-admin/tenants/:id/reset-token`) uses the same 5-minute expiry but *does* return the token + a constructed reset link directly to the super-admin's response — appropriate because a super-admin support agent is already a trusted, authenticated actor generating this for a support ticket, not an anonymous requester.
+**Super-admin generated reset** (`POST /api/super-admin/tenants/:id/reset-token`) uses the same 5-minute expiry but *does* return the token + a constructed reset link directly to the super-admin's response — appropriate because a super-admin support agent is already a trusted, authenticated actor generating this for a support ticket, not an anonymous requester. **Service Cloud seats** panel exposes this as **Share reset link** per seat user (online Cap / Electron login — one password covers that user’s mobile + laptop slots). Offline Mobile local admin password is a separate product path.
 
 ## Impersonation — 15-minute audited support tool
 

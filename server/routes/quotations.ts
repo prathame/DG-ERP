@@ -583,12 +583,13 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
         const invoiceNumber = `${fyPrefix}${String(maxNum + 1).padStart(4, '0')}`;
         const invoiceId = uid('INV');
 
+        const gstEnabled = taxTotal > 0 || invItems.some(it => (Number(it.gstPercent) || 0) > 0);
         await client.query(
           `INSERT INTO standalone_invoices (
             id, tenant_id, invoice_number, customer_name, customer_gstin, customer_phone,
             party_type, party_id, items, subtotal, tax_total, grand_total, notes, status, invoice_date,
-            tax_cgst, tax_sgst, tax_igst, is_interstate
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'sent',$14,$15,$16,$17,$18)`,
+            tax_cgst, tax_sgst, tax_igst, is_interstate, gst_enabled
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'sent',$14,$15,$16,$17,$18,$19)`,
           [
             invoiceId,
             tenantId,
@@ -608,6 +609,7 @@ router.post('/api/quotations/:id/convert', blockVendors, async (req: AuthRequest
             taxSgst,
             taxIgst,
             interstate,
+            gstEnabled,
           ],
         );
 

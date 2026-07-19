@@ -1723,12 +1723,26 @@ export async function handleLocalApiRequest(
         }
 
         const priceVendorId = resolvedPartyType === 'vendor' ? resolvedPartyId : null;
-        const built = await buildStandaloneInvoiceLines(tid!, (b.items as InvoiceLineIn[]) || [], priceVendorId);
+        let gstEnabled = typeof b.gstEnabled === 'boolean' ? !!b.gstEnabled : null;
+        if (gstEnabled == null) {
+          const { rows: bsRows } = await localQuery(`SELECT settings FROM bill_settings WHERE tenant_id=$1`, [tid]);
+          const settings = (bsRows[0] as { settings?: unknown } | undefined)?.settings;
+          const parsed =
+            typeof settings === 'string'
+              ? JSON.parse(settings)
+              : settings && typeof settings === 'object'
+                ? (settings as Record<string, unknown>)
+                : {};
+          const flag = typeof parsed.showGst === 'boolean' ? parsed.showGst : parsed.showHsnSac;
+          gstEnabled = flag === true; // offline default off
+        }
+        const rawItems = ((b.items as InvoiceLineIn[]) || []).map(it => (gstEnabled ? it : { ...it, gstPercent: 0 }));
+        const built = await buildStandaloneInvoiceLines(tid!, rawItems, priceVendorId);
         if ('error' in built) return json(400, { error: built.error });
 
         const sellerGstin = await resolveSellerGstin(tid!);
         const customerGstin = (b.customerGstin as string) || null;
-        const interstate = isInterstateSupply(sellerGstin, customerGstin);
+        const interstate = gstEnabled ? isInterstateSupply(sellerGstin, customerGstin) : false;
         const { taxCgst, taxSgst, taxIgst } = splitGstTax(built.taxTotal, interstate);
 
         const id = uid('INV');
@@ -1737,8 +1751,8 @@ export async function handleLocalApiRequest(
           `INSERT INTO standalone_invoices
              (id, tenant_id, invoice_number, customer_name, client_name, client_id, customer_gstin, customer_address,
               customer_phone, party_type, party_id, status, items, subtotal, tax, tax_total, grand_total, total,
-              notes, terms, invoice_date, due_date, tax_cgst, tax_sgst, tax_igst, is_interstate)
-           VALUES ($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14,$15,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+              notes, terms, invoice_date, due_date, tax_cgst, tax_sgst, tax_igst, is_interstate, gst_enabled)
+           VALUES ($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14,$15,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
           [
             id,
             tid,
@@ -1763,6 +1777,7 @@ export async function handleLocalApiRequest(
             taxSgst,
             taxIgst,
             interstate,
+            gstEnabled,
           ],
         );
         await applyAdvancesToInvoice(tid!, id);
@@ -2629,22 +2644,35 @@ export async function handleLocalApiRequest(
       if (ctx.method === 'GET') {
         const { rows } = await localQuery(`SELECT settings FROM bill_settings WHERE tenant_id=$1`, [tid]);
         const settings = (rows[0] as { settings?: unknown } | undefined)?.settings;
-        const parsed =
+        const parsed: Record<string, unknown> =
           typeof settings === 'string'
-            ? JSON.parse(settings)
-            : settings && typeof settings === 'object'
-              ? settings
+            ? (JSON.parse(settings) as Record<string, unknown>)
+            : settings && typeof settings === 'object' && !Array.isArray(settings)
+              ? (settings as Record<string, unknown>)
               : {};
-        // Offline defaults: HSN/SAC off so electricians aren't forced to see it.
-        return json(200, { showHsnSac: false, ...parsed });
+        // Offline defaults: GST off (includes HSN) so electricians aren't forced into tax bills.
+        const merged: Record<string, unknown> = { showGst: false, showHsnSac: false, ...parsed };
+        if (typeof merged.showGst !== 'boolean' && typeof merged.showHsnSac === 'boolean') {
+          merged.showGst = merged.showHsnSac;
+        }
+        if (typeof merged.showGst === 'boolean') merged.showHsnSac = merged.showGst;
+        return json(200, merged);
       }
       const b = ctx.body as Record<string, unknown>;
+      const rawSettings = b.settings ?? b;
+      const payload: Record<string, unknown> = {
+        ...(rawSettings && typeof rawSettings === 'object' && !Array.isArray(rawSettings)
+          ? (rawSettings as Record<string, unknown>)
+          : {}),
+      };
+      if (typeof payload.showGst === 'boolean') payload.showHsnSac = payload.showGst;
+      else if (typeof payload.showHsnSac === 'boolean') payload.showGst = payload.showHsnSac;
       await localQuery(
         `INSERT INTO bill_settings (id, tenant_id, settings) VALUES ($1,$2,$3)
          ON CONFLICT (tenant_id) DO UPDATE SET settings = EXCLUDED.settings`,
-        [uid('BS'), tid, JSON.stringify(b.settings ?? b)],
+        [uid('BS'), tid, JSON.stringify(payload)],
       );
-      return json(200, b.settings ?? b);
+      return json(200, payload);
     }
 
     // Accounts / reports — service offline (invoice + expense based; no distribution/stock)
@@ -2726,16 +2754,24 @@ export async function handleLocalApiRequest(
            COALESCE((SELECT SUM(amount) FROM supplier_payments WHERE tenant_id=$1),0) AS supplier_paid`,
         [tid],
       );
+      const gstTax = await localQuery(
+        `SELECT COALESCE(SUM(CASE WHEN COALESCE(gst_enabled, (COALESCE(tax_total, tax, 0) > 0))
+           THEN COALESCE(tax_total, tax, 0) ELSE 0 END), 0) AS t
+         FROM standalone_invoices
+         WHERE tenant_id=$1 AND invoice_date <= $2 AND COALESCE(status,'') NOT IN ('cancelled','draft')`,
+        [tid, asOf],
+      );
       const bankBal = Number((banks.rows[0] as { t: number }).t) || 0;
       const invoiceReceivables = Number((invPay.rows[0] as { unpaid: number }).unpaid) || 0;
       const invoiceCash = Number((invPay.rows[0] as { paid_cash: number }).paid_cash) || 0;
       const purchased = Number((purchPay.rows[0] as { purchased: number }).purchased) || 0;
       const supplierPaid = Number((purchPay.rows[0] as { supplier_paid: number }).supplier_paid) || 0;
+      const gstPayable = Math.max(0, Number((gstTax.rows[0] as { t: number }).t) || 0);
       const payables = Math.max(0, purchased - supplierPaid);
       const cashBank = Math.max(0, bankBal + invoiceCash - supplierPaid);
       const receivables = invoiceReceivables;
       const totalAssets = cashBank + receivables;
-      const totalLiabilities = payables;
+      const totalLiabilities = payables + gstPayable;
       const netWorth = totalAssets - totalLiabilities;
       return json(200, {
         asOf,
@@ -2752,7 +2788,7 @@ export async function handleLocalApiRequest(
         },
         liabilities: {
           payables,
-          gstPayable: 0,
+          gstPayable,
           total: totalLiabilities,
         },
         netWorth,
@@ -3225,12 +3261,156 @@ export async function handleLocalApiRequest(
     if (ctx.path === '/gstr3b/compute' && ctx.method === 'GET') {
       const month = Number(query.get('month')) || new Date().getMonth() + 1;
       const year = Number(query.get('year')) || new Date().getFullYear();
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      // Only GST-enabled invoices (frozen at create) — non-GST bills stay out of taxable outward
+      const { rows } = await localQuery(
+        `SELECT
+           COALESCE(SUM(CASE WHEN COALESCE(gst_enabled, (COALESCE(tax_total, tax, 0) > 0))
+             THEN COALESCE(subtotal, 0) ELSE 0 END), 0) AS taxable,
+           COALESCE(SUM(CASE WHEN COALESCE(gst_enabled, (COALESCE(tax_total, tax, 0) > 0))
+             THEN COALESCE(tax_total, tax, 0) ELSE 0 END), 0) AS tax,
+           COALESCE(SUM(CASE WHEN COALESCE(gst_enabled, (COALESCE(tax_total, tax, 0) > 0))
+             THEN COALESCE(tax_cgst, 0) ELSE 0 END), 0) AS cgst,
+           COALESCE(SUM(CASE WHEN COALESCE(gst_enabled, (COALESCE(tax_total, tax, 0) > 0))
+             THEN COALESCE(tax_sgst, 0) ELSE 0 END), 0) AS sgst,
+           COALESCE(SUM(CASE WHEN COALESCE(gst_enabled, (COALESCE(tax_total, tax, 0) > 0))
+             THEN COALESCE(tax_igst, 0) ELSE 0 END), 0) AS igst
+         FROM standalone_invoices
+         WHERE tenant_id=$1 AND invoice_date >= $2 AND invoice_date < $3
+           AND COALESCE(status,'') NOT IN ('cancelled','draft')`,
+        [tid, startDate, endDate],
+      );
+      const r = (rows[0] || {}) as Record<string, number>;
+      const taxableValue = Number(r.taxable) || 0;
+      let cgst = Number(r.cgst) || 0;
+      let sgst = Number(r.sgst) || 0;
+      let igst = Number(r.igst) || 0;
+      const tax = Number(r.tax) || 0;
+      if (cgst + sgst + igst < 0.001 && tax > 0) {
+        cgst = Math.round((tax / 2) * 100) / 100;
+        sgst = Math.round((tax - cgst) * 100) / 100;
+        igst = 0;
+      }
+      const total = Math.round((cgst + sgst + igst) * 100) / 100;
       const zeroTax = { cgst: 0, sgst: 0, igst: 0, total: 0 };
       return json(200, {
         period: { month, year },
-        output: { taxableValue: 0, ...zeroTax },
+        output: { taxableValue, cgst, sgst, igst, total },
         itc: { ...zeroTax, fromPurchases: 0, fromExpenses: 0 },
-        netPayable: { ...zeroTax },
+        netPayable: { cgst, sgst, igst, total },
+      });
+    }
+    if (ctx.path === '/reports/gst-summary' && ctx.method === 'GET') {
+      const month = Number(query.get('month')) || new Date().getMonth() + 1;
+      const year = Number(query.get('year')) || new Date().getFullYear();
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      const { rows } = await localQuery(
+        `SELECT customer_name, customer_gstin, subtotal, tax_total, grand_total, tax_cgst, tax_sgst, tax_igst, items
+         FROM standalone_invoices
+         WHERE tenant_id=$1 AND invoice_date >= $2 AND invoice_date < $3
+           AND COALESCE(status,'') NOT IN ('cancelled','draft')
+           AND COALESCE(gst_enabled, (COALESCE(tax_total, tax, 0) > 0)) = true`,
+        [tid, startDate, endDate],
+      );
+      const b2b: Record<
+        string,
+        {
+          vendorName: string;
+          gstin: string;
+          taxable: number;
+          cgst: number;
+          sgst: number;
+          total: number;
+          invoiceCount: number;
+        }
+      > = {};
+      let b2cTaxable = 0,
+        b2cCgst = 0,
+        b2cSgst = 0,
+        b2cTotal = 0;
+      const hsnMap: Record<
+        string,
+        { hsn: string; description: string; qty: number; taxable: number; cgst: number; sgst: number; total: number }
+      > = {};
+      for (const inv of rows as Record<string, unknown>[]) {
+        const taxable = Number(inv.subtotal) || 0;
+        const tax = Number(inv.tax_total) || 0;
+        let cgst = Number(inv.tax_cgst) || 0;
+        let sgst = Number(inv.tax_sgst) || 0;
+        if (cgst + sgst < 0.001 && tax > 0) {
+          cgst = Math.round((tax / 2) * 100) / 100;
+          sgst = Math.round((tax - cgst) * 100) / 100;
+        }
+        const gstin = String(inv.customer_gstin || '');
+        const billed = Number(inv.grand_total) || taxable + tax;
+        if (gstin.length >= 15) {
+          if (!b2b[gstin])
+            b2b[gstin] = {
+              vendorName: String(inv.customer_name || 'Customer'),
+              gstin,
+              taxable: 0,
+              cgst: 0,
+              sgst: 0,
+              total: 0,
+              invoiceCount: 0,
+            };
+          b2b[gstin].taxable += taxable;
+          b2b[gstin].cgst += cgst;
+          b2b[gstin].sgst += sgst;
+          b2b[gstin].total += billed;
+          b2b[gstin].invoiceCount++;
+        } else {
+          b2cTaxable += taxable;
+          b2cCgst += cgst;
+          b2cSgst += sgst;
+          b2cTotal += billed;
+        }
+        let items: unknown[] = [];
+        try {
+          items = typeof inv.items === 'string' ? JSON.parse(inv.items) : Array.isArray(inv.items) ? inv.items : [];
+        } catch {
+          items = [];
+        }
+        for (const raw of items) {
+          const it = raw as {
+            hsnSac?: string;
+            description?: string;
+            qty?: number;
+            taxable?: number;
+            tax?: number;
+            total?: number;
+          };
+          const hsn = String(it.hsnSac || 'N/A');
+          const lineTaxable = Number(it.taxable) || 0;
+          const lineTax = Number(it.tax) || 0;
+          const half = Math.round(lineTax / 2);
+          if (!hsnMap[hsn])
+            hsnMap[hsn] = {
+              hsn,
+              description: String(it.description || inv.customer_name || 'Invoice'),
+              qty: 0,
+              taxable: 0,
+              cgst: 0,
+              sgst: 0,
+              total: 0,
+            };
+          hsnMap[hsn].qty += Number(it.qty) || 1;
+          hsnMap[hsn].taxable += lineTaxable;
+          hsnMap[hsn].cgst += half;
+          hsnMap[hsn].sgst += lineTax - half;
+          hsnMap[hsn].total += Number(it.total) || lineTaxable + lineTax;
+        }
+      }
+      return json(200, {
+        period: `${String(month).padStart(2, '0')}/${year}`,
+        b2b: Object.values(b2b),
+        b2c: { taxable: b2cTaxable, cgst: b2cCgst, sgst: b2cSgst, total: b2cTotal },
+        hsnSummary: Object.values(hsnMap),
+        totalTaxable: Object.values(b2b).reduce((s, v) => s + v.taxable, 0) + b2cTaxable,
+        totalTax: Object.values(b2b).reduce((s, v) => s + v.cgst + v.sgst, 0) + b2cCgst + b2cSgst,
+        totalValue: Object.values(b2b).reduce((s, v) => s + v.total, 0) + b2cTotal,
       });
     }
     // Invoice-based outstanding (service has no distribution receivables)

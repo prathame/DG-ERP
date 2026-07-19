@@ -46,9 +46,24 @@ That URL is the code default for `service_mobile_app_url` / `/api/download-links
 gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clobber
 ```
 
+### CI: Offline Mobile APK
+
+Workflow: [`.github/workflows/apk-build.yml`](../../../.github/workflows/apk-build.yml)
+
+**How to mark a PR as mobile:** add GitHub label **`mobile`** (aliases: `apk`, `apk-build`).
+
+| Trigger | What happens |
+|---------|----------------|
+| **Merge PR that has label `mobile`** (recommended) | Build APK from merge → overwrite evergreen release |
+| Push to `main` touching mobile paths | Safety net if someone forgot the label (Capacitor, `service-mobile` / `service-cloud`, invoice UI, etc.) |
+| PR comment `apk build` / `/apk-build` | Preview artifact only — does **not** overwrite evergreen |
+| Actions → APK Build (manual) | Optional override |
+
+Docs-only / server-desktop PRs without the `mobile` label do **not** rebuild the APK.
+
 ## Mobile UI / safe areas
 
-Capacitor uses edge-to-edge WebViews. The shell CSS (`app-header-safe`, `--safe-top` / `--safe-bottom`, bottom-nav clearance) must keep the status bar and home indicator from covering headers, CTAs, and forms. Rebuild the APK after layout CSS changes.
+Capacitor uses edge-to-edge WebViews. Prefer Capacitor’s injected CSS vars (`--safe-area-inset-*` via `SystemBars` `insetsHandling: css`) over `env(safe-area-inset-*)`, which is often `0` on Android WebView. Shell CSS maps those to `--safe-top` / `--safe-bottom` (`app-header-safe`, bottom-nav clearance). Native shells also get a minimum inset floor (`dg-capacitor-native`) so time/battery never sit under the header. Rebuild the APK after layout CSS or `capacitor.config.ts` SystemBars changes.
 
 ## Mobile UI density
 

@@ -377,6 +377,8 @@ ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_cgst NUMERIC DEFAUL
 ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_sgst NUMERIC DEFAULT 0;
 ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_igst NUMERIC DEFAULT 0;
 ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS is_interstate BOOLEAN DEFAULT false;
+ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS gst_enabled BOOLEAN;
+UPDATE standalone_invoices SET gst_enabled = (COALESCE(tax_total, tax, 0) > 0) WHERE gst_enabled IS NULL;
 ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS grand_total NUMERIC DEFAULT 0;
 ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS terms TEXT;
