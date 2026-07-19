@@ -47,7 +47,7 @@ function pillLabel(id: MasterType): string {
 export function MastersView({
   setActiveTab,
   user,
-  businessType: _businessType = 'manufacturer',
+  businessType = 'manufacturer',
   launch,
   onLaunchConsumed,
 }: {
