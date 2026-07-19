@@ -7,7 +7,12 @@ import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
 import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
 import { logAudit } from '../utils/helpers';
-import { DEFAULT_SERVICE_MOBILE_APP_URL } from '../download-defaults';
+import {
+  DEFAULT_SERVICE_CLOUD_APP_URL,
+  DEFAULT_SERVICE_CLOUD_IOS_URL,
+  DEFAULT_SERVICE_MOBILE_APP_URL,
+  DEFAULT_SERVICE_MOBILE_IOS_URL,
+} from '../download-defaults';
 
 const router = Router();
 
@@ -985,8 +990,10 @@ router.get('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       minOnpremVersion: cfg['min_onprem_version'] || null,
       latestServiceMobileVersion: cfg['latest_service_mobile_version'] || null,
       minServiceMobileVersion: cfg['min_service_mobile_version'] || null,
-      serviceCloudAppUrl: cfg['service_cloud_app_url'] || null,
+      serviceCloudAppUrl: cfg['service_cloud_app_url'] || DEFAULT_SERVICE_CLOUD_APP_URL,
+      serviceCloudIosUrl: cfg['service_cloud_ios_url'] || DEFAULT_SERVICE_CLOUD_IOS_URL,
       serviceMobileAppUrl: cfg['service_mobile_app_url'] || DEFAULT_SERVICE_MOBILE_APP_URL,
+      serviceMobileIosUrl: cfg['service_mobile_ios_url'] || DEFAULT_SERVICE_MOBILE_IOS_URL,
       desktopAppUrl: cfg['desktop_app_url'] || null,
       cloudVersion: process.env.npm_package_version || process.env.CLOUD_VERSION || '2.1.0',
       onpremVersions: versions,
@@ -1005,7 +1012,9 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       latestServiceMobileVersion,
       minServiceMobileVersion,
       serviceCloudAppUrl,
+      serviceCloudIosUrl,
       serviceMobileAppUrl,
+      serviceMobileIosUrl,
       desktopAppUrl,
     } = req.body as {
       latestOnpremVersion?: string | null;
@@ -1013,7 +1022,9 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       latestServiceMobileVersion?: string | null;
       minServiceMobileVersion?: string | null;
       serviceCloudAppUrl?: string | null;
+      serviceCloudIosUrl?: string | null;
       serviceMobileAppUrl?: string | null;
+      serviceMobileIosUrl?: string | null;
       desktopAppUrl?: string | null;
     };
 
@@ -1046,10 +1057,14 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
     }
     try {
       const cloud = normalizeUrl(serviceCloudAppUrl);
+      const cloudIos = normalizeUrl(serviceCloudIosUrl);
       const mobile = normalizeUrl(serviceMobileAppUrl);
+      const mobileIos = normalizeUrl(serviceMobileIosUrl);
       const desktop = normalizeUrl(desktopAppUrl);
       if (cloud !== undefined) await upsert('service_cloud_app_url', cloud);
+      if (cloudIos !== undefined) await upsert('service_cloud_ios_url', cloudIos);
       if (mobile !== undefined) await upsert('service_mobile_app_url', mobile);
+      if (mobileIos !== undefined) await upsert('service_mobile_ios_url', mobileIos);
       if (desktop !== undefined) await upsert('desktop_app_url', desktop);
     } catch (e) {
       return res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid URL' });

@@ -152,8 +152,11 @@ ios:offline-mobile:
     - node -v && npm -v
     - xcodebuild -version
     - npm ci
+  variables:
+    MOBILE_PRODUCT: offline
+    IOS_BUILD_MODE: debug
   script:
-    - chmod +x scripts/ci-build-ios.sh
+    - chmod +x scripts/ci-build-ios.sh scripts/ios-set-product.sh
     - bash scripts/ci-build-ios.sh
   artifacts:
     name: "offline-mobile-service-debug-ios-$CI_COMMIT_SHORT_SHA"

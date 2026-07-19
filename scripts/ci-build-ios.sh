@@ -1,28 +1,48 @@
 #!/usr/bin/env bash
-# GitLab CI: Offline Service Mobile iOS — parallel to Android assembleDebug.
-# Modes:
-#   debug (default) — simulator Debug build, no Apple certs → *.debug.app.zip
-#   ipa             — signed archive + export (needs CI signing vars)
+# CI: Offline / Online Capacitor iOS — parallel to Android assembleDebug.
+#
+# Env:
+#   MOBILE_PRODUCT=offline|online   (default: offline)
+#   IOS_BUILD_MODE=debug|ipa        (default: debug — simulator, no Apple certs)
+#   VITE_API_ORIGIN                 optional API origin for env file
+#
+# Outputs under dist-apk/:
+#   offline → offline-mobile-service-debug.app.zip (.ipa if mode=ipa)
+#   online  → service-cloud-online-debug.app.zip (.ipa if mode=ipa)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+PRODUCT="${MOBILE_PRODUCT:-offline}"
 MODE="${IOS_BUILD_MODE:-debug}"
-# Accept old name
 [[ "$MODE" == "simulator" ]] && MODE=debug
 
 OUT_DIR="${IOS_OUT_DIR:-dist-apk}"
 DERIVED="${IOS_DERIVED_DATA:-$ROOT/ios/DerivedData}"
 PROJECT="$ROOT/ios/App/App.xcodeproj"
 SCHEME="App"
-BUNDLE_ID="in.dhandho.service"
 RUNNER_TEMP="${RUNNER_TEMP:-${TMPDIR:-/tmp}/dg-ios-ci}"
 mkdir -p "$RUNNER_TEMP"
 
+case "$PRODUCT" in
+  offline)
+    BUNDLE_ID="in.dhandho.service"
+    ARTIFACT_STEM="offline-mobile-service-debug"
+    ;;
+  online)
+    BUNDLE_ID="in.dhandho.servicecloud"
+    ARTIFACT_STEM="service-cloud-online-debug"
+    ;;
+  *)
+    echo "error: MOBILE_PRODUCT must be offline or online (got: $PRODUCT)" >&2
+    exit 1
+    ;;
+esac
+
 log() { printf '+ %s\n' "$*" >&2; }
 
-prepare_env() {
+prepare_env_offline() {
   if [[ ! -f .env.service-mobile ]]; then
     cp .env.service-mobile.example .env.service-mobile
   fi
@@ -36,23 +56,68 @@ prepare_env() {
   fi
   if [[ -n "${CI_PIPELINE_IID:-}" ]]; then
     echo "VITE_APP_VERSION=ci-${CI_PIPELINE_IID}" >> .env.service-mobile
+  elif [[ -n "${GITHUB_RUN_NUMBER:-}" ]]; then
+    echo "VITE_APP_VERSION=ci-${GITHUB_RUN_NUMBER}" >> .env.service-mobile
   elif [[ -n "${CI_JOB_ID:-}" ]]; then
     echo "VITE_APP_VERSION=ci-${CI_JOB_ID}" >> .env.service-mobile
   fi
   log "Env keys: $(cut -d= -f1 .env.service-mobile | tr '\n' ' ')"
 }
 
-sync_web() {
-  if [[ "${SKIP_BUILD:-}" != "1" ]]; then
-    log "npm run build:service-mobile"
-    npm run build:service-mobile
+prepare_env_online() {
+  if [[ ! -f .env.service-cloud ]]; then
+    cp .env.service-cloud.example .env.service-cloud
   fi
-  log "npx cap sync ios"
-  npx cap sync ios
+  if [[ -n "${VITE_API_ORIGIN:-}" ]]; then
+    tmp="$(mktemp)"
+    printf 'VITE_API_ORIGIN=%s\n' "$VITE_API_ORIGIN" >"$tmp"
+    grep -v '^VITE_API_ORIGIN=' .env.service-cloud >>"$tmp" || true
+    mv "$tmp" .env.service-cloud
+  fi
+  if [[ -n "${CI_PIPELINE_IID:-}" ]]; then
+    echo "VITE_APP_VERSION=ci-${CI_PIPELINE_IID}" >> .env.service-cloud
+  elif [[ -n "${GITHUB_RUN_NUMBER:-}" ]]; then
+    echo "VITE_APP_VERSION=ci-${GITHUB_RUN_NUMBER}" >> .env.service-cloud
+  elif [[ -n "${CI_JOB_ID:-}" ]]; then
+    echo "VITE_APP_VERSION=ci-${CI_JOB_ID}" >> .env.service-cloud
+  fi
+  log "Env keys: $(cut -d= -f1 .env.service-cloud | tr '\n' ' ')"
+}
+
+sync_web() {
+  if [[ "$PRODUCT" == "offline" ]]; then
+    prepare_env_offline
+    if [[ "${SKIP_BUILD:-}" != "1" ]]; then
+      log "npm run build:service-mobile"
+      npm run build:service-mobile
+    fi
+    log "npx cap sync ios"
+    npx cap sync ios
+    bash scripts/ios-set-product.sh offline
+  else
+    prepare_env_online
+    if [[ "${SKIP_BUILD:-}" != "1" ]]; then
+      log "npm run build:service-cloud"
+      npm run build:service-cloud
+    fi
+    BACKUP="$(mktemp)"
+    cp capacitor.config.ts "$BACKUP"
+    cp capacitor.cloud.config.ts capacitor.config.ts
+    cleanup() {
+      cp "$BACKUP" capacitor.config.ts
+      rm -f "$BACKUP"
+    }
+    trap cleanup EXIT
+    log "npx cap sync ios (cloud config)"
+    npx cap sync ios
+    bash scripts/ios-set-product.sh online
+    cleanup
+    trap - EXIT
+  fi
 }
 
 build_debug() {
-  log "xcodebuild (iphonesimulator / Debug) — like assembleDebug"
+  log "xcodebuild (iphonesimulator / Debug) — like assembleDebug [$PRODUCT]"
   mkdir -p "$OUT_DIR"
   xcodebuild \
     -project "$PROJECT" \
@@ -69,15 +134,16 @@ build_debug() {
     echo "error: App.app not found under $DERIVED" >&2
     exit 1
   fi
-  STAGE="$OUT_DIR/offline-mobile-service-debug.app"
-  rm -rf "$STAGE" "$OUT_DIR/offline-mobile-service-debug.app.zip"
+  STAGE="$OUT_DIR/${ARTIFACT_STEM}.app"
+  ZIP="$OUT_DIR/${ARTIFACT_STEM}.app.zip"
+  rm -rf "$STAGE" "$ZIP"
   cp -R "$APP_PATH" "$STAGE"
   (
     cd "$OUT_DIR"
-    zip -qry offline-mobile-service-debug.app.zip offline-mobile-service-debug.app
+    zip -qry "$(basename "$ZIP")" "$(basename "$STAGE")"
   )
   rm -rf "$STAGE"
-  log "Wrote $OUT_DIR/offline-mobile-service-debug.app.zip"
+  log "Wrote $ZIP"
 }
 
 install_signing() {
@@ -142,7 +208,7 @@ build_ipa() {
   mkdir -p "$OUT_DIR" "$DERIVED"
   rm -rf "$archive_path" "$export_dir"
 
-  log "xcodebuild archive (iphoneos / Release)"
+  log "xcodebuild archive (iphoneos / Release) [$PRODUCT]"
   xcodebuild \
     -project "$PROJECT" \
     -scheme "$SCHEME" \
@@ -168,11 +234,10 @@ build_ipa() {
     echo "error: no .ipa under $export_dir" >&2
     exit 1
   fi
-  cp "$ipa" "$OUT_DIR/offline-mobile-service-debug.ipa"
-  log "Wrote $OUT_DIR/offline-mobile-service-debug.ipa"
+  cp "$ipa" "$OUT_DIR/${ARTIFACT_STEM}.ipa"
+  log "Wrote $OUT_DIR/${ARTIFACT_STEM}.ipa"
 }
 
-prepare_env
 sync_web
 
 case "$MODE" in

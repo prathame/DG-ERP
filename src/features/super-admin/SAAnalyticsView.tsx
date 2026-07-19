@@ -289,7 +289,9 @@ function VersionControlPanel() {
     latestServiceMobileVersion: string | null;
     minServiceMobileVersion: string | null;
     serviceCloudAppUrl: string | null;
+    serviceCloudIosUrl: string | null;
     serviceMobileAppUrl: string | null;
+    serviceMobileIosUrl: string | null;
     desktopAppUrl: string | null;
     cloudVersion: string;
     onpremVersions: { version: string; count: string; latest_seen: string }[];
@@ -300,7 +302,9 @@ function VersionControlPanel() {
   const [latestSm, setLatestSm] = useState('');
   const [minSm, setMinSm] = useState('');
   const [serviceCloudUrl, setServiceCloudUrl] = useState('');
+  const [serviceCloudIosUrl, setServiceCloudIosUrl] = useState('');
   const [serviceMobileUrl, setServiceMobileUrl] = useState('');
+  const [serviceMobileIosUrl, setServiceMobileIosUrl] = useState('');
   const [desktopUrl, setDesktopUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -316,7 +320,9 @@ function VersionControlPanel() {
       setLatestSm(d.latestServiceMobileVersion || '');
       setMinSm(d.minServiceMobileVersion || '');
       setServiceCloudUrl(d.serviceCloudAppUrl || '');
+      setServiceCloudIosUrl(d.serviceCloudIosUrl || '');
       setServiceMobileUrl(d.serviceMobileAppUrl || '');
+      setServiceMobileIosUrl(d.serviceMobileIosUrl || '');
       setDesktopUrl(d.desktopAppUrl || '');
     }
   };
@@ -335,7 +341,9 @@ function VersionControlPanel() {
         latestServiceMobileVersion: latestSm || null,
         minServiceMobileVersion: minSm || null,
         serviceCloudAppUrl: serviceCloudUrl || null,
+        serviceCloudIosUrl: serviceCloudIosUrl || null,
         serviceMobileAppUrl: serviceMobileUrl || null,
+        serviceMobileIosUrl: serviceMobileIosUrl || null,
         desktopAppUrl: desktopUrl || null,
       }),
     });
@@ -412,7 +420,7 @@ function VersionControlPanel() {
           </p>
         </div>
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Service Cloud (ONLINE)</label>
+          <label className="text-xs font-bold text-gray-400 uppercase">Service Cloud ONLINE — Android APK</label>
           <input
             value={serviceCloudUrl}
             onChange={e => setServiceCloudUrl(e.target.value)}
@@ -421,11 +429,29 @@ function VersionControlPanel() {
           />
         </div>
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Service Mobile (OFFLINE)</label>
+          <label className="text-xs font-bold text-gray-400 uppercase">Service Cloud ONLINE — iOS (.app.zip)</label>
+          <input
+            value={serviceCloudIosUrl}
+            onChange={e => setServiceCloudIosUrl(e.target.value)}
+            placeholder="https://github.com/prathame/DG-ERP/releases/download/service-cloud/service-cloud-online-debug.app.zip"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Service Mobile OFFLINE — Android APK</label>
           <input
             value={serviceMobileUrl}
             onChange={e => setServiceMobileUrl(e.target.value)}
             placeholder="https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Service Mobile OFFLINE — iOS (.app.zip)</label>
+          <input
+            value={serviceMobileIosUrl}
+            onChange={e => setServiceMobileIosUrl(e.target.value)}
+            placeholder="https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.app.zip"
             className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
           />
         </div>

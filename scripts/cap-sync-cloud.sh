@@ -21,6 +21,8 @@ cleanup() {
 trap cleanup EXIT
 
 npx cap sync android
+npx cap sync ios
 bash scripts/android-set-product.sh online
-echo "Synced Service Cloud → android/ (appId in.dhandho.servicecloud)."
+bash scripts/ios-set-product.sh online
+echo "Synced Service Cloud → android/ + ios/ (appId in.dhandho.servicecloud)."
 echo "Restore Offline identity with: npm run cap:sync"

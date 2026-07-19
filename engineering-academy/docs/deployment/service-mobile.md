@@ -65,17 +65,18 @@ iOS default is Debug simulator (`IOS_BUILD_MODE=debug`, no Apple certs) — para
 
 Plugins after `cap sync ios`: App, Filesystem, Preferences, Share, Capgo Printer (`Package.swift` is Capacitor-managed).
 
-### Evergreen Android APK (public URL)
+### Evergreen builds (public URLs on `/download`)
 
-GitHub Actions still publishes the sideload URL used by `/download`:
+GitHub Actions (`apk-build.yml`): **2 product runs** (offline / online), each builds **Android APK + iOS .app.zip** → **4 evergreen assets**:
 
-`https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk`
+| Product | Android | iOS (simulator debug) |
+|---|---|---|
+| Offline Mobile | `…/offline-mobile/offline-mobile-service-debug.apk` | `…/offline-mobile/offline-mobile-service-debug.app.zip` |
+| Service Cloud Online | `…/service-cloud/service-cloud-online-debug.apk` | `…/service-cloud/service-cloud-online-debug.app.zip` |
 
-GitLab evergreen mirrors Offline debug assets under **Deploy → Package registry** (`offline-mobile/latest/…`).
+Labels: `offline` → Offline APK+iOS; `online` → Online APK+iOS; `mobile` → both products.
 
-### CI: Service Cloud Online APK (GitHub)
-
-Online Capacitor APK remains on GitHub: [`.github/workflows/apk-build.yml`](../../../.github/workflows/apk-build.yml) → `service-cloud` / `service-cloud-online-debug.apk` (`in.dhandho.servicecloud`). Labels `online` / `service-cloud`.
+GitLab still mirrors Offline debug assets under **Deploy → Package registry** (`offline-mobile/latest/…`) when a `macos` runner is available.
 
 ## Mobile UI / safe areas
 
