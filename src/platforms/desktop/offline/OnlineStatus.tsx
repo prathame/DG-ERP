@@ -63,6 +63,11 @@ export function OnlineStatus({
     }
   }, [adapter]);
 
+  // Phone More drawer / sidebar collapsed — dismiss Cloud Connection popup so it does not float over content.
+  useEffect(() => {
+    if (collapsed) setShowPopup(false);
+  }, [collapsed]);
+
   useEffect(() => {
     void refresh();
     const iv = setInterval(() => void refresh(), 30000);
