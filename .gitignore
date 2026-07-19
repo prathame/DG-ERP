@@ -4,8 +4,11 @@ dist/
 dist-service-mobile/
 dist-service-cloud/
 dist-electron/
+dist-apk/
+.android-sdk/
 android/.gradle/
 android/app/build/
+android/local.properties
 ios/App/Pods/
 ios/DerivedData/
 coverage/

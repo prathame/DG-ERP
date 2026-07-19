@@ -187,9 +187,9 @@ electron/
 
 This code **never** runs in a browser tab or a Capacitor WebView — it's Node.js with full filesystem/OS access, which is exactly why it's kept out of `src/` (which is bundled by Vite for browser-safe environments). See [Four Surfaces](/architecture/four-surfaces).
 
-## `android/`, `ios/` — generated, not hand-authored
+## `android/`, `ios/` — Capacitor native shells
 
-Capacitor `android/` / `ios/` projects were removed from the product.
+Committed Capacitor projects for **Service Mobile** (`in.dhandho.service`). Prefer `npm run cap:sync` / `ci:android` / `ci:ios` over hand-editing; `Package.swift` is Capacitor-managed. Offline Android + iOS debug CI: **GitLab** (`.gitlab-ci.yml`); Online APK + public evergreen APK URL: GitHub Actions (see [Service Mobile](/deployment/service-mobile)).
 
 
 ## `public/`

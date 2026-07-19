@@ -35,70 +35,47 @@ npx cap open ios       # Xcode → simulator / device / TestFlight
 
 Prefer `npm run cap:sync` over bare `npx cap sync` — after an Online cloud sync, `scripts/android-set-product.sh offline` restores the Offline `applicationId` (Capacitor does not rewrite it itself).
 
-### iOS (Mac + Xcode)
+### CI: Offline Mobile (GitLab — Android + iOS)
 
-Requires **full Xcode** from the Mac App Store (Command Line Tools alone are not enough). Bundle id: `in.dhandho.service`.
+Same pattern as the GitHub Offline APK job: **debug** artifacts, label/path triggers, evergreen package.
 
-```bash
-# 1. Install Xcode, then once:
-sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-sudo xcodebuild -license accept
-xcodebuild -runFirstLaunch
+Config: [`.gitlab-ci.yml`](../../../.gitlab-ci.yml)  
+Scripts: `npm run ci:android` / `npm run ci:ios`
 
-# 2. Env + sync (refreshes web assets + SPM plugins)
-cp .env.service-mobile.example .env.service-mobile   # if needed
-# set VITE_API_ORIGIN
-npm run cap:ios    # build:service-mobile + cap sync + open Xcode
-# or: npm run cap:run:ios   # build, sync, run on simulator
-```
+| Job | Runner | Debug artifact | App id |
+|-----|--------|----------------|--------|
+| `android:offline-mobile` | Linux (+ Android SDK setup) | `offline-mobile-service-debug.apk` | `in.dhandho.service` |
+| `ios:offline-mobile` | macOS + Xcode (`IOS_RUNNER_TAG`, default `macos`) | `offline-mobile-service-debug.app.zip` | `in.dhandho.service` |
+| `publish:evergreen` | Linux | GitLab generic package `offline-mobile/latest/` | — |
 
-In Xcode:
+**Labels (MR → preview; main path / manual Run pipeline → evergreen):**
 
-1. Open target **App** → **Signing & Capabilities** → choose your **Team** (Automatic signing; no `DEVELOPMENT_TEAM` is checked into the repo).
-2. Run on a simulator or a physical device (device needs a free/paid Apple ID team).
-3. For TestFlight: **Product → Archive** → upload to App Store Connect (create the app record for `in.dhandho.service` first).
-
-Plugins after `cap sync ios`: App, Filesystem, Preferences, Share, Capgo Printer (see `ios/App/CapApp-SPM/Package.swift` — Capacitor-managed). There is **no iOS CI** yet; IPA/TestFlight is manual on a Mac.
-
-### Evergreen Android APK (testing)
-
-Public download uses one stable link (rebuilds overwrite the same GitHub release asset):
-
-`https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk`
-
-That URL is the code default for `service_mobile_app_url` / `/api/download-links` when Super Admin has not set an override. After `assembleDebug`, upload with:
-
-```bash
-gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clobber
-```
-
-### CI: Offline Mobile + Service Cloud Online APKs
-
-Workflow: [`.github/workflows/apk-build.yml`](../../../.github/workflows/apk-build.yml)
-
-Builds each product **only when selected** (do not mix installers):
-
-| Job | Evergreen release | App id |
-|-----|-------------------|--------|
-| Offline Mobile | `offline-mobile` / `offline-mobile-service-debug.apk` | `in.dhandho.service` |
-| Service Cloud ONLINE | `service-cloud` / `service-cloud-online-debug.apk` | `in.dhandho.servicecloud` |
-
-**Labels (merge → evergreen; add label on open PR → preview):**
-
-| Label | Builds |
-|-------|--------|
-| `offline` / `offline-mobile` / `service-mobile` | Offline only |
-| `online` / `service-cloud` | Online only |
-| `mobile` / `apk` / `apk-build` | Both (legacy) |
+| Label | Builds Offline Android + iOS |
+|-------|------------------------------|
+| `offline` / `offline-mobile` / `service-mobile` | yes |
+| `mobile` / `apk` / `apk-build` | yes |
 
 | Trigger | What happens |
 |---------|----------------|
-| **Merge PR with a product label** (recommended) | Build matching APK(s) → overwrite matching evergreen release(s) |
-| Push to `main` touching product paths | Builds only Offline and/or Online based on which paths changed (shared UI → both) |
-| PR comment `apk build` / `apk build offline` / `apk build online` | Preview artifact(s) only — does **not** overwrite evergreen |
-| Actions → APK Build (manual) | Choose product: both / offline / online |
+| MR with Offline label or Offline paths | Preview job artifacts (no evergreen) |
+| Push to default branch touching Offline paths | Build + overwrite evergreen package |
+| **Run pipeline** (`MOBILE_PRODUCT=offline`) | Build + evergreen (`PUSH_EVERGREEN=false` skips publish) |
 
-Docs-only / server-desktop PRs without a product label do **not** rebuild APKs (unless the push path filter matches).
+iOS default is Debug simulator (`IOS_BUILD_MODE=debug`, no Apple certs) — parallel to `assembleDebug`. For a device IPA set `IOS_BUILD_MODE=ipa` plus `APPLE_TEAM_ID`, `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISION_PROFILE_BASE64`.
+
+Plugins after `cap sync ios`: App, Filesystem, Preferences, Share, Capgo Printer (`Package.swift` is Capacitor-managed).
+
+### Evergreen Android APK (public URL)
+
+GitHub Actions still publishes the sideload URL used by `/download`:
+
+`https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk`
+
+GitLab evergreen mirrors Offline debug assets under **Deploy → Package registry** (`offline-mobile/latest/…`).
+
+### CI: Service Cloud Online APK (GitHub)
+
+Online Capacitor APK remains on GitHub: [`.github/workflows/apk-build.yml`](../../../.github/workflows/apk-build.yml) → `service-cloud` / `service-cloud-online-debug.apk` (`in.dhandho.servicecloud`). Labels `online` / `service-cloud`.
 
 ## Mobile UI / safe areas
 

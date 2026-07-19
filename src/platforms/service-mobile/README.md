@@ -13,11 +13,27 @@ Capacitor iOS/Android app for **service** business type only.
 
 ```bash
 cp .env.service-mobile.example .env.service-mobile   # set VITE_API_ORIGIN
-npm run build:service-mobile
-npx cap sync
-npx cap open android   # sideload APK
-npx cap open ios       # TestFlight
+npm run cap:sync       # build + sync + Offline applicationId
+npx cap open android   # local sideload
 ```
+
+### CI (GitLab — Android + iOS debug)
+
+Same shape as Android `assembleDebug`:
+
+| Job | Artifact |
+|-----|----------|
+| `android:offline-mobile` | `dist-apk/offline-mobile-service-debug.apk` |
+| `ios:offline-mobile` | `dist-apk/offline-mobile-service-debug.app.zip` |
+
+Labels: `offline` / `mobile` / … · Manual: `MOBILE_PRODUCT=offline` · Evergreen: GitLab package `offline-mobile/latest/`.
+
+```bash
+npm run ci:android
+npm run ci:ios          # or IOS_BUILD_MODE=ipa …
+```
+
+See [Service Mobile deploy docs](../../../engineering-academy/docs/deployment/service-mobile.md).
 
 ## Flow
 

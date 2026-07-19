@@ -40,7 +40,9 @@
     "cap:android:cloud": "npm run cap:sync:cloud && npx cap open android",
     "cap:ios": "npm run cap:sync && npx cap open ios",
     "cap:run:android": "npm run cap:sync && npx cap run android",
-    "cap:run:ios": "npm run cap:sync && npx cap run ios"
+    "cap:run:ios": "npm run cap:sync && npx cap run ios",
+    "ci:android": "bash scripts/ci-build-android.sh",
+    "ci:ios": "bash scripts/ci-build-ios.sh"
   },
   "main": "electron/cloud/main.js",
   "dependencies": {

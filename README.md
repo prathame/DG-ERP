@@ -130,7 +130,7 @@ Public URL: **`/download`**
 
 | Section | What |
 |---------|------|
-| Service Mobile | Offline phone (APK sideload / TestFlight) — `DG-SM-` license |
+| Service Mobile | Offline phone (GitLab Android+iOS debug CI) — `DG-SM-` license |
 | On-Prem desktop | Electron offline installers |
 | Cloud desktop | Electron online installers |
 

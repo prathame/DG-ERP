@@ -1,0 +1,193 @@
+# Offline Service Mobile — Android + iOS on GitLab
+# Same idea as .github/workflows/apk-build.yml (debug artifacts + evergreen).
+#
+# Labels (MR → preview artifacts; main path / manual → evergreen):
+#   offline | offline-mobile | service-mobile | mobile | apk | apk-build
+#
+# Manual: Run pipeline → set MOBILE_PRODUCT=offline (optional PUSH_EVERGREEN=false)
+#
+# Debug artifacts (like assembleDebug):
+#   dist-apk/offline-mobile-service-debug.apk
+#   dist-apk/offline-mobile-service-debug.app.zip
+#
+# Evergreen: GitLab generic package `offline-mobile/latest/…`
+#
+# Runners: Android = Linux Docker; iOS = macOS+Xcode tag `macos` (IOS_RUNNER_TAG)
+# Vars: VITE_API_ORIGIN; for IPA set IOS_BUILD_MODE=ipa + Apple signing vars
+
+stages:
+  - build
+  - publish
+
+variables:
+  FF_USE_FASTZIP: 'true'
+  IOS_RUNNER_TAG: macos
+  IOS_BUILD_MODE: debug
+  EVERGREEN_PACKAGE: offline-mobile
+  EVERGREEN_VERSION: latest
+  ANDROID_SDK_ROOT: $CI_PROJECT_DIR/.android-sdk
+  ANDROID_HOME: $CI_PROJECT_DIR/.android-sdk
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "api"
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+
+.offline_changes: &offline_changes
+  - android/**/*
+  - ios/**/*
+  - capacitor.config.ts
+  - package.json
+  - package-lock.json
+  - .env.service-mobile.example
+  - scripts/ci-build-android.sh
+  - scripts/ci-build-ios.sh
+  - scripts/ci-setup-android-sdk.sh
+  - scripts/ci-publish-evergreen.sh
+  - scripts/android-set-product.sh
+  - .gitlab-ci.yml
+  - src/platforms/service-mobile/**/*
+  - src/App.tsx
+  - src/main.tsx
+  - src/index.css
+  - src/lib/billTemplates.ts
+  - src/lib/utils.ts
+  - src/lib/billSettingsFlags.ts
+  - src/features/invoices/**/*
+  - src/features/settings/SettingsView.tsx
+  - src/components/layout/LoginScreen.tsx
+  - src/components/ui/AppModal.tsx
+  - src/components/ui/ConfirmDialog.tsx
+  - src/components/ui/Toast.tsx
+  - src/components/ui/MobileShell.tsx
+
+.offline_rules: &offline_rules
+  - if: $MOBILE_PRODUCT == "offline" || $MOBILE_PRODUCT == "both"
+  - if: $CI_PIPELINE_SOURCE == "web"
+  - if: $CI_PIPELINE_SOURCE == "api"
+  - if: $CI_PIPELINE_SOURCE == "pipeline"
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(?:^|,)\s*(offline|offline-mobile|service-mobile|mobile|apk|apk-build)\s*(,|$)/
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    changes: *offline_changes
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    changes: *offline_changes
+
+.evergreen_rules: &evergreen_rules
+  - if: $PUSH_EVERGREEN == "false"
+    when: never
+  - if: $MOBILE_PRODUCT == "offline" || $MOBILE_PRODUCT == "both"
+  - if: $CI_PIPELINE_SOURCE == "web"
+  - if: $CI_PIPELINE_SOURCE == "api"
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    changes: *offline_changes
+
+android:offline-mobile:
+  stage: build
+  image: node:22-bookworm
+  rules: *offline_rules
+  timeout: 60m
+  interruptible: true
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+      - .gradle-user-home/
+      - .android-sdk/
+    policy: pull-push
+  variables:
+    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle-user-home"
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq openjdk-21-jdk-headless unzip curl
+    - java -version
+    - node -v && npm -v
+    - chmod +x scripts/ci-setup-android-sdk.sh
+    - bash scripts/ci-setup-android-sdk.sh
+    - export ANDROID_SDK_ROOT="$CI_PROJECT_DIR/.android-sdk"
+    - export ANDROID_HOME="$ANDROID_SDK_ROOT"
+    - npm ci
+  script:
+    - export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$CI_PROJECT_DIR/.android-sdk}"
+    - export ANDROID_HOME="$ANDROID_SDK_ROOT"
+    - chmod +x scripts/ci-build-android.sh scripts/android-set-product.sh
+    - bash scripts/ci-build-android.sh
+  artifacts:
+    name: "offline-mobile-service-debug-apk-$CI_COMMIT_SHORT_SHA"
+    when: on_success
+    expire_in: 14 days
+    paths:
+      - dist-apk/offline-mobile-service-debug.apk
+
+ios:offline-mobile:
+  stage: build
+  tags:
+    - $IOS_RUNNER_TAG
+  rules: *offline_rules
+  timeout: 60m
+  interruptible: true
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+    policy: pull-push
+  before_script:
+    - |
+      if ! command -v node >/dev/null 2>&1 || [ "$(node -v | sed 's/^v//' | cut -d. -f1)" -lt 22 ]; then
+        if command -v brew >/dev/null 2>&1; then
+          brew install node@22
+          brew link --force --overwrite node@22 || true
+          export PATH="$(brew --prefix node@22)/bin:$PATH"
+        else
+          echo "Node >= 22 required on the macOS runner" >&2
+          exit 1
+        fi
+      fi
+    - node -v && npm -v
+    - xcodebuild -version
+    - npm ci
+  script:
+    - chmod +x scripts/ci-build-ios.sh
+    - bash scripts/ci-build-ios.sh
+  artifacts:
+    name: "offline-mobile-service-debug-ios-$CI_COMMIT_SHORT_SHA"
+    when: on_success
+    expire_in: 14 days
+    paths:
+      - dist-apk/
+  after_script:
+    - rm -rf ios/DerivedData || true
+
+publish:evergreen:
+  stage: publish
+  image: curlimages/curl:8.10.1
+  needs:
+    - job: android:offline-mobile
+      optional: true
+      artifacts: true
+    - job: ios:offline-mobile
+      optional: true
+      artifacts: true
+  rules: *evergreen_rules
+  script:
+    - chmod +x scripts/ci-publish-evergreen.sh
+    - |
+      published=0
+      for f in dist-apk/offline-mobile-service-debug.apk \
+               dist-apk/offline-mobile-service-debug.app.zip \
+               dist-apk/offline-mobile-service-debug.ipa; do
+        if [ -f "$f" ]; then
+          sh scripts/ci-publish-evergreen.sh "$f"
+          published=1
+        fi
+      done
+      if [ "$published" -eq 0 ]; then
+        echo "No dist-apk artifacts to publish (build jobs may have been skipped)" >&2
+        exit 1
+      fi
