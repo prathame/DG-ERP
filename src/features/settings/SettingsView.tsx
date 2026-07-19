@@ -10,6 +10,7 @@ import {
   Shield,
   Download,
   HardDrive,
+  Bug,
   MessageCircle,
   FileText,
   Settings,
@@ -31,6 +32,7 @@ import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 import { useConfirm } from '../../hooks/useConfirm';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { isGstBillingEnabled, isServicePhoneBillUx } from '../../lib/billSettingsFlags';
+import { shareBugReport } from '../../lib/bugReport';
 import {
   exportLocalBackupNow,
   restoreFromLocalBackupFile,
@@ -1787,6 +1789,45 @@ export function SettingsView({
               </p>
             </div>
           </div>
+
+          {serviceMobile && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+                <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                  <Bug size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                  Help
+                </h3>
+              </div>
+              <div className="p-4 sm:p-6 space-y-3">
+                <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
+                  Share a bug report with support. Includes app version, device info, and recent errors — not your
+                  password or full license key.
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const how = await shareBugReport();
+                      toast(
+                        how === 'shared'
+                          ? 'Bug report ready to share'
+                          : how === 'copied'
+                            ? 'Bug report copied — paste into WhatsApp/email'
+                            : 'Bug report downloaded',
+                        'success',
+                      );
+                    } catch (e) {
+                      toast((e as Error).message || 'Could not create bug report', 'error');
+                    }
+                  }}
+                  className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-gray-900 text-white hover:bg-gray-800"
+                >
+                  <Bug size={15} className="shrink-0" />
+                  Share bug report
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Data Management - Admin only */}
           {isAdmin && (

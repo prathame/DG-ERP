@@ -1,7 +1,7 @@
 /**
  * Frontend structured logger.
  * - Dev: console with level
- * - Prod: console + optional remote beacon (same origin /api not required)
+ * - Prod: console + in-memory ring buffer (for bug reports)
  * Never logs passwords, tokens, or other secrets.
  */
 
@@ -9,6 +9,9 @@ export type ClientLogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const SENSITIVE_KEY =
   /^(password|passwd|pwd|otp|token|accessToken|refreshToken|authorization|cookie|secret|cvv|cardNumber)$/i;
+
+const RING_MAX = 80;
+const ring: string[] = [];
 
 function redact(value: unknown): unknown {
   if (typeof value === 'string') {
@@ -58,6 +61,16 @@ function baseContext(): Record<string, unknown> {
   };
 }
 
+function pushRing(line: string): void {
+  ring.push(line);
+  if (ring.length > RING_MAX) ring.splice(0, ring.length - RING_MAX);
+}
+
+/** Recent log lines for bug reports (newest last). No secrets — already redacted. */
+export function getRecentClientLogs(limit = 40): string[] {
+  return ring.slice(-Math.max(1, limit));
+}
+
 function emit(level: ClientLogLevel, message: string, context?: Record<string, unknown>): void {
   const entry = {
     ts: new Date().toISOString(),
@@ -68,6 +81,9 @@ function emit(level: ClientLogLevel, message: string, context?: Record<string, u
   };
 
   const line = JSON.stringify(entry);
+  if (level !== 'debug' || import.meta.env.DEV) {
+    pushRing(line);
+  }
   if (level === 'error') console.error(line);
   else if (level === 'warn') console.warn(line);
   else if (level === 'debug' && import.meta.env.DEV) console.debug(line);
