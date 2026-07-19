@@ -88,7 +88,7 @@ function isNativeCapacitor(): boolean {
 
 /**
  * Offline Mobile / Capacitor: window.open is blocked and window.print() is a no-op
- * in WebView — use in-app overlay + direct PDF download. Cloud desktop keeps classic print.
+ * in WebView — use in-app overlay preview + explicit Download PDF. Cloud desktop keeps classic print.
  */
 function needsNativePrintPath(): boolean {
   if (isNativeCapacitor()) return true;
@@ -229,12 +229,9 @@ async function triggerOverlayDownload(): Promise<boolean> {
   if (!payload) return false;
   setOverlayDownloadBusy(true);
   const ok = await downloadHtmlAsPdf(payload.html, payload.name);
-  if (ok) {
-    closePrintOverlay();
-    return true;
-  }
-  setOverlayDownloadBusy(false, 'Retry download');
-  return false;
+  // Keep preview open until the user taps Close (including cancelled share / AbortError).
+  setOverlayDownloadBusy(false, ok ? 'Download PDF' : 'Retry download');
+  return ok;
 }
 
 /** Cloud popup-blocked overlay: classic browser print (Save as PDF via print dialog). */
@@ -252,7 +249,7 @@ async function triggerOverlayPrint(): Promise<void> {
 
 /**
  * Fullscreen in-app overlay when window.open is unavailable.
- * Offline Mobile / Capacitor → Download PDF; cloud popup-blocked → classic Print / PDF.
+ * Offline Mobile / Capacitor → preview + explicit Download PDF; cloud popup-blocked → classic Print / PDF.
  * Returns the iframe's contentWindow so existing printBillInWindow() callers keep working.
  */
 function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
@@ -261,7 +258,7 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
   const host = document.createElement('div');
   host.id = PRINT_OVERLAY_ID;
   host.setAttribute('role', 'dialog');
-  host.setAttribute('aria-label', nativePdf ? 'PDF download' : 'Print preview');
+  host.setAttribute('aria-label', nativePdf ? 'PDF preview' : 'Print preview');
   host.style.cssText =
     'position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#0f172a;';
 
@@ -278,7 +275,7 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
   closeBtn.onclick = () => closePrintOverlay();
 
   const title = document.createElement('div');
-  title.textContent = nativePdf ? 'Download PDF' : 'Print / PDF';
+  title.textContent = nativePdf ? 'Preview' : 'Print / PDF';
   title.style.cssText = 'flex:1;font-weight:700;font-size:13px;text-align:center;line-height:1.2;';
 
   const actionBtn = document.createElement('button');
@@ -328,7 +325,7 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
 /**
  * Open a print/PDF window immediately.
  * Must be called synchronously from a click handler — never after await.
- * Offline Mobile / Capacitor uses in-app PDF download; cloud desktop uses window.open + print.
+ * Offline Mobile / Capacitor uses in-app preview + Download PDF; cloud desktop uses window.open + print.
  * Popup-blocked cloud falls back to in-app Print / PDF (not forced download).
  */
 export function openPrintWindow(placeholder = 'Preparing…'): Window | null {
@@ -455,7 +452,7 @@ function triggerPrintWhenReady(win: Window) {
   }
 }
 
-/** Write HTML into an already-opened print/PDF window and download (offline) or print (cloud). */
+/** Write HTML into an already-opened print/PDF window; offline preview stays open, cloud prints. */
 export function printBillInWindow(win: Window, html: string, filename?: string, opts?: { autoPrint?: boolean }) {
   const titled = withPrintPagination(applyPrintTitle(html, filename));
   try {
@@ -485,7 +482,7 @@ export function printBillInWindow(win: Window, html: string, filename?: string, 
     }
     return;
   }
-  // Overlay: Offline Mobile downloads PDF; cloud popup-blocked uses classic print.
+  // Overlay: Offline Mobile shows preview (Download PDF is explicit); cloud popup-blocked auto-prints.
   if (usingOverlay) {
     try {
       win.focus();
@@ -493,14 +490,12 @@ export function printBillInWindow(win: Window, html: string, filename?: string, 
       /* ignore */
     }
     if (needsNativePrintPath()) {
-      setTimeout(() => {
-        void triggerOverlayDownload();
-      }, 350);
-    } else {
-      setTimeout(() => {
-        void triggerOverlayPrint();
-      }, 450);
+      // Do not auto-download — user taps Download PDF on the overlay.
+      return;
     }
+    setTimeout(() => {
+      void triggerOverlayPrint();
+    }, 450);
     return;
   }
   triggerPrintWhenReady(win);

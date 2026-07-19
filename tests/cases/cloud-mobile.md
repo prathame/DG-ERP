@@ -22,5 +22,6 @@ Phone usability for the **cloud** tenant app + Super Admin (320–430px). Deskto
 | 16 | Bottom nav IA | Phone tab bar | Analytics · Masters · Invoice · Quotes · More |
 | 17 | Shell hubs | Analytics / Masters / Invoices / Quotes on phone | Dense pills, KPIs, FAB where applicable; desktop ≥640px unchanged |
 | 18 | More shortcuts | Open More drawer | Stock / Finance / Accounts shortcuts; full nav below |
+| 19 | Header global search | Tap header Search icon; type client/product name | Modal lists pages + entity results; tap result navigates (no verify) |
 
 **Automated (related):** `tests/unit/useEscapeKey.test.ts` (Escape contract). UI layout is CSS/manual — not under Vitest coverage gates (`server/utils` / `server/services`).

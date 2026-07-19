@@ -173,8 +173,16 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
           },
           {
             label: 'Net In',
-            value: money.collections + money.revenue - money.expenses,
-            accent: (money.collections + money.revenue - money.expenses >= 0 ? 'green' : 'rose') as 'green' | 'rose',
+            // Offline Service: collections = invoice_payments and revenue = invoice totals —
+            // summing both double-counts the same money. Use cash in − expenses instead.
+            value: serviceMobile
+              ? money.collections - money.expenses
+              : money.collections + money.revenue - money.expenses,
+            accent: ((serviceMobile
+              ? money.collections - money.expenses
+              : money.collections + money.revenue - money.expenses) >= 0
+              ? 'green'
+              : 'rose') as 'green' | 'rose',
             show: true,
           },
         ] as { label: string; value: number; accent: 'brand' | 'blue' | 'green' | 'rose' | 'amber'; show: boolean }[]

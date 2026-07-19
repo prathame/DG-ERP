@@ -31,6 +31,8 @@ import { AppShutterIntro } from './components/layout/AppShutterIntro';
 import { session } from './lib/session';
 import { resolveTabAccess, type AccessLevel } from './lib/tabAccess';
 import { CommandPalette } from './components/ui/CommandPalette';
+import type { GlobalSearchNavigate } from './lib/globalSearch';
+import type { MasterType } from './features/masters/MastersView';
 import { OnlineStatus } from './platforms/desktop/offline';
 import {
   isServiceMobileMode,
@@ -42,6 +44,9 @@ import {
   startServiceMobileHeartbeat,
   getAccountsTabVisiblePref,
 } from './platforms/service-mobile';
+import { serviceMobileOnlineStatusAdapter } from './platforms/service-mobile/serviceMobileOnlineStatusAdapter';
+import { ensureElectricianDemoSeeded } from './platforms/service-mobile/local/seedElectricianDemo';
+import { localQuery } from './platforms/service-mobile/local/db';
 import { ServiceCloudGate } from './platforms/service-cloud';
 
 const LandingPage = lazy(() => import('./components/layout/LandingPage').then(m => ({ default: m.LandingPage })));
@@ -249,6 +254,11 @@ export default function App() {
           else {
             const slug = await getLocalSlug();
             if (slug) session.setSlug(slug);
+            const tidRow = await localQuery<{ value: string }>(
+              `SELECT value FROM sm_meta WHERE key = 'tenant_id' LIMIT 1`,
+            );
+            const tenantId = tidRow.rows[0]?.value;
+            if (tenantId) await ensureElectricianDemoSeeded(tenantId);
             setSmBoot('ready');
             startServiceMobileHeartbeat();
           }
@@ -264,10 +274,29 @@ export default function App() {
 
   const [activeTab, setActiveTabRaw] = useState<Tab>('analytics');
   const [tabKey, setTabKey] = useState(0);
+  /** Deep-link payload for Masters when picking a global search hit. */
+  const [mastersLaunch, setMastersLaunch] = useState<{
+    master?: MasterType;
+    vendorId?: string;
+    staffId?: string;
+    staffName?: string;
+  } | null>(null);
   const setActiveTab = (tab: Tab) => {
     setActiveTabRaw(tab);
     setTabKey(k => k + 1);
     window.history.pushState({ tab }, '', window.location.pathname);
+  };
+  const navigateFromGlobalSearch = (nav: GlobalSearchNavigate) => {
+    if (nav.tab === 'masters' && nav.master) {
+      setMastersLaunch({
+        master: nav.master as MasterType,
+        vendorId: nav.vendorId,
+        staffName: nav.staffName,
+      });
+    } else {
+      setMastersLaunch(null);
+    }
+    setActiveTab(nav.tab);
   };
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -826,6 +855,17 @@ export default function App() {
                   </Suspense>
                 </div>
               )}
+              {/* Sync above Settings (on-prem desktop + Offline Mobile) */}
+              {(serviceMobile ||
+                ((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)
+                  ?.deploymentMode === 'onprem') && (
+                <div className="px-2.5 lg:px-3 pt-2">
+                  <OnlineStatus
+                    collapsed={!isSidebarOpen}
+                    adapter={serviceMobile ? serviceMobileOnlineStatusAdapter : undefined}
+                  />
+                </div>
+              )}
               {canAccess('settings') && (
                 <div className="px-2.5 lg:px-3 pt-2">
                   <button
@@ -844,12 +884,6 @@ export default function App() {
                     <Settings size={18} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
                     {isSidebarOpen && <span>{t('nav.settings')}</span>}
                   </button>
-                </div>
-              )}
-              {((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)
-                ?.deploymentMode === 'onprem' && (
-                <div className="px-3 pt-2">
-                  <OnlineStatus collapsed={!isSidebarOpen} />
                 </div>
               )}
               {isSidebarOpen && (
@@ -1030,6 +1064,8 @@ export default function App() {
                         setActiveTab={setActiveTab}
                         user={user}
                         businessType={(userConfig?.businessType as string) || 'manufacturer'}
+                        launch={mastersLaunch}
+                        onLaunchConsumed={() => setMastersLaunch(null)}
                       />
                     )}
                     {canAccess(activeTab) && activeTab === 'sales' && <SalesEntryView user={user} />}
@@ -1145,7 +1181,11 @@ export default function App() {
                 ...(canAccess('settings') ? [{ id: 'settings', label: 'Settings', icon: Settings }] : []),
               ]}
               onSelect={id => setActiveTab(id as Tab)}
+              onNavigateEntity={navigateFromGlobalSearch}
               onClose={() => setCmdOpen(false)}
+              inventoryVisible={tv('inventory')}
+              distributionVisible={tv('distribution')}
+              serviceMobile={serviceMobile}
             />
           )}
         </AnimatePresence>

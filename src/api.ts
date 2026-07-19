@@ -775,6 +775,7 @@ export const api = {
           invoiceCount: number;
           totalInvoiced: number;
           totalPaid: number;
+          advanceBalance?: number;
           balance: number;
         }[]
       >('/invoice-finance/summary'),
@@ -790,6 +791,7 @@ export const api = {
         customerAddress?: string | null;
         totalInvoiced: number;
         totalPaid: number;
+        advanceBalance?: number;
         balance: number;
         invoices: {
           id: string;
@@ -798,23 +800,28 @@ export const api = {
           dueDate?: string;
           grandTotal: number;
           paid: number;
+          advanceApplied?: number;
           balance: number;
           status: string;
           notes?: string;
         }[];
         payments: {
           id: string;
-          invoiceId: string;
-          invoiceNumber: string;
+          invoiceId: string | null;
+          invoiceNumber: string | null;
           amount: number;
           paymentDate: string;
           paymentMethod: string;
           referenceNumber?: string;
           notes?: string;
+          isAdvance?: boolean;
         }[];
       }>(`/invoice-finance/client/${encodeURIComponent(partyKey)}`),
     recordPayment: (data: {
-      invoiceId: string;
+      /** Apply to a specific invoice (must have remaining balance). */
+      invoiceId?: string;
+      /** Offline: record unallocated advance when there is no outstanding invoice. */
+      partyKey?: string;
       amount: number;
       paymentDate: string;
       paymentMethod: string;
@@ -897,6 +904,8 @@ export const api = {
         customers: { id: string; name: string; phone: string; email: string; type: 'customer' }[];
         vendors: { id: string; name: string; contact: string; phone: string; type: 'vendor' }[];
         barcodes: { barcode: string; productName: string; productId: string; status: string; type: 'barcode' }[];
+        challans?: { batchId: string; vendorName: string; date: string; units: number; type: 'challan' }[];
+        staff?: { name: string; totalPaid: number; payments: number; lastPayment: string; type: 'staff' }[];
       }>(`/search?q=${encodeURIComponent(q)}`),
   },
   chatbot: {

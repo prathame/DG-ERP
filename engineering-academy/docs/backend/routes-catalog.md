@@ -43,7 +43,7 @@ flowchart TB
 | `auth.ts` | `/api/auth/*`, `/api/settings/profile` | public / self | Login, reset, profile, self-delete |
 | `admin.ts` | `/api/admin/users` | `settings` | Tenant user CRUD |
 | `dashboard.ts` | `/api/dashboard/*`, `/api/analytics/*` | `dashboard` | Stats + overview |
-| `search.ts` | `/api/search` | `dashboard` | Cross-entity search |
+| `search.ts` | `/api/search` | `dashboard` | Cross-entity search (products/customers/vendors/barcodes/challans/staff). Used by Search / Verify tab and the header ⌘K `CommandPalette` (search-only; verify stays on the verification tab). Offline Mobile mirrors this via local `GET /search`. |
 | `masters.ts` | `/api/masters/counts` | `settings` | Hub counts |
 | `mapping.ts` | `/api/mapping/*` | `sales` | Vendor↔customer |
 | `audit.ts` | `/api/audit-log`, `/api/backup/*` | `settings` | Audit + backup/restore |

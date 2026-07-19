@@ -2,12 +2,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Wifi, WifiOff, RefreshCw, AlertTriangle } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
-interface ConnectionStatus {
+export interface ConnectionStatus {
   status: 'online' | 'offline' | 'syncing';
   lastSync: string | null;
   version: string;
   validUntil: string | null;
 }
+
+export type OnlineStatusAdapter = {
+  getConnectionStatus: () => Promise<ConnectionStatus | null | undefined> | ConnectionStatus | null | undefined;
+  syncNow: () => Promise<{ status?: ConnectionStatus['status']; lastSync?: string | null } | void>;
+  /** Optional live updates (service-mobile syncState). */
+  subscribe?: (listener: () => void) => () => void;
+};
 
 function formatSync(iso: string | null): string {
   if (!iso) return 'Never';
@@ -17,61 +24,106 @@ function formatSync(iso: string | null): string {
   return `${date}, ${time}`;
 }
 
-export function OnlineStatus({ collapsed }: { collapsed: boolean }) {
-  const [conn, setConn] = useState<ConnectionStatus>({ status: 'offline', lastSync: null, version: '', validUntil: null });
+const electronAdapter: OnlineStatusAdapter = {
+  getConnectionStatus: async () => {
+    // @ts-expect-error — electronAPI injected by preload
+    return (await window.electronAPI?.getConnectionStatus?.()) as ConnectionStatus | undefined;
+  },
+  syncNow: async () => {
+    // @ts-expect-error — electronAPI injected by preload
+    return (await window.electronAPI?.syncNow?.()) as {
+      status?: ConnectionStatus['status'];
+      lastSync?: string | null;
+    };
+  },
+};
+
+export function OnlineStatus({
+  collapsed,
+  adapter = electronAdapter,
+}: {
+  collapsed: boolean;
+  adapter?: OnlineStatusAdapter;
+}) {
+  const [conn, setConn] = useState<ConnectionStatus>({
+    status: 'offline',
+    lastSync: null,
+    version: '',
+    validUntil: null,
+  });
   const [showPopup, setShowPopup] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      // @ts-ignore — electronAPI injected by preload
-      const data = await window.electronAPI?.getConnectionStatus?.();
+      const data = await adapter.getConnectionStatus();
       if (data) setConn(data);
-    } catch {}
-  }, []);
+    } catch {
+      /* ignore */
+    }
+  }, [adapter]);
 
   useEffect(() => {
-    refresh();
-    const iv = setInterval(refresh, 30000); // poll every 30s for UI freshness
-    const onOnline = () => setConn(p => ({ ...p, status: 'online' }));
+    void refresh();
+    const iv = setInterval(() => void refresh(), 30000);
+    const unsub = adapter.subscribe?.(() => void refresh());
+    const onOnline = () => setConn(p => ({ ...p, status: p.status === 'syncing' ? p.status : 'online' }));
     const onOffline = () => setConn(p => ({ ...p, status: 'offline' }));
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
-    return () => { clearInterval(iv); window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
-  }, [refresh]);
+    return () => {
+      clearInterval(iv);
+      unsub?.();
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [refresh, adapter]);
 
   const syncNow = async () => {
     setSyncing(true);
     try {
-      // @ts-ignore
-      const result = await window.electronAPI?.syncNow?.();
-      if (result) setConn(prev => ({ ...prev, status: result.status, lastSync: result.lastSync }));
-    } finally { setSyncing(false); }
+      const result = await adapter.syncNow();
+      if (result) {
+        setConn(prev => ({
+          ...prev,
+          status: result.status ?? prev.status,
+          lastSync: result.lastSync !== undefined ? result.lastSync : prev.lastSync,
+        }));
+      }
+      await refresh();
+    } finally {
+      setSyncing(false);
+    }
   };
 
-  const daysLeft = conn.validUntil
-    ? Math.ceil((new Date(conn.validUntil).getTime() - Date.now()) / 86400000)
-    : null;
+  const daysLeft = conn.validUntil ? Math.ceil((new Date(conn.validUntil).getTime() - Date.now()) / 86400000) : null;
   const expiringWarning = daysLeft !== null && daysLeft <= 30;
 
-  const statusColor = conn.status === 'online' ? 'text-emerald-500' : conn.status === 'syncing' ? 'text-amber-500' : 'text-gray-400';
-  const statusDot = conn.status === 'online' ? '●' : conn.status === 'syncing' ? '↻' : '⚪';
+  const statusColor =
+    conn.status === 'online' ? 'text-emerald-500' : conn.status === 'syncing' ? 'text-amber-500' : 'text-gray-400';
 
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setShowPopup(p => !p)}
         className={cn(
-          "w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors hover:bg-gray-50 text-left",
-          collapsed ? "justify-center" : ""
+          'w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors hover:bg-gray-50 text-left',
+          collapsed ? 'justify-center' : '',
         )}
       >
-        <span className={cn("text-sm", statusColor, conn.status === 'syncing' && "animate-spin")}>
-          {conn.status === 'online' ? <Wifi size={16} /> : conn.status === 'syncing' ? <RefreshCw size={16} /> : <WifiOff size={16} />}
+        <span className={cn('text-sm', statusColor, conn.status === 'syncing' && 'animate-spin')}>
+          {conn.status === 'online' ? (
+            <Wifi size={16} />
+          ) : conn.status === 'syncing' ? (
+            <RefreshCw size={16} />
+          ) : (
+            <WifiOff size={16} />
+          )}
         </span>
         {!collapsed && (
           <div className="flex-1 min-w-0">
-            <p className={cn("text-xs font-bold", statusColor)}>
+            <p className={cn('text-xs font-bold', statusColor)}>
               {conn.status === 'online' ? 'Online · Synced' : conn.status === 'syncing' ? 'Syncing...' : 'Offline'}
               {expiringWarning && <AlertTriangle size={10} className="inline ml-1 text-amber-500" />}
             </p>
@@ -90,7 +142,7 @@ export function OnlineStatus({ collapsed }: { collapsed: boolean }) {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-500">Status</span>
-                <span className={cn("font-bold capitalize", statusColor)}>{conn.status}</span>
+                <span className={cn('font-bold capitalize', statusColor)}>{conn.status}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Last sync</span>
@@ -103,8 +155,21 @@ export function OnlineStatus({ collapsed }: { collapsed: boolean }) {
               {conn.validUntil && (
                 <div className="flex justify-between">
                   <span className="text-gray-500">License expires</span>
-                  <span className={cn("font-medium", daysLeft !== null && daysLeft <= 30 ? 'text-amber-600' : daysLeft !== null && daysLeft <= 7 ? 'text-red-600' : '')}>
-                    {new Date(conn.validUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  <span
+                    className={cn(
+                      'font-medium',
+                      daysLeft !== null && daysLeft <= 30
+                        ? 'text-amber-600'
+                        : daysLeft !== null && daysLeft <= 7
+                          ? 'text-red-600'
+                          : '',
+                    )}
+                  >
+                    {new Date(conn.validUntil).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
                     {daysLeft !== null && <span className="text-xs ml-1 text-gray-400">({daysLeft}d)</span>}
                   </span>
                 </div>
@@ -116,7 +181,8 @@ export function OnlineStatus({ collapsed }: { collapsed: boolean }) {
               </div>
             )}
             <button
-              onClick={syncNow}
+              type="button"
+              onClick={() => void syncNow()}
               disabled={syncing}
               className="mt-3 w-full py-1.5 border border-gray-200 rounded-lg text-xs font-bold hover:bg-gray-50 flex items-center justify-center gap-1.5 disabled:opacity-50"
             >

@@ -3,14 +3,19 @@
  * ERP data is never uploaded; scheduled backups are local files on the phone only.
  */
 import { heartbeat, markApplied, markNotificationsDelivered } from './cloud';
-import { loadLicense } from './licenseStore';
+import { loadLicense, saveLicense } from './licenseStore';
 import { getOrCreateDeviceId } from './deviceId';
 import { localQuery } from './local/db';
 import { serviceMobileAppVersion } from './mode';
 import { runScheduledLocalBackupIfDue } from './localBackup';
+import { patchSyncState } from './syncState';
 
 let lastForceSyncAt: string | null = null;
 let syncTimer: ReturnType<typeof setInterval> | null = null;
+
+function printOverlayOpen(): boolean {
+  return typeof document !== 'undefined' && Boolean(document.getElementById('dg-print-overlay'));
+}
 
 async function applySettings(settings: Record<string, unknown>): Promise<boolean> {
   const { rows } = await localQuery<{ id: string; tab_config: unknown }>(`SELECT id, tab_config FROM tenants LIMIT 1`);
@@ -89,8 +94,16 @@ export type SyncResult = {
 
 export async function runServiceMobileSync(): Promise<SyncResult> {
   const lic = loadLicense();
-  if (!lic) return { ok: false, error: 'No license' };
+  if (!lic) {
+    patchSyncState({ status: 'offline', licenseValid: false });
+    return { ok: false, error: 'No license' };
+  }
   const machineId = await getOrCreateDeviceId();
+  patchSyncState({
+    status: 'syncing',
+    version: serviceMobileAppVersion(),
+    validUntil: lic.validUntil,
+  });
 
   try {
     const data = await heartbeat({
@@ -99,8 +112,16 @@ export async function runServiceMobileSync(): Promise<SyncResult> {
       version: serviceMobileAppVersion(),
     });
 
-    if (data.licenseValid === false) {
-      return { ok: false, licenseValid: false, error: String(data.licenseStatus || 'invalid') };
+    const hb = data as { validUntil?: unknown; licenseValid?: unknown; licenseStatus?: unknown };
+    const validUntil = hb.validUntil != null ? String(hb.validUntil) : lic.validUntil;
+    if (validUntil !== lic.validUntil) {
+      saveLicense({ ...lic, validUntil });
+    }
+    patchSyncState({ validUntil });
+
+    if (hb.licenseValid === false) {
+      patchSyncState({ status: 'offline', licenseValid: false, lastSync: new Date().toISOString() });
+      return { ok: false, licenseValid: false, error: String(hb.licenseStatus || 'invalid') };
     }
 
     const settings = (data.settings || {}) as Record<string, unknown>;
@@ -120,14 +141,16 @@ export async function runServiceMobileSync(): Promise<SyncResult> {
       createdAt: string;
       expiresAt: string | null;
     }[];
+    let notificationsInserted = 0;
     if (pending.length) {
       const ids = await applyNotifications(pending);
+      notificationsInserted = ids.length;
       if (ids.length) {
         await markNotificationsDelivered({ licenseKey: lic.licenseKey, machineId, notificationIds: ids });
       }
     }
 
-    const shouldReload = Boolean(forceSyncAt && forceSyncAt !== lastForceSyncAt);
+    const shouldReload = Boolean(forceSyncAt && forceSyncAt !== lastForceSyncAt) || notificationsInserted > 0;
     if (applied || shouldReload) {
       await markApplied({ licenseKey: lic.licenseKey, machineId });
       if (forceSyncAt) lastForceSyncAt = forceSyncAt;
@@ -141,11 +164,15 @@ export async function runServiceMobileSync(): Promise<SyncResult> {
       /* skip if user dismisses download / offline quirks */
     }
 
-    if (shouldReload && typeof window !== 'undefined') {
+    const lastSync = new Date().toISOString();
+    patchSyncState({ status: 'online', lastSync, licenseValid: true });
+
+    if (shouldReload && typeof window !== 'undefined' && !printOverlayOpen()) {
       window.location.reload();
     }
-    return { ok: true, licenseValid: true, reloaded: shouldReload, localBackupSaved };
+    return { ok: true, licenseValid: true, reloaded: shouldReload && !printOverlayOpen(), localBackupSaved };
   } catch (err) {
+    patchSyncState({ status: 'offline' });
     return { ok: false, error: err instanceof Error ? err.message : 'Sync failed' };
   }
 }

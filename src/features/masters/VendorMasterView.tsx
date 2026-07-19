@@ -26,8 +26,15 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
+import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
+type PayModal = {
+  invoiceId: string | null;
+  invoiceNumber: string;
+  balance: number;
+  isAdvance: boolean;
+};
 
 const fmt = (n: number) => `₹${Math.abs(n).toLocaleString()}`;
 
@@ -71,7 +78,8 @@ export function VendorMasterView({
   const [focusedInitial, setFocusedInitial] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createPrefill, setCreatePrefill] = useState<InvoicePartyPrefill | null>(null);
-  const [payModal, setPayModal] = useState<{ invoiceId: string; invoiceNumber: string; balance: number } | null>(null);
+  const [payModal, setPayModal] = useState<PayModal | null>(null);
+  const offlineAdvance = isServiceMobileMode();
   const [payForm, setPayForm] = useState({
     amount: '',
     paymentDate: new Date().toISOString().slice(0, 10),
@@ -167,22 +175,48 @@ export function VendorMasterView({
       referenceNumber: '',
       notes: '',
     });
-    setPayModal({ invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, balance: inv.balance });
+    setPayModal({
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      balance: inv.balance,
+      isAdvance: false,
+    });
   };
 
-  /** Hub action: pay first unpaid invoice (or Extra Pay on latest if all settled). */
+  const openAdvancePay = () => {
+    if (!selected) return;
+    setPayForm({
+      amount: '',
+      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentMethod: 'Cash',
+      referenceNumber: '',
+      notes: 'Advance payment',
+    });
+    setPayModal({
+      invoiceId: null,
+      invoiceNumber: 'Advance',
+      balance: 0,
+      isAdvance: true,
+    });
+  };
+
+  /** Hub: pay first unpaid invoice, or (Offline) record advance when none outstanding. */
   const openRecordPayment = () => {
     const invoices = detail?.invoices || [];
-    if (invoices.length === 0) {
-      toast('Create an invoice first', 'error');
-      return;
-    }
     const unpaid = invoices.find(i => i.balance > 0);
     if (unpaid) {
       openPay(unpaid);
       return;
     }
-    openPay({ ...invoices[0]!, balance: 0 });
+    if (offlineAdvance) {
+      openAdvancePay();
+      return;
+    }
+    if (invoices.length === 0) {
+      toast('Create an invoice first', 'error');
+      return;
+    }
+    toast('No outstanding balance — payments are already recorded (e.g. Mark Paid)', 'info');
   };
 
   const handlePay = async (e: React.FormEvent) => {
@@ -193,27 +227,27 @@ export function VendorMasterView({
       toast('Enter a valid amount', 'error');
       return;
     }
-    if (amount > payModal.balance && payModal.balance > 0) {
-      const extra = amount - payModal.balance;
-      const ok = await confirm({
-        title: 'Extra Payment',
-        message: `Invoice balance is ${fmt(payModal.balance)}. You're paying ${fmt(amount)} — ${fmt(extra)} will be credit. Continue?`,
-        confirmLabel: `Record ${fmt(amount)}`,
-        variant: 'info',
-      });
-      if (!ok) return;
+    if (!payModal.isAdvance) {
+      if (payModal.balance <= 0) {
+        toast('Invoice is already fully paid', 'error');
+        return;
+      }
+      if (amount > payModal.balance + 0.001) {
+        toast(`Amount exceeds remaining balance (${fmt(payModal.balance)})`, 'error');
+        return;
+      }
     }
     setPaySubmitting(true);
     try {
       await api.invoiceFinance.recordPayment({
-        invoiceId: payModal.invoiceId,
+        ...(payModal.isAdvance ? { partyKey: partyKeyFor(selected) } : { invoiceId: payModal.invoiceId || undefined }),
         amount,
         paymentDate: payForm.paymentDate,
         paymentMethod: payForm.paymentMethod,
         referenceNumber: payForm.referenceNumber || undefined,
-        notes: payForm.notes || undefined,
+        notes: payForm.notes || (payModal.isAdvance ? 'Advance payment' : undefined),
       });
-      toast('Payment recorded', 'success');
+      toast(payModal.isAdvance ? 'Advance payment recorded' : 'Payment recorded', 'success');
       setPayModal(null);
       loadDetail(selected);
     } catch (err) {
@@ -348,7 +382,8 @@ export function VendorMasterView({
             <button
               type="button"
               onClick={openRecordPayment}
-              className="flex items-center gap-1.5 px-3 py-2 min-h-[44px] border border-emerald-200 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-50"
+              disabled={!offlineAdvance && !!detail && detail.balance <= 0}
+              className="flex items-center gap-1.5 px-3 py-2 min-h-[44px] border border-emerald-200 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <IndianRupee size={16} /> Record Payment
             </button>
@@ -430,8 +465,20 @@ export function VendorMasterView({
                             {inv.dueDate ? ` · Due ${formatDate(inv.dueDate)}` : ''}
                           </p>
                           <p className="text-sm font-bold mt-1">{fmt(inv.grandTotal)}</p>
-                          {inv.paid > 0 && <p className="text-xs text-emerald-600">Paid: {fmt(inv.paid)}</p>}
-                          {inv.balance > 0 && <p className="text-xs text-rose-600">Due: {fmt(inv.balance)}</p>}
+                          {(inv.advanceApplied || 0) > 0 && (
+                            <p className="text-xs text-emerald-600">Advance payment: {fmt(inv.advanceApplied || 0)}</p>
+                          )}
+                          {inv.paid > (inv.advanceApplied || 0) + 0.001 && (
+                            <p className="text-xs text-emerald-600">
+                              Paid: {fmt(inv.paid - (inv.advanceApplied || 0))}
+                            </p>
+                          )}
+                          {inv.paid > 0.001 && (inv.advanceApplied || 0) <= 0.001 && (
+                            <p className="text-xs text-emerald-600">Paid: {fmt(inv.paid)}</p>
+                          )}
+                          {inv.balance > 0.001 && (
+                            <p className="text-xs text-rose-600">Outstanding: {fmt(inv.balance)}</p>
+                          )}
                         </div>
                         <div className="flex flex-col items-end gap-2 shrink-0">
                           {paid ? (
@@ -443,22 +490,13 @@ export function VendorMasterView({
                               </span>
                             )
                           )}
-                          {!paid && (
+                          {!paid && inv.balance > 0 && (
                             <button
                               type="button"
                               onClick={() => openPay(inv)}
                               className="flex items-center gap-1 px-3 py-1.5 min-h-[36px] bg-emerald-600 text-white rounded-lg text-xs font-bold"
                             >
                               <Plus size={12} /> Pay
-                            </button>
-                          )}
-                          {paid && inv.balance <= 0 && (
-                            <button
-                              type="button"
-                              onClick={() => openPay({ ...inv, balance: 0 })}
-                              className="flex items-center gap-1 px-3 py-1.5 min-h-[36px] border border-gray-200 rounded-lg text-xs font-medium"
-                            >
-                              <Plus size={12} /> Extra Pay
                             </button>
                           )}
                         </div>
@@ -483,7 +521,12 @@ export function VendorMasterView({
                       <div>
                         <p className="font-bold text-emerald-600">+{fmt(p.amount)}</p>
                         <p className="text-xs text-gray-500">
-                          {formatDate(p.paymentDate)} · {p.paymentMethod} · Invoice {p.invoiceNumber}
+                          {formatDate(p.paymentDate)} · {p.paymentMethod} ·{' '}
+                          {p.isAdvance || !p.invoiceId
+                            ? p.invoiceNumber && p.invoiceNumber !== 'Advance'
+                              ? `Advance → ${p.invoiceNumber}`
+                              : 'Advance payment'
+                            : `Invoice ${p.invoiceNumber}`}
                         </p>
                       </div>
                       <button
@@ -526,10 +569,21 @@ export function VendorMasterView({
                 animate={{ opacity: 1, scale: 1 }}
                 className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-6 max-h-[90vh] overflow-y-auto"
               >
-                <h3 className="text-lg font-bold mb-1">Record Payment</h3>
+                <h3 className="text-lg font-bold mb-1">
+                  {payModal.isAdvance ? 'Record Advance Payment' : 'Record Payment'}
+                </h3>
                 <p className="text-sm text-gray-500 mb-4">
-                  Invoice {payModal.invoiceNumber} · Balance{' '}
-                  <span className="font-bold text-rose-600">{fmt(payModal.balance)}</span>
+                  {payModal.isAdvance ? (
+                    <>
+                      No outstanding invoice — this cash is held as advance and will apply to the next bill for{' '}
+                      <span className="font-bold text-gray-700">{selected?.name}</span>.
+                    </>
+                  ) : (
+                    <>
+                      Invoice {payModal.invoiceNumber} · Balance{' '}
+                      <span className="font-bold text-rose-600">{fmt(payModal.balance)}</span>
+                    </>
+                  )}
                 </p>
                 <form onSubmit={handlePay} className="space-y-4">
                   <div>

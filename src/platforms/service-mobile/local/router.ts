@@ -30,6 +30,12 @@ import {
   splitGstTax,
   type InvoiceLineIn,
 } from './invoiceHelpers';
+import {
+  applyAdvancesToInvoice,
+  applyPartyAdvances,
+  sumUnallocatedAdvance,
+  type PartyRef,
+} from './invoiceAdvanceHelpers';
 
 function uid(prefix: string): string {
   return `${prefix}-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
@@ -115,6 +121,28 @@ function toDateStr(v: unknown): string | null {
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   const s = String(v);
   return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+async function paymentTotalsForInvoice(tenantId: string, invoiceId: string) {
+  const { rows } = await localQuery(
+    `SELECT
+       COALESCE(SUM(amount),0) AS paid,
+       COALESCE(SUM(CASE WHEN COALESCE(is_advance,false) THEN amount ELSE 0 END),0) AS advance_applied
+     FROM invoice_payments WHERE invoice_id=$1 AND tenant_id=$2`,
+    [invoiceId, tenantId],
+  );
+  const paid = Number((rows[0] as { paid: number }).paid) || 0;
+  const advanceApplied = Number((rows[0] as { advance_applied: number }).advance_applied) || 0;
+  const { rows: invRows } = await localQuery(
+    `SELECT COALESCE(grand_total, total, 0) AS grand_total FROM standalone_invoices WHERE id=$1 AND tenant_id=$2`,
+    [invoiceId, tenantId],
+  );
+  const grand = Number((invRows[0] as { grand_total: number } | undefined)?.grand_total) || 0;
+  return {
+    paidAmount: paid,
+    advanceApplied,
+    outstanding: Math.max(0, Math.round((grand - paid) * 100) / 100),
+  };
 }
 
 /**
@@ -249,6 +277,135 @@ export async function handleLocalApiRequest(
         invoiceRevenue: Number((inv.rows[0] as { s: number }).s),
         clientCount: (clients.rows[0] as { c: number }).c,
         invoiceOutstanding: 0,
+      });
+    }
+
+    // Global search (same shape as cloud GET /api/search — no verify)
+    if (ctx.path === '/search' && ctx.method === 'GET') {
+      const q = (query.get('q') || '').trim();
+      if (!q) {
+        return json(200, {
+          products: [],
+          customers: [],
+          vendors: [],
+          barcodes: [],
+          challans: [],
+          staff: [],
+        });
+      }
+      const like = `%${q}%`;
+      const limit = 6;
+      const [products, customers, vendors, barcodeRows, staffMembers, staffPaid] = await Promise.all([
+        localQuery(
+          `SELECT id, name, COALESCE(price,0) AS price, COALESCE(stock,0) AS stock
+           FROM products WHERE tenant_id=$1 AND name ILIKE $2 ORDER BY name LIMIT $3`,
+          [tid, like, limit],
+        ),
+        localQuery(
+          `SELECT id, name, COALESCE(phone,'') AS phone, COALESCE(email,'') AS email
+           FROM customers WHERE tenant_id=$1 AND (name ILIKE $2 OR phone ILIKE $2 OR email ILIKE $2)
+           ORDER BY name LIMIT $3`,
+          [tid, like, limit],
+        ),
+        localQuery(
+          `SELECT id, name, COALESCE(phone,'') AS phone, COALESCE(email,'') AS email
+           FROM vendors WHERE tenant_id=$1 AND (name ILIKE $2 OR phone ILIKE $2 OR email ILIKE $2)
+           ORDER BY name LIMIT $3`,
+          [tid, like, limit],
+        ),
+        localQuery(
+          `SELECT barcode, name AS product_name, id AS product_id, 'InStock' AS status
+           FROM products WHERE tenant_id=$1 AND barcode IS NOT NULL AND barcode != '' AND barcode ILIKE $2
+           ORDER BY barcode LIMIT $3`,
+          [tid, like, limit],
+        ),
+        localQuery(`SELECT name FROM staff_members WHERE tenant_id=$1 AND name ILIKE $2 ORDER BY name LIMIT $3`, [
+          tid,
+          like,
+          limit,
+        ]),
+        localQuery(
+          `SELECT staff_name, SUM(amount) AS total_paid, COUNT(*)::int AS payments, MAX(payment_date) AS last_payment
+           FROM staff_payments WHERE tenant_id=$1 AND staff_name ILIKE $2
+           GROUP BY staff_name ORDER BY total_paid DESC LIMIT $3`,
+          [tid, like, limit],
+        ),
+      ]);
+      // Prefer staff_members; merge payment aggregates when present
+      const payByName = new Map(
+        (staffPaid.rows as { staff_name: string; total_paid: number; payments: number; last_payment: string }[]).map(
+          s => [s.staff_name.toLowerCase(), s],
+        ),
+      );
+      const staffNames = new Set<string>();
+      const staff: {
+        name: string;
+        totalPaid: number;
+        payments: number;
+        lastPayment: string;
+        type: 'staff';
+      }[] = [];
+      for (const r of staffMembers.rows as { name: string }[]) {
+        if (!r.name || staffNames.has(r.name.toLowerCase())) continue;
+        staffNames.add(r.name.toLowerCase());
+        const pay = payByName.get(r.name.toLowerCase());
+        staff.push({
+          name: r.name,
+          totalPaid: Number(pay?.total_paid) || 0,
+          payments: Number(pay?.payments) || 0,
+          lastPayment: pay?.last_payment || '',
+          type: 'staff',
+        });
+      }
+      for (const s of staffPaid.rows as {
+        staff_name: string;
+        total_paid: number;
+        payments: number;
+        last_payment: string;
+      }[]) {
+        if (!s.staff_name || staffNames.has(s.staff_name.toLowerCase())) continue;
+        staffNames.add(s.staff_name.toLowerCase());
+        staff.push({
+          name: s.staff_name,
+          totalPaid: Number(s.total_paid) || 0,
+          payments: Number(s.payments) || 0,
+          lastPayment: s.last_payment || '',
+          type: 'staff',
+        });
+      }
+      return json(200, {
+        products: (products.rows as { id: string; name: string; price: number; stock: number }[]).map(p => ({
+          id: p.id,
+          name: p.name,
+          price: Number(p.price) || 0,
+          stock: Number(p.stock) || 0,
+          type: 'product' as const,
+        })),
+        customers: (customers.rows as { id: string; name: string; phone: string; email: string }[]).map(c => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone ?? '',
+          email: c.email ?? '',
+          type: 'customer' as const,
+        })),
+        vendors: (vendors.rows as { id: string; name: string; phone: string; email: string }[]).map(v => ({
+          id: v.id,
+          name: v.name,
+          contact: v.email ?? '',
+          phone: v.phone ?? '',
+          type: 'vendor' as const,
+        })),
+        barcodes: (
+          barcodeRows.rows as { barcode: string; product_name: string; product_id: string; status: string }[]
+        ).map(b => ({
+          barcode: b.barcode,
+          productName: b.product_name,
+          productId: b.product_id,
+          status: b.status,
+          type: 'barcode' as const,
+        })),
+        challans: [],
+        staff: staff.slice(0, limit),
       });
     }
 
@@ -1492,10 +1649,36 @@ export async function handleLocalApiRequest(
     }
     if (ctx.path === '/invoices' || ctx.path === '/standalone-invoices') {
       if (ctx.method === 'GET') {
-        const rows = await listTable('standalone_invoices', tid!);
+        const { rows } = await localQuery(
+          `SELECT si.*,
+                  COALESCE(ip.paid, 0) AS paid_amount,
+                  COALESCE(ip.advance_applied, 0) AS advance_applied
+           FROM standalone_invoices si
+           LEFT JOIN (
+             SELECT invoice_id,
+                    SUM(amount) AS paid,
+                    SUM(CASE WHEN COALESCE(is_advance,false) THEN amount ELSE 0 END) AS advance_applied
+             FROM invoice_payments WHERE tenant_id=$1 GROUP BY invoice_id
+           ) ip ON si.id = ip.invoice_id
+           WHERE si.tenant_id=$1
+           ORDER BY si.invoice_date DESC NULLS LAST, si.created_at DESC`,
+          [tid],
+        );
         return json(
           200,
-          rows.map(r => mapInvoice(r as Record<string, unknown>)),
+          (rows || []).map(r => {
+            const row = r as Record<string, unknown>;
+            const mapped = mapInvoice(row);
+            const paidAmount = Number(row.paid_amount) || 0;
+            const advanceApplied = Number(row.advance_applied) || 0;
+            const grand = Number(mapped.grandTotal) || 0;
+            return {
+              ...mapped,
+              paidAmount,
+              advanceApplied,
+              outstanding: Math.max(0, Math.round((grand - paidAmount) * 100) / 100),
+            };
+          }),
         );
       }
       if (ctx.method === 'POST') {
@@ -1582,8 +1765,11 @@ export async function handleLocalApiRequest(
             interstate,
           ],
         );
+        await applyAdvancesToInvoice(tid!, id);
         const { rows } = await localQuery(`SELECT * FROM standalone_invoices WHERE id=$1`, [id]);
-        return json(201, mapInvoice(rows[0] as Record<string, unknown>));
+        const mapped = mapInvoice(rows[0] as Record<string, unknown>);
+        const payInfo = await paymentTotalsForInvoice(tid!, id);
+        return json(201, { ...mapped, ...payInfo });
       }
     }
     const invStatusMatch = ctx.path.match(/^\/invoices\/([^/]+)\/status$/);
@@ -1612,8 +1798,9 @@ export async function handleLocalApiRequest(
         }
       }
 
-      // Mark Paid: auto-record remaining balance as Cash payment so ledger stays consistent
+      // Mark Paid: apply client advances first, then auto-record any remaining as Cash
       if (status === 'paid') {
+        await applyAdvancesToInvoice(tid!, invId);
         const { rows: paidRows } = await localQuery(
           `SELECT COALESCE(SUM(amount),0) AS t FROM invoice_payments WHERE invoice_id=$1 AND tenant_id=$2`,
           [invId, tid],
@@ -1623,11 +1810,29 @@ export async function handleLocalApiRequest(
         if (remaining > 0.001) {
           const payId = uid('IP');
           const pDate = new Date().toISOString().slice(0, 10);
+          const { rows: partyRows } = await localQuery(
+            `SELECT party_type, party_id, COALESCE(customer_name, client_name, '') AS client_name
+             FROM standalone_invoices WHERE id=$1 AND tenant_id=$2`,
+            [invId, tid],
+          );
+          const pr = partyRows[0] as
+            { party_type: string | null; party_id: string | null; client_name: string } | undefined;
           await localQuery(
             `INSERT INTO invoice_payments
-               (id, tenant_id, invoice_id, amount, payment_date, method, payment_method, notes)
-             VALUES ($1,$2,$3,$4,$5,'Cash','Cash',$6)`,
-            [payId, tid, invId, remaining, pDate, 'Marked paid'],
+               (id, tenant_id, invoice_id, amount, payment_date, method, payment_method, notes,
+                party_type, party_id, client_name, is_advance)
+             VALUES ($1,$2,$3,$4,$5,'Cash','Cash',$6,$7,$8,$9,false)`,
+            [
+              payId,
+              tid,
+              invId,
+              remaining,
+              pDate,
+              'Marked paid',
+              pr?.party_type ?? null,
+              pr?.party_id ?? null,
+              pr?.client_name || null,
+            ],
           );
         }
       }
@@ -1674,29 +1879,90 @@ export async function handleLocalApiRequest(
          ORDER BY (COALESCE(SUM(COALESCE(si.grand_total, si.total, 0)),0) - COALESCE(SUM(ip.paid),0)) DESC`,
         [tid],
       );
-      return json(
-        200,
-        (rows || []).map(r => {
-          const totalInvoiced = Number(r.total_invoiced) || 0;
-          const totalPaid = Number(r.total_paid) || 0;
-          return {
-            partyKey: String(r.party_key || 'name:Unknown'),
-            partyType: (r.party_type as string) || null,
-            partyId: (r.party_id as string) || null,
-            clientName: String(r.customer_name || 'Unknown'),
-            clientPhone: (r.customer_phone as string) || null,
-            invoiceCount: Number(r.invoice_count) || 0,
-            totalInvoiced,
-            totalPaid,
-            balance: totalInvoiced - totalPaid,
-          };
-        }),
+      const { rows: advRows } = await localQuery(
+        `SELECT
+           CASE
+             WHEN party_type IS NOT NULL AND party_id IS NOT NULL THEN party_type || ':' || party_id
+             ELSE 'name:' || COALESCE(client_name, 'Unknown')
+           END AS party_key,
+           MAX(party_type) AS party_type,
+           MAX(party_id) AS party_id,
+           MAX(COALESCE(client_name, 'Unknown')) AS client_name,
+           COALESCE(SUM(amount),0) AS advance
+         FROM invoice_payments
+         WHERE tenant_id=$1 AND invoice_id IS NULL AND COALESCE(is_advance,false)=true
+         GROUP BY 1`,
+        [tid],
       );
+      const byKey = new Map<
+        string,
+        {
+          partyKey: string;
+          partyType: string | null;
+          partyId: string | null;
+          clientName: string;
+          clientPhone: string | null;
+          invoiceCount: number;
+          totalInvoiced: number;
+          totalPaid: number;
+          advanceBalance: number;
+          balance: number;
+        }
+      >();
+      for (const r of rows || []) {
+        const totalInvoiced = Number(r.total_invoiced) || 0;
+        const totalPaid = Number(r.total_paid) || 0;
+        const partyKey = String(r.party_key || 'name:Unknown');
+        byKey.set(partyKey, {
+          partyKey,
+          partyType: (r.party_type as string) || null,
+          partyId: (r.party_id as string) || null,
+          clientName: String(r.customer_name || 'Unknown'),
+          clientPhone: (r.customer_phone as string) || null,
+          invoiceCount: Number(r.invoice_count) || 0,
+          totalInvoiced,
+          totalPaid,
+          advanceBalance: 0,
+          balance: totalInvoiced - totalPaid,
+        });
+      }
+      for (const a of advRows || []) {
+        const partyKey = String(a.party_key || 'name:Unknown');
+        const advance = Number(a.advance) || 0;
+        const existing = byKey.get(partyKey);
+        if (existing) {
+          existing.totalPaid += advance;
+          existing.advanceBalance = advance;
+          existing.balance = existing.totalInvoiced - existing.totalPaid;
+        } else {
+          byKey.set(partyKey, {
+            partyKey,
+            partyType: (a.party_type as string) || null,
+            partyId: (a.party_id as string) || null,
+            clientName: String(a.client_name || 'Unknown'),
+            clientPhone: null,
+            invoiceCount: 0,
+            totalInvoiced: 0,
+            totalPaid: advance,
+            advanceBalance: advance,
+            balance: -advance,
+          });
+        }
+      }
+      const merged = [...byKey.values()].sort((x, y) => y.balance - x.balance);
+      return json(200, merged);
     }
     const invClientMatch = ctx.path.match(/^\/invoice-finance\/client\/(.+)$/);
     if (invClientMatch && ctx.method === 'GET') {
       await reconcilePaidInvoicesLedger(tid!);
       const { partyType, partyId, clientName, partyKey } = parseLocalPartyKey(invClientMatch[1]!);
+      const partyRef: PartyRef = {
+        partyType,
+        partyId,
+        clientName: clientName || '',
+      };
+      await applyPartyAdvances(tid!, partyRef);
+
       let where = `si.tenant_id=$1 AND COALESCE(si.status,'') != 'cancelled'`;
       const params: unknown[] = [tid];
       if (partyType && partyId) {
@@ -1714,7 +1980,8 @@ export async function handleLocalApiRequest(
                 si.subtotal, si.tax_total, si.status, si.notes,
                 si.customer_name, si.client_name, si.customer_phone,
                 si.customer_gstin, si.customer_address, si.party_type, si.party_id,
-                COALESCE(SUM(ip.amount),0) AS paid
+                COALESCE(SUM(ip.amount),0) AS paid,
+                COALESCE(SUM(CASE WHEN COALESCE(ip.is_advance,false) THEN ip.amount ELSE 0 END),0) AS advance_applied
          FROM standalone_invoices si
          LEFT JOIN invoice_payments ip ON ip.invoice_id=si.id AND ip.tenant_id=$1
          WHERE ${where}
@@ -1725,6 +1992,7 @@ export async function handleLocalApiRequest(
         const row = r as Record<string, unknown>;
         const grandTotal = Number(row.grand_total) || 0;
         const paid = Number(row.paid) || 0;
+        const advanceApplied = Number(row.advance_applied) || 0;
         return {
           id: row.id,
           invoiceNumber: row.invoice_number,
@@ -1734,27 +2002,67 @@ export async function handleLocalApiRequest(
           subtotal: Number(row.subtotal) || 0,
           taxTotal: Number(row.tax_total) || 0,
           paid,
+          advanceApplied,
           balance: grandTotal - paid,
           status: (row.status as string) || 'draft',
           notes: row.notes ?? null,
         };
       });
       const totalInvoiced = mapped.reduce((s, i) => s + i.grandTotal, 0);
-      const totalPaid = mapped.reduce((s, i) => s + i.paid, 0);
+      const allocatedPaid = mapped.reduce((s, i) => s + i.paid, 0);
+      const advanceBalance = await sumUnallocatedAdvance(tid!, partyRef);
+      const totalPaid = allocatedPaid + advanceBalance;
       const first = invoices[0] as Record<string, unknown> | undefined;
+
+      let resolvedName = String(first?.customer_name || first?.client_name || clientName || 'Client');
+      let resolvedPhone = (first?.customer_phone as string) || null;
+      let resolvedGstin = (first?.customer_gstin as string) || null;
+      let resolvedAddress = (first?.customer_address as string) || null;
+      if (!first && partyType === 'vendor' && partyId) {
+        const { rows: vr } = await localQuery(
+          `SELECT name, phone, gstin, address FROM vendors WHERE id=$1 AND tenant_id=$2`,
+          [partyId, tid],
+        );
+        const v = vr[0] as
+          { name: string; phone: string | null; gstin: string | null; address: string | null } | undefined;
+        if (v) {
+          resolvedName = v.name || resolvedName;
+          resolvedPhone = v.phone || null;
+          resolvedGstin = v.gstin || null;
+          resolvedAddress = v.address || null;
+        }
+      } else if (!first && partyType === 'customer' && partyId) {
+        const { rows: cr } = await localQuery(
+          `SELECT name, phone, address FROM customers WHERE id=$1 AND tenant_id=$2`,
+          [partyId, tid],
+        );
+        const c = cr[0] as { name: string; phone: string | null; address: string | null } | undefined;
+        if (c) {
+          resolvedName = c.name || resolvedName;
+          resolvedPhone = c.phone || null;
+          resolvedAddress = c.address || null;
+        }
+      }
 
       let paySql = `
         SELECT ip.*, si.invoice_number
         FROM invoice_payments ip
-        JOIN standalone_invoices si ON ip.invoice_id = si.id AND si.tenant_id = $1
+        LEFT JOIN standalone_invoices si ON ip.invoice_id = si.id AND si.tenant_id = $1
         WHERE ip.tenant_id = $1`;
       const payParams: unknown[] = [tid];
       if (partyType && partyId) {
-        paySql += ` AND si.party_type=$2 AND si.party_id=$3`;
+        paySql += ` AND (
+          (si.id IS NOT NULL AND si.party_type=$2 AND si.party_id=$3)
+          OR (ip.invoice_id IS NULL AND ip.party_type=$2 AND ip.party_id=$3)
+        )`;
         payParams.push(partyType, partyId);
       } else {
-        paySql += ` AND COALESCE(si.customer_name, si.client_name)=$2
-                    AND (si.party_type IS NULL OR si.party_id IS NULL)`;
+        paySql += ` AND (
+          (si.id IS NOT NULL AND COALESCE(si.customer_name, si.client_name)=$2
+            AND (si.party_type IS NULL OR si.party_id IS NULL))
+          OR (ip.invoice_id IS NULL AND COALESCE(ip.client_name,'')=$2
+            AND (ip.party_type IS NULL OR ip.party_id IS NULL))
+        )`;
         payParams.push(clientName || '');
       }
       paySql += ` ORDER BY ip.payment_date DESC NULLS LAST, ip.created_at DESC`;
@@ -1764,23 +2072,25 @@ export async function handleLocalApiRequest(
         partyKey,
         partyType: partyType || (first?.party_type as string) || null,
         partyId: partyId || (first?.party_id as string) || null,
-        clientName: String(first?.customer_name || first?.client_name || clientName || 'Client'),
-        clientPhone: (first?.customer_phone as string) || null,
-        customerGstin: (first?.customer_gstin as string) || null,
-        customerAddress: (first?.customer_address as string) || null,
+        clientName: resolvedName,
+        clientPhone: resolvedPhone,
+        customerGstin: resolvedGstin,
+        customerAddress: resolvedAddress,
         totalInvoiced,
         totalPaid,
+        advanceBalance,
         balance: totalInvoiced - totalPaid,
         invoices: mapped,
         payments: (payRows || []).map(r => ({
           id: r.id,
           invoiceId: r.invoice_id,
-          invoiceNumber: r.invoice_number,
+          invoiceNumber: r.invoice_number || (r.invoice_id ? null : 'Advance'),
           amount: Number(r.amount) || 0,
           paymentDate: toDateStr(r.payment_date),
           paymentMethod: r.payment_method || r.method || 'Cash',
           referenceNumber: r.reference_number || null,
           notes: r.notes || null,
+          isAdvance: !!r.is_advance || !r.invoice_id,
         })),
       });
     }
@@ -1803,42 +2113,119 @@ export async function handleLocalApiRequest(
             paymentMethod: r.payment_method || r.method || 'Cash',
             referenceNumber: r.reference_number || null,
             notes: r.notes || null,
+            isAdvance: !!r.is_advance || !r.invoice_id,
+            partyType: r.party_type || null,
+            partyId: r.party_id || null,
           })),
         );
       }
       if (ctx.method === 'POST') {
         const b = ctx.body as Record<string, unknown>;
-        const invoiceId = String(b.invoiceId || '');
+        const invoiceId = b.invoiceId ? String(b.invoiceId) : '';
+        const partyKeyRaw = b.partyKey != null ? String(b.partyKey) : '';
         const payAmt = Number(b.amount);
-        if (!invoiceId || !(payAmt > 0)) {
-          return json(400, { error: 'Invoice ID and positive amount required' });
+        if (!(payAmt > 0)) {
+          return json(400, { error: 'Positive amount required' });
+        }
+        const pDate = (b.paymentDate as string) || new Date().toISOString().slice(0, 10);
+        const method = (b.paymentMethod as string) || (b.method as string) || 'Cash';
+
+        // Party-level advance (no invoice / no outstanding) — Offline only; cloud still requires invoiceId.
+        if (!invoiceId && partyKeyRaw) {
+          const { partyType, partyId, clientName, partyKey } = parseLocalPartyKey(partyKeyRaw);
+          let resolvedName = clientName || '';
+          if (partyType === 'vendor' && partyId) {
+            const { rows: vr } = await localQuery(`SELECT name FROM vendors WHERE id=$1 AND tenant_id=$2`, [
+              partyId,
+              tid,
+            ]);
+            if (!vr[0]) return json(404, { error: 'Client not found' });
+            resolvedName = String((vr[0] as { name: string }).name || resolvedName);
+          } else if (partyType === 'customer' && partyId) {
+            const { rows: cr } = await localQuery(`SELECT name FROM customers WHERE id=$1 AND tenant_id=$2`, [
+              partyId,
+              tid,
+            ]);
+            if (!cr[0]) return json(404, { error: 'Client not found' });
+            resolvedName = String((cr[0] as { name: string }).name || resolvedName);
+          } else if (!resolvedName) {
+            return json(400, { error: 'partyKey is required for advance payments' });
+          }
+          const id = uid('IP');
+          const notes = (b.notes as string) || 'Advance payment';
+          await localQuery(
+            `INSERT INTO invoice_payments
+               (id, tenant_id, invoice_id, amount, payment_date, method, payment_method, reference_number, notes,
+                party_type, party_id, client_name, is_advance)
+             VALUES ($1,$2,NULL,$3,$4,$5,$5,$6,$7,$8,$9,$10,true)`,
+            [id, tid, payAmt, pDate, method, b.referenceNumber ?? null, notes, partyType, partyId, resolvedName],
+          );
+          // If they already have open invoices, apply immediately (FIFO).
+          await applyPartyAdvances(tid!, { partyType, partyId, clientName: resolvedName });
+          return json(201, {
+            id,
+            invoiceId: null,
+            partyKey,
+            amount: payAmt,
+            paymentDate: pDate,
+            paymentMethod: method,
+            isAdvance: true,
+          });
+        }
+
+        if (!invoiceId) {
+          return json(400, { error: 'Invoice ID or partyKey required' });
         }
         const { rows: invRows } = await localQuery(
-          `SELECT id, COALESCE(grand_total, total, 0) AS grand_total
+          `SELECT id, COALESCE(grand_total, total, 0) AS grand_total, party_type, party_id,
+                  COALESCE(customer_name, client_name, '') AS client_name
            FROM standalone_invoices WHERE id=$1 AND tenant_id=$2 AND COALESCE(status,'') != 'cancelled'`,
           [invoiceId, tid],
         );
         if (!invRows[0]) return json(404, { error: 'Invoice not found' });
+        const inv = invRows[0] as {
+          grand_total: number;
+          party_type: string | null;
+          party_id: string | null;
+          client_name: string;
+        };
         const { rows: paidRows } = await localQuery(
           `SELECT COALESCE(SUM(amount),0) AS t FROM invoice_payments WHERE invoice_id=$1 AND tenant_id=$2`,
           [invoiceId, tid],
         );
         const alreadyPaid = Number((paidRows[0] as { t: number }).t) || 0;
-        const remaining = Number((invRows[0] as { grand_total: number }).grand_total) - alreadyPaid;
-        // Allow small float slack; Extra Pay (credit) is allowed when remaining <= 0
-        if (remaining > 0.001 && payAmt > remaining + 0.001) {
+        const remaining = Number(inv.grand_total) - alreadyPaid;
+        // Never over-pay a single invoice. Use partyKey (advance) when there is no outstanding.
+        if (remaining <= 0.001) {
+          return json(400, {
+            error:
+              'Invoice is already fully paid. Record an advance payment with partyKey when there is no outstanding.',
+          });
+        }
+        if (payAmt > remaining + 0.001) {
           return json(400, {
             error: `Payment exceeds remaining balance (₹${Math.max(0, remaining).toFixed(2)})`,
           });
         }
         const id = uid('IP');
-        const pDate = (b.paymentDate as string) || new Date().toISOString().slice(0, 10);
-        const method = (b.paymentMethod as string) || (b.method as string) || 'Cash';
         await localQuery(
           `INSERT INTO invoice_payments
-             (id, tenant_id, invoice_id, amount, payment_date, method, payment_method, reference_number, notes)
-           VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8)`,
-          [id, tid, invoiceId, payAmt, pDate, method, b.referenceNumber ?? null, b.notes ?? null],
+             (id, tenant_id, invoice_id, amount, payment_date, method, payment_method, reference_number, notes,
+              party_type, party_id, client_name, is_advance)
+           VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,false)`,
+          [
+            id,
+            tid,
+            invoiceId,
+            payAmt,
+            pDate,
+            method,
+            b.referenceNumber ?? null,
+            b.notes ?? null,
+            inv.party_type,
+            inv.party_id,
+            inv.client_name || null,
+          ],
         );
         await syncInvoicePaidStatus(tid!, invoiceId);
         return json(201, { id, invoiceId, amount: payAmt, paymentDate: pDate, paymentMethod: method });
@@ -1852,9 +2239,9 @@ export async function handleLocalApiRequest(
         tid,
       ]);
       if (!rows[0]) return json(404, { error: 'Payment not found' });
-      const invoiceId = String((rows[0] as { invoice_id: string }).invoice_id);
+      const invoiceId = (rows[0] as { invoice_id: string | null }).invoice_id;
       await localQuery(`DELETE FROM invoice_payments WHERE id=$1 AND tenant_id=$2`, [payId, tid]);
-      await syncInvoicePaidStatus(tid!, invoiceId);
+      if (invoiceId) await syncInvoicePaidStatus(tid!, String(invoiceId));
       return new Response(null, { status: 204 });
     }
 

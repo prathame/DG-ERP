@@ -138,7 +138,7 @@ The `user` object's shape has grown organically over the product's life (see the
 `src/lib/utils.ts` holds a cluster of functions — `formatSalesInvoiceText`, `formatDistributionChallanText`, `openPrintWindow`, `printBillInWindow`, `downloadHtmlAsPdf`, `saveBillAsPdf`, `exportToCsv` — that are plain functions taking data and returning strings or performing side effects (opening a window, triggering a download), not React components. Exporting a bill is fundamentally an **imperative, one-shot action** (build HTML, render PDF, download/share), and modeling it as functions rather than forcing it through component render cycles keeps that imperative code honest about what it is, while still being easily called from any feature view's button handler.
 
 > [!TIP]
-> Offline Mobile / Capacitor cannot use `window.open` or `window.print()`. Callers still open a sync prep overlay via `openPrintWindow()` before `await`, then `printBillInWindow` / `saveBillAsPdf` run `downloadHtmlAsPdf` (html2pdf.js → blob download or native share). Desktop browsers keep the classic print-window path.
+> Offline Mobile / Capacitor cannot use `window.open` or `window.print()`. Callers still open a sync prep overlay via `openPrintWindow()` before `await`, then `printBillInWindow` shows the bill HTML in that overlay — download/share runs only when the user taps **Download PDF** (`downloadHtmlAsPdf`). `saveBillAsPdf` still downloads immediately (intentional Save-as-PDF actions). Desktop browsers keep the classic print-window path.
 
 ## Quiz
 
