@@ -6,6 +6,7 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { isShowHsnSacEnabled } from '../../lib/billSettingsFlags';
+import { useTranslation } from '../../i18n';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
 import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
 
@@ -29,21 +30,6 @@ const MasterFallback = () => (
   </div>
 );
 
-/** Short pill labels for phone hub (Emergent-style). Vendor/Client uses `m.name` from cfg.labels.vendors. */
-const PILL_LABEL: Partial<Record<MasterType, string>> = {
-  item: 'Products',
-  customer: 'Customers',
-  bank: 'Banks',
-  staff: 'Staff',
-  priceList: 'Prices',
-  mapping: 'Mapping',
-  rewardRules: 'Rewards',
-};
-
-function pillLabel(id: MasterType): string {
-  return PILL_LABEL[id] || '';
-}
-
 export function MastersView({
   setActiveTab,
   user,
@@ -63,8 +49,22 @@ export function MastersView({
   } | null;
   onLaunchConsumed?: () => void;
 }) {
+  const { t } = useTranslation();
   const cfg = useBusinessConfig();
   const servicePhoneUx = isServicePhoneUx(businessType ?? cfg.type);
+  /** Short pill labels for phone hub (Emergent-style). Vendor/Client uses `m.name` from cfg.labels.vendors. */
+  const pillLabel = (id: MasterType): string => {
+    const map: Partial<Record<MasterType, string>> = {
+      item: t('masters.products'),
+      customer: t('masters.customers'),
+      bank: t('masters.banks'),
+      staff: t('masters.staff'),
+      priceList: t('masters.prices'),
+      mapping: t('masters.mapping'),
+      rewardRules: t('nav.rewards'),
+    };
+    return map[id] || '';
+  };
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
   const isDirectSell = cfg.type === 'dealer' || cfg.type === 'retail';
   const tabConfig = (user?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>;
@@ -180,7 +180,7 @@ export function MastersView({
       ? [
           {
             id: 'customer' as const,
-            name: 'Customers',
+            name: t('masters.customers'),
             count: masterCounts.customer as number | string,
             icon: Users,
             color: 'text-blue-600',
@@ -190,7 +190,7 @@ export function MastersView({
       : []),
     {
       id: 'bank' as const,
-      name: 'Banks',
+      name: t('masters.banks'),
       count: masterCounts.bank as number | string,
       icon: CreditCard,
       color: 'text-emerald-600',
@@ -198,7 +198,7 @@ export function MastersView({
     },
     {
       id: 'staff' as const,
-      name: 'Staff',
+      name: t('masters.staff'),
       count: masterCounts.staff as number | string,
       icon: Wallet,
       color: 'text-indigo-600',
@@ -408,20 +408,20 @@ export function MastersView({
   const ActiveIcon = activeMeta?.icon;
   const listHubTabs = new Set<MasterType>(['vendor', 'customer', 'item', 'bank', 'staff']);
   const showList = Boolean(active && listHubTabs.has(active));
-  const partyLabel = cfg.labels.vendors || 'Clients';
+  const partyLabel = cfg.labels.vendors || t('masters.clients');
 
   const fabLabel =
     active === 'vendor'
       ? partyLabel.replace(/s$/, '')
       : active === 'customer'
-        ? 'Customer'
+        ? t('masters.customer')
         : active === 'item'
-          ? 'Product'
+          ? t('masters.product')
           : active === 'bank'
-            ? 'Bank'
+            ? t('masters.bank')
             : active === 'staff'
-              ? 'Staff'
-              : 'Add';
+              ? t('masters.staff')
+              : t('common.add');
 
   return (
     <motion.div
@@ -432,7 +432,7 @@ export function MastersView({
       {/* Phone hub — Emergent-style: pills + list + FAB */}
       <div className="sm:hidden space-y-3">
         <p className="text-[11px] text-gray-500 px-0.5">
-          {servicePhoneUx ? 'Clients &amp; rates' : 'Catalog &amp; partners'}
+          {servicePhoneUx ? t('masters.clientsRates') : t('masters.catalogPartners')}
         </p>
         <MobilePillTabs
           items={masters.map(m => {
@@ -462,9 +462,9 @@ export function MastersView({
           vendors.length === 0 ? (
             <MobileEmptyState
               icon={<Truck />}
-              title={`No ${partyLabel.toLowerCase()} yet`}
-              subtitle="Add your first partner to get started"
-              actionLabel={`Add ${fabLabel}`}
+              title={t('masters.noClientsYet')}
+              subtitle={t('masters.addFirstPartner')}
+              actionLabel={`${t('common.add')} ${fabLabel}`}
               onAction={() => openFull('vendor')}
             />
           ) : (
@@ -491,8 +491,8 @@ export function MastersView({
           customers.length === 0 ? (
             <MobileEmptyState
               icon={<Users />}
-              title="No customers yet"
-              actionLabel="Add Customer"
+              title={t('masters.noCustomersYet')}
+              actionLabel={t('masters.addCustomer')}
               onAction={() => openFull('customer')}
             />
           ) : (
@@ -513,8 +513,8 @@ export function MastersView({
           products.length === 0 ? (
             <MobileEmptyState
               icon={<Package />}
-              title="No products yet"
-              actionLabel="Open Products"
+              title={t('masters.noProductsYet')}
+              actionLabel={t('masters.openProducts')}
               onAction={() => openFull('item')}
             />
           ) : (
@@ -536,8 +536,8 @@ export function MastersView({
           banks.length === 0 ? (
             <MobileEmptyState
               icon={<CreditCard />}
-              title="No banks yet"
-              actionLabel="Add Bank"
+              title={t('masters.noBanksYet')}
+              actionLabel={t('masters.addBank')}
               onAction={() => openFull('bank')}
             />
           ) : (
@@ -558,8 +558,8 @@ export function MastersView({
           staff.length === 0 ? (
             <MobileEmptyState
               icon={<Wallet />}
-              title="No staff yet"
-              actionLabel="Add Staff"
+              title={t('masters.noStaffYet')}
+              actionLabel={t('masters.addStaff')}
               onAction={() => openFull('staff')}
             />
           ) : (

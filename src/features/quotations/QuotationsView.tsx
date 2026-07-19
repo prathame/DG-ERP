@@ -47,6 +47,7 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
 import { session } from '../../lib/session';
 import { generateQuotationHtml } from '../../lib/billTemplates';
+import { useTranslation } from '../../i18n';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 
 function asApiList<T>(value: unknown): T[] {
@@ -91,6 +92,7 @@ interface Quotation {
 
 export function QuotationsView() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const { confirm, ConfirmRenderer } = useConfirm();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -517,7 +519,7 @@ export function QuotationsView() {
   if (loadError)
     return (
       <div className="bg-white rounded-xl border border-rose-200 p-12 text-center">
-        <p className="text-rose-600 font-medium mb-2">Failed to load quotations</p>
+        <p className="text-rose-600 font-medium mb-2">{t('quotations.loadFailed')}</p>
         <p className="text-sm text-gray-500 mb-4">{loadError}</p>
         <button
           type="button"
@@ -527,7 +529,7 @@ export function QuotationsView() {
           }}
           className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark"
         >
-          Retry
+          {t('common.retry')}
         </button>
       </div>
     );
@@ -610,7 +612,7 @@ export function QuotationsView() {
               >
                 {offlinePdf ? (
                   <>
-                    <Download size={14} /> Download PDF
+                    <Download size={14} /> {t('common.downloadPdf')}
                   </>
                 ) : (
                   <>
@@ -758,7 +760,16 @@ export function QuotationsView() {
         <MobilePillTabs
           items={(['all', 'Draft', 'Sent', 'Accepted', 'Converted'] as const).map(s => ({
             id: s,
-            label: s === 'all' ? 'All' : s,
+            label:
+              s === 'all'
+                ? t('common.all')
+                : s === 'Draft'
+                  ? t('common.draft')
+                  : s === 'Sent'
+                    ? t('common.sent')
+                    : s === 'Accepted'
+                      ? t('common.accepted')
+                      : t('common.converted'),
           }))}
           value={statusFilter}
           onChange={id => setStatusFilter(id as typeof statusFilter)}
@@ -777,7 +788,15 @@ export function QuotationsView() {
               statusFilter === s ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
             )}
           >
-            {s === 'all' ? 'All' : s}
+            {s === 'all'
+              ? t('common.all')
+              : s === 'Draft'
+                ? t('common.draft')
+                : s === 'Sent'
+                  ? t('common.sent')
+                  : s === 'Accepted'
+                    ? t('common.accepted')
+                    : t('common.converted')}
           </button>
         ))}
       </div>
@@ -787,15 +806,16 @@ export function QuotationsView() {
           <div className="sm:hidden">
             <MobileEmptyState
               icon={<FileText />}
-              title={quotations.length === 0 ? 'No quotations yet' : 'No matching quotations'}
-              subtitle={quotations.length === 0 ? 'Create a quote, share it, and convert when accepted' : undefined}
-              actionLabel={quotations.length === 0 ? 'New Quote' : undefined}
+              title={quotations.length === 0 ? t('quotations.noQuotationsYet') : t('quotations.noMatching')}
+              actionLabel={quotations.length === 0 ? t('quotations.newQuote') : undefined}
               onAction={quotations.length === 0 ? openCreate : undefined}
             />
           </div>
           <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
             <FileText size={48} className="mx-auto mb-3 opacity-30" />
-            <p className="font-medium">{quotations.length === 0 ? 'No quotations yet' : 'No matching quotations'}</p>
+            <p className="font-medium">
+              {quotations.length === 0 ? t('quotations.noQuotationsYet') : t('quotations.noMatching')}
+            </p>
           </div>
         </>
       ) : (
