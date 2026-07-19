@@ -140,6 +140,15 @@ The `user` object's shape has grown organically over the product's life (see the
 > [!TIP]
 > Offline Mobile / Capacitor cannot use `window.open` or `window.print()`. Callers still open a sync prep overlay via `openPrintWindow()` before `await`, then `printBillInWindow` shows the bill HTML in that overlay — download/share runs only when the user taps **Download PDF** (`downloadHtmlAsPdf`). `saveBillAsPdf` still downloads immediately (intentional Save-as-PDF actions). Desktop browsers keep the classic print-window path.
 
+## 8. Phone presentation vs Offline runtime
+
+| Helper | Use for |
+|--------|---------|
+| `isServicePhoneUx(businessType)` | Shared Emergent phone IA: bottom nav, Masters pill set, dense hubs, PDF download affordances, global search → Price List |
+| `isServiceMobileMode()` | Offline-only: PGlite, Sync Now, demo seed, Show Accounts, advances, license/heartbeat |
+
+Online Service Cloud Capacitor (`businessType=service`) shares the first; it must **not** get the second. Seat lock stays on `ServiceCloudGate` either way. See [Cloud Mobile UX](./cloud-mobile.md).
+
 ## Quiz
 
 1. Why does `useConfirm` return a `Promise<boolean>` from `confirm()` instead of accepting an `onConfirm`/`onCancel` callback pair directly?

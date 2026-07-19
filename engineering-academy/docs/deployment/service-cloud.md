@@ -51,6 +51,14 @@ Offline Service Mobile uses a **different** Capacitor config (`capacitor.config.
 - Stuck “In use” → wait for 5‑minute idle or holder release (no force-takeover in v1)  
 - Guide: Super Admin → Guide → “Onboard Service Cloud Seats”
 
+## Phone UX (service Capacitor)
+
+Online Capacitor + `businessType=service` uses the same Emergent phone IA as Offline Mobile via `isServicePhoneUx()` — bottom tabs Analytics · Masters · Invoice · Quotes · More; Masters shows Prices (not Products). **Session lock / `ServiceCloudGate` is unchanged.** Sync Now, demo seed, Show Accounts, and client advances stay Offline-only.
+
+Manufacturer cloud phones keep Stock/Finance-style primaries. Browser (non-Capacitor) does not get the service phone IA from type alone.
+
+See [Cloud Mobile UX](/frontend/cloud-mobile). Unit: `tests/unit/service-phone-ux.test.ts`.
+
 ## Related
 
 - [API → Service Cloud Seats](/api/service-cloud)

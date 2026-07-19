@@ -54,6 +54,12 @@ Capacitor uses edge-to-edge WebViews. The shell CSS (`app-header-safe`, `--safe-
 
 Offline Mobile sets `html.dg-mobile-dense` (see `src/main.tsx`) for compact type, card padding, header, and bottom nav. Desktop/web builds are unchanged.
 
+## Shared phone IA with Service Cloud
+
+Bottom nav (Analytics · Masters · Invoice · Quotes · More), Masters Prices-not-Products pills, and related Emergent hubs are driven by `isServicePhoneUx()` — true here always, and also on online Service Cloud Capacitor when `businessType=service`. **Still Offline-only:** Sync Now / hard sync, demo seed, Show Accounts preference, client advances, PGlite, local backup. Online seats use a separate `ServiceCloudGate` (not this build).
+
+See [Cloud Mobile UX](/frontend/cloud-mobile) and [Service Cloud Seats](/deployment/service-cloud).
+
 ## Local ERP APIs
 
 On-device PGlite implements the same `/api/*` paths the cloud UI uses (vendors, invoices, purchases/suppliers, staff, payroll, accounts P&L, invoice-finance, analytics overview, etc.). Responses are camelCase. Login must include `businessType: service` or Finance falls back to manufacturer Vendor Finance.

@@ -42,8 +42,11 @@ Client kind from `X-DG-Client`: `electron-cloud` → desktop, `capacitor-cloud` 
 - Heartbeat/release require matching `user_id` + `machine_id`.
 - No takeover in v1 — wait for release or idle expiry.
 
+Client phone IA (`isServicePhoneUx` — Emergent bottom nav / Masters pills) is **frontend-only** and does not change these seat or session APIs. `ServiceCloudGate` still acquires/heartbeats/releases as above.
+
 ## Related
 
 - [Deployment → Service Cloud Seats](/deployment/service-cloud)
+- [Cloud Mobile UX](/frontend/cloud-mobile) (shared service phone shell)
 - [Service Mobile API](/api/service-mobile) (separate product)
 - Manual cases: `tests/cases/service-cloud.md`

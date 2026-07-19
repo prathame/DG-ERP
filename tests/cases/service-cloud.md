@@ -8,7 +8,7 @@ Online-only seats on a **service** cloud tenant. Clients: Cloud Electron + onlin
 | 2 | Set access mode | SA sets **both** | Mode saved; panel reflects selection |
 | 3 | Create user + slots | SA Add user with name/email/password, 1 mobile + 1 desktop | User created; unbound slots listed |
 | 4 | Bind desktop | Login Cloud Electron as that user | Device claims desktop slot; session acquire succeeds |
-| 5 | Second device busy | Second user/device opens app while first holds session | Freeze overlay “In use by …” — UI unresponsive |
+| 5 | Second device busy | Second user/device opens app while first holds session | Freeze overlay “In use by …” — UI unresponsive. Phone Emergent IA (`isServicePhoneUx`) does **not** bypass or change this gate |
 | 6 | No takeover | Busy client waits; does not steal | Stays frozen until holder leaves or idle 5m |
 | 7 | Holder release | Holder closes app / logout | Second client can acquire within ~15s retry |
 | 8 | Idle release | Holder leaves app open but idle >5m (or stop heartbeats) | Session expires; other client can acquire |
@@ -23,4 +23,4 @@ Online-only seats on a **service** cloud tenant. Clients: Cloud Electron + onlin
 | 17 | Set download URL | SA → Analytics → paste Service Cloud URL → Save → open `/download` | Single Download button uses that URL |
 | 18 | Default Offline Mobile APK | Clear `service_mobile_app_url` (or fresh DB) → open `/download` | Offline Mobile Download uses GitHub evergreen APK URL without SA paste |
 
-**Automated:** `tests/api/http-service-cloud.test.ts` · `tests/unit/service-cloud-mode.test.ts`
+**Automated:** `tests/api/http-service-cloud.test.ts` · `tests/unit/service-cloud-mode.test.ts` · `tests/unit/service-phone-ux.test.ts` (phone IA helper; seats APIs unchanged)
