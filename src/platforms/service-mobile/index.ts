@@ -30,6 +30,4 @@ export {
 } from './localBackup';
 export { getLocalDb } from './local/db';
 export { isLocalProvisioned, getLocalSlug, provisionLocalTenant } from './local/provision';
-export { ensureElectricianDemoSeeded, isElectricianDemoSeeded } from './local/seedElectricianDemo';
-export { ELECTRICIAN_DEMO_CLIENTS, ELECTRICIAN_DEMO_PRICE_ITEMS } from './local/electricianDemoData';
 export { handleLocalApiRequest } from './local/router';
