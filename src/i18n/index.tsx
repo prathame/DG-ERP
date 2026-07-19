@@ -1,8 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import en from './en.json';
+import { LANG_STORAGE_KEY, getStoredLang, lookup, localeFromModule, type Lang } from './lookup';
+
+export { LANG_STORAGE_KEY, getStoredLang, lookup } from './lookup';
+export type { Lang } from './lookup';
 
 type Translations = typeof en;
-type Lang = 'en' | 'hi' | 'gu' | 'mr';
 
 /** English ships in the main bundle; other locales load on demand. */
 const localeLoaders: Record<Exclude<Lang, 'en'>, () => Promise<{ default: Translations }>> = {
@@ -20,14 +23,6 @@ export const LANGUAGES: { code: Lang; label: string; nativeLabel: string }[] = [
   { code: 'mr', label: 'Marathi', nativeLabel: 'मराठी' },
 ];
 
-const LANG_KEY = 'dhandho_lang';
-
-function getStoredLang(): Lang {
-  const stored = localStorage.getItem(LANG_KEY);
-  if (stored === 'hi' || stored === 'gu' || stored === 'mr') return stored;
-  return 'en';
-}
-
 interface LangContextValue {
   lang: Lang;
   setLang: (l: Lang) => void;
@@ -39,19 +34,6 @@ const LangContext = createContext<LangContextValue>({
   setLang: () => {},
   t: key => key,
 });
-
-function lookup(dict: Translations, key: string): string {
-  const parts = key.split('.');
-  let result: unknown = dict;
-  for (const part of parts) {
-    if (result && typeof result === 'object') {
-      result = (result as Record<string, unknown>)[part];
-    } else {
-      return key;
-    }
-  }
-  return typeof result === 'string' ? result : key;
-}
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>(getStoredLang);
@@ -71,8 +53,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     localeLoaders[lang]()
       .then(mod => {
         if (cancelled) return;
-        cache[lang] = mod.default;
-        setDict(mod.default);
+        const next = localeFromModule<Translations>(mod);
+        cache[lang] = next;
+        setDict(next);
       })
       .catch(() => {
         if (!cancelled) setDict(en);
@@ -83,7 +66,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, [lang]);
 
   const setLang = useCallback((l: Lang) => {
-    localStorage.setItem(LANG_KEY, l);
+    try {
+      localStorage.setItem(LANG_STORAGE_KEY, l);
+    } catch {
+      /* ignore quota / private mode */
+    }
     setLangState(l);
   }, []);
 

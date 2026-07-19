@@ -10,10 +10,10 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 3 | Second device blocked | Activate same key on another phone | Rejected until SA Unbind |
 | 4 | Local provision | Set admin password ≥8 chars | Login works offline; only one user |
 | 5 | Offline ERP | Airplane mode → create client + invoice | Persists locally; no cloud ERP calls |
-| 5b | Local APIs | Purchases, Accounts Generate, Invoice Finance, Staff, Masters | No “not implemented” / “Failed to load”; empty lists OK before seed. After first boot/provision, electrician demo clients + Price List catalog rates may be present (`demo_electrician_seeded`) |
+| 5b | Local APIs | Purchases, Accounts Generate, Invoice Finance, Staff, Masters | No “not implemented” / “Failed to load”; empty lists OK on fresh install (no auto demo seed) |
 | 5c | businessType | After login, Finance tab | Invoice Finance (clients), not Vendor “Distributed Value” |
 | 5c2 | Invoice Finance | Create unpaid invoice → Finance | Client card shows invoiced / received / due; open → Pay records payment offline; Mark Paid also shows received |
-| 5d | Download PDF | Invoices → print/preview (or Quotes / Price List) | Overlay opens with bill preview and stays open; no auto-download. Tap **Download PDF** → file download or share/save sheet. Cancelled share leaves overlay open. **Close** dismisses. No system print dialog; no “Pop-up blocked” |
+| 5d | Download PDF | Invoices → print/preview (or Quotes / Price List) | Overlay opens with bill preview and stays open; no auto-download. Tap **Download PDF** → native share/save sheet (Filesystem). Tap **Print** → device print dialog. Cancelled share leaves overlay open. **Close** dismisses. No “Pop-up blocked” |
 | 5e | No chatbot | Any screen (sidebar / floating help) | No “May I help you?” widget; chatbot not in Offline Mobile |
 | 5f | UI density | Masters hub, Invoices, bottom nav | Smaller titles/body than desktop web; compact header + tab bar; forms not oversized |
 | 5g | Invoice create mobile | Invoices → New → Party → Items → Review | Stepper on phone; line items as cards (no sideways scroll); stacked Cancel/Draft/Send |

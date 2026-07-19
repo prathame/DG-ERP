@@ -112,6 +112,58 @@ function safePdfFilename(filename?: string): string {
   return base.toLowerCase().endsWith('.pdf') ? base : `${base}.pdf`;
 }
 
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buf = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/** Capacitor: write PDF to cache and open native share/save sheet (WebView download is a no-op). */
+async function sharePdfNative(blob: Blob, safeName: string): Promise<boolean> {
+  try {
+    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+    const { Share } = await import('@capacitor/share');
+    const base64 = await blobToBase64(blob);
+    const path = `pdfs/${safeName}`;
+    await Filesystem.writeFile({
+      path,
+      data: base64,
+      directory: Directory.Cache,
+      recursive: true,
+    });
+    const { uri } = await Filesystem.getUri({ path, directory: Directory.Cache });
+    await Share.share({
+      title: safeName,
+      url: uri,
+      dialogTitle: 'Save or share PDF',
+    });
+    return true;
+  } catch (err) {
+    const name = (err as { name?: string })?.name || '';
+    const msg = String((err as Error)?.message || err || '');
+    // User dismissed the sheet
+    if (name === 'AbortError' || /cancel|dismiss|share canceled/i.test(msg)) return true;
+    return false;
+  }
+}
+
+/** Native print dialog for HTML bills (Capacitor). */
+export async function printHtmlNative(html: string, name = 'Document'): Promise<boolean> {
+  if (!isNativeCapacitor()) return false;
+  try {
+    const { Printer } = await import('@capgo/capacitor-printer');
+    await Printer.printHtml({ name: name.replace(/\.pdf$/i, '') || 'Document', html: withPrintPagination(html) });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Render bill/quote/invoice HTML to a PDF and download (web) or share/save (Capacitor).
  */
@@ -162,19 +214,24 @@ export async function downloadHtmlAsPdf(html: string, filename?: string): Promis
     const blob = (await worker.from(host).outputPdf('blob')) as Blob;
     if (!(blob instanceof Blob) || blob.size < 100) return false;
 
-    // Capacitor / mobile: share sheet lets the user Save to Files / Drive
-    if (isNativeCapacitor() && typeof navigator.share === 'function') {
-      try {
-        const file = new File([blob], safeName, { type: 'application/pdf' });
-        const payload = { files: [file], title: safeName };
-        if (!navigator.canShare || navigator.canShare(payload)) {
-          await navigator.share(payload);
-          return true;
+    // Capacitor: Filesystem + Share (navigator.share / <a download> often fail in WebView)
+    if (isNativeCapacitor()) {
+      const shared = await sharePdfNative(blob, safeName);
+      if (shared) return true;
+      // Last resort: Web Share API with File
+      if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
+        try {
+          const file = new File([blob], safeName, { type: 'application/pdf' });
+          const payload = { files: [file], title: safeName };
+          if (!navigator.canShare || navigator.canShare(payload)) {
+            await navigator.share(payload);
+            return true;
+          }
+        } catch (err) {
+          if ((err as Error)?.name === 'AbortError') return true;
         }
-      } catch (err) {
-        // User cancelled share — still treat as handled; fall through only on hard failure
-        if ((err as Error)?.name === 'AbortError') return true;
       }
+      return false;
     }
 
     const url = URL.createObjectURL(blob);
@@ -234,6 +291,21 @@ async function triggerOverlayDownload(): Promise<boolean> {
   return ok;
 }
 
+async function triggerOverlayNativePrint(): Promise<void> {
+  const payload = readOverlayPrintHtml();
+  if (!payload) return;
+  const btn = document.querySelector(`#${PRINT_OVERLAY_ID} [data-pdf-print]`) as HTMLButtonElement | null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Printing…';
+  }
+  const ok = await printHtmlNative(payload.html, payload.name);
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = ok ? 'Print' : 'Retry print';
+  }
+}
+
 /** Cloud popup-blocked overlay: classic browser print (Save as PDF via print dialog). */
 async function triggerOverlayPrint(): Promise<void> {
   const frame = document.getElementById(PRINT_FRAME_ID) as HTMLIFrameElement | null;
@@ -278,26 +350,47 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
   title.textContent = nativePdf ? 'Preview' : 'Print / PDF';
   title.style.cssText = 'flex:1;font-weight:700;font-size:13px;text-align:center;line-height:1.2;';
 
-  const actionBtn = document.createElement('button');
-  actionBtn.type = 'button';
-  actionBtn.style.cssText =
-    'padding:8px 12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:13px;';
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;align-items:center;gap:6px;flex-shrink:0;';
+
   if (nativePdf) {
+    const printBtn = document.createElement('button');
+    printBtn.type = 'button';
+    printBtn.setAttribute('data-pdf-print', '1');
+    printBtn.textContent = 'Print';
+    printBtn.style.cssText =
+      'padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#fff;font-weight:700;font-size:13px;';
+    printBtn.onclick = () => {
+      void triggerOverlayNativePrint();
+    };
+
+    const actionBtn = document.createElement('button');
+    actionBtn.type = 'button';
     actionBtn.setAttribute('data-pdf-download', '1');
     actionBtn.textContent = 'Download PDF';
+    actionBtn.style.cssText =
+      'padding:8px 12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:13px;';
     actionBtn.onclick = () => {
       void triggerOverlayDownload();
     };
+
+    actions.appendChild(printBtn);
+    actions.appendChild(actionBtn);
   } else {
+    const actionBtn = document.createElement('button');
+    actionBtn.type = 'button';
     actionBtn.textContent = 'Print / PDF';
+    actionBtn.style.cssText =
+      'padding:8px 12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:13px;';
     actionBtn.onclick = () => {
       void triggerOverlayPrint();
     };
+    actions.appendChild(actionBtn);
   }
 
   bar.appendChild(closeBtn);
   bar.appendChild(title);
-  bar.appendChild(actionBtn);
+  bar.appendChild(actions);
 
   const iframe = document.createElement('iframe');
   iframe.id = PRINT_FRAME_ID;

@@ -1247,7 +1247,7 @@ export function SettingsView({
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
               <h3 className="font-bold text-lg flex items-center gap-2">
-                <UserPlus size={20} /> Personal Information
+                <UserPlus size={20} /> {st('settings.personalInfo')}
               </h3>
             </div>
             <form onSubmit={handleProfileSave} className="p-6 space-y-4">
@@ -1482,16 +1482,14 @@ export function SettingsView({
               {serviceMobile && (
                 <div className="flex items-start justify-between gap-3 pt-1 border-t border-gray-100">
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm">Show Accounts</p>
-                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                      When off, Accounts is hidden from More and tab navigation on this device.
-                    </p>
+                    <p className="font-semibold text-sm">{st('settings.showAccounts')}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{st('settings.showAccountsDesc')}</p>
                   </div>
                   <button
                     type="button"
                     role="switch"
                     aria-checked={accountsTabVisible}
-                    aria-label="Show Accounts"
+                    aria-label={st('settings.showAccounts')}
                     onClick={() => {
                       if (!user) return;
                       const next = !accountsTabVisible;
@@ -1772,7 +1770,7 @@ export function SettingsView({
               <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
                 <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
                   <HardDrive size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
-                  Data Management
+                  {st('settings.dataManagement')}
                 </h3>
               </div>
               <div className="p-4 sm:p-6 space-y-3">
@@ -1820,11 +1818,11 @@ export function SettingsView({
                     className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700"
                   >
                     <Download size={15} className="shrink-0" />
-                    {serviceMobile ? 'Save Backup File' : 'Download Backup Now'}
+                    {serviceMobile ? st('settings.saveBackupFile') : st('settings.downloadBackupNow')}
                   </button>
                   <label className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-amber-600 text-white hover:bg-amber-700 cursor-pointer">
                     <Upload size={15} className="shrink-0" />
-                    Restore from Backup
+                    {st('settings.restoreBackup')}
                     <input
                       type="file"
                       accept=".json"

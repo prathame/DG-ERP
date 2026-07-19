@@ -45,8 +45,6 @@ import {
   getAccountsTabVisiblePref,
 } from './platforms/service-mobile';
 import { serviceMobileOnlineStatusAdapter } from './platforms/service-mobile/serviceMobileOnlineStatusAdapter';
-import { ensureElectricianDemoSeeded } from './platforms/service-mobile/local/seedElectricianDemo';
-import { localQuery } from './platforms/service-mobile/local/db';
 import { ServiceCloudGate, isServicePhoneUx } from './platforms/service-cloud';
 
 const LandingPage = lazy(() => import('./components/layout/LandingPage').then(m => ({ default: m.LandingPage })));
@@ -254,11 +252,6 @@ export default function App() {
           else {
             const slug = await getLocalSlug();
             if (slug) session.setSlug(slug);
-            const tidRow = await localQuery<{ value: string }>(
-              `SELECT value FROM sm_meta WHERE key = 'tenant_id' LIMIT 1`,
-            );
-            const tenantId = tidRow.rows[0]?.value;
-            if (tenantId) await ensureElectricianDemoSeeded(tenantId);
             setSmBoot('ready');
             startServiceMobileHeartbeat();
           }
@@ -433,8 +426,8 @@ export default function App() {
     {
       label: '',
       items: [
-        { id: 'analytics', label: 'Analytics', icon: LayoutDashboard, show: true },
-        { id: 'masters', label: 'Masters', icon: BookUser, show: true },
+        { id: 'analytics', label: tc('analytics', t('nav.analytics')), icon: LayoutDashboard, show: true },
+        { id: 'masters', label: tc('masters', t('nav.masters')), icon: BookUser, show: true },
         { id: 'sales', label: tc('sales', t('nav.sales')), icon: ShoppingCart, show: tv('sales') },
         {
           id: 'distribution',
@@ -446,28 +439,38 @@ export default function App() {
       ],
     },
     {
-      label: 'Supply Chain',
+      label: t('navSections.supplyChain'),
       items: [
-        { id: 'purchases', label: tc('purchases', 'Purchase / Expense'), icon: ShoppingBag, show: tv('purchases') },
+        {
+          id: 'purchases',
+          label: tc('purchases', t('nav.purchaseExpense')),
+          icon: ShoppingBag,
+          show: tv('purchases'),
+        },
         {
           id: 'verification',
           label: tc('verification', t('nav.verification')),
           icon: ScanSearch,
           show: tv('verification'),
         },
-        { id: 'quotations', label: tc('quotations', 'Quotes & Orders'), icon: FileText, show: tv('quotations') },
+        {
+          id: 'quotations',
+          label: tc('quotations', t('nav.quotesOrders')),
+          icon: FileText,
+          show: tv('quotations'),
+        },
       ],
     },
     {
-      label: 'Finance & Reports',
+      label: t('navSections.financeReports'),
       items: [
-        { id: 'invoices', label: 'Invoices', icon: ReceiptIndianRupee, show: tv('invoices') },
+        { id: 'invoices', label: tc('invoices', t('nav.invoices')), icon: ReceiptIndianRupee, show: tv('invoices') },
         { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
-        { id: 'accounts', label: 'Accounts', icon: BarChart3, show: tv('accounts') },
+        { id: 'accounts', label: tc('accounts', t('nav.accounts')), icon: BarChart3, show: tv('accounts') },
       ],
     },
     {
-      label: 'After Sales',
+      label: t('navSections.afterSales'),
       items: [
         { id: 'warranty', label: tc('warranty', t('nav.warranty')), icon: ShieldCheck, show: tv('warranty') },
         {
@@ -717,13 +720,13 @@ export default function App() {
       ? ['analytics', 'distribution', 'finance', 'inventory', 'settings']
       : ['analytics', 'masters', 'inventory', 'finance', 'quotations'];
   const mobileNavLabel: Record<string, string> = {
-    analytics: 'Analytics',
-    masters: 'Masters',
-    invoices: 'Invoice',
-    quotations: 'Quotes',
-    distribution: 'Dispatch',
-    finance: 'Finance',
-    inventory: 'Stock',
+    analytics: t('nav.analytics'),
+    masters: t('nav.masters'),
+    invoices: t('nav.invoiceShort'),
+    quotations: t('nav.quotesShort'),
+    distribution: t('nav.dispatch'),
+    finance: t('nav.finance'),
+    inventory: t('nav.stock'),
   };
   const mobileNavItems = mobileNavIds
     .map(id => visibleNavItems.find(n => n.id === id))
@@ -889,9 +892,7 @@ export default function App() {
               )}
               {isSidebarOpen && (
                 <div className="px-3 pt-2 pb-1 text-center">
-                  <p className="text-[10px] text-gray-400">
-                    Powered by <span className="text-gray-500 font-semibold">Dhandho</span>
-                  </p>
+                  <p className="text-[10px] text-gray-400">{t('common.poweredBy')}</p>
                 </div>
               )}
             </div>
@@ -1028,7 +1029,7 @@ export default function App() {
                               className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                             >
                               <Settings size={15} className="text-gray-400" />
-                              Settings
+                              {t('nav.settings')}
                             </button>
                           )}
                         </div>
@@ -1168,7 +1169,7 @@ export default function App() {
                     (mobileMoreActive || isSidebarOpen) && 'font-bold',
                   )}
                 >
-                  More
+                  {t('nav.more')}
                 </span>
               </button>
             </div>
@@ -1179,7 +1180,7 @@ export default function App() {
             <CommandPalette
               items={[
                 ...visibleNavItems.map(i => ({ id: i.id, label: i.label, icon: i.icon })),
-                ...(canAccess('settings') ? [{ id: 'settings', label: 'Settings', icon: Settings }] : []),
+                ...(canAccess('settings') ? [{ id: 'settings', label: t('nav.settings'), icon: Settings }] : []),
               ]}
               onSelect={id => setActiveTab(id as Tab)}
               onNavigateEntity={navigateFromGlobalSearch}

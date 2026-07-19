@@ -16,7 +16,14 @@
     "settings": "સેટિંગ્સ",
     "analytics": "એનાલિટિક્સ",
     "masters": "માસ્ટર્સ",
-    "invoices": "ઇન્વૉઇસ"
+    "invoices": "ઇન્વૉઇસ",
+    "purchaseExpense": "ખરીદી / ખર્ચ",
+    "quotesOrders": "ક્વોટ્સ અને ઓર્ડર",
+    "more": "વધુ",
+    "invoiceShort": "ઇન્વૉઇસ",
+    "quotesShort": "ક્વોટ્સ",
+    "dispatch": "ડિસ્પેચ",
+    "stock": "સ્ટોક"
   },
   "common": {
     "save": "સેવ કરો",
@@ -63,7 +70,29 @@
     "refresh": "રિફ્રેશ",
     "view": "જુઓ",
     "details": "વિગતો",
-    "poweredBy": "Dhandho દ્વારા સંચાલિત"
+    "poweredBy": "Dhandho દ્વારા સંચાલિત",
+    "downloadPdf": "PDF ડાઉનલોડ",
+    "viewAll": "બધું જુઓ",
+    "syncNow": "હમણાં સિંક કરો",
+    "syncing": "સિંક થઈ રહ્યું છે...",
+    "onlineSynced": "ઓનલાઇન · સિંક",
+    "offline": "ઑફલાઇન",
+    "lastSync": "છેલ્લું સિંક",
+    "from": "થી",
+    "to": "સુધી",
+    "today": "આજે",
+    "yesterday": "ગઈકાલે",
+    "thisWeek": "આ અઠવાડિયે",
+    "thisMonth": "આ મહિને",
+    "overall": "કુલ",
+    "custom": "કસ્ટમ",
+    "draft": "ડ્રાફ્ટ",
+    "sent": "મોકલ્યું",
+    "paid": "ચૂકવેલ",
+    "accepted": "સ્વીકૃત",
+    "converted": "કન્વર્ટેડ",
+    "retry": "ફરી પ્રયાસ",
+    "credit": "ક્રેડિટ"
   },
   "dashboard": {
     "title": "ડેશબોર્ડ",
@@ -77,7 +106,31 @@
     "itemsSold": "વેચાયેલી વસ્તુઓ",
     "salesChart": "વેચાણ ચાર્ટ",
     "topProducts": "ટોચના ઉત્પાદનો",
-    "topVendors": "ટોચના વિક્રેતાઓ"
+    "topVendors": "ટોચના વિક્રેતાઓ",
+    "subtitle": "વ્યવસાય ઝલક અને પ્રવૃત્તિ",
+    "moneyOverview": "પૈસાની ઝલક",
+    "dispatched": "ડિસ્પેચ",
+    "expenses": "ખર્ચ",
+    "netIn": "નેટ ઇન",
+    "outstanding": "બાકી",
+    "collected": "એકત્રિત",
+    "recentActivity": "તાજેતરની પ્રવૃત્તિ",
+    "noOutstanding": "કોઈ બાકી નથી",
+    "noActivity": "કોઈ તાજેતરની પ્રવૃત્તિ નથી",
+    "staffPayroll": "સ્ટાફ પેરોલ",
+    "manageStaff": "સ્ટાફ મેનેજ કરો",
+    "totalPaid": "કુલ ચૂકવણી",
+    "staff": "સ્ટાફ",
+    "advances": "એડવાન્સ",
+    "topStaffByPayment": "ચૂકવણી મુજબ ટોપ સ્ટાફ",
+    "payments": "ચૂકવણીઓ",
+    "masterSummary": "માસ્ટર સારાંશ",
+    "products": "પ્રોડક્ટ્સ",
+    "sale": "વેચાણ",
+    "invoice": "ઇન્વૉઇસ",
+    "payment": "ચૂકવણી",
+    "dispatch": "ડિસ્પેચ",
+    "expense": "ખર્ચ"
   },
   "sales": {
     "title": "વેચાણ એન્ટ્રી",
@@ -177,7 +230,25 @@
     "contactPerson": "સંપર્ક વ્યક્તિ",
     "accountNumber": "ખાતા નંબર",
     "ifscCode": "IFSC કોડ",
-    "bankName": "બેંકનું નામ"
+    "bankName": "બેંકનું નામ",
+    "clients": "ક્લાયન્ટ્સ",
+    "staff": "સ્ટાફ",
+    "products": "પ્રોડક્ટ્સ",
+    "prices": "કિંમતો",
+    "mapping": "મેપિંગ",
+    "addStaff": "સ્ટાફ ઉમેરો",
+    "openProducts": "પ્રોડક્ટ્સ ખોલો",
+    "customer": "ગ્રાહક",
+    "product": "પ્રોડક્ટ",
+    "bank": "બેંક",
+    "clientsRates": "ક્લાયન્ટ્સ અને રેટ્સ",
+    "catalogPartners": "કેટલોગ અને પાર્ટનર્સ",
+    "noClientsYet": "હજુ કોઈ ક્લાયન્ટ નથી",
+    "noCustomersYet": "હજુ કોઈ ગ્રાહક નથી",
+    "noProductsYet": "હજુ કોઈ પ્રોડક્ટ નથી",
+    "noBanksYet": "હજુ કોઈ બેંક નથી",
+    "noStaffYet": "હજુ કોઈ સ્ટાફ નથી",
+    "addFirstPartner": "શરૂ કરવા માટે તમારો પહેલો પાર્ટનર ઉમેરો"
   },
   "settings": {
     "title": "સેટિંગ્સ",
@@ -228,7 +299,13 @@
     "userManagement": "વપરાશકર્તા મેનેજમેન્ટ",
     "addUser": "વપરાશકર્તા ઉમેરો",
     "role": "ભૂમિકા",
-    "permissions": "પરવાનગીઓ"
+    "permissions": "પરવાનગીઓ",
+    "downloadBackupNow": "હમણાં બેકઅપ ડાઉનલોડ કરો",
+    "saveBackupFile": "બેકઅપ ફાઇલ સેવ કરો",
+    "restoreBackup": "બેકઅપથી રિસ્ટોર કરો",
+    "showAccounts": "એકાઉન્ટ્સ બતાવો",
+    "showAccountsDesc": "બંધ હોય ત્યારે, આ ડિવાઇસ પર More અને ટેબ નેવિગેશનમાંથી એકાઉન્ટ્સ છુપાય છે.",
+    "fullName": "પૂરું નામ"
   },
   "auth": {
     "loginTitle": "લૉગિન",
@@ -239,5 +316,29 @@
     "passwordsDoNotMatch": "પાસવર્ડ મેળ ખાતા નથી",
     "authFailed": "પ્રમાણીકરણ નિષ્ફળ",
     "enterpriseResourcePlanning": "એન્ટરપ્રાઈઝ રિસોર્સ પ્લાનિંગ"
+  },
+  "navSections": {
+    "supplyChain": "સપ્લાય ચેન",
+    "financeReports": "ફાઇનાન્સ અને રિપોર્ટ્સ",
+    "afterSales": "આફ્ટર સેલ્સ"
+  },
+  "invoices": {
+    "title": "ઇન્વૉઇસ",
+    "newInvoice": "નવું ઇન્વૉઇસ",
+    "noInvoicesYet": "હજુ કોઈ ઇન્વૉઇસ નથી",
+    "noMatching": "કોઈ મેળ ખાતું ઇન્વૉઇસ નથી",
+    "emptySubtitle": "સેવાઓ અથવા કસ્ટમ બિલિંગ માટે તમારું પહેલું ઇન્વૉઇસ બનાવો",
+    "outstanding": "બાકી",
+    "collected": "એકત્રિત",
+    "printPdf": "પ્રિન્ટ/PDF"
+  },
+  "quotations": {
+    "title": "ક્વોટેશન્સ",
+    "newQuote": "નવું ક્વોટ",
+    "noQuotationsYet": "હજુ કોઈ ક્વોટેશન નથી",
+    "noMatching": "કોઈ મેળ ખાતું ક્વોટેશન નથી",
+    "loadFailed": "ક્વોટેશન લોડ થયું નહીં",
+    "client": "ક્લાયન્ટ",
+    "vendor": "વિક્રેતા"
   }
 }
