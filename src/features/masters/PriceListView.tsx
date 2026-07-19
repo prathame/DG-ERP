@@ -16,7 +16,7 @@ import { useToast, LoadingSpinner, MobilePillTabs } from '../../components/ui';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
-import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 
 type PriceTab = 'generic' | 'vendor';
 /** Offline: create sellable item from Price List (no separate Masters Catalog pill). */
@@ -67,7 +67,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   const cfg = useBusinessConfig();
   const partyLabel = cfg.labels.vendors; // Vendors | Customers | Clients
   const isService = cfg.type === 'service';
-  const serviceMobile = isServiceMobileMode();
+  const serviceMobile = isServicePhoneUx(cfg.type);
   const [tab, setTab] = useState<PriceTab>(isService ? 'generic' : 'vendor');
   const [rules, setRules] = useState<PriceRule[]>([]);
   const [products, setProducts] = useState<Product[]>([]);

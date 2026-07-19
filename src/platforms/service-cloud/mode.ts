@@ -20,6 +20,7 @@ export function isServiceCloudDesktop(): boolean {
 /** Online Capacitor (not the offline Service Mobile build). */
 export function isServiceCloudMobile(): boolean {
   if (isServiceMobileMode()) return false;
+  if (typeof window === 'undefined') return false;
   const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
   return Boolean(cap?.isNativePlatform?.());
 }
@@ -40,4 +41,15 @@ export function serviceCloudClientHeader(): string | null {
   if (isServiceCloudDesktop()) return 'electron-cloud';
   if (isServiceCloudMobile()) return 'capacitor-cloud';
   return null;
+}
+
+/**
+ * Shared service phone presentation (Emergent shell, Price List as catalog, etc.).
+ * True for Offline Mobile OR online Service Cloud Capacitor with businessType=service.
+ * Never use for PGlite / Sync / license / demo seed — those stay Offline-only.
+ */
+export function isServicePhoneUx(businessType?: string | null): boolean {
+  if (isServiceMobileMode()) return true;
+  if (businessType !== 'service') return false;
+  return isServiceCloudMobile();
 }

@@ -19,9 +19,9 @@ Phone usability for the **cloud** tenant app + Super Admin (320–430px). Deskto
 | 13 | Invoice stepper | Create Invoice on phone | Party → Items → Review; item cards; no horizontal modal scroll; footer actions stack |
 | 14 | Purchase/Quote editors | New Purchase / New Quotation on phone | Line item cards; sticky modal footer; desktop table at ≥640px |
 | 15 | Toast safe area | Trigger success/error toast on notched phone | Toast below status bar; does not cover header title |
-| 16 | Bottom nav IA | Phone tab bar | Analytics · Masters · Invoice · Quotes · More |
-| 17 | Shell hubs | Analytics / Masters / Invoices / Quotes on phone | Dense pills, KPIs, FAB where applicable; desktop ≥640px unchanged |
-| 18 | More shortcuts | Open More drawer | Stock / Finance / Accounts shortcuts; full nav below |
-| 19 | Header global search | Tap header Search icon; type client/product name | Modal lists pages + entity results; tap result navigates (no verify) |
+| 16 | Bottom nav IA | Service Cloud Capacitor (`businessType=service`) phone tab bar | Analytics · Masters · Invoice · Quotes · More (same Emergent IA as Offline Mobile via `isServicePhoneUx`). Manufacturer cloud phone may keep Stock/Finance primaries. Session lock / “In use” unchanged |
+| 17 | Shell hubs | Analytics / Masters / Invoices / Quotes on service phone | Dense pills, KPIs, FAB where applicable; Masters shows Prices (not Products); desktop ≥640px unchanged |
+| 18 | More shortcuts | Open More drawer | Stock / Finance / Accounts shortcuts; full nav below. No Sync Now on cloud (Offline-only) |
+| 19 | Header global search | Tap header Search icon; type client/product name | Modal lists pages + entity results; product hits open Price List on service phone UX; tap navigates (no verify) |
 
 **Automated (related):** `tests/unit/useEscapeKey.test.ts` (Escape contract). UI layout is CSS/manual — not under Vitest coverage gates (`server/utils` / `server/services`).
