@@ -31,6 +31,8 @@ on:
       - '.env.service-mobile.example'
       - '.env.service-cloud.example'
       - 'scripts/cap-sync-cloud.sh'
+      - 'scripts/ci-build-android.sh'
+      - 'scripts/android-set-product.sh'
       - 'src/platforms/service-mobile/**'
       - 'src/platforms/service-cloud/**'
       - 'src/App.tsx'
@@ -100,9 +102,13 @@ jobs:
 
             const OFFLINE_PATH = [
               /^android\//,
+              /^ios\//,
               /^capacitor\.config\.ts$/,
               /^\.env\.service-mobile/,
               /^src\/platforms\/service-mobile\//,
+              /^scripts\/ci-build-(android|ios)\.sh$/,
+              /^scripts\/ci-setup-android-sdk\.sh$/,
+              /^scripts\/android-set-product\.sh$/,
             ];
             const ONLINE_PATH = [
               /^capacitor\.cloud\.config\.ts$/,
@@ -373,35 +379,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Service Mobile env
+      - name: Build Offline Mobile debug APK
         env:
-          VITE_API_ORIGIN_SECRET: ${{ secrets.VITE_API_ORIGIN }}
+          VITE_API_ORIGIN: ${{ secrets.VITE_API_ORIGIN }}
         run: |
-          cp .env.service-mobile.example .env.service-mobile
-          if [ -n "$VITE_API_ORIGIN_SECRET" ]; then
-            printf 'VITE_API_ORIGIN=%s\n' "$VITE_API_ORIGIN_SECRET" > .env.service-mobile.origin
-            grep -v '^VITE_API_ORIGIN=' .env.service-mobile >> .env.service-mobile.origin || true
-            mv .env.service-mobile.origin .env.service-mobile
-            grep -q '^VITE_DEPLOYMENT_MODE=' .env.service-mobile || echo 'VITE_DEPLOYMENT_MODE=service-mobile' >> .env.service-mobile
-          fi
-          echo "VITE_APP_VERSION=ci-${GITHUB_RUN_NUMBER}" >> .env.service-mobile
-          echo "Env keys:"; cut -d= -f1 .env.service-mobile
-
-      - name: Build web + Capacitor sync
-        run: |
-          npm run build:service-mobile
-          npx cap sync android
-
-      - name: Assemble debug APK
-        working-directory: android
-        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
-
-      - name: Stage APK
-        run: |
-          mkdir -p dist-apk
-          SRC=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
-          cp "$SRC" dist-apk/offline-mobile-service-debug.apk
-          ls -lh dist-apk/
+          chmod +x scripts/ci-build-android.sh scripts/android-set-product.sh
+          bash scripts/ci-build-android.sh
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4

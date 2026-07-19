@@ -165,6 +165,18 @@ This is **stricter** than `security.yml`'s critical-only gate — `production-ch
 | `build.yml` | PR + push to main | Yes | No (build verification only, no upload) |
 | `release.yml` | Tag `v*` only | N/A (not a merge gate) | Yes — GitHub Release + DMGs |
 
+## GitLab CI — Offline Mobile Android + iOS (`.gitlab-ci.yml`)
+
+Same shape as GitHub `apk-build.yml` for Offline: debug artifacts, MR labels / path filters, evergreen publish.
+
+| Job | Runner | Output |
+|-----|--------|--------|
+| `android:offline-mobile` | Linux | `offline-mobile-service-debug.apk` |
+| `ios:offline-mobile` | macOS + Xcode (`macos` tag) | `offline-mobile-service-debug.app.zip` |
+| `publish:evergreen` | Linux | GitLab generic package `offline-mobile/latest/` |
+
+Service Cloud **Online** APK stays on GitHub only. Details: [Service Mobile](/deployment/service-mobile).
+
 ## Related pages
 
 - [Testing Overview](/testing/overview)
@@ -172,3 +184,4 @@ This is **stricter** than `security.yml`'s critical-only gate — `production-ch
 - [E2E Testing](/testing/e2e)
 - [Runbooks → Deploy Rollback](/runbooks/deploy-rollback)
 - [File Walkthrough: infra/ci](/files/infra/ci)
+- [Service Mobile](/deployment/service-mobile)

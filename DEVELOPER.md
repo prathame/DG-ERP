@@ -252,6 +252,7 @@ Manual test cases in `tests/cases/` — one markdown file per feature area.
 | `npm run lint` | TypeScript type check (no emit) |
 | `npm test` | Vitest unit tests |
 | `npm run cap:android` / `cap:ios` | Sync + open native IDE |
+| `npm run ci:android` / `ci:ios` | Offline debug builds (same as GitLab CI) |
 | `npm run electron:cloud:dev` | Cloud Electron (dev) |
 | `npm run electron:onprem:dev` | On-prem Electron (dev, needs server running) |
 | `npm run build:electron:cloud:win` | Cloud .exe |
