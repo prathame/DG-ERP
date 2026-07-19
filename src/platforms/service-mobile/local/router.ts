@@ -1856,6 +1856,14 @@ export async function handleLocalApiRequest(
       return json(200, { ok: true });
     }
     const invMatch = ctx.path.match(/^\/invoices\/([^/]+)$/);
+    if (invMatch && ctx.method === 'GET') {
+      const invId = invMatch[1]!;
+      const { rows } = await localQuery(`SELECT * FROM standalone_invoices WHERE id=$1 AND tenant_id=$2`, [invId, tid]);
+      if (!rows[0]) return json(404, { error: 'Invoice not found' });
+      const mapped = mapInvoice(rows[0] as Record<string, unknown>);
+      const payInfo = await paymentTotalsForInvoice(tid!, invId);
+      return json(200, { ...mapped, ...payInfo });
+    }
     if (invMatch && ctx.method === 'DELETE') {
       const invId = invMatch[1]!;
       const { rows: payCount } = await localQuery(

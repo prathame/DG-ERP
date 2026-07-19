@@ -8,6 +8,43 @@ import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
 
 const router = Router();
 
+function mapStandaloneInvoice(r: Record<string, unknown>) {
+  let items = r.items;
+  if (typeof items === 'string') {
+    try {
+      items = JSON.parse(items);
+    } catch {
+      items = [];
+    }
+  }
+  return {
+    id: r.id,
+    invoiceNumber: r.invoice_number,
+    customerName: r.customer_name,
+    customerGstin: r.customer_gstin,
+    customerAddress: r.customer_address,
+    customerPhone: r.customer_phone,
+    partyType: (r.party_type as string) || null,
+    partyId: (r.party_id as string) || null,
+    items,
+    subtotal: Number(r.subtotal),
+    taxTotal: Number(r.tax_total),
+    taxCgst: Number(r.tax_cgst) || 0,
+    taxSgst: Number(r.tax_sgst) || 0,
+    taxIgst: Number(r.tax_igst) || 0,
+    isInterstate: !!r.is_interstate,
+    // Frozen at create — null legacy rows fall back to tax_total > 0
+    gstEnabled: r.gst_enabled == null ? Number(r.tax_total) > 0 : !!r.gst_enabled,
+    grandTotal: Number(r.grand_total),
+    notes: r.notes,
+    terms: r.terms,
+    status: r.status,
+    invoiceDate: r.invoice_date,
+    dueDate: r.due_date,
+    createdAt: r.created_at,
+  };
+}
+
 // List invoices
 router.get('/api/invoices', async (req: AuthRequest, res) => {
   try {
@@ -30,34 +67,7 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
     res.setHeader('X-Total-Count', String(total));
     res.setHeader('X-Page', String(page));
     res.setHeader('X-Limit', String(limit));
-    res.json(
-      rows.map((r: Record<string, unknown>) => ({
-        id: r.id,
-        invoiceNumber: r.invoice_number,
-        customerName: r.customer_name,
-        customerGstin: r.customer_gstin,
-        customerAddress: r.customer_address,
-        customerPhone: r.customer_phone,
-        partyType: (r.party_type as string) || null,
-        partyId: (r.party_id as string) || null,
-        items: r.items,
-        subtotal: Number(r.subtotal),
-        taxTotal: Number(r.tax_total),
-        taxCgst: Number(r.tax_cgst) || 0,
-        taxSgst: Number(r.tax_sgst) || 0,
-        taxIgst: Number(r.tax_igst) || 0,
-        isInterstate: !!r.is_interstate,
-        // Frozen at create — null legacy rows fall back to tax_total > 0
-        gstEnabled: r.gst_enabled == null ? Number(r.tax_total) > 0 : !!r.gst_enabled,
-        grandTotal: Number(r.grand_total),
-        notes: r.notes,
-        terms: r.terms,
-        status: r.status,
-        invoiceDate: r.invoice_date,
-        dueDate: r.due_date,
-        createdAt: r.created_at,
-      })),
-    );
+    res.json(rows.map((r: Record<string, unknown>) => mapStandaloneInvoice(r)));
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -79,6 +89,22 @@ router.get('/api/invoices/next-number', async (req: AuthRequest, res) => {
         ? `${now.getFullYear()}-${(now.getFullYear() + 1).toString().slice(2)}`
         : `${now.getFullYear() - 1}-${now.getFullYear().toString().slice(2)}`;
     res.json({ number: `INV/${fy}/${String(count).padStart(4, '0')}` });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+// Single invoice (print/PDF from vendor hub / finance) — after /next-number
+router.get('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const { rows } = await pool.query('SELECT * FROM standalone_invoices WHERE id = $1 AND tenant_id = $2', [
+      req.params.id,
+      tenantId,
+    ]);
+    if (!rows[0]) return res.status(404).json({ error: 'Invoice not found' });
+    res.json(mapStandaloneInvoice(rows[0] as Record<string, unknown>));
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -276,7 +302,11 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
       id,
       `${invoiceNumber} — ${customerName} — ₹${grandTotal}`,
     );
-    res.status(201).json({ id, invoiceNumber, grandTotal });
+    const { rows: created } = await pool.query('SELECT * FROM standalone_invoices WHERE id = $1 AND tenant_id = $2', [
+      id,
+      tenantId,
+    ]);
+    res.status(201).json(mapStandaloneInvoice(created[0] as Record<string, unknown>));
   } catch (err) {
     return handleApiError(req, res, err);
   }

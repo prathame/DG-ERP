@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Trash2, FileText, IndianRupee, Clock, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText, IndianRupee, Clock, Search, Printer } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useToast, LoadingSpinner, isBillFullyPaid, PaidBadge, PaidStamp } from '../../components/ui';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
+import { printStandaloneInvoiceById } from '../../lib/printStandaloneInvoice';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 
 type Summary = Awaited<ReturnType<typeof api.invoiceFinance.summary>>[number];
@@ -92,6 +93,14 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     setDetail(null);
     setCreateOpen(false);
     setCreatePrefill(null);
+  };
+
+  const printInvoicePdf = async (invoiceId: string) => {
+    try {
+      await printStandaloneInvoiceById(invoiceId, { businessType: cfg.type });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Print failed', 'error');
+    }
   };
 
   const openNewInvoice = () => {
@@ -366,6 +375,14 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                               </span>
                             )
                           )}
+                          <button
+                            type="button"
+                            onClick={() => void printInvoicePdf(inv.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50"
+                            title="Print invoice"
+                          >
+                            <Printer size={12} /> Print
+                          </button>
                           {!isReadOnly && !paid && inv.balance > 0 && (
                             <button
                               type="button"

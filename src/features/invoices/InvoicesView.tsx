@@ -1,17 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Trash2, Download, Send, Check, X, Printer } from 'lucide-react';
-import {
-  cn,
-  formatDate,
-  exportToCsv,
-  useTabLabel,
-  fetchImageAsDataUrl,
-  openPrintWindow,
-  printBillInWindow,
-  closePrintOverlay,
-  PRINT_POPUP_BLOCKED,
-} from '../../lib/utils';
+import { Plus, FileText, Trash2, Send, Check, X, Printer } from 'lucide-react';
+import { cn, formatDate, exportToCsv, useTabLabel } from '../../lib/utils';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { fetchApi } from '../../api';
@@ -36,7 +26,7 @@ import {
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
-import { session } from '../../lib/session';
+import { printStandaloneInvoice } from '../../lib/printStandaloneInvoice';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
@@ -49,14 +39,6 @@ function asApiList<T>(value: unknown): T[] {
     return (value as { data: T[] }).data;
   }
   return [];
-}
-
-function esc(t: unknown): string {
-  return String(t ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 type Invoice = {
@@ -235,221 +217,9 @@ export function InvoicesView() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'sent' | 'paid' | 'cancelled'>('all');
 
   const printInvoice = async (inv: Invoice) => {
-    // Open sync with the click — await before window.open gets blocked (Electron / pop-up blockers).
-    // On Capacitor this opens an in-app preview (window.open is not available).
-    const w = openPrintWindow('Preparing invoice…');
-    if (!w) {
-      toast(PRINT_POPUP_BLOCKED, 'error');
-      return;
-    }
     try {
-      if (!Array.isArray(inv.items)) {
-        throw new Error('Invoice has no line items to print');
-      }
-      const user = (session.getUser() || {}) as {
-        companyName?: string;
-        address?: string;
-        phone?: string;
-        email?: string;
-        gstNumber?: string;
-      };
-      const bs = billSettings;
-      const color = /^#[0-9a-fA-F]{3,8}$/.test(String(bs.primaryColor || '')) ? String(bs.primaryColor) : '#F27D26';
-      const logoSrc = typeof bs.logoBase64 === 'string' && bs.logoBase64.startsWith('data:image/') ? bs.logoBase64 : '';
-      const sigSrc =
-        typeof bs.signatureBase64 === 'string' && bs.signatureBase64.startsWith('data:image/')
-          ? bs.signatureBase64
-          : '';
-      const logoHtml = logoSrc
-        ? `<img src="${logoSrc}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
-        : `<div style="width:48px;height:48px;background:${color};border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:20px;">${esc((user.companyName || 'C').substring(0, 1))}</div>`;
-      const tagline = esc((bs.tagline as string) || '');
-      const invPrefix = esc((bs.invoicePrefix as string) || '');
-      const footerText = esc((bs.footerText as string) || 'Powered by Dhandho');
-      const hasBankDetails = bs.bankAccountName || bs.bankAccountNumber || bs.bankName;
-      const upiQrDataUrl = bs.bankUpiId
-        ? await fetchImageAsDataUrl(
-            `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`,
-          )
-        : '';
-      const upiQrHtml = upiQrDataUrl
-        ? `<div style="text-align:center;"><img src="${upiQrDataUrl}" style="width:120px;height:120px;" /><p style="font-size:10px;color:#6b7280;margin-top:4px;">Scan to pay via UPI</p></div>`
-        : '';
-      const bankHtml =
-        hasBankDetails || upiQrHtml
-          ? `<div style="margin-top:16px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">${hasBankDetails ? `<div style="flex:1;"><strong style="font-size:12px;">Bank Details</strong><table style="width:100%;margin-top:6px;font-size:11px;">${bs.bankAccountName ? `<tr><td style="color:#6b7280;width:100px;">Account Name</td><td>${esc(bs.bankAccountName)}</td></tr>` : ''}${bs.bankAccountNumber ? `<tr><td style="color:#6b7280;">Account No.</td><td style="font-family:monospace;">${esc(bs.bankAccountNumber)}</td></tr>` : ''}${bs.bankName ? `<tr><td style="color:#6b7280;">Bank</td><td>${esc(bs.bankName)}${bs.bankBranch ? `, ${esc(bs.bankBranch)}` : ''}</td></tr>` : ''}${bs.bankIfsc ? `<tr><td style="color:#6b7280;">IFSC</td><td style="font-family:monospace;">${esc(bs.bankIfsc)}</td></tr>` : ''}</table></div>` : ''}${upiQrHtml}</div></div>`
-          : '';
-      const sigHtml =
-        bs.signatoryName || sigSrc
-          ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;"><div style="text-align:center;">${sigSrc ? `<img src="${sigSrc}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}<p style="font-size:11px;border-top:1px solid #999;padding-top:4px;">${esc(bs.signatoryName || '')}${bs.signatoryDesignation ? `<br/><span style="font-size:10px;color:#666;">${esc(bs.signatoryDesignation)}</span>` : ''}</p></div></div>`
-          : '';
-      // Prefer Bill Customization settings; per-invoice terms only when settings empty (cloud).
-      const termsText = (bs.termsAndConditions as string) || inv.terms || '';
-      const termsHtml = termsText
-        ? `<div style="margin-top:16px;font-size:10px;color:#666;"><strong>Terms & Conditions:</strong><br/>${esc(termsText)}</div>`
-        : '';
-
-      // Preserve this invoice’s GST mode — do not re-read live bill settings
-      const hasGst = invoiceHasGst(inv);
-      const useIgst = inv.isInterstate === true || (typeof inv.taxIgst === 'number' && inv.taxIgst > 0);
-      const taxCgst = typeof inv.taxCgst === 'number' ? inv.taxCgst : Math.round(inv.taxTotal / 2);
-      const taxSgst = typeof inv.taxSgst === 'number' ? inv.taxSgst : Math.round((inv.taxTotal - taxCgst) * 100) / 100;
-      const taxIgst = typeof inv.taxIgst === 'number' ? inv.taxIgst : inv.taxTotal;
-      const showDiscCol = inv.items.some(it => (it.discountPercent || 0) > 0);
-      // HSN is clubbed into GST — only on GST invoices
-      const showHsn = hasGst;
-      // Base cols without HSN: Sr, Desc, Qty, Rate, Amount (+ Disc + GST% + Tax when applicable)
-      const itemColspan = (hasGst ? 7 : 5) + (showDiscCol ? 1 : 0) + (showHsn ? 1 : 0);
-      const placeOfSupply = (() => {
-        const code = String(inv.customerGstin || user.gstNumber || '24')
-          .trim()
-          .toUpperCase()
-          .slice(0, 2);
-        const STATES: Record<string, string> = {
-          '24': 'Gujarat',
-          '27': 'Maharashtra',
-          '07': 'Delhi',
-          '29': 'Karnataka',
-          '33': 'Tamil Nadu',
-          '09': 'Uttar Pradesh',
-          '06': 'Haryana',
-          '03': 'Punjab',
-          '08': 'Rajasthan',
-          '23': 'Madhya Pradesh',
-          '19': 'West Bengal',
-          '36': 'Telangana',
-          '37': 'Andhra Pradesh',
-          '32': 'Kerala',
-        };
-        return `${STATES[code] || 'Gujarat'} (${code || '24'})`;
-      })();
-      const statusLine =
-        inv.status === 'paid'
-          ? '<span style="font-weight:700;">PAID</span>'
-          : (inv.outstanding || 0) > 0.001
-            ? `<span style="font-weight:700;">Outstanding: ₹${Number(inv.outstanding).toLocaleString('en-IN')}</span>`
-            : '';
-      // Print-safe layout: title at top, full A4 width, no gray/zebra fills (they band on toner printers).
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${invPrefix}${esc(inv.invoiceNumber)}</title>
-    <style>
-      *{margin:0;padding:0;box-sizing:border-box;}
-      html,body{width:100%;background:#fff;color:#111;}
-      body{font-family:Arial,Helvetica,sans-serif;padding:8mm;margin:0;font-size:11px;}
-      .doc{width:100%;max-width:none;}
-      .doc-title{text-align:center;font-size:18px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;margin:0 0 12px;color:#111;}
-      .seller{display:flex;align-items:flex-start;gap:12px;margin-bottom:8px;}
-      .seller-name{font-size:16px;font-weight:800;color:${color};}
-      .muted{font-size:10px;color:#444;margin-top:2px;}
-      .gstin{font-family:monospace;font-weight:700;font-size:12px;}
-      .tagline{border:1px solid ${color};color:${color};text-align:center;padding:4px 8px;font-size:11px;font-weight:600;margin:8px 0;}
-      .meta{display:flex;justify-content:space-between;gap:16px;padding:8px 0;margin:8px 0;border-top:1.5px solid #222;border-bottom:1.5px solid #222;}
-      .bill-to{margin:10px 0 12px;}
-      .bill-to .label{font-size:10px;font-weight:700;text-transform:uppercase;color:#444;}
-      table{border-collapse:collapse;width:100%;}
-      .items th{background:none;border-top:1.5px solid #222;border-bottom:1.5px solid #222;font-size:10px;text-transform:uppercase;padding:7px 5px;text-align:center;font-weight:700;}
-      .items td{padding:6px 5px;text-align:center;border-bottom:1px solid #ccc;background:none;}
-      .items tbody tr,.items tbody tr:nth-child(even),.items tbody tr:nth-child(odd){background:transparent!important;}
-      .items tbody tr{break-inside:avoid;page-break-inside:avoid;}
-      .items .left{text-align:left;}.items .right{text-align:right;}
-      .items .total-row td{font-weight:700;background:none!important;border-top:1.5px solid #222;border-bottom:none;}
-      .grand-total{font-size:14px;font-weight:800;color:#111;}
-      .notes{margin-top:12px;padding:8px;border:1px solid #999;font-size:11px;}
-      .footer-text{font-size:9px;color:#666;text-align:center;margin-top:16px;}
-      @media print{
-        body{padding:0;}
-        @page{margin:8mm;size:A4;}
-        thead{display:table-header-group;}
-        *{-webkit-print-color-adjust:economy;print-color-adjust:economy;}
-      }
-    </style></head><body>
-    <div class="doc">
-      <div class="doc-title">${hasGst ? 'Tax Invoice' : 'Invoice'}</div>
-      <div class="seller avoid-break">
-        ${logoHtml}
-        <div>
-          <div class="seller-name">${esc(user.companyName || 'Dhandho')}</div>
-          ${user.address ? `<div class="muted">${esc(user.address)}</div>` : ''}
-          ${user.phone ? `<div class="muted">Phone: ${esc(user.phone)}${user.email ? ` &nbsp;|&nbsp; Email: ${esc(user.email)}` : ''}</div>` : user.email ? `<div class="muted">Email: ${esc(user.email)}</div>` : ''}
-          ${user.gstNumber ? `<div class="muted gstin">GSTIN: ${esc(user.gstNumber)}</div>` : ''}
-        </div>
-      </div>
-      ${tagline ? `<div class="tagline">${tagline}</div>` : ''}
-      <div class="meta avoid-break">
-        <div>
-          <div>Invoice No: <strong>${invPrefix}${esc(inv.invoiceNumber)}</strong></div>
-          <div class="muted">Date: ${formatDate(inv.invoiceDate)}</div>
-          ${inv.dueDate ? `<div class="muted">Due: ${formatDate(inv.dueDate)}</div>` : ''}
-        </div>
-        <div style="text-align:right;">${statusLine}</div>
-      </div>
-      <div class="bill-to avoid-break">
-        <div class="label">Bill To:</div>
-        <strong>${esc(inv.customerName)}</strong>
-        ${inv.customerGstin ? `<div class="muted gstin">GSTIN: ${esc(inv.customerGstin)}</div>` : ''}
-        ${inv.customerAddress ? `<div class="muted">${esc(inv.customerAddress)}</div>` : ''}
-        ${inv.customerPhone ? `<div class="muted">Ph: ${esc(inv.customerPhone)}</div>` : ''}
-        ${hasGst ? `<div class="muted">Place of Supply: ${esc(placeOfSupply)}</div>` : ''}
-      </div>
-      <table class="items">
-        <thead>
-          <tr><th style="width:30px;">#</th><th class="left">Item Name</th>${showHsn ? '<th>HSN/SAC</th>' : ''}<th>Qty</th><th class="right">Price/Unit</th>${showDiscCol ? '<th class="right">Disc%</th>' : ''}${hasGst ? '<th class="right">GST</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr>
-        </thead>
-        <tbody>
-          ${inv.items
-            .map((it, i) => {
-              const disc = it.discountPercent || 0;
-              return `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td>${showHsn ? `<td>${esc(it.hsnSac || '—')}</td>` : ''}<td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString('en-IN')}</td>${showDiscCol ? `<td class="right">${disc > 0 ? `${disc}%` : '—'}</td>` : ''}${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString('en-IN')}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString('en-IN')}</td></tr>`;
-            })
-            .join('')}
-        </tbody>
-      </table>
-      <div class="print-end avoid-break">
-      <table class="items" style="margin-top:0;border-top:none;">
-        <tbody>
-          <tr class="total-row"><td colspan="${itemColspan - 1}" class="right">Sub Total</td><td class="right">₹${inv.subtotal.toLocaleString('en-IN')}</td></tr>
-          ${
-            hasGst
-              ? useIgst
-                ? `<tr><td colspan="${itemColspan - 1}" class="right">IGST</td><td class="right">₹${Number(taxIgst).toLocaleString('en-IN')}</td></tr>`
-                : `<tr><td colspan="${itemColspan - 1}" class="right">CGST</td><td class="right">₹${Number(taxCgst).toLocaleString('en-IN')}</td></tr>
-          <tr><td colspan="${itemColspan - 1}" class="right">SGST</td><td class="right">₹${Number(taxSgst).toLocaleString('en-IN')}</td></tr>`
-              : ''
-          }
-          <tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><span class="grand-total">Total</span></td><td class="right"><span class="grand-total">₹${inv.grandTotal.toLocaleString('en-IN')}</span></td></tr>
-          ${
-            (inv.advanceApplied || 0) > 0.001
-              ? `<tr><td colspan="${itemColspan - 1}" class="right">Advance payment</td><td class="right">−₹${Number(inv.advanceApplied).toLocaleString('en-IN')}</td></tr>`
-              : ''
-          }
-          ${
-            (inv.paidAmount || 0) > (inv.advanceApplied || 0) + 0.001
-              ? `<tr><td colspan="${itemColspan - 1}" class="right">Received</td><td class="right">−₹${(Number(inv.paidAmount) - Number(inv.advanceApplied || 0)).toLocaleString('en-IN')}</td></tr>`
-              : ''
-          }
-          ${
-            (inv.outstanding || 0) > 0.001
-              ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><strong>Balance</strong></td><td class="right"><strong>₹${Number(inv.outstanding).toLocaleString('en-IN')}</strong></td></tr>`
-              : inv.status === 'paid' || (inv.paidAmount || 0) >= inv.grandTotal - 0.001
-                ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><strong>Balance</strong></td><td class="right"><strong>₹0</strong></td></tr>`
-                : ''
-          }
-        </tbody>
-      </table>
-      ${!servicePhoneUx && inv.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(inv.notes)}</div>` : ''}
-      ${bankHtml}${termsHtml}${sigHtml}
-      <p class="footer-text">${footerText}</p>
-      </div>
-    </div>
-    </body></html>`;
-      printBillInWindow(w, html, `${hasGst ? 'Tax-Invoice' : 'Invoice'}-${inv.invoiceNumber}`);
+      await printStandaloneInvoice(inv, { billSettings, businessType: cfg.type });
     } catch (err) {
-      try {
-        w.close();
-      } catch {
-        /* ignore */
-      }
-      // Capacitor uses an in-app overlay; window.close() does not remove it.
-      closePrintOverlay();
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
     }
   };
@@ -596,10 +366,10 @@ export function InvoicesView() {
                       type="button"
                       onClick={() => printInvoice(inv)}
                       className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
-                      title={servicePhoneUx ? t('common.downloadPdf') : t('invoices.printPdf')}
-                      aria-label={servicePhoneUx ? t('common.downloadPdf') : t('common.print')}
+                      title={t('invoices.printPdf')}
+                      aria-label={t('common.print')}
                     >
-                      {servicePhoneUx ? <Download size={14} /> : <Printer size={14} />}
+                      <Printer size={14} />
                     </button>
                     {inv.status === 'draft' && (
                       <button
@@ -672,10 +442,10 @@ export function InvoicesView() {
                           type="button"
                           onClick={() => printInvoice(inv)}
                           className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
-                          title={servicePhoneUx ? 'Download PDF' : 'Print/PDF'}
-                          aria-label={servicePhoneUx ? 'Download invoice PDF' : 'Print invoice'}
+                          title="Print"
+                          aria-label="Print invoice"
                         >
-                          {servicePhoneUx ? <Download size={15} /> : <Printer size={15} />}
+                          <Printer size={15} />
                         </button>
                         {inv.status === 'draft' && (
                           <button
@@ -810,15 +580,7 @@ export function InvoicesView() {
                   onClick={() => printInvoice(selectedInvoice)}
                   className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold flex items-center justify-center gap-2"
                 >
-                  {servicePhoneUx ? (
-                    <>
-                      <Download size={16} /> Download PDF
-                    </>
-                  ) : (
-                    <>
-                      <Printer size={16} /> Print / PDF
-                    </>
-                  )}
+                  <Printer size={16} /> Print
                 </button>
                 <button
                   type="button"
@@ -916,6 +678,7 @@ export function CreateInvoiceModal({
   const servicePhoneUx = isServicePhoneUx(cfg.type);
   const vendorPartyKind = isService ? 'Client' : 'Vendor';
   const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [createdInvoice, setCreatedInvoice] = useState<Invoice | null>(null);
   const [form, setForm] = useState({
     customerName: initialParty?.customerName || '',
     customerGstin: initialParty?.customerGstin || '',
@@ -1148,6 +911,11 @@ export function CreateInvoiceModal({
     { subtotal: 0, tax: 0, grand: 0 },
   );
 
+  const finishCreated = () => {
+    setCreatedInvoice(null);
+    onCreated();
+  };
+
   const handleSubmit = async (status: 'draft' | 'sent') => {
     if (!form.customerName.trim()) {
       toast('Customer name is required', 'error');
@@ -1164,7 +932,7 @@ export function CreateInvoiceModal({
     try {
       const selected = parties.find(p => p.key === partyKey);
       // Offline: Notes / T&C / bank / payment terms come from Bill Customization settings, not the form.
-      await fetchApi('/invoices', {
+      const created = await fetchApi<Invoice>('/invoices', {
         method: 'POST',
         body: JSON.stringify({
           ...form,
@@ -1186,12 +954,26 @@ export function CreateInvoiceModal({
           partyId: selected?.partyId || null,
         }),
       });
-      toast(`Invoice ${invoiceNumber} created`, 'success');
-      onCreated();
+      toast(`Invoice ${created?.invoiceNumber || invoiceNumber} created`, 'success');
+      // Stay open so vendor/client create can Print immediately
+      if (created?.items && Array.isArray(created.items)) {
+        setCreatedInvoice(created);
+      } else {
+        onCreated();
+      }
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const printCreated = async () => {
+    if (!createdInvoice) return;
+    try {
+      await printStandaloneInvoice(createdInvoice, { businessType: cfg.type });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Print failed', 'error');
     }
   };
 
@@ -1401,7 +1183,16 @@ export function CreateInvoiceModal({
     </div>
   );
 
-  const footer = (
+  const footer = createdInvoice ? (
+    <ModalActions>
+      <ModalActionButton variant="ghost" onClick={finishCreated}>
+        Done
+      </ModalActionButton>
+      <ModalActionButton variant="primary" onClick={() => void printCreated()}>
+        <Printer size={14} className="inline mr-1" /> Print
+      </ModalActionButton>
+    </ModalActions>
+  ) : (
     <>
       {/* Phone stepper actions */}
       <div className="sm:hidden">
@@ -1450,330 +1241,354 @@ export function CreateInvoiceModal({
 
   return (
     <AppModal
-      title={t('invoices.newInvoice')}
-      subtitle={<span className="font-mono">{invoiceNumber}</span>}
-      onClose={onClose}
+      title={createdInvoice ? 'Invoice created' : t('invoices.newInvoice')}
+      subtitle={<span className="font-mono">{createdInvoice?.invoiceNumber || invoiceNumber}</span>}
+      onClose={createdInvoice ? finishCreated : onClose}
       footer={footer}
       size="lg"
     >
       <div className="space-y-4">
-        <MobileStepper
-          className="sm:hidden"
-          steps={INVOICE_STEPS}
-          current={step}
-          onStepClick={i => {
-            if (i <= step) setStep(i);
-          }}
-        />
-
-        {/* Step 0 — Party */}
-        <div className={cn(step !== 0 && 'hidden', 'sm:block space-y-4')}>
-          <FormSection title="Customer" description="Type a name — pick a match or leave as custom">
-            <FormGrid>
-              <FormField label="Customer Name" required className="sm:col-span-2">
-                <SearchSelect
-                  allowCustom
-                  value={partyKey}
-                  onChange={selectParty}
-                  inputValue={form.customerName}
-                  onInputChange={text => setForm(f => ({ ...f, customerName: text }))}
-                  placeholder={isService ? 'Type client name…' : 'Type customer or vendor name…'}
-                  emptyHint={
-                    parties.length === 0
-                      ? `No ${isService ? 'clients' : 'parties'} yet — type a name, or add in Masters`
-                      : undefined
-                  }
-                  customLabel={isService ? 'client' : 'customer'}
-                  options={parties.map(p => ({
-                    value: p.key,
-                    label: p.name,
-                    sublabel: p.phone || undefined,
-                  }))}
-                  className="w-full [&_input]:min-h-11 [&_input]:rounded-xl [&_input]:px-3 [&_input]:sm:px-4 [&_button]:min-h-11 [&_button]:rounded-xl"
-                />
-              </FormField>
-              <FormField label="GSTIN">
-                <input
-                  value={form.customerGstin}
-                  onChange={e => setForm({ ...form, customerGstin: e.target.value.toUpperCase() })}
-                  maxLength={15}
-                  className={cn(formControlClass, 'font-mono')}
-                  placeholder="Optional"
-                />
-              </FormField>
-              <FormField label="Address" className="sm:col-span-2">
-                <input
-                  value={form.customerAddress}
-                  onChange={e => setForm({ ...form, customerAddress: e.target.value })}
-                  className={formControlClass}
-                  placeholder="Street, City, State"
-                />
-              </FormField>
-              <FormField label="Phone">
-                <input
-                  type="tel"
-                  value={form.customerPhone}
-                  onChange={e => setForm({ ...form, customerPhone: e.target.value })}
-                  className={formControlClass}
-                  placeholder="Optional"
-                />
-              </FormField>
-              <FormField label="Invoice Date" required>
-                <input
-                  type="date"
-                  value={form.invoiceDate}
-                  onChange={e => setForm({ ...form, invoiceDate: e.target.value })}
-                  className={formControlClass}
-                  required
-                />
-              </FormField>
-              <FormField label="Due Date" hint="Optional — leave blank if not needed">
-                <input
-                  type="date"
-                  value={form.dueDate}
-                  onChange={e => setForm({ ...form, dueDate: e.target.value })}
-                  className={formControlClass}
-                />
-              </FormField>
-            </FormGrid>
-          </FormSection>
-        </div>
-
-        {/* Step 1 — Items */}
-        <div className={cn(step !== 1 && 'hidden', 'sm:block space-y-3')}>
-          <FormSection
-            title="Line Items"
-            description={
-              servicePhoneUx
-                ? 'Pick from Price List (Catalog / Clients rates), or type a custom line'
-                : 'Pick from Masters / Price List, or choose Custom'
-            }
-          >
-            {/* Mobile cards */}
-            <div className="sm:hidden space-y-3">
-              {rows.map((row, idx) => {
-                const taxable = lineTaxable(row.qty, row.rate, row.discountPercent);
-                const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
-                return (
-                  <div key={idx}>
-                    <LineItemCard
-                      index={idx}
-                      title={row.description || `Item ${idx + 1}`}
-                      amountLabel={taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString()}` : undefined}
-                      canRemove={rows.length > 1}
-                      onRemove={() => setRows(rows.filter((_, i) => i !== idx))}
-                      fields={renderLineItemFields(row, idx)}
+        {createdInvoice ? (
+          <div className="text-center py-8 space-y-3">
+            <div className="mx-auto w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+              <Check size={24} />
+            </div>
+            <p className="font-bold text-lg">Invoice {createdInvoice.invoiceNumber} is ready</p>
+            <p className="text-sm text-gray-500">
+              {createdInvoice.customerName} · ₹{Number(createdInvoice.grandTotal || 0).toLocaleString('en-IN')}
+            </p>
+            <p className="text-xs text-gray-400">
+              Print the bill now (Save as PDF from the print dialog), or tap Done.
+            </p>
+          </div>
+        ) : null}
+        {!createdInvoice && (
+          <MobileStepper
+            className="sm:hidden"
+            steps={INVOICE_STEPS}
+            current={step}
+            onStepClick={i => {
+              if (i <= step) setStep(i);
+            }}
+          />
+        )}
+        {!createdInvoice && (
+          <>
+            {/* Step 0 — Party */}
+            <div className={cn(step !== 0 && 'hidden', 'sm:block space-y-4')}>
+              <FormSection title="Customer" description="Type a name — pick a match or leave as custom">
+                <FormGrid>
+                  <FormField label="Customer Name" required className="sm:col-span-2">
+                    <SearchSelect
+                      allowCustom
+                      value={partyKey}
+                      onChange={selectParty}
+                      inputValue={form.customerName}
+                      onInputChange={text => setForm(f => ({ ...f, customerName: text }))}
+                      placeholder={isService ? 'Type client name…' : 'Type customer or vendor name…'}
+                      emptyHint={
+                        parties.length === 0
+                          ? `No ${isService ? 'clients' : 'parties'} yet — type a name, or add in Masters`
+                          : undefined
+                      }
+                      customLabel={isService ? 'client' : 'customer'}
+                      options={parties.map(p => ({
+                        value: p.key,
+                        label: p.name,
+                        sublabel: p.phone || undefined,
+                      }))}
+                      className="w-full [&_input]:min-h-11 [&_input]:rounded-xl [&_input]:px-3 [&_input]:sm:px-4 [&_button]:min-h-11 [&_button]:rounded-xl"
                     />
-                  </div>
-                );
-              })}
+                  </FormField>
+                  <FormField label="GSTIN">
+                    <input
+                      value={form.customerGstin}
+                      onChange={e => setForm({ ...form, customerGstin: e.target.value.toUpperCase() })}
+                      maxLength={15}
+                      className={cn(formControlClass, 'font-mono')}
+                      placeholder="Optional"
+                    />
+                  </FormField>
+                  <FormField label="Address" className="sm:col-span-2">
+                    <input
+                      value={form.customerAddress}
+                      onChange={e => setForm({ ...form, customerAddress: e.target.value })}
+                      className={formControlClass}
+                      placeholder="Street, City, State"
+                    />
+                  </FormField>
+                  <FormField label="Phone">
+                    <input
+                      type="tel"
+                      value={form.customerPhone}
+                      onChange={e => setForm({ ...form, customerPhone: e.target.value })}
+                      className={formControlClass}
+                      placeholder="Optional"
+                    />
+                  </FormField>
+                  <FormField label="Invoice Date" required>
+                    <input
+                      type="date"
+                      value={form.invoiceDate}
+                      onChange={e => setForm({ ...form, invoiceDate: e.target.value })}
+                      className={formControlClass}
+                      required
+                    />
+                  </FormField>
+                  <FormField label="Due Date" hint="Optional — leave blank if not needed">
+                    <input
+                      type="date"
+                      value={form.dueDate}
+                      onChange={e => setForm({ ...form, dueDate: e.target.value })}
+                      className={formControlClass}
+                    />
+                  </FormField>
+                </FormGrid>
+              </FormSection>
             </div>
 
-            {/* Desktop table */}
-            <div className="hidden sm:block border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
-              <table className="w-full text-sm min-w-[720px]">
-                <thead className="bg-gray-50">
-                  <tr className="text-xs font-bold text-gray-400 uppercase">
-                    <th className="px-3 py-2 text-left min-w-[200px]">Item</th>
-                    {gstBilling && <th className="px-3 py-2 w-24">HSN/SAC</th>}
-                    <th className="px-3 py-2 w-16">Qty</th>
-                    <th className="px-3 py-2 w-24">Rate</th>
-                    <th className="px-3 py-2 w-16">Disc%</th>
-                    {gstBilling && <th className="px-3 py-2 w-16">GST%</th>}
-                    <th className="px-3 py-2 w-24 text-right">Total</th>
-                    <th className="px-3 py-2 w-8"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
+            {/* Step 1 — Items */}
+            <div className={cn(step !== 1 && 'hidden', 'sm:block space-y-3')}>
+              <FormSection
+                title="Line Items"
+                description={
+                  servicePhoneUx
+                    ? 'Pick from Price List (Catalog / Clients rates), or type a custom line'
+                    : 'Pick from Masters / Price List, or choose Custom'
+                }
+              >
+                {/* Mobile cards */}
+                <div className="sm:hidden space-y-3">
                   {rows.map((row, idx) => {
                     const taxable = lineTaxable(row.qty, row.rate, row.discountPercent);
                     const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
-                    const catalogPrice =
-                      row.productId && products.find(p => p.id === row.productId)
-                        ? resolveCatalogPrice(
-                            products.find(p => p.id === row.productId)!,
-                            priceRules,
-                            pricingVendorId,
-                            row.qty || 1,
-                          )
-                        : null;
                     return (
-                      <tr key={idx}>
-                        <td className="px-3 py-2 space-y-1.5">
-                          <select
-                            value={row.productId}
-                            onChange={e => applyCatalogItem(idx, e.target.value)}
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
-                          >
-                            <option value="">Custom item</option>
-                            {productSelectOptions(row.qty || 1)}
-                          </select>
-                          <input
-                            value={row.description}
-                            onChange={e =>
-                              setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))
-                            }
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
-                            placeholder={row.productId ? 'Description (editable)' : 'Type custom service or item'}
-                          />
-                          {catalogPrice != null && row.rate !== catalogPrice && (
-                            <p className="text-[10px] text-amber-600">
-                              Rate edited from price list ₹{catalogPrice.toLocaleString()}
-                            </p>
-                          )}
-                        </td>
-                        {gstBilling && (
-                          <td className="px-3 py-2">
-                            <input
-                              value={row.hsnSac}
-                              onChange={e => {
-                                const v = e.target.value;
-                                const hint = suggestHsnRate(v);
-                                setRows(
-                                  rows.map((r, i) =>
-                                    i === idx
-                                      ? {
-                                          ...r,
-                                          hsnSac: v,
-                                          ...(hint && r.gstPercent === 18 ? { gstPercent: hint.rate } : {}),
-                                        }
-                                      : r,
-                                  ),
-                                );
-                              }}
-                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono"
-                              placeholder="9983"
-                            />
-                          </td>
-                        )}
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={1}
-                            value={row.qty || ''}
-                            onChange={e => updateRowQty(idx, parseInt(e.target.value) || 0)}
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={0}
-                            value={row.rate || ''}
-                            onChange={e =>
-                              setRows(
-                                rows.map((r, i) => (i === idx ? { ...r, rate: parseFloat(e.target.value) || 0 } : r)),
-                              )
-                            }
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={row.discountPercent || ''}
-                            onChange={e =>
-                              setRows(
-                                rows.map((r, i) =>
-                                  i === idx
-                                    ? {
-                                        ...r,
-                                        discountPercent: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)),
-                                      }
-                                    : r,
-                                ),
-                              )
-                            }
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
-                            placeholder="0"
-                          />
-                        </td>
-                        {gstBilling && (
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min={0}
-                              max={28}
-                              value={row.gstPercent}
-                              onChange={e =>
-                                setRows(
-                                  rows.map((r, i) =>
-                                    i === idx ? { ...r, gstPercent: parseInt(e.target.value) || 0 } : r,
-                                  ),
-                                )
-                              }
-                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
-                            />
-                          </td>
-                        )}
-                        <td className="px-3 py-2 text-right text-sm font-medium">
-                          {taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString()}` : '—'}
-                        </td>
-                        <td className="px-3 py-2">
-                          {rows.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => setRows(rows.filter((_, i) => i !== idx))}
-                              className="text-rose-400 hover:text-rose-600 min-h-9 min-w-9"
-                              aria-label="Remove line"
-                            >
-                              ×
-                            </button>
-                          )}
-                        </td>
-                      </tr>
+                      <div key={idx}>
+                        <LineItemCard
+                          index={idx}
+                          title={row.description || `Item ${idx + 1}`}
+                          amountLabel={taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString()}` : undefined}
+                          canRemove={rows.length > 1}
+                          onRemove={() => setRows(rows.filter((_, i) => i !== idx))}
+                          fields={renderLineItemFields(row, idx)}
+                        />
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden sm:block border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full text-sm min-w-[720px]">
+                    <thead className="bg-gray-50">
+                      <tr className="text-xs font-bold text-gray-400 uppercase">
+                        <th className="px-3 py-2 text-left min-w-[200px]">Item</th>
+                        {gstBilling && <th className="px-3 py-2 w-24">HSN/SAC</th>}
+                        <th className="px-3 py-2 w-16">Qty</th>
+                        <th className="px-3 py-2 w-24">Rate</th>
+                        <th className="px-3 py-2 w-16">Disc%</th>
+                        {gstBilling && <th className="px-3 py-2 w-16">GST%</th>}
+                        <th className="px-3 py-2 w-24 text-right">Total</th>
+                        <th className="px-3 py-2 w-8"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {rows.map((row, idx) => {
+                        const taxable = lineTaxable(row.qty, row.rate, row.discountPercent);
+                        const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
+                        const catalogPrice =
+                          row.productId && products.find(p => p.id === row.productId)
+                            ? resolveCatalogPrice(
+                                products.find(p => p.id === row.productId)!,
+                                priceRules,
+                                pricingVendorId,
+                                row.qty || 1,
+                              )
+                            : null;
+                        return (
+                          <tr key={idx}>
+                            <td className="px-3 py-2 space-y-1.5">
+                              <select
+                                value={row.productId}
+                                onChange={e => applyCatalogItem(idx, e.target.value)}
+                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                              >
+                                <option value="">Custom item</option>
+                                {productSelectOptions(row.qty || 1)}
+                              </select>
+                              <input
+                                value={row.description}
+                                onChange={e =>
+                                  setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))
+                                }
+                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
+                                placeholder={row.productId ? 'Description (editable)' : 'Type custom service or item'}
+                              />
+                              {catalogPrice != null && row.rate !== catalogPrice && (
+                                <p className="text-[10px] text-amber-600">
+                                  Rate edited from price list ₹{catalogPrice.toLocaleString()}
+                                </p>
+                              )}
+                            </td>
+                            {gstBilling && (
+                              <td className="px-3 py-2">
+                                <input
+                                  value={row.hsnSac}
+                                  onChange={e => {
+                                    const v = e.target.value;
+                                    const hint = suggestHsnRate(v);
+                                    setRows(
+                                      rows.map((r, i) =>
+                                        i === idx
+                                          ? {
+                                              ...r,
+                                              hsnSac: v,
+                                              ...(hint && r.gstPercent === 18 ? { gstPercent: hint.rate } : {}),
+                                            }
+                                          : r,
+                                      ),
+                                    );
+                                  }}
+                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono"
+                                  placeholder="9983"
+                                />
+                              </td>
+                            )}
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                min={1}
+                                value={row.qty || ''}
+                                onChange={e => updateRowQty(idx, parseInt(e.target.value) || 0)}
+                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                min={0}
+                                value={row.rate || ''}
+                                onChange={e =>
+                                  setRows(
+                                    rows.map((r, i) =>
+                                      i === idx ? { ...r, rate: parseFloat(e.target.value) || 0 } : r,
+                                    ),
+                                  )
+                                }
+                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={row.discountPercent || ''}
+                                onChange={e =>
+                                  setRows(
+                                    rows.map((r, i) =>
+                                      i === idx
+                                        ? {
+                                            ...r,
+                                            discountPercent: Math.min(
+                                              100,
+                                              Math.max(0, parseFloat(e.target.value) || 0),
+                                            ),
+                                          }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                                placeholder="0"
+                              />
+                            </td>
+                            {gstBilling && (
+                              <td className="px-3 py-2">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={28}
+                                  value={row.gstPercent}
+                                  onChange={e =>
+                                    setRows(
+                                      rows.map((r, i) =>
+                                        i === idx ? { ...r, gstPercent: parseInt(e.target.value) || 0 } : r,
+                                      ),
+                                    )
+                                  }
+                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                                />
+                              </td>
+                            )}
+                            <td className="px-3 py-2 text-right text-sm font-medium">
+                              {taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString()}` : '—'}
+                            </td>
+                            <td className="px-3 py-2">
+                              {rows.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setRows(rows.filter((_, i) => i !== idx))}
+                                  className="text-rose-400 hover:text-rose-600 min-h-9 min-w-9"
+                                  aria-label="Remove line"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setRows([...rows, emptyRow(gstBilling)])}
+                  className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
+                >
+                  + Add Line
+                </button>
+                <div className={cn(step !== 1 && 'max-sm:hidden')}>{totalsBar}</div>
+              </FormSection>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setRows([...rows, emptyRow(gstBilling)])}
-              className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
-            >
-              + Add Line
-            </button>
-            <div className={cn(step !== 1 && 'max-sm:hidden')}>{totalsBar}</div>
-          </FormSection>
-        </div>
-
-        {/* Step 2 — Review */}
-        <div className={cn(step !== 2 && 'hidden', 'sm:block space-y-4')}>
-          <div className="sm:hidden space-y-2 text-sm">
-            <p className="font-medium text-gray-800">{form.customerName || '—'}</p>
-            <p className="text-xs text-gray-500">
-              {rows.filter(r => r.description.trim()).length} item(s) · Invoice date {form.invoiceDate || '—'}
-            </p>
-          </div>
-          {totalsBar}
-          {/* Offline: Notes / payment terms / bank / T&C are set in Settings → Bill Customization */}
-          {!servicePhoneUx && (
-            <FormGrid>
-              <FormField label="Notes">
-                <textarea
-                  value={form.notes}
-                  onChange={e => setForm({ ...form, notes: e.target.value })}
-                  rows={3}
-                  className={cn(formControlClass, 'min-h-[5rem]')}
-                  placeholder="Payment terms, bank details..."
-                />
-              </FormField>
-              <FormField label="Terms & Conditions">
-                <textarea
-                  value={form.terms}
-                  onChange={e => setForm({ ...form, terms: e.target.value })}
-                  rows={3}
-                  className={cn(formControlClass, 'min-h-[5rem]')}
-                  placeholder="E&OE, goods once sold..."
-                />
-              </FormField>
-            </FormGrid>
-          )}
-        </div>
+            {/* Step 2 — Review */}
+            <div className={cn(step !== 2 && 'hidden', 'sm:block space-y-4')}>
+              <div className="sm:hidden space-y-2 text-sm">
+                <p className="font-medium text-gray-800">{form.customerName || '—'}</p>
+                <p className="text-xs text-gray-500">
+                  {rows.filter(r => r.description.trim()).length} item(s) · Invoice date {form.invoiceDate || '—'}
+                </p>
+              </div>
+              {totalsBar}
+              {/* Offline: Notes / payment terms / bank / T&C are set in Settings → Bill Customization */}
+              {!servicePhoneUx && (
+                <FormGrid>
+                  <FormField label="Notes">
+                    <textarea
+                      value={form.notes}
+                      onChange={e => setForm({ ...form, notes: e.target.value })}
+                      rows={3}
+                      className={cn(formControlClass, 'min-h-[5rem]')}
+                      placeholder="Payment terms, bank details..."
+                    />
+                  </FormField>
+                  <FormField label="Terms & Conditions">
+                    <textarea
+                      value={form.terms}
+                      onChange={e => setForm({ ...form, terms: e.target.value })}
+                      rows={3}
+                      className={cn(formControlClass, 'min-h-[5rem]')}
+                      placeholder="E&OE, goods once sold..."
+                    />
+                  </FormField>
+                </FormGrid>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </AppModal>
   );
