@@ -50,7 +50,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 10 | Cloud backup API | POST `/api/service-mobile/backup` | 410 Gone |
 | 11 | Sideload / TestFlight | Install evergreen debug APK (Android) or GitLab `ios:offline-mobile` debug `.app.zip` / IPA | App opens; onboarding works |
 | 11c | Safe areas / no overlap | Open setup + main app on notched phone | Status bar and bottom nav do not cover title, buttons, or form fields |
-| 11b | Public download link | Open `/download` → Offline Mobile Download | Hits evergreen GitHub APK (`…/releases/download/offline-mobile/offline-mobile-service-debug.apk`) unless SA overrode URL |
-| 12 | Download page | Open `/download` | **Service Mobile OFFLINE** card present; distinct from Service Cloud ONLINE |
+| 11b | Public download link | Open `/download` → Offline Mobile | Android APK + iOS `.app.zip` evergreen GitHub URLs under `offline-mobile` (unless SA overrode) |
+| 12 | Download page | Open `/download` | **Service Mobile OFFLINE** card has Android + iOS buttons; distinct from Service Cloud ONLINE |
 
 **Automated:** `tests/api/http-service-mobile.test.ts` (license lifecycle; cloud backup disabled) · `tests/api/http-cors-capacitor.test.ts` (Capacitor origins) · `tests/unit/service-phone-ux.test.ts` (shared phone UX helper) · `tests/unit/global-search-nav.test.ts` (search → Price List) · `tests/unit/service-mobile-ios-spm.test.ts` (iOS SPM plugins match Cap). Masters pill filter stays manual (#5l / #5l2) — logic inline in `MastersView`.

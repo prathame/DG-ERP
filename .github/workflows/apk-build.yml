@@ -1,9 +1,10 @@
-# Mobile debug APKs — Offline Service Mobile + Online Service Cloud (separate)
+# Mobile debug builds — Offline Service Mobile + Online Service Cloud
+# Each product run builds Android APK + iOS simulator .app.zip (2 triggers → 4 assets).
 #
 # Labels (merge → evergreen; label on open PR → preview):
-#   offline | offline-mobile | service-mobile  → Offline APK only
-#   online  | service-cloud                    → Online APK only
-#   mobile  | apk | apk-build                 → both (legacy)
+#   offline | offline-mobile | service-mobile  → Offline APK + iOS
+#   online  | service-cloud                    → Online APK + iOS
+#   mobile  | apk | apk-build                 → both products (legacy)
 #
 # Path push to main: builds only the product(s) whose paths changed
 #   (shared UI / package.json / this workflow → both).
@@ -11,9 +12,9 @@
 # Comment preview (does NOT overwrite evergreen):
 #   apk build | apk build offline | apk build online | apk build both
 #
-# Evergreen releases:
-#   offline-mobile / offline-mobile-service-debug.apk
-#   service-cloud  / service-cloud-online-debug.apk
+# Evergreen releases (same tags, four assets):
+#   offline-mobile / offline-mobile-service-debug.apk + .app.zip
+#   service-cloud  / service-cloud-online-debug.apk + .app.zip
 name: APK Build
 
 on:
@@ -24,6 +25,7 @@ on:
     branches: [main]
     paths:
       - 'android/**'
+      - 'ios/**'
       - 'capacitor.config.ts'
       - 'capacitor.cloud.config.ts'
       - 'package.json'
@@ -32,7 +34,10 @@ on:
       - '.env.service-cloud.example'
       - 'scripts/cap-sync-cloud.sh'
       - 'scripts/ci-build-android.sh'
+      - 'scripts/ci-build-ios.sh'
+      - 'scripts/ci-upload-evergreen-asset.sh'
       - 'scripts/android-set-product.sh'
+      - 'scripts/ios-set-product.sh'
       - 'src/platforms/service-mobile/**'
       - 'src/platforms/service-cloud/**'
       - 'src/App.tsx'
@@ -91,7 +96,7 @@ jobs:
       push_release: ${{ steps.check.outputs.push_release }}
       trigger: ${{ steps.check.outputs.trigger }}
     steps:
-      - name: Decide which APK(s) to build
+      - name: Decide which product(s) to build (APK + iOS each)
         id: check
         uses: actions/github-script@v7
         with:
@@ -108,12 +113,15 @@ jobs:
               /^src\/platforms\/service-mobile\//,
               /^scripts\/ci-build-(android|ios)\.sh$/,
               /^scripts\/ci-setup-android-sdk\.sh$/,
+              /^scripts\/ci-upload-evergreen-asset\.sh$/,
               /^scripts\/android-set-product\.sh$/,
+              /^scripts\/ios-set-product\.sh$/,
             ];
             const ONLINE_PATH = [
               /^capacitor\.cloud\.config\.ts$/,
               /^\.env\.service-cloud/,
               /^scripts\/cap-sync-cloud\.sh$/,
+              /^scripts\/ios-set-product\.sh$/,
               /^src\/platforms\/service-cloud\//,
             ];
             const SHARED_PATH = [
@@ -399,21 +407,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG=offline-mobile
-          FILE=dist-apk/offline-mobile-service-debug.apk
-          NAME=$(basename "$FILE")
-          gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --title "Offline Mobile (evergreen APK)" --notes "Sideload testing APK — published when an \`offline\`/\`mobile\`-labeled PR merges (or Offline paths change on main)."
-          # --clobber races when merge+push both upload; delete then upload with retry
-          for i in 1 2 3 4; do
-            gh release delete-asset "$TAG" "$NAME" --yes 2>/dev/null || true
-            if gh release upload "$TAG" "$FILE"; then
-              exit 0
-            fi
-            sleep $((i * 2))
-          done
-          echo "Failed to upload $NAME to $TAG after retries" >&2
-          exit 1
+          chmod +x scripts/ci-upload-evergreen-asset.sh
+          bash scripts/ci-upload-evergreen-asset.sh offline-mobile \
+            dist-apk/offline-mobile-service-debug.apk \
+            "Offline Mobile (evergreen)" \
+            "Offline Android APK + iOS .app.zip. Published when an \`offline\`/\`mobile\`-labeled PR merges (or Offline paths change on main)."
 
       - name: Comment on PR
         if: needs.gate.outputs.pr_number != ''
@@ -446,6 +444,89 @@ jobs:
                   ? `| Evergreen | [${evergreen}](${evergreen}) |`
                   : `| Evergreen | not updated — add label \`offline\` (or \`mobile\`) and merge to publish |`,
                 `| Product | **Offline** Service Mobile (\`in.dhandho.service\`) — not Service Cloud |`,
+              ].join('\n'),
+            });
+
+  build-offline-ios:
+    name: Build Offline Mobile iOS
+    needs: gate
+    if: needs.gate.outputs.build_offline == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Offline Mobile debug iOS
+        env:
+          VITE_API_ORIGIN: ${{ secrets.VITE_API_ORIGIN }}
+          MOBILE_PRODUCT: offline
+          IOS_BUILD_MODE: debug
+        run: |
+          chmod +x scripts/ci-build-ios.sh scripts/ios-set-product.sh
+          bash scripts/ci-build-ios.sh
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-mobile-service-debug-ios
+          path: dist-apk/offline-mobile-service-debug.app.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Push evergreen release asset
+        if: needs.gate.outputs.push_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x scripts/ci-upload-evergreen-asset.sh
+          bash scripts/ci-upload-evergreen-asset.sh offline-mobile \
+            dist-apk/offline-mobile-service-debug.app.zip \
+            "Offline Mobile (evergreen)" \
+            "Offline Android APK + iOS .app.zip. Published when an \`offline\`/\`mobile\`-labeled PR merges (or Offline paths change on main)."
+
+      - name: Comment on PR
+        if: needs.gate.outputs.pr_number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = '${{ needs.gate.outputs.pr_number }}';
+            const sha = '${{ needs.gate.outputs.head_sha }}'.slice(0, 7);
+            const trigger = '${{ needs.gate.outputs.trigger }}';
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const evergreen = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/offline-mobile/offline-mobile-service-debug.app.zip`;
+            const pushed = '${{ needs.gate.outputs.push_release }}' === 'true';
+            const title = pushed
+              ? '## ✅ Offline Mobile iOS published (evergreen)'
+              : '## ✅ Offline Mobile iOS ready (PR preview)';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(pr),
+              body: [
+                title,
+                ``,
+                `| | |`,
+                `|---|---|`,
+                `| Trigger | \`${trigger}\` |`,
+                `| Commit | \`${sha}\` |`,
+                `| Workflow | [run](${runUrl}) |`,
+                `| Artifact | Actions → **Artifacts** → \`offline-mobile-service-debug-ios\` |`,
+                pushed
+                  ? `| Evergreen | [${evergreen}](${evergreen}) |`
+                  : `| Evergreen | not updated — add label \`offline\` (or \`mobile\`) and merge to publish |`,
+                `| Product | **Offline** iOS simulator build (\`in.dhandho.service\`) — debug .app.zip |`,
               ].join('\n'),
             });
 
@@ -522,21 +603,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG=service-cloud
-          FILE=dist-apk/service-cloud-online-debug.apk
-          NAME=$(basename "$FILE")
-          gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --title "Service Cloud ONLINE (evergreen APK)" --notes "Online Capacitor APK (cloud API + seats). Not Offline Mobile — do not mix with DG-SM. Published when an \`online\`/\`mobile\`-labeled PR merges (or Online paths change on main)."
-          # --clobber races when merge+push both upload; delete then upload with retry
-          for i in 1 2 3 4; do
-            gh release delete-asset "$TAG" "$NAME" --yes 2>/dev/null || true
-            if gh release upload "$TAG" "$FILE"; then
-              exit 0
-            fi
-            sleep $((i * 2))
-          done
-          echo "Failed to upload $NAME to $TAG after retries" >&2
-          exit 1
+          chmod +x scripts/ci-upload-evergreen-asset.sh
+          bash scripts/ci-upload-evergreen-asset.sh service-cloud \
+            dist-apk/service-cloud-online-debug.apk \
+            "Service Cloud ONLINE (evergreen)" \
+            "Online Capacitor APK + iOS .app.zip (cloud API + seats). Not Offline Mobile — do not mix with DG-SM."
 
       - name: Comment on PR
         if: needs.gate.outputs.pr_number != ''
@@ -569,5 +640,88 @@ jobs:
                   ? `| Evergreen | [${evergreen}](${evergreen}) |`
                   : `| Evergreen | not updated — add label \`online\` (or \`mobile\`) and merge to publish |`,
                 `| Product | **Online** Service Cloud (\`in.dhandho.servicecloud\`) — not Offline Mobile |`,
+              ].join('\n'),
+            });
+
+  build-online-ios:
+    name: Build Service Cloud Online iOS
+    needs: gate
+    if: needs.gate.outputs.build_online == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Service Cloud Online debug iOS
+        env:
+          VITE_API_ORIGIN: ${{ secrets.VITE_API_ORIGIN }}
+          MOBILE_PRODUCT: online
+          IOS_BUILD_MODE: debug
+        run: |
+          chmod +x scripts/ci-build-ios.sh scripts/ios-set-product.sh
+          bash scripts/ci-build-ios.sh
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-cloud-online-debug-ios
+          path: dist-apk/service-cloud-online-debug.app.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Push evergreen release asset
+        if: needs.gate.outputs.push_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x scripts/ci-upload-evergreen-asset.sh
+          bash scripts/ci-upload-evergreen-asset.sh service-cloud \
+            dist-apk/service-cloud-online-debug.app.zip \
+            "Service Cloud ONLINE (evergreen)" \
+            "Online Capacitor APK + iOS .app.zip (cloud API + seats). Not Offline Mobile — do not mix with DG-SM."
+
+      - name: Comment on PR
+        if: needs.gate.outputs.pr_number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = '${{ needs.gate.outputs.pr_number }}';
+            const sha = '${{ needs.gate.outputs.head_sha }}'.slice(0, 7);
+            const trigger = '${{ needs.gate.outputs.trigger }}';
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const evergreen = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/service-cloud/service-cloud-online-debug.app.zip`;
+            const pushed = '${{ needs.gate.outputs.push_release }}' === 'true';
+            const title = pushed
+              ? '## ✅ Service Cloud ONLINE iOS published (evergreen)'
+              : '## ✅ Service Cloud ONLINE iOS ready (PR preview)';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(pr),
+              body: [
+                title,
+                ``,
+                `| | |`,
+                `|---|---|`,
+                `| Trigger | \`${trigger}\` |`,
+                `| Commit | \`${sha}\` |`,
+                `| Workflow | [run](${runUrl}) |`,
+                `| Artifact | Actions → **Artifacts** → \`service-cloud-online-debug-ios\` |`,
+                pushed
+                  ? `| Evergreen | [${evergreen}](${evergreen}) |`
+                  : `| Evergreen | not updated — add label \`online\` (or \`mobile\`) and merge to publish |`,
+                `| Product | **Online** iOS simulator build (\`in.dhandho.servicecloud\`) — debug .app.zip |`,
               ].join('\n'),
             });

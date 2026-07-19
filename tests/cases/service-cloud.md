@@ -19,11 +19,11 @@ Online-only seats on a **service** cloud tenant. Clients: Cloud Electron + onlin
 | 13 | Browser not enrolled | Login in normal browser (no Electron/Capacitor) | No seat gate; claim with web client rejected |
 | 14 | Manufacturer tenant | Open manufacturer tenant detail | No Service cloud seats panel |
 | 15 | Not Service Mobile | Compare with Service Mobile licenses | No `DG-SM-` key; uses cloud tenant users |
-| 16 | Download page split | Open `/download` | **Service Cloud ONLINE** and **Service Mobile OFFLINE** are separate cards; one evergreen URL each (no version list) |
-| 17 | Set download URL | SA → Analytics → paste Service Cloud URL → Save → open `/download` | Single Download button uses that URL |
-| 18 | Default Offline Mobile APK | Clear `service_mobile_app_url` (or fresh DB) → open `/download` | Offline Mobile Download uses GitHub evergreen APK URL without SA paste |
-| 23 | Default Online Cap APK | Clear `service_cloud_app_url` → `/download` | Service Cloud Download uses `…/releases/download/service-cloud/service-cloud-online-debug.apk` |
-| 24 | CI builds Online Cap only | Label PR `online` (or `service-cloud`), merge — or comment `apk build online` | Only Service Cloud ONLINE APK job runs; Offline job skipped. Evergreen `service-cloud` updates on merge |
+| 16 | Download page split | Open `/download` | **Service Cloud ONLINE** and **Service Mobile OFFLINE** are separate cards; Android + iOS buttons each (4 evergreen links) |
+| 17 | Set download URL | SA → Analytics → paste Service Cloud URLs → Save → open `/download` | Buttons use those URLs |
+| 18 | Default Offline Mobile | Clear `service_mobile_app_url` / `service_mobile_ios_url` → `/download` | Offline uses GitHub evergreen APK + `.app.zip` without SA paste |
+| 23 | Default Online Cap | Clear `service_cloud_app_url` / `service_cloud_ios_url` → `/download` | Online uses `service-cloud` APK + `.app.zip` |
+| 24 | CI builds Online Cap only | Label PR `online` (or `service-cloud`), merge — or comment `apk build online` | Online APK + iOS jobs run; Offline skipped. Evergreen `service-cloud` updates on merge |
 | 25 | Online APK app id | After `npm run cap:sync:cloud`, open `android/app/build.gradle` | `applicationId "in.dhandho.servicecloud"` (not Offline `in.dhandho.service`) so both can install |
 | 19 | Share reset link | Seats user card → Share reset link → Copy | Modal shows link; user can reset on Cap or Electron |
 | 20 | Notify one user | Seats → Notify on user A; login as A and B | Only A sees the in-app message |

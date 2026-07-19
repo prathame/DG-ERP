@@ -4,7 +4,9 @@ import { Download, Monitor, ExternalLink, Smartphone, Cloud, Loader } from 'luci
 
 type DownloadLinks = {
   serviceCloudAppUrl: string | null;
+  serviceCloudIosUrl: string | null;
   serviceMobileAppUrl: string | null;
+  serviceMobileIosUrl: string | null;
   desktopAppUrl: string | null;
 };
 
@@ -121,17 +123,33 @@ export function DownloadPage() {
                 </p>
               </div>
               <div className="px-4 sm:px-6 py-4 space-y-3">
-                {links?.serviceCloudAppUrl ? (
-                  <DownloadButton href={links.serviceCloudAppUrl} label="Download Service Cloud app" accent="sky" />
+                {links?.serviceCloudAppUrl || links?.serviceCloudIosUrl ? (
+                  <>
+                    {links.serviceCloudAppUrl && (
+                      <DownloadButton
+                        href={links.serviceCloudAppUrl}
+                        label="Android APK — Service Cloud"
+                        accent="sky"
+                      />
+                    )}
+                    {links.serviceCloudIosUrl && (
+                      <DownloadButton
+                        href={links.serviceCloudIosUrl}
+                        label="iOS (.app.zip) — Service Cloud"
+                        accent="sky"
+                      />
+                    )}
+                  </>
                 ) : (
                   <p className="text-sm text-white/40">
-                    Download URL not set yet. Super Admin → Analytics → paste one evergreen link (rebuilds overwrite the
-                    same file).
+                    Download URL not set yet. Super Admin → Analytics → paste evergreen links (rebuilds overwrite the
+                    same files).
                   </p>
                 )}
                 <p className="text-xs text-white/40">
                   SA seats panel on the service tenant — not a{' '}
-                  <span className="font-mono text-emerald-400/70">DG-SM-</span> license.
+                  <span className="font-mono text-emerald-400/70">DG-SM-</span> license. iOS is a simulator debug build
+                  (not App Store).
                 </p>
               </div>
             </motion.div>
@@ -156,20 +174,31 @@ export function DownloadPage() {
                 </p>
               </div>
               <div className="px-4 sm:px-6 py-4 space-y-3">
-                {links?.serviceMobileAppUrl ? (
-                  <DownloadButton
-                    href={links.serviceMobileAppUrl}
-                    label="Download Service Mobile (offline) app"
-                    accent="emerald"
-                  />
+                {links?.serviceMobileAppUrl || links?.serviceMobileIosUrl ? (
+                  <>
+                    {links.serviceMobileAppUrl && (
+                      <DownloadButton
+                        href={links.serviceMobileAppUrl}
+                        label="Android APK — Service Mobile (offline)"
+                        accent="emerald"
+                      />
+                    )}
+                    {links.serviceMobileIosUrl && (
+                      <DownloadButton
+                        href={links.serviceMobileIosUrl}
+                        label="iOS (.app.zip) — Service Mobile (offline)"
+                        accent="emerald"
+                      />
+                    )}
+                  </>
                 ) : (
                   <p className="text-sm text-white/40">
-                    Download URL not set yet. Super Admin → Analytics → paste one evergreen link for the offline APK.
+                    Download URL not set yet. Super Admin → Analytics → paste evergreen links for the offline builds.
                   </p>
                 )}
                 <p className="text-xs text-white/40">
                   Requires a <span className="font-mono text-emerald-400/80">DG-SM-…</span> license. Do not use for
-                  online cloud seats.
+                  online cloud seats. iOS is a simulator debug build (not App Store).
                 </p>
               </div>
             </motion.div>
