@@ -18,10 +18,16 @@ description: Online Capacitor + Cloud Electron for service cloud seats.
 
 [`/download`](/download) lists **Dhando Service Cloud (ONLINE)** separately from **Dhando Service Mobile (OFFLINE)**. Do not mix installers or licenses.
 
-While testing there are **no versioned GitHub releases** — Super Admin → Analytics sets one evergreen URL per app (`service_cloud_app_url` / `service_mobile_app_url`). Rebuild as often as you want; keep the same link and replace the file behind it. Public API: `GET /api/download-links`.
+While testing there are **no versioned GitHub releases** — Super Admin → Analytics can override evergreen URLs (`service_cloud_app_url` / `service_mobile_app_url`). Rebuild as often as you want; keep the same link and replace the file behind it. Public API: `GET /api/download-links`.
 
-Default Offline Mobile APK (when unset in `platform_config`):  
-`https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk`
+Default APKs (when unset in `platform_config`):
+
+| Product | Evergreen URL |
+|---------|----------------|
+| **Online** Service Cloud | `https://github.com/prathame/DG-ERP/releases/download/service-cloud/service-cloud-online-debug.apk` |
+| **Offline** Service Mobile | `https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk` |
+
+CI (`.github/workflows/apk-build.yml`) builds **both** when a `mobile`-labeled PR merges (or mobile paths push to main). Comment `apk build` on a PR for preview artifacts only.
 
 ## Builds
 
@@ -30,13 +36,14 @@ Default Offline Mobile APK (when unset in `platform_config`):
 npm run build:electron:cloud:win
 npm run build:electron:cloud:mac
 
-# Web assets for online mobile shell
-npm run build
-# Config stub: capacitor.cloud.config.ts (appId in.dhandho.servicecloud, webDir dist)
-# Sync into a dedicated Capacitor android/ios project when packaging the APK/IPA
+# Online Capacitor (Service Cloud) — separate appId / webDir from Offline
+npm run build:service-cloud          # → dist-service-cloud (relative base)
+npm run cap:sync:cloud               # sync into android/ as in.dhandho.servicecloud
+# Then: cd android && ./gradlew assembleDebug
+# Restore Offline android project: npm run cap:sync
 ```
 
-Offline Service Mobile uses a **different** Capacitor config (`capacitor.config.ts` → `dist-service-mobile`). Do not mix builds.
+Offline Service Mobile uses a **different** Capacitor config (`capacitor.config.ts` → `dist-service-mobile`, appId `in.dhandho.service`). Do not mix builds or installers.
 
 ## SA onboarding (user-wise)
 

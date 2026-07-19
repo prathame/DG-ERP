@@ -46,20 +46,27 @@ That URL is the code default for `service_mobile_app_url` / `/api/download-links
 gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clobber
 ```
 
-### CI: Offline Mobile APK
+### CI: Offline Mobile + Service Cloud Online APKs
 
 Workflow: [`.github/workflows/apk-build.yml`](../../../.github/workflows/apk-build.yml)
+
+Builds **two** products in parallel (do not mix installers):
+
+| Job | Evergreen release | App id |
+|-----|-------------------|--------|
+| Offline Mobile | `offline-mobile` / `offline-mobile-service-debug.apk` | `in.dhandho.service` |
+| Service Cloud ONLINE | `service-cloud` / `service-cloud-online-debug.apk` | `in.dhandho.servicecloud` |
 
 **How to mark a PR as mobile:** add GitHub label **`mobile`** (aliases: `apk`, `apk-build`).
 
 | Trigger | What happens |
 |---------|----------------|
-| **Merge PR that has label `mobile`** (recommended) | Build APK from merge → overwrite evergreen release |
+| **Merge PR that has label `mobile`** (recommended) | Build both APKs from merge → overwrite both evergreen releases |
 | Push to `main` touching mobile paths | Safety net if someone forgot the label (Capacitor, `service-mobile` / `service-cloud`, invoice UI, etc.) |
-| PR comment `apk build` / `/apk-build` | Preview artifact only — does **not** overwrite evergreen |
+| PR comment `apk build` / `/apk-build` | Preview artifacts only — does **not** overwrite evergreen |
 | Actions → APK Build (manual) | Optional override |
 
-Docs-only / server-desktop PRs without the `mobile` label do **not** rebuild the APK.
+Docs-only / server-desktop PRs without the `mobile` label do **not** rebuild APKs.
 
 ## Mobile UI / safe areas
 
