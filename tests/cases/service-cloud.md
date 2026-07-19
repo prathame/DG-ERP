@@ -29,5 +29,6 @@ Online-only seats on a **service** cloud tenant. Clients: Cloud Electron + onlin
 | 20 | Notify one user | Seats → Notify on user A; login as A and B | Only A sees the in-app message |
 | 21 | Live badge (Cap) | Online Cap + service tenant logged in | Sidebar shows Live · Online; no Sync control. Desktop Electron chrome unchanged |
 | 22 | Airplane Cap | Cap holder → airplane mode | Freeze “No internet”; app unresponsive |
+| 26 | Cap first open → company slug | Fresh Online Cap install (no session) | **Not** marketing LandingPage. Enter company URL slug → Continue → branded login at `/{slug}`. Returning users with `dg_last_slug` skip to that company. Change company returns to slug entry. Cap shows **Share bug report** on slug entry (same as login) |
 
 **Automated:** `tests/api/http-service-cloud.test.ts` · `tests/api/http-notifications.test.ts` (per-user notify, invalid `userId`, read-all isolation) · `tests/unit/service-cloud-mode.test.ts` (Cap-only Live badge surface) · `tests/unit/service-phone-ux.test.ts` · `tests/unit/bill-settings-flags.test.ts` · `tests/unit/android-set-product.test.ts` (Online/Offline `applicationId`)
