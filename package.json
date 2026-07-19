@@ -43,7 +43,9 @@
   "dependencies": {
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.4.2",
+    "@capacitor/filesystem": "^8.1.2",
     "@capacitor/preferences": "^8.0.1",
+    "@capacitor/share": "^8.0.1",
     "@capgo/capacitor-printer": "^8.1.1",
     "@electric-sql/pglite": "^0.5.4",
     "@logtail/node": "^0.5.8",

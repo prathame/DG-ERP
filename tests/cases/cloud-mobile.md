@@ -11,7 +11,7 @@ Phone usability for the **cloud** tenant app + Super Admin (320–430px). Deskto
 | 5 | Invoice desktop table | Invoices ≥640px | Same table layout as before mobile work |
 | 6 | Tall modal scroll | Create Invoice / Distribution / Record Payment | Modal fits viewport; body scrolls; keyboard does not trap forever |
 | 7 | Chat dismiss | Open chatbot on phone | **X** in header closes; Escape closes; can return to app |
-| 8 | Confirm sheet | Trigger delete confirm on phone | Bottom sheet with Cancel/Confirm; usable safe-area |
+| 8 | Confirm sheet | Trigger delete / Send WhatsApp confirm on phone | Bottom sheet Cancel/Confirm fully above system nav + home indicator (not clipped); safe-area + min bottom padding |
 | 9 | Sales barcode row | Sales Entry on 320px | Input + Verify wrap; no horizontal page scroll |
 | 10 | Table overflow | Orders create line items / Quotation detail | Horizontal scroll inside table only, not whole page |
 | 11 | Touch targets | Tap print/status/delete icons on phone | Targets ≥44px; succeed without zoom |
