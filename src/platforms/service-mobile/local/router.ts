@@ -2644,14 +2644,14 @@ export async function handleLocalApiRequest(
       if (ctx.method === 'GET') {
         const { rows } = await localQuery(`SELECT settings FROM bill_settings WHERE tenant_id=$1`, [tid]);
         const settings = (rows[0] as { settings?: unknown } | undefined)?.settings;
-        const parsed =
+        const parsed: Record<string, unknown> =
           typeof settings === 'string'
-            ? JSON.parse(settings)
-            : settings && typeof settings === 'object'
-              ? settings
+            ? (JSON.parse(settings) as Record<string, unknown>)
+            : settings && typeof settings === 'object' && !Array.isArray(settings)
+              ? (settings as Record<string, unknown>)
               : {};
         // Offline defaults: GST off (includes HSN) so electricians aren't forced into tax bills.
-        const merged = { showGst: false, showHsnSac: false, ...parsed } as Record<string, unknown>;
+        const merged: Record<string, unknown> = { showGst: false, showHsnSac: false, ...parsed };
         if (typeof merged.showGst !== 'boolean' && typeof merged.showHsnSac === 'boolean') {
           merged.showGst = merged.showHsnSac;
         }
@@ -2659,7 +2659,12 @@ export async function handleLocalApiRequest(
         return json(200, merged);
       }
       const b = ctx.body as Record<string, unknown>;
-      const payload = { ...(b.settings ?? b) } as Record<string, unknown>;
+      const rawSettings = b.settings ?? b;
+      const payload: Record<string, unknown> = {
+        ...(rawSettings && typeof rawSettings === 'object' && !Array.isArray(rawSettings)
+          ? (rawSettings as Record<string, unknown>)
+          : {}),
+      };
       if (typeof payload.showGst === 'boolean') payload.showHsnSac = payload.showGst;
       else if (typeof payload.showHsnSac === 'boolean') payload.showGst = payload.showHsnSac;
       await localQuery(
