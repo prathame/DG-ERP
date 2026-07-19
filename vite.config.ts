@@ -7,6 +7,9 @@ export default defineConfig(({ mode }) => {
   loadEnv(mode, process.cwd(), '');
   const analyze = mode === 'analyze';
   const serviceMobile = mode === 'service-mobile';
+  /** Online Cap shell — relative base like Offline; must NOT set VITE_DEPLOYMENT_MODE=service-mobile */
+  const serviceCloud = mode === 'service-cloud';
+  const capacitorShell = serviceMobile || serviceCloud;
   const plugins: PluginOption[] = [react(), tailwindcss()];
   // Optional — keep as a dynamic import so production installs without
   // rollup-plugin-visualizer (devDependency) still build.
@@ -16,7 +19,7 @@ export default defineConfig(({ mode }) => {
     plugins.push(visualizer({ filename: 'dist/stats.html', gzipSize: true, open: false }));
   }
   return {
-    base: serviceMobile ? './' : '/',
+    base: capacitorShell ? './' : '/',
     plugins,
     // PGlite ships its own WASM/data URLs — Vite prebundle breaks them (blank DB / WASM compile errors).
     optimizeDeps: {
@@ -31,7 +34,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      outDir: serviceMobile ? 'dist-service-mobile' : 'dist',
+      outDir: serviceMobile ? 'dist-service-mobile' : serviceCloud ? 'dist-service-cloud' : 'dist',
       emptyOutDir: true,
       target: 'es2020',
       cssCodeSplit: true,
@@ -68,10 +71,17 @@ export default defineConfig(({ mode }) => {
       allowedHosts: true as const,
       // Cap/Android build outputs are not part of the Vite app graph (they break dep scan / crash HMR).
       fs: {
-        deny: ['**/android/**', '**/ios/**', '**/dist-apk/**', '**/dist-service-mobile/**'],
+        deny: ['**/android/**', '**/ios/**', '**/dist-apk/**', '**/dist-service-mobile/**', '**/dist-service-cloud/**'],
       },
       watch: {
-        ignored: ['**/android/**', '**/ios/**', '**/dist-apk/**', '**/dist-service-mobile/**', '**/node_modules/**'],
+        ignored: [
+          '**/android/**',
+          '**/ios/**',
+          '**/dist-apk/**',
+          '**/dist-service-mobile/**',
+          '**/dist-service-cloud/**',
+          '**/node_modules/**',
+        ],
       },
       proxy: {
         // Offline Mobile Vite: proxy license APIs to cloud (avoids CORS on localhost:*).

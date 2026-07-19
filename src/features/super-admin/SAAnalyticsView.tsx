@@ -416,7 +416,7 @@ function VersionControlPanel() {
           <input
             value={serviceCloudUrl}
             onChange={e => setServiceCloudUrl(e.target.value)}
-            placeholder="https://…/dhandho-service-cloud.apk"
+            placeholder="https://github.com/prathame/DG-ERP/releases/download/service-cloud/service-cloud-online-debug.apk"
             className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
           />
         </div>

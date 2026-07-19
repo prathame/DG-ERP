@@ -1,6 +1,6 @@
-# Offline Mobile debug APK
+# Mobile debug APKs — Offline Service Mobile + Online Service Cloud
 #
-# Publish evergreen APK after merge when the PR is mobile-related:
+# Publish evergreen APKs after merge when the PR is mobile-related:
 #   Add label:  mobile
 #   (aliases:  apk  |  apk-build)
 #
@@ -10,6 +10,9 @@
 #   Comment on PR:  apk build  |  /apk-build
 #
 # Manual: Actions → APK Build → Run workflow
+# Evergreen releases:
+#   offline-mobile / offline-mobile-service-debug.apk
+#   service-cloud  / service-cloud-online-debug.apk
 name: APK Build
 
 on:
@@ -27,6 +30,8 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.env.service-mobile.example'
+      - '.env.service-cloud.example'
+      - 'scripts/cap-sync-cloud.sh'
       - 'src/platforms/service-mobile/**'
       - 'src/platforms/service-cloud/**'
       - 'src/App.tsx'
@@ -51,7 +56,7 @@ on:
         description: 'PR number to build (leave empty for main tip)'
         required: false
       push_release:
-        description: 'Upload to evergreen offline-mobile release'
+        description: 'Upload to evergreen offline-mobile + service-cloud releases'
         type: boolean
         default: true
 
@@ -342,5 +347,118 @@ jobs:
                 pushed
                   ? `| Evergreen | [${evergreen}](${evergreen}) |`
                   : `| Evergreen | not updated — add label \`mobile\` and merge to publish |`,
+                `| Product | **Offline** Service Mobile (\`in.dhandho.service\`) — not Service Cloud |`,
+              ].join('\n'),
+            });
+
+  build-service-cloud-apk:
+    name: Build Service Cloud Online APK
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          # Capacitor CLI 8 requires Node >= 22
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Service Cloud env (cloud API — not Offline Mobile)
+        env:
+          VITE_API_ORIGIN_SECRET: ${{ secrets.VITE_API_ORIGIN }}
+        run: |
+          # Mode service-cloud loads .env.service-cloud(.local) — never set VITE_DEPLOYMENT_MODE=service-mobile
+          cp .env.service-cloud.example .env.service-cloud
+          if [ -n "$VITE_API_ORIGIN_SECRET" ]; then
+            printf 'VITE_API_ORIGIN=%s\n' "$VITE_API_ORIGIN_SECRET" > .env.service-cloud.origin
+            grep -v '^VITE_API_ORIGIN=' .env.service-cloud >> .env.service-cloud.origin || true
+            mv .env.service-cloud.origin .env.service-cloud
+          fi
+          echo "VITE_APP_VERSION=ci-${GITHUB_RUN_NUMBER}" >> .env.service-cloud
+          echo "Env keys:"; cut -d= -f1 .env.service-cloud
+
+      - name: Build web + Capacitor sync (cloud config)
+        run: |
+          npm run build:service-cloud
+          cp capacitor.config.ts /tmp/capacitor.config.ts.bak
+          cp capacitor.cloud.config.ts capacitor.config.ts
+          npx cap sync android
+          cp /tmp/capacitor.config.ts.bak capacitor.config.ts
+          grep -q 'in.dhandho.servicecloud' android/app/build.gradle
+
+      - name: Assemble debug APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+
+      - name: Stage APK
+        run: |
+          mkdir -p dist-apk
+          SRC=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
+          cp "$SRC" dist-apk/service-cloud-online-debug.apk
+          ls -lh dist-apk/
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-cloud-online-debug
+          path: dist-apk/service-cloud-online-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Push evergreen release asset
+        if: needs.gate.outputs.push_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view service-cloud >/dev/null 2>&1 || \
+            gh release create service-cloud --title "Service Cloud ONLINE (evergreen APK)" --notes "Online Capacitor APK (cloud API + seats). Not Offline Mobile — do not mix with DG-SM. Published when a \`mobile\`-labeled PR merges (or mobile paths change on main)."
+          gh release upload service-cloud dist-apk/service-cloud-online-debug.apk --clobber
+
+      - name: Comment on PR
+        if: needs.gate.outputs.pr_number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = '${{ needs.gate.outputs.pr_number }}';
+            const sha = '${{ needs.gate.outputs.head_sha }}'.slice(0, 7);
+            const trigger = '${{ needs.gate.outputs.trigger }}';
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const evergreen = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/service-cloud/service-cloud-online-debug.apk`;
+            const pushed = '${{ needs.gate.outputs.push_release }}' === 'true';
+            const title = pushed
+              ? '## ✅ Service Cloud ONLINE APK published (evergreen)'
+              : '## ✅ Service Cloud ONLINE APK ready (PR preview)';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(pr),
+              body: [
+                title,
+                ``,
+                `| | |`,
+                `|---|---|`,
+                `| Trigger | \`${trigger}\` |`,
+                `| Commit | \`${sha}\` |`,
+                `| Workflow | [run](${runUrl}) |`,
+                `| Artifact | Actions → **Artifacts** → \`service-cloud-online-debug\` |`,
+                pushed
+                  ? `| Evergreen | [${evergreen}](${evergreen}) |`
+                  : `| Evergreen | not updated — add label \`mobile\` and merge to publish |`,
+                `| Product | **Online** Service Cloud (\`in.dhandho.servicecloud\`) — not Offline Mobile |`,
               ].join('\n'),
             });
