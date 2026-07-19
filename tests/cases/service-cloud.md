@@ -24,9 +24,10 @@ Online-only seats on a **service** cloud tenant. Clients: Cloud Electron + onlin
 | 18 | Default Offline Mobile APK | Clear `service_mobile_app_url` (or fresh DB) → open `/download` | Offline Mobile Download uses GitHub evergreen APK URL without SA paste |
 | 23 | Default Online Cap APK | Clear `service_cloud_app_url` → `/download` | Service Cloud Download uses `…/releases/download/service-cloud/service-cloud-online-debug.apk` |
 | 24 | CI builds Online Cap only | Label PR `online` (or `service-cloud`), merge — or comment `apk build online` | Only Service Cloud ONLINE APK job runs; Offline job skipped. Evergreen `service-cloud` updates on merge |
+| 25 | Online APK app id | After `npm run cap:sync:cloud`, open `android/app/build.gradle` | `applicationId "in.dhandho.servicecloud"` (not Offline `in.dhandho.service`) so both can install |
 | 19 | Share reset link | Seats user card → Share reset link → Copy | Modal shows link; user can reset on Cap or Electron |
 | 20 | Notify one user | Seats → Notify on user A; login as A and B | Only A sees the in-app message |
 | 21 | Live badge (Cap) | Online Cap + service tenant logged in | Sidebar shows Live · Online; no Sync control. Desktop Electron chrome unchanged |
 | 22 | Airplane Cap | Cap holder → airplane mode | Freeze “No internet”; app unresponsive |
 
-**Automated:** `tests/api/http-service-cloud.test.ts` · `tests/api/http-notifications.test.ts` (per-user notify, invalid `userId`, read-all isolation) · `tests/unit/service-cloud-mode.test.ts` (Cap-only Live badge surface) · `tests/unit/service-phone-ux.test.ts` · `tests/unit/bill-settings-flags.test.ts`
+**Automated:** `tests/api/http-service-cloud.test.ts` · `tests/api/http-notifications.test.ts` (per-user notify, invalid `userId`, read-all isolation) · `tests/unit/service-cloud-mode.test.ts` (Cap-only Live badge surface) · `tests/unit/service-phone-ux.test.ts` · `tests/unit/bill-settings-flags.test.ts` · `tests/unit/android-set-product.test.ts` (Online/Offline `applicationId`)

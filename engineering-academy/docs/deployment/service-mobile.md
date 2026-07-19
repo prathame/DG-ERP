@@ -28,11 +28,37 @@ Offline Mobile backups are **user-owned**. The phone saves a file (and may open 
 ```bash
 cp .env.service-mobile.example .env.service-mobile
 # set VITE_API_ORIGIN to your cloud API
-npm run build:service-mobile
-npx cap sync
+npm run cap:sync       # build + sync + applicationId in.dhandho.service
 npx cap open android   # sideload APK
-npx cap open ios       # TestFlight
+npx cap open ios       # Xcode → simulator / device / TestFlight
 ```
+
+Prefer `npm run cap:sync` over bare `npx cap sync` — after an Online cloud sync, `scripts/android-set-product.sh offline` restores the Offline `applicationId` (Capacitor does not rewrite it itself).
+
+### iOS (Mac + Xcode)
+
+Requires **full Xcode** from the Mac App Store (Command Line Tools alone are not enough). Bundle id: `in.dhandho.service`.
+
+```bash
+# 1. Install Xcode, then once:
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -license accept
+xcodebuild -runFirstLaunch
+
+# 2. Env + sync (refreshes web assets + SPM plugins)
+cp .env.service-mobile.example .env.service-mobile   # if needed
+# set VITE_API_ORIGIN
+npm run cap:ios    # build:service-mobile + cap sync + open Xcode
+# or: npm run cap:run:ios   # build, sync, run on simulator
+```
+
+In Xcode:
+
+1. Open target **App** → **Signing & Capabilities** → choose your **Team** (Automatic signing; no `DEVELOPMENT_TEAM` is checked into the repo).
+2. Run on a simulator or a physical device (device needs a free/paid Apple ID team).
+3. For TestFlight: **Product → Archive** → upload to App Store Connect (create the app record for `in.dhandho.service` first).
+
+Plugins after `cap sync ios`: App, Filesystem, Preferences, Share, Capgo Printer (see `ios/App/CapApp-SPM/Package.swift` — Capacitor-managed). There is **no iOS CI** yet; IPA/TestFlight is manual on a Mac.
 
 ### Evergreen Android APK (testing)
 
