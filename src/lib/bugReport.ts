@@ -72,6 +72,7 @@ export async function buildBugReportText(extras: BugReportExtras = {}): Promise<
       const { isLocalProvisioned, getLocalSlug } = await import('../platforms/service-mobile/local/provision');
       const lic = loadLicense();
       lines.push(`Product: Offline Service Mobile`);
+      lines.push(`API origin: ${(import.meta.env.VITE_API_ORIGIN as string | undefined) || '(default/fallback)'}`);
       lines.push(`License: ${redactLicenseKey(lic?.licenseKey)}`);
       lines.push(`Company: ${lic?.companyName || '(none)'}`);
       lines.push(`Admin email (license): ${lic?.adminEmail || '(none)'}`);

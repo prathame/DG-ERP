@@ -3,20 +3,11 @@
  * Business ERP traffic never goes here — only activate, heartbeat, backup.
  */
 import { clientLogger } from '../../lib/logger';
+import { normalizeActivateResult, type ServiceMobileActivateResult } from './activateResult';
 
-export type ServiceMobileActivateResult = {
-  valid: boolean;
-  licenseKey: string;
-  companyName: string;
-  businessType: 'service';
-  maxUsers: 1;
-  validUntil: string | null;
-  adminEmail: string | null;
-  settings: Record<string, unknown>;
-  tabConfig: Record<string, { label: string; visible: boolean }>;
-  hasBackup: boolean;
-  error?: string;
-};
+export type { ServiceMobileActivateResult };
+
+const DEFAULT_CLOUD_ORIGIN = 'https://dg-erp.onrender.com';
 
 function cloudOrigin(): string {
   const fromEnv = (import.meta as { env?: { VITE_API_ORIGIN?: string } }).env?.VITE_API_ORIGIN;
@@ -32,10 +23,21 @@ function cloudOrigin(): string {
     }
   }
   if (fromEnv) return fromEnv.replace(/\/$/, '');
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin;
+  // Native WebView origin is https://localhost — that is NOT the cloud API.
+  try {
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (cap?.isNativePlatform?.()) return DEFAULT_CLOUD_ORIGIN;
+  } catch {
+    /* ignore */
   }
-  return 'https://dg-erp.onrender.com';
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    const origin = window.location.origin;
+    if (origin === 'https://localhost' || origin === 'http://localhost' || origin.startsWith('capacitor:')) {
+      return DEFAULT_CLOUD_ORIGIN;
+    }
+    return origin;
+  }
+  return DEFAULT_CLOUD_ORIGIN;
 }
 
 function abortAfter(ms: number): AbortSignal {
@@ -66,38 +68,31 @@ export async function activateLicense(input: {
 }): Promise<ServiceMobileActivateResult> {
   try {
     const { status, data } = await cloudPost<ServiceMobileActivateResult>('/api/service-mobile/activate', input);
-    if (status >= 400) {
-      const error = (data as { error?: string }).error || 'Activation failed';
+    const result = normalizeActivateResult(status, data, input.licenseKey);
+    if (!result.valid) {
       clientLogger.warn('License activation failed', {
         path: '/api/service-mobile/activate',
         statusCode: status,
-        error,
+        error: result.error,
         licenseKeyPrefix: input.licenseKey.slice(0, 8),
+        responseKeys: data && typeof data === 'object' ? Object.keys(data as object) : [],
+        cloudOrigin: cloudOrigin() || '(vite-proxy)',
       });
-      return {
-        valid: false,
-        licenseKey: input.licenseKey,
-        companyName: '',
-        businessType: 'service',
-        maxUsers: 1,
-        validUntil: null,
-        adminEmail: null,
-        settings: {},
-        tabConfig: {},
-        hasBackup: false,
-        error,
-      };
+      return result;
     }
     clientLogger.info('License activation ok', {
       path: '/api/service-mobile/activate',
       statusCode: status,
       licenseKeyPrefix: input.licenseKey.slice(0, 8),
+      companyName: result.companyName,
+      cloudOrigin: cloudOrigin() || '(vite-proxy)',
     });
-    return data;
+    return result;
   } catch (err) {
     clientLogger.exception('License activation network error', err, {
       path: '/api/service-mobile/activate',
       licenseKeyPrefix: input.licenseKey.slice(0, 8),
+      cloudOrigin: cloudOrigin() || '(vite-proxy)',
     });
     throw err;
   }
