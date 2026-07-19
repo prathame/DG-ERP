@@ -23,7 +23,7 @@ Online-only seats on a **service** cloud tenant. Clients: Cloud Electron + onlin
 | 17 | Set download URL | SA → Analytics → paste Service Cloud URL → Save → open `/download` | Single Download button uses that URL |
 | 18 | Default Offline Mobile APK | Clear `service_mobile_app_url` (or fresh DB) → open `/download` | Offline Mobile Download uses GitHub evergreen APK URL without SA paste |
 | 23 | Default Online Cap APK | Clear `service_cloud_app_url` → `/download` | Service Cloud Download uses `…/releases/download/service-cloud/service-cloud-online-debug.apk` |
-| 24 | CI builds Online Cap | Label PR `mobile`, merge (or comment `apk build`) | Workflow builds Offline **and** Service Cloud ONLINE APKs; evergreen `service-cloud` release updates on merge |
+| 24 | CI builds Online Cap only | Label PR `online` (or `service-cloud`), merge — or comment `apk build online` | Only Service Cloud ONLINE APK job runs; Offline job skipped. Evergreen `service-cloud` updates on merge |
 | 19 | Share reset link | Seats user card → Share reset link → Copy | Modal shows link; user can reset on Cap or Electron |
 | 20 | Notify one user | Seats → Notify on user A; login as A and B | Only A sees the in-app message |
 | 21 | Live badge (Cap) | Online Cap + service tenant logged in | Sidebar shows Live · Online; no Sync control. Desktop Electron chrome unchanged |

@@ -27,7 +27,7 @@ Default APKs (when unset in `platform_config`):
 | **Online** Service Cloud | `https://github.com/prathame/DG-ERP/releases/download/service-cloud/service-cloud-online-debug.apk` |
 | **Offline** Service Mobile | `https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk` |
 
-CI (`.github/workflows/apk-build.yml`) builds **both** when a `mobile`-labeled PR merges (or mobile paths push to main). Comment `apk build` on a PR for preview artifacts only.
+CI (`.github/workflows/apk-build.yml`) builds Online only when the PR is labeled `online` / `service-cloud`, or when Online paths change on `main`. Label `mobile` still builds both. Comment `apk build online` for a preview artifact only.
 
 ## Builds
 
