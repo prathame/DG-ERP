@@ -1,15 +1,18 @@
-# Offline Mobile debug APK — on-demand from a PR comment or label.
+# Offline Mobile debug APK
 #
-# Trigger (on a pull request):
-#   Comment:  apk build
-#   Comment:  /apk-build
-#   Label:    apk-build
-#   Or:       Actions → APK Build → Run workflow (optional PR number)
+# Default (recommended): after merge → push to main
+#   Builds APK from main and overwrites evergreen release asset.
 #
-# Uploads evergreen release asset + PR artifact, then comments the download URL.
+# Optional pre-merge test (does NOT overwrite evergreen):
+#   On a PR, comment:  apk build  |  /apk-build
+#   Or add label:      apk-build
+#
+# Manual: Actions → APK Build → Run workflow
 name: APK Build
 
 on:
+  push:
+    branches: [main]
   issue_comment:
     types: [created]
   pull_request:
@@ -17,15 +20,15 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to build (leave empty for default branch tip)'
+        description: 'PR number to build (leave empty for main tip)'
         required: false
       push_release:
-        description: 'Upload to evergreen offline-mobile release'
+        description: 'Upload to evergreen offline-mobile release (main builds always do)'
         type: boolean
         default: true
 
 concurrency:
-  group: apk-build-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  group: apk-build-${{ github.event_name == 'push' && 'main' || github.event.issue.number || github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -44,6 +47,7 @@ jobs:
       head_sha: ${{ steps.check.outputs.head_sha }}
       head_ref: ${{ steps.check.outputs.head_ref }}
       push_release: ${{ steps.check.outputs.push_release }}
+      trigger: ${{ steps.check.outputs.trigger }}
     steps:
       - name: Decide whether to build
         id: check
@@ -58,13 +62,25 @@ jobs:
             const allowed = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(assoc)
               || ['prathame'].includes(actor);
 
-            const set = (should, pr, sha, ref, pushRelease = 'true') => {
+            const set = (should, opts = {}) => {
               core.setOutput('should_run', should ? 'true' : 'false');
-              core.setOutput('pr_number', pr || '');
-              core.setOutput('head_sha', sha || '');
-              core.setOutput('head_ref', ref || '');
-              core.setOutput('push_release', pushRelease);
+              core.setOutput('pr_number', opts.pr || '');
+              core.setOutput('head_sha', opts.sha || '');
+              core.setOutput('head_ref', opts.ref || '');
+              core.setOutput('push_release', opts.pushRelease ?? 'true');
+              core.setOutput('trigger', opts.trigger || event);
             };
+
+            // Canonical path: merge/land on main → evergreen APK
+            if (event === 'push') {
+              set(true, {
+                sha: context.sha,
+                ref: context.ref,
+                pushRelease: 'true',
+                trigger: 'push-main',
+              });
+              return;
+            }
 
             if (event === 'issue_comment') {
               const issue = context.payload.issue;
@@ -100,7 +116,14 @@ jobs:
                 comment_id: context.payload.comment.id,
                 content: 'eyes',
               });
-              set(true, String(pr.number), pr.head.sha, pr.head.ref, 'true');
+              // PR preview only — do not overwrite public evergreen until merge to main
+              set(true, {
+                pr: String(pr.number),
+                sha: pr.head.sha,
+                ref: pr.head.ref,
+                pushRelease: 'false',
+                trigger: 'pr-comment',
+              });
               return;
             }
 
@@ -111,7 +134,13 @@ jobs:
                 return;
               }
               const pr = context.payload.pull_request;
-              set(true, String(pr.number), pr.head.sha, pr.head.ref, 'true');
+              set(true, {
+                pr: String(pr.number),
+                sha: pr.head.sha,
+                ref: pr.head.ref,
+                pushRelease: 'false',
+                trigger: 'pr-label',
+              });
               return;
             }
 
@@ -124,9 +153,20 @@ jobs:
                   repo: context.repo.repo,
                   pull_number: Number(prNum),
                 });
-                set(true, String(pr.number), pr.head.sha, pr.head.ref, push);
+                set(true, {
+                  pr: String(pr.number),
+                  sha: pr.head.sha,
+                  ref: pr.head.ref,
+                  pushRelease: push,
+                  trigger: 'dispatch',
+                });
               } else {
-                set(true, '', context.sha, context.ref, push);
+                set(true, {
+                  sha: context.sha,
+                  ref: context.ref,
+                  pushRelease: push,
+                  trigger: 'dispatch',
+                });
               }
               return;
             }
@@ -140,7 +180,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout PR head
+      - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.gate.outputs.head_sha || github.sha }}
@@ -165,11 +205,9 @@ jobs:
         run: |
           cp .env.service-mobile.example .env.service-mobile
           if [ -n "$VITE_API_ORIGIN_SECRET" ]; then
-            # Prefer repo secret when set (production API host for sideload builds)
             printf 'VITE_API_ORIGIN=%s\n' "$VITE_API_ORIGIN_SECRET" > .env.service-mobile.origin
             grep -v '^VITE_API_ORIGIN=' .env.service-mobile >> .env.service-mobile.origin || true
             mv .env.service-mobile.origin .env.service-mobile
-            # Ensure other defaults still present
             grep -q '^VITE_DEPLOYMENT_MODE=' .env.service-mobile || echo 'VITE_DEPLOYMENT_MODE=service-mobile' >> .env.service-mobile
           fi
           echo "VITE_APP_VERSION=ci-${GITHUB_RUN_NUMBER}" >> .env.service-mobile
@@ -205,10 +243,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release view offline-mobile >/dev/null 2>&1 || \
-            gh release create offline-mobile --title "Offline Mobile (evergreen APK)" --notes "Sideload testing APK — overwritten by CI apk-build runs."
+            gh release create offline-mobile --title "Offline Mobile (evergreen APK)" --notes "Sideload testing APK — overwritten when main is updated (APK Build CI)."
           gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clobber
 
-      - name: Comment on PR
+      - name: Comment on PR (preview build)
         if: needs.gate.outputs.pr_number != ''
         uses: actions/github-script@v7
         with:
@@ -223,15 +261,17 @@ jobs:
               repo: context.repo.repo,
               issue_number: Number(pr),
               body: [
-                `## ✅ Offline Mobile APK ready`,
+                `## ✅ Offline Mobile APK ready (PR preview)`,
                 ``,
                 `| | |`,
                 `|---|---|`,
                 `| Commit | \`${sha}\` |`,
                 `| Workflow | [run](${runUrl}) |`,
-                pushed ? `| Evergreen download | [${evergreen}](${evergreen}) |` : `| Evergreen | skipped |`,
-                `| Artifact | See workflow **Artifacts** → \`offline-mobile-service-debug\` |`,
+                `| Artifact | Actions → **Artifacts** → \`offline-mobile-service-debug\` |`,
+                pushed
+                  ? `| Evergreen | updated → [${evergreen}](${evergreen}) |`
+                  : `| Evergreen | **not** updated (merge to \`main\` publishes public APK) |`,
                 ``,
-                `_Triggered by \`apk build\` comment / \`apk-build\` label_`,
+                `_Preview trigger. Public download updates automatically after merge to main._`,
               ].join('\n'),
             });

@@ -46,18 +46,18 @@ That URL is the code default for `service_mobile_app_url` / `/api/download-links
 gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clobber
 ```
 
-### CI: build APK from a PR comment
+### CI: Offline Mobile APK
 
 Workflow: [`.github/workflows/apk-build.yml`](../../../.github/workflows/apk-build.yml)
 
-On an open PR, comment one of:
+| Trigger | What happens |
+|---------|----------------|
+| **Merge / push to `main`** (recommended) | Build APK → overwrite evergreen `offline-mobile` release (public `/download` link) |
+| PR comment `apk build` or `/apk-build` | Preview APK artifact only — does **not** overwrite evergreen |
+| PR label `apk-build` | Same as comment preview |
+| Actions → APK Build (manual) | Optional; can target a PR or main |
 
-- `apk build`
-- `/apk-build`
-
-Or add the label `apk-build`.
-
-CI builds the Offline Mobile debug APK from the PR head, uploads the workflow artifact, overwrites the evergreen `offline-mobile` release asset, and comments the download link. Only repo members / collaborators can trigger it.
+Public sideload users always get whatever last landed on `main`.
 
 ## Mobile UI / safe areas
 
