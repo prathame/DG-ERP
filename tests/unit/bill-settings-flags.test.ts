@@ -1,33 +1,56 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-describe('isShowHsnSacEnabled', () => {
+describe('GST bill settings flags', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  afterEach(() => {
-    vi.doUnmock('../../src/platforms/service-mobile/mode');
+  it('manufacturer cloud: GST on by default (opt-out)', async () => {
+    vi.doMock('../../src/lib/session', () => ({
+      session: { getUser: () => ({ businessType: 'manufacturer' }) },
+    }));
+    vi.doMock('../../src/platforms/service-cloud/mode', () => ({
+      isServicePhoneUx: () => false,
+    }));
+    const { isGstBillingEnabled, isShowHsnSacEnabled, invoiceHasGst } = await import('../../src/lib/billSettingsFlags');
+    expect(isGstBillingEnabled(null)).toBe(true);
+    expect(isGstBillingEnabled({})).toBe(true);
+    expect(isGstBillingEnabled({ showGst: true })).toBe(true);
+    expect(isGstBillingEnabled({ showGst: false })).toBe(false);
+    // legacy HSN key still works
+    expect(isGstBillingEnabled({ showHsnSac: false })).toBe(false);
+    expect(isShowHsnSacEnabled({ showGst: true })).toBe(true);
+    expect(invoiceHasGst({ gstEnabled: true, taxTotal: 0 })).toBe(true);
+    expect(invoiceHasGst({ gstEnabled: false, taxTotal: 100 })).toBe(false);
+    expect(invoiceHasGst({ taxTotal: 50 })).toBe(true);
+    expect(invoiceHasGst({ taxTotal: 0 })).toBe(false);
   });
 
-  it('cloud: defaults ON when setting missing (opt-out)', async () => {
-    vi.doMock('../../src/platforms/service-mobile/mode', () => ({
-      isServiceMobileMode: () => false,
+  it('service phone UX: GST off by default (opt-in)', async () => {
+    vi.doMock('../../src/lib/session', () => ({
+      session: { getUser: () => ({ businessType: 'service' }) },
     }));
-    const { isShowHsnSacEnabled } = await import('../../src/lib/billSettingsFlags');
-    expect(isShowHsnSacEnabled(null)).toBe(true);
-    expect(isShowHsnSacEnabled({})).toBe(true);
-    expect(isShowHsnSacEnabled({ showHsnSac: true })).toBe(true);
-    expect(isShowHsnSacEnabled({ showHsnSac: false })).toBe(false);
+    vi.doMock('../../src/platforms/service-cloud/mode', () => ({
+      isServicePhoneUx: () => true,
+    }));
+    const { isGstBillingEnabled, isServicePhoneBillUx } = await import('../../src/lib/billSettingsFlags');
+    expect(isServicePhoneBillUx()).toBe(true);
+    expect(isGstBillingEnabled(null)).toBe(false);
+    expect(isGstBillingEnabled({})).toBe(false);
+    expect(isGstBillingEnabled({ showGst: false })).toBe(false);
+    expect(isGstBillingEnabled({ showGst: true })).toBe(true);
+    expect(isGstBillingEnabled({ showHsnSac: true })).toBe(true);
   });
 
-  it('offline: defaults OFF when setting missing (opt-in)', async () => {
-    vi.doMock('../../src/platforms/service-mobile/mode', () => ({
-      isServiceMobileMode: () => true,
+  it('showGst takes precedence over legacy showHsnSac', async () => {
+    vi.doMock('../../src/lib/session', () => ({
+      session: { getUser: () => ({ businessType: 'manufacturer' }) },
     }));
-    const { isShowHsnSacEnabled } = await import('../../src/lib/billSettingsFlags');
-    expect(isShowHsnSacEnabled(null)).toBe(false);
-    expect(isShowHsnSacEnabled({})).toBe(false);
-    expect(isShowHsnSacEnabled({ showHsnSac: false })).toBe(false);
-    expect(isShowHsnSacEnabled({ showHsnSac: true })).toBe(true);
+    vi.doMock('../../src/platforms/service-cloud/mode', () => ({
+      isServicePhoneUx: () => false,
+    }));
+    const { isGstBillingEnabled } = await import('../../src/lib/billSettingsFlags');
+    expect(isGstBillingEnabled({ showGst: false, showHsnSac: true })).toBe(false);
+    expect(isGstBillingEnabled({ showGst: true, showHsnSac: false })).toBe(true);
   });
 });

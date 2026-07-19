@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
-import { isShowHsnSacEnabled } from '../../lib/billSettingsFlags';
+import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { useTranslation } from '../../i18n';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
 import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
@@ -87,7 +87,7 @@ export function MastersView({
   const [products, setProducts] = useState<Product[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
-  const [showHsnSac, setShowHsnSac] = useState(() => isShowHsnSacEnabled(null));
+  const [showHsnSac, setShowHsnSac] = useState(() => isGstBillingEnabled(null));
 
   const refreshCounts = () => {
     api.masters
@@ -111,7 +111,7 @@ export function MastersView({
   useEffect(() => {
     api.settings
       .getBillSettings()
-      .then(s => setShowHsnSac(isShowHsnSacEnabled(s)))
+      .then(s => setShowHsnSac(isGstBillingEnabled(s)))
       .catch(() => {});
   }, []);
 

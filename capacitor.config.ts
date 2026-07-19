@@ -14,6 +14,13 @@ const config: CapacitorConfig = {
   },
   plugins: {
     Preferences: {},
+    /** Inject --safe-area-inset-* so headers clear status bar / cutouts on Android. */
+    SystemBars: {
+      insetsHandling: 'css',
+      // LIGHT = dark status icons (white app header)
+      style: 'LIGHT',
+      hidden: false,
+    },
   },
 };
 

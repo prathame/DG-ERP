@@ -104,6 +104,44 @@ describe('HTTP: notifications feed + SA notify', () => {
     expect(admin2?.read).toBe(true);
   });
 
+  it('SA notify with userId is visible only to that user', async () => {
+    const notify = await api()
+      .post(`/api/super-admin/tenants/${TENANT}/notify`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({ title: 'Private Ping', message: 'Only admin', type: 'info', userId: USER });
+    expect(notify.status).toBe(200);
+    expect(notify.body.userId).toBe(USER);
+
+    const adminFeed = await api().get('/api/notifications').set(authHeaders(token, TENANT));
+    expect((adminFeed.body.items as { id: string }[]).some(i => i.id === notify.body.id)).toBe(true);
+
+    const vendorFeed = await api().get('/api/notifications').set(authHeaders(vendorToken, TENANT));
+    expect((vendorFeed.body.items as { id: string }[]).some(i => i.id === notify.body.id)).toBe(false);
+  });
+
+  it('SA notify rejects userId outside tenant', async () => {
+    const bad = await api()
+      .post(`/api/super-admin/tenants/${TENANT}/notify`)
+      .set({ Authorization: `Bearer ${saToken}` })
+      .send({ title: 'Nope', message: 'Wrong user', userId: 'U-NOT-IN-TENANT' });
+    expect(bad.status).toBe(404);
+  });
+
+  it('read-all does not mark another user targeted SA message', async () => {
+    const id = uid('TN');
+    await pool.query(
+      `INSERT INTO tenant_notifications (id, tenant_id, title, body, type, source, expires_at, user_id)
+       VALUES ($1,$2,'Admin Only','Secret','info','super_admin', NOW() + INTERVAL '30 days', $3)`,
+      [id, TENANT, USER],
+    );
+    const res = await api().post('/api/notifications/read-all').set(authHeaders(vendorToken, TENANT));
+    expect(res.status).toBe(200);
+    const row = (
+      await pool.query('SELECT read_at FROM tenant_notifications WHERE id = $1 AND tenant_id = $2', [id, TENANT])
+    ).rows[0];
+    expect(row?.read_at).toBeFalsy();
+  });
+
   it('read-all marks SA messages read', async () => {
     const id = uid('TN');
     await pool.query(

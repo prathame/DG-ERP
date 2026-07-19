@@ -87,12 +87,12 @@ export function AppModal({
           'bg-white w-full flex flex-col shadow-xl',
           'rounded-t-2xl sm:rounded-2xl',
           'max-h-[min(92dvh,100%)] sm:max-h-[min(90dvh,100%)]',
-          'pb-[env(safe-area-inset-bottom,0px)] sm:pb-0',
+          'pb-[var(--safe-bottom)] sm:pb-0',
           maxW,
           className,
         )}
       >
-        <div className="shrink-0 flex items-start justify-between gap-3 px-4 sm:px-6 pt-[max(1rem,env(safe-area-inset-top,0px))] sm:pt-5 pb-3 border-b border-gray-100">
+        <div className="shrink-0 flex items-start justify-between gap-3 px-4 sm:px-6 pt-[max(1rem,var(--safe-top))] sm:pt-5 pb-3 border-b border-gray-100">
           <div className="min-w-0">
             <h3 id={titleId} className="text-base sm:text-lg font-bold text-gray-900 truncate">
               {title}

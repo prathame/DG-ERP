@@ -14,7 +14,8 @@ description: Platform login, tenants, plans, billing, impersonation, on-prem lic
 | Group | Examples |
 |---|---|
 | Auth | `POST /api/super-admin/login` |
-| Tenants | CRUD, reset token, export, notify, upgrade plan |
+| Tenants | CRUD, reset token, export, notify (`userId` optional → one user), upgrade plan |
+| Service Cloud seats | Access mode, users/slots, unbind; seats UI also Share reset + per-user notify |
 | Impersonation | `POST …/tenants/:id/impersonate` → 15m JWT + audit |
 | Plans / billing | Plan CRUD; tenant invoices paid flags |
 | Analytics | Dashboard; cloud / on-prem / Offline Mobile (`service-mobile-analytics`) fleet health |

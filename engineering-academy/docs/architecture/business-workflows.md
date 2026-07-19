@@ -192,13 +192,13 @@ flowchart TB
 
 The header Bell loads `GET /api/notifications` — a **merged feed**, not a toast flood:
 
-1. **Super Admin / control panel pushes** from `tenant_notifications` (written by `POST /api/super-admin/tenants/:id/notify` or broadcast). Shown individually at the top; `POST /api/notifications/:id/read` sets `read_at`.
+1. **Super Admin / control panel pushes** from `tenant_notifications` (written by `POST /api/super-admin/tenants/:id/notify` or broadcast). Optional body `userId` targets one user (`tenant_notifications.user_id`); omit/`NULL` = whole tenant. Service Cloud seats panel uses targeted notify. Shown individually at the top; feed + read/read-all only include rows where `user_id IS NULL OR user_id = current user`.
 2. **Computed digests** (one card per category): price lists expiring (7d), quotes expiring (3d), low stock, warranties (14d), overdue collections/invoices, subscription/trial ≤15d.
 
 **Who sees what**
 
-- **Vendor role**: SA/control-panel messages only — never tenant-wide digests (even if the user has no linked `vendorId`). The notifications router is mounted *before* reports/accounts so those routers’ global `blockVendors` middleware cannot block the Bell feed.
-- **Other roles**: digests are filtered by module permission (`getAccessLevel` ≠ `hidden`). Example: Warehouse may see inventory digests but not finance overdue.
+- **Vendor role**: SA/control-panel messages only (tenant-wide + their targeted rows) — never tenant-wide digests (even if the user has no linked `vendorId`). The notifications router is mounted *before* reports/accounts so those routers’ global `blockVendors` middleware cannot block the Bell feed.
+- **Other roles**: digests are filtered by module permission (`getAccessLevel` ≠ `hidden`). Example: Warehouse may see inventory digests but not finance overdue. Targeted SA messages for another user never appear.
 - **Service overdue**: only `standalone_invoices` with `status = 'sent'` past due with unpaid balance — drafts never count.
 - **Manufacturer overdue**: count of vendors with positive balance whose *oldest* dispatch is &gt; 30 days (not a lifetime payment vs old billed mismatch).
 - **On-prem desktop**: SA messages are queued in cloud `onprem_notifications` (30-day expiry; `POST /api/super-admin/onprem/:id/notify`, and broadcast). Heartbeat returns `pendingNotifications` only when license+machine match. Electron applies them into local `tenant_notifications` via localhost + `DEPLOYMENT_MODE=onprem` `POST /api/onprem/apply-notifications`, then acks with `POST /api/onprem/mark-notifications-delivered` (**requires `machineId` when the license is bound**). Hard sync / Sync Now pulls the same payload. Digests still compute locally — only SA pushes need this bridge.

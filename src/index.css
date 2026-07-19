@@ -13,10 +13,14 @@
   --primary: #F27D26;
   --ink: #151619;
   --bg: #F8F9FA;
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
+  /*
+   * Capacitor SystemBars injects --safe-area-inset-* as CSS vars (reliable on Android).
+   * env(safe-area-inset-*) is often 0 in older Android WebViews — always prefer the var.
+   */
+  --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
 }
 
 html.dark {
@@ -257,10 +261,14 @@ select:focus-visible {
 
 /* PWA / Capacitor safe areas (notch, status bar, home indicator) */
 :root {
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
   /* Bottom tab bar content height (icons + labels), excluding home-indicator inset */
   --app-bottom-nav: 4.5rem;
+}
+
+/* Native Capacitor: never let status-bar inset collapse to 0 (WebView env() bug). */
+html.dg-capacitor-native {
+  --safe-top: max(1.75rem, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+  --safe-bottom: max(0.75rem, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
 }
 
 html.dg-mobile-dense {

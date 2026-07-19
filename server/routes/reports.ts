@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { blockVendors } from '../middleware/auth';
 import { pool } from '../pg-db';
-import { DISTRIBUTION_BILL_UNIT_SQL, gstFromExclusive, splitGst } from '../utils/helpers';
+import { DISTRIBUTION_BILL_UNIT_SQL, INVOICE_IS_GST_SQL, gstFromExclusive, splitGst } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 
 const router = Router();
@@ -481,6 +481,79 @@ router.get('/api/reports/gst-summary', async (req, res) => {
       hsnMap[hsn].total += billed;
     }
 
+    // GST-enabled standalone invoices (service / Offline-style bills)
+    const invRows = (
+      await pool.query(
+        `
+      SELECT si.customer_name, si.customer_gstin, si.subtotal, si.tax_total, si.grand_total, si.items
+      FROM standalone_invoices si
+      WHERE si.tenant_id = $1 AND si.invoice_date >= $2 AND si.invoice_date < $3
+        AND si.status NOT IN ('cancelled','draft')
+        AND ${INVOICE_IS_GST_SQL}
+    `,
+        [tenantId, startDate, endDate],
+      )
+    ).rows as Record<string, unknown>[];
+
+    for (const inv of invRows) {
+      const taxable = Number(inv.subtotal) || 0;
+      const tax = Number(inv.tax_total) || 0;
+      const { cgst, sgst } = splitGst(tax);
+      const gstin = String(inv.customer_gstin || '');
+      const billed = Number(inv.grand_total) || taxable + tax;
+      if (gstin && gstin.length >= 15) {
+        if (!b2b[gstin])
+          b2b[gstin] = {
+            vendorName: String(inv.customer_name || 'Customer'),
+            gstin,
+            taxable: 0,
+            cgst: 0,
+            sgst: 0,
+            total: 0,
+            invoiceCount: 0,
+          };
+        b2b[gstin].taxable += taxable;
+        b2b[gstin].cgst += cgst;
+        b2b[gstin].sgst += sgst;
+        b2b[gstin].total += billed;
+        b2b[gstin].invoiceCount++;
+      } else {
+        b2cTaxable += taxable;
+        b2cCgst += cgst;
+        b2cSgst += sgst;
+        b2cTotal += billed;
+      }
+      const items = Array.isArray(inv.items) ? inv.items : [];
+      for (const it of items as {
+        hsnSac?: string;
+        description?: string;
+        qty?: number;
+        taxable?: number;
+        tax?: number;
+        total?: number;
+      }[]) {
+        const hsn = String(it.hsnSac || 'N/A');
+        const lineTaxable = Number(it.taxable) || 0;
+        const lineTax = Number(it.tax) || 0;
+        const half = Math.round(lineTax / 2);
+        if (!hsnMap[hsn])
+          hsnMap[hsn] = {
+            hsn,
+            description: String(it.description || inv.customer_name || 'Invoice'),
+            qty: 0,
+            taxable: 0,
+            cgst: 0,
+            sgst: 0,
+            total: 0,
+          };
+        hsnMap[hsn].qty += Number(it.qty) || 1;
+        hsnMap[hsn].taxable += lineTaxable;
+        hsnMap[hsn].cgst += half;
+        hsnMap[hsn].sgst += lineTax - half;
+        hsnMap[hsn].total += Number(it.total) || lineTaxable + lineTax;
+      }
+    }
+
     res.json({
       period: `${String(m).padStart(2, '0')}/${y}`,
       b2b: Object.values(b2b),
@@ -530,13 +603,16 @@ router.get('/api/reports/gstr1', async (req, res) => {
       )
     ).rows as Record<string, unknown>[];
 
-    // Standalone invoices (issued)
+    // GST-enabled standalone invoices only (non-GST invoices are not outward supplies)
     const invDocRows = (
       await pool.query(
         `
-      SELECT id, invoice_number, invoice_date, customer_name, customer_gstin, subtotal, tax_total, grand_total, items
-      FROM standalone_invoices
-      WHERE tenant_id = $1 AND invoice_date >= $2 AND invoice_date < $3 AND status NOT IN ('cancelled','draft')
+      SELECT si.id, si.invoice_number, si.invoice_date, si.customer_name, si.customer_gstin,
+             si.subtotal, si.tax_total, si.grand_total, si.items
+      FROM standalone_invoices si
+      WHERE si.tenant_id = $1 AND si.invoice_date >= $2 AND si.invoice_date < $3
+        AND si.status NOT IN ('cancelled','draft')
+        AND ${INVOICE_IS_GST_SQL}
     `,
         [tenantId, startDate, endDate],
       )

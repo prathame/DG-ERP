@@ -320,7 +320,7 @@ export function PriceListView({ onBack }: { onBack: () => void }) {
   .repeat-banner th { background: #fff !important; color: #111827 !important; border-bottom: 2px solid ${esc(brand)}; text-transform: none; letter-spacing: 0; font-size: 11px; }
   tbody td { padding: 9px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
-  tbody tr:nth-child(even) { background: #fafafa; }
+  tbody tr:nth-child(even), tbody tr:nth-child(odd) { background: transparent; }
   .price { font-weight: 700; color: ${esc(brand)}; }
   .muted { color: #9ca3af; font-size: 11px; }
   .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }

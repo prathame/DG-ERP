@@ -64,7 +64,7 @@ export function ConfirmDialog({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/40 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:pb-4"
+      className="fixed inset-0 bg-black/40 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 pb-[max(0.5rem,var(--safe-bottom))] sm:pb-4"
       onClick={onCancel}
       role="presentation"
     >
@@ -78,7 +78,7 @@ export function ConfirmDialog({
         animate={{ scale: 1 }}
         exit={{ scale: 0.95 }}
         onClick={e => e.stopPropagation()}
-        className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-sm px-6 pt-6 max-h-[min(90dvh,100%)] overflow-y-auto pb-[max(3.25rem,calc(1.25rem+env(safe-area-inset-bottom,0px)))] sm:p-6 sm:pb-6"
+        className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-sm px-6 pt-6 max-h-[min(90dvh,100%)] overflow-y-auto pb-[max(3.25rem,calc(1.25rem+var(--safe-bottom)))] sm:p-6 sm:pb-6"
       >
         <div className="flex items-start gap-3 mb-4">
           <div

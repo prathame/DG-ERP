@@ -8,6 +8,9 @@ import {
   DISTRIBUTION_TAX_SQL,
   PURCHASE_TAXABLE_SQL,
   PURCHASE_TAX_SQL,
+  INVOICE_IS_GST_SQL,
+  INVOICE_TAXABLE_GST_SQL,
+  INVOICE_TAX_GST_SQL,
   logAudit,
   splitGst,
 } from '../utils/helpers';
@@ -402,7 +405,7 @@ router.get('/api/accounts/balance-sheet', async (req, res) => {
       pool.query(
         `SELECT
         COALESCE((SELECT SUM(${DISTRIBUTION_TAX_SQL}) FROM product_distribution pd JOIN products p ON pd.product_id=p.id AND p.tenant_id=$1 WHERE pd.tenant_id=$1 AND pd.distribution_date <= $2),0) as dist_tax,
-        COALESCE((SELECT SUM(tax_total) FROM standalone_invoices WHERE tenant_id=$1 AND invoice_date <= $2 AND status NOT IN ('cancelled','draft')),0) as inv_tax,
+        COALESCE((SELECT SUM(${INVOICE_TAX_GST_SQL}) FROM standalone_invoices si WHERE si.tenant_id=$1 AND si.invoice_date <= $2 AND si.status NOT IN ('cancelled','draft')),0) as inv_tax,
         COALESCE((SELECT SUM(${PURCHASE_TAX_SQL}) FROM product_purchases pp WHERE pp.tenant_id=$1 AND pp.purchase_date <= $2),0) as purch_itc,
         COALESCE((SELECT SUM(CASE WHEN note_type='credit' THEN gst_amount ELSE 0 END) FROM credit_debit_notes WHERE tenant_id=$1 AND note_date <= $2),0) as cn_tax,
         COALESCE((SELECT SUM(CASE WHEN note_type='debit' THEN gst_amount ELSE 0 END) FROM credit_debit_notes WHERE tenant_id=$1 AND note_date <= $2),0) as dn_tax
@@ -1036,12 +1039,18 @@ router.get('/api/gstr3b/compute', async (req, res) => {
       distIgst += split.igst;
     }
 
-    // Output — standalone invoices (issued)
+    // Output — GST-enabled standalone invoices only (non-GST bills stay in P&L, not taxable outward)
     const invRows = (
       await pool.query(
-        `SELECT COALESCE(SUM(subtotal), 0) as taxable, COALESCE(SUM(tax_total), 0) as tax, customer_gstin
-       FROM standalone_invoices WHERE tenant_id = $1 AND invoice_date >= $2 AND invoice_date < $3 AND status NOT IN ('cancelled','draft')
-       GROUP BY customer_gstin`,
+        `SELECT
+           COALESCE(SUM(${INVOICE_TAXABLE_GST_SQL}), 0) as taxable,
+           COALESCE(SUM(${INVOICE_TAX_GST_SQL}), 0) as tax,
+           si.customer_gstin
+         FROM standalone_invoices si
+         WHERE si.tenant_id = $1 AND si.invoice_date >= $2 AND si.invoice_date < $3
+           AND si.status NOT IN ('cancelled','draft')
+           AND ${INVOICE_IS_GST_SQL}
+         GROUP BY si.customer_gstin`,
         [tenantId, startDate, endDate],
       )
     ).rows as { taxable: string; tax: string; customer_gstin: string | null }[];

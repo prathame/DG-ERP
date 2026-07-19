@@ -47,6 +47,8 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
         taxSgst: Number(r.tax_sgst) || 0,
         taxIgst: Number(r.tax_igst) || 0,
         isInterstate: !!r.is_interstate,
+        // Frozen at create — null legacy rows fall back to tax_total > 0
+        gstEnabled: r.gst_enabled == null ? Number(r.tax_total) > 0 : !!r.gst_enabled,
         grandTotal: Number(r.grand_total),
         notes: r.notes,
         terms: r.terms,
@@ -146,6 +148,13 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
       discountPercent?: number;
       productId?: string;
     };
+    // Freeze GST mode on this invoice (settings may change later; print must not flip)
+    let gstEnabled = typeof req.body.gstEnabled === 'boolean' ? !!req.body.gstEnabled : null;
+    if (gstEnabled == null) {
+      const bsRow = (await pool.query('SELECT show_hsn_sac FROM bill_settings WHERE tenant_id = $1', [tenantId]))
+        .rows[0] as { show_hsn_sac?: boolean } | undefined;
+      gstEnabled = bsRow ? bsRow.show_hsn_sac !== false : true;
+    }
     const priceVendorId = resolvedPartyType === 'vendor' ? resolvedPartyId : null;
     const lineItems: {
       description: string;
@@ -172,7 +181,7 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
           ])
         ).rows[0] as { price: number; price_includes_gst: boolean } | undefined;
         if (product) {
-          priceIncludesGst = !!product.price_includes_gst;
+          priceIncludesGst = !!product.price_includes_gst && gstEnabled;
           if (!raw.rate || rate <= 0) {
             const resolved = await resolvePrice(tenantId, productId, priceVendorId, qty);
             rate = resolved.price;
@@ -180,7 +189,7 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
         }
       }
       const disc = Math.min(100, Math.max(0, Number(raw.discountPercent) || 0));
-      const gstPercent = Number(raw.gstPercent) || 0;
+      const gstPercent = gstEnabled ? Number(raw.gstPercent) || 0 : 0;
       let taxable: number;
       let tax: number;
       let total: number;
@@ -231,8 +240,8 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
 
     const id = uid('INV');
     await pool.query(
-      `INSERT INTO standalone_invoices (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address, customer_phone, party_type, party_id, items, subtotal, tax_total, grand_total, notes, terms, status, invoice_date, due_date, tax_cgst, tax_sgst, tax_igst, is_interstate)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+      `INSERT INTO standalone_invoices (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address, customer_phone, party_type, party_id, items, subtotal, tax_total, grand_total, notes, terms, status, invoice_date, due_date, tax_cgst, tax_sgst, tax_igst, is_interstate, gst_enabled)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
       [
         id,
         tenantId,
@@ -256,6 +265,7 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
         taxSgst,
         taxIgst,
         interstate,
+        gstEnabled,
       ],
     );
     await logAudit(

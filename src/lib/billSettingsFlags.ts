@@ -1,11 +1,36 @@
-import { isServiceMobileMode } from '../platforms/service-mobile/mode';
+import { session } from './session';
+import { isServicePhoneUx } from '../platforms/service-cloud/mode';
+
+/** Offline Mobile or online Cap + service — GST opt-in; manufacturer cloud stays opt-out. */
+export function isServicePhoneBillUx(): boolean {
+  try {
+    const user = session.getUser() as { businessType?: string } | null;
+    return isServicePhoneUx(user?.businessType);
+  } catch {
+    return false;
+  }
+}
+
+export type GstBillSettings = { showGst?: boolean; showHsnSac?: boolean } | null | undefined;
 
 /**
- * HSN/SAC visibility from bill settings.
- * Offline (service-mobile): opt-in — missing/false → hidden.
- * Cloud / manufacturer: opt-out — missing/true → shown (historical default).
+ * Single bill-settings flag: GST invoices (GST %, tax columns, HSN/SAC, Tax Invoice layout).
+ * Prefer `showGst`; fall back to legacy `showHsnSac` (same toggle, renamed).
+ * Service phone UX: opt-in. Manufacturer / desktop: opt-out (historical default on).
  */
-export function isShowHsnSacEnabled(settings?: { showHsnSac?: boolean } | null): boolean {
-  if (isServiceMobileMode()) return settings?.showHsnSac === true;
-  return settings?.showHsnSac !== false;
+export function isGstBillingEnabled(settings?: GstBillSettings): boolean {
+  const flag = settings?.showGst !== undefined ? settings.showGst : settings?.showHsnSac;
+  if (isServicePhoneBillUx()) return flag === true;
+  return flag !== false;
+}
+
+/** @deprecated Use isGstBillingEnabled — HSN is clubbed into the GST toggle. */
+export function isShowHsnSacEnabled(settings?: GstBillSettings): boolean {
+  return isGstBillingEnabled(settings);
+}
+
+/** Print/PDF: use the invoice’s frozen GST mode; never re-read live bill settings. */
+export function invoiceHasGst(inv: { gstEnabled?: boolean | null; taxTotal?: number | null }): boolean {
+  if (typeof inv.gstEnabled === 'boolean') return inv.gstEnabled;
+  return (Number(inv.taxTotal) || 0) > 0;
 }

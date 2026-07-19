@@ -16,6 +16,14 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     iosScheme: 'capacitor',
   },
+  plugins: {
+    Preferences: {},
+    SystemBars: {
+      insetsHandling: 'css',
+      style: 'LIGHT',
+      hidden: false,
+    },
+  },
 };
 
 export default config;

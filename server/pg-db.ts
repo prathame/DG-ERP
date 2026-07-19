@@ -872,6 +872,11 @@ export async function initSchema() {
     await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_sgst NUMERIC(12,2) DEFAULT 0');
     await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS tax_igst NUMERIC(12,2) DEFAULT 0');
     await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS is_interstate BOOLEAN DEFAULT false');
+    // Frozen at create: GST vs non-GST invoice (print must not follow later settings toggles)
+    await client.query('ALTER TABLE standalone_invoices ADD COLUMN IF NOT EXISTS gst_enabled BOOLEAN');
+    await client.query(
+      `UPDATE standalone_invoices SET gst_enabled = (COALESCE(tax_total, 0) > 0) WHERE gst_enabled IS NULL`,
+    );
 
     // In-app notifications (Super Admin / control-panel pushes)
     await client.query(`
@@ -888,9 +893,12 @@ export async function initSchema() {
         PRIMARY KEY (id, tenant_id)
       )
     `);
+    // NULL user_id = whole tenant; set = targeted seat/user only (Service Cloud SA)
+    await client.query(`ALTER TABLE tenant_notifications ADD COLUMN IF NOT EXISTS user_id TEXT`);
     await client.query(
       'CREATE INDEX IF NOT EXISTS idx_tn_tenant_unread ON tenant_notifications(tenant_id, read_at, created_at DESC)',
     );
+    await client.query('CREATE INDEX IF NOT EXISTS idx_tn_tenant_user ON tenant_notifications(tenant_id, user_id)');
 
     // Invoice payments — partial/batch payments against standalone invoices
     await client.query(`

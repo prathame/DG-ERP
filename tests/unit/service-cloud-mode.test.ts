@@ -49,4 +49,14 @@ describe('service-cloud mode detection', () => {
     expect(isServiceCloudMobile()).toBe(true);
     expect(serviceCloudClientHeader()).toBe('capacitor-cloud');
   });
+
+  it('Live badge surface is Cap-only (desktop cloud must stay false)', () => {
+    stubWindow({ electronAPI: { deploymentMode: 'cloud' } });
+    expect(isServiceCloudDesktop()).toBe(true);
+    expect(isServiceCloudMobile()).toBe(false);
+
+    stubWindow({ Capacitor: { isNativePlatform: () => true } });
+    expect(isServiceCloudMobile()).toBe(true);
+    expect(isServiceCloudDesktop()).toBe(false);
+  });
 });

@@ -23,6 +23,10 @@ Online-only product for `business_type=service` cloud tenants. **Not** Service M
 | POST | `.../service-cloud/users` | Create user + slot counts |
 | PUT | `.../service-cloud/users/:userId` | Update name/password/slots |
 | POST | `.../service-cloud/slots/:slotId/unbind` | Clear machine bind |
+| POST | `/api/super-admin/tenants/:id/reset-token` | Shareable password reset link (per user email) |
+| POST | `/api/super-admin/tenants/:id/notify` | In-app message; optional `userId` targets one seat user |
+
+`tenant_notifications.user_id` — `NULL` = whole tenant; set = that user only (Bell feed filters accordingly).
 
 ## Device / session (tenant JWT)
 

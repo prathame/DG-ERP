@@ -46,9 +46,22 @@ That URL is the code default for `service_mobile_app_url` / `/api/download-links
 gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clobber
 ```
 
+### CI: build APK from a PR comment
+
+Workflow: [`.github/workflows/apk-build.yml`](../../../.github/workflows/apk-build.yml)
+
+On an open PR, comment one of:
+
+- `apk build`
+- `/apk-build`
+
+Or add the label `apk-build`.
+
+CI builds the Offline Mobile debug APK from the PR head, uploads the workflow artifact, overwrites the evergreen `offline-mobile` release asset, and comments the download link. Only repo members / collaborators can trigger it.
+
 ## Mobile UI / safe areas
 
-Capacitor uses edge-to-edge WebViews. The shell CSS (`app-header-safe`, `--safe-top` / `--safe-bottom`, bottom-nav clearance) must keep the status bar and home indicator from covering headers, CTAs, and forms. Rebuild the APK after layout CSS changes.
+Capacitor uses edge-to-edge WebViews. Prefer Capacitor’s injected CSS vars (`--safe-area-inset-*` via `SystemBars` `insetsHandling: css`) over `env(safe-area-inset-*)`, which is often `0` on Android WebView. Shell CSS maps those to `--safe-top` / `--safe-bottom` (`app-header-safe`, bottom-nav clearance). Native shells also get a minimum inset floor (`dg-capacitor-native`) so time/battery never sit under the header. Rebuild the APK after layout CSS or `capacitor.config.ts` SystemBars changes.
 
 ## Mobile UI density
 

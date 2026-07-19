@@ -35,7 +35,7 @@ import {
 } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
-import { isShowHsnSacEnabled } from '../../lib/billSettingsFlags';
+import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { session } from '../../lib/session';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
@@ -73,6 +73,8 @@ type Invoice = {
   taxSgst?: number;
   taxIgst?: number;
   isInterstate?: boolean;
+  /** Frozen at create — print/PDF must follow this, not live bill settings */
+  gstEnabled?: boolean;
   grandTotal: number;
   notes?: string;
   terms?: string;
@@ -118,12 +120,12 @@ type PriceRule = {
   isActive: boolean;
 };
 
-const emptyRow = (): InvoiceLineRow => ({
+const emptyRow = (gstOn = true): InvoiceLineRow => ({
   description: '',
   hsnSac: '',
   qty: 1,
   rate: 0,
-  gstPercent: 18,
+  gstPercent: gstOn ? 18 : 0,
   discountPercent: 0,
   productId: '',
 });
@@ -244,7 +246,13 @@ export function InvoicesView() {
       if (!Array.isArray(inv.items)) {
         throw new Error('Invoice has no line items to print');
       }
-      const user = session.getUser() || {};
+      const user = (session.getUser() || {}) as {
+        companyName?: string;
+        address?: string;
+        phone?: string;
+        email?: string;
+        gstNumber?: string;
+      };
       const bs = billSettings;
       const color = /^#[0-9a-fA-F]{3,8}$/.test(String(bs.primaryColor || '')) ? String(bs.primaryColor) : '#F27D26';
       const logoSrc = typeof bs.logoBase64 === 'string' && bs.logoBase64.startsWith('data:image/') ? bs.logoBase64 : '';
@@ -281,153 +289,156 @@ export function InvoicesView() {
         ? `<div style="margin-top:16px;font-size:10px;color:#666;"><strong>Terms & Conditions:</strong><br/>${esc(termsText)}</div>`
         : '';
 
-      const hasGst = inv.taxTotal > 0;
+      // Preserve this invoice’s GST mode — do not re-read live bill settings
+      const hasGst = invoiceHasGst(inv);
       const useIgst = inv.isInterstate === true || (typeof inv.taxIgst === 'number' && inv.taxIgst > 0);
       const taxCgst = typeof inv.taxCgst === 'number' ? inv.taxCgst : Math.round(inv.taxTotal / 2);
       const taxSgst = typeof inv.taxSgst === 'number' ? inv.taxSgst : Math.round((inv.taxTotal - taxCgst) * 100) / 100;
       const taxIgst = typeof inv.taxIgst === 'number' ? inv.taxIgst : inv.taxTotal;
       const showDiscCol = inv.items.some(it => (it.discountPercent || 0) > 0);
-      const showHsn = isShowHsnSacEnabled(bs as { showHsnSac?: boolean });
+      // HSN is clubbed into GST — only on GST invoices
+      const showHsn = hasGst;
       // Base cols without HSN: Sr, Desc, Qty, Rate, Amount (+ Disc + GST% + Tax when applicable)
       const itemColspan = (hasGst ? 7 : 5) + (showDiscCol ? 1 : 0) + (showHsn ? 1 : 0);
+      const placeOfSupply = (() => {
+        const code = String(inv.customerGstin || user.gstNumber || '24')
+          .trim()
+          .toUpperCase()
+          .slice(0, 2);
+        const STATES: Record<string, string> = {
+          '24': 'Gujarat',
+          '27': 'Maharashtra',
+          '07': 'Delhi',
+          '29': 'Karnataka',
+          '33': 'Tamil Nadu',
+          '09': 'Uttar Pradesh',
+          '06': 'Haryana',
+          '03': 'Punjab',
+          '08': 'Rajasthan',
+          '23': 'Madhya Pradesh',
+          '19': 'West Bengal',
+          '36': 'Telangana',
+          '37': 'Andhra Pradesh',
+          '32': 'Kerala',
+        };
+        return `${STATES[code] || 'Gujarat'} (${code || '24'})`;
+      })();
+      const statusLine =
+        inv.status === 'paid'
+          ? '<span style="font-weight:700;">PAID</span>'
+          : (inv.outstanding || 0) > 0.001
+            ? `<span style="font-weight:700;">Outstanding: ₹${Number(inv.outstanding).toLocaleString('en-IN')}</span>`
+            : '';
+      // Print-safe layout: title at top, full A4 width, no gray/zebra fills (they band on toner printers).
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${invPrefix}${esc(inv.invoiceNumber)}</title>
     <style>
-      *{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
-      table{border-collapse:collapse;}.outer{border:2px solid ${color};width:100%;}.outer td,.outer th{border:1px solid #ccc;padding:4px 8px;font-size:11px;}
-      .hdr{border-bottom:2px solid ${color};}.hdr td{border:none;padding:8px 12px;vertical-align:top;}
-      .tagline{background:${color};color:white;text-align:center;padding:4px;font-size:11px;font-weight:600;letter-spacing:1px;}
-      .title-row td{padding:6px 12px;font-size:12px;border-bottom:2px solid ${color};}
-      .gstin-text{font-family:monospace;font-weight:700;font-size:13px;}
-      .title-text{font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;}
-      .items th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:6px;text-align:center;font-weight:700;}
-      .items td{padding:5px 6px;text-align:center;}.items .left{text-align:left;}.items .right{text-align:right;}
+      *{margin:0;padding:0;box-sizing:border-box;}
+      html,body{width:100%;background:#fff;color:#111;}
+      body{font-family:Arial,Helvetica,sans-serif;padding:8mm;margin:0;font-size:11px;}
+      .doc{width:100%;max-width:none;}
+      .doc-title{text-align:center;font-size:18px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;margin:0 0 12px;color:#111;}
+      .seller{display:flex;align-items:flex-start;gap:12px;margin-bottom:8px;}
+      .seller-name{font-size:16px;font-weight:800;color:${color};}
+      .muted{font-size:10px;color:#444;margin-top:2px;}
+      .gstin{font-family:monospace;font-weight:700;font-size:12px;}
+      .tagline{border:1px solid ${color};color:${color};text-align:center;padding:4px 8px;font-size:11px;font-weight:600;margin:8px 0;}
+      .meta{display:flex;justify-content:space-between;gap:16px;padding:8px 0;margin:8px 0;border-top:1.5px solid #222;border-bottom:1.5px solid #222;}
+      .bill-to{margin:10px 0 12px;}
+      .bill-to .label{font-size:10px;font-weight:700;text-transform:uppercase;color:#444;}
+      table{border-collapse:collapse;width:100%;}
+      .items th{background:none;border-top:1.5px solid #222;border-bottom:1.5px solid #222;font-size:10px;text-transform:uppercase;padding:7px 5px;text-align:center;font-weight:700;}
+      .items td{padding:6px 5px;text-align:center;border-bottom:1px solid #ccc;background:none;}
+      .items tbody tr,.items tbody tr:nth-child(even),.items tbody tr:nth-child(odd){background:transparent!important;}
       .items tbody tr{break-inside:avoid;page-break-inside:avoid;}
-      .items .total-row{font-weight:700;background:#f0f0f0;}
-      .grand-total{font-size:16px;font-weight:900;color:${color};}
-      .footer-text{font-size:9px;color:#999;text-align:center;margin-top:8px;}
-      .repeat-banner th{background:#fff;border-bottom:2px solid ${color};text-align:left;padding:6px 8px;font-size:11px;text-transform:none;letter-spacing:0;}
-      @media print{body{padding:10px;} @page{margin:10mm;} thead{display:table-header-group;}}
+      .items .left{text-align:left;}.items .right{text-align:right;}
+      .items .total-row td{font-weight:700;background:none!important;border-top:1.5px solid #222;border-bottom:none;}
+      .grand-total{font-size:14px;font-weight:800;color:#111;}
+      .notes{margin-top:12px;padding:8px;border:1px solid #999;font-size:11px;}
+      .footer-text{font-size:9px;color:#666;text-align:center;margin-top:16px;}
+      @media print{
+        body{padding:0;}
+        @page{margin:8mm;size:A4;}
+        thead{display:table-header-group;}
+        *{-webkit-print-color-adjust:economy;print-color-adjust:economy;}
+      }
     </style></head><body>
-    <table class="outer avoid-break">
-      <tr class="hdr">
-        <td colspan="2" style="width:65%;">
-          <div style="display:flex;align-items:center;gap:12px;">${logoHtml}<div>
-            <div style="font-size:18px;font-weight:800;color:${color};">${esc(user.companyName || 'Dhandho')}</div>
-            ${user.address ? `<div style="font-size:10px;color:#555;margin-top:2px;">${esc(user.address)}</div>` : ''}
-            ${user.phone ? `<div style="font-size:10px;color:#555;">Ph: ${esc(user.phone)}</div>` : ''}
-          </div></div>
-        </td>
-        <td colspan="2" style="text-align:right;width:35%;">
-          <div class="title-text" style="color:${color};">${hasGst ? 'TAX INVOICE' : 'INVOICE'}</div>
-          <div style="font-size:11px;margin-top:4px;"><strong>${invPrefix}${esc(inv.invoiceNumber)}</strong></div>
-          <div style="font-size:10px;color:#555;">Date: ${formatDate(inv.invoiceDate)}</div>
-          ${inv.dueDate ? `<div style="font-size:10px;color:#555;">Due: ${formatDate(inv.dueDate)}</div>` : ''}
-        </td>
-      </tr>
-      ${tagline ? `<tr><td colspan="4" class="tagline">${tagline}</td></tr>` : ''}
-      <tr class="title-row">
-        <td colspan="2">${user.gstNumber ? `<span class="gstin-text">GSTIN: ${esc(user.gstNumber)}</span>` : ''}</td>
-        <td colspan="2" style="text-align:right;">${
-          inv.status === 'paid'
-            ? '<span style="color:#059669;font-weight:700;">✓ PAID</span>'
-            : (inv.outstanding || 0) > 0.001
-              ? `<span style="color:#e11d48;font-weight:700;">Outstanding: ₹${Number(inv.outstanding).toLocaleString()}</span>`
+    <div class="doc">
+      <div class="doc-title">${hasGst ? 'Tax Invoice' : 'Invoice'}</div>
+      <div class="seller avoid-break">
+        ${logoHtml}
+        <div>
+          <div class="seller-name">${esc(user.companyName || 'Dhandho')}</div>
+          ${user.address ? `<div class="muted">${esc(user.address)}</div>` : ''}
+          ${user.phone ? `<div class="muted">Phone: ${esc(user.phone)}${user.email ? ` &nbsp;|&nbsp; Email: ${esc(user.email)}` : ''}</div>` : user.email ? `<div class="muted">Email: ${esc(user.email)}</div>` : ''}
+          ${user.gstNumber ? `<div class="muted gstin">GSTIN: ${esc(user.gstNumber)}</div>` : ''}
+        </div>
+      </div>
+      ${tagline ? `<div class="tagline">${tagline}</div>` : ''}
+      <div class="meta avoid-break">
+        <div>
+          <div>Invoice No: <strong>${invPrefix}${esc(inv.invoiceNumber)}</strong></div>
+          <div class="muted">Date: ${formatDate(inv.invoiceDate)}</div>
+          ${inv.dueDate ? `<div class="muted">Due: ${formatDate(inv.dueDate)}</div>` : ''}
+        </div>
+        <div style="text-align:right;">${statusLine}</div>
+      </div>
+      <div class="bill-to avoid-break">
+        <div class="label">Bill To:</div>
+        <strong>${esc(inv.customerName)}</strong>
+        ${inv.customerGstin ? `<div class="muted gstin">GSTIN: ${esc(inv.customerGstin)}</div>` : ''}
+        ${inv.customerAddress ? `<div class="muted">${esc(inv.customerAddress)}</div>` : ''}
+        ${inv.customerPhone ? `<div class="muted">Ph: ${esc(inv.customerPhone)}</div>` : ''}
+        ${hasGst ? `<div class="muted">Place of Supply: ${esc(placeOfSupply)}</div>` : ''}
+      </div>
+      <table class="items">
+        <thead>
+          <tr><th style="width:30px;">#</th><th class="left">Item Name</th>${showHsn ? '<th>HSN/SAC</th>' : ''}<th>Qty</th><th class="right">Price/Unit</th>${showDiscCol ? '<th class="right">Disc%</th>' : ''}${hasGst ? '<th class="right">GST</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr>
+        </thead>
+        <tbody>
+          ${inv.items
+            .map((it, i) => {
+              const disc = it.discountPercent || 0;
+              return `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td>${showHsn ? `<td>${esc(it.hsnSac || '—')}</td>` : ''}<td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString('en-IN')}</td>${showDiscCol ? `<td class="right">${disc > 0 ? `${disc}%` : '—'}</td>` : ''}${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString('en-IN')}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString('en-IN')}</td></tr>`;
+            })
+            .join('')}
+        </tbody>
+      </table>
+      <div class="print-end avoid-break">
+      <table class="items" style="margin-top:0;border-top:none;">
+        <tbody>
+          <tr class="total-row"><td colspan="${itemColspan - 1}" class="right">Sub Total</td><td class="right">₹${inv.subtotal.toLocaleString('en-IN')}</td></tr>
+          ${
+            hasGst
+              ? useIgst
+                ? `<tr><td colspan="${itemColspan - 1}" class="right">IGST</td><td class="right">₹${Number(taxIgst).toLocaleString('en-IN')}</td></tr>`
+                : `<tr><td colspan="${itemColspan - 1}" class="right">CGST</td><td class="right">₹${Number(taxCgst).toLocaleString('en-IN')}</td></tr>
+          <tr><td colspan="${itemColspan - 1}" class="right">SGST</td><td class="right">₹${Number(taxSgst).toLocaleString('en-IN')}</td></tr>`
               : ''
-        }</td>
-      </tr>
-      <tr><td colspan="4" style="padding:8px 12px;">
-        <table style="width:100%;"><tr>
-          <td style="border:none;width:50%;vertical-align:top;padding:4px 8px;">
-            <strong style="font-size:10px;color:#555;">BILL TO:</strong><br/>
-            <strong>${esc(inv.customerName)}</strong>
-            ${inv.customerGstin ? `<br/><span style="font-family:monospace;font-size:11px;">GSTIN: ${esc(inv.customerGstin)}</span>` : ''}
-            ${inv.customerAddress ? `<br/><span style="font-size:10px;">${esc(inv.customerAddress)}</span>` : ''}
-            ${inv.customerPhone ? `<br/><span style="font-size:10px;">Ph: ${esc(inv.customerPhone)}</span>` : ''}
-            ${
-              hasGst
-                ? `<br/><span style="font-size:10px;">Place of Supply: ${esc(
-                    (() => {
-                      const code = String(inv.customerGstin || user.gstNumber || '24')
-                        .trim()
-                        .toUpperCase()
-                        .slice(0, 2);
-                      const STATES: Record<string, string> = {
-                        '24': 'Gujarat',
-                        '27': 'Maharashtra',
-                        '07': 'Delhi',
-                        '29': 'Karnataka',
-                        '33': 'Tamil Nadu',
-                        '09': 'Uttar Pradesh',
-                        '06': 'Haryana',
-                        '03': 'Punjab',
-                        '08': 'Rajasthan',
-                        '23': 'Madhya Pradesh',
-                        '19': 'West Bengal',
-                        '36': 'Telangana',
-                        '37': 'Andhra Pradesh',
-                        '32': 'Kerala',
-                      };
-                      return `${STATES[code] || 'Gujarat'} (${code || '24'})`;
-                    })(),
-                  )}</span>`
+          }
+          <tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><span class="grand-total">Total</span></td><td class="right"><span class="grand-total">₹${inv.grandTotal.toLocaleString('en-IN')}</span></td></tr>
+          ${
+            (inv.advanceApplied || 0) > 0.001
+              ? `<tr><td colspan="${itemColspan - 1}" class="right">Advance payment</td><td class="right">−₹${Number(inv.advanceApplied).toLocaleString('en-IN')}</td></tr>`
+              : ''
+          }
+          ${
+            (inv.paidAmount || 0) > (inv.advanceApplied || 0) + 0.001
+              ? `<tr><td colspan="${itemColspan - 1}" class="right">Received</td><td class="right">−₹${(Number(inv.paidAmount) - Number(inv.advanceApplied || 0)).toLocaleString('en-IN')}</td></tr>`
+              : ''
+          }
+          ${
+            (inv.outstanding || 0) > 0.001
+              ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><strong>Balance</strong></td><td class="right"><strong>₹${Number(inv.outstanding).toLocaleString('en-IN')}</strong></td></tr>`
+              : inv.status === 'paid' || (inv.paidAmount || 0) >= inv.grandTotal - 0.001
+                ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><strong>Balance</strong></td><td class="right"><strong>₹0</strong></td></tr>`
                 : ''
-            }
-          </td>
-        </tr></table>
-      </td></tr>
-    </table>
-    <table class="outer items" style="margin-top:-2px;">
-      <thead>
-        <tr class="repeat-banner"><th colspan="${itemColspan}">
-          <span style="font-weight:800;color:${color};">${esc(user.companyName || 'Dhandho')}</span>
-          <span style="float:right;font-weight:700;">${invPrefix}${esc(inv.invoiceNumber)}</span>
-        </th></tr>
-        <tr><th style="width:30px;">Sr</th><th class="left">Description</th>${showHsn ? '<th>HSN/SAC</th>' : ''}<th>Qty</th><th class="right">Rate</th>${showDiscCol ? '<th class="right">Disc%</th>' : ''}${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr>
-      </thead>
-      <tbody>
-        ${inv.items
-          .map((it, i) => {
-            const disc = it.discountPercent || 0;
-            return `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td>${showHsn ? `<td>${esc(it.hsnSac || '—')}</td>` : ''}<td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${showDiscCol ? `<td class="right">${disc > 0 ? `${disc}%` : '—'}</td>` : ''}${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`;
-          })
-          .join('')}
-      </tbody>
-    </table>
-    <div class="print-end avoid-break">
-    <table class="outer items" style="margin-top:-2px;border-top:none;">
-      <tbody>
-        <tr class="total-row"><td colspan="${itemColspan - 1}" class="right">Subtotal</td><td class="right">₹${inv.subtotal.toLocaleString()}</td></tr>
-        ${
-          hasGst
-            ? useIgst
-              ? `<tr><td colspan="${itemColspan - 1}" class="right">IGST</td><td class="right">₹${Number(taxIgst).toLocaleString()}</td></tr>`
-              : `<tr><td colspan="${itemColspan - 1}" class="right">CGST</td><td class="right">₹${Number(taxCgst).toLocaleString()}</td></tr>
-        <tr><td colspan="${itemColspan - 1}" class="right">SGST</td><td class="right">₹${Number(taxSgst).toLocaleString()}</td></tr>`
-            : ''
-        }
-        <tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><span class="grand-total">Grand Total</span></td><td class="right"><span class="grand-total">₹${inv.grandTotal.toLocaleString()}</span></td></tr>
-        ${
-          (inv.advanceApplied || 0) > 0.001
-            ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right">Advance payment</td><td class="right" style="color:#059669;">−₹${Number(inv.advanceApplied).toLocaleString()}</td></tr>`
-            : ''
-        }
-        ${
-          (inv.paidAmount || 0) > (inv.advanceApplied || 0) + 0.001
-            ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right">Paid</td><td class="right" style="color:#059669;">−₹${(Number(inv.paidAmount) - Number(inv.advanceApplied || 0)).toLocaleString()}</td></tr>`
-            : ''
-        }
-        ${
-          (inv.outstanding || 0) > 0.001
-            ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><strong>Outstanding</strong></td><td class="right" style="color:#e11d48;font-weight:700;">₹${Number(inv.outstanding).toLocaleString()}</td></tr>`
-            : inv.status === 'paid' || (inv.paidAmount || 0) >= inv.grandTotal - 0.001
-              ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><strong>Outstanding</strong></td><td class="right" style="color:#059669;font-weight:700;">₹0</td></tr>`
-              : ''
-        }
-      </tbody>
-    </table>
-    ${!servicePhoneUx && inv.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${esc(inv.notes)}</div>` : ''}
-    ${bankHtml}${termsHtml}${sigHtml}
-    <p class="footer-text">${footerText}</p>
+          }
+        </tbody>
+      </table>
+      ${!servicePhoneUx && inv.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(inv.notes)}</div>` : ''}
+      ${bankHtml}${termsHtml}${sigHtml}
+      <p class="footer-text">${footerText}</p>
+      </div>
     </div>
     </body></html>`;
       printBillInWindow(w, html, `${hasGst ? 'Tax-Invoice' : 'Invoice'}-${inv.invoiceNumber}`);
@@ -759,7 +770,7 @@ export function InvoicesView() {
                       <th className="py-2 text-left">Item</th>
                       <th className="py-2 text-right">Qty</th>
                       <th className="py-2 text-right">Rate</th>
-                      <th className="py-2 text-right">GST</th>
+                      {invoiceHasGst(selectedInvoice) && <th className="py-2 text-right">GST</th>}
                       <th className="py-2 text-right">Total</th>
                     </tr>
                   </thead>
@@ -769,7 +780,7 @@ export function InvoicesView() {
                         <td className="py-2">{it.description}</td>
                         <td className="py-2 text-right">{it.qty}</td>
                         <td className="py-2 text-right">₹{Number(it.rate).toLocaleString()}</td>
-                        <td className="py-2 text-right">{it.gstPercent}%</td>
+                        {invoiceHasGst(selectedInvoice) && <td className="py-2 text-right">{it.gstPercent}%</td>}
                         <td className="py-2 text-right font-medium">₹{Number(it.total).toLocaleString()}</td>
                       </tr>
                     ))}
@@ -778,7 +789,9 @@ export function InvoicesView() {
               </div>
               <div className="text-right space-y-1 mb-4">
                 <p className="text-sm text-gray-500">Subtotal: ₹{selectedInvoice.subtotal.toLocaleString()}</p>
-                <p className="text-sm text-gray-500">Tax: ₹{selectedInvoice.taxTotal.toLocaleString()}</p>
+                {invoiceHasGst(selectedInvoice) && (
+                  <p className="text-sm text-gray-500">Tax: ₹{selectedInvoice.taxTotal.toLocaleString()}</p>
+                )}
                 <p className="text-lg font-bold">Total: ₹{selectedInvoice.grandTotal.toLocaleString()}</p>
                 {(selectedInvoice.advanceApplied || 0) > 0.001 && (
                   <p className="text-sm text-emerald-600">
@@ -913,12 +926,12 @@ export function CreateInvoiceModal({
     notes: '',
     terms: '',
   });
-  const [rows, setRows] = useState<InvoiceLineRow[]>([emptyRow()]);
+  const [gstBilling, setGstBilling] = useState(() => isGstBillingEnabled(null));
+  const [rows, setRows] = useState<InvoiceLineRow[]>(() => [emptyRow(isGstBillingEnabled(null))]);
   const [submitting, setSubmitting] = useState(false);
   const [parties, setParties] = useState<InvoiceParty[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [priceRules, setPriceRules] = useState<PriceRule[]>([]);
-  const [showHsnSac, setShowHsnSac] = useState(() => isShowHsnSacEnabled(null));
   const [partyKey, setPartyKey] = useState(() => {
     if (initialParty?.partyType && initialParty?.partyId) {
       return `${initialParty.partyType}:${initialParty.partyId}`;
@@ -973,7 +986,16 @@ export function CreateInvoiceModal({
     api.settings
       .getBillSettings()
       .then(s => {
-        if (!cancelled) setShowHsnSac(isShowHsnSacEnabled(s));
+        if (cancelled) return;
+        const on = isGstBillingEnabled(s);
+        setGstBilling(on);
+        setRows(prev =>
+          prev.map(r => ({
+            ...r,
+            gstPercent: on ? r.gstPercent || 18 : 0,
+            hsnSac: on ? r.hsnSac : '',
+          })),
+        );
       })
       .catch(() => {});
     // allSettled: one failing list must not wipe parties/products
@@ -1073,7 +1095,7 @@ export function CreateInvoiceModal({
 
   const applyCatalogItem = (idx: number, productId: string) => {
     if (!productId) {
-      setRows(rows.map((r, i) => (i === idx ? { ...emptyRow(), qty: r.qty || 1 } : r)));
+      setRows(rows.map((r, i) => (i === idx ? { ...emptyRow(gstBilling), qty: r.qty || 1 } : r)));
       return;
     }
     const p = products.find(x => x.id === productId);
@@ -1088,10 +1110,10 @@ export function CreateInvoiceModal({
               ...r,
               productId: p.id,
               description: p.name,
-              hsnSac: p.hsnCode || r.hsnSac || '',
+              hsnSac: gstBilling ? p.hsnCode || r.hsnSac || '' : '',
               qty,
               rate,
-              gstPercent: p.gstRate ?? hint?.rate ?? r.gstPercent ?? 18,
+              gstPercent: gstBilling ? (p.gstRate ?? hint?.rate ?? r.gstPercent ?? 18) : 0,
             }
           : r,
       ),
@@ -1149,12 +1171,13 @@ export function CreateInvoiceModal({
           ...(servicePhoneUx ? { notes: '', terms: '' } : {}),
           dueDate: form.dueDate?.trim() || null,
           invoiceNumber,
+          gstEnabled: gstBilling,
           items: validRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId }) => ({
             description,
-            hsnSac,
+            hsnSac: gstBilling ? hsnSac : '',
             qty,
             rate,
-            gstPercent,
+            gstPercent: gstBilling ? gstPercent : 0,
             discountPercent: discountPercent || 0,
             ...(productId ? { productId } : {}),
           })),
@@ -1246,7 +1269,7 @@ export function CreateInvoiceModal({
         ),
       },
     ];
-    if (showHsnSac) {
+    if (gstBilling) {
       fields.push({
         key: 'hsn',
         label: 'HSN/SAC',
@@ -1332,7 +1355,9 @@ export function CreateInvoiceModal({
           />
         ),
       },
-      {
+    );
+    if (gstBilling) {
+      fields.push({
         key: 'gst',
         label: 'GST %',
         node: (
@@ -1348,8 +1373,8 @@ export function CreateInvoiceModal({
             className={formControlClass}
           />
         ),
-      },
-    );
+      });
+    }
     return fields;
   };
 
@@ -1357,9 +1382,18 @@ export function CreateInvoiceModal({
     <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
       <div className="text-xs sm:text-sm text-gray-600 min-w-0">
         Subtotal: ₹{totals.subtotal.toLocaleString()}
-        <span className="hidden xs:inline"> • </span>
-        <br className="sm:hidden" />
-        Tax: ₹{totals.tax.toLocaleString()}
+        {gstBilling && (
+          <>
+            <span className="hidden xs:inline"> • </span>
+            <br className="sm:hidden" />
+            Tax: ₹{totals.tax.toLocaleString()}
+          </>
+        )}
+        {!gstBilling && (
+          <span className="block text-[10px] text-gray-400 mt-0.5">
+            GST off — enable in Settings → Bill Customization for tax invoices
+          </span>
+        )}
       </div>
       <div className="text-lg sm:text-xl font-bold text-brand shrink-0 tabular-nums">
         ₹{totals.grand.toLocaleString()}
@@ -1541,11 +1575,11 @@ export function CreateInvoiceModal({
                 <thead className="bg-gray-50">
                   <tr className="text-xs font-bold text-gray-400 uppercase">
                     <th className="px-3 py-2 text-left min-w-[200px]">Item</th>
-                    {showHsnSac && <th className="px-3 py-2 w-24">HSN/SAC</th>}
+                    {gstBilling && <th className="px-3 py-2 w-24">HSN/SAC</th>}
                     <th className="px-3 py-2 w-16">Qty</th>
                     <th className="px-3 py-2 w-24">Rate</th>
                     <th className="px-3 py-2 w-16">Disc%</th>
-                    <th className="px-3 py-2 w-16">GST%</th>
+                    {gstBilling && <th className="px-3 py-2 w-16">GST%</th>}
                     <th className="px-3 py-2 w-24 text-right">Total</th>
                     <th className="px-3 py-2 w-8"></th>
                   </tr>
@@ -1588,7 +1622,7 @@ export function CreateInvoiceModal({
                             </p>
                           )}
                         </td>
-                        {showHsnSac && (
+                        {gstBilling && (
                           <td className="px-3 py-2">
                             <input
                               value={row.hsnSac}
@@ -1656,22 +1690,24 @@ export function CreateInvoiceModal({
                             placeholder="0"
                           />
                         </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={0}
-                            max={28}
-                            value={row.gstPercent}
-                            onChange={e =>
-                              setRows(
-                                rows.map((r, i) =>
-                                  i === idx ? { ...r, gstPercent: parseInt(e.target.value) || 0 } : r,
-                                ),
-                              )
-                            }
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
-                          />
-                        </td>
+                        {gstBilling && (
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={0}
+                              max={28}
+                              value={row.gstPercent}
+                              onChange={e =>
+                                setRows(
+                                  rows.map((r, i) =>
+                                    i === idx ? { ...r, gstPercent: parseInt(e.target.value) || 0 } : r,
+                                  ),
+                                )
+                              }
+                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                            />
+                          </td>
+                        )}
                         <td className="px-3 py-2 text-right text-sm font-medium">
                           {taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString()}` : '—'}
                         </td>
@@ -1696,7 +1732,7 @@ export function CreateInvoiceModal({
 
             <button
               type="button"
-              onClick={() => setRows([...rows, emptyRow()])}
+              onClick={() => setRows([...rows, emptyRow(gstBilling)])}
               className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
             >
               + Add Line

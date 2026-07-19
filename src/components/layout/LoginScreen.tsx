@@ -149,8 +149,8 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
     <div
       className="min-h-[100dvh] bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center px-4 py-8"
       style={{
-        paddingTop: 'max(2rem, env(safe-area-inset-top))',
-        paddingBottom: 'max(2rem, env(safe-area-inset-bottom))',
+        paddingTop: 'max(2rem, var(--safe-top))',
+        paddingBottom: 'max(2rem, var(--safe-bottom))',
       }}
     >
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
