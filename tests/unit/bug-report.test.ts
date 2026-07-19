@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { clientLogger, getRecentClientLogs } from '../../src/lib/logger';
 import { buildBugReportText } from '../../src/lib/bugReport';
+import { isMobileAppShell } from '../../src/lib/mobileAppShell';
 
 describe('bug report', () => {
   beforeEach(() => {
@@ -24,5 +25,9 @@ describe('bug report', () => {
     expect(text).toContain('Invalid credentials');
     expect(text).toContain('Login failed after update');
     expect(text).toContain('Recent client logs');
+  });
+
+  it('isMobileAppShell is false in plain vitest (no Capacitor / offline mode)', () => {
+    expect(isMobileAppShell()).toBe(false);
   });
 });

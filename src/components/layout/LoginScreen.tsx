@@ -5,7 +5,7 @@ import { api } from '../../api';
 import { PasswordInput } from '../ui/PasswordInput';
 import { session } from '../../lib/session';
 import { shareBugReport } from '../../lib/bugReport';
-import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { isMobileAppShell } from '../../lib/mobileAppShell';
 
 type LoginMode = 'login' | 'forgot' | 'reset';
 
@@ -50,7 +50,7 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenProps) {
-  const serviceMobile = isServiceMobileMode();
+  const mobileApp = isMobileAppShell();
   const [sharingReport, setSharingReport] = useState(false);
   const urlToken = new URLSearchParams(window.location.search).get('token');
   const [mode, setMode] = useState<LoginMode>(urlToken ? 'reset' : 'login');
@@ -368,7 +368,7 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
               Change company
             </button>
           )}
-          {serviceMobile && (
+          {mobileApp && (
             <button
               type="button"
               disabled={sharingReport}

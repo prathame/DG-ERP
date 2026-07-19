@@ -11,6 +11,7 @@ import { provisionLocalTenant, isLocalProvisioned } from './local/provision';
 import { getLocalDb } from './local/db';
 import { restoreFromLocalBackupFile } from './restore';
 import { serviceMobileAppVersion } from './mode';
+import { shareBugReport } from '../../lib/bugReport';
 
 type Props = {
   onReady: () => void;
@@ -253,6 +254,25 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
         )}
 
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            void (async () => {
+              setBusy(true);
+              try {
+                await shareBugReport({ lastError: error || undefined, note: `Offline setup step: ${step}` });
+              } catch (e) {
+                setError(e instanceof Error ? e.message : 'Could not create bug report');
+              } finally {
+                setBusy(false);
+              }
+            })();
+          }}
+          className="w-full py-2.5 text-xs font-medium text-gray-500 border border-gray-200 rounded-xl disabled:opacity-50"
+        >
+          Share bug report
+        </button>
       </div>
     </div>
   );

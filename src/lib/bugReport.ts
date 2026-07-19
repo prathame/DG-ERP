@@ -71,6 +71,7 @@ export async function buildBugReportText(extras: BugReportExtras = {}): Promise<
       const { loadLicense } = await import('../platforms/service-mobile/licenseStore');
       const { isLocalProvisioned, getLocalSlug } = await import('../platforms/service-mobile/local/provision');
       const lic = loadLicense();
+      lines.push(`Product: Offline Service Mobile`);
       lines.push(`License: ${redactLicenseKey(lic?.licenseKey)}`);
       lines.push(`Company: ${lic?.companyName || '(none)'}`);
       lines.push(`Admin email (license): ${lic?.adminEmail || '(none)'}`);
@@ -80,6 +81,17 @@ export async function buildBugReportText(extras: BugReportExtras = {}): Promise<
       lines.push(`Local slug: ${(await getLocalSlug()) || '(none)'}`);
     } catch (e) {
       lines.push(`Offline diagnostics error: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  } else if (native || mode === 'service-cloud') {
+    try {
+      const { isServiceCloudMobile, serviceCloudClientKind } = await import('../platforms/service-cloud/mode');
+      if (isServiceCloudMobile() || mode === 'service-cloud') {
+        lines.push(`Product: Service Cloud ONLINE (Capacitor)`);
+        lines.push(`Client kind: ${serviceCloudClientKind() || 'mobile'}`);
+        lines.push(`API origin: ${(import.meta.env.VITE_API_ORIGIN as string | undefined) || '(same-origin)'}`);
+      }
+    } catch (e) {
+      lines.push(`Online diagnostics error: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
