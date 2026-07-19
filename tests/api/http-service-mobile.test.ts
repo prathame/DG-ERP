@@ -155,4 +155,30 @@ describe('HTTP: service-mobile licenses', () => {
     });
     expect(hb.body.settings?.forceSyncAt).toBeTruthy();
   });
+
+  it('SA service-mobile-analytics returns fleet health (no ERP KPIs)', async () => {
+    await pool.query(
+      `UPDATE service_mobile_licenses
+       SET last_seen = NOW(), app_version = $1, valid_until = CURRENT_DATE + 10
+       WHERE id = $2`,
+      ['1.0.1', LICENSE_ID],
+    );
+
+    const r = await api()
+      .get('/api/super-admin/service-mobile-analytics')
+      .set({ Authorization: `Bearer ${saToken()}` });
+    expect(r.status).toBe(200);
+    expect(r.body.total).toBeGreaterThanOrEqual(1);
+    expect(r.body.online).toBeGreaterThanOrEqual(1);
+    expect(typeof r.body.offline).toBe('number');
+    expect(typeof r.body.expiringSoon).toBe('number');
+    expect(Array.isArray(r.body.versionDistribution)).toBe(true);
+    expect(Array.isArray(r.body.statusBreakdown)).toBe(true);
+    expect(r.body.expiryTimeline).toBeTruthy();
+    // Must not expose Offline Mobile business analytics
+    expect(r.body.mrr).toBeUndefined();
+    expect(r.body.revenue).toBeUndefined();
+    expect(r.body.collections).toBeUndefined();
+    expect(r.body.topTenants).toBeUndefined();
+  });
 });

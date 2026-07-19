@@ -78,6 +78,10 @@ type Invoice = {
   status: string;
   invoiceDate: string;
   dueDate?: string;
+  /** Offline: allocated payments / advance applied (from local router) */
+  paidAmount?: number;
+  advanceApplied?: number;
+  outstanding?: number;
 };
 type LineItem = {
   description: string;
@@ -268,10 +272,11 @@ export function InvoicesView() {
         bs.signatoryName || sigSrc
           ? `<div style="margin-top:24px;display:flex;justify-content:flex-end;"><div style="text-align:center;">${sigSrc ? `<img src="${sigSrc}" style="height:50px;margin-bottom:4px;" />` : '<div style="height:50px;"></div>'}<p style="font-size:11px;border-top:1px solid #999;padding-top:4px;">${esc(bs.signatoryName || '')}${bs.signatoryDesignation ? `<br/><span style="font-size:10px;color:#666;">${esc(bs.signatoryDesignation)}</span>` : ''}</p></div></div>`
           : '';
-      const termsHtml =
-        inv.terms || bs.termsAndConditions
-          ? `<div style="margin-top:16px;font-size:10px;color:#666;"><strong>Terms & Conditions:</strong><br/>${esc(inv.terms || bs.termsAndConditions)}</div>`
-          : '';
+      // Prefer Bill Customization settings; per-invoice terms only when settings empty (cloud).
+      const termsText = (bs.termsAndConditions as string) || inv.terms || '';
+      const termsHtml = termsText
+        ? `<div style="margin-top:16px;font-size:10px;color:#666;"><strong>Terms & Conditions:</strong><br/>${esc(termsText)}</div>`
+        : '';
 
       const hasGst = inv.taxTotal > 0;
       const useIgst = inv.isInterstate === true || (typeof inv.taxIgst === 'number' && inv.taxIgst > 0);
@@ -319,7 +324,13 @@ export function InvoicesView() {
       ${tagline ? `<tr><td colspan="4" class="tagline">${tagline}</td></tr>` : ''}
       <tr class="title-row">
         <td colspan="2">${user.gstNumber ? `<span class="gstin-text">GSTIN: ${esc(user.gstNumber)}</span>` : ''}</td>
-        <td colspan="2" style="text-align:right;">${inv.status === 'paid' ? '<span style="color:#059669;font-weight:700;">✓ PAID</span>' : ''}</td>
+        <td colspan="2" style="text-align:right;">${
+          inv.status === 'paid'
+            ? '<span style="color:#059669;font-weight:700;">✓ PAID</span>'
+            : (inv.outstanding || 0) > 0.001
+              ? `<span style="color:#e11d48;font-weight:700;">Outstanding: ₹${Number(inv.outstanding).toLocaleString()}</span>`
+              : ''
+        }</td>
       </tr>
       <tr><td colspan="4" style="padding:8px 12px;">
         <table style="width:100%;"><tr>
@@ -392,9 +403,26 @@ export function InvoicesView() {
             : ''
         }
         <tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><span class="grand-total">Grand Total</span></td><td class="right"><span class="grand-total">₹${inv.grandTotal.toLocaleString()}</span></td></tr>
+        ${
+          (inv.advanceApplied || 0) > 0.001
+            ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right">Advance payment</td><td class="right" style="color:#059669;">−₹${Number(inv.advanceApplied).toLocaleString()}</td></tr>`
+            : ''
+        }
+        ${
+          (inv.paidAmount || 0) > (inv.advanceApplied || 0) + 0.001
+            ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right">Paid</td><td class="right" style="color:#059669;">−₹${(Number(inv.paidAmount) - Number(inv.advanceApplied || 0)).toLocaleString()}</td></tr>`
+            : ''
+        }
+        ${
+          (inv.outstanding || 0) > 0.001
+            ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><strong>Outstanding</strong></td><td class="right" style="color:#e11d48;font-weight:700;">₹${Number(inv.outstanding).toLocaleString()}</td></tr>`
+            : inv.status === 'paid' || (inv.paidAmount || 0) >= inv.grandTotal - 0.001
+              ? `<tr class="total-row"><td colspan="${itemColspan - 1}" class="right"><strong>Outstanding</strong></td><td class="right" style="color:#059669;font-weight:700;">₹0</td></tr>`
+              : ''
+        }
       </tbody>
     </table>
-    ${inv.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${esc(inv.notes)}</div>` : ''}
+    ${!serviceMobile && inv.notes ? `<div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:6px;font-size:11px;color:#92400e;"><strong>Notes:</strong> ${esc(inv.notes)}</div>` : ''}
     ${bankHtml}${termsHtml}${sigHtml}
     <p class="footer-text">${footerText}</p>
     </div>
@@ -421,7 +449,7 @@ export function InvoicesView() {
 
   const outstanding = invoices
     .filter(i => i.status !== 'paid' && i.status !== 'cancelled')
-    .reduce((s, i) => s + (i.grandTotal || 0), 0);
+    .reduce((s, i) => s + (typeof i.outstanding === 'number' ? i.outstanding : i.grandTotal || 0), 0);
   const paidTotal = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.grandTotal || 0), 0);
   const filteredInvoices = statusFilter === 'all' ? invoices : invoices.filter(i => i.status === statusFilter);
 
@@ -537,6 +565,14 @@ export function InvoicesView() {
                         <p className="text-[13px] font-bold text-gray-900 tabular-nums">
                           ₹{inv.grandTotal.toLocaleString()}
                         </p>
+                        {(inv.advanceApplied || 0) > 0.001 && (
+                          <p className="text-[10px] text-emerald-600">
+                            Adv ₹{Number(inv.advanceApplied).toLocaleString()}
+                          </p>
+                        )}
+                        {(inv.outstanding || 0) > 0.001 && inv.status !== 'paid' && (
+                          <p className="text-[10px] text-rose-600">Due ₹{Number(inv.outstanding).toLocaleString()}</p>
+                        )}
                         {statusBadge(inv.status)}
                       </div>
                     </div>
@@ -741,6 +777,16 @@ export function InvoicesView() {
                 <p className="text-sm text-gray-500">Subtotal: ₹{selectedInvoice.subtotal.toLocaleString()}</p>
                 <p className="text-sm text-gray-500">Tax: ₹{selectedInvoice.taxTotal.toLocaleString()}</p>
                 <p className="text-lg font-bold">Total: ₹{selectedInvoice.grandTotal.toLocaleString()}</p>
+                {(selectedInvoice.advanceApplied || 0) > 0.001 && (
+                  <p className="text-sm text-emerald-600">
+                    Advance payment: ₹{Number(selectedInvoice.advanceApplied).toLocaleString()}
+                  </p>
+                )}
+                {(selectedInvoice.outstanding || 0) > 0.001 && (
+                  <p className="text-sm font-bold text-rose-600">
+                    Outstanding: ₹{Number(selectedInvoice.outstanding).toLocaleString()}
+                  </p>
+                )}
               </div>
               <div className="flex gap-2">
                 <button
@@ -1091,10 +1137,12 @@ export function CreateInvoiceModal({
     setSubmitting(true);
     try {
       const selected = parties.find(p => p.key === partyKey);
+      // Offline: Notes / T&C / bank / payment terms come from Bill Customization settings, not the form.
       await fetchApi('/invoices', {
         method: 'POST',
         body: JSON.stringify({
           ...form,
+          ...(serviceMobile ? { notes: '', terms: '' } : {}),
           dueDate: form.dueDate?.trim() || null,
           invoiceNumber,
           items: validRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId }) => ({
@@ -1662,26 +1710,29 @@ export function CreateInvoiceModal({
             </p>
           </div>
           {totalsBar}
-          <FormGrid>
-            <FormField label="Notes">
-              <textarea
-                value={form.notes}
-                onChange={e => setForm({ ...form, notes: e.target.value })}
-                rows={3}
-                className={cn(formControlClass, 'min-h-[5rem]')}
-                placeholder="Payment terms, bank details..."
-              />
-            </FormField>
-            <FormField label="Terms & Conditions">
-              <textarea
-                value={form.terms}
-                onChange={e => setForm({ ...form, terms: e.target.value })}
-                rows={3}
-                className={cn(formControlClass, 'min-h-[5rem]')}
-                placeholder="E&OE, goods once sold..."
-              />
-            </FormField>
-          </FormGrid>
+          {/* Offline: Notes / payment terms / bank / T&C are set in Settings → Bill Customization */}
+          {!serviceMobile && (
+            <FormGrid>
+              <FormField label="Notes">
+                <textarea
+                  value={form.notes}
+                  onChange={e => setForm({ ...form, notes: e.target.value })}
+                  rows={3}
+                  className={cn(formControlClass, 'min-h-[5rem]')}
+                  placeholder="Payment terms, bank details..."
+                />
+              </FormField>
+              <FormField label="Terms & Conditions">
+                <textarea
+                  value={form.terms}
+                  onChange={e => setForm({ ...form, terms: e.target.value })}
+                  rows={3}
+                  className={cn(formControlClass, 'min-h-[5rem]')}
+                  placeholder="E&OE, goods once sold..."
+                />
+              </FormField>
+            </FormGrid>
+          )}
         </div>
       </div>
     </AppModal>

@@ -10,6 +10,7 @@ Covers invoice branding (logo, color, tagline), numbering prefix, bank details, 
 | 4 | Set invoice number prefix | Enter a prefix (e.g., "INV-"); save | All new invoices use the prefix in their invoice number |
 | 5 | Add bank details | Enter bank name, account number, IFSC code; save | Bank details section appears on invoices for payment reference |
 | 6 | Add Terms & Conditions | Enter T&C text; save | Terms & Conditions section appears at the bottom of invoices |
+| 6b | Offline: no per-invoice Notes/T&C | On Offline Mobile, open New Invoice (and New Quotation) Review step | Notes / Payment terms / Bank details / T&C fields are not shown; PDF uses Settings → Bill Customization (bank, T&C, footer) |
 | 7 | Set authorized signatory | Enter signatory name and upload signature image; save | Signatory name and signature appear on invoices |
 | 8 | Hide barcode on invoice | Toggle "Show Barcode" OFF; save | Product barcodes are not printed on invoices |
 | 8b | Show HSN/SAC (Offline default OFF) | Settings → Bill Customization → toggle "Show HSN/SAC" ON; save; open invoice create | HSN/SAC inputs appear on line items; PDF includes HSN/SAC column. With toggle OFF, neither form nor PDF shows HSN/SAC |

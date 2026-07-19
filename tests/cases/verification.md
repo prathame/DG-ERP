@@ -21,3 +21,5 @@ Covers product verification by typing and scanning, product state display (InSto
 | 15 | Unknown barcode error | Type a barcode that does not exist in any tenant | Error message: "Product not found" |
 | 16 | Cross-tenant barcode error | Type a barcode belonging to a different tenant | Error message: "Product not found" (no cross-tenant data leak) |
 | 17 | Verification tab hidden when Barcode OFF | Disable Barcode feature toggle; check navigation | Verification tab is not visible in the sidebar/nav |
+| 18 | Header search is search-only | Tap header Search / ⌘K; type a product or vendor name | Entity results appear (same engine as this tab). Selecting a hit navigates to Inventory/Masters/etc. **Does not** open verify journey or camera Scan |
+| 19 | Header barcode hit no verify | ⌘K → type a known barcode | Barcode row appears; selecting it opens Inventory (or Masters), not the verify status panel |

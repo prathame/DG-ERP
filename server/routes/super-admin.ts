@@ -975,14 +975,22 @@ router.get('/api/super-admin/version-config', superAdminMiddleware, async (req, 
         "SELECT COALESCE(app_version,'Unknown') as version, COUNT(*) as count, MAX(last_seen) as latest_seen FROM onprem_licenses WHERE status='active' GROUP BY app_version ORDER BY count DESC",
       )
     ).rows;
+    const smVersions = (
+      await pool.query(
+        "SELECT COALESCE(app_version,'Unknown') as version, COUNT(*) as count, MAX(last_seen) as latest_seen FROM service_mobile_licenses WHERE status='active' GROUP BY app_version ORDER BY count DESC",
+      )
+    ).rows;
     res.json({
       latestOnpremVersion: cfg['latest_onprem_version'] || null,
       minOnpremVersion: cfg['min_onprem_version'] || null,
+      latestServiceMobileVersion: cfg['latest_service_mobile_version'] || null,
+      minServiceMobileVersion: cfg['min_service_mobile_version'] || null,
       serviceCloudAppUrl: cfg['service_cloud_app_url'] || null,
       serviceMobileAppUrl: cfg['service_mobile_app_url'] || DEFAULT_SERVICE_MOBILE_APP_URL,
       desktopAppUrl: cfg['desktop_app_url'] || null,
       cloudVersion: process.env.npm_package_version || process.env.CLOUD_VERSION || '2.1.0',
       onpremVersions: versions,
+      serviceMobileVersions: smVersions,
     });
   } catch (err) {
     return handleApiError(req, res, err);
@@ -991,14 +999,23 @@ router.get('/api/super-admin/version-config', superAdminMiddleware, async (req, 
 
 router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, res) => {
   try {
-    const { latestOnpremVersion, minOnpremVersion, serviceCloudAppUrl, serviceMobileAppUrl, desktopAppUrl } =
-      req.body as {
-        latestOnpremVersion?: string | null;
-        minOnpremVersion?: string | null;
-        serviceCloudAppUrl?: string | null;
-        serviceMobileAppUrl?: string | null;
-        desktopAppUrl?: string | null;
-      };
+    const {
+      latestOnpremVersion,
+      minOnpremVersion,
+      latestServiceMobileVersion,
+      minServiceMobileVersion,
+      serviceCloudAppUrl,
+      serviceMobileAppUrl,
+      desktopAppUrl,
+    } = req.body as {
+      latestOnpremVersion?: string | null;
+      minOnpremVersion?: string | null;
+      latestServiceMobileVersion?: string | null;
+      minServiceMobileVersion?: string | null;
+      serviceCloudAppUrl?: string | null;
+      serviceMobileAppUrl?: string | null;
+      desktopAppUrl?: string | null;
+    };
 
     const upsert = async (key: string, value: string | null) => {
       await pool.query(
@@ -1020,6 +1037,12 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
     }
     if (minOnpremVersion !== undefined) {
       await upsert('min_onprem_version', minOnpremVersion || null);
+    }
+    if (latestServiceMobileVersion !== undefined) {
+      await upsert('latest_service_mobile_version', latestServiceMobileVersion || null);
+    }
+    if (minServiceMobileVersion !== undefined) {
+      await upsert('min_service_mobile_version', minServiceMobileVersion || null);
     }
     try {
       const cloud = normalizeUrl(serviceCloudAppUrl);
@@ -1153,6 +1176,53 @@ router.get('/api/super-admin/onprem-analytics', superAdminMiddleware, async (req
       expiringSoon,
       versionDistribution: versions.rows,
       businessTypeDistribution: businessTypes.rows,
+      expiryTimeline: expiryTimeline.rows[0],
+      statusBreakdown: statusBreakdown.rows,
+    });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+// ── Service Mobile (Offline Mobile) fleet analytics — license health only ─────
+// Uses heartbeat fields on service_mobile_licenses. Never aggregates ERP/business KPIs.
+router.get('/api/super-admin/service-mobile-analytics', superAdminMiddleware, async (req, res) => {
+  try {
+    const [versions, expiryTimeline, statusBreakdown, licenses] = await Promise.all([
+      pool.query(
+        `SELECT COALESCE(app_version,'Unknown') as version, COUNT(*) as count
+         FROM service_mobile_licenses GROUP BY app_version ORDER BY count DESC`,
+      ),
+      pool.query(`SELECT
+        COUNT(*) FILTER (WHERE valid_until IS NULL) as lifetime,
+        COUNT(*) FILTER (WHERE valid_until >= CURRENT_DATE AND valid_until <= CURRENT_DATE + 30) as expiring_30d,
+        COUNT(*) FILTER (WHERE valid_until > CURRENT_DATE + 30 AND valid_until <= CURRENT_DATE + 90) as expiring_90d,
+        COUNT(*) FILTER (WHERE valid_until > CURRENT_DATE + 90) as expiring_later,
+        COUNT(*) FILTER (WHERE valid_until < CURRENT_DATE) as expired
+        FROM service_mobile_licenses WHERE status='active'`),
+      pool.query(`SELECT status, COUNT(*) as count FROM service_mobile_licenses GROUP BY status`),
+      pool.query(`SELECT status, last_seen, valid_until, app_version FROM service_mobile_licenses`),
+    ]);
+
+    const now = Date.now();
+    const lics = licenses.rows as Record<string, unknown>[];
+    // Same online window as ServiceMobileView / onprem-analytics (~70 minutes)
+    const online = lics.filter(
+      l => l.last_seen && now - new Date(l.last_seen as string).getTime() < 70 * 60 * 1000,
+    ).length;
+    const expiringSoon = lics.filter(
+      l =>
+        l.valid_until &&
+        new Date(l.valid_until as string) <= new Date(Date.now() + 30 * 86400000) &&
+        new Date(l.valid_until as string) >= new Date(),
+    ).length;
+
+    res.json({
+      total: lics.length,
+      online,
+      offline: lics.length - online,
+      expiringSoon,
+      versionDistribution: versions.rows,
       expiryTimeline: expiryTimeline.rows[0],
       statusBreakdown: statusBreakdown.rows,
     });

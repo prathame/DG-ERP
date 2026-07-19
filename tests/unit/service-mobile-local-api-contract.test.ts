@@ -7,6 +7,7 @@
  * - Prices   → GET/POST /price-lists, POST /price-lists/bulk, DELETE /price-lists/:id, GET /price-lists/resolve
  * - Banks    → GET/POST /banks, POST /banks/batch, PUT/DELETE /banks/:id
  * - Staff    → GET/POST /staff, POST /staff/batch, PUT/DELETE /staff/:id
+ * - Search   → GET /search?q= (header ⌘K global search; same shape as cloud)
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
@@ -335,5 +336,225 @@ describe('service-mobile local API contract — Masters', () => {
       expect(Array.isArray(res.json), path).toBe(true);
       expect(JSON.stringify(res.json)).not.toMatch(/not implemented/i);
     }
+  });
+});
+
+describe('service-mobile local API — Mark Paid + Client payment does not double-count', () => {
+  beforeEach(async () => {
+    await setupDb();
+  });
+
+  afterEach(async () => {
+    await db?.close();
+  });
+
+  it('invoice Mark Paid then Client Record Payment same amount → analytics collections once', async () => {
+    const client = await api('POST', '/vendors', { name: 'Cash Client', phone: '9000000023' });
+    expect(client.status).toBe(201);
+    const vendorId = (client.json as { id: string }).id;
+
+    const inv = await api('POST', '/invoices', {
+      customerName: 'Cash Client',
+      partyType: 'vendor',
+      partyId: vendorId,
+      status: 'sent',
+      invoiceDate: '2026-07-19',
+      items: [{ description: 'Service', qty: 1, rate: 23, gstPercent: 0 }],
+    });
+    expect(inv.status).toBe(201);
+    const invoice = inv.json as { id: string; grandTotal: number };
+    expect(invoice.grandTotal).toBe(23);
+
+    const marked = await api('PUT', `/invoices/${invoice.id}/status`, { status: 'paid' });
+    expect(marked.status).toBe(200);
+
+    // Client hub "Record Payment" after Mark Paid used to insert Extra Pay → double collections
+    const duplicate = await api('POST', '/invoice-finance/payments', {
+      invoiceId: invoice.id,
+      amount: 23,
+      paymentDate: '2026-07-19',
+      paymentMethod: 'Cash',
+    });
+    expect(duplicate.status).toBe(400);
+
+    const overview = await api('GET', '/analytics/overview?from=2026-07-01&to=2026-07-31');
+    expect(overview.status).toBe(200);
+    const money = (overview.json as { money: { collections: number; invoiceOutstanding: number } }).money;
+    expect(money.collections).toBe(23);
+    expect(money.invoiceOutstanding).toBe(0);
+
+    const hub = await api('GET', `/invoice-finance/client/${encodeURIComponent(`vendor:${vendorId}`)}`);
+    expect(hub.status).toBe(200);
+    const detail = hub.json as { totalPaid: number; balance: number; payments: unknown[] };
+    expect(detail.totalPaid).toBe(23);
+    expect(detail.balance).toBe(0);
+    expect(detail.payments).toHaveLength(1);
+  });
+
+  it('advance with no invoice → create invoice → outstanding reduced / advance shown', async () => {
+    const client = await api('POST', '/vendors', { name: 'Advance Client', phone: '9000000099' });
+    expect(client.status).toBe(201);
+    const vendorId = (client.json as { id: string }).id;
+    const partyKey = `vendor:${vendorId}`;
+
+    const advance = await api('POST', '/invoice-finance/payments', {
+      partyKey,
+      amount: 500,
+      paymentDate: '2026-07-19',
+      paymentMethod: 'UPI',
+      notes: 'Advance payment',
+    });
+    expect(advance.status).toBe(201);
+    expect((advance.json as { isAdvance?: boolean }).isAdvance).toBe(true);
+
+    const hubBefore = await api('GET', `/invoice-finance/client/${encodeURIComponent(partyKey)}`);
+    expect(hubBefore.status).toBe(200);
+    const before = hubBefore.json as {
+      totalInvoiced: number;
+      totalPaid: number;
+      advanceBalance: number;
+      balance: number;
+      invoices: unknown[];
+    };
+    expect(before.invoices).toHaveLength(0);
+    expect(before.totalPaid).toBe(500);
+    expect(before.advanceBalance).toBe(500);
+    expect(before.balance).toBe(-500);
+
+    const overviewAdv = await api('GET', '/analytics/overview?from=2026-07-01&to=2026-07-31');
+    expect(overviewAdv.status).toBe(200);
+    expect((overviewAdv.json as { money: { collections: number } }).money.collections).toBe(500);
+
+    const inv = await api('POST', '/invoices', {
+      customerName: 'Advance Client',
+      partyType: 'vendor',
+      partyId: vendorId,
+      status: 'sent',
+      invoiceDate: '2026-07-19',
+      items: [{ description: 'Service', qty: 1, rate: 800, gstPercent: 0 }],
+    });
+    expect(inv.status).toBe(201);
+    const created = inv.json as {
+      id: string;
+      grandTotal: number;
+      paidAmount?: number;
+      advanceApplied?: number;
+      outstanding?: number;
+      status: string;
+    };
+    expect(created.grandTotal).toBe(800);
+    expect(created.advanceApplied).toBe(500);
+    expect(created.paidAmount).toBe(500);
+    expect(created.outstanding).toBe(300);
+
+    const hubAfter = await api('GET', `/invoice-finance/client/${encodeURIComponent(partyKey)}`);
+    expect(hubAfter.status).toBe(200);
+    const after = hubAfter.json as {
+      totalPaid: number;
+      advanceBalance: number;
+      balance: number;
+      invoices: { paid: number; advanceApplied: number; balance: number }[];
+      payments: { isAdvance?: boolean; invoiceId: string | null; amount: number }[];
+    };
+    expect(after.advanceBalance).toBe(0);
+    expect(after.balance).toBe(300);
+    expect(after.invoices[0]!.advanceApplied).toBe(500);
+    expect(after.invoices[0]!.balance).toBe(300);
+    expect(after.payments.some(p => p.isAdvance && p.invoiceId && p.amount === 500)).toBe(true);
+
+    // Collections still counted once (cash received), not again when applied
+    const overviewAfter = await api('GET', '/analytics/overview?from=2026-07-01&to=2026-07-31');
+    expect(
+      (overviewAfter.json as { money: { collections: number; invoiceOutstanding: number } }).money.collections,
+    ).toBe(500);
+    expect((overviewAfter.json as { money: { invoiceOutstanding: number } }).money.invoiceOutstanding).toBe(300);
+  });
+
+  it('partial Client payment then Mark Paid records only the remaining once', async () => {
+    const client = await api('POST', '/vendors', { name: 'Partial Client' });
+    expect(client.status).toBe(201);
+    const vendorId = (client.json as { id: string }).id;
+
+    const inv = await api('POST', '/invoices', {
+      customerName: 'Partial Client',
+      partyType: 'vendor',
+      partyId: vendorId,
+      status: 'sent',
+      invoiceDate: '2026-07-19',
+      items: [{ description: 'Job', qty: 1, rate: 100, gstPercent: 0 }],
+    });
+    expect(inv.status).toBe(201);
+    const invoiceId = (inv.json as { id: string }).id;
+
+    const partial = await api('POST', '/invoice-finance/payments', {
+      invoiceId,
+      amount: 40,
+      paymentDate: '2026-07-19',
+      paymentMethod: 'UPI',
+    });
+    expect(partial.status).toBe(201);
+
+    const marked = await api('PUT', `/invoices/${invoiceId}/status`, { status: 'paid' });
+    expect(marked.status).toBe(200);
+
+    const overview = await api('GET', '/analytics/overview');
+    expect(overview.status).toBe(200);
+    expect((overview.json as { money: { collections: number } }).money.collections).toBe(100);
+
+    const pays = await api('GET', '/invoice-finance/payments');
+    expect(pays.status).toBe(200);
+    const rows = pays.json as { amount: number }[];
+    expect(rows.reduce((s, r) => s + r.amount, 0)).toBe(100);
+  });
+});
+
+describe('service-mobile local API contract — Global search', () => {
+  beforeEach(async () => {
+    await setupDb();
+  });
+
+  afterEach(async () => {
+    await db?.close();
+  });
+
+  it('GET /search returns cloud-shaped buckets; empty q → empty arrays', async () => {
+    const empty = await api('GET', '/search?q=');
+    expect(empty.status).toBe(200);
+    const e = empty.json as Record<string, unknown[]>;
+    expect(e.products).toEqual([]);
+    expect(e.customers).toEqual([]);
+    expect(e.vendors).toEqual([]);
+    expect(e.barcodes).toEqual([]);
+    expect(e.challans).toEqual([]);
+    expect(e.staff).toEqual([]);
+
+    await api('POST', '/vendors', { name: 'Acme Clients', phone: '9991112222' });
+    await api('POST', '/products', { name: 'Service Kit A', price: 500, stock: 3, barcode: 'SM-BC-99' });
+    await api('POST', '/staff', { name: 'Ravi Kumar', phone: '888' });
+
+    const hit = await api('GET', '/search?q=acme');
+    expect(hit.status).toBe(200);
+    const body = hit.json as {
+      vendors: { name: string; type: string }[];
+      products: { name: string }[];
+      barcodes: { barcode: string }[];
+      staff: { name: string }[];
+      challans: unknown[];
+    };
+    expect(body.vendors.some(v => v.name === 'Acme Clients')).toBe(true);
+    expect(body.vendors[0]!.type).toBe('vendor');
+
+    const prod = await api('GET', '/search?q=Service%20Kit');
+    const pb = prod.json as { products: { name: string; stock: number }[] };
+    expect(pb.products.some(p => p.name === 'Service Kit A')).toBe(true);
+
+    const bc = await api('GET', '/search?q=SM-BC');
+    const bb = bc.json as { barcodes: { barcode: string; productName: string }[] };
+    expect(bb.barcodes.some(b => b.barcode === 'SM-BC-99')).toBe(true);
+
+    const st = await api('GET', '/search?q=Ravi');
+    const sb = st.json as { staff: { name: string }[]; challans: unknown[] };
+    expect(sb.staff.some(s => s.name === 'Ravi Kumar')).toBe(true);
+    expect(sb.challans).toEqual([]);
   });
 });

@@ -17,10 +17,14 @@ description: Platform login, tenants, plans, billing, impersonation, on-prem lic
 | Tenants | CRUD, reset token, export, notify, upgrade plan |
 | Impersonation | `POST …/tenants/:id/impersonate` → 15m JWT + audit |
 | Plans / billing | Plan CRUD; tenant invoices paid flags |
-| Analytics | Dashboard, cloud vs on-prem analytics |
-| Versions | `platform_config` latest/min on-prem |
+| Analytics | Dashboard; cloud / on-prem / Offline Mobile (`service-mobile-analytics`) fleet health |
+| Versions | `platform_config` latest/min on-prem + Offline Mobile; evergreen download URLs |
 | On-prem licenses | via onprem router SA paths |
-| Mobile | invites, force-sync, devices |
+| Mobile | invites, force-sync, devices; Offline Mobile licenses via service-mobile SA paths |
+
+### Offline Mobile analytics (fleet only)
+
+`GET /api/super-admin/service-mobile-analytics` — aggregates `service_mobile_licenses` heartbeat fields (`last_seen`, `app_version`, `valid_until`, `status`). Online = `last_seen` within ~70 minutes. **Does not** store or return ERP business KPIs (invoices, collections, clients).
 
 Public: `GET /api/tenant/by-slug/:slug` for branded login.
 

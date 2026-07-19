@@ -48,10 +48,20 @@ export function MastersView({
   setActiveTab,
   user,
   businessType: _businessType = 'manufacturer',
+  launch,
+  onLaunchConsumed,
 }: {
   setActiveTab: (tab: Tab) => void;
   user?: Record<string, unknown> | null;
   businessType?: string;
+  /** Optional deep-link from global top search (⌘K). */
+  launch?: {
+    master?: MasterType;
+    vendorId?: string;
+    staffId?: string;
+    staffName?: string;
+  } | null;
+  onLaunchConsumed?: () => void;
 }) {
   const cfg = useBusinessConfig();
   const serviceMobile = isServiceMobileMode();
@@ -66,6 +76,7 @@ export function MastersView({
   const [selectedMaster, setSelectedMaster] = useState<MasterType | null>(null);
   /** When opening Staff manage from a hub row, jump into that person’s payments. */
   const [focusStaffId, setFocusStaffId] = useState<string | null>(null);
+  const [focusStaffName, setFocusStaffName] = useState<string | null>(null);
   /** When opening Clients manage from a hub row, jump into that client’s invoice hub. */
   const [focusVendorId, setFocusVendorId] = useState<string | null>(null);
   /** Phone hub selected pill. */
@@ -103,6 +114,34 @@ export function MastersView({
       .then(s => setShowHsnSac(isShowHsnSacEnabled(s)))
       .catch(() => {});
   }, []);
+
+  // Global top search → open the matching Masters section (no verify).
+  useEffect(() => {
+    if (!launch?.master) return;
+    const master = launch.master;
+    if (master === 'item' && !serviceMobile) {
+      setActiveTab('inventory');
+      onLaunchConsumed?.();
+      return;
+    }
+    if (master === 'staff') {
+      setFocusStaffId(launch.staffId ?? null);
+      setFocusStaffName(launch.staffName ?? null);
+      setFocusVendorId(null);
+      setSelectedMaster('staff');
+    } else if (master === 'vendor') {
+      setFocusVendorId(launch.vendorId ?? null);
+      setFocusStaffId(null);
+      setFocusStaffName(null);
+      setSelectedMaster('vendor');
+    } else {
+      setFocusStaffId(null);
+      setFocusStaffName(null);
+      setFocusVendorId(null);
+      setSelectedMaster(master);
+    }
+    onLaunchConsumed?.();
+  }, [launch]);
 
   // Offline: no stock Products/Catalog pill — Price List (Catalog + Clients tabs) is the sellable catalog.
   const productsMaster = !serviceMobile
@@ -353,12 +392,14 @@ export function MastersView({
         <StaffMasterView
           onBack={() => {
             // Hub-originated payment detail calls onBack — keep Staff pill selected.
-            if (focusStaffId) setHubTab('staff');
+            if (focusStaffId || focusStaffName) setHubTab('staff');
             setSelectedMaster(null);
             setFocusStaffId(null);
+            setFocusStaffName(null);
           }}
           onRefresh={refreshCounts}
           initialStaffId={focusStaffId ?? undefined}
+          initialStaffName={focusStaffName ?? undefined}
         />
       </Suspense>
     );

@@ -151,7 +151,7 @@ export function CommandPalette({ items, onSelect, onClose }: { items: PaletteIte
   }, [filtered, activeIdx, onSelect, onClose]);
 ```
 
-The `⌘K`/`Ctrl+K` fuzzy-navigation palette (wired up in `App.tsx` — see [app-shell.md](./app-shell.md)). Receives the exact same `visibleNavItems` the sidebar and mobile bottom-bar use — one permission-filtered list of "what can this user navigate to," rendered in three different UI surfaces. Arrow-key navigation with auto-scroll-into-view (`el?.scrollIntoView({ block: 'nearest' })`) is entirely hand-implemented, not from a combobox library.
+The `⌘K`/`Ctrl+K` palette (wired up in `App.tsx` — see [app-shell.md](./app-shell.md)) is **global search + page jump**. It still receives the same permission-filtered `visibleNavItems` as the sidebar / mobile bottom bar for the **Pages** section. When the query is non-empty it also calls `api.search.global` (the same `GET /api/search` engine as the Search / Verify tab) and lists entity hits — products, clients/vendors, customers, barcodes, challans, staff — **without** barcode verify or camera scan. Selecting a hit navigates to the relevant tab (and Masters deep-link when applicable). Offline Mobile implements the same `/search` contract in the local PGlite router. Arrow-key navigation with auto-scroll-into-view (`el?.scrollIntoView({ block: 'nearest' })`) is entirely hand-implemented, not from a combobox library.
 
 ## Display components
 

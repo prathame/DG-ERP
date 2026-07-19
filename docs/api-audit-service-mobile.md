@@ -61,7 +61,7 @@ Removed from Offline Mobile UI (`ChatWidget` gated off; tab preset `chatbot.visi
 ## PDF download (Capacitor / Offline Mobile)
 
 `window.open` is blocked in the Offline Mobile WebView, and Android WebView ignores `window.print()`.  
-`openPrintWindow()` uses a short in-app overlay; bills/quotes/invoices are rendered with **html2pdf.js** and **downloaded directly** (Chrome: file download; Capacitor: share sheet / save when available). No system print sheet.
+`openPrintWindow()` opens an in-app **preview** overlay; the user taps **Download PDF** to run **html2pdf.js** (Chrome: file download; Capacitor: share sheet / save when available). Preview stays open until **Close**. No system print sheet. Intentional **Save as PDF** buttons still call `saveBillAsPdf` (direct download, no preview wait).
 
 ## Bugbot follow-ups (fixed)
 
@@ -108,7 +108,7 @@ Removed from Offline Mobile UI (`ChatWidget` gated off; tab preset `chatbot.visi
 | Finance tab gate | Offline Mobile always opens `InvoiceFinanceView` (`isServiceMobileMode()`), not Vendor Finance |
 | `GET /invoice-finance/summary` | Stable camelCase array; `clientName` never null; reconcile Mark Paid → `invoice_payments` |
 | `GET /invoice-finance/client/:key` | Cloud-aligned party keys (`vendor:` / `customer:` / `name:`); slim invoice + payments arrays |
-| `POST /invoice-finance/payments` | Writes ledger + `syncInvoicePaidStatus`; Extra Pay allowed when balance already 0 |
+| `POST /invoice-finance/payments` | Writes ledger + `syncInvoicePaidStatus`; rejects when invoice already fully paid (Mark Paid / prior payments) — no Extra Pay double-count |
 | `DELETE /invoice-finance/payments/:id` | 204 + status resync |
 | InvoiceFinanceView | `Array.isArray` guards; Client(s) copy via `cfg.labels.vendors` |
 

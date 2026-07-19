@@ -272,6 +272,10 @@ CREATE TABLE IF NOT EXISTS invoice_payments (
   payment_method TEXT,
   reference_number TEXT,
   notes TEXT,
+  party_type TEXT,
+  party_id TEXT,
+  client_name TEXT,
+  is_advance BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -403,6 +407,10 @@ ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS valid_to DATE;
 ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS payment_method TEXT;
 ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS reference_number TEXT;
 ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS party_type TEXT;
+ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS party_id TEXT;
+ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS client_name TEXT;
+ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS is_advance BOOLEAN DEFAULT false;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS company_name TEXT;

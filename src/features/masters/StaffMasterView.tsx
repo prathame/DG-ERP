@@ -39,11 +39,14 @@ export function StaffMasterView({
   onBack,
   onRefresh,
   initialStaffId,
+  initialStaffName,
 }: {
   onBack: () => void;
   onRefresh: () => void;
   /** Open this staff’s payment detail immediately (e.g. Masters hub row tap). */
   initialStaffId?: string;
+  /** Same as initialStaffId but match by name (global search). */
+  initialStaffName?: string;
 }) {
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
@@ -91,16 +94,22 @@ export function StaffMasterView({
 
   // Masters hub → Staff row: jump straight into that person’s payments
   useEffect(() => {
-    if (focusedInitial || !initialStaffId || loading) return;
-    const s = list.find(x => x.id === initialStaffId);
+    if (focusedInitial || loading) return;
+    if (!initialStaffId && !initialStaffName) return;
+    const s = initialStaffId
+      ? list.find(x => x.id === initialStaffId)
+      : list.find(x => x.name.toLowerCase() === initialStaffName!.toLowerCase());
     if (s) {
       selectStaff(s);
       setFocusedInitial(true);
+    } else {
+      // Name/id not in list — stop spinner and show Staff manage list
+      setFocusedInitial(true);
     }
-  }, [initialStaffId, list, loading, focusedInitial]);
+  }, [initialStaffId, initialStaffName, list, loading, focusedInitial]);
 
   /** Hub Staff row deep-link — Back must leave manage, not reveal the full Staff list. */
-  const fromHubRow = Boolean(initialStaffId);
+  const fromHubRow = Boolean(initialStaffId || initialStaffName);
 
   const backFromDetail = () => {
     if (fromHubRow) {
@@ -277,7 +286,7 @@ export function StaffMasterView({
             : 'bg-emerald-100 text-emerald-700';
 
   // Hub deep-link: wait until the named staff is selected (avoid list flash)
-  if (initialStaffId && !focusedInitial && !selected) {
+  if ((initialStaffId || initialStaffName) && !focusedInitial && !selected) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-16 text-center">
         <LoadingSpinner />

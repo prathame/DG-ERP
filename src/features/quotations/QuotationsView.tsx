@@ -223,7 +223,8 @@ export function QuotationsView() {
           gstRate: q.gstRate,
           gstAmount: q.gstAmount,
           total: q.total,
-          notes: q.notes,
+          // Offline: do not print per-quote notes; bank/T&C come from bill settings
+          notes: offlinePdf ? undefined : q.notes,
           company: {
             name: String(user?.companyName || 'Dhandho'),
             phone: (user?.phone as string) || null,
@@ -370,7 +371,8 @@ export function QuotationsView() {
         quotationDate: form.date,
         validUntil: form.validUntil || undefined,
         gstRate: defaultGstRate,
-        notes: form.notes || undefined,
+        // Offline: notes / T&C / bank details come from Bill Customization settings
+        notes: offlinePdf ? undefined : form.notes || undefined,
         items: validRows.map(r => ({
           ...(r.productId ? { productId: r.productId } : { description: r.description.trim() }),
           quantity: r.quantity,
@@ -1251,15 +1253,18 @@ export function QuotationsView() {
                 </span>
                 <span className="text-lg font-bold text-brand tabular-nums">₹{totals.total.toLocaleString()}</span>
               </div>
-              <FormField label="Notes">
-                <textarea
-                  value={form.notes}
-                  onChange={e => setForm({ ...form, notes: e.target.value })}
-                  rows={2}
-                  className={cn(formControlClass, 'min-h-[4.5rem]')}
-                  placeholder="Terms, conditions, remarks..."
-                />
-              </FormField>
+              {/* Offline: Notes / T&C / bank details come from Settings → Bill Customization */}
+              {!offlinePdf && (
+                <FormField label="Notes">
+                  <textarea
+                    value={form.notes}
+                    onChange={e => setForm({ ...form, notes: e.target.value })}
+                    rows={2}
+                    className={cn(formControlClass, 'min-h-[4.5rem]')}
+                    placeholder="Terms, conditions, remarks..."
+                  />
+                </FormField>
+              )}
             </div>
           </AppModal>
         )}
