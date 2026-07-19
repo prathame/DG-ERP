@@ -50,14 +50,16 @@ gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clo
 
 Workflow: [`.github/workflows/apk-build.yml`](../../../.github/workflows/apk-build.yml)
 
+**How to mark a PR as mobile:** add GitHub label **`mobile`** (aliases: `apk`, `apk-build`).
+
 | Trigger | What happens |
 |---------|----------------|
-| **Merge / push to `main`** (recommended) | Build APK → overwrite evergreen `offline-mobile` release (public `/download` link) |
-| PR comment `apk build` or `/apk-build` | Preview APK artifact only — does **not** overwrite evergreen |
-| PR label `apk-build` | Same as comment preview |
-| Actions → APK Build (manual) | Optional; can target a PR or main |
+| **Merge PR that has label `mobile`** (recommended) | Build APK from merge → overwrite evergreen release |
+| Push to `main` touching mobile paths | Safety net if someone forgot the label (Capacitor, `service-mobile` / `service-cloud`, invoice UI, etc.) |
+| PR comment `apk build` / `/apk-build` | Preview artifact only — does **not** overwrite evergreen |
+| Actions → APK Build (manual) | Optional override |
 
-Public sideload users always get whatever last landed on `main`.
+Docs-only / server-desktop PRs without the `mobile` label do **not** rebuild the APK.
 
 ## Mobile UI / safe areas
 
