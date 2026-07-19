@@ -15,6 +15,7 @@ import {
   FileText,
   IndianRupee,
   Clock,
+  Printer,
 } from 'lucide-react';
 import { cn, exportToCsv, shareViaWhatsApp, formatDate } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
@@ -26,7 +27,9 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
+import { printStandaloneInvoiceById } from '../../lib/printStandaloneInvoice';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
 type PayModal = {
@@ -165,6 +168,14 @@ export function VendorMasterView({
       customerGstin: detail?.customerGstin || selected.gstNumber || '',
     });
     setCreateOpen(true);
+  };
+
+  const printInvoicePdf = async (invoiceId: string) => {
+    try {
+      await printStandaloneInvoiceById(invoiceId, { businessType: cfg.type });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Print failed', 'error');
+    }
   };
 
   const openPay = (inv: ClientDetail['invoices'][0]) => {
@@ -490,6 +501,15 @@ export function VendorMasterView({
                               </span>
                             )
                           )}
+                          <button
+                            type="button"
+                            onClick={() => void printInvoicePdf(inv.id)}
+                            className="flex items-center gap-1 px-3 py-1.5 min-h-[36px] border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50"
+                            title={isServicePhoneUx(cfg.type) ? 'Download PDF' : 'Print / Download PDF'}
+                          >
+                            {isServicePhoneUx(cfg.type) ? <Download size={12} /> : <Printer size={12} />}
+                            PDF
+                          </button>
                           {!paid && inv.balance > 0 && (
                             <button
                               type="button"

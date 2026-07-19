@@ -212,6 +212,8 @@ All bill HTML (sales invoice, distribution challan, quotation, price list, stand
 - `@page` A4 + table `thead` repeats on each page
 - Row / `.avoid-break` / `.print-end` keep line items and totals/bank/signature from splitting awkwardly
 - Templates in `src/lib/billTemplates.ts` wrap footers in `.print-end` and use a slim repeating banner in `thead` where needed
+- Standalone invoices use `generateStandaloneInvoiceHtml` — **bordered `.outer` sections** (title, seller/meta, Bill To, items with fill space, Sub Total/Received/Balance, HSN-wise GST table at end, bank + signatory), matching classic Tax Invoice layout
+- After create (including from Client/Vendor hub), modal shows **Print / Download PDF** before Done; Client detail + Invoice Finance rows also have a PDF action (`printStandaloneInvoice` / `GET /api/invoices/:id`)
 - Offline Mobile / service-mobile: PDF is generated with html2pdf.js and downloaded (or shared) — no system print sheet
 
 Do not open a raw `window.print()` on bill HTML without that inject — long item lists will paginate incorrectly.
