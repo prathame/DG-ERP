@@ -27,7 +27,7 @@ Default APKs (when unset in `platform_config`):
 | **Online** Service Cloud | `https://github.com/prathame/DG-ERP/releases/download/service-cloud/service-cloud-online-debug.apk` |
 | **Offline** Service Mobile | `https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk` |
 
-CI (`.github/workflows/apk-build.yml`) builds **both** when a `mobile`-labeled PR merges (or mobile paths push to main). Comment `apk build` on a PR for preview artifacts only.
+CI (`.github/workflows/apk-build.yml`) builds Online only when the PR is labeled `online` / `service-cloud`, or when Online paths change on `main`. Label `mobile` still builds both. Comment `apk build online` for a preview artifact only.
 
 ## Builds
 
@@ -38,12 +38,12 @@ npm run build:electron:cloud:mac
 
 # Online Capacitor (Service Cloud) — separate appId / webDir from Offline
 npm run build:service-cloud          # → dist-service-cloud (relative base)
-npm run cap:sync:cloud               # sync into android/ as in.dhandho.servicecloud
+npm run cap:sync:cloud               # sync + set applicationId in.dhandho.servicecloud
 # Then: cd android && ./gradlew assembleDebug
-# Restore Offline android project: npm run cap:sync
+# Restore Offline android identity: npm run cap:sync
 ```
 
-Offline Service Mobile uses a **different** Capacitor config (`capacitor.config.ts` → `dist-service-mobile`, appId `in.dhandho.service`). Do not mix builds or installers.
+Capacitor `sync` alone does **not** change `applicationId` on an existing `android/` project. `scripts/android-set-product.sh` rewrites it after sync so Online (`in.dhandho.servicecloud`) can install beside Offline (`in.dhandho.service`). Do not mix installers.
 
 ## SA onboarding (user-wise)
 

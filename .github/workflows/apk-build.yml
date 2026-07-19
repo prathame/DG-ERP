@@ -1,26 +1,25 @@
-# Mobile debug APKs — Offline Service Mobile + Online Service Cloud
+# Mobile debug APKs — Offline Service Mobile + Online Service Cloud (separate)
 #
-# Publish evergreen APKs after merge when the PR is mobile-related:
-#   Add label:  mobile
-#   (aliases:  apk  |  apk-build)
+# Labels (merge → evergreen; label on open PR → preview):
+#   offline | offline-mobile | service-mobile  → Offline APK only
+#   online  | service-cloud                    → Online APK only
+#   mobile  | apk | apk-build                 → both (legacy)
 #
-# Optional safety net: push to main that touches mobile paths (below) also builds.
+# Path push to main: builds only the product(s) whose paths changed
+#   (shared UI / package.json / this workflow → both).
 #
-# Pre-merge preview (artifact only, does NOT overwrite evergreen):
-#   Comment on PR:  apk build  |  /apk-build
+# Comment preview (does NOT overwrite evergreen):
+#   apk build | apk build offline | apk build online | apk build both
 #
-# Manual: Actions → APK Build → Run workflow
 # Evergreen releases:
 #   offline-mobile / offline-mobile-service-debug.apk
 #   service-cloud  / service-cloud-online-debug.apk
 name: APK Build
 
 on:
-  # Merged PR → check labels in gate (only build if labeled mobile/apk)
   pull_request:
     types: [closed, labeled]
     branches: [main]
-  # Path safety net: mobile-related files landed on main without the label
   push:
     branches: [main]
     paths:
@@ -55,8 +54,13 @@ on:
       pr_number:
         description: 'PR number to build (leave empty for main tip)'
         required: false
+      product:
+        description: 'Which APK(s) to build'
+        type: choice
+        options: [both, offline, online]
+        default: both
       push_release:
-        description: 'Upload to evergreen offline-mobile + service-cloud releases'
+        description: 'Upload matching evergreen release(s)'
         type: boolean
         default: true
 
@@ -75,19 +79,47 @@ jobs:
     name: Check trigger
     runs-on: ubuntu-latest
     outputs:
-      should_run: ${{ steps.check.outputs.should_run }}
+      build_offline: ${{ steps.check.outputs.build_offline }}
+      build_online: ${{ steps.check.outputs.build_online }}
       pr_number: ${{ steps.check.outputs.pr_number }}
       head_sha: ${{ steps.check.outputs.head_sha }}
       head_ref: ${{ steps.check.outputs.head_ref }}
       push_release: ${{ steps.check.outputs.push_release }}
       trigger: ${{ steps.check.outputs.trigger }}
     steps:
-      - name: Decide whether to build
+      - name: Decide which APK(s) to build
         id: check
         uses: actions/github-script@v7
         with:
           script: |
-            const MOBILE_LABELS = new Set(['mobile', 'apk', 'apk-build']);
+            const BOTH_LABELS = new Set(['mobile', 'apk', 'apk-build']);
+            const OFFLINE_LABELS = new Set(['offline', 'offline-mobile', 'service-mobile']);
+            const ONLINE_LABELS = new Set(['online', 'service-cloud', 'servicecloud']);
+
+            const OFFLINE_PATH = [
+              /^android\//,
+              /^capacitor\.config\.ts$/,
+              /^\.env\.service-mobile/,
+              /^src\/platforms\/service-mobile\//,
+            ];
+            const ONLINE_PATH = [
+              /^capacitor\.cloud\.config\.ts$/,
+              /^\.env\.service-cloud/,
+              /^scripts\/cap-sync-cloud\.sh$/,
+              /^src\/platforms\/service-cloud\//,
+            ];
+            const SHARED_PATH = [
+              /^package(-lock)?\.json$/,
+              /^src\/App\.tsx$/,
+              /^src\/main\.tsx$/,
+              /^src\/index\.css$/,
+              /^src\/lib\/(billTemplates|utils|billSettingsFlags)\.ts$/,
+              /^src\/features\/invoices\//,
+              /^src\/features\/settings\/SettingsView\.tsx$/,
+              /^src\/components\/layout\/LoginScreen\.tsx$/,
+              /^src\/components\/ui\/(AppModal|ConfirmDialog|Toast|MobileShell)\.tsx$/,
+              /^\.github\/workflows\/apk-build\.yml$/,
+            ];
 
             const event = context.eventName;
             const actor = context.payload.sender?.login || '';
@@ -99,50 +131,98 @@ jobs:
 
             const labelNames = (pr) =>
               (pr.labels || []).map((l) => String(l.name || '').toLowerCase());
-            const hasMobileLabel = (pr) =>
-              labelNames(pr).some((n) => MOBILE_LABELS.has(n));
 
-            const set = (should, opts = {}) => {
-              core.setOutput('should_run', should ? 'true' : 'false');
+            const productsFromLabels = (names) => {
+              const both = names.some((n) => BOTH_LABELS.has(n));
+              const offline = both || names.some((n) => OFFLINE_LABELS.has(n));
+              const online = both || names.some((n) => ONLINE_LABELS.has(n));
+              return { offline, online };
+            };
+
+            const productsFromFiles = (files) => {
+              let offline = false;
+              let online = false;
+              for (const f of files) {
+                if (SHARED_PATH.some((r) => r.test(f))) {
+                  offline = true;
+                  online = true;
+                }
+                if (OFFLINE_PATH.some((r) => r.test(f))) offline = true;
+                if (ONLINE_PATH.some((r) => r.test(f))) online = true;
+              }
+              return { offline, online };
+            };
+
+            const set = (opts = {}) => {
+              const offline = !!opts.offline;
+              const online = !!opts.online;
+              core.setOutput('build_offline', offline ? 'true' : 'false');
+              core.setOutput('build_online', online ? 'true' : 'false');
               core.setOutput('pr_number', opts.pr || '');
               core.setOutput('head_sha', opts.sha || '');
               core.setOutput('head_ref', opts.ref || '');
               core.setOutput('push_release', opts.pushRelease ?? 'true');
               core.setOutput('trigger', opts.trigger || event);
+              core.info(`APK gate: offline=${offline} online=${online} trigger=${opts.trigger || event}`);
             };
 
-            // ── Merge to main with mobile label → evergreen APK ─────────────
+            // ── Merge to main → evergreen for labeled product(s) ───────────
             if (event === 'pull_request' && context.payload.action === 'closed') {
               const pr = context.payload.pull_request;
               if (!pr?.merged) {
-                set(false);
+                set({ offline: false, online: false });
                 return;
               }
-              if (!hasMobileLabel(pr)) {
+              const { offline, online } = productsFromLabels(labelNames(pr));
+              if (!offline && !online) {
                 core.info(
-                  `PR #${pr.number} merged without mobile/apk label — skip APK ` +
-                    `(add label \`mobile\` on mobile PRs, or rely on path filter push).`,
+                  `PR #${pr.number} merged without offline/online/mobile label — skip APK ` +
+                    `(path-filter push may still build the matching product).`,
                 );
-                set(false);
+                set({ offline: false, online: false });
                 return;
               }
-              set(true, {
+              set({
+                offline,
+                online,
                 pr: String(pr.number),
                 sha: pr.merge_commit_sha || pr.head.sha,
                 ref: 'main',
                 pushRelease: 'true',
-                trigger: 'merge-mobile-label',
+                trigger: 'merge-label',
               });
               return;
             }
 
-            // ── Path-filtered push to main (safety net) ────────────────────
+            // ── Path-filtered push to main — only changed product(s) ───────
             if (event === 'push') {
-              set(true, {
+              let files = [];
+              const before = context.payload.before;
+              const after = context.payload.after;
+              if (before && after && !/^0+$/.test(before)) {
+                try {
+                  const { data } = await github.rest.repos.compareCommits({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    base: before,
+                    head: after,
+                  });
+                  files = (data.files || []).map((f) => f.filename);
+                } catch (e) {
+                  core.warning(`compareCommits failed: ${e.message}; building both`);
+                  files = ['package.json']; // shared → both
+                }
+              } else {
+                files = ['package.json'];
+              }
+              const { offline, online } = productsFromFiles(files);
+              set({
+                offline,
+                online,
                 sha: context.sha,
                 ref: context.ref,
                 pushRelease: 'true',
-                trigger: 'push-main-mobile-paths',
+                trigger: 'push-main-paths',
               });
               return;
             }
@@ -151,13 +231,13 @@ jobs:
             if (event === 'issue_comment') {
               const issue = context.payload.issue;
               if (!issue?.pull_request) {
-                set(false);
+                set({ offline: false, online: false });
                 return;
               }
               const body = String(context.payload.comment?.body || '').toLowerCase();
               const hit = /\bapk[\s_-]*build\b/.test(body) || /(^|\s)\/apk(-build)?\b/.test(body);
               if (!hit) {
-                set(false);
+                set({ offline: false, online: false });
                 return;
               }
               if (!allowed) {
@@ -167,8 +247,18 @@ jobs:
                   issue_number: issue.number,
                   body: `⛔ @${actor} cannot trigger APK builds (need repo write access).`,
                 });
-                set(false);
+                set({ offline: false, online: false });
                 return;
+              }
+              // apk build offline | apk build online | apk build [both]
+              let offline = true;
+              let online = true;
+              if (/\boffline\b/.test(body) && !/\bonline\b/.test(body) && !/\bboth\b/.test(body)) {
+                offline = true;
+                online = false;
+              } else if (/\bonline\b/.test(body) && !/\boffline\b/.test(body) && !/\bboth\b/.test(body)) {
+                offline = false;
+                online = true;
               }
               const { data: pr } = await github.rest.pulls.get({
                 owner: context.repo.owner,
@@ -181,7 +271,9 @@ jobs:
                 comment_id: context.payload.comment.id,
                 content: 'eyes',
               });
-              set(true, {
+              set({
+                offline,
+                online,
                 pr: String(pr.number),
                 sha: pr.head.sha,
                 ref: pr.head.ref,
@@ -191,20 +283,22 @@ jobs:
               return;
             }
 
-            // ── Label added on open PR: preview only (not a merge) ─────────
+            // ── Label added on open PR: preview for that product ───────────
             if (event === 'pull_request' && context.payload.action === 'labeled') {
               const label = String(context.payload.label?.name || '').toLowerCase();
-              if (!MOBILE_LABELS.has(label)) {
-                set(false);
-                return;
-              }
               const pr = context.payload.pull_request;
               if (pr.state === 'closed' && pr.merged) {
-                // Merge already handled by closed; avoid double-build on label after merge
-                set(false);
+                set({ offline: false, online: false });
                 return;
               }
-              set(true, {
+              const { offline, online } = productsFromLabels([label]);
+              if (!offline && !online) {
+                set({ offline: false, online: false });
+                return;
+              }
+              set({
+                offline,
+                online,
                 pr: String(pr.number),
                 sha: pr.head.sha,
                 ref: pr.head.ref,
@@ -217,13 +311,18 @@ jobs:
             if (event === 'workflow_dispatch') {
               const prNum = String(context.payload.inputs?.pr_number || '').trim();
               const push = String(context.payload.inputs?.push_release ?? 'true');
+              const product = String(context.payload.inputs?.product || 'both');
+              const offline = product === 'both' || product === 'offline';
+              const online = product === 'both' || product === 'online';
               if (prNum) {
                 const { data: pr } = await github.rest.pulls.get({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   pull_number: Number(prNum),
                 });
-                set(true, {
+                set({
+                  offline,
+                  online,
                   pr: String(pr.number),
                   sha: pr.head.sha,
                   ref: pr.head.ref,
@@ -231,7 +330,9 @@ jobs:
                   trigger: 'dispatch',
                 });
               } else {
-                set(true, {
+                set({
+                  offline,
+                  online,
                   sha: context.sha,
                   ref: context.ref,
                   pushRelease: push,
@@ -241,12 +342,12 @@ jobs:
               return;
             }
 
-            set(false);
+            set({ offline: false, online: false });
 
   build-apk:
     name: Build Offline Mobile APK
     needs: gate
-    if: needs.gate.outputs.should_run == 'true'
+    if: needs.gate.outputs.build_offline == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -314,7 +415,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release view offline-mobile >/dev/null 2>&1 || \
-            gh release create offline-mobile --title "Offline Mobile (evergreen APK)" --notes "Sideload testing APK — published when a \`mobile\`-labeled PR merges (or mobile paths change on main)."
+            gh release create offline-mobile --title "Offline Mobile (evergreen APK)" --notes "Sideload testing APK — published when an \`offline\`/\`mobile\`-labeled PR merges (or Offline paths change on main)."
           gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clobber
 
       - name: Comment on PR
@@ -346,7 +447,7 @@ jobs:
                 `| Artifact | Actions → **Artifacts** → \`offline-mobile-service-debug\` |`,
                 pushed
                   ? `| Evergreen | [${evergreen}](${evergreen}) |`
-                  : `| Evergreen | not updated — add label \`mobile\` and merge to publish |`,
+                  : `| Evergreen | not updated — add label \`offline\` (or \`mobile\`) and merge to publish |`,
                 `| Product | **Offline** Service Mobile (\`in.dhandho.service\`) — not Service Cloud |`,
               ].join('\n'),
             });
@@ -354,7 +455,7 @@ jobs:
   build-service-cloud-apk:
     name: Build Service Cloud Online APK
     needs: gate
-    if: needs.gate.outputs.should_run == 'true'
+    if: needs.gate.outputs.build_online == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -395,11 +496,10 @@ jobs:
       - name: Build web + Capacitor sync (cloud config)
         run: |
           npm run build:service-cloud
-          cp capacitor.config.ts /tmp/capacitor.config.ts.bak
-          cp capacitor.cloud.config.ts capacitor.config.ts
-          npx cap sync android
-          cp /tmp/capacitor.config.ts.bak capacitor.config.ts
-          grep -q 'in.dhandho.servicecloud' android/app/build.gradle
+          # cap sync does not rewrite applicationId on an existing android/ —
+          # cap-sync-cloud.sh + android-set-product.sh set in.dhandho.servicecloud
+          SKIP_BUILD=1 bash scripts/cap-sync-cloud.sh
+          grep -q 'applicationId "in.dhandho.servicecloud"' android/app/build.gradle
 
       - name: Assemble debug APK
         working-directory: android
@@ -426,7 +526,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release view service-cloud >/dev/null 2>&1 || \
-            gh release create service-cloud --title "Service Cloud ONLINE (evergreen APK)" --notes "Online Capacitor APK (cloud API + seats). Not Offline Mobile — do not mix with DG-SM. Published when a \`mobile\`-labeled PR merges (or mobile paths change on main)."
+            gh release create service-cloud --title "Service Cloud ONLINE (evergreen APK)" --notes "Online Capacitor APK (cloud API + seats). Not Offline Mobile — do not mix with DG-SM. Published when an \`online\`/\`mobile\`-labeled PR merges (or Online paths change on main)."
           gh release upload service-cloud dist-apk/service-cloud-online-debug.apk --clobber
 
       - name: Comment on PR
@@ -458,7 +558,7 @@ jobs:
                 `| Artifact | Actions → **Artifacts** → \`service-cloud-online-debug\` |`,
                 pushed
                   ? `| Evergreen | [${evergreen}](${evergreen}) |`
-                  : `| Evergreen | not updated — add label \`mobile\` and merge to publish |`,
+                  : `| Evergreen | not updated — add label \`online\` (or \`mobile\`) and merge to publish |`,
                 `| Product | **Online** Service Cloud (\`in.dhandho.servicecloud\`) — not Offline Mobile |`,
               ].join('\n'),
             });
