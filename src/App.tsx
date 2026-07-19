@@ -48,9 +48,12 @@ import { serviceMobileOnlineStatusAdapter } from './platforms/service-mobile/ser
 import {
   ServiceCloudGate,
   ServiceCloudLiveBadge,
+  isServiceCloudDesktop,
   isServiceCloudMobile,
   isServicePhoneUx,
 } from './platforms/service-cloud';
+import { shareBugReport } from './lib/bugReport';
+import { isMobileAppShell } from './lib/mobileAppShell';
 
 const LandingPage = lazy(() => import('./components/layout/LandingPage').then(m => ({ default: m.LandingPage })));
 const LoginScreen = lazy(() => import('./components/layout/LoginScreen').then(m => ({ default: m.LoginScreen })));
@@ -105,11 +108,38 @@ const SuperAdminLogin = lazy(() =>
   import('./features/super-admin/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })),
 );
 
-function ElectronSlugEntry() {
-  const [slug, setSlug] = React.useState('');
+/** Cloud Electron + Online Cap: company slug → /{slug} login (not marketing LandingPage). */
+function CompanySlugEntry() {
+  const [slug, setSlug] = React.useState(() => {
+    try {
+      return String(localStorage.getItem('dg_last_slug') || '')
+        .trim()
+        .toLowerCase();
+    } catch {
+      return '';
+    }
+  });
+  const [sharingReport, setSharingReport] = React.useState(false);
+  const [reportHint, setReportHint] = React.useState('');
+  const mobileApp = isMobileAppShell();
+
+  React.useEffect(() => {
+    // Returning users: skip the form when we already know the company
+    try {
+      const last = String(localStorage.getItem('dg_last_slug') || '')
+        .trim()
+        .toLowerCase();
+      if (last && window.location.pathname === '/') {
+        window.location.replace(`/${last}`);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const go = (e: React.FormEvent) => {
     e.preventDefault();
-    const s = slug.trim().toLowerCase();
+    const s = slug.trim().toLowerCase().replace(/^\/+/, '');
     if (s) window.location.href = `/${s}`;
   };
   return (
@@ -121,7 +151,8 @@ function ElectronSlugEntry() {
         style={{ filter: 'drop-shadow(0 0 24px rgba(242,125,38,0.4))' }}
       />
       <div className="w-full max-w-sm">
-        <p className="text-white/50 text-sm text-center mb-6">Enter your company URL to continue</p>
+        <p className="text-white/50 text-sm text-center mb-2">Enter your company to continue</p>
+        <p className="text-white/30 text-xs text-center mb-6">Use the company URL slug (same as dhandho.app/…)</p>
         <form onSubmit={go} className="flex flex-col gap-3">
           <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-brand/60 transition-colors">
             <span className="text-white/30 text-sm pl-4 pr-1 shrink-0">dhandho.app/</span>
@@ -130,6 +161,9 @@ function ElectronSlugEntry() {
               value={slug}
               onChange={e => setSlug(e.target.value)}
               placeholder="your-company"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               className="flex-1 bg-transparent py-3 pr-4 text-white placeholder-white/20 text-sm outline-none"
             />
           </div>
@@ -141,9 +175,43 @@ function ElectronSlugEntry() {
             Continue →
           </button>
         </form>
+        {reportHint && <p className="mt-3 text-center text-xs text-emerald-400/90">{reportHint}</p>}
+        {mobileApp && (
+          <button
+            type="button"
+            disabled={sharingReport}
+            onClick={() => {
+              void (async () => {
+                setSharingReport(true);
+                setReportHint('');
+                try {
+                  const how = await shareBugReport({ note: 'Online Cap company slug entry' });
+                  setReportHint(
+                    how === 'shared'
+                      ? 'Bug report ready to share'
+                      : how === 'copied'
+                        ? 'Bug report copied — paste into WhatsApp/email'
+                        : 'Bug report downloaded',
+                  );
+                } catch (e) {
+                  setReportHint(e instanceof Error ? e.message : 'Could not create bug report');
+                } finally {
+                  setSharingReport(false);
+                }
+              })();
+            }}
+            className="w-full mt-4 py-2.5 text-xs text-gray-500 hover:text-white border border-white/10 rounded-xl transition-colors disabled:opacity-50"
+          >
+            {sharingReport ? 'Preparing report…' : 'Share bug report'}
+          </button>
+        )}
       </div>
     </div>
   );
+}
+
+function cloudSlugHomeHref(): string {
+  return isServiceCloudDesktop() ? '/?desktop=1' : '/';
 }
 
 function QuotationsAndOrdersView() {
@@ -675,10 +743,10 @@ export default function App() {
               No company registered with URL <span className="font-mono text-gray-300">/{urlSlug}</span>
             </p>
             <a
-              href="/"
+              href={isServiceCloudDesktop() || isServiceCloudMobile() ? cloudSlugHomeHref() : '/'}
               className="px-6 py-3 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark transition-colors"
             >
-              Go to Dhandho Home
+              {isServiceCloudDesktop() || isServiceCloudMobile() ? 'Choose company' : 'Go to Dhandho Home'}
             </a>
           </div>
         </div>
@@ -687,10 +755,21 @@ export default function App() {
 
     // Slug URL — show branded tenant login
     if (urlSlug && tenantBranding) {
+      const changeCompany =
+        isServiceCloudDesktop() || isServiceCloudMobile()
+          ? () => {
+              try {
+                localStorage.removeItem('dg_last_slug');
+              } catch {
+                /* ignore */
+              }
+              window.location.href = cloudSlugHomeHref();
+            }
+          : undefined;
       return (
         <ToastProvider>
           <Suspense fallback={<LazyFallback />}>
-            <LoginScreen onLogin={handleLogin} tenant={tenantBranding} />
+            <LoginScreen onLogin={handleLogin} tenant={tenantBranding} onChangeCompany={changeCompany} />
           </Suspense>
         </ToastProvider>
       );
@@ -705,9 +784,12 @@ export default function App() {
       );
     }
 
-    // Root URL (/) — show company landing page (web)
-    const isDesktop = new URLSearchParams(window.location.search).get('desktop') === '1';
-    if (isDesktop) return <ElectronSlugEntry />;
+    // Cloud Electron + Online Cap: company slug entry → /{slug} login (not marketing LandingPage)
+    if (isServiceCloudDesktop() || isServiceCloudMobile()) {
+      return <CompanySlugEntry />;
+    }
+
+    // Public web: marketing landing
     return (
       <Suspense fallback={<LazyFallback />}>
         <LandingPage />

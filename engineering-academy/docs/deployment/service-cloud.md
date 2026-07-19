@@ -66,6 +66,8 @@ Password reset is **online/cloud only** (shareable link per user). Tenant-wide n
 
 ## Phone UX (service Capacitor)
 
+**First open (no session):** Online Cap and Cloud Electron show **company slug entry** (`dhandho.app/your-company` → Continue → branded login). They do **not** show the public marketing LandingPage (that stays for browser `/` only). Last-used company is restored from `dg_last_slug`; **Change company** on login returns to slug entry. Online Cap also keeps **Share bug report** on that screen (same helper as login / Settings).
+
 Online Capacitor + `businessType=service` uses the same Emergent phone IA as Offline Mobile via `isServicePhoneUx()` — bottom tabs Analytics · Masters · Invoice · Quotes · More; Masters shows Prices (not Products); Analytics/bill settings match Offline phone chrome. **Live · Online** badge on Cap only (desktop Electron UI untouched). **Session lock / `ServiceCloudGate` is unchanged.** Sync Now, demo seed, Show Accounts, and client advances stay Offline-only.
 
 Manufacturer cloud phones keep Stock/Finance-style primaries. Browser (non-Capacitor) does not get the service phone IA from type alone.
