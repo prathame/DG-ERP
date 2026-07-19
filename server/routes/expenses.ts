@@ -80,7 +80,10 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { category, description, amount, expenseDate, paymentMethod, referenceNumber, notes } = req.body;
     if (!category?.trim()) return res.status(400).json({ error: 'Category is required' });
-    if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Amount must be greater than 0' });
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0)
+      return res.status(400).json({ error: 'Amount must be greater than 0' });
+    if (parsedAmount > 100_000_000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
     const id = uid('EXP');
     const date = expenseDate || new Date().toISOString().slice(0, 10);
     await pool.query(
@@ -90,33 +93,24 @@ router.post('/api/expenses', blockVendors, async (req: AuthRequest, res) => {
         tenantId,
         category.trim(),
         description || null,
-        Number(amount),
+        parsedAmount,
         date,
         paymentMethod || 'Cash',
         referenceNumber || null,
         notes || null,
       ],
     );
-    await logAudit(
-      pool,
-      tenantId,
-      'Expense Recorded',
-      'expense',
+    await logAudit(pool, tenantId, 'Expense Recorded', 'expense', id, `${category}: ₹${parsedAmount.toLocaleString()}`);
+    res.status(201).json({
       id,
-      `${category}: ₹${Number(amount).toLocaleString()}`,
-    );
-    res
-      .status(201)
-      .json({
-        id,
-        category: category.trim(),
-        description,
-        amount: Number(amount),
-        expenseDate: date,
-        paymentMethod: paymentMethod || 'Cash',
-        referenceNumber,
-        notes,
-      });
+      category: category.trim(),
+      description,
+      amount: parsedAmount,
+      expenseDate: date,
+      paymentMethod: paymentMethod || 'Cash',
+      referenceNumber,
+      notes,
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }

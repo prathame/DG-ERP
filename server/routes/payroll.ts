@@ -152,21 +152,19 @@ router.post('/api/staff', blockVendors, async (req: AuthRequest, res) => {
       ],
     );
     await logAudit(pool, tenantId, 'Staff Added', 'staff', id, `${name.trim()}${role ? ` (${role})` : ''}`);
-    res
-      .status(201)
-      .json({
-        id,
-        name: name.trim(),
-        phone,
-        role,
-        address,
-        salary: Number(salary) || 0,
-        joiningDate,
-        status: 'active',
-        totalPaid: 0,
-        paymentCount: 0,
-        lastPayment: null,
-      });
+    res.status(201).json({
+      id,
+      name: name.trim(),
+      phone,
+      role,
+      address,
+      salary: Number(salary) || 0,
+      joiningDate,
+      status: 'active',
+      totalPaid: 0,
+      paymentCount: 0,
+      lastPayment: null,
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -345,7 +343,10 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
     const { staffName, amount, paymentDate, paymentType, paymentMethod, referenceNumber, notes, month, year } =
       req.body;
     if (!staffName?.trim()) return res.status(400).json({ error: 'Staff name is required' });
-    if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Amount must be greater than 0' });
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0)
+      return res.status(400).json({ error: 'Amount must be greater than 0' });
+    if (parsedAmount > 100_000_000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
     const validTypes = ['salary', 'advance', 'advance_repay', 'bonus', 'deduction'];
     const pType = validTypes.includes(paymentType) ? paymentType : 'salary';
     const id = uid('SP');
@@ -359,7 +360,7 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
         id,
         tenantId,
         staffName.trim(),
-        Number(amount),
+        parsedAmount,
         date,
         pType,
         paymentMethod || 'Cash',
@@ -383,7 +384,7 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
       'Staff Payment',
       'payroll',
       id,
-      `${typeLabel}: ₹${Number(amount).toLocaleString()} — ${staffName.trim()}`,
+      `${typeLabel}: ₹${parsedAmount.toLocaleString()} — ${staffName.trim()}`,
     );
 
     // Sync to expenses — look up verified name + role from staff_members DB
@@ -397,7 +398,7 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
 
       const verifiedName = staffRow?.name || staffName.trim();
       const roleHint = staffRow?.role ? ` (${staffRow.role})` : '';
-      const expenseAmount = pType === 'advance_repay' ? -Number(amount) : Number(amount);
+      const expenseAmount = pType === 'advance_repay' ? -parsedAmount : parsedAmount;
       const expCategory =
         pType === 'advance_repay'
           ? 'Staff Advance Repaid'
@@ -429,20 +430,18 @@ router.post('/api/payroll', blockVendors, async (req: AuthRequest, res) => {
         .catch(() => {}); // best-effort — don't fail payment if expense insert fails
     }
 
-    res
-      .status(201)
-      .json({
-        id,
-        staffName: staffName.trim(),
-        amount: Number(amount),
-        paymentDate: date,
-        paymentType: pType,
-        paymentMethod: paymentMethod || 'Cash',
-        referenceNumber,
-        notes,
-        month: m,
-        year: y,
-      });
+    res.status(201).json({
+      id,
+      staffName: staffName.trim(),
+      amount: parsedAmount,
+      paymentDate: date,
+      paymentType: pType,
+      paymentMethod: paymentMethod || 'Cash',
+      referenceNumber,
+      notes,
+      month: m,
+      year: y,
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
