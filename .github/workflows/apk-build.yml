@@ -496,11 +496,10 @@ jobs:
       - name: Build web + Capacitor sync (cloud config)
         run: |
           npm run build:service-cloud
-          cp capacitor.config.ts /tmp/capacitor.config.ts.bak
-          cp capacitor.cloud.config.ts capacitor.config.ts
-          npx cap sync android
-          cp /tmp/capacitor.config.ts.bak capacitor.config.ts
-          grep -q 'in.dhandho.servicecloud' android/app/build.gradle
+          # cap sync does not rewrite applicationId on an existing android/ —
+          # cap-sync-cloud.sh + android-set-product.sh set in.dhandho.servicecloud
+          SKIP_BUILD=1 bash scripts/cap-sync-cloud.sh
+          grep -q 'applicationId "in.dhandho.servicecloud"' android/app/build.gradle
 
       - name: Assemble debug APK
         working-directory: android
