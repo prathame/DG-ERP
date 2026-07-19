@@ -89,6 +89,7 @@ router.post('/api/vendors/bulk', blockVendors, async (req: AuthRequest, res) => 
 
     for (let i = 0; i < vendors.length; i++) {
       const v = vendors[i];
+      const email = typeof v.email === 'string' && v.email.trim() ? v.email.trim() : null;
       const dup = (
         await client.query('SELECT id FROM vendors WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)', [
           tenantId,
@@ -99,16 +100,16 @@ router.post('/api/vendors/bulk', blockVendors, async (req: AuthRequest, res) => 
         await client.query('ROLLBACK');
         return res.status(400).json({ error: `"${v.name}" already exists — no vendors were imported` });
       }
-      if (v.email) {
+      if (email) {
         const emailDup = (
           await client.query(
             "SELECT id FROM vendors WHERE tenant_id = $1 AND email IS NOT NULL AND email != '' AND LOWER(email) = LOWER($2)",
-            [tenantId, v.email],
+            [tenantId, email],
           )
         ).rows[0];
         if (emailDup) {
           await client.query('ROLLBACK');
-          return res.status(400).json({ error: `Email "${v.email}" already exists — no vendors were imported` });
+          return res.status(400).json({ error: `Email "${email}" already exists — no vendors were imported` });
         }
       }
       const id = uid('V');
@@ -120,15 +121,15 @@ router.post('/api/vendors/bulk', blockVendors, async (req: AuthRequest, res) => 
           v.name.trim(),
           v.contactPerson || null,
           v.phone?.trim() || null,
-          v.email || null,
+          email,
           v.address || null,
           (v as Record<string, unknown>).gstNumber || null,
         ],
       );
-      if (portalEnabled && v.email && v.email.includes('@')) {
+      if (portalEnabled && email && email.includes('@')) {
         const existing = (
           await client.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND tenant_id = $2', [
-            v.email,
+            email,
             tenantId,
           ])
         ).rows[0];
@@ -155,7 +156,7 @@ router.post('/api/vendors/bulk', blockVendors, async (req: AuthRequest, res) => 
             [
               userId,
               tenantId,
-              v.email,
+              email,
               hashPassword(pw),
               v.contactPerson || v.name,
               v.phone || null,
@@ -165,7 +166,7 @@ router.post('/api/vendors/bulk', blockVendors, async (req: AuthRequest, res) => 
               id,
             ],
           );
-          credentials.push({ name: v.name, email: v.email, password: pw, url: slug ? `/${slug}` : '' });
+          credentials.push({ name: v.name, email, password: pw, url: slug ? `/${slug}` : '' });
         }
       }
       success++;
@@ -192,7 +193,8 @@ router.post('/api/vendors', blockVendors, async (req: AuthRequest, res) => {
     const vendorLimitErr = await checkPlanLimit(tenantId, 'vendors');
     if (vendorLimitErr) return res.status(403).json(vendorLimitErr);
 
-    const { name, contactPerson, phone, email, address } = req.body;
+    const { name, contactPerson, phone, address } = req.body;
+    const email = typeof req.body.email === 'string' && req.body.email.trim() ? req.body.email.trim() : null;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Vendor name is required' });
     if (phone && !isValidPhone(phone))
       return res.status(400).json({ error: 'Invalid phone — must be 10-digit Indian mobile (6-9 start)' });
@@ -284,9 +286,17 @@ router.put('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) => {
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
     const { id } = req.params;
-    const { name, contactPerson, phone, email, address, gstNumber } = req.body;
+    const { name, contactPerson, phone, address, gstNumber } = req.body;
+    // undefined = leave unchanged; '' = clear; non-empty = set
+    const emailArg =
+      req.body.email === undefined
+        ? null
+        : typeof req.body.email === 'string' && req.body.email.trim()
+          ? req.body.email.trim()
+          : '';
     if (phone && !isValidPhone(phone))
       return res.status(400).json({ error: 'Invalid phone — must be 10-digit Indian mobile (6-9 start)' });
+    if (emailArg && !isValidEmail(emailArg)) return res.status(400).json({ error: 'Invalid email format' });
     if (name) {
       const dup = (
         await pool.query('SELECT id FROM vendors WHERE tenant_id = $1 AND LOWER(name) = LOWER($2) AND id != $3', [
@@ -297,9 +307,20 @@ router.put('/api/vendors/:id', blockVendors, async (req: AuthRequest, res) => {
       ).rows[0];
       if (dup) return res.status(400).json({ error: `Vendor "${name}" already exists` });
     }
+    if (emailArg) {
+      const emailDup = (
+        await pool.query(
+          "SELECT id FROM vendors WHERE tenant_id = $1 AND id != $2 AND email IS NOT NULL AND email != '' AND LOWER(email) = LOWER($3)",
+          [tenantId, id, emailArg],
+        )
+      ).rows[0];
+      if (emailDup) return res.status(400).json({ error: `Email "${emailArg}" already exists` });
+    }
     const result = await pool.query(
-      'UPDATE vendors SET name=COALESCE($1,name), contact_person=COALESCE($2,contact_person), phone=COALESCE($3,phone), email=COALESCE($4,email), address=COALESCE($5,address), gst_number=COALESCE($8,gst_number) WHERE id=$6 AND tenant_id=$7',
-      [name, contactPerson, phone?.trim() || null, email, address, id, tenantId, gstNumber ?? null],
+      `UPDATE vendors SET name=COALESCE($1,name), contact_person=COALESCE($2,contact_person), phone=COALESCE($3,phone),
+       email=CASE WHEN $4::text IS NULL THEN email WHEN $4 = '' THEN NULL ELSE $4 END,
+       address=COALESCE($5,address), gst_number=COALESCE($8,gst_number) WHERE id=$6 AND tenant_id=$7`,
+      [name, contactPerson, phone?.trim() || null, emailArg, address, id, tenantId, gstNumber ?? null],
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Vendor not found' });
     const row = (await pool.query('SELECT * FROM vendors WHERE id = $1 AND tenant_id = $2', [id, tenantId])).rows[0];

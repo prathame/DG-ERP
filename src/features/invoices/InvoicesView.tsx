@@ -12,6 +12,8 @@ import {
   closePrintOverlay,
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
+import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { fetchApi } from '../../api';
 import {
   useToast,
@@ -26,12 +28,27 @@ import {
   MobileStepper,
   LineItemCard,
   type LineItemCardField,
+  MobilePillTabs,
+  MobileKpiCard,
+  MobileFab,
+  MobileEmptyState,
 } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
+import { isShowHsnSacEnabled } from '../../lib/billSettingsFlags';
 import { session } from '../../lib/session';
 import { api } from '../../api';
-import type { Product } from '../../types';
+import type { Product, Vendor, Customer } from '../../types';
+import { SearchSelect } from '../../components/ui/SearchSelect';
+
+/** Normalize list API payloads (array or { data: [] }) so party dropdowns never go empty on shape mismatch. */
+function asApiList<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === 'object' && Array.isArray((value as { data?: unknown }).data)) {
+    return (value as { data: T[] }).data;
+  }
+  return [];
+}
 
 function esc(t: unknown): string {
   return String(t ?? '')
@@ -134,6 +151,7 @@ function resolveCatalogPrice(product: Product, rules: PriceRule[], vendorId: str
 export function InvoicesView() {
   const { toast } = useToast();
   const invoicesLabel = useTabLabel('invoices', 'Invoices');
+  const serviceMobile = isServiceMobileMode();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -149,15 +167,26 @@ export function InvoicesView() {
 
   const load = () => {
     fetchApi<Invoice[]>('/invoices')
-      .then(setInvoices)
-      .catch(() => {})
+      .then(rows => setInvoices(Array.isArray(rows) ? rows : []))
+      .catch(() => setInvoices([]))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     load();
     api.settings
       .getBillSettings()
-      .then(s => setBillSettings(s || {}))
+      .then(s => {
+        setBillSettings(s || {});
+        const style = (s as { invoiceTemplateStyle?: string } | null)?.invoiceTemplateStyle;
+        const legacy = localStorage.getItem('dg_inv_style');
+        const next =
+          style === 'classic' || style === 'minimal' || style === 'modern'
+            ? style
+            : legacy === 'classic' || legacy === 'minimal' || legacy === 'modern'
+              ? legacy
+              : 'modern';
+        setPdfStyle(next);
+      })
       .catch(() => {});
   }, []);
 
@@ -193,9 +222,8 @@ export function InvoicesView() {
     return <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full uppercase', m[s] || m.draft)}>{s}</span>;
   };
 
-  const [pdfStyle, setPdfStyle] = useState<'modern' | 'classic' | 'minimal'>(
-    () => (localStorage.getItem('dg_inv_style') as 'modern' | 'classic' | 'minimal') || 'modern',
-  );
+  const [pdfStyle, setPdfStyle] = useState<'modern' | 'classic' | 'minimal'>('modern');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'sent' | 'paid' | 'cancelled'>('all');
 
   const printInvoice = async (inv: Invoice) => {
     // Open sync with the click — await before window.open gets blocked (Electron / pop-up blockers).
@@ -251,7 +279,9 @@ export function InvoicesView() {
       const taxSgst = typeof inv.taxSgst === 'number' ? inv.taxSgst : Math.round((inv.taxTotal - taxCgst) * 100) / 100;
       const taxIgst = typeof inv.taxIgst === 'number' ? inv.taxIgst : inv.taxTotal;
       const showDiscCol = inv.items.some(it => (it.discountPercent || 0) > 0);
-      const itemColspan = (hasGst ? 8 : 6) + (showDiscCol ? 1 : 0);
+      const showHsn = isShowHsnSacEnabled(bs as { showHsnSac?: boolean });
+      // Base cols without HSN: Sr, Desc, Qty, Rate, Amount (+ Disc + GST% + Tax when applicable)
+      const itemColspan = (hasGst ? 7 : 5) + (showDiscCol ? 1 : 0) + (showHsn ? 1 : 0);
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${invPrefix}${esc(inv.invoiceNumber)}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;padding:20px;max-width:800px;margin:0 auto;font-size:12px;}
@@ -338,13 +368,13 @@ export function InvoicesView() {
           <span style="font-weight:800;color:${color};">${esc(user.companyName || 'Dhandho')}</span>
           <span style="float:right;font-weight:700;">${invPrefix}${esc(inv.invoiceNumber)}</span>
         </th></tr>
-        <tr><th style="width:30px;">Sr</th><th class="left">Description</th><th>HSN/SAC</th><th>Qty</th><th class="right">Rate</th>${showDiscCol ? '<th class="right">Disc%</th>' : ''}${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr>
+        <tr><th style="width:30px;">Sr</th><th class="left">Description</th>${showHsn ? '<th>HSN/SAC</th>' : ''}<th>Qty</th><th class="right">Rate</th>${showDiscCol ? '<th class="right">Disc%</th>' : ''}${hasGst ? '<th class="right">GST%</th><th class="right">Tax</th>' : ''}<th class="right">Amount</th></tr>
       </thead>
       <tbody>
         ${inv.items
           .map((it, i) => {
             const disc = it.discountPercent || 0;
-            return `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td><td>${esc(it.hsnSac || '—')}</td><td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${showDiscCol ? `<td class="right">${disc > 0 ? `${disc}%` : '—'}</td>` : ''}${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`;
+            return `<tr><td>${i + 1}</td><td class="left">${esc(it.description)}</td>${showHsn ? `<td>${esc(it.hsnSac || '—')}</td>` : ''}<td>${it.qty}</td><td class="right">₹${Number(it.rate).toLocaleString()}</td>${showDiscCol ? `<td class="right">${disc > 0 ? `${disc}%` : '—'}</td>` : ''}${hasGst ? `<td class="right">${it.gstPercent}%</td><td class="right">₹${Number(it.tax).toLocaleString()}</td>` : ''}<td class="right">₹${Number(it.total).toLocaleString()}</td></tr>`;
           })
           .join('')}
       </tbody>
@@ -389,120 +419,174 @@ export function InvoicesView() {
       </div>
     );
 
+  const outstanding = invoices
+    .filter(i => i.status !== 'paid' && i.status !== 'cancelled')
+    .reduce((s, i) => s + (i.grandTotal || 0), 0);
+  const paidTotal = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.grandTotal || 0), 0);
+  const filteredInvoices = statusFilter === 'all' ? invoices : invoices.filter(i => i.status === statusFilter);
+
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-3 sm:space-y-6 pb-14 sm:pb-0"
+    >
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <h2 className="text-lg sm:text-xl font-bold flex items-center gap-1.5">
-            <FileText size={18} className="shrink-0 sm:hidden" />
-            <FileText size={22} className="shrink-0 hidden sm:block" /> {invoicesLabel}
+        <div className="min-w-0 hidden sm:block">
+          <h2 className="text-xl font-bold flex items-center gap-1.5">
+            <FileText size={22} className="shrink-0" /> {invoicesLabel}
           </h2>
-          <p className="text-xs sm:text-sm text-gray-500">
+          <p className="text-sm text-gray-500">
             {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <select
-            value={pdfStyle}
-            onChange={e => {
-              const v = e.target.value as 'modern' | 'classic' | 'minimal';
-              setPdfStyle(v);
-              localStorage.setItem('dg_inv_style', v);
-            }}
-            className="px-2 sm:px-3 py-2 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm bg-white focus:ring-2 focus:ring-brand"
-          >
-            <option value="modern">Modern</option>
-            <option value="classic">Classic (Tally)</option>
-            <option value="minimal">Minimal</option>
-          </select>
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
+          {/* Offline Mobile: template lives in Settings → Bill Customization */}
+          {!serviceMobile && (
+            <select
+              value={pdfStyle}
+              onChange={e => {
+                const v = e.target.value as 'modern' | 'classic' | 'minimal';
+                setPdfStyle(v);
+                localStorage.setItem('dg_inv_style', v);
+                void api.settings
+                  .updateBillSettings({ ...billSettings, invoiceTemplateStyle: v })
+                  .then(saved => setBillSettings(saved || { ...billSettings, invoiceTemplateStyle: v }))
+                  .catch(() => {});
+              }}
+              className="px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-200 rounded-lg sm:rounded-xl text-[11px] sm:text-sm bg-white focus:ring-2 focus:ring-brand"
+              aria-label="Invoice template"
+            >
+              <option value="modern">Modern</option>
+              <option value="classic">Classic (Tally)</option>
+              <option value="minimal">Minimal</option>
+            </select>
+          )}
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 bg-brand text-white rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-brand/20"
+            className="hidden sm:flex items-center gap-1.5 px-4 py-2.5 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
           >
-            <Plus size={16} /> <span className="sm:hidden">New</span>
-            <span className="hidden sm:inline">New Invoice</span>
+            <Plus size={16} /> New Invoice
           </button>
         </div>
       </div>
 
+      {/* Phone summary + filters — Outstanding/Collected live on Analytics for Offline Mobile */}
+      <div className="sm:hidden space-y-2">
+        {!serviceMobile && (
+          <div className="grid grid-cols-2 gap-2">
+            <MobileKpiCard label="Outstanding" value={`₹${outstanding.toLocaleString()}`} accent="rose" />
+            <MobileKpiCard label="Collected" value={`₹${paidTotal.toLocaleString()}`} accent="green" />
+          </div>
+        )}
+        <MobilePillTabs
+          items={[
+            { id: 'all', label: 'All' },
+            { id: 'draft', label: 'Draft' },
+            { id: 'sent', label: 'Sent' },
+            { id: 'paid', label: 'Paid' },
+          ]}
+          value={statusFilter}
+          onChange={id => setStatusFilter(id as typeof statusFilter)}
+        />
+      </div>
+
       {/* Invoice list */}
       {invoices.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-          <FileText size={48} className="mx-auto mb-3 text-gray-300" />
-          <p className="text-gray-500 font-medium text-lg">No invoices yet</p>
-          <p className="text-gray-400 text-sm mt-1">
-            Create your first standalone invoice for services or custom billing
-          </p>
-        </div>
+        <>
+          <div className="sm:hidden">
+            <MobileEmptyState
+              icon={<FileText />}
+              title="No invoices yet"
+              subtitle="Create your first invoice for services or custom billing"
+              actionLabel="New Invoice"
+              onAction={() => setCreateOpen(true)}
+            />
+          </div>
+          <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+            <FileText size={48} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-gray-500 font-medium text-lg">No invoices yet</p>
+            <p className="text-gray-400 text-sm mt-1">
+              Create your first standalone invoice for services or custom billing
+            </p>
+          </div>
+        </>
       ) : (
         <>
-          {/* Mobile cards — summary is a button; actions are siblings (no nested interactive) */}
-          <div className="sm:hidden space-y-3">
-            {invoices.map(inv => (
-              <div key={inv.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setSelectedInvoice(inv)}
-                  className="w-full text-left p-4 space-y-2 hover:bg-gray-50/80 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-mono font-semibold text-sm text-gray-900 truncate">{inv.invoiceNumber}</p>
-                      <p className="font-medium text-gray-800 truncate">{inv.customerName}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{formatDate(inv.invoiceDate)}</p>
+          {filteredInvoices.length === 0 ? (
+            <div className="sm:hidden py-8 text-center text-[12px] text-gray-400 font-medium">No matching invoices</div>
+          ) : (
+            <div className="sm:hidden space-y-2">
+              {filteredInvoices.map(inv => (
+                <div key={inv.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedInvoice(inv)}
+                    className="w-full text-left px-2.5 py-2 active:bg-gray-50"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono font-semibold text-[12px] text-gray-900 truncate">
+                          {inv.invoiceNumber}
+                        </p>
+                        <p className="text-[13px] font-bold text-gray-800 truncate">{inv.customerName}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(inv.invoiceDate)}</p>
+                      </div>
+                      <div className="text-right shrink-0 space-y-0.5">
+                        <p className="text-[13px] font-bold text-gray-900 tabular-nums">
+                          ₹{inv.grandTotal.toLocaleString()}
+                        </p>
+                        {statusBadge(inv.status)}
+                      </div>
                     </div>
-                    <div className="text-right shrink-0 space-y-1">
-                      <p className="font-bold text-gray-900">₹{inv.grandTotal.toLocaleString()}</p>
-                      {statusBadge(inv.status)}
-                    </div>
+                  </button>
+                  <div className="flex items-center justify-end gap-0.5 border-t border-gray-50 px-1.5 py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => printInvoice(inv)}
+                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
+                      title={serviceMobile ? 'Download PDF' : 'Print/PDF'}
+                      aria-label={serviceMobile ? 'Download invoice PDF' : 'Print invoice'}
+                    >
+                      {serviceMobile ? <Download size={14} /> : <Printer size={14} />}
+                    </button>
+                    {inv.status === 'draft' && (
+                      <button
+                        type="button"
+                        onClick={() => handleStatus(inv, 'sent')}
+                        className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Mark Sent"
+                        aria-label="Mark sent"
+                      >
+                        <Send size={14} />
+                      </button>
+                    )}
+                    {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                      <button
+                        type="button"
+                        onClick={() => handleStatus(inv, 'paid')}
+                        className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                        title="Mark Paid"
+                        aria-label="Mark paid"
+                      >
+                        <Check size={14} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(inv)}
+                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg"
+                      title="Delete"
+                      aria-label="Delete invoice"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
-                </button>
-                <div className="flex items-center justify-end gap-1 border-t border-gray-50 px-3 pb-2">
-                  <button
-                    type="button"
-                    onClick={() => printInvoice(inv)}
-                    className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
-                    title="Print/PDF"
-                    aria-label="Print invoice"
-                  >
-                    <Printer size={15} />
-                  </button>
-                  {inv.status === 'draft' && (
-                    <button
-                      type="button"
-                      onClick={() => handleStatus(inv, 'sent')}
-                      className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-lg"
-                      title="Mark Sent"
-                      aria-label="Mark sent"
-                    >
-                      <Send size={15} />
-                    </button>
-                  )}
-                  {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                    <button
-                      type="button"
-                      onClick={() => handleStatus(inv, 'paid')}
-                      className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                      title="Mark Paid"
-                      aria-label="Mark paid"
-                    >
-                      <Check size={15} />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(inv)}
-                    className="p-1.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg"
-                    title="Delete"
-                    aria-label="Delete invoice"
-                  >
-                    <Trash2 size={15} />
-                  </button>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Desktop / tablet table */}
           <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
@@ -538,9 +622,10 @@ export function InvoicesView() {
                           type="button"
                           onClick={() => printInvoice(inv)}
                           className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
-                          title="Print/PDF"
+                          title={serviceMobile ? 'Download PDF' : 'Print/PDF'}
+                          aria-label={serviceMobile ? 'Download invoice PDF' : 'Print invoice'}
                         >
-                          <Printer size={15} />
+                          {serviceMobile ? <Download size={15} /> : <Printer size={15} />}
                         </button>
                         {inv.status === 'draft' && (
                           <button
@@ -579,6 +664,8 @@ export function InvoicesView() {
           </div>
         </>
       )}
+
+      {invoices.length > 0 && <MobileFab label="Invoice" onClick={() => setCreateOpen(true)} />}
 
       {/* Create modal */}
       <AnimatePresence>
@@ -661,7 +748,15 @@ export function InvoicesView() {
                   onClick={() => printInvoice(selectedInvoice)}
                   className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold flex items-center justify-center gap-2"
                 >
-                  <Printer size={16} /> Print / PDF
+                  {serviceMobile ? (
+                    <>
+                      <Download size={16} /> Download PDF
+                    </>
+                  ) : (
+                    <>
+                      <Printer size={16} /> Print / PDF
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -753,6 +848,10 @@ export function CreateInvoiceModal({
   initialParty?: InvoicePartyPrefill | null;
 }) {
   const { toast } = useToast();
+  const cfg = useBusinessConfig();
+  const isService = cfg.type === 'service';
+  const serviceMobile = isServiceMobileMode();
+  const vendorPartyKind = isService ? 'Client' : 'Vendor';
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [form, setForm] = useState({
     customerName: initialParty?.customerName || '',
@@ -769,6 +868,7 @@ export function CreateInvoiceModal({
   const [parties, setParties] = useState<InvoiceParty[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [priceRules, setPriceRules] = useState<PriceRule[]>([]);
+  const [showHsnSac, setShowHsnSac] = useState(() => isShowHsnSacEnabled(null));
   const [partyKey, setPartyKey] = useState(() => {
     if (initialParty?.partyType && initialParty?.partyId) {
       return `${initialParty.partyType}:${initialParty.partyId}`;
@@ -782,7 +882,7 @@ export function CreateInvoiceModal({
 
   const pricingVendorId = partyKey.startsWith('vendor:') ? partyKey.slice('vendor:'.length) : null;
 
-  /** Prefer server resolve; fall back to client catalog rules. */
+  /** Prefer server resolve (Offline → local router); fall back to client catalog rules. */
   const resolveRowPrice = (idx: number, productId: string, vendorId: string | null, quantity: number) => {
     if (!productId || quantity <= 0) return;
     const token = (resolveTokenRef.current[idx] = (resolveTokenRef.current[idx] || 0) + 1);
@@ -791,13 +891,7 @@ export function CreateInvoiceModal({
       quantity: String(quantity),
     });
     if (vendorId) qs.set('vendorId', vendorId);
-    fetch(`/api/price-lists/resolve?${qs}`, {
-      headers: {
-        Authorization: `Bearer ${session.getToken()}`,
-        'X-Tenant-ID': session.getTenantId() || '',
-      },
-    })
-      .then(r => r.json())
+    fetchApi<{ price: number }>(`/price-lists/resolve?${qs}`)
       .then(d => {
         if (resolveTokenRef.current[idx] !== token) return;
         if (!d || typeof d.price !== 'number') return;
@@ -820,40 +914,62 @@ export function CreateInvoiceModal({
   };
 
   useEffect(() => {
+    let cancelled = false;
     fetchApi<{ number: string }>('/invoices/next-number')
-      .then(r => setInvoiceNumber(r.number))
+      .then(r => {
+        if (!cancelled) setInvoiceNumber(r.number);
+      })
       .catch(() => {});
-    Promise.all([api.vendors.list(), api.customers.list(), api.products.list(), fetchApi<PriceRule[]>('/price-lists')])
-      .then(([vendors, customers, productList, rules]) => {
+    api.settings
+      .getBillSettings()
+      .then(s => {
+        if (!cancelled) setShowHsnSac(isShowHsnSacEnabled(s));
+      })
+      .catch(() => {});
+    // allSettled: one failing list must not wipe parties/products
+    Promise.allSettled([
+      api.vendors.list(),
+      api.customers.list(),
+      api.products.list(),
+      fetchApi<PriceRule[]>('/price-lists'),
+    ]).then(results => {
+      if (cancelled) return;
+      const vendors = asApiList<Vendor>(results[0].status === 'fulfilled' ? results[0].value : []);
+      const customers = asApiList<Customer>(results[1].status === 'fulfilled' ? results[1].value : []);
+      const productList = asApiList<Product>(results[2].status === 'fulfilled' ? results[2].value : []);
+      const rules = asApiList<PriceRule>(results[3].status === 'fulfilled' ? results[3].value : []);
+
+      try {
         const fromVendors: InvoiceParty[] = vendors
-          .filter(v => v.id !== 'OWNER')
+          .filter(v => v && v.id && v.id !== 'OWNER' && v.name)
           .map(v => ({
             key: `vendor:${v.id}`,
-            label: `${v.name} (Vendor)`,
-            name: v.name,
+            label: `${v.name} (${vendorPartyKind})`,
+            name: String(v.name),
             phone: v.phone || '',
             address: v.address || '',
-            gstin: v.gstNumber || '',
+            gstin: v.gstNumber || (v as { gstin?: string }).gstin || '',
             partyType: 'vendor' as const,
             partyId: v.id,
           }));
-        const fromCustomers: InvoiceParty[] = customers.map(c => ({
-          key: `customer:${c.id}`,
-          label: `${c.name} (Client)`,
-          name: c.name,
-          phone: c.phone || '',
-          address: c.address || '',
-          gstin: '',
-          partyType: 'customer' as const,
-          partyId: c.id,
-        }));
+        const fromCustomers: InvoiceParty[] = customers
+          .filter(c => c && c.id && c.name)
+          .map(c => ({
+            key: `customer:${c.id}`,
+            label: `${c.name} (${isService ? 'Customer' : 'Client'})`,
+            name: String(c.name),
+            phone: c.phone || '',
+            address: c.address || '',
+            gstin: '',
+            partyType: 'customer' as const,
+            partyId: c.id,
+          }));
         const list = [...fromVendors, ...fromCustomers].sort((a, b) =>
-          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+          String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }),
         );
         setParties(list);
         setProducts(productList);
-        setPriceRules(rules.filter(r => r.isActive !== false));
-        // If opened from Finance with a party id, ensure fields filled once list loads
+        setPriceRules(rules.filter(r => r && r.isActive !== false));
         if (initialParty?.partyType && initialParty?.partyId) {
           const key = `${initialParty.partyType}:${initialParty.partyId}`;
           const party = list.find(p => p.key === key);
@@ -868,13 +984,16 @@ export function CreateInvoiceModal({
             }));
           }
         }
-      })
-      .catch(() => {
+      } catch {
         setParties([]);
-        setProducts([]);
+        setProducts(productList);
         setPriceRules([]);
-      });
-  }, [initialParty?.partyType, initialParty?.partyId]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialParty?.partyType, initialParty?.partyId, vendorPartyKind, isService]);
 
   const selectParty = (key: string) => {
     setPartyKey(key);
@@ -976,6 +1095,7 @@ export function CreateInvoiceModal({
         method: 'POST',
         body: JSON.stringify({
           ...form,
+          dueDate: form.dueDate?.trim() || null,
           invoiceNumber,
           items: validRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId }) => ({
             description,
@@ -1037,10 +1157,10 @@ export function CreateInvoiceModal({
             row.qty || 1,
           )
         : null;
-    return [
+    const fields: LineItemCardField[] = [
       {
         key: 'product',
-        label: 'Product',
+        label: serviceMobile ? 'Price List item' : 'Product',
         wide: true as const,
         node: (
           <select
@@ -1073,7 +1193,9 @@ export function CreateInvoiceModal({
           </>
         ),
       },
-      {
+    ];
+    if (showHsnSac) {
+      fields.push({
         key: 'hsn',
         label: 'HSN/SAC',
         node: (
@@ -1098,7 +1220,9 @@ export function CreateInvoiceModal({
             placeholder="9983"
           />
         ),
-      },
+      });
+    }
+    fields.push(
       {
         key: 'qty',
         label: 'Quantity',
@@ -1173,7 +1297,8 @@ export function CreateInvoiceModal({
           />
         ),
       },
-    ];
+    );
+    return fields;
   };
 
   const totalsBar = (
@@ -1257,34 +1382,29 @@ export function CreateInvoiceModal({
 
         {/* Step 0 — Party */}
         <div className={cn(step !== 0 && 'hidden', 'sm:block space-y-4')}>
-          <FormSection title="Customer" description="Select a party or type a new customer">
+          <FormSection title="Customer" description="Type a name — pick a match or leave as custom">
             <FormGrid>
-              <FormField label="Customer / Vendor" required className="sm:col-span-2">
-                <select value={partyKey} onChange={e => selectParty(e.target.value)} className={formControlClass}>
-                  <option value="">Select vendor or client</option>
-                  {parties.map(p => (
-                    <option key={p.key} value={p.key}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField label="Customer Name" required>
-                <input
-                  value={form.customerName}
-                  onChange={e => {
-                    setPartyKey('');
-                    setForm({ ...form, customerName: e.target.value });
-                  }}
-                  className={formControlClass}
-                  placeholder="Or type a new name"
-                  list="invoice-party-names"
+              <FormField label="Customer Name" required className="sm:col-span-2">
+                <SearchSelect
+                  allowCustom
+                  value={partyKey}
+                  onChange={selectParty}
+                  inputValue={form.customerName}
+                  onInputChange={text => setForm(f => ({ ...f, customerName: text }))}
+                  placeholder={isService ? 'Type client name…' : 'Type customer or vendor name…'}
+                  emptyHint={
+                    parties.length === 0
+                      ? `No ${isService ? 'clients' : 'parties'} yet — type a name, or add in Masters`
+                      : undefined
+                  }
+                  customLabel={isService ? 'client' : 'customer'}
+                  options={parties.map(p => ({
+                    value: p.key,
+                    label: p.name,
+                    sublabel: p.phone || undefined,
+                  }))}
+                  className="w-full [&_input]:min-h-11 [&_input]:rounded-xl [&_input]:px-3 [&_input]:sm:px-4 [&_button]:min-h-11 [&_button]:rounded-xl"
                 />
-                <datalist id="invoice-party-names">
-                  {parties.map(p => (
-                    <option key={p.key} value={p.name} />
-                  ))}
-                </datalist>
               </FormField>
               <FormField label="GSTIN">
                 <input
@@ -1312,15 +1432,16 @@ export function CreateInvoiceModal({
                   placeholder="Optional"
                 />
               </FormField>
-              <FormField label="Invoice Date">
+              <FormField label="Invoice Date" required>
                 <input
                   type="date"
                   value={form.invoiceDate}
                   onChange={e => setForm({ ...form, invoiceDate: e.target.value })}
                   className={formControlClass}
+                  required
                 />
               </FormField>
-              <FormField label="Due Date">
+              <FormField label="Due Date" hint="Optional — leave blank if not needed">
                 <input
                   type="date"
                   value={form.dueDate}
@@ -1334,7 +1455,14 @@ export function CreateInvoiceModal({
 
         {/* Step 1 — Items */}
         <div className={cn(step !== 1 && 'hidden', 'sm:block space-y-3')}>
-          <FormSection title="Line Items" description="Pick from Masters / Price List, or choose Custom">
+          <FormSection
+            title="Line Items"
+            description={
+              serviceMobile
+                ? 'Pick from Price List (Catalog / Clients rates), or type a custom line'
+                : 'Pick from Masters / Price List, or choose Custom'
+            }
+          >
             {/* Mobile cards */}
             <div className="sm:hidden space-y-3">
               {rows.map((row, idx) => {
@@ -1361,7 +1489,7 @@ export function CreateInvoiceModal({
                 <thead className="bg-gray-50">
                   <tr className="text-xs font-bold text-gray-400 uppercase">
                     <th className="px-3 py-2 text-left min-w-[200px]">Item</th>
-                    <th className="px-3 py-2 w-24">HSN/SAC</th>
+                    {showHsnSac && <th className="px-3 py-2 w-24">HSN/SAC</th>}
                     <th className="px-3 py-2 w-16">Qty</th>
                     <th className="px-3 py-2 w-24">Rate</th>
                     <th className="px-3 py-2 w-16">Disc%</th>
@@ -1408,28 +1536,30 @@ export function CreateInvoiceModal({
                             </p>
                           )}
                         </td>
-                        <td className="px-3 py-2">
-                          <input
-                            value={row.hsnSac}
-                            onChange={e => {
-                              const v = e.target.value;
-                              const hint = suggestHsnRate(v);
-                              setRows(
-                                rows.map((r, i) =>
-                                  i === idx
-                                    ? {
-                                        ...r,
-                                        hsnSac: v,
-                                        ...(hint && r.gstPercent === 18 ? { gstPercent: hint.rate } : {}),
-                                      }
-                                    : r,
-                                ),
-                              );
-                            }}
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono"
-                            placeholder="9983"
-                          />
-                        </td>
+                        {showHsnSac && (
+                          <td className="px-3 py-2">
+                            <input
+                              value={row.hsnSac}
+                              onChange={e => {
+                                const v = e.target.value;
+                                const hint = suggestHsnRate(v);
+                                setRows(
+                                  rows.map((r, i) =>
+                                    i === idx
+                                      ? {
+                                          ...r,
+                                          hsnSac: v,
+                                          ...(hint && r.gstPercent === 18 ? { gstPercent: hint.rate } : {}),
+                                        }
+                                      : r,
+                                  ),
+                                );
+                              }}
+                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono"
+                              placeholder="9983"
+                            />
+                          </td>
+                        )}
                         <td className="px-3 py-2">
                           <input
                             type="number"

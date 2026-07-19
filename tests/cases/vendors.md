@@ -4,7 +4,8 @@ Covers vendor creation with portal toggle, auto-login credential generation, cre
 
 | # | Test Case | Steps | Expected Result |
 |---|-----------|-------|-----------------|
-| 1 | Add vendor with Vendor Portal ON | Open Vendors > Add Vendor with Vendor Portal toggle ON; fill details; save | Vendor is created with auto-generated login credentials |
+| 1 | Add vendor with Vendor Portal ON | Open Vendors > Add Vendor with Vendor Portal toggle ON; fill details including email; save | Vendor is created with auto-generated login credentials |
+| 1b | Email optional | Add Vendor/Client with name (+ phone) only — leave email blank; save | Saves successfully; no login credentials generated without email |
 | 2 | Add vendor with Vendor Portal OFF | Open Vendors > Add Vendor with Vendor Portal toggle OFF; fill details; save | Vendor is created without login credentials; portal fields are hidden |
 | 3 | Auto-generated login credentials | Create a vendor with Vendor Portal ON | Username and temporary password are generated and displayed |
 | 4 | Share credentials via WhatsApp | After creating vendor, click "Share via WhatsApp" | WhatsApp opens with pre-filled message containing vendor login URL and credentials |

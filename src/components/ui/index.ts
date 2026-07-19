@@ -1,6 +1,6 @@
 export { ToastProvider, ToastContext, useToast } from './Toast';
 export { LoadingSpinner } from './LoadingSpinner';
-export { DateRangeFilter } from './DateRangeFilter';
+export { DateRangeFilter, dateControlClass } from './DateRangeFilter';
 export { PaginationControls } from './Pagination';
 export { PaidBadge, PaidStamp, isBillFullyPaid } from './PaidBadge';
 export { PasswordInput } from './PasswordInput';
@@ -11,3 +11,12 @@ export { ModalActions, ModalActionButton } from './ModalActions';
 export { FormSection, FormGrid, FormField, formControlClass } from './FormSection';
 export { MobileStepper } from './MobileStepper';
 export { LineItemCard, type LineItemCardField } from './LineItemCard';
+export {
+  MobilePillTabs,
+  MobileKpiCard,
+  MobileSectionTitle,
+  MobileEmptyState,
+  MobileFab,
+  MobileListRow,
+  MobileQuickActions,
+} from './MobileShell';

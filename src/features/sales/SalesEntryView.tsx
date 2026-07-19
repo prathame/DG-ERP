@@ -418,11 +418,11 @@ export function SalesEntryView({
                                 )
                               : undefined;
                             if (
-                              !saveBillAsPdf(
+                              !(await saveBillAsPdf(
                                 generateSalesInvoiceHtml(bill, { showGst: includeGst, qrDataUrl }),
                                 `Invoice-${s.customerName}-${s.id}`,
                                 w,
-                              )
+                              ))
                             ) {
                               toast(PRINT_POPUP_BLOCKED, 'error');
                             }

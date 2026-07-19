@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   LogIn,
-  LogOut,
   UserPlus,
   Phone,
   MapPin,
@@ -10,6 +9,7 @@ import {
   UserCog,
   Shield,
   Download,
+  HardDrive,
   MessageCircle,
   FileText,
   Settings,
@@ -30,7 +30,12 @@ import { session } from '../../lib/session';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 import { useConfirm } from '../../hooks/useConfirm';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
-import { exportLocalBackupNow, restoreFromLocalBackupFile } from '../../platforms/service-mobile';
+import {
+  exportLocalBackupNow,
+  restoreFromLocalBackupFile,
+  getAccountsTabVisiblePref,
+  setAccountsTabVisiblePref,
+} from '../../platforms/service-mobile';
 
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
 const serviceMobile = isServiceMobileMode();
@@ -54,8 +59,15 @@ const BILL_DEFAULTS: BillSettings = {
   showRewards: true,
   showBarcode: true,
   showWarranty: true,
+  /** Offline electricians: HSN off by default; cloud manufacturer keeps historical on. */
+  showHsnSac: !serviceMobile,
   footerText: 'Powered by Dhandho Management',
+  invoiceTemplateStyle: 'modern',
 };
+
+function normalizeInvoiceTemplateStyle(v: unknown): BillSettings['invoiceTemplateStyle'] {
+  return v === 'classic' || v === 'minimal' || v === 'modern' ? v : 'modern';
+}
 
 // ── GST API Settings — E-Invoice (IRN) + E-Way Bill ──────────────────────────
 function GstApiSection() {
@@ -275,7 +287,12 @@ function BillCustomizationSection() {
   useEffect(() => {
     api.settings
       .getBillSettings()
-      .then(s => setForm({ ...BILL_DEFAULTS, ...s }))
+      .then(s => {
+        // Migrate legacy Invoices toolbar localStorage key into bill settings.
+        const legacy = localStorage.getItem('dg_inv_style');
+        const style = normalizeInvoiceTemplateStyle(s?.invoiceTemplateStyle ?? legacy);
+        setForm({ ...BILL_DEFAULTS, ...s, invoiceTemplateStyle: style });
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
     api.banks
@@ -307,8 +324,14 @@ function BillCustomizationSection() {
     }
     setSaving(true);
     try {
-      const saved = await api.settings.updateBillSettings(form);
-      setForm({ ...BILL_DEFAULTS, ...saved });
+      const payload = {
+        ...form,
+        invoiceTemplateStyle: normalizeInvoiceTemplateStyle(form.invoiceTemplateStyle),
+      };
+      const saved = await api.settings.updateBillSettings(payload);
+      const style = normalizeInvoiceTemplateStyle(saved?.invoiceTemplateStyle ?? payload.invoiceTemplateStyle);
+      setForm({ ...BILL_DEFAULTS, ...saved, invoiceTemplateStyle: style });
+      localStorage.setItem('dg_inv_style', style);
       toast('Bill settings saved', 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to save', 'error');
@@ -357,7 +380,7 @@ function BillCustomizationSection() {
     printBillInWindow(win, html, 'Bill Preview', { autoPrint: false });
   };
 
-  const toggleField = (field: 'showRewards' | 'showBarcode' | 'showWarranty') => (
+  const toggleField = (field: 'showRewards' | 'showBarcode' | 'showWarranty' | 'showHsnSac') => (
     <button
       type="button"
       onClick={() => setForm(p => ({ ...p, [field]: !p[field] }))}
@@ -473,10 +496,10 @@ function BillCustomizationSection() {
           </div>
         </div>
 
-        {/* Invoice Numbering */}
+        {/* Invoice Numbering + template */}
         <div>
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Invoice Numbering</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Invoice Numbering &amp; Template</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label htmlFor="settings-field-5" className="text-xs font-bold text-gray-500 block mb-1">
                 Invoice Prefix
@@ -490,18 +513,41 @@ function BillCustomizationSection() {
                 maxLength={20}
               />
             </div>
+            {!serviceMobile && (
+              <div>
+                <label htmlFor="settings-field-6" className="text-xs font-bold text-gray-500 block mb-1">
+                  Challan Prefix
+                </label>
+                <input
+                  id="settings-field-6"
+                  value={form.challanPrefix || ''}
+                  onChange={e => setForm(p => ({ ...p, challanPrefix: e.target.value || null }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+                  placeholder="e.g. SPL-CH-"
+                  maxLength={20}
+                />
+              </div>
+            )}
             <div>
-              <label htmlFor="settings-field-6" className="text-xs font-bold text-gray-500 block mb-1">
-                Challan Prefix
+              <label htmlFor="settings-invoice-template" className="text-xs font-bold text-gray-500 block mb-1">
+                Invoice template
               </label>
-              <input
-                id="settings-field-6"
-                value={form.challanPrefix || ''}
-                onChange={e => setForm(p => ({ ...p, challanPrefix: e.target.value || null }))}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-                placeholder="e.g. SPL-CH-"
-                maxLength={20}
-              />
+              <select
+                id="settings-invoice-template"
+                value={normalizeInvoiceTemplateStyle(form.invoiceTemplateStyle)}
+                onChange={e =>
+                  setForm(p => ({
+                    ...p,
+                    invoiceTemplateStyle: normalizeInvoiceTemplateStyle(e.target.value),
+                  }))
+                }
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-brand"
+              >
+                <option value="modern">Modern</option>
+                <option value="classic">Classic (Tally)</option>
+                <option value="minimal">Minimal</option>
+              </select>
+              <p className="text-[10px] text-gray-400 mt-1">Layout used when downloading or printing invoices</p>
             </div>
           </div>
         </div>
@@ -660,31 +706,44 @@ function BillCustomizationSection() {
           </div>
         </div>
 
-        {/* Bill Section Toggles */}
+        {/* Bill Section Toggles — HSN for all; barcode/warranty/rewards cloud only */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase mb-3">Bill Sections</p>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-sm">Show Barcode</p>
-                <p className="text-xs text-gray-500">Display barcode column on bills</p>
+                <p className="font-medium text-sm">Show HSN/SAC</p>
+                <p className="text-xs text-gray-500">
+                  Show HSN/SAC on invoice lines and printed bills (optional; never required)
+                </p>
               </div>
-              {toggleField('showBarcode')}
+              {toggleField('showHsnSac')}
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm">Show Warranty</p>
-                <p className="text-xs text-gray-500">Display warranty info on sales invoice</p>
-              </div>
-              {toggleField('showWarranty')}
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm">Show Rewards</p>
-                <p className="text-xs text-gray-500">Display reward points earned on invoice</p>
-              </div>
-              {toggleField('showRewards')}
-            </div>
+            {!serviceMobile && (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Show Barcode</p>
+                    <p className="text-xs text-gray-500">Display barcode column on bills</p>
+                  </div>
+                  {toggleField('showBarcode')}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Show Warranty</p>
+                    <p className="text-xs text-gray-500">Display warranty info on sales invoice</p>
+                  </div>
+                  {toggleField('showWarranty')}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Show Rewards</p>
+                    <p className="text-xs text-gray-500">Display reward points earned on invoice</p>
+                  </div>
+                  {toggleField('showRewards')}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -777,6 +836,7 @@ export function SettingsView({
     role?: string;
     companyName?: string;
     autoWhatsapp?: boolean;
+    tabConfig?: Record<string, { label?: string; visible?: boolean }> | null;
   } | null;
   onUserChange: (u: typeof user) => void;
 }) {
@@ -784,6 +844,17 @@ export function SettingsView({
   const { confirm, ConfirmRenderer } = useConfirm();
   const { t: st, lang, setLang } = useTranslation();
   const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+  const [notifSoundOn, setNotifSoundOn] = useState(() => {
+    try {
+      const scope = `${session.getTenantId() || 't'}:${session.getUser()?.id || 'u'}`;
+      return localStorage.getItem(`dg_notif_mute:${scope}`) !== '1';
+    } catch {
+      return true;
+    }
+  });
+  const [accountsTabVisible, setAccountsTabVisible] = useState(() =>
+    serviceMobile ? getAccountsTabVisiblePref() : true,
+  );
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', name: '', confirmPassword: '' });
   const [authError, setAuthError] = useState('');
@@ -875,7 +946,7 @@ export function SettingsView({
 
   const isAdmin = user && ADMIN_ROLES.includes(user.role ?? '');
   useEffect(() => {
-    if (isAdmin && user) {
+    if (isAdmin && user && !serviceMobile) {
       setUsersLoading(true);
       api.admin
         .listUsers(user.id)
@@ -908,6 +979,11 @@ export function SettingsView({
       session.setToken(r.token);
       if (r.tenantId) session.setTenantId(r.tenantId);
       if (r.tenantSlug) session.setSlug(r.tenantSlug);
+      const extra = r as Record<string, unknown>;
+      const tabConfig =
+        extra.tabConfig && typeof extra.tabConfig === 'object'
+          ? (extra.tabConfig as Record<string, { label?: string; visible?: boolean }>)
+          : undefined;
       const u = {
         id: r.id,
         email: r.email,
@@ -916,10 +992,10 @@ export function SettingsView({
         companyName: r.companyName,
         vendorId: r.vendorId,
         autoWhatsapp: r.autoWhatsapp,
-        barcodeSystemEnabled: (r as Record<string, unknown>).barcodeSystemEnabled,
-        multiLanguageEnabled: (r as Record<string, unknown>).multiLanguageEnabled,
-        vendorPortalEnabled: (r as Record<string, unknown>).vendorPortalEnabled,
-        tabConfig: (r as Record<string, unknown>).tabConfig,
+        barcodeSystemEnabled: extra.barcodeSystemEnabled,
+        multiLanguageEnabled: extra.multiLanguageEnabled,
+        vendorPortalEnabled: extra.vendorPortalEnabled,
+        tabConfig,
       };
       session.setUser(u);
       onUserChange(u);
@@ -962,11 +1038,6 @@ export function SettingsView({
     } finally {
       setAuthSubmitting(false);
     }
-  };
-
-  const handleLogout = () => {
-    session.clearAll();
-    onUserChange(null);
   };
 
   const handleProfileSave = async (e: React.FormEvent) => {
@@ -1056,24 +1127,15 @@ export function SettingsView({
         </div>
         <div className="p-6">
           {user ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white font-bold text-xl">
-                  {user.name.charAt(0)}
-                </div>
-                <div>
-                  <p className="font-bold text-lg">{user.name}</p>
-                  <p className="text-sm text-gray-500">{user.email}</p>
-                  <p className="text-xs text-amber-600 font-medium">{user.role ?? 'Admin'}</p>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white font-bold text-xl">
+                {user.name.charAt(0)}
               </div>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 border border-rose-200 text-rose-600 rounded-xl font-medium hover:bg-rose-50 transition-colors"
-              >
-                <LogOut size={18} /> Logout
-              </button>
+              <div>
+                <p className="font-bold text-lg">{user.name}</p>
+                <p className="text-sm text-gray-500">{user.email}</p>
+                <p className="text-xs text-amber-600 font-medium">{user.role ?? 'Admin'}</p>
+              </div>
             </div>
           ) : (
             <div className="max-w-md space-y-4">
@@ -1361,19 +1423,20 @@ export function SettingsView({
 
           {/* Appearance */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <Settings size={20} /> {st('settings.appearance')}
+            <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+              <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                <Settings size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                {st('settings.appearance')}
               </h3>
             </div>
-            <div className="p-6 space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-sm">{st('settings.darkMode')}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{st('settings.darkModeDesc')}</p>
-                </div>
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-semibold text-sm">{st('settings.darkMode')}</p>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={isDarkMode}
+                  aria-label={st('settings.darkMode')}
                   onClick={() => {
                     const html = document.documentElement;
                     const nowDark = html.classList.toggle('dark');
@@ -1381,34 +1444,34 @@ export function SettingsView({
                     setIsDarkMode(nowDark);
                   }}
                   className={cn(
-                    'relative w-14 h-7 rounded-full transition-colors',
+                    'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors',
                     isDarkMode ? 'bg-brand' : 'bg-gray-300',
                   )}
                 >
                   <span
+                    aria-hidden
                     className={cn(
-                      'absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform',
-                      isDarkMode ? 'translate-x-7' : 'translate-x-0.5',
+                      'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                      isDarkMode ? 'translate-x-5' : 'translate-x-0',
                     )}
+                    style={{ backgroundColor: '#FFFFFF' }}
                   />
                 </button>
               </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-sm">{st('settings.language')}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{st('settings.languageDesc')}</p>
-                </div>
-                <div className="flex gap-2">
+              <div className="space-y-2">
+                <p className="font-semibold text-sm">{st('settings.language')}</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl bg-gray-100 p-1">
                   {LANGUAGES.map(l => (
                     <button
                       key={l.code}
                       type="button"
                       onClick={() => setLang(l.code)}
                       className={cn(
-                        'px-4 py-2 rounded-lg text-sm font-bold border transition-colors',
+                        'dg-compact box-border h-8 min-h-8 max-h-8 px-2 inline-flex items-center justify-center',
+                        'rounded-lg text-[11px] font-bold leading-none transition-colors',
                         lang === l.code
-                          ? 'bg-brand text-white border-brand'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
+                          ? 'bg-brand text-white shadow-sm'
+                          : 'bg-transparent text-gray-600 hover:text-gray-900',
                       )}
                     >
                       {l.nativeLabel}
@@ -1416,6 +1479,54 @@ export function SettingsView({
                   ))}
                 </div>
               </div>
+              {serviceMobile && (
+                <div className="flex items-start justify-between gap-3 pt-1 border-t border-gray-100">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm">Show Accounts</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                      When off, Accounts is hidden from More and tab navigation on this device.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={accountsTabVisible}
+                    aria-label="Show Accounts"
+                    onClick={() => {
+                      if (!user) return;
+                      const next = !accountsTabVisible;
+                      setAccountsTabVisiblePref(next);
+                      setAccountsTabVisible(next);
+                      const prevTc =
+                        (user.tabConfig as Record<string, { label?: string; visible?: boolean }> | null) || {};
+                      const tabConfig = {
+                        ...prevTc,
+                        accounts: {
+                          label: prevTc.accounts?.label || 'Accounts',
+                          visible: next,
+                        },
+                      };
+                      const merged = { ...user, tabConfig };
+                      session.setUser(merged);
+                      onUserChange(merged);
+                      toast(next ? 'Accounts tab shown' : 'Accounts tab hidden', 'success');
+                    }}
+                    className={cn(
+                      'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
+                      accountsTabVisible ? 'bg-brand' : 'bg-gray-300',
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                        accountsTabVisible ? 'translate-x-5' : 'translate-x-0',
+                      )}
+                      style={{ backgroundColor: '#FFFFFF' }}
+                    />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1494,108 +1605,133 @@ export function SettingsView({
             </form>
           </div>
 
-          {/* Delete my account */}
-          <div className="bg-white rounded-2xl border border-rose-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-rose-50 border-b border-rose-100">
-              <h3 className="font-bold text-lg flex items-center gap-2 text-rose-800">
-                <Trash2 size={20} /> Delete Account
-              </h3>
-            </div>
-            <form
-              onSubmit={async e => {
-                e.preventDefault();
-                if (!user) return;
-                const form = e.target as HTMLFormElement;
-                const password = (form.elements.namedItem('deletePassword') as HTMLInputElement).value;
-                if (
-                  !(await confirm({
-                    title: 'Delete your account?',
-                    message: 'Your personal data will be anonymized. This cannot be undone.',
-                    confirmLabel: 'Delete account',
-                    variant: 'danger',
-                  }))
-                )
-                  return;
-                try {
-                  await api.settings.deleteAccount(password);
-                  session.clearAll();
-                  onUserChange(null);
-                  toast('Account deleted', 'success');
-                } catch (err) {
-                  toast(err instanceof Error ? err.message : 'Failed to delete account', 'error');
-                }
-              }}
-              className="p-6 space-y-4"
-            >
-              <p className="text-sm text-gray-600">
-                Permanently anonymizes your name, email, phone, and address. Sales history kept for business records is
-                not tied to your login after this.
-              </p>
-              <div className="max-w-sm">
-                <label htmlFor="settings-delete-pw" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                  Confirm with password
-                </label>
-                <PasswordInput
-                  id="settings-delete-pw"
-                  name="deletePassword"
-                  required
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-rose-400"
-                />
+          {/* Delete my account — cloud only (offline uses SA device unbind) */}
+          {!serviceMobile && (
+            <div className="bg-white rounded-2xl border border-rose-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-rose-50 border-b border-rose-100">
+                <h3 className="font-bold text-lg flex items-center gap-2 text-rose-800">
+                  <Trash2 size={20} /> Delete Account
+                </h3>
               </div>
-              <button type="submit" className="px-6 py-2 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700">
-                Delete my account
-              </button>
-            </form>
-          </div>
+              <form
+                onSubmit={async e => {
+                  e.preventDefault();
+                  if (!user) return;
+                  const form = e.target as HTMLFormElement;
+                  const password = (form.elements.namedItem('deletePassword') as HTMLInputElement).value;
+                  if (
+                    !(await confirm({
+                      title: 'Delete your account?',
+                      message: 'Your personal data will be anonymized. This cannot be undone.',
+                      confirmLabel: 'Delete account',
+                      variant: 'danger',
+                    }))
+                  )
+                    return;
+                  try {
+                    await api.settings.deleteAccount(password);
+                    session.clearAll();
+                    onUserChange(null);
+                    toast('Account deleted', 'success');
+                  } catch (err) {
+                    toast(err instanceof Error ? err.message : 'Failed to delete account', 'error');
+                  }
+                }}
+                className="p-6 space-y-4"
+              >
+                <p className="text-sm text-gray-600">
+                  Permanently anonymizes your name, email, phone, and address. Sales history kept for business records
+                  is not tied to your login after this.
+                </p>
+                <div className="max-w-sm">
+                  <label htmlFor="settings-delete-pw" className="text-xs font-bold text-gray-400 uppercase block mb-1">
+                    Confirm with password
+                  </label>
+                  <PasswordInput
+                    id="settings-delete-pw"
+                    name="deletePassword"
+                    required
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-rose-400"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700"
+                >
+                  Delete my account
+                </button>
+              </form>
+            </div>
+          )}
 
-          {/* GST API — E-Invoice + E-Way Bill */}
-          {isAdmin && <GstApiSection />}
+          {/* GST API — cloud only */}
+          {isAdmin && !serviceMobile && <GstApiSection />}
 
           {/* Bill Customization */}
           {isAdmin && <BillCustomizationSection />}
 
-          {/* WhatsApp Auto-Send */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
-              <h3 className="font-bold text-lg">Notifications</h3>
+            <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+              <h3 className="font-bold text-base sm:text-lg">Notifications</h3>
             </div>
-            <div className="p-6">
-              <p className="text-sm text-gray-500 mb-3">
-                Soft chime when a new important alert appears. You can also mute from the Bell menu.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  const scope = `${session.getTenantId() || 't'}:${user?.id || 'u'}`;
-                  const key = `dg_notif_mute:${scope}`;
-                  const muted = localStorage.getItem(key) === '1';
-                  localStorage.setItem(key, muted ? '0' : '1');
-                  toast(muted ? 'Notification sound on' : 'Notification sound muted', 'success');
-                }}
-                className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50"
-              >
-                Toggle notification sound
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <MessageCircle size={20} /> WhatsApp Auto-Send
-              </h3>
-            </div>
-            <div className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Automatically send bill via WhatsApp</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    When enabled, WhatsApp will open automatically with the bill after each sale is completed. The bill
-                    includes a shareable link the customer can open to view/download.
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm">Notification sound</p>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    Soft chime for important alerts. You can also mute from the Bell menu.
                   </p>
                 </div>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={notifSoundOn}
+                  aria-label="Notification sound"
+                  onClick={() => {
+                    const scope = `${session.getTenantId() || 't'}:${user?.id || 'u'}`;
+                    const next = !notifSoundOn;
+                    localStorage.setItem(`dg_notif_mute:${scope}`, next ? '0' : '1');
+                    setNotifSoundOn(next);
+                    toast(next ? 'Notification sound on' : 'Notification sound muted', 'success');
+                  }}
+                  className={cn(
+                    'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
+                    notifSoundOn ? 'bg-brand' : 'bg-gray-300',
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                      notifSoundOn ? 'translate-x-5' : 'translate-x-0',
+                    )}
+                    style={{ backgroundColor: '#FFFFFF' }}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+              <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                WhatsApp Auto-Send
+              </h3>
+            </div>
+            <div className="p-4 sm:p-6 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm">Auto-send bills</p>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    Opens WhatsApp with the bill after each sale, including a shareable link for the customer.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={Boolean(user?.autoWhatsapp)}
+                  aria-label="WhatsApp auto-send"
                   onClick={() => {
                     if (!user) return;
                     const newVal = !user.autoWhatsapp;
@@ -1610,47 +1746,43 @@ export function SettingsView({
                       .catch(err => toast(err instanceof Error ? err.message : 'Failed', 'error'));
                   }}
                   className={cn(
-                    'relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors',
-                    user?.autoWhatsapp ? 'bg-green-500' : 'bg-gray-300',
+                    'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
+                    user?.autoWhatsapp ? 'bg-brand' : 'bg-gray-300',
                   )}
                 >
                   <span
+                    aria-hidden
                     className={cn(
-                      'pointer-events-none inline-block h-6 w-6 rounded-full bg-white shadow-md transform transition-transform',
+                      'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
                       user?.autoWhatsapp ? 'translate-x-5' : 'translate-x-0',
                     )}
+                    style={{ backgroundColor: '#FFFFFF' }}
                   />
                 </button>
               </div>
-              <div className="mt-4 flex items-center gap-3">
-                <span
-                  className={cn(
-                    'text-xs font-bold px-2.5 py-1 rounded-full',
-                    user?.autoWhatsapp ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500',
-                  )}
-                >
-                  {user?.autoWhatsapp ? 'ON — Bills sent automatically' : 'OFF — Manual send only'}
-                </span>
-              </div>
+              <p className="text-[11px] text-gray-400">
+                {user?.autoWhatsapp ? 'ON — bills open in WhatsApp automatically' : 'OFF — send manually'}
+              </p>
             </div>
           </div>
 
           {/* Data Management - Admin only */}
           {isAdmin && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
-                <h3 className="font-bold text-lg flex items-center gap-2">
-                  <Download size={20} /> Data Management
+              <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+                <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                  <HardDrive size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                  Data Management
                 </h3>
               </div>
-              <div className="p-6 space-y-4">
+              <div className="p-4 sm:p-6 space-y-3">
                 {serviceMobile && (
-                  <p className="text-sm text-gray-500 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
-                    Backups stay on <strong>your phone</strong> (and your Gmail if you send them). Dhando does not store
-                    your business data in the cloud.
+                  <p className="text-xs sm:text-sm text-gray-500 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 leading-relaxed">
+                    Backups stay on <strong className="text-gray-700">your phone</strong> (and your Gmail if you send
+                    them). Dhando does not store your business data in the cloud.
                   </p>
                 )}
-                <div className="flex flex-wrap gap-4 items-center">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={async () => {
@@ -1685,12 +1817,14 @@ export function SettingsView({
                         toast((e as Error).message, 'error');
                       }
                     }}
-                    className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
+                    className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700"
                   >
-                    <Download size={18} /> {serviceMobile ? 'Save Backup File' : 'Download Backup Now'}
+                    <Download size={15} className="shrink-0" />
+                    {serviceMobile ? 'Save Backup File' : 'Download Backup Now'}
                   </button>
-                  <label className="flex items-center gap-2 px-5 py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 cursor-pointer">
-                    <Upload size={18} /> Restore from Backup
+                  <label className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-amber-600 text-white hover:bg-amber-700 cursor-pointer">
+                    <Upload size={15} className="shrink-0" />
+                    Restore from Backup
                     <input
                       type="file"
                       accept=".json"
@@ -1741,115 +1875,92 @@ export function SettingsView({
                       }}
                     />
                   </label>
-                  {backupSettings?.lastBackupAt && (
-                    <span className="text-xs text-gray-400">
-                      Last backup: {new Date(backupSettings.lastBackupAt).toLocaleString('en-IN')}
-                    </span>
-                  )}
                 </div>
-                <div className="border-t border-gray-100 pt-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={backupSettings?.enabled ?? false}
-                        onChange={async e => {
-                          const enabled = e.target.checked;
-                          const freq = backupSettings?.frequency || (serviceMobile ? 'daily' : 'weekly');
-                          try {
-                            const r = await api.backup.updateSettings({
-                              enabled,
-                              frequency: freq,
-                              intervalDays: backupSettings?.intervalDays,
-                              email: backupSettings?.email || undefined,
-                            });
-                            setBackupSettings(prev => ({
-                              enabled: r.enabled,
-                              frequency: r.frequency,
-                              intervalDays: r.intervalDays,
-                              email: r.email,
-                              lastBackupAt: prev?.lastBackupAt ?? null,
-                            }));
-                            toast(enabled ? 'Auto backup enabled' : 'Auto backup disabled', 'success');
-                          } catch (err) {
-                            toast((err as Error).message, 'error');
-                          }
-                        }}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                    </label>
-                    <div>
+                {backupSettings?.lastBackupAt && (
+                  <p className="text-[11px] text-gray-400">
+                    Last backup: {new Date(backupSettings.lastBackupAt).toLocaleString('en-IN')}
+                  </p>
+                )}
+                <div className="border-t border-gray-100 pt-3 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
                       <span className="text-sm font-bold">Auto Backup</span>
                       {serviceMobile && (
-                        <p className="text-xs text-gray-400 mt-0.5">
+                        <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
                           Saves a file on this phone (daily / weekly / monthly). Optional Gmail opens your mail app — we
                           never upload your data.
                         </p>
                       )}
                     </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={backupSettings?.enabled ?? false}
+                      aria-label="Auto Backup"
+                      onClick={async () => {
+                        const enabled = !(backupSettings?.enabled ?? false);
+                        const freq = backupSettings?.frequency || (serviceMobile ? 'daily' : 'weekly');
+                        try {
+                          const r = await api.backup.updateSettings({
+                            enabled,
+                            frequency: freq,
+                            intervalDays: backupSettings?.intervalDays,
+                            email: backupSettings?.email || undefined,
+                          });
+                          setBackupSettings(prev => ({
+                            enabled: r.enabled,
+                            frequency: r.frequency,
+                            intervalDays: r.intervalDays,
+                            email: r.email,
+                            lastBackupAt: prev?.lastBackupAt ?? null,
+                          }));
+                          toast(enabled ? 'Auto backup enabled' : 'Auto backup disabled', 'success');
+                        } catch (err) {
+                          toast((err as Error).message, 'error');
+                        }
+                      }}
+                      className={cn(
+                        'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors',
+                        backupSettings?.enabled ? 'bg-brand' : 'bg-gray-300',
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                          backupSettings?.enabled ? 'translate-x-5' : 'translate-x-0',
+                        )}
+                        style={{ backgroundColor: '#FFFFFF' }}
+                      />
+                    </button>
                   </div>
                   {backupSettings?.enabled && (
-                    <div className="flex flex-wrap gap-3 items-end ml-14">
-                      <div>
-                        <label className="text-xs font-bold text-gray-400 block mb-1">Frequency</label>
-                        <select
-                          value={
-                            serviceMobile && !['daily', 'weekly', 'monthly'].includes(backupSettings.frequency)
-                              ? 'daily'
-                              : backupSettings.frequency
-                          }
-                          onChange={async e => {
-                            const freq = e.target.value;
-                            const days =
-                              freq === 'daily'
-                                ? 1
-                                : freq === 'weekly'
-                                  ? 7
-                                  : freq === 'monthly'
-                                    ? 30
-                                    : backupSettings.intervalDays;
-                            try {
-                              const r = await api.backup.updateSettings({
-                                enabled: true,
-                                frequency: freq,
-                                intervalDays: days,
-                                email: backupSettings.email || undefined,
-                              });
-                              setBackupSettings(prev => ({
-                                enabled: r.enabled,
-                                frequency: r.frequency,
-                                intervalDays: r.intervalDays,
-                                email: r.email,
-                                lastBackupAt: prev?.lastBackupAt ?? null,
-                              }));
-                              toast('Backup frequency updated', 'success');
-                            } catch (err) {
-                              toast((err as Error).message, 'error');
-                            }
-                          }}
-                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                        >
-                          <option value="daily">Daily</option>
-                          <option value="weekly">Weekly</option>
-                          <option value="monthly">Monthly</option>
-                          {!serviceMobile && <option value="custom">Custom</option>}
-                        </select>
-                      </div>
-                      {!serviceMobile && backupSettings.frequency === 'custom' && (
+                    <div className="space-y-3 rounded-xl bg-gray-50 p-3 sm:p-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="text-xs font-bold text-gray-400 block mb-1">Every N days</label>
-                          <input
-                            type="number"
-                            min={1}
-                            max={365}
-                            value={backupSettings.intervalDays}
-                            onBlur={async e => {
-                              const days = Math.max(1, parseInt(e.target.value) || 7);
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                            Frequency
+                          </label>
+                          <select
+                            value={
+                              serviceMobile && !['daily', 'weekly', 'monthly'].includes(backupSettings.frequency)
+                                ? 'daily'
+                                : backupSettings.frequency
+                            }
+                            onChange={async e => {
+                              const freq = e.target.value;
+                              const days =
+                                freq === 'daily'
+                                  ? 1
+                                  : freq === 'weekly'
+                                    ? 7
+                                    : freq === 'monthly'
+                                      ? 30
+                                      : backupSettings.intervalDays;
                               try {
                                 const r = await api.backup.updateSettings({
                                   enabled: true,
-                                  frequency: 'custom',
+                                  frequency: freq,
                                   intervalDays: days,
                                   email: backupSettings.email || undefined,
                                 });
@@ -1860,20 +1971,60 @@ export function SettingsView({
                                   email: r.email,
                                   lastBackupAt: prev?.lastBackupAt ?? null,
                                 }));
-                              } catch {}
+                                toast('Backup frequency updated', 'success');
+                              } catch (err) {
+                                toast((err as Error).message, 'error');
+                              }
                             }}
-                            onChange={e =>
-                              setBackupSettings(prev =>
-                                prev ? { ...prev, intervalDays: parseInt(e.target.value) || 7 } : prev,
-                              )
-                            }
-                            className="w-20 px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          />
+                            className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
+                          >
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            {!serviceMobile && <option value="custom">Custom</option>}
+                          </select>
                         </div>
-                      )}
+                        {!serviceMobile && backupSettings.frequency === 'custom' && (
+                          <div>
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                              Every N days
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={365}
+                              value={backupSettings.intervalDays}
+                              onBlur={async e => {
+                                const days = Math.max(1, parseInt(e.target.value) || 7);
+                                try {
+                                  const r = await api.backup.updateSettings({
+                                    enabled: true,
+                                    frequency: 'custom',
+                                    intervalDays: days,
+                                    email: backupSettings.email || undefined,
+                                  });
+                                  setBackupSettings(prev => ({
+                                    enabled: r.enabled,
+                                    frequency: r.frequency,
+                                    intervalDays: r.intervalDays,
+                                    email: r.email,
+                                    lastBackupAt: prev?.lastBackupAt ?? null,
+                                  }));
+                                } catch {}
+                              }}
+                              onChange={e =>
+                                setBackupSettings(prev =>
+                                  prev ? { ...prev, intervalDays: parseInt(e.target.value) || 7 } : prev,
+                                )
+                              }
+                              className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
+                            />
+                          </div>
+                        )}
+                      </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-400 block mb-1">
-                          {serviceMobile ? 'Your Gmail (optional — opens mail app)' : 'Email backup to (optional)'}
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                          {serviceMobile ? 'Gmail (optional)' : 'Email backup to (optional)'}
                         </label>
                         <input
                           type="email"
@@ -1897,8 +2048,11 @@ export function SettingsView({
                             } catch {}
                           }}
                           onChange={e => setBackupSettings(prev => (prev ? { ...prev, email: e.target.value } : prev))}
-                          className="w-60 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                          className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
                         />
+                        {serviceMobile && (
+                          <p className="text-[11px] text-gray-400 mt-1">Opens your mail app — we never upload data.</p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1907,8 +2061,8 @@ export function SettingsView({
             </div>
           )}
 
-          {/* User Management - Admin only */}
-          {isAdmin && (
+          {/* User Management - Admin only (hidden on offline mobile) */}
+          {isAdmin && !serviceMobile && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="font-bold text-lg flex items-center gap-2">

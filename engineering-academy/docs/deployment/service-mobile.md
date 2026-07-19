@@ -56,7 +56,11 @@ Offline Mobile sets `html.dg-mobile-dense` (see `src/main.tsx`) for compact type
 
 ## Local ERP APIs
 
-On-device PGlite implements the same `/api/*` paths the cloud UI uses (vendors, invoices, purchases/suppliers, staff, accounts P&L, invoice-finance, etc.). Responses are camelCase. Login must include `businessType: service` or Finance falls back to manufacturer Vendor Finance.
+On-device PGlite implements the same `/api/*` paths the cloud UI uses (vendors, invoices, purchases/suppliers, staff, payroll, accounts P&L, invoice-finance, analytics overview, etc.). Responses are camelCase. Login must include `businessType: service` or Finance falls back to manufacturer Vendor Finance.
+
+Analytics **Outstanding Clients** (`topVendors`) is invoice outstanding per party (invoiced − payments), same party keys as Invoice Finance. **Staff Payroll** uses local `staff_payments` (summary + create/list/delete) so Masters “Record payroll payment” works offline.
+
+Masters on Offline Mobile: **Products / Catalog inventory pill** and **Vendor-Customer Map** are hidden (no stock inventory / mapping). **Price List** stays and is the rate book: service Offline shows two scope tabs — **Catalog** (generic rates) and **Clients** (client-specific rates). Add Rule can create a new sellable item inline. Invoice/Quote lines may pick a Price List item (resolve API) **or** a custom free-text line. UI copy uses **Client(s)** via `cfg.labels.vendors` (API remains `/vendors`). Tapping a Client card opens that client’s invoice hub (same `invoice-finance` APIs as Finance); Staff cards open payment history the same way. Back from a hub Staff-row deep-link returns to the Masters hub Staff tab (not full Staff Management).
 
 See `docs/api-audit-service-mobile.md`.
 

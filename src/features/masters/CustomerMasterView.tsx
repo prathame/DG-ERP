@@ -4,6 +4,7 @@ import { Search, Plus, Pencil, Trash2, ArrowLeft, ShoppingBag, Download } from '
 import { cn, exportToCsv, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import type { Customer, Vendor } from '../../types';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useDebounce } from '../../hooks/useDebounce';
 
@@ -17,6 +18,8 @@ export function CustomerMasterView({
   user?: { role?: string; vendorId?: string } | null;
 }) {
   const { toast } = useToast();
+  const cfg = useBusinessConfig();
+  const linkedPartyLabel = cfg.labels.vendors.replace(/s$/, ''); // Vendor | Customer | Client
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
   const [list, setList] = useState<Customer[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -169,7 +172,7 @@ export function CustomerMasterView({
                 <th className="px-6 py-4">Name</th>
                 <th className="px-6 py-4">Phone</th>
                 <th className="px-6 py-4">Email</th>
-                {!vendorId && <th className="px-6 py-4">Vendor</th>}
+                {!vendorId && <th className="px-6 py-4">{linkedPartyLabel}</th>}
                 <th className="px-6 py-4">Products bought</th>
                 <th className="px-6 py-4">Actions</th>
               </tr>
@@ -278,13 +281,13 @@ export function CustomerMasterView({
                 </div>
                 {!vendorId && (
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase">Vendor</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase">{linkedPartyLabel}</label>
                     <select
                       value={form.vendorId}
                       onChange={e => setForm({ ...form, vendorId: e.target.value })}
                       className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                     >
-                      <option value="">Direct (Factory Purchase)</option>
+                      <option value="">{cfg.type === 'service' ? 'None' : 'Direct (Factory Purchase)'}</option>
                       {vendors.map(v => (
                         <option key={v.id} value={v.id}>
                           {v.name}
@@ -367,7 +370,7 @@ export function CustomerMasterView({
                     <thead className="bg-gray-50 sticky top-0">
                       <tr className="text-xs font-bold text-gray-400 uppercase">
                         <th className="px-3 py-2 sm:px-6 sm:py-3">Product</th>
-                        <th className="px-3 py-2 sm:px-6 sm:py-3">Vendor</th>
+                        <th className="px-3 py-2 sm:px-6 sm:py-3">{linkedPartyLabel}</th>
                         <th className="px-3 py-2 sm:px-6 sm:py-3">Barcode</th>
                         <th className="px-3 py-2 sm:px-6 sm:py-3">Date</th>
                       </tr>

@@ -1,10 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { motion } from 'motion/react';
-import { CreditCard, TrendingUp, ShoppingCart, IndianRupee, Users, Package, Landmark, UserRound, ArrowRight, FileText, Wallet } from 'lucide-react';
+import {
+  CreditCard,
+  TrendingUp,
+  ShoppingCart,
+  IndianRupee,
+  Users,
+  Package,
+  Landmark,
+  UserRound,
+  ArrowRight,
+  FileText,
+  Wallet,
+} from 'lucide-react';
 import { cn, formatDate, useTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { api } from '../../api';
 import type { Tab } from '../../types';
+import {
+  MobilePillTabs,
+  MobileKpiCard,
+  MobileSectionTitle,
+  MobileListRow,
+  dateControlClass,
+} from '../../components/ui';
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString();
 
@@ -15,14 +35,14 @@ const RANGE_PRESETS = [
   { id: 'overall', label: 'Overall' },
   { id: 'custom', label: 'Custom' },
 ] as const;
-type RangeId = typeof RANGE_PRESETS[number]['id'];
+type RangeId = (typeof RANGE_PRESETS)[number]['id'];
 
 const ACTIVITY_ICONS: Record<string, { icon: typeof IndianRupee; color: string; label: string }> = {
-  sale:         { icon: ShoppingCart, color: 'text-blue-600',    label: 'Sale' },
-  invoice:      { icon: FileText,     color: 'text-violet-600',  label: 'Invoice' },
-  payment:      { icon: IndianRupee,  color: 'text-emerald-600', label: 'Payment' },
-  distribution: { icon: Package,      color: 'text-orange-600',  label: 'Dispatch' },
-  expense:      { icon: CreditCard,   color: 'text-rose-600',    label: 'Expense' },
+  sale: { icon: ShoppingCart, color: 'text-blue-600', label: 'Sale' },
+  invoice: { icon: FileText, color: 'text-violet-600', label: 'Invoice' },
+  payment: { icon: IndianRupee, color: 'text-emerald-600', label: 'Payment' },
+  distribution: { icon: Package, color: 'text-orange-600', label: 'Dispatch' },
+  expense: { icon: CreditCard, color: 'text-rose-600', label: 'Expense' },
 };
 
 function relativeTime(dateStr: string) {
@@ -37,169 +57,388 @@ function relativeTime(dateStr: string) {
 
 export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => void }) {
   const cfg = useBusinessConfig();
+  const serviceMobile = isServiceMobileMode();
   const [range, setRange] = useState<RangeId>('month');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [money, setMoney] = useState<{ collections: number; revenue: number; distribution: number; expenses: number; outstanding: number; invoiceOutstanding: number } | null>(null);
+  const [money, setMoney] = useState<{
+    collections: number;
+    revenue: number;
+    distribution: number;
+    expenses: number;
+    outstanding: number;
+    invoiceOutstanding: number;
+  } | null>(null);
   const [vendors, setVendors] = useState<{ vendorId: string; vendorName: string; balance: number }[]>([]);
-  const [activity, setActivity] = useState<{ type: string; id: string; label: string; amount: number; date: string }[]>([]);
-  const [counts, setCounts] = useState<{ customerMaster: number; vendorMaster: number; itemMaster: number; bankMaster: number; staffCount?: number } | null>(null);
-  const [payroll, setPayroll] = useState<{ grandTotal: number; advanceOutstanding: number; byStaff: { name: string; total: number; payments: number }[]; byMonth: { month: string; total: number }[] } | null>(null);
+  const [activity, setActivity] = useState<{ type: string; id: string; label: string; amount: number; date: string }[]>(
+    [],
+  );
+  const [counts, setCounts] = useState<{
+    customerMaster: number;
+    vendorMaster: number;
+    itemMaster: number;
+    bankMaster: number;
+    staffCount?: number;
+  } | null>(null);
+  const [payroll, setPayroll] = useState<{
+    grandTotal: number;
+    advanceOutstanding: number;
+    byStaff: { name: string; total: number; payments: number }[];
+    byMonth: { month: string; total: number }[];
+  } | null>(null);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
     let from: string | undefined, to: string | undefined;
-    if (range === 'today') { from = today; to = today; }
-    else if (range === 'week') { const d = new Date(); d.setDate(d.getDate() - 6); from = d.toISOString().slice(0, 10); to = today; }
-    else if (range === 'month') { from = today.slice(0, 7) + '-01'; to = today; }
-    else if (range === 'custom') { from = fromDate || undefined; to = toDate || undefined; }
-    // Single call replaces 4 separate requests
-    api.dashboard.overview(from, to).then(data => {
-      setMoney(data.money);
-      setActivity(data.recentActivity);
-      setVendors(data.topVendors);
-      setCounts(data.counts);
-    }).catch(() => {});
+    if (range === 'today') {
+      from = today;
+      to = today;
+    } else if (range === 'week') {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      from = d.toISOString().slice(0, 10);
+      to = today;
+    } else if (range === 'month') {
+      from = today.slice(0, 7) + '-01';
+      to = today;
+    } else if (range === 'custom') {
+      from = fromDate || undefined;
+      to = toDate || undefined;
+    }
+    api.dashboard
+      .overview(from, to)
+      .then(data => {
+        // Offline stubs / partial payloads must not leave arrays undefined (crashes .length).
+        setMoney(data?.money ?? null);
+        setActivity(Array.isArray(data?.recentActivity) ? data.recentActivity : []);
+        setVendors(Array.isArray(data?.topVendors) ? data.topVendors : []);
+        setCounts(data?.counts ?? null);
+      })
+      .catch(() => {});
     const year = new Date().getFullYear();
-    api.payroll.summary(year).then(data => setPayroll(data)).catch(() => {});
+    api.payroll
+      .summary(year)
+      .then(data => {
+        // Wrong stub shape ({ totalPaid }) used to crash on payroll.byStaff.length → blank screen.
+        if (!data || typeof data !== 'object') {
+          setPayroll(null);
+          return;
+        }
+        setPayroll({
+          grandTotal: Number((data as { grandTotal?: number }).grandTotal) || 0,
+          advanceOutstanding: Number((data as { advanceOutstanding?: number }).advanceOutstanding) || 0,
+          byStaff: Array.isArray((data as { byStaff?: unknown }).byStaff)
+            ? (data as { byStaff: { name: string; total: number; payments: number }[] }).byStaff
+            : [],
+          byMonth: Array.isArray((data as { byMonth?: unknown }).byMonth)
+            ? (data as { byMonth: { month: string; total: number }[] }).byMonth
+            : [],
+        });
+      })
+      .catch(() => {});
   }, [range, fromDate, toDate]);
 
+  const moneyTiles = money
+    ? (
+        [
+          {
+            label: cfg.analytics.collectionsLabel,
+            value: money.collections,
+            accent: 'green' as const,
+            show: true,
+          },
+          {
+            label: cfg.analytics.revenueLabel,
+            value: money.revenue,
+            accent: 'blue' as const,
+            show: true,
+          },
+          {
+            label: 'Dispatched',
+            value: money.distribution,
+            accent: 'amber' as const,
+            show: cfg.analytics.showDispatched,
+          },
+          {
+            label: 'Expenses',
+            value: money.expenses,
+            accent: 'rose' as const,
+            show: true,
+          },
+          {
+            label: cfg.analytics.outstandingLabel,
+            value: money[cfg.analytics.outstandingKey],
+            accent: (money[cfg.analytics.outstandingKey] > 0 ? 'rose' : 'green') as 'rose' | 'green',
+            show: true,
+          },
+          {
+            label: 'Net In',
+            value: money.collections + money.revenue - money.expenses,
+            accent: (money.collections + money.revenue - money.expenses >= 0 ? 'green' : 'rose') as 'green' | 'rose',
+            show: true,
+          },
+        ] as { label: string; value: number; accent: 'brand' | 'blue' | 'green' | 'rose' | 'amber'; show: boolean }[]
+      ).filter(t => t.show)
+    : [];
+
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-6">
+      <div className="hidden sm:block">
         <h2 className="text-xl font-bold">{useTabLabel('analytics', 'Analytics')}</h2>
         <p className="text-sm text-gray-500">Business overview and activity</p>
       </div>
 
       {/* Money Overview */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-          <h3 className="font-bold flex items-center gap-2"><CreditCard size={18} className="text-emerald-500" /> Money Overview</h3>
-          <div className="flex items-center gap-2 flex-wrap">
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5">
+        <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-3 mb-3 sm:mb-5">
+          <h3 className="font-bold text-[13px] sm:text-base flex items-center gap-1.5 sm:gap-2">
+            <CreditCard size={16} className="text-emerald-500 sm:hidden" />
+            <CreditCard size={18} className="text-emerald-500 hidden sm:block" /> Money Overview
+          </h3>
+          {/* Desktop pills */}
+          <div className="hidden sm:flex items-center gap-2 flex-wrap">
             {RANGE_PRESETS.map(r => (
-              <button key={r.id} type="button" onClick={() => setRange(r.id)}
-                className={cn("px-3 py-1 rounded-full text-xs font-bold transition-colors", range === r.id ? 'bg-brand text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}>
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setRange(r.id)}
+                className={cn(
+                  'dg-pill-tab inline-flex items-center justify-center box-border h-7 min-h-7 max-h-7 px-3 py-0 leading-none rounded-full text-xs font-bold transition-colors',
+                  range === r.id ? 'bg-brand text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
+                )}
+              >
                 {r.label}
               </button>
             ))}
           </div>
         </div>
+        {/* Phone pills */}
+        <div className="sm:hidden mb-3">
+          <MobilePillTabs
+            items={RANGE_PRESETS.map(r => ({ id: r.id, label: r.label }))}
+            value={range}
+            onChange={id => setRange(id as RangeId)}
+          />
+        </div>
         {range === 'custom' && (
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm" />
-            <span className="text-gray-400 text-sm">to</span>
-            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm" />
+          <div className="grid grid-cols-2 gap-2 mb-3 sm:mb-4 sm:flex sm:items-end sm:gap-2">
+            <div className="min-w-0">
+              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">From</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={e => setFromDate(e.target.value)}
+                className={dateControlClass}
+              />
+            </div>
+            <div className="min-w-0">
+              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 block mb-1">To</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={e => setToDate(e.target.value)}
+                className={dateControlClass}
+              />
+            </div>
           </div>
         )}
         {money ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {([
-              { label: cfg.analytics.collectionsLabel, value: money.collections, color: 'text-emerald-600', bg: 'bg-emerald-50', show: true },
-              { label: cfg.analytics.revenueLabel, value: money.revenue, color: 'text-blue-600', bg: 'bg-blue-50', show: true },
-              { label: 'Dispatched', value: money.distribution, color: 'text-orange-600', bg: 'bg-orange-50', show: cfg.analytics.showDispatched },
-              { label: 'Expenses', value: money.expenses, color: 'text-rose-600', bg: 'bg-rose-50', show: true },
-              {
-                label: cfg.analytics.outstandingLabel,
-                value: money[cfg.analytics.outstandingKey],
-                color: money[cfg.analytics.outstandingKey] > 0 ? 'text-rose-600' : 'text-emerald-600',
-                bg: money[cfg.analytics.outstandingKey] > 0 ? 'bg-rose-50' : 'bg-emerald-50',
-                show: true,
-              },
-              { label: 'Net In', value: money.collections + money.revenue - money.expenses, color: (money.collections + money.revenue - money.expenses) >= 0 ? 'text-emerald-700' : 'text-rose-600', bg: (money.collections + money.revenue - money.expenses) >= 0 ? 'bg-emerald-50' : 'bg-rose-50', show: true },
-            ] as { label: string; value: number; color: string; bg: string; show: boolean }[]).filter(t => t.show).map(({ label, value, color, bg }) => (
-              <div key={label} className={cn("rounded-xl p-3", bg)}>
-                <p className="text-xs text-gray-500 font-medium mb-1">{label}</p>
-                <p className={cn("text-base font-bold", color)}>{fmt(value)}</p>
-                {label === 'Outstanding' && value < 0 && <p className="text-[10px] text-emerald-600 font-medium">credit</p>}
-              </div>
-            ))}
-          </div>
-        ) : <div className="h-16 flex items-center justify-center text-gray-400 text-sm">Loading...</div>}
+          <>
+            {/* Phone KPI cards */}
+            <div className="sm:hidden grid grid-cols-2 gap-2">
+              {moneyTiles.map(({ label, value, accent }) => (
+                <Fragment key={label}>
+                  <MobileKpiCard
+                    label={label}
+                    value={fmt(value)}
+                    accent={accent}
+                    hint={label === 'Outstanding' && value < 0 ? 'credit' : undefined}
+                  />
+                </Fragment>
+              ))}
+            </div>
+            {/* Desktop tiles */}
+            <div className="hidden sm:grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {moneyTiles.map(({ label, value, accent }) => {
+                const bgMap: Record<string, string> = {
+                  green: 'bg-emerald-50',
+                  blue: 'bg-blue-50',
+                  amber: 'bg-orange-50',
+                  rose: 'bg-rose-50',
+                  brand: 'bg-orange-50',
+                };
+                const colorMap: Record<string, string> = {
+                  green: 'text-emerald-600',
+                  blue: 'text-blue-600',
+                  amber: 'text-orange-600',
+                  rose: 'text-rose-600',
+                  brand: 'text-brand',
+                };
+                return (
+                  <div key={label} className={cn('rounded-xl p-3', bgMap[accent] || 'bg-gray-50')}>
+                    <p className="text-xs text-gray-500 font-medium mb-1">{label}</p>
+                    <p className={cn('text-base font-bold', colorMap[accent])}>{fmt(value)}</p>
+                    {label === 'Outstanding' && value < 0 && (
+                      <p className="text-[10px] text-emerald-600 font-medium">credit</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="h-16 flex items-center justify-center text-gray-400 text-sm">Loading...</div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Vendor Outstanding Leaderboard */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold flex items-center gap-2"><IndianRupee size={18} className="text-rose-500" /> Outstanding Vendors</h3>
-            <button type="button" onClick={() => setActiveTab('finance')} className="text-xs text-brand font-bold flex items-center gap-1 hover:underline">View All <ArrowRight size={12} /></button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* Client / vendor outstanding — service: invoice dues; View All → Invoice Finance */}
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="font-bold text-[13px] sm:text-base flex items-center gap-1.5 sm:gap-2">
+              <IndianRupee size={16} className="text-rose-500" /> Outstanding {cfg.labels.vendors}
+            </h3>
+            <button
+              type="button"
+              onClick={() => setActiveTab('finance')}
+              className="text-[11px] sm:text-xs text-brand font-bold flex items-center gap-1 hover:underline"
+            >
+              View All <ArrowRight size={12} />
+            </button>
           </div>
           {vendors.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-6">No outstanding balances</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5 sm:space-y-2">
               {vendors.map((v, i) => (
-                <div key={v.vendorId} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-400 w-5">#{i + 1}</span>
-                    <span className="text-sm font-medium truncate max-w-[140px]">{v.vendorName}</span>
+                <div
+                  key={v.vendorId}
+                  className="flex items-center justify-between bg-gray-50 rounded-lg sm:rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] sm:text-xs font-bold text-gray-400 w-5 shrink-0">#{i + 1}</span>
+                    <span className="text-[13px] sm:text-sm font-medium truncate">{v.vendorName}</span>
                   </div>
-                  <span className="text-sm font-bold text-rose-600">{fmt(v.balance)}</span>
+                  <span className="text-[13px] sm:text-sm font-bold text-rose-600 tabular-nums shrink-0">
+                    {fmt(v.balance)}
+                  </span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Recent Activity Feed */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <h3 className="font-bold flex items-center gap-2 mb-4"><TrendingUp size={18} className="text-brand" /> Recent Activity</h3>
+        {/* Recent Activity */}
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5">
+          <h3 className="font-bold text-[13px] sm:text-base flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+            <TrendingUp size={16} className="text-brand" /> Recent Activity
+          </h3>
           {activity.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-6">No recent activity</p>
           ) : (
-            <div className="space-y-2">
-              {activity.map((a) => {
-                const meta = ACTIVITY_ICONS[a.type] ?? ACTIVITY_ICONS.sale;
-                const Icon = meta.icon;
-                return (
-                  <div key={a.id + a.type} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
-                    <div className={cn("p-1.5 rounded-lg bg-gray-50", meta.color)}><Icon size={14} /></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{a.label}</p>
-                      <p className="text-xs text-gray-400">{meta.label} · {relativeTime(a.date)}</p>
+            <>
+              <div className="sm:hidden space-y-1.5">
+                {activity.map(a => {
+                  const meta = ACTIVITY_ICONS[a.type] ?? ACTIVITY_ICONS.sale;
+                  const Icon = meta.icon;
+                  return (
+                    <Fragment key={a.id + a.type}>
+                      <MobileListRow
+                        icon={<Icon className={meta.color} />}
+                        title={a.label}
+                        subtitle={`${meta.label} · ${relativeTime(a.date)}`}
+                        trailing={
+                          <span className={a.type === 'expense' ? 'text-rose-600' : 'text-emerald-600'}>
+                            {a.type === 'expense' ? '-' : '+'}
+                            {fmt(a.amount)}
+                          </span>
+                        }
+                      />
+                    </Fragment>
+                  );
+                })}
+              </div>
+              <div className="hidden sm:block space-y-2">
+                {activity.map(a => {
+                  const meta = ACTIVITY_ICONS[a.type] ?? ACTIVITY_ICONS.sale;
+                  const Icon = meta.icon;
+                  return (
+                    <div
+                      key={a.id + a.type}
+                      className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0"
+                    >
+                      <div className={cn('p-1.5 rounded-lg bg-gray-50', meta.color)}>
+                        <Icon size={14} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{a.label}</p>
+                        <p className="text-xs text-gray-400">
+                          {meta.label} · {relativeTime(a.date)}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          'text-sm font-bold shrink-0',
+                          a.type === 'expense' ? 'text-rose-600' : 'text-emerald-600',
+                        )}
+                      >
+                        {a.type === 'expense' ? '-' : '+'}
+                        {fmt(a.amount)}
+                      </span>
                     </div>
-                    <span className={cn("text-sm font-bold shrink-0", a.type === 'expense' ? 'text-rose-600' : 'text-emerald-600')}>
-                      {a.type === 'expense' ? '-' : '+'}{fmt(a.amount)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      {/* Staff Payroll Summary */}
       {payroll && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold flex items-center gap-2"><Wallet size={18} className="text-indigo-500" /> Staff Payroll — {new Date().getFullYear()}</h3>
-            <button type="button" onClick={() => setActiveTab('masters')} className="text-xs text-brand font-bold flex items-center gap-1 hover:underline">Manage Staff <ArrowRight size={12} /></button>
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="font-bold text-[13px] sm:text-base flex items-center gap-1.5 sm:gap-2">
+              <Wallet size={16} className="text-indigo-500" /> Staff Payroll — {new Date().getFullYear()}
+            </h3>
+            <button
+              type="button"
+              onClick={() => setActiveTab('masters')}
+              className="text-[11px] sm:text-xs text-brand font-bold flex items-center gap-1 hover:underline"
+            >
+              Manage Staff <ArrowRight size={12} />
+            </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-            <div className="bg-indigo-50 rounded-xl p-3">
-              <p className="text-xs text-gray-500 mb-1">Total Paid This Year</p>
-              <p className="text-lg font-bold text-indigo-600">{fmt(payroll.grandTotal)}</p>
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-3 sm:mb-4">
+            <div className="bg-indigo-50 rounded-lg sm:rounded-xl p-2.5 sm:p-3">
+              <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Total Paid</p>
+              <p className="text-sm sm:text-lg font-bold text-indigo-600 tabular-nums">{fmt(payroll.grandTotal)}</p>
             </div>
-            <div className="bg-gray-50 rounded-xl p-3">
-              <p className="text-xs text-gray-500 mb-1">Staff on Payroll</p>
-              <p className="text-lg font-bold">{payroll.byStaff.length}</p>
+            <div className="bg-gray-50 rounded-lg sm:rounded-xl p-2.5 sm:p-3">
+              <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Staff</p>
+              <p className="text-sm sm:text-lg font-bold tabular-nums">{payroll.byStaff?.length ?? 0}</p>
             </div>
-            <div className="bg-amber-50 rounded-xl p-3">
-              <p className="text-xs text-gray-500 mb-1">Advance Outstanding</p>
-              <p className="text-lg font-bold text-amber-600">{fmt(payroll.advanceOutstanding ?? 0)}</p>
+            <div className="bg-amber-50 rounded-lg sm:rounded-xl p-2.5 sm:p-3">
+              <p className="text-[10px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">Advances</p>
+              <p className="text-sm sm:text-lg font-bold text-amber-600 tabular-nums">
+                {fmt(payroll.advanceOutstanding ?? 0)}
+              </p>
             </div>
           </div>
-          {payroll.byStaff.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-gray-400 uppercase">Top Staff by Payment</p>
+          {(payroll.byStaff?.length ?? 0) > 0 && (
+            <div className="space-y-1.5 sm:space-y-2">
+              <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase">Top Staff by Payment</p>
               {payroll.byStaff.slice(0, 5).map(s => (
-                <div key={s.name} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{s.name}</p>
-                    <p className="text-xs text-gray-400">{s.payments} payments</p>
+                <div
+                  key={s.name}
+                  className="flex items-center justify-between bg-gray-50 rounded-lg sm:rounded-xl px-2.5 sm:px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[13px] sm:text-sm font-medium truncate">{s.name}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-400">{s.payments} payments</p>
                   </div>
-                  <span className="text-sm font-bold text-indigo-600">{fmt(s.total)}</span>
+                  <span className="text-[13px] sm:text-sm font-bold text-indigo-600 tabular-nums shrink-0">
+                    {fmt(s.total)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -207,25 +446,58 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
         </div>
       )}
 
-      {/* Summary Cards */}
-      {counts && (
+      {!serviceMobile && counts && (
         <div>
-          <h3 className="font-bold mb-3">Master Summary</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <MobileSectionTitle title="Master Summary" className="mb-2 sm:mb-3 sm:[&_h3]:text-base" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             {[
-              { label: 'Customers', count: counts.customerMaster, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', tab: 'sales' as Tab },
-              { label: 'Vendors', count: counts.vendorMaster, icon: UserRound, color: 'text-purple-600', bg: 'bg-purple-50', tab: 'finance' as Tab },
-              { label: 'Products', count: counts.itemMaster, icon: Package, color: 'text-orange-600', bg: 'bg-orange-50', tab: 'inventory' as Tab },
-              { label: 'Banks', count: counts.bankMaster, icon: Landmark, color: 'text-emerald-600', bg: 'bg-emerald-50', tab: 'accounts' as Tab },
+              {
+                label: 'Customers',
+                count: counts.customerMaster,
+                icon: Users,
+                color: 'text-blue-600',
+                bg: 'bg-blue-50',
+                tab: 'sales' as Tab,
+              },
+              {
+                label: 'Vendors',
+                count: counts.vendorMaster,
+                icon: UserRound,
+                color: 'text-purple-600',
+                bg: 'bg-purple-50',
+                tab: 'finance' as Tab,
+              },
+              {
+                label: 'Products',
+                count: counts.itemMaster,
+                icon: Package,
+                color: 'text-orange-600',
+                bg: 'bg-orange-50',
+                tab: 'inventory' as Tab,
+              },
+              {
+                label: 'Banks',
+                count: counts.bankMaster,
+                icon: Landmark,
+                color: 'text-emerald-600',
+                bg: 'bg-emerald-50',
+                tab: 'accounts' as Tab,
+              },
             ].map(({ label, count, icon: Icon, color, bg, tab }) => (
-              <button key={label} type="button" onClick={() => setActiveTab(tab)}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-left hover:shadow-md transition-shadow group">
-                <div className="flex items-center justify-between mb-3">
-                  <div className={cn("p-2 rounded-xl", bg)}><Icon className={color} size={18} /></div>
-                  <ArrowRight size={14} className="text-gray-300 group-hover:text-brand transition-colors" />
+              <button
+                key={label}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-4 text-left hover:shadow-md transition-shadow group"
+              >
+                <div className="flex items-center justify-between mb-2 sm:mb-3">
+                  <div className={cn('p-1.5 sm:p-2 rounded-lg sm:rounded-xl', bg)}>
+                    <Icon className={color} size={16} />
+                  </div>
+                  <ArrowRight size={12} className="text-gray-300 group-hover:text-brand transition-colors" />
                 </div>
-                <p className="text-2xl font-bold">{count}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                <p className="text-lg sm:text-2xl font-bold tabular-nums">{count}</p>
+                <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{label}</p>
               </button>
             ))}
           </div>

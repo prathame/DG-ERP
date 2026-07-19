@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Trash2, FileText, IndianRupee, Clock, Search } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { api } from '../../api';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useToast, LoadingSpinner, isBillFullyPaid, PaidBadge, PaidStamp } from '../../components/ui';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
@@ -14,6 +15,8 @@ const fmt = (n: number) => `₹${Math.abs(n).toLocaleString()}`;
 
 export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' }) {
   const { toast } = useToast();
+  const cfg = useBusinessConfig();
+  const isService = cfg.type === 'service';
   const { confirm, ConfirmRenderer } = useConfirm();
   const [summary, setSummary] = useState<Summary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +41,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     setLoading(true);
     api.invoiceFinance
       .summary()
-      .then(setSummary)
+      .then(rows => setSummary(Array.isArray(rows) ? rows : []))
       .catch(() => setSummary([]))
       .finally(() => setLoading(false));
   };
@@ -47,7 +50,21 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     setDetailLoading(true);
     api.invoiceFinance
       .client(partyKey)
-      .then(setDetail)
+      .then(d => {
+        if (!d || typeof d !== 'object') {
+          setDetail(null);
+          return;
+        }
+        setDetail({
+          ...d,
+          invoices: Array.isArray(d.invoices) ? d.invoices : [],
+          payments: Array.isArray(d.payments) ? d.payments : [],
+          totalInvoiced: Number(d.totalInvoiced) || 0,
+          totalPaid: Number(d.totalPaid) || 0,
+          balance: Number(d.balance) || 0,
+          clientName: d.clientName || 'Client',
+        });
+      })
       .catch(() => setDetail(null))
       .finally(() => setDetailLoading(false));
   };
@@ -156,12 +173,16 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
 
   const isReadOnly = accessLevel === 'view' || accessLevel === 'print';
 
-  const filtered = summary.filter(
-    c => !search || c.clientName.toLowerCase().includes(search.toLowerCase()) || (c.clientPhone || '').includes(search),
-  );
-  const totalOutstanding = summary.reduce((s, c) => s + Math.max(0, c.balance), 0);
-  const totalReceived = summary.reduce((s, c) => s + c.totalPaid, 0);
-  const totalInvoiced = summary.reduce((s, c) => s + c.totalInvoiced, 0);
+  const safeSummary = Array.isArray(summary) ? summary : [];
+  const filtered = safeSummary.filter(c => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (c.clientName || '').toLowerCase().includes(q) || (c.clientPhone || '').includes(search);
+  });
+  const totalOutstanding = safeSummary.reduce((s, c) => s + Math.max(0, Number(c.balance) || 0), 0);
+  const totalReceived = safeSummary.reduce((s, c) => s + (Number(c.totalPaid) || 0), 0);
+  const totalInvoiced = safeSummary.reduce((s, c) => s + (Number(c.totalInvoiced) || 0), 0);
+  const clientsLabel = cfg.labels.vendors || 'Clients';
 
   // ── Client detail workspace (Distribution-style drill-down) ───────────────
   if (selected) {
@@ -173,13 +194,13 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
             type="button"
             onClick={closeClient}
             className="p-2 hover:bg-gray-100 rounded-lg"
-            aria-label="Back to clients"
+            aria-label={`Back to ${clientsLabel.toLowerCase()}`}
           >
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1 min-w-0">
             <h2 className="text-xl font-bold flex items-center gap-2 flex-wrap">
-              <span className="truncate">{detail?.clientName || 'Client'}</span>
+              <span className="truncate">{detail?.clientName || clientsLabel.replace(/s$/, '') || 'Client'}</span>
               {overallPaid && <PaidBadge />}
             </h2>
             <p className="text-sm text-gray-500">
@@ -187,7 +208,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                 ? 'Loading invoices…'
                 : detail
                   ? `${detail.invoices.length} invoice${detail.invoices.length !== 1 ? 's' : ''} · record payments below`
-                  : 'Could not load client'}
+                  : `Could not load ${clientsLabel.replace(/s$/, '').toLowerCase()}`}
             </p>
           </div>
           {!isReadOnly && (
@@ -207,7 +228,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           </div>
         ) : !detail ? (
           <div className="bg-white rounded-2xl border border-rose-200 p-12 text-center">
-            <p className="text-rose-600 font-medium mb-2">Failed to load client invoices</p>
+            <p className="text-rose-600 font-medium mb-2">Failed to load invoices</p>
             <button
               type="button"
               onClick={() => loadDetail(selected)}
@@ -451,8 +472,10 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-xl font-bold">Clients</h2>
-          <p className="text-sm text-gray-500">Click a client to view their invoices and payments</p>
+          <h2 className="text-xl font-bold">{clientsLabel}</h2>
+          <p className="text-sm text-gray-500">
+            Click a {clientsLabel.replace(/s$/, '').toLowerCase()} to view their invoices and payments
+          </p>
         </div>
       </div>
 
@@ -483,7 +506,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search client…"
+          placeholder={`Search ${clientsLabel.toLowerCase().replace(/s$/, '')}…`}
           className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
         />
       </div>
@@ -495,17 +518,30 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
           <FileText size={40} className="mx-auto mb-3 text-gray-300" />
-          <p className="text-gray-500 mb-1">{search ? 'No matching clients' : 'No client invoices yet'}</p>
+          <p className="text-gray-500 mb-1">
+            {search ? `No matching ${clientsLabel.toLowerCase()}` : `No ${clientsLabel.toLowerCase()} invoices yet`}
+          </p>
           <p className="text-sm text-gray-400">
-            {search ? 'Try another name' : 'Create invoices in the Invoices tab — clients will appear here'}
+            {search
+              ? 'Try another name'
+              : `Create invoices in the Invoices tab — ${clientsLabel.toLowerCase()} will appear here`}
           </p>
         </div>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map(c => {
-              const paid = isBillFullyPaid(c.totalInvoiced, c.balance);
-              const kind = c.partyType === 'vendor' ? 'Vendor' : c.partyType === 'customer' ? 'Client' : null;
+              const paid = isBillFullyPaid(Number(c.totalInvoiced) || 0, Number(c.balance) || 0);
+              const kind =
+                c.partyType === 'vendor'
+                  ? isService
+                    ? 'Client'
+                    : 'Vendor'
+                  : c.partyType === 'customer'
+                    ? isService
+                      ? 'Customer'
+                      : 'Client'
+                    : null;
               return (
                 <button
                   key={c.partyKey}
@@ -518,7 +554,9 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                       <PaidStamp className="text-[11px] px-2 py-1 scale-90" />
                     </div>
                   )}
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pr-16">{c.clientName}</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pr-16">
+                    {c.clientName || 'Unknown'}
+                  </p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     {kind && (
                       <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
@@ -554,9 +592,11 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-            <p className="text-gray-500 mb-1">Click on a client card above to see their invoices</p>
+            <p className="text-gray-500 mb-1">
+              Click on a {clientsLabel.replace(/s$/, '').toLowerCase()} card above to see their invoices
+            </p>
             <p className="text-sm text-gray-400">
-              Each client shows invoiced amount, payments received, and outstanding balance
+              Each card shows invoiced amount, payments received, and outstanding balance
             </p>
           </div>
         </>

@@ -526,6 +526,7 @@ router.get('/api/sales/:id/bill', async (req: AuthRequest, res) => {
             showRewards: billSettingsRow.show_rewards !== false,
             showBarcode: billSettingsRow.show_barcode !== false,
             showWarranty: billSettingsRow.show_warranty !== false,
+            showHsnSac: billSettingsRow.show_hsn_sac !== false,
             footerText: (billSettingsRow.footer_text as string) || 'Powered by Dhandho Management',
           }
         : undefined,

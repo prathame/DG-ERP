@@ -29,6 +29,7 @@ import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { useTranslation } from './i18n';
 import { AppShutterIntro } from './components/layout/AppShutterIntro';
 import { session } from './lib/session';
+import { resolveTabAccess, type AccessLevel } from './lib/tabAccess';
 import { CommandPalette } from './components/ui/CommandPalette';
 import { OnlineStatus } from './platforms/desktop/offline';
 import {
@@ -39,6 +40,7 @@ import {
   getLocalDb,
   ServiceMobileOnboarding,
   startServiceMobileHeartbeat,
+  getAccountsTabVisiblePref,
 } from './platforms/service-mobile';
 import { ServiceCloudGate } from './platforms/service-cloud';
 
@@ -267,7 +269,7 @@ export default function App() {
     setTabKey(k => k + 1);
     window.history.pushState({ tab }, '', window.location.pathname);
   };
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     try {
@@ -297,6 +299,8 @@ export default function App() {
     companyName?: string;
     vendorId?: string | null;
     autoWhatsapp?: boolean;
+    businessType?: string;
+    tabConfig?: Record<string, { label: string; visible: boolean }> | null;
   } | null>(() => {
     try {
       const u = session.getUser() as
@@ -389,7 +393,12 @@ export default function App() {
   const userConfig = user as Record<string, unknown>;
   const tabConfig = (userConfig?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>;
   const tc = (key: string, fallback: string) => tabConfig[key]?.label || fallback;
-  const tv = (key: string) => tabConfig[key]?.visible !== false;
+  /** Tenant tabConfig, plus Offline Mobile Settings override for Accounts. */
+  const tv = (key: string) => {
+    if (tabConfig[key]?.visible === false) return false;
+    if (key === 'accounts' && serviceMobile) return getAccountsTabVisiblePref();
+    return true;
+  };
 
   const navSections = [
     {
@@ -444,37 +453,8 @@ export default function App() {
   ];
   const navItems = navSections.flatMap(s => s.items).filter(i => i.show);
 
-  type AccessLevel = 'hidden' | 'view' | 'print' | 'full';
-  const getAccess = (tabId: string): AccessLevel => {
-    const u = userConfig as Record<string, unknown> | null;
-    if (!u) return 'hidden';
-    const perms = u.permissions as Record<string, string> | string[] | null;
-    // Object format (new): { analytics: "full", inventory: "view" }
-    // Treat legacy "dashboard" permission as "analytics" (nav id)
-    if (perms && typeof perms === 'object' && !Array.isArray(perms)) {
-      const level = (perms[tabId] ??
-        (tabId === 'analytics' ? perms.dashboard : undefined) ??
-        (tabId === 'dashboard' ? perms.analytics : undefined)) as string | undefined;
-      if (level === 'full' || level === 'print' || level === 'view' || level === 'hidden') return level;
-      return 'hidden';
-    }
-    // Array format (old): ["dashboard", "distribution"] — map dashboard ↔ analytics
-    if (Array.isArray(perms)) {
-      if (perms.includes(tabId)) return 'full';
-      if (tabId === 'analytics' && perms.includes('dashboard')) return 'full';
-      if (tabId === 'dashboard' && perms.includes('analytics')) return 'full';
-      return 'hidden';
-    }
-    // No permissions — role defaults
-    const role = (u.role as string) ?? '';
-    if (['Super Admin', 'Admin'].includes(role)) return 'full';
-    if (role === 'Manager') return tabId === 'settings' ? 'view' : 'full';
-    if (role === 'Staff') return 'view';
-    if (role === 'Vendor')
-      return ['analytics', 'dashboard', 'distribution', 'finance'].includes(tabId) ? 'view' : 'hidden';
-    // H10 fix: unknown role gets no access (was incorrectly returning 'full')
-    return 'hidden';
-  };
+  const getAccess = (tabId: string): AccessLevel =>
+    resolveTabAccess(tabId, userConfig as { permissions?: unknown; role?: string } | null);
   const canAccess = (tabId: string) => getAccess(tabId) !== 'hidden';
 
   useEffect(() => {
@@ -484,9 +464,11 @@ export default function App() {
       setActiveTabRaw('analytics');
       return;
     }
-    if (!canAccess(activeTab)) {
+    const tabHidden = activeTab !== 'settings' && !tv(activeTab);
+    if (!canAccess(activeTab) || tabHidden) {
       const fallback =
-        (['analytics', 'distribution', 'finance', 'inventory'] as Tab[]).find(t => canAccess(t)) ?? 'analytics';
+        (['analytics', 'distribution', 'finance', 'inventory'] as Tab[]).find(t => canAccess(t) && tv(t)) ??
+        'analytics';
       setActiveTabRaw(fallback);
     }
   }, [activeTab, user]);
@@ -696,10 +678,23 @@ export default function App() {
     );
   }
 
-  const mobileNavIds =
-    user?.role === 'Vendor'
+  /** Phone bottom nav — Emergent IA only on Offline Mobile; cloud keeps prior destinations */
+  const mobileNavIds = serviceMobile
+    ? user?.role === 'Vendor'
+      ? ['analytics', 'distribution', 'finance', 'inventory']
+      : ['analytics', 'masters', 'invoices', 'quotations']
+    : user?.role === 'Vendor'
       ? ['analytics', 'distribution', 'finance', 'inventory', 'settings']
       : ['analytics', 'masters', 'inventory', 'finance', 'quotations'];
+  const mobileNavLabel: Record<string, string> = {
+    analytics: 'Analytics',
+    masters: 'Masters',
+    invoices: 'Invoice',
+    quotations: 'Quotes',
+    distribution: 'Dispatch',
+    finance: 'Finance',
+    inventory: 'Stock',
+  };
   const mobileNavItems = mobileNavIds
     .map(id => visibleNavItems.find(n => n.id === id))
     .filter((n): n is NonNullable<typeof n> => !!n)
@@ -724,14 +719,21 @@ export default function App() {
             className={cn(
               'bg-white border-r border-gray-200 transition-transform duration-300 flex flex-col z-50 shadow-xl lg:shadow-none',
               'fixed lg:relative inset-y-0 left-0 h-[100dvh] max-h-[100dvh]',
-              isSidebarOpen ? 'w-[min(88vw,20rem)] translate-x-0 lg:w-60' : 'w-16 -translate-x-full lg:translate-x-0',
+              isSidebarOpen ? 'w-[min(70vw,15rem)] translate-x-0 lg:w-60' : 'w-16 -translate-x-full lg:translate-x-0',
             )}
           >
             {/* Sticky brand / profile */}
-            <div className="shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 border-b border-gray-100 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-2.5 lg:h-16 lg:pt-0 lg:pb-0">
+            <div className="shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 border-b border-gray-100 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-2 lg:h-16 lg:pt-0 lg:pb-0">
               {isSidebarOpen && (
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <img src="/icons/logo-full.png" alt="Dhando" className="h-7 lg:h-8 w-auto object-contain shrink-0" />
+                  <div className="lg:hidden w-9 h-9 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white text-xs font-bold shrink-0">
+                    {user?.name?.charAt(0) ?? '?'}
+                  </div>
+                  <img
+                    src="/icons/logo-full.png"
+                    alt="Dhando"
+                    className="hidden lg:block h-8 w-auto object-contain shrink-0"
+                  />
                   <div className="min-w-0">
                     <p className="font-semibold text-gray-900 text-xs lg:text-sm truncate leading-tight">
                       {user?.companyName}
@@ -1052,13 +1054,14 @@ export default function App() {
                     {canAccess(activeTab) && activeTab === 'invoices' && <InvoicesView />}
                     {canAccess(activeTab) &&
                       activeTab === 'finance' &&
-                      ((userConfig?.businessType as string) === 'service' ? (
+                      // Offline Mobile is always service; also honor businessType so Finance never opens Vendor Finance offline
+                      (isServiceMobileMode() || (userConfig?.businessType as string) === 'service' ? (
                         <InvoiceFinanceView accessLevel={getAccess('finance')} />
                       ) : (
                         <VendorFinanceView user={user} accessLevel={getAccess('finance')} />
                       ))}
                     {canAccess(activeTab) && activeTab === 'analytics' && <AnalyticsView setActiveTab={setActiveTab} />}
-                    {canAccess(activeTab) && activeTab === 'accounts' && (
+                    {canAccess(activeTab) && tv('accounts') && activeTab === 'accounts' && (
                       <AccountsView accessLevel={getAccess('accounts')} />
                     )}
                   </div>
@@ -1083,25 +1086,25 @@ export default function App() {
                     type="button"
                     onClick={() => setActiveTab(item.id as Tab)}
                     className={cn(
-                      'flex flex-1 flex-col items-center justify-center gap-0 py-1.5 px-0.5 rounded-lg min-h-[44px] transition-colors',
+                      'flex flex-1 flex-col items-center justify-center gap-0 py-1 px-0.5 rounded-lg min-h-[42px] transition-colors',
                       active ? 'text-brand' : 'text-gray-400',
                     )}
                   >
                     <span
                       className={cn(
-                        'flex items-center justify-center w-9 h-7 rounded-lg transition-colors',
+                        'flex items-center justify-center w-8 h-6 rounded-md transition-colors',
                         active && 'bg-brand/10',
                       )}
                     >
-                      <item.icon size={18} strokeWidth={active ? 2.5 : 2} />
+                      <item.icon size={17} strokeWidth={active ? 2.5 : 2} />
                     </span>
                     <span
                       className={cn(
-                        'text-[10px] leading-tight max-w-[4.25rem] truncate',
+                        'text-[9px] leading-tight max-w-[4.5rem] truncate',
                         active ? 'font-bold' : 'font-medium',
                       )}
                     >
-                      {item.label.split(' ')[0]}
+                      {mobileNavLabel[item.id] || item.label.split(' ')[0]}
                     </span>
                   </button>
                 );
@@ -1110,21 +1113,21 @@ export default function App() {
                 type="button"
                 onClick={() => setIsSidebarOpen(true)}
                 className={cn(
-                  'flex flex-1 flex-col items-center justify-center gap-0 py-1.5 px-0.5 rounded-lg min-h-[44px] transition-colors',
+                  'flex flex-1 flex-col items-center justify-center gap-0 py-1 px-0.5 rounded-lg min-h-[42px] transition-colors',
                   mobileMoreActive || isSidebarOpen ? 'text-brand' : 'text-gray-400',
                 )}
               >
                 <span
                   className={cn(
-                    'flex items-center justify-center w-9 h-7 rounded-lg transition-colors',
+                    'flex items-center justify-center w-8 h-6 rounded-md transition-colors',
                     (mobileMoreActive || isSidebarOpen) && 'bg-brand/10',
                   )}
                 >
-                  <Menu size={18} />
+                  <Menu size={17} />
                 </span>
                 <span
                   className={cn(
-                    'text-[10px] leading-tight font-medium',
+                    'text-[9px] leading-tight font-medium',
                     (mobileMoreActive || isSidebarOpen) && 'font-bold',
                   )}
                 >

@@ -191,11 +191,15 @@ input[type="number"] {
   overscroll-behavior: contain;
 }
 
-/* Focus-visible for keyboard accessibility */
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+/* Focus-visible for keyboard accessibility.
+   Selects already use Tailwind focus:ring — skip outline to avoid blurry double-text look. */
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
   border-radius: 4px;
+}
+select:focus-visible {
+  outline: none;
 }
 
 /* Custom Scrollbar */
@@ -239,7 +243,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 /* Touch targets — phone web only (not Offline Mobile dense mode; see dg-mobile-dense) */
 @media (max-width: 768px) {
-  html:not(.dg-mobile-dense) button,
+  html:not(.dg-mobile-dense) button:not(.dg-pill-tab),
   html:not(.dg-mobile-dense) a[role="button"],
   html:not(.dg-mobile-dense) select {
     min-height: 44px;
@@ -402,11 +406,11 @@ html.dg-mobile-dense select {
   }
 }
 
-/* Primary actions keep usable hit area; icon chips stay compact */
+/* Primary actions keep usable hit area; pills/toggles opt out via .dg-compact */
 html.dg-mobile-dense .app-bottom-nav button,
 html.dg-mobile-dense .app-mobile-content form button[type="submit"],
-html.dg-mobile-dense .app-mobile-content button.bg-brand,
-html.dg-mobile-dense .fixed.inset-0 button.bg-brand {
+html.dg-mobile-dense .app-mobile-content button.bg-brand:not(.dg-compact),
+html.dg-mobile-dense .fixed.inset-0 button.bg-brand:not(.dg-compact) {
   min-height: 44px;
 }
 html.dg-mobile-dense .app-mobile-content button.p-1,

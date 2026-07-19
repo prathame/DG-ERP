@@ -19,6 +19,17 @@ export type ServiceMobileActivateResult = {
 
 function cloudOrigin(): string {
   const fromEnv = (import.meta as { env?: { VITE_API_ORIGIN?: string } }).env?.VITE_API_ORIGIN;
+  /**
+   * Local Vite QA: call same-origin `/api/...` so vite.config proxy can forward to Render.
+   * Direct browser calls to VITE_API_ORIGIN fail CORS (Render allows Capacitor origins, not :3000).
+   * Cap/APK builds are production (`import.meta.env.DEV` false) and still use VITE_API_ORIGIN.
+   */
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return '';
+    }
+  }
   if (fromEnv) return fromEnv.replace(/\/$/, '');
   if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin;

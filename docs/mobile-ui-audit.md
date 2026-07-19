@@ -62,9 +62,22 @@ Goal: Native-like ERP usability — no redesign, no API/business-logic changes.
 
 ---
 
-## 5. Remaining improvements (follow-up)
+## 5. Phase 2 — Emergent-style phone shell (dense)
 
-- Cardify Masters list tables (Staff, Customers, Vendors, Bank, Price List)
+| Change | Detail |
+|--------|--------|
+| Bottom nav IA | Analytics · Masters · Invoice · Quotes · More (Stock/Finance under More) |
+| `MobileShell` | Pill tabs, KPI cards, FAB, empty state, list rows, quick actions |
+| Analytics | Quick actions, dense KPIs, compact activity |
+| Masters | Pill filters (All / Parties / Catalog / Finance) + dense list rows |
+| Invoices / Quotes | Outstanding KPIs, status pills, compact cards/rows, phone FAB |
+| More drawer | Avatar header, 3×2 shortcut grid (Stock / Finance / Accounts / …) |
+
+---
+
+## 6. Remaining improvements (follow-up)
+
+- Cardify Masters detail tables (Staff, Customers, Vendors, Bank, Price List)
 - Accounts report tables (beyond existing GSTR helpers)
 - Distribution / Warranty dense editors
 - Landscape phone tuning
@@ -72,7 +85,7 @@ Goal: Native-like ERP usability — no redesign, no API/business-logic changes.
 
 ---
 
-## 6. Local test gate (before APK)
+## 7. Local test gate (before APK)
 
 ```bash
 npx vite --mode service-mobile --port 3000 --host

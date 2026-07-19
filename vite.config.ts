@@ -18,6 +18,13 @@ export default defineConfig(({ mode }) => {
   return {
     base: serviceMobile ? './' : '/',
     plugins,
+    // PGlite ships its own WASM/data URLs — Vite prebundle breaks them (blank DB / WASM compile errors).
+    optimizeDeps: {
+      exclude: ['@electric-sql/pglite'],
+    },
+    worker: {
+      format: 'es',
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
@@ -59,15 +66,25 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
       allowedHosts: true as const,
+      // Cap/Android build outputs are not part of the Vite app graph (they break dep scan / crash HMR).
+      fs: {
+        deny: ['**/android/**', '**/ios/**', '**/dist-apk/**', '**/dist-service-mobile/**'],
+      },
+      watch: {
+        ignored: ['**/android/**', '**/ios/**', '**/dist-apk/**', '**/dist-service-mobile/**', '**/node_modules/**'],
+      },
       proxy: {
-        // Default: local Express. Override for cloud: DG_DEV_API_PROXY=https://dg-erp.onrender.com
+        // Offline Mobile Vite: proxy license APIs to cloud (avoids CORS on localhost:*).
+        // Other modes: local Express. Override: DG_DEV_API_PROXY=https://…
         '/api': {
-          target: process.env.DG_DEV_API_PROXY || 'http://localhost:3001',
+          target:
+            process.env.DG_DEV_API_PROXY || (serviceMobile ? 'https://dg-erp.onrender.com' : 'http://localhost:3001'),
           changeOrigin: true,
           secure: true,
         },
         '/manifest.json': {
-          target: process.env.DG_DEV_API_PROXY || 'http://localhost:3001',
+          target:
+            process.env.DG_DEV_API_PROXY || (serviceMobile ? 'https://dg-erp.onrender.com' : 'http://localhost:3001'),
           changeOrigin: true,
           secure: true,
         },

@@ -54,6 +54,12 @@ The landing tab (`activeTab: 'analytics'` is the default in `App.tsx`). Answers 
 
 The "reference data" hub — customers, vendors, banks, staff, reward rules, and price lists. `MastersView` itself is a card-grid launcher (not a form) that lazy-loads whichever sub-master the user clicks, and fetches count badges from `api.masters.counts()` once on mount. Masters are filtered by both `businessType` (e.g., a `retail`/`dealer` tenant hides the separate Customer master because it sells direct — see `isDirectSell` in the component) and by role (`isVendor` sees only their own Customer master, a self-service view of who they've sold to).
 
+**Offline Mobile (`isServiceMobileMode`):** **Products / Catalog inventory pill** and **Vendor-Customer Map** are hidden from Masters (no stock inventory; no local mapping routes). **Price List** remains with **Catalog** + **Clients** scope tabs as the sellable rate book; invoice/quote lines pick Price List items (resolve) or custom free-text. Cloud manufacturer Masters keep Products → Inventory and Mapping unchanged.
+
+**Service labels:** `businessTypeConfig` sets `labels.vendors` to **Clients** for `service` (manufacturer keeps **Vendors**). Offline Masters pills, VendorMaster headers/FABs, invoice/quote party fields, Analytics “Outstanding Clients”, and Accounts party columns use that config — API paths stay `/vendors`.
+
+**Client invoice hub:** In Masters → Clients (`VendorMasterView`), tapping a client card (or a phone hub Client row with `initialVendorId`) opens that client’s Invoice Finance detail — outstanding / received / invoice list, **New Invoice** (`CreateInvoiceModal` with party prefill), and **Record Payment** via `api.invoiceFinance`. Edit/Delete icons use `stopPropagation` and stay on the card. Back returns to the Clients list. Finance tab’s `InvoiceFinanceView` keeps the same APIs.
+
 **Business value:** every other module (sales, distribution, warranty) references a vendor/customer/product by ID — Masters is where those IDs are created and kept clean (deduplication via `uq_vendors_tenant_name`-style unique indexes server-side).
 
 ## Inventory
@@ -159,7 +165,7 @@ The compliance-heavy module: GSTR-2B reconciliation (upload the government porta
 
 **`features/payroll/PayrollView.tsx`**, alongside **`features/masters/StaffMasterView.tsx`**
 
-A deliberately "mini" payroll: staff directory + salary/advance payment records (`staff_payments`), summarized by month/year with advance-outstanding tracking. It does not attempt full statutory payroll (PF, ESI, TDS slabs) — this is a small-business tool for "who did I pay, how much, when," not a full HR/payroll suite.
+A deliberately "mini" payroll: staff directory + salary/advance payment records (`staff_payments`), summarized by month/year with advance-outstanding tracking. In Masters → Staff, tapping a staff card (or a phone hub Staff row) opens that person’s payment history + Add payment (`GET/POST /payroll`). Back from a hub Staff-row deep-link returns to the Masters hub Staff tab; Back from full Staff Management returns to the staff list. Edit/Delete on the card do not open payments. It does not attempt full statutory payroll (PF, ESI, TDS slabs) — this is a small-business tool for "who did I pay, how much, when," not a full HR/payroll suite.
 
 **Business value:** gives an owner a paper trail for cash salary/advance payments without needing a dedicated HR system they don't have the headcount to justify.
 

@@ -74,8 +74,8 @@ export function resolveIrnQrPayload(r: {
   return candidate;
 }
 
-/** Shown when window.open is blocked (Electron / browser pop-up blocker). */
-export const PRINT_POPUP_BLOCKED = 'Could not open print preview — try again, or use the in-app Print / PDF button';
+/** Shown when print/PDF preview could not open. */
+export const PRINT_POPUP_BLOCKED = 'Could not open print preview — try again';
 
 function isNativeCapacitor(): boolean {
   try {
@@ -86,7 +86,10 @@ function isNativeCapacitor(): boolean {
   }
 }
 
-/** Offline Mobile / Capacitor: use in-app preview + native PrintManager (window.print is a no-op). */
+/**
+ * Offline Mobile / Capacitor: window.open is blocked and window.print() is a no-op
+ * in WebView — use in-app overlay + direct PDF download. Cloud desktop keeps classic print.
+ */
 function needsNativePrintPath(): boolean {
   if (isNativeCapacitor()) return true;
   try {
@@ -104,7 +107,98 @@ function escapeHtmlLite(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/** Close the in-app print/PDF preview (Capacitor / popup-blocked fallback). */
+function safePdfFilename(filename?: string): string {
+  const base = (filename || 'Document').replace(/[^\w.\- ()#]+/g, '_').slice(0, 80);
+  return base.toLowerCase().endsWith('.pdf') ? base : `${base}.pdf`;
+}
+
+/**
+ * Render bill/quote/invoice HTML to a PDF and download (web) or share/save (Capacitor).
+ */
+export async function downloadHtmlAsPdf(html: string, filename?: string): Promise<boolean> {
+  const safeName = safePdfFilename(filename);
+  const host = document.createElement('div');
+  host.setAttribute('aria-hidden', 'true');
+  host.style.cssText =
+    'position:fixed;left:-10000px;top:0;width:210mm;min-height:297mm;background:#fff;color:#111;z-index:-1;';
+  document.body.appendChild(host);
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(withPrintPagination(html), 'text/html');
+    for (const node of Array.from(doc.head.querySelectorAll('style, link[rel="stylesheet"]'))) {
+      host.appendChild(node.cloneNode(true));
+    }
+    host.appendChild(doc.body.cloneNode(true));
+
+    // Wait for images so html2canvas captures logos / QR codes
+    const imgs = Array.from(host.querySelectorAll('img'));
+    await Promise.all(
+      imgs.map(
+        img =>
+          new Promise<void>(resolve => {
+            if (img.complete) {
+              resolve();
+              return;
+            }
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            setTimeout(resolve, 3000);
+          }),
+      ),
+    );
+
+    const html2pdf = (await import('html2pdf.js')).default;
+    const worker = html2pdf().set({
+      margin: [10, 10, 10, 10],
+      filename: safeName,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 794 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      // html2pdf.js supports pagebreak; types omit it
+      ...({ pagebreak: { mode: ['css', 'legacy'] } } as object),
+    });
+
+    const blob = (await worker.from(host).outputPdf('blob')) as Blob;
+    if (!(blob instanceof Blob) || blob.size < 100) return false;
+
+    // Capacitor / mobile: share sheet lets the user Save to Files / Drive
+    if (isNativeCapacitor() && typeof navigator.share === 'function') {
+      try {
+        const file = new File([blob], safeName, { type: 'application/pdf' });
+        const payload = { files: [file], title: safeName };
+        if (!navigator.canShare || navigator.canShare(payload)) {
+          await navigator.share(payload);
+          return true;
+        }
+      } catch (err) {
+        // User cancelled share — still treat as handled; fall through only on hard failure
+        if ((err as Error)?.name === 'AbortError') return true;
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = safeName;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try {
+      host.remove();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** Close the in-app PDF overlay (Capacitor / popup-blocked fallback). */
 export function closePrintOverlay(): void {
   try {
     document.getElementById(PRINT_OVERLAY_ID)?.remove();
@@ -123,27 +217,28 @@ function readOverlayPrintHtml(): { html: string; name: string } | null {
   return { html, name };
 }
 
-/** Android/iOS WebView: window.print() does nothing — use PrintManager via Capgo. */
-async function nativePrintHtml(html: string, name?: string): Promise<boolean> {
-  try {
-    const { Printer } = await import('@capgo/capacitor-printer');
-    await Printer.printHtml({
-      html,
-      name: (name || 'Document').replace(/[^\w.\- ()#]+/g, '_').slice(0, 80),
-    });
-    return true;
-  } catch {
-    return false;
-  }
+function setOverlayDownloadBusy(busy: boolean, label = 'Download PDF'): void {
+  const btn = document.querySelector(`#${PRINT_OVERLAY_ID} [data-pdf-download]`) as HTMLButtonElement | null;
+  if (!btn) return;
+  btn.disabled = busy;
+  btn.textContent = busy ? 'Downloading…' : label;
 }
 
-async function triggerOverlayPrint(): Promise<void> {
+async function triggerOverlayDownload(): Promise<boolean> {
   const payload = readOverlayPrintHtml();
-  if (!payload) return;
-  if (needsNativePrintPath()) {
-    const ok = await nativePrintHtml(payload.html, payload.name);
-    if (ok) return;
+  if (!payload) return false;
+  setOverlayDownloadBusy(true);
+  const ok = await downloadHtmlAsPdf(payload.html, payload.name);
+  if (ok) {
+    closePrintOverlay();
+    return true;
   }
+  setOverlayDownloadBusy(false, 'Retry download');
+  return false;
+}
+
+/** Cloud popup-blocked overlay: classic browser print (Save as PDF via print dialog). */
+async function triggerOverlayPrint(): Promise<void> {
   const frame = document.getElementById(PRINT_FRAME_ID) as HTMLIFrameElement | null;
   const w = frame?.contentWindow;
   if (!w) return;
@@ -156,15 +251,17 @@ async function triggerOverlayPrint(): Promise<void> {
 }
 
 /**
- * Fullscreen in-app preview — Capacitor WebView blocks window.open / system print popups.
+ * Fullscreen in-app overlay when window.open is unavailable.
+ * Offline Mobile / Capacitor → Download PDF; cloud popup-blocked → classic Print / PDF.
  * Returns the iframe's contentWindow so existing printBillInWindow() callers keep working.
  */
 function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
   closePrintOverlay();
+  const nativePdf = needsNativePrintPath();
   const host = document.createElement('div');
   host.id = PRINT_OVERLAY_ID;
   host.setAttribute('role', 'dialog');
-  host.setAttribute('aria-label', 'Print preview');
+  host.setAttribute('aria-label', nativePdf ? 'PDF download' : 'Print preview');
   host.style.cssText =
     'position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;background:#0f172a;';
 
@@ -181,25 +278,33 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
   closeBtn.onclick = () => closePrintOverlay();
 
   const title = document.createElement('div');
-  title.textContent = needsNativePrintPath() ? 'Preview → Print / PDF' : 'Print / PDF';
+  title.textContent = nativePdf ? 'Download PDF' : 'Print / PDF';
   title.style.cssText = 'flex:1;font-weight:700;font-size:13px;text-align:center;line-height:1.2;';
 
-  const printBtn = document.createElement('button');
-  printBtn.type = 'button';
-  printBtn.textContent = 'Print / PDF';
-  printBtn.style.cssText =
+  const actionBtn = document.createElement('button');
+  actionBtn.type = 'button';
+  actionBtn.style.cssText =
     'padding:8px 12px;border-radius:8px;border:0;background:#F27D26;color:#fff;font-weight:700;font-size:13px;';
-  printBtn.onclick = () => {
-    void triggerOverlayPrint();
-  };
+  if (nativePdf) {
+    actionBtn.setAttribute('data-pdf-download', '1');
+    actionBtn.textContent = 'Download PDF';
+    actionBtn.onclick = () => {
+      void triggerOverlayDownload();
+    };
+  } else {
+    actionBtn.textContent = 'Print / PDF';
+    actionBtn.onclick = () => {
+      void triggerOverlayPrint();
+    };
+  }
 
   bar.appendChild(closeBtn);
   bar.appendChild(title);
-  bar.appendChild(printBtn);
+  bar.appendChild(actionBtn);
 
   const iframe = document.createElement('iframe');
   iframe.id = PRINT_FRAME_ID;
-  iframe.title = 'Print preview';
+  iframe.title = nativePdf ? 'PDF preview' : 'Print preview';
   iframe.style.cssText = 'flex:1;width:100%;border:0;background:#fff;';
 
   host.appendChild(bar);
@@ -211,7 +316,7 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
   try {
     win.document.open();
     win.document.write(
-      `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Print</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${escapeHtmlLite(placeholder)}</p></body></html>`,
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${nativePdf ? 'PDF' : 'Print'}</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#999;margin:0"><p>${escapeHtmlLite(placeholder)}</p></body></html>`,
     );
     win.document.close();
   } catch {
@@ -221,12 +326,12 @@ function openPrintOverlay(placeholder = 'Preparing…'): Window | null {
 }
 
 /**
- * Open a print/preview window immediately.
+ * Open a print/PDF window immediately.
  * Must be called synchronously from a click handler — never after await.
- * On Capacitor (and when pop-ups are blocked), uses an in-app preview instead of window.open.
+ * Offline Mobile / Capacitor uses in-app PDF download; cloud desktop uses window.open + print.
+ * Popup-blocked cloud falls back to in-app Print / PDF (not forced download).
  */
 export function openPrintWindow(placeholder = 'Preparing…'): Window | null {
-  // Capacitor / Offline Mobile: window.open is blocked; window.print() is a no-op in WebView.
   if (needsNativePrintPath()) {
     return openPrintOverlay(placeholder);
   }
@@ -256,7 +361,7 @@ export function openPrintWindow(placeholder = 'Preparing…'): Window | null {
     }
     return win;
   }
-  // Desktop pop-up blocked → same in-app preview
+  // Desktop pop-up blocked → in-app classic print preview
   return openPrintOverlay(placeholder);
 }
 
@@ -350,7 +455,7 @@ function triggerPrintWhenReady(win: Window) {
   }
 }
 
-/** Write HTML into an already-opened print window and trigger print */
+/** Write HTML into an already-opened print/PDF window and download (offline) or print (cloud). */
 export function printBillInWindow(win: Window, html: string, filename?: string, opts?: { autoPrint?: boolean }) {
   const titled = withPrintPagination(applyPrintTitle(html, filename));
   try {
@@ -380,16 +485,22 @@ export function printBillInWindow(win: Window, html: string, filename?: string, 
     }
     return;
   }
-  // Overlay: native PrintManager (Android WebView ignores window.print). Keep preview open.
+  // Overlay: Offline Mobile downloads PDF; cloud popup-blocked uses classic print.
   if (usingOverlay) {
     try {
       win.focus();
     } catch {
       /* ignore */
     }
-    setTimeout(() => {
-      void triggerOverlayPrint();
-    }, 450);
+    if (needsNativePrintPath()) {
+      setTimeout(() => {
+        void triggerOverlayDownload();
+      }, 350);
+    } else {
+      setTimeout(() => {
+        void triggerOverlayPrint();
+      }, 450);
+    }
     return;
   }
   triggerPrintWhenReady(win);
@@ -457,17 +568,37 @@ export function writePrintHtml(
 }
 
 /**
- * Open bill HTML for Save as PDF (no auto print dialog).
- * Pass `win` from openPrintWindow() when called after await — otherwise open may be blocked.
+ * Save bill HTML as PDF.
+ * Offline Mobile / Capacitor: direct html2pdf download/share.
+ * Cloud desktop: classic print window (user chooses Save as PDF).
+ * Pass `win` from openPrintWindow() when called after await.
  */
-export function saveBillAsPdf(html: string, filename?: string, win?: Window | null): boolean {
-  const w = win ?? openPrintWindow('Preparing PDF…');
-  if (!w) {
-    // Last resort: open print dialog via iframe (user can "Save as PDF")
-    printViaIframe(withPrintPagination(applyPrintTitle(html, filename)), true);
+export async function saveBillAsPdf(html: string, filename?: string, win?: Window | null): Promise<boolean> {
+  const titled = withPrintPagination(applyPrintTitle(html, filename));
+  if (needsNativePrintPath()) {
+    const ok = await downloadHtmlAsPdf(titled, filename);
+    if (win) {
+      try {
+        if (document.getElementById(PRINT_OVERLAY_ID)) closePrintOverlay();
+        else win.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    if (ok) return true;
+    // Fallback: overlay with Download PDF button
+    const w = win && !win.closed ? win : openPrintWindow('Preparing PDF…');
+    if (!w) return false;
+    printBillInWindow(w, titled, filename, { autoPrint: false });
     return true;
   }
-  printBillInWindow(w, html, filename, { autoPrint: false });
+  // Cloud: open preview; user saves via browser print dialog
+  const w = win && !win.closed ? win : openPrintWindow('Preparing PDF…');
+  if (!w) {
+    printViaIframe(titled, true);
+    return true;
+  }
+  printBillInWindow(w, titled, filename, { autoPrint: false });
   return true;
 }
 

@@ -12,13 +12,16 @@ function parseJsonArray(value: unknown): unknown[] {
 }
 
 export function mapVendor(r: Record<string, unknown>) {
+  const gst = (r.gstin ?? r.gst_number ?? null) as string | null;
   return {
     id: r.id,
     name: r.name,
     phone: r.phone ?? null,
     email: r.email ?? null,
     address: r.address ?? null,
-    gstin: r.gstin ?? null,
+    /** UI (InvoicesView / Vendor type) reads gstNumber */
+    gstNumber: gst,
+    gstin: gst,
     createdAt: r.created_at,
   };
 }
@@ -35,26 +38,37 @@ export function mapCustomer(r: Record<string, unknown>) {
 }
 
 export function mapProduct(r: Record<string, unknown>) {
+  const gst = Number(r.gst_rate ?? r.gst_percent) || 18;
   return {
     id: r.id,
     name: r.name,
     sku: r.sku ?? null,
+    barcode: r.barcode ?? null,
     categoryId: r.category_id ?? null,
     price: Number(r.price) || 0,
-    gstPercent: Number(r.gst_percent) || 18,
+    /** UI (InvoicesView Product type) reads gstRate + hsnCode */
+    gstRate: gst,
+    gstPercent: gst,
+    hsnCode: (r.hsn_code as string) ?? null,
+    stock: Number(r.stock) || 0,
+    warrantyMonths: Number(r.warranty_months) || 0,
+    priceIncludesGst: !!r.price_includes_gst,
     createdAt: r.created_at,
   };
 }
 
 export function mapBank(r: Record<string, unknown>) {
+  const ifscCode = (r.ifsc_code ?? r.ifsc ?? null) as string | null;
   return {
     id: r.id,
     name: r.name,
     accountNumber: r.account_number ?? null,
     accountName: r.account_name ?? r.name ?? null,
-    bankName: r.bank_name ?? r.name ?? null,
+    bankName: r.bank_name ?? null,
     branch: r.branch ?? null,
-    ifsc: r.ifsc ?? null,
+    /** BankMasterView / types.Bank read ifscCode (cloud shape). */
+    ifscCode,
+    ifsc: ifscCode,
     balance: Number(r.balance) || 0,
     createdAt: r.created_at,
   };
@@ -126,36 +140,14 @@ export function mapExpense(r: Record<string, unknown>) {
     amount: Number(r.amount) || 0,
     description: r.description ?? null,
     expenseDate: r.expense_date,
+    paymentMethod: r.payment_method || 'Cash',
+    referenceNumber: r.reference_number ?? null,
+    notes: r.notes ?? null,
     createdAt: r.created_at,
   };
 }
 
-export function mapQuotation(r: Record<string, unknown>) {
-  const items = parseJsonArray(r.items);
-  return {
-    id: r.id,
-    quoteNumber: r.quote_number,
-    clientName: r.client_name,
-    clientId: r.client_id,
-    status: r.status,
-    items,
-    total: Number(r.total) || 0,
-    createdAt: r.created_at,
-  };
-}
-
-export function mapOrder(r: Record<string, unknown>) {
-  const items = parseJsonArray(r.items);
-  return {
-    id: r.id,
-    orderNumber: r.order_number,
-    clientName: r.client_name,
-    status: r.status,
-    items,
-    total: Number(r.total) || 0,
-    createdAt: r.created_at,
-  };
-}
+export { mapQuoteRow as mapQuotation, mapOrderRow as mapOrder } from './quoteOrderHelpers';
 
 export function mapPriceRule(r: Record<string, unknown>) {
   return {

@@ -28,7 +28,7 @@ import {
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
-import { useToast, LoadingSpinner } from '../../components/ui';
+import { useToast, LoadingSpinner, MobilePillTabs, dateControlClass } from '../../components/ui';
 import { fetchApi } from '../../api';
 import { esc } from '../../lib/billTemplates';
 
@@ -56,6 +56,7 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
   const { toast } = useToast();
   const cfg = useBusinessConfig();
   const ds = cfg.type === 'dealer' || cfg.type === 'retail';
+  const partySingular = cfg.labels.vendors.replace(/s$/, ''); // Vendor | Customer | Client
   const businessType = cfg.type;
   const [tab, setTab] = useState<AccountTab>('pnl');
   const now = new Date();
@@ -186,59 +187,84 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
   ];
   const TABS = ALL_TABS.filter(t => !t.hide);
 
+  const accountTabs = TABS.filter(t => t.group === 'accounts');
+  const reportTabs = TABS.filter(t => t.group === 'reports');
+  const showDateRange = tab !== 'balance' && tab !== 'outstanding' && tab !== 'stock' && tab !== 'gst';
+  const selectTab = (key: string) => {
+    setTab(key as AccountTab);
+    setData(null);
+  };
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3 sm:space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-4">
+        <div className="hidden sm:block">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <BarChart3 size={22} /> {useTabLabel('accounts', 'Accounts & Reports')}
           </h2>
           <p className="text-sm text-gray-500">Financial statements, GST reports, registers — all in one place</p>
         </div>
         {data && (
-          <div className="flex gap-2">
-            {data && ((data as Record<string, unknown>).entries || (data as Record<string, unknown>).rows) && (
+          <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
+            {((data as Record<string, unknown>).entries || (data as Record<string, unknown>).rows) && (
               <button
                 type="button"
                 onClick={() => {
                   const rows = (data as Record<string, unknown>).entries || (data as Record<string, unknown>).rows;
                   if (Array.isArray(rows)) exportToCsv(rows as Record<string, unknown>[], tab);
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold"
+                className="flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 text-white rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold"
               >
-                <Download size={16} /> CSV
+                <Download size={14} /> CSV
               </button>
             )}
             <button
               type="button"
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200"
+              className="flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold hover:bg-gray-200"
             >
-              <Printer size={16} /> Print
+              <Printer size={14} /> Print
             </button>
           </div>
         )}
       </div>
 
-      <div className="space-y-3">
+      {/* Phone: scrollable pill groups */}
+      <div className="sm:hidden space-y-2.5">
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1 px-0.5">Accounts</p>
+          <MobilePillTabs
+            items={accountTabs.map(t => ({ id: t.key, label: t.shortLabel, icon: <t.icon /> }))}
+            value={tab}
+            onChange={selectTab}
+          />
+        </div>
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1 px-0.5">Reports</p>
+          <MobilePillTabs
+            items={reportTabs.map(t => ({ id: t.key, label: t.shortLabel, icon: <t.icon /> }))}
+            value={tab}
+            onChange={selectTab}
+          />
+        </div>
+      </div>
+
+      {/* Desktop tab chips */}
+      <div className="hidden sm:block space-y-3">
         <div>
           <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Accounts</p>
           <div className="flex gap-1.5 flex-wrap">
-            {TABS.filter(t => t.group === 'accounts').map(t => (
+            {accountTabs.map(t => (
               <button
                 key={t.key}
                 type="button"
-                onClick={() => {
-                  setTab(t.key);
-                  setData(null);
-                }}
+                onClick={() => selectTab(t.key)}
                 className={cn(
                   'flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
                   tab === t.key ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
                 )}
               >
-                <t.icon size={14} /> <span className="hidden sm:inline">{t.label}</span>
-                <span className="sm:hidden">{t.shortLabel}</span>
+                <t.icon size={14} /> {t.label}
               </button>
             ))}
           </div>
@@ -246,59 +272,53 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
         <div>
           <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Reports</p>
           <div className="flex gap-1.5 flex-wrap">
-            {TABS.filter(t => t.group === 'reports').map(t => (
+            {reportTabs.map(t => (
               <button
                 key={t.key}
                 type="button"
-                onClick={() => {
-                  setTab(t.key);
-                  setData(null);
-                }}
+                onClick={() => selectTab(t.key)}
                 className={cn(
                   'flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
                   tab === t.key ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
                 )}
               >
-                <t.icon size={14} /> <span className="hidden sm:inline">{t.label}</span>
-                <span className="sm:hidden">{t.shortLabel}</span>
+                <t.icon size={14} /> {t.label}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-        <div className="flex items-end gap-3 flex-wrap">
-          {tab !== 'balance' && tab !== 'outstanding' && tab !== 'stock' && tab !== 'gst' && (
+      {/* Filters / date bar */}
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-4">
+        <div
+          className={cn(
+            'grid gap-2 sm:flex sm:items-end sm:gap-3 sm:flex-wrap',
+            showDateRange || tab === 'gst' || tab === 'ledger' ? 'grid-cols-2' : 'grid-cols-1',
+          )}
+        >
+          {showDateRange && (
             <>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">From</label>
-                <input
-                  type="date"
-                  value={from}
-                  onChange={e => setFrom(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                />
+              <div className="min-w-0">
+                <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                  From
+                </label>
+                <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={dateControlClass} />
               </div>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">To</label>
-                <input
-                  type="date"
-                  value={to}
-                  onChange={e => setTo(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                />
+              <div className="min-w-0">
+                <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                  To
+                </label>
+                <input type="date" value={to} onChange={e => setTo(e.target.value)} className={dateControlClass} />
               </div>
             </>
           )}
           {tab === 'ledger' && (
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Type</label>
-              <select
-                value={ledgerFilter}
-                onChange={e => setLedgerFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-              >
+            <div className="col-span-2 sm:col-span-1 min-w-0 sm:min-w-[10rem]">
+              <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                Type
+              </label>
+              <select value={ledgerFilter} onChange={e => setLedgerFilter(e.target.value)} className={dateControlClass}>
                 <option value="all">All</option>
                 <option value="sales">Sales/Distribution</option>
                 <option value="purchases">Purchases</option>
@@ -308,12 +328,14 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
           )}
           {tab === 'gst' && (
             <>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Month</label>
+              <div className="min-w-0">
+                <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                  Month
+                </label>
                 <select
                   value={gstMonth}
                   onChange={e => setGstMonth(parseInt(e.target.value))}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  className={dateControlClass}
                 >
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
                     <option key={m} value={m}>
@@ -322,13 +344,15 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Year</label>
+              <div className="min-w-0">
+                <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">
+                  Year
+                </label>
                 <input
                   type="number"
                   value={gstYear}
                   onChange={e => setGstYear(parseInt(e.target.value))}
-                  className="w-24 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  className={dateControlClass}
                 />
               </div>
             </>
@@ -337,9 +361,9 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
             type="button"
             onClick={loadData}
             disabled={loading}
-            className="flex items-center gap-1.5 px-5 py-2 bg-brand text-white rounded-lg text-sm font-bold disabled:opacity-60"
+            className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-10 px-4 sm:px-5 bg-brand text-white rounded-lg text-[13px] sm:text-sm font-bold disabled:opacity-60"
           >
-            <Search size={16} /> {loading ? 'Loading...' : 'Generate'}
+            <Search size={15} /> {loading ? 'Loading...' : 'Generate'}
           </button>
           {tab === 'gst' && (
             <button
@@ -358,16 +382,16 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
                   alert((e as Error).message);
                 }
               }}
-              className="flex items-center gap-1.5 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700"
+              className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-10 px-4 sm:px-5 bg-emerald-600 text-white rounded-lg text-[13px] sm:text-sm font-bold hover:bg-emerald-700"
             >
-              <Download size={16} /> GSTR-1 JSON
+              <Download size={15} /> GSTR-1 JSON
             </button>
           )}
         </div>
       </div>
 
       {loading && (
-        <div className="py-20 text-center">
+        <div className="py-16 sm:py-20 text-center">
           <LoadingSpinner />
         </div>
       )}
@@ -375,13 +399,13 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
       {!loading && data && (
         <div id="accounts-content">
           {tab === 'pnl' && <ProfitLoss data={data} ds={ds} cfg={cfg} />}
-          {tab === 'balance' && <BalanceSheet data={data} ds={ds} />}
-          {tab === 'cashflow' && <CashFlow data={data} ds={ds} />}
+          {tab === 'balance' && <BalanceSheet data={data} partySingular={partySingular} />}
+          {tab === 'cashflow' && <CashFlow data={data} ds={ds} partySingular={partySingular} />}
           {tab === 'ledger' && <Ledger data={data} />}
           {tab === 'daybook' && <DayBook data={data} ds={ds} />}
-          {tab === 'notes' && <NotesView data={data} onRefresh={loadData} />}
+          {tab === 'notes' && <NotesView data={data} onRefresh={loadData} partySingular={partySingular} />}
           {['sales', 'distribution', 'outstanding', 'payments', 'stock', 'gst'].includes(tab) && (
-            <ReportTable tab={tab} data={data} ds={ds} />
+            <ReportTable tab={tab} data={data} ds={ds} partySingular={partySingular} />
           )}
         </div>
       )}
@@ -390,9 +414,9 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
       {tab === 'gstr3b' && !loading && data && <Gstr3bView data={data as Record<string, unknown>} />}
 
       {!loading && !data && tab !== 'gstr2b' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
-          <BarChart3 size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="font-medium">Select a statement and click Generate</p>
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-8 sm:p-12 text-center text-gray-400">
+          <BarChart3 size={40} className="mx-auto mb-2.5 opacity-30 sm:mb-3 sm:size-12" />
+          <p className="font-medium text-sm sm:text-base">Select a statement and click Generate</p>
         </div>
       )}
     </motion.div>
@@ -510,7 +534,7 @@ function ProfitLoss({
   );
 }
 
-function BalanceSheet({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
+function BalanceSheet({ data, partySingular }: { data: Record<string, unknown>; partySingular: string }) {
   const assets = data.assets as {
     inventory: number;
     receivables: number;
@@ -545,7 +569,7 @@ function BalanceSheet({ data, ds }: { data: Record<string, unknown>; ds: boolean
             )}
             {(assets.distributionReceivables || 0) > 0 && (
               <div className="flex justify-between">
-                <span className="text-sm">{ds ? 'Customer Receivables' : 'Vendor Receivables'}</span>
+                <span className="text-sm">{partySingular} Receivables</span>
                 <span className="font-bold">{fmtCurrency(assets.distributionReceivables || 0)}</span>
               </div>
             )}
@@ -600,7 +624,7 @@ function BalanceSheet({ data, ds }: { data: Record<string, unknown>; ds: boolean
   );
 }
 
-function CashFlow({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
+function CashFlow({ data, ds, partySingular }: { data: Record<string, unknown>; ds: boolean; partySingular: string }) {
   const inflows = data.inflows as { vendorPayments: number; invoicePayments?: number; total: number };
   const outflows = data.outflows as {
     supplierPayments: number;
@@ -617,7 +641,7 @@ function CashFlow({ data, ds }: { data: Record<string, unknown>; ds: boolean }) 
           label="Total Inflows"
           value={fmtCurrency(inflows.total)}
           color="text-emerald-600"
-          sub={ds ? 'Payments received' : 'Received from vendors & invoices'}
+          sub={ds ? 'Payments received' : `Received from ${partySingular.toLowerCase()}s & invoices`}
         />
         <StatCard
           label="Total Outflows"
@@ -638,7 +662,7 @@ function CashFlow({ data, ds }: { data: Record<string, unknown>; ds: boolean }) 
             <div className="space-y-2">
               {inflows.vendorPayments > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">{ds ? 'Customer Payments' : 'Vendor Payments'}</span>
+                  <span className="text-gray-600">{partySingular} Payments</span>
                   <span className="font-bold text-emerald-600">{fmtCurrency(inflows.vendorPayments)}</span>
                 </div>
               )}
@@ -906,7 +930,15 @@ function DayBook({ data, ds }: { data: Record<string, unknown>; ds: boolean }) {
   );
 }
 
-function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefresh: () => void }) {
+function NotesView({
+  data,
+  onRefresh,
+  partySingular,
+}: {
+  data: Record<string, unknown>;
+  onRefresh: () => void;
+  partySingular: string;
+}) {
   const notes = (Array.isArray(data) ? data : []) as {
     id: string;
     noteNumber: string;
@@ -1045,7 +1077,7 @@ function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefre
                 value={noteForm.vendorName}
                 onChange={e => setNoteForm({ ...noteForm, vendorName: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-200 rounded-xl text-sm"
-                placeholder="Vendor or customer name"
+                placeholder={`${partySingular} or customer name`}
               />
             </div>
             <div>
@@ -1188,7 +1220,17 @@ function NotesView({ data, onRefresh }: { data: Record<string, unknown>; onRefre
   );
 }
 
-function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unknown>; ds: boolean }) {
+function ReportTable({
+  tab,
+  data,
+  ds,
+  partySingular,
+}: {
+  tab: string;
+  data: Record<string, unknown>;
+  ds: boolean;
+  partySingular: string;
+}) {
   const rows = (data.rows as Record<string, unknown>[]) || [];
   const totals = (data.totals as Record<string, number>) || {};
   const count = (data.count as number) || rows.length;
@@ -1222,7 +1264,7 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-xs font-bold text-gray-400 uppercase">
-                    <th className="px-3 py-2 text-left">{ds ? 'Customer' : 'Vendor'}</th>
+                    <th className="px-3 py-2 text-left">{partySingular}</th>
                     <th className="px-3 py-2 text-left">GSTIN</th>
                     <th className="px-3 py-2 text-right">Taxable</th>
                     <th className="px-3 py-2 text-right">CGST</th>
@@ -1305,7 +1347,7 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
   const cols =
     tab === 'outstanding'
       ? [
-          { k: 'vendorName', l: ds ? 'Customer' : 'Vendor' },
+          { k: 'vendorName', l: partySingular },
           { k: 'totalBilled', l: 'Billed', r: true },
           { k: 'totalPaid', l: 'Paid', r: true },
           { k: 'balance', l: 'Balance', r: true },
@@ -1320,7 +1362,7 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
             { k: 'hsnCode', l: 'HSN' },
             { k: 'unitPrice', l: 'Price', r: true },
             { k: 'inStock', l: 'InStock', r: true },
-            ...(!ds ? [{ k: 'withVendors', l: 'Vendors', r: true }] : []),
+            ...(!ds ? [{ k: 'withVendors', l: `${partySingular}s`, r: true }] : []),
             { k: 'sold', l: 'Sold', r: true },
             { k: 'closingStock', l: 'Closing', r: true },
             { k: 'stockValue', l: 'Value', r: true },
@@ -1328,7 +1370,7 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
         : tab === 'payments'
           ? [
               { k: 'date', l: 'Date' },
-              { k: 'vendorName', l: ds ? 'Customer' : 'Vendor' },
+              { k: 'vendorName', l: partySingular },
               { k: 'amount', l: 'Amount', r: true },
               { k: 'method', l: 'Method' },
               { k: 'reference', l: 'Ref' },
@@ -1346,7 +1388,7 @@ function ReportTable({ tab, data, ds }: { tab: string; data: Record<string, unkn
               ]
             : [
                 { k: 'date', l: 'Date' },
-                { k: 'vendorName', l: ds ? 'Customer' : 'Vendor' },
+                { k: 'vendorName', l: partySingular },
                 { k: 'productName', l: 'Product' },
                 { k: 'hsnCode', l: 'HSN' },
                 { k: 'taxableValue', l: 'Taxable', r: true },

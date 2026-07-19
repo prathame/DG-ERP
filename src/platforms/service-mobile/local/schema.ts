@@ -40,6 +40,12 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   role TEXT DEFAULT 'Admin',
+  phone TEXT,
+  address TEXT,
+  company_name TEXT,
+  gst_number TEXT,
+  auto_whatsapp BOOLEAN DEFAULT false,
+  default_gst_rate NUMERIC DEFAULT 18,
   permissions JSONB DEFAULT '{}',
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -79,9 +85,15 @@ CREATE TABLE IF NOT EXISTS products (
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   sku TEXT,
+  barcode TEXT,
   category_id TEXT,
   price NUMERIC DEFAULT 0,
   gst_percent NUMERIC DEFAULT 18,
+  gst_rate NUMERIC DEFAULT 18,
+  hsn_code TEXT,
+  stock NUMERIC DEFAULT 0,
+  warranty_months INT DEFAULT 0,
+  price_includes_gst BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -102,6 +114,31 @@ CREATE TABLE IF NOT EXISTS expenses (
   amount NUMERIC NOT NULL,
   description TEXT,
   expense_date DATE,
+  payment_method TEXT DEFAULT 'Cash',
+  reference_number TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS credit_debit_notes (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  note_number TEXT,
+  note_type TEXT NOT NULL,
+  vendor_id TEXT,
+  vendor_name TEXT,
+  customer_name TEXT,
+  note_date DATE,
+  reason TEXT,
+  items JSONB DEFAULT '[]',
+  subtotal NUMERIC DEFAULT 0,
+  gst_rate NUMERIC DEFAULT 18,
+  gst_amount NUMERIC DEFAULT 0,
+  total NUMERIC DEFAULT 0,
+  reference_invoice TEXT,
+  reference_type TEXT,
+  reference_id TEXT,
+  status TEXT DEFAULT 'active',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -109,11 +146,25 @@ CREATE TABLE IF NOT EXISTS quotations (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   quote_number TEXT,
+  quotation_number TEXT,
+  vendor_id TEXT,
+  vendor_name TEXT,
   client_name TEXT,
   client_id TEXT,
-  status TEXT DEFAULT 'draft',
+  customer_name TEXT,
+  customer_phone TEXT,
+  customer_email TEXT,
+  quotation_date DATE,
+  valid_until DATE,
+  status TEXT DEFAULT 'Draft',
   items JSONB DEFAULT '[]',
+  subtotal NUMERIC DEFAULT 0,
+  gst_rate NUMERIC DEFAULT 18,
+  gst_amount NUMERIC DEFAULT 0,
   total NUMERIC DEFAULT 0,
+  notes TEXT,
+  converted_batch_id TEXT,
+  converted_invoice_id TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -121,10 +172,22 @@ CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   order_number TEXT,
+  vendor_id TEXT,
+  vendor_name TEXT,
   client_name TEXT,
-  status TEXT DEFAULT 'open',
+  customer_name TEXT,
+  customer_phone TEXT,
+  customer_gst_number TEXT,
+  order_date DATE,
+  required_date DATE,
+  status TEXT DEFAULT 'Pending',
   items JSONB DEFAULT '[]',
+  subtotal NUMERIC DEFAULT 0,
+  gst_rate NUMERIC DEFAULT 18,
+  gst_amount NUMERIC DEFAULT 0,
   total NUMERIC DEFAULT 0,
+  notes TEXT,
+  fulfilled_batch_id TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -267,6 +330,11 @@ CREATE TABLE IF NOT EXISTS staff_payments (
   amount NUMERIC NOT NULL,
   payment_type TEXT DEFAULT 'salary',
   payment_date DATE,
+  payment_method TEXT DEFAULT 'Cash',
+  reference_number TEXT,
+  notes TEXT,
+  month TEXT,
+  year INT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -316,6 +384,11 @@ ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS joining_date DATE;
 ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS staff_name TEXT;
 ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'salary';
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'Cash';
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS reference_number TEXT;
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS month TEXT;
+ALTER TABLE staff_payments ADD COLUMN IF NOT EXISTS year INT;
 ALTER TABLE banks ADD COLUMN IF NOT EXISTS account_name TEXT;
 ALTER TABLE banks ADD COLUMN IF NOT EXISTS bank_name TEXT;
 ALTER TABLE banks ADD COLUMN IF NOT EXISTS branch TEXT;
@@ -330,6 +403,48 @@ ALTER TABLE price_lists ADD COLUMN IF NOT EXISTS valid_to DATE;
 ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS payment_method TEXT;
 ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS reference_number TEXT;
 ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS company_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS gst_number TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auto_whatsapp BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS default_gst_rate NUMERIC DEFAULT 18;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS quotation_number TEXT;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS vendor_id TEXT;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS vendor_name TEXT;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS customer_name TEXT;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS customer_phone TEXT;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS customer_email TEXT;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS quotation_date DATE;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS valid_until DATE;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS subtotal NUMERIC DEFAULT 0;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS gst_rate NUMERIC DEFAULT 18;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS gst_amount NUMERIC DEFAULT 0;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS converted_batch_id TEXT;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS converted_invoice_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS vendor_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS vendor_name TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_name TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_phone TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_gst_number TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_date DATE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS required_date DATE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal NUMERIC DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS gst_rate NUMERIC DEFAULT 18;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS gst_amount NUMERIC DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS fulfilled_batch_id TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'Cash';
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS reference_number TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS gst_rate NUMERIC;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS hsn_code TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS stock NUMERIC DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS warranty_months INT DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS price_includes_gst BOOLEAN DEFAULT false;
+UPDATE products SET gst_rate = COALESCE(gst_rate, gst_percent, 18);
 `;
 
 export const SERVICE_TAB_PRESET: Record<string, { label: string; visible: boolean }> = {

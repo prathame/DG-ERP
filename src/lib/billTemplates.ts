@@ -131,7 +131,9 @@ export function generateSalesInvoiceHtml(
   const showWarranty = billConfig.showWarranty !== false;
   const showRewards = billConfig.showRewards !== false;
   const showBarcode = billConfig.showBarcode !== false;
+  const showHsnSac = billConfig.showHsnSac !== false;
   const footerText = (billConfig.footerText as string) || 'Powered by Dhandho Management';
+  const showHsnCol = showHsnSac && showGst && !!bill.hsnCode;
 
   const warrantySection =
     showWarranty && bill.warranty
@@ -323,7 +325,7 @@ export function generateSalesInvoiceHtml(
 </table>
 <table class="outer items">
   <thead>
-    <tr class="repeat-banner"><th colspan="${5 + (showBarcode ? 1 : 0) + (showGst && bill.hsnCode ? 1 : 0) + (showGst ? 2 : 0)}">
+    <tr class="repeat-banner"><th colspan="${5 + (showBarcode ? 1 : 0) + (showHsnCol ? 1 : 0) + (showGst ? 2 : 0)}">
       <span style="font-weight:800;color:${color};">${esc(bill.company.name)}</span>
       <span style="float:right;font-weight:700;">${esc(invPrefix)}${esc(bill.id)}</span>
     </th></tr>
@@ -331,7 +333,7 @@ export function generateSalesInvoiceHtml(
     <th style="width:30px;">Sr.</th>
     ${showBarcode ? '<th>Barcode</th>' : ''}
     <th class="left">Name of Product / Service</th>
-    ${showGst && bill.hsnCode ? '<th>HSN</th>' : ''}
+    ${showHsnCol ? '<th>HSN</th>' : ''}
     <th>Qty</th><th>Rate</th><th>Taxable</th>
     ${showGst ? '<th>%</th><th>Tax Amt</th>' : ''}
     <th>Total</th>
@@ -341,14 +343,14 @@ export function generateSalesInvoiceHtml(
       <td>1</td>
       ${showBarcode ? `<td style="font-family:monospace;font-size:10px;">${esc(bill.barcode)}</td>` : ''}
       <td class="left"><strong>${esc(bill.productName)}</strong>${bill.productDescription ? `<br><span style="font-size:9px;color:#888;">${esc(bill.productDescription)}</span>` : ''}</td>
-      ${showGst && bill.hsnCode ? `<td>${esc(bill.hsnCode)}</td>` : ''}
+      ${showHsnCol ? `<td>${esc(bill.hsnCode)}</td>` : ''}
       <td>1</td>
       <td class="right">${basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
       <td class="right">${basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
       ${showGst ? `<td>${gstRate}.00</td><td class="right">${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>` : ''}
       <td class="right" style="font-weight:700;">${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
     </tr>
-    <tr class="total-row"><td></td>${showBarcode ? '<td></td>' : ''}<td class="right"><strong>Total</strong></td>${showGst && bill.hsnCode ? '<td></td>' : ''}<td><strong>1</strong></td><td></td><td class="right"><strong>${basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>${showGst ? `<td></td><td class="right"><strong>${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>` : ''}<td class="right" style="font-weight:900;">${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
+    <tr class="total-row"><td></td>${showBarcode ? '<td></td>' : ''}<td class="right"><strong>Total</strong></td>${showHsnCol ? '<td></td>' : ''}<td><strong>1</strong></td><td></td><td class="right"><strong>${basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>${showGst ? `<td></td><td class="right"><strong>${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>` : ''}<td class="right" style="font-weight:900;">${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td></tr>
   </tbody>
 </table>
 <div class="print-end avoid-break">
@@ -434,6 +436,7 @@ export function generateDistributionChallanHtml(
   const tagline = (billConfig.tagline as string) || '';
   const chPrefix = (billConfig.challanPrefix as string) || '';
   const footerText = (billConfig.footerText as string) || 'Powered by Dhandho Management';
+  const showHsnCol = showGst && billConfig.showHsnSac !== false;
   const ewbNumber = bill.ewbNumber || '';
   const irn = bill.irn || '';
   const irnAckNo = bill.irnAckNo || '';
@@ -657,14 +660,14 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
 <!-- Item Table -->
 <table class="outer items">
   <thead>
-    <tr class="repeat-banner"><th colspan="${showGst ? 9 : 6}">
+    <tr class="repeat-banner"><th colspan="${(showGst ? 8 : 6) + (showHsnCol ? 1 : 0)}">
       <span style="font-weight:800;color:${color};">${esc(bill.company.name)}</span>
       <span style="float:right;font-weight:700;">${esc(chPrefix)}${esc(bill.challanId)}</span>
     </th></tr>
     <tr>
     <th style="width:30px;">Sr.<br>No.</th>
     <th class="left">Name of Product / Service</th>
-    ${showGst ? '<th>HSN / SAC</th>' : ''}
+    ${showHsnCol ? '<th>HSN / SAC</th>' : ''}
     <th>Qty</th>
     <th>Rate</th>
     <th>Taxable Value</th>
@@ -674,7 +677,7 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
   ${
     showGst
       ? `<tr>
-    <th></th><th></th>${showGst ? '<th></th>' : ''}<th></th><th></th><th></th>
+    <th></th><th></th>${showHsnCol ? '<th></th>' : ''}<th></th><th></th><th></th>
     <th>%</th><th>Amount</th><th></th>
   </tr>`
       : ''
@@ -686,7 +689,7 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
       return `<tr>
       <td>${g.sno}</td>
       <td class="left"><strong>${esc(g.productName)}</strong>${(g as Record<string, unknown>).packQuantity ? ` <span style="font-size:9px;color:#666;">${esc((g as Record<string, unknown>).packQuantity)}</span>` : ''}</td>
-      ${showGst ? `<td>${esc(((g as Record<string, unknown>).hsnCode as string) || '-')}</td>` : ''}
+      ${showHsnCol ? `<td>${esc(((g as Record<string, unknown>).hsnCode as string) || '-')}</td>` : ''}
       <td>${g.quantity}</td>
       <td class="right">${g.netPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
       <td class="right">${g.lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
@@ -697,7 +700,7 @@ ${fullyPaid ? '<div class="paid-stamp">✓ PAID</div>' : ''}
     .join('')}
   <tr class="total-row">
     <td></td><td class="right"><strong>Total</strong></td>
-    ${showGst ? '<td></td>' : ''}
+    ${showHsnCol ? '<td></td>' : ''}
     <td><strong>${bill.totalQuantity}</strong></td>
     <td></td>
     <td class="right"><strong>${netVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>

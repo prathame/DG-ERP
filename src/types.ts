@@ -135,6 +135,8 @@ export interface Plan {
   tenantCount?: number;
 }
 
+export type InvoiceTemplateStyle = 'modern' | 'classic' | 'minimal';
+
 export interface BillSettings {
   logoBase64: string | null;
   primaryColor: string;
@@ -154,5 +156,9 @@ export interface BillSettings {
   showRewards: boolean;
   showBarcode: boolean;
   showWarranty: boolean;
+  /** When false, HSN/SAC is hidden on invoices/PDFs. Offline defaults off; cloud defaults on. */
+  showHsnSac: boolean;
   footerText: string;
+  /** Invoice / tax-invoice PDF layout style */
+  invoiceTemplateStyle: InvoiceTemplateStyle;
 }

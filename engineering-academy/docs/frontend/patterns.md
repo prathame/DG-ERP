@@ -135,10 +135,10 @@ The `user` object's shape has grown organically over the product's life (see the
 
 ## 10. Print/export as pure functions, not components
 
-`src/lib/utils.ts` holds a cluster of functions — `formatSalesInvoiceText`, `formatDistributionChallanText`, `openPrintWindow`, `printBillInWindow`, `saveBillAsPdf`, `exportToCsv` — that are plain functions taking data and returning strings or performing side effects (opening a window, triggering a download), not React components. Printing/exporting a bill is fundamentally an **imperative, one-shot action** (open a window, write HTML, call `.print()`), and modeling it as functions rather than forcing it through component render cycles keeps that imperative code honest about what it is, while still being easily called from any feature view's button handler.
+`src/lib/utils.ts` holds a cluster of functions — `formatSalesInvoiceText`, `formatDistributionChallanText`, `openPrintWindow`, `printBillInWindow`, `downloadHtmlAsPdf`, `saveBillAsPdf`, `exportToCsv` — that are plain functions taking data and returning strings or performing side effects (opening a window, triggering a download), not React components. Exporting a bill is fundamentally an **imperative, one-shot action** (build HTML, render PDF, download/share), and modeling it as functions rather than forcing it through component render cycles keeps that imperative code honest about what it is, while still being easily called from any feature view's button handler.
 
 > [!TIP]
-> Notice `saveBillAsPdf`'s doc comment: *"Pass `win` from `openPrintWindow()` when called after await — otherwise open may be blocked."* This is a real browser constraint (popup blockers only allow `window.open` calls made synchronously within a user-gesture handler) encoded directly into the function's calling contract, with a fallback (`printViaIframe`) for when a popup genuinely gets blocked anyway. It's a good example of this codebase's habit of writing down *why* a function must be called a particular way, right next to the function, rather than leaving that knowledge as tribal lore.
+> Offline Mobile / Capacitor cannot use `window.open` or `window.print()`. Callers still open a sync prep overlay via `openPrintWindow()` before `await`, then `printBillInWindow` / `saveBillAsPdf` run `downloadHtmlAsPdf` (html2pdf.js → blob download or native share). Desktop browsers keep the classic print-window path.
 
 ## Quiz
 

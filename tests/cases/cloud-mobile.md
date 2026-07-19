@@ -19,5 +19,8 @@ Phone usability for the **cloud** tenant app + Super Admin (320–430px). Deskto
 | 13 | Invoice stepper | Create Invoice on phone | Party → Items → Review; item cards; no horizontal modal scroll; footer actions stack |
 | 14 | Purchase/Quote editors | New Purchase / New Quotation on phone | Line item cards; sticky modal footer; desktop table at ≥640px |
 | 15 | Toast safe area | Trigger success/error toast on notched phone | Toast below status bar; does not cover header title |
+| 16 | Bottom nav IA | Phone tab bar | Analytics · Masters · Invoice · Quotes · More |
+| 17 | Shell hubs | Analytics / Masters / Invoices / Quotes on phone | Dense pills, KPIs, FAB where applicable; desktop ≥640px unchanged |
+| 18 | More shortcuts | Open More drawer | Stock / Finance / Accounts shortcuts; full nav below |
 
 **Automated (related):** `tests/unit/useEscapeKey.test.ts` (Escape contract). UI layout is CSS/manual — not under Vitest coverage gates (`server/utils` / `server/services`).

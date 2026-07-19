@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   FileText,
@@ -11,6 +11,7 @@ import {
   X,
   Trash2,
   ArrowRight,
+  Download,
   Printer,
 } from 'lucide-react';
 import {
@@ -23,6 +24,7 @@ import {
   fetchImageAsDataUrl,
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
+import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { api, fetchApi } from '../../api';
 import type { BillSettings, Product, Vendor } from '../../types';
 import {
@@ -36,11 +38,24 @@ import {
   formControlClass,
   LineItemCard,
   type LineItemCardField,
+  MobilePillTabs,
+  MobileFab,
+  MobileEmptyState,
+  MobileListRow,
 } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
 import { session } from '../../lib/session';
 import { generateQuotationHtml } from '../../lib/billTemplates';
+import { SearchSelect } from '../../components/ui/SearchSelect';
+
+function asApiList<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === 'object' && Array.isArray((value as { data?: unknown }).data)) {
+    return (value as { data: T[] }).data;
+  }
+  return [];
+}
 
 interface Quotation {
   id: string;
@@ -77,6 +92,7 @@ interface Quotation {
 export function QuotationsView() {
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
+  const offlinePdf = isServiceMobileMode();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -101,15 +117,30 @@ export function QuotationsView() {
     validUntil: '',
     notes: '',
   });
-  const [rows, setRows] = useState<
-    { productId: string; quantity: number; customPrice: string; discount: number; withGst: boolean }[]
-  >([{ productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }]);
+  type QuoteLineRow = {
+    productId: string;
+    description: string;
+    quantity: number;
+    customPrice: string;
+    discount: number;
+    withGst: boolean;
+  };
+  const emptyQuoteRow = (): QuoteLineRow => ({
+    productId: '',
+    description: '',
+    quantity: 1,
+    customPrice: '',
+    discount: 0,
+    withGst: true,
+  });
+  const [rows, setRows] = useState<QuoteLineRow[]>([emptyQuoteRow()]);
   const [billSettings, setBillSettings] = useState<BillSettings | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const sessionUser = session.getUser() as Record<string, unknown> | null;
   const companyName = String(sessionUser?.companyName || '');
   const isService = String(sessionUser?.businessType || '') === 'service';
+  const partyLabel = isService ? 'Client' : 'Vendor';
   const convertLabel = isService ? 'Convert to Invoice' : 'Convert to Distribution';
 
   useEscapeKey(() => {
@@ -125,24 +156,39 @@ export function QuotationsView() {
 
   const load = () => {
     setLoadError(null);
-    Promise.all([
+    // allSettled: products failure must not wipe vendors (empty Client dropdown)
+    Promise.allSettled([
       fetchApi<Quotation[]>('/quotations'),
       api.products.list(),
       api.vendors.list(),
-      api.settings.getBillSettings().catch(() => null),
+      api.settings.getBillSettings(),
     ])
-      .then(([q, p, v, bill]) => {
+      .then(results => {
+        const q = asApiList<Quotation>(results[0].status === 'fulfilled' ? results[0].value : []);
+        const p = asApiList<Product>(results[1].status === 'fulfilled' ? results[1].value : []);
+        const v = asApiList<Vendor>(results[2].status === 'fulfilled' ? results[2].value : []);
         setQuotations(q);
         setProducts(p);
-        setVendors(v);
-        if (bill) setBillSettings(bill);
+        setVendors(v.filter(x => x && x.id && x.id !== 'OWNER'));
+        if (results[3].status === 'fulfilled' && results[3].value) {
+          setBillSettings(results[3].value as BillSettings);
+        }
+        if (results[0].status === 'rejected') {
+          setLoadError(results[0].reason instanceof Error ? results[0].reason.message : 'Failed to load quotations');
+        }
       })
-      .catch(err => setLoadError(err.message || 'Failed to load'))
       .finally(() => setLoading(false));
   };
   useEffect(() => {
     load();
   }, []);
+
+  const refreshVendors = () => {
+    void api.vendors
+      .list()
+      .then(rows => setVendors(asApiList<Vendor>(rows).filter(x => x && x.id && x.id !== 'OWNER')))
+      .catch(() => {});
+  };
 
   const printQuotation = async (q: Quotation) => {
     const w = openPrintWindow();
@@ -213,13 +259,7 @@ export function QuotationsView() {
       quantity: String(quantity),
     });
     if (vendorId) qs.set('vendorId', vendorId);
-    fetch(`/api/price-lists/resolve?${qs}`, {
-      headers: {
-        Authorization: `Bearer ${session.getToken()}`,
-        'X-Tenant-ID': session.getTenantId() || '',
-      },
-    })
-      .then(r => r.json())
+    fetchApi<{ price: number }>(`/price-lists/resolve?${qs}`)
       .then(d => {
         if (resolveTokenRef.current[idx] !== token) return;
         if (!d || typeof d.price !== 'number') return;
@@ -268,7 +308,7 @@ export function QuotationsView() {
 
   const resetForm = () => {
     setEditingId(null);
-    setRows([{ productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }]);
+    setRows([emptyQuoteRow()]);
     setForm({
       vendorId: '',
       customerName: '',
@@ -293,20 +333,31 @@ export function QuotationsView() {
     });
     setRows(
       q.items.map(i => ({
-        productId: i.productId,
+        productId: i.productId || '',
+        description: i.productId ? '' : i.productName || '',
         quantity: i.quantity,
         customPrice: String(i.price),
         discount: i.discountPercent || 0,
         withGst: i.withGst !== false,
       })),
     );
+    refreshVendors();
     setModalOpen(true);
   };
 
   const handleCreate = async () => {
-    const validRows = rows.filter(r => r.productId && r.quantity > 0);
+    const validRows = rows.filter(r => {
+      if (!(r.quantity > 0)) return false;
+      if (r.productId) return true;
+      // Offline (and service): custom free-text line with rate
+      return Boolean(r.description.trim() && parseFloat(r.customPrice) > 0);
+    });
     if (validRows.length === 0) {
-      toast('Add at least one product', 'error');
+      toast(offlinePdf ? 'Add at least one line (Price List item or custom)' : 'Add at least one product', 'error');
+      return;
+    }
+    if (!offlinePdf && validRows.some(r => !r.productId)) {
+      toast('Select a product for each line', 'error');
       return;
     }
     setSubmitting(true);
@@ -321,7 +372,7 @@ export function QuotationsView() {
         gstRate: defaultGstRate,
         notes: form.notes || undefined,
         items: validRows.map(r => ({
-          productId: r.productId,
+          ...(r.productId ? { productId: r.productId } : { description: r.description.trim() }),
           quantity: r.quantity,
           customPrice: r.customPrice ? parseFloat(r.customPrice) : undefined,
           discountPercent: r.discount > 0 ? r.discount : undefined,
@@ -555,7 +606,15 @@ export function QuotationsView() {
                 onClick={() => printQuotation(selected)}
                 className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
               >
-                <Printer size={14} /> Print / PDF
+                {offlinePdf ? (
+                  <>
+                    <Download size={14} /> Download PDF
+                  </>
+                ) : (
+                  <>
+                    <Printer size={14} /> Print / PDF
+                  </>
+                )}
               </button>
               {selected.customerPhone && (
                 <button
@@ -606,7 +665,7 @@ export function QuotationsView() {
             )}
             {selected.vendorName && (
               <p className="text-sm text-gray-600 mb-4">
-                Vendor: <strong>{selected.vendorName}</strong>
+                {partyLabel}: <strong>{selected.vendorName}</strong>
               </p>
             )}
             <div className="overflow-x-auto -mx-1 mb-4">
@@ -668,9 +727,15 @@ export function QuotationsView() {
     );
   }
 
+  const openCreate = () => {
+    resetForm();
+    refreshVendors();
+    setModalOpen(true);
+  };
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3 sm:space-y-6 pb-14 sm:pb-0">
+      <div className="hidden sm:flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
             <FileText size={22} /> Quotations
@@ -679,17 +744,27 @@ export function QuotationsView() {
         </div>
         <button
           type="button"
-          onClick={() => {
-            resetForm();
-            setModalOpen(true);
-          }}
+          onClick={openCreate}
           className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
         >
           <Plus size={16} /> New Quotation
         </button>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
+      {/* Phone pills */}
+      <div className="sm:hidden">
+        <MobilePillTabs
+          items={(['all', 'Draft', 'Sent', 'Accepted', 'Converted'] as const).map(s => ({
+            id: s,
+            label: s === 'all' ? 'All' : s,
+          }))}
+          value={statusFilter}
+          onChange={id => setStatusFilter(id as typeof statusFilter)}
+        />
+      </div>
+
+      {/* Desktop filters */}
+      <div className="hidden sm:flex gap-2 flex-wrap">
         {(['all', 'Draft', 'Sent', 'Accepted', 'Converted'] as const).map(s => (
           <button
             key={s}
@@ -706,41 +781,78 @@ export function QuotationsView() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
-          <FileText size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="font-medium">{quotations.length === 0 ? 'No quotations yet' : 'No matching quotations'}</p>
-        </div>
+        <>
+          <div className="sm:hidden">
+            <MobileEmptyState
+              icon={<FileText />}
+              title={quotations.length === 0 ? 'No quotations yet' : 'No matching quotations'}
+              subtitle={quotations.length === 0 ? 'Create a quote, share it, and convert when accepted' : undefined}
+              actionLabel={quotations.length === 0 ? 'New Quote' : undefined}
+              onAction={quotations.length === 0 ? openCreate : undefined}
+            />
+          </div>
+          <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
+            <FileText size={48} className="mx-auto mb-3 opacity-30" />
+            <p className="font-medium">{quotations.length === 0 ? 'No quotations yet' : 'No matching quotations'}</p>
+          </div>
+        </>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-100">
-          {filtered.map(q => (
-            <button
-              key={q.id}
-              type="button"
-              onClick={() => {
-                setSelectedId(q.id);
-                fetchApi<Quotation>(`/quotations/${q.id}`)
-                  .then(setSelected)
-                  .catch(err => toast(err.message, 'error'));
-              }}
-              className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-bold">{q.quotationNumber}</p>
-                  <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold', statusColors[q.status])}>
-                    {q.status}
-                  </span>
+        <>
+          {/* Phone dense rows */}
+          <div className="sm:hidden space-y-1.5">
+            {filtered.map(q => (
+              <Fragment key={q.id}>
+                <MobileListRow
+                  icon={<FileText />}
+                  title={q.quotationNumber}
+                  subtitle={`${q.customerName || q.vendorName || 'No customer'} · ${formatDate(q.quotationDate)}`}
+                  trailing={`₹${q.total.toLocaleString()}`}
+                  meta={q.status}
+                  onClick={() => {
+                    setSelectedId(q.id);
+                    fetchApi<Quotation>(`/quotations/${q.id}`)
+                      .then(setSelected)
+                      .catch(err => toast(err.message, 'error'));
+                  }}
+                />
+              </Fragment>
+            ))}
+          </div>
+
+          {/* Desktop list */}
+          <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-100">
+            {filtered.map(q => (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => {
+                  setSelectedId(q.id);
+                  fetchApi<Quotation>(`/quotations/${q.id}`)
+                    .then(setSelected)
+                    .catch(err => toast(err.message, 'error'));
+                }}
+                className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-bold">{q.quotationNumber}</p>
+                    <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold', statusColors[q.status])}>
+                      {q.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {q.customerName || q.vendorName || 'No customer'} • {formatDate(q.quotationDate)} • {q.items.length}{' '}
+                    item{q.items.length !== 1 ? 's' : ''}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {q.customerName || q.vendorName || 'No customer'} • {formatDate(q.quotationDate)} • {q.items.length}{' '}
-                  item{q.items.length !== 1 ? 's' : ''}
-                </p>
-              </div>
-              <span className="text-sm font-bold text-brand shrink-0">₹{q.total.toLocaleString()}</span>
-            </button>
-          ))}
-        </div>
+                <span className="text-sm font-bold text-brand shrink-0">₹{q.total.toLocaleString()}</span>
+              </button>
+            ))}
+          </div>
+        </>
       )}
+
+      {quotations.length > 0 && <MobileFab label="Quote" onClick={openCreate} />}
 
       {/* Create Quotation Modal */}
       <AnimatePresence>
@@ -772,42 +884,43 @@ export function QuotationsView() {
           >
             <div className="space-y-4">
               <FormGrid>
-                <FormField label="Vendor / Customer">
-                  <select
+                <FormField label="Customer Name" required className="sm:col-span-2">
+                  <SearchSelect
+                    allowCustom
                     value={form.vendorId}
-                    onChange={e => {
-                      const nextVendor = e.target.value;
+                    inputValue={form.customerName}
+                    onInputChange={text => setForm(f => ({ ...f, customerName: text }))}
+                    placeholder={isService ? 'Type client name…' : 'Type vendor or customer name…'}
+                    emptyHint={
+                      vendors.length === 0
+                        ? `No ${isService ? 'clients' : 'vendors'} yet — type a name, or add in Masters`
+                        : 'Type a name — pick a match or leave as custom'
+                    }
+                    customLabel={isService ? 'client' : 'customer'}
+                    options={vendors.map(v => ({
+                      value: v.id,
+                      label: v.name,
+                      sublabel: v.phone || undefined,
+                    }))}
+                    onChange={nextVendor => {
+                      if (!nextVendor) {
+                        setForm(f => ({ ...f, vendorId: '' }));
+                        return;
+                      }
                       const v = vendors.find(x => x.id === nextVendor);
-                      setForm({
-                        ...form,
+                      setForm(f => ({
+                        ...f,
                         vendorId: nextVendor,
-                        customerName: v?.name || form.customerName,
-                        customerPhone: v?.phone || form.customerPhone,
-                      });
+                        customerName: v?.name || f.customerName,
+                        customerPhone: v?.phone || f.customerPhone,
+                      }));
                       rows.forEach((row, idx) => {
                         if (row.productId && (row.quantity || 0) > 0) {
                           resolveQuoteRowPrice(idx, row.productId, nextVendor, row.quantity || 1);
                         }
                       });
                     }}
-                    className={formControlClass}
-                  >
-                    <option value="">Select or type below</option>
-                    {vendors
-                      .filter(v => v.id !== 'OWNER')
-                      .map(v => (
-                        <option key={v.id} value={v.id}>
-                          {v.name}
-                        </option>
-                      ))}
-                  </select>
-                </FormField>
-                <FormField label="Customer Name">
-                  <input
-                    value={form.customerName}
-                    onChange={e => setForm({ ...form, customerName: e.target.value })}
-                    className={formControlClass}
-                    placeholder="If not a vendor"
+                    className="w-full [&_input]:min-h-11 [&_input]:rounded-xl [&_input]:px-3 [&_input]:sm:px-4 [&_button]:min-h-11 [&_button]:rounded-xl"
                   />
                 </FormField>
                 <FormField label="Phone">
@@ -836,7 +949,9 @@ export function QuotationsView() {
                 </FormField>
               </FormGrid>
               <p className="text-xs text-gray-500">
-                Defaults: vendor/client price list → generic → inventory. Edit any line to negotiate.
+                {offlinePdf
+                  ? 'Pick a Price List item (Catalog / Clients rates) or type a custom line.'
+                  : 'Defaults: vendor/client price list → generic → inventory. Edit any line to negotiate.'}
               </p>
 
               <div className="sm:hidden space-y-3">
@@ -846,7 +961,7 @@ export function QuotationsView() {
                   const qFields: LineItemCardField[] = [
                     {
                       key: 'product',
-                      label: 'Product',
+                      label: offlinePdf ? 'Price List item' : 'Product',
                       wide: true,
                       node: (
                         <select
@@ -860,7 +975,8 @@ export function QuotationsView() {
                                   ? {
                                       ...r,
                                       productId: pid,
-                                      customPrice: sel ? String(sel.price) : '',
+                                      description: pid ? '' : r.description,
+                                      customPrice: sel ? String(sel.price) : r.customPrice,
                                     }
                                   : r,
                               ),
@@ -869,7 +985,7 @@ export function QuotationsView() {
                           }}
                           className={formControlClass}
                         >
-                          <option value="">Select</option>
+                          <option value="">{offlinePdf ? 'Custom item' : 'Select'}</option>
                           {products.map(pr => (
                             <option key={pr.id} value={pr.id}>
                               {pr.name} (₹{pr.price.toLocaleString()})
@@ -878,6 +994,25 @@ export function QuotationsView() {
                         </select>
                       ),
                     },
+                    ...(offlinePdf && !row.productId
+                      ? [
+                          {
+                            key: 'description',
+                            label: 'Description',
+                            wide: true as const,
+                            node: (
+                              <input
+                                value={row.description}
+                                onChange={e =>
+                                  setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))
+                                }
+                                className={formControlClass}
+                                placeholder="Type custom service"
+                              />
+                            ),
+                          },
+                        ]
+                      : []),
                     {
                       key: 'qty',
                       label: 'Quantity',
@@ -909,7 +1044,7 @@ export function QuotationsView() {
                           onChange={e =>
                             setRows(rows.map((r, i) => (i === idx ? { ...r, customPrice: e.target.value } : r)))
                           }
-                          placeholder={p ? `₹${p.price}` : '—'}
+                          placeholder={p ? `₹${p.price}` : offlinePdf ? 'Rate' : '—'}
                           className={formControlClass}
                         />
                       ),
@@ -955,7 +1090,7 @@ export function QuotationsView() {
                     <div key={idx}>
                       <LineItemCard
                         index={idx}
-                        title={p?.name || `Item ${idx + 1}`}
+                        title={p?.name || row.description || `Item ${idx + 1}`}
                         amountLabel={lineTotal > 0 ? `₹${lineTotal.toLocaleString()}` : undefined}
                         canRemove={rows.length > 1}
                         onRemove={() => setRows(rows.filter((_, i) => i !== idx))}
@@ -971,7 +1106,7 @@ export function QuotationsView() {
                   <thead className="bg-gray-50">
                     <tr className="text-xs font-bold text-gray-400 uppercase">
                       <th className="px-3 py-3 w-8">#</th>
-                      <th className="px-3 py-3">Product</th>
+                      <th className="px-3 py-3">{offlinePdf ? 'Item' : 'Product'}</th>
                       <th className="px-3 py-3 w-16">Qty</th>
                       <th className="px-3 py-3 w-24">Price</th>
                       <th className="px-3 py-3 w-16">Disc%</th>
@@ -987,7 +1122,7 @@ export function QuotationsView() {
                       return (
                         <tr key={idx}>
                           <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2 space-y-1.5">
                             <select
                               value={row.productId}
                               onChange={e => {
@@ -999,7 +1134,8 @@ export function QuotationsView() {
                                       ? {
                                           ...r,
                                           productId: pid,
-                                          customPrice: sel ? String(sel.price) : '',
+                                          description: pid ? '' : r.description,
+                                          customPrice: sel ? String(sel.price) : r.customPrice,
                                         }
                                       : r,
                                   ),
@@ -1008,13 +1144,23 @@ export function QuotationsView() {
                               }}
                               className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
                             >
-                              <option value="">Select</option>
+                              <option value="">{offlinePdf ? 'Custom item' : 'Select'}</option>
                               {products.map(pr => (
                                 <option key={pr.id} value={pr.id}>
                                   {pr.name} (₹{pr.price.toLocaleString()})
                                 </option>
                               ))}
                             </select>
+                            {offlinePdf && !row.productId && (
+                              <input
+                                value={row.description}
+                                onChange={e =>
+                                  setRows(rows.map((r, i) => (i === idx ? { ...r, description: e.target.value } : r)))
+                                }
+                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm"
+                                placeholder="Type custom service"
+                              />
+                            )}
                           </td>
                           <td className="px-3 py-2">
                             <input
@@ -1094,12 +1240,10 @@ export function QuotationsView() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setRows([...rows, { productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }])
-                }
+                onClick={() => setRows([...rows, emptyQuoteRow()])}
                 className="text-sm font-bold text-brand min-h-11 inline-flex items-center"
               >
-                + Add Product
+                {offlinePdf ? '+ Add Line' : '+ Add Product'}
               </button>
               <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-xs sm:text-sm text-gray-600">
@@ -1136,7 +1280,7 @@ export function QuotationsView() {
               </p>
               <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
                 {partialConvert.lines.map((line, idx) => (
-                  <div key={line.productId} className="flex items-center justify-between gap-3 text-sm">
+                  <div key={line.lineIndex} className="flex items-center justify-between gap-3 text-sm">
                     <div className="min-w-0">
                       <div className="font-medium truncate">{line.productName}</div>
                       <div className="text-xs text-gray-400">Remaining {line.remaining}</div>
