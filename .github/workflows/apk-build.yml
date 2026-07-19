@@ -65,7 +65,9 @@ on:
         default: true
 
 concurrency:
-  group: apk-build-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+  # Merged PR + push-to-main both fire for the same commit — pin both to `main`
+  # so they cancel/queue instead of racing evergreen release uploads.
+  group: apk-build-${{ (github.event.pull_request.merged && 'main') || github.event.pull_request.number || github.event.issue.number || (github.ref == 'refs/heads/main' && 'main') || github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -414,9 +416,21 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view offline-mobile >/dev/null 2>&1 || \
-            gh release create offline-mobile --title "Offline Mobile (evergreen APK)" --notes "Sideload testing APK — published when an \`offline\`/\`mobile\`-labeled PR merges (or Offline paths change on main)."
-          gh release upload offline-mobile dist-apk/offline-mobile-service-debug.apk --clobber
+          TAG=offline-mobile
+          FILE=dist-apk/offline-mobile-service-debug.apk
+          NAME=$(basename "$FILE")
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "Offline Mobile (evergreen APK)" --notes "Sideload testing APK — published when an \`offline\`/\`mobile\`-labeled PR merges (or Offline paths change on main)."
+          # --clobber races when merge+push both upload; delete then upload with retry
+          for i in 1 2 3 4; do
+            gh release delete-asset "$TAG" "$NAME" --yes 2>/dev/null || true
+            if gh release upload "$TAG" "$FILE"; then
+              exit 0
+            fi
+            sleep $((i * 2))
+          done
+          echo "Failed to upload $NAME to $TAG after retries" >&2
+          exit 1
 
       - name: Comment on PR
         if: needs.gate.outputs.pr_number != ''
@@ -525,9 +539,21 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view service-cloud >/dev/null 2>&1 || \
-            gh release create service-cloud --title "Service Cloud ONLINE (evergreen APK)" --notes "Online Capacitor APK (cloud API + seats). Not Offline Mobile — do not mix with DG-SM. Published when an \`online\`/\`mobile\`-labeled PR merges (or Online paths change on main)."
-          gh release upload service-cloud dist-apk/service-cloud-online-debug.apk --clobber
+          TAG=service-cloud
+          FILE=dist-apk/service-cloud-online-debug.apk
+          NAME=$(basename "$FILE")
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "Service Cloud ONLINE (evergreen APK)" --notes "Online Capacitor APK (cloud API + seats). Not Offline Mobile — do not mix with DG-SM. Published when an \`online\`/\`mobile\`-labeled PR merges (or Online paths change on main)."
+          # --clobber races when merge+push both upload; delete then upload with retry
+          for i in 1 2 3 4; do
+            gh release delete-asset "$TAG" "$NAME" --yes 2>/dev/null || true
+            if gh release upload "$TAG" "$FILE"; then
+              exit 0
+            fi
+            sleep $((i * 2))
+          done
+          echo "Failed to upload $NAME to $TAG after retries" >&2
+          exit 1
 
       - name: Comment on PR
         if: needs.gate.outputs.pr_number != ''
