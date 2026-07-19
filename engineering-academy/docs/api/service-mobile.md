@@ -27,6 +27,7 @@ Super Admin (JWT):
 | POST | `.../:id/unbind` | Clear `machine_id` for phone transfer |
 | POST | `.../:id/force-sync` | Stamp `settings.forceSyncAt` |
 | POST | `.../:id/notify` | Queue Bell message |
+| GET | `/api/super-admin/service-mobile-analytics` | Fleet/license health (online/offline/versions/expiry/status) — **not** ERP KPIs |
 
 **Never** accept ERP business mutations on these routes — local PGlite handles ERP.
 

@@ -62,3 +62,12 @@ Covers super-admin authentication, tenant CRUD, feature toggle management, plan 
 | 34 | Filter audit log by date range | Set a start and end date | Only entries within that date range are shown |
 | 35 | Filter audit log by action type | Select action type (e.g., "Tenant Created") | Only matching action entries are shown |
 | 36 | Audit log entry for tenant creation | Create a new tenant; check audit log | Entry with "Tenant Created" action and tenant details is present |
+
+## Platform Analytics (4)
+
+| # | Test Case | Steps | Expected Result |
+|---|-----------|-------|-----------------|
+| 37 | Cloud analytics tab | Open Analytics; leave Cloud selected | MRR / tenants / growth cards load; Cloud and On-Prem toggles still work |
+| 38 | On-Prem analytics tab | Switch to On-Prem | License health + version control panel; Cloud/On-Prem unchanged |
+| 39 | Offline Mobile analytics tab | Switch to Offline Mobile | Total / online / offline / expiring soon + version & status charts; banner notes no ERP KPIs |
+| 40 | Offline Mobile analytics API shape | As SA, `GET /api/super-admin/service-mobile-analytics` | JSON has `total`, `online`, `offline`, `expiringSoon`, `versionDistribution`, `statusBreakdown`, `expiryTimeline`; no revenue/collections fields |
