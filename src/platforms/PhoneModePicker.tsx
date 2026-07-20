@@ -33,7 +33,7 @@ export function PhoneModePicker({ onChosen }: Props) {
     >
       <div className="w-full max-w-md space-y-5">
         <div className="text-center space-y-2">
-          <img src="./icons/logo-full.png" alt="Dhandho" className="h-10 mx-auto object-contain" />
+          <img src="./icons/icon-dark.png" alt="Dhandho" className="h-14 w-14 mx-auto object-contain rounded-2xl" />
           <h1 className="text-xl font-bold text-white">Choose how this phone works</h1>
           <p className="text-sm text-white/50">
             One-time setup. Online and Offline use different accounts and data — they never mix.

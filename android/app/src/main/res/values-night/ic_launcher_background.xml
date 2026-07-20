@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Navy from Cap brand mark (dark launcher) -->
+    <color name="ic_launcher_background">#011327</color>
+</resources>

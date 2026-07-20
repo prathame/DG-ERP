@@ -24,6 +24,7 @@ import {
 import { cn } from './lib/utils';
 import { Tab } from './types';
 import { ToastProvider, LoadingSpinner, NotificationCenter } from './components/ui';
+import { BrandMark } from './components/ui/BrandMark';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { useTranslation } from './i18n';
 import { session } from './lib/session';
@@ -153,10 +154,10 @@ function CompanySlugEntry() {
   };
   return (
     <div className="min-h-screen bg-[#09090B] flex flex-col items-center justify-center gap-8 px-4">
-      <img
-        src="/icons/logo-full.png"
-        alt="Dhando"
-        className="h-24 w-auto object-contain"
+      <BrandMark
+        variant="dark"
+        alt="Dhandho"
+        className="h-24 w-24 object-contain rounded-3xl"
         style={{ filter: 'drop-shadow(0 0 24px rgba(242,125,38,0.4))' }}
       />
       <div className="w-full max-w-sm">
@@ -959,11 +960,7 @@ export default function App() {
                   <div className="lg:hidden w-9 h-9 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white text-xs font-bold shrink-0">
                     {user?.name?.charAt(0) ?? '?'}
                   </div>
-                  <img
-                    src="/icons/logo-full.png"
-                    alt="Dhando"
-                    className="hidden lg:block h-8 w-auto object-contain shrink-0"
-                  />
+                  <BrandMark alt="Dhandho" className="hidden lg:block h-8 w-8 object-contain shrink-0 rounded-lg" />
                   <div className="min-w-0">
                     <p className="font-semibold text-gray-900 text-xs lg:text-sm truncate leading-tight">
                       {user?.companyName}
