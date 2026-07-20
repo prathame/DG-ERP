@@ -548,6 +548,16 @@ export function QuotationsView() {
     Expired: 'bg-amber-50 text-amber-600',
     Converted: 'bg-purple-50 text-purple-600',
   };
+  const statusBadge = (status: string) => (
+    <span
+      className={cn(
+        'shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
+        statusColors[status] || 'bg-gray-100 text-gray-600',
+      )}
+    >
+      {status}
+    </span>
+  );
   const filtered = statusFilter === 'all' ? quotations : quotations.filter(q => q.status === statusFilter);
 
   if (selectedId && selected) {
@@ -567,14 +577,7 @@ export function QuotationsView() {
                 <ArrowLeft size={20} className="text-gray-600" />
               </button>
               <h3 className="font-bold text-lg">{selected.quotationNumber}</h3>
-              <span
-                className={cn(
-                  'px-2.5 py-1 rounded-full text-xs font-bold',
-                  statusColors[selected.status] || 'bg-gray-100',
-                )}
-              >
-                {selected.status}
-              </span>
+              {statusBadge(selected.status)}
               {selected.status === 'Draft' && (
                 <>
                   <button
@@ -850,10 +853,14 @@ export function QuotationsView() {
               <Fragment key={q.id}>
                 <MobileListRow
                   icon={<FileText />}
-                  title={q.quotationNumber}
+                  title={
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate">{q.quotationNumber}</span>
+                      {statusBadge(q.status)}
+                    </span>
+                  }
                   subtitle={`${q.customerName || q.vendorName || 'No customer'} · ${formatDate(q.quotationDate)}`}
                   trailing={`₹${q.total.toLocaleString()}`}
-                  meta={q.status}
                   onClick={() => {
                     setSelectedId(q.id);
                     fetchApi<Quotation>(`/quotations/${q.id}`)
@@ -882,9 +889,7 @@ export function QuotationsView() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-bold">{q.quotationNumber}</p>
-                    <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold', statusColors[q.status])}>
-                      {q.status}
-                    </span>
+                    {statusBadge(q.status)}
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {q.customerName || q.vendorName || 'No customer'} • {formatDate(q.quotationDate)} • {q.items.length}{' '}

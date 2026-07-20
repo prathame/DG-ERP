@@ -40,7 +40,8 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5l4 | Masters no ErrorBoundary | Hard refresh → Masters (Chrome localhost OK) | Hub loads Clients/Banks/Staff/Prices — no “Something went wrong”. Stale Products pill/state must not crash |
 | 5l3 | Masters no Vendor-Customer Map | Masters pills / desktop cards | **Vendor-Customer Map** absent Offline (no mapping routes). Cloud manufacturer Masters still show Mapping |
 | 5m | Invoice hub phone | Invoices list | Outstanding/Collected KPIs; status pills; FAB creates invoice |
-| 5n | More shortcuts | More drawer | Shortcut grid includes Stock, Finance, Accounts, Settings |
+| 5m2 | Quote status chips | Quotes list + open a quote | Colored status chip (Draft/Sent/Accepted/…) on each list row and on detail header — not faint gray meta text |
+| 5n | More shortcuts | More drawer | **Quotes & Orders** under **Finance & Reports** (next to Invoices), not Supply Chain. Also Stock, Finance, Accounts, Settings as applicable |
 | 5o | Accounts tab toggle | Settings → Appearance → Show Accounts off/on | Off: Accounts gone from More / sidebar / command palette; On: Accounts returns. Preference survives reload (localStorage) |
 | 5p | Header global search | Tap header Search (or ⌘K on desktop web build) → type a client / product / staff name | Palette shows **Pages** + entity hits (Clients, Products, Staff…). Tap a client → Masters → that client. **No** barcode verify / Scan. Search / Verify tab stays hidden. |
 | 6 | Hard sync settings | SA push tab/settings → phone Sync / wait heartbeat | Settings applied; force sync reloads UI |
