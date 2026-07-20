@@ -10,6 +10,7 @@ describe('service-mobile iOS CapApp-SPM', () => {
     for (const name of [
       'CapacitorApp',
       'CapacitorFilesystem',
+      'CapacitorLocalNotifications',
       'CapacitorPreferences',
       'CapacitorShare',
       'CapgoCapacitorPrinter',

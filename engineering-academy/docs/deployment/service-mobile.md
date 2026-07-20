@@ -77,7 +77,21 @@ Scripts: `npm run ci:android` / `npm run ci:ios`
 
 iOS default is Debug simulator (`IOS_BUILD_MODE=debug`, no Apple certs) — parallel to `assembleDebug`. For a device IPA set `IOS_BUILD_MODE=ipa` plus `APPLE_TEAM_ID`, `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISION_PROFILE_BASE64`.
 
-Plugins after `cap sync ios`: App, Filesystem, Preferences, Share, Capgo Printer (`Package.swift` is Capacitor-managed).
+Plugins after `cap sync ios`: App, Filesystem, Preferences, Share, Local Notifications, Capgo Printer (`Package.swift` is Capacitor-managed).
+
+### OS notifications (Local Notifications)
+
+Cap shows real system notifications (shade / lock screen / Notification Center) via `@capacitor/local-notifications`:
+
+| Event | When |
+|-------|------|
+| SA / control-panel Bell messages | Offline heartbeat applies `pendingNotifications` |
+| High-priority Bell digests (Online) | After `GET /notifications` poll |
+| Scheduled local backup saved | Offline sync after file write |
+
+Permission is requested on Cap boot (`POST_NOTIFICATIONS` on Android 13+). Channel id: `dhandho_alerts`.
+
+**Not included yet — remote push:** There is no `google-services.json` / Firebase project in-repo. FCM (Android) + APNs (iOS) need Firebase config, `@capacitor/push-notifications`, and a server that stores device tokens and sends when the app is killed. Local Notifications cover offline/on-device events only.
 
 ### Evergreen builds (public URLs on `/download`)
 

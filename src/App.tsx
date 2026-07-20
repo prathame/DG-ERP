@@ -678,6 +678,16 @@ export default function App() {
     resolveTabAccess(tabId, userConfig as { permissions?: unknown; role?: string } | null);
   const canAccess = (tabId: string) => getAccess(tabId) !== 'hidden';
 
+  // Cap OS notification tap → open tab (or just bring app to foreground)
+  useEffect(() => {
+    const onOsNav = (e: Event) => {
+      const hrefTab = (e as CustomEvent<{ hrefTab?: string }>).detail?.hrefTab;
+      if (hrefTab && canAccess(hrefTab)) setActiveTab(hrefTab as Tab);
+    };
+    window.addEventListener('dg-os-notification-navigate', onOsNav);
+    return () => window.removeEventListener('dg-os-notification-navigate', onOsNav);
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     // Normalize legacy dashboard tab → analytics (primary nav id)
