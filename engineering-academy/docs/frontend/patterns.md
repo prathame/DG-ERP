@@ -131,7 +131,7 @@ The `user` object's shape has grown organically over the product's life (see the
 
 ## 9. `motion` used sparingly, for state transitions — not everywhere
 
-`motion` (imported as `from 'motion/react'`) appears in `Toast`, the user-menu dropdown in `App.tsx`, `CommandPalette`, and `ConfirmDialog` — places where something **appears, disappears, or reorders**, and a lack of animation would feel abrupt. It is conspicuously **not** used for hover states (plain Tailwind `transition-colors` handles those) or for most feature-view content. This restraint matters because `motion` is one of the larger dependencies in the bundle (isolated into its own `vendor-motion` chunk — see [../performance/bundle.md](../performance/bundle.md)); using it only where the transition genuinely needs orchestrated enter/exit animation (via `AnimatePresence`) rather than for every hover effect keeps its actual runtime cost proportional to its actual UX value.
+`motion` (imported as `from 'motion/react'`) is reserved for feature views and a few heavy one-shots (`AppShutterIntro`, `ConfirmDialog`, `AppModal`) — places where enter/exit orchestration is hard to express in CSS. Shell chrome (Toast, account menu, command palette, sidebar drawer) uses CSS transitions/keyframes instead so Cap cold start does not download `vendor-motion` until a feature that needs it loads. Prefer CSS for opacity/transform fades; reach for `motion` only when you need staggered children, exit-before-unmount, or gesture-driven animation (see [../performance/bundle.md](../performance/bundle.md)).
 
 ## 10. Print/export as pure functions, not components
 

@@ -538,6 +538,83 @@ html.dg-mobile-dense aside nav button {
   }
 }
 
+/* Shell chrome animations — CSS instead of motion on cold path (Toast, menus, cmd palette) */
+@keyframes dg-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+@keyframes dg-toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+@keyframes dg-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes dg-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes dg-cmd-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -1.25rem) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+@keyframes dg-login-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dg-toast-enter {
+  animation: dg-toast-in 0.2s ease-out;
+}
+.dg-toast-progress {
+  animation: dg-toast-progress 4s linear forwards;
+}
+.dg-menu-enter {
+  animation: dg-menu-in 0.15s ease-out;
+}
+.dg-fade-enter {
+  animation: dg-fade-in 0.15s ease-out;
+}
+.dg-cmd-enter {
+  animation: dg-cmd-in 0.15s ease-out;
+}
+.dg-login-enter {
+  animation: dg-login-in 0.25s ease-out;
+}
+
 /* Hide app chrome when printing */
 @media print {
   body {
