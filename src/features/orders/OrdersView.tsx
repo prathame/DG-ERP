@@ -7,6 +7,7 @@ import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner, MobilePillTabs, MobileFab } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
+import { reportActionFailed } from '../../lib/reportActionFailure';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { importOrdersFromRows, ORDER_IMPORT_COLUMNS } from '../../lib/documentImport';
 
@@ -70,12 +71,20 @@ export function OrdersView() {
   >([{ productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }]);
 
   useEscapeKey(() => {
-    if (csvImportOpen) setCsvImportOpen(false);
-    else if (modalOpen) setModalOpen(false);
-    else if (selectedId) {
+    if (csvImportOpen) {
+      setCsvImportOpen(false);
+      return true;
+    }
+    if (modalOpen) {
+      setModalOpen(false);
+      return true;
+    }
+    if (selectedId) {
       setSelectedId(null);
       setSelected(null);
+      return true;
     }
+    return false;
   });
 
   const load = () => {
@@ -196,6 +205,7 @@ export function OrdersView() {
       toast(`Order fulfilled — ${result.total} items distributed (Batch ${result.batchId})`, 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('order.fulfill', err, { orderId: id });
     }
   };
 
@@ -209,6 +219,7 @@ export function OrdersView() {
       toast('Order deleted', 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('order.delete', err, { orderId: id });
     }
   };
 
@@ -267,127 +278,132 @@ export function OrdersView() {
   // Detail view
   if (selectedId && selected) {
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-        <div className="flex items-center gap-4 flex-wrap">
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedId(null);
-              setSelected(null);
-            }}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="flex-1">
-            <h2 className="text-xl font-bold">{selected.orderNumber}</h2>
-            <p className="text-sm text-gray-500">
-              {selected.vendorName || selected.customerName} — {formatDate(selected.orderDate)}
-            </p>
+      <>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          <div className="flex items-center gap-4 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedId(null);
+                setSelected(null);
+              }}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold">{selected.orderNumber}</h2>
+              <p className="text-sm text-gray-500">
+                {selected.vendorName || selected.customerName} — {formatDate(selected.orderDate)}
+              </p>
+            </div>
+            <span className={cn('px-3 py-1 rounded-full text-xs font-bold', statusColor(selected.status))}>
+              {selected.status}
+            </span>
+            {selected.status === 'Pending' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => updateStatus(selected.id, 'Confirmed')}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-bold"
+                >
+                  <Check size={14} className="inline mr-1" />
+                  Confirm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateStatus(selected.id, 'Cancelled')}
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold"
+                >
+                  <X size={14} className="inline mr-1" />
+                  Cancel
+                </button>
+              </>
+            )}
+            {selected.status === 'Confirmed' && (
+              <button
+                type="button"
+                onClick={() => fulfillOrder(selected.id)}
+                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-bold"
+              >
+                <Truck size={14} className="inline mr-1" />
+                Fulfill
+              </button>
+            )}
+            {(selected.status === 'Pending' || selected.status === 'Cancelled') && (
+              <button
+                type="button"
+                onClick={() => deleteOrder(selected.id)}
+                className="px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-sm font-bold"
+              >
+                <Trash2 size={14} className="inline mr-1" />
+                Delete
+              </button>
+            )}
           </div>
-          <span className={cn('px-3 py-1 rounded-full text-xs font-bold', statusColor(selected.status))}>
-            {selected.status}
-          </span>
-          {selected.status === 'Pending' && (
-            <>
-              <button
-                type="button"
-                onClick={() => updateStatus(selected.id, 'Confirmed')}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-bold"
-              >
-                <Check size={14} className="inline mr-1" />
-                Confirm
-              </button>
-              <button
-                type="button"
-                onClick={() => updateStatus(selected.id, 'Cancelled')}
-                className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold"
-              >
-                <X size={14} className="inline mr-1" />
-                Cancel
-              </button>
-            </>
-          )}
-          {selected.status === 'Confirmed' && (
-            <button
-              type="button"
-              onClick={() => fulfillOrder(selected.id)}
-              className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-bold"
-            >
-              <Truck size={14} className="inline mr-1" />
-              Fulfill
-            </button>
-          )}
-          {(selected.status === 'Pending' || selected.status === 'Cancelled') && (
-            <button
-              type="button"
-              onClick={() => deleteOrder(selected.id)}
-              className="px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-sm font-bold"
-            >
-              <Trash2 size={14} className="inline mr-1" />
-              Delete
-            </button>
-          )}
-        </div>
 
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
-                  <th className="px-4 py-3">#</th>
-                  <th className="px-4 py-3">Product</th>
-                  <th className="px-4 py-3">Qty</th>
-                  <th className="px-4 py-3">Price</th>
-                  <th className="px-4 py-3">Disc%</th>
-                  <th className="px-4 py-3">GST</th>
-                  <th className="px-4 py-3 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {selected.items.map((item, i) => (
-                  <tr key={i}>
-                    <td className="px-4 py-3 text-sm text-gray-400">{i + 1}</td>
-                    <td className="px-4 py-3 text-sm font-medium">{item.productName}</td>
-                    <td className="px-4 py-3 text-sm">{item.quantity}</td>
-                    <td className="px-4 py-3 text-sm">₹{item.price.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm">{item.discountPercent > 0 ? `${item.discountPercent}%` : '-'}</td>
-                    <td className="px-4 py-3 text-sm">{item.withGst ? '✓' : '-'}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-right">₹{item.lineTotal.toLocaleString()}</td>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
+                    <th className="px-4 py-3">#</th>
+                    <th className="px-4 py-3">Product</th>
+                    <th className="px-4 py-3">Qty</th>
+                    <th className="px-4 py-3">Price</th>
+                    <th className="px-4 py-3">Disc%</th>
+                    <th className="px-4 py-3">GST</th>
+                    <th className="px-4 py-3 text-right">Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="p-4 bg-gray-50 border-t border-gray-200 space-y-1">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Subtotal</span>
-              <span className="font-bold">₹{selected.subtotal.toLocaleString()}</span>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {selected.items.map((item, i) => (
+                    <tr key={i}>
+                      <td className="px-4 py-3 text-sm text-gray-400">{i + 1}</td>
+                      <td className="px-4 py-3 text-sm font-medium">{item.productName}</td>
+                      <td className="px-4 py-3 text-sm">{item.quantity}</td>
+                      <td className="px-4 py-3 text-sm">₹{item.price.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-sm">
+                        {item.discountPercent > 0 ? `${item.discountPercent}%` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm">{item.withGst ? '✓' : '-'}</td>
+                      <td className="px-4 py-3 text-sm font-bold text-right">₹{item.lineTotal.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">GST ({selected.gstRate}%)</span>
-              <span className="font-bold">₹{selected.gstAmount.toLocaleString()}</span>
+            <div className="p-4 bg-gray-50 border-t border-gray-200 space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Subtotal</span>
+                <span className="font-bold">₹{selected.subtotal.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">GST ({selected.gstRate}%)</span>
+                <span className="font-bold">₹{selected.gstAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm border-t border-gray-200 pt-1">
+                <span className="font-medium">Total</span>
+                <span className="font-bold text-lg text-brand">₹{selected.total.toLocaleString()}</span>
+              </div>
             </div>
-            <div className="flex justify-between text-sm border-t border-gray-200 pt-1">
-              <span className="font-medium">Total</span>
-              <span className="font-bold text-lg text-brand">₹{selected.total.toLocaleString()}</span>
+          </div>
+          {selected.notes && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <p className="text-xs font-bold text-gray-400 uppercase mb-1">Notes</p>
+              <p className="text-sm">{selected.notes}</p>
             </div>
-          </div>
-        </div>
-        {selected.notes && (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Notes</p>
-            <p className="text-sm">{selected.notes}</p>
-          </div>
-        )}
-        {selected.fulfilledBatchId && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-            <p className="text-sm text-emerald-700 font-medium">
-              Fulfilled as Distribution Batch: <span className="font-mono">{selected.fulfilledBatchId}</span>
-            </p>
-          </div>
-        )}
-      </motion.div>
+          )}
+          {selected.fulfilledBatchId && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+              <p className="text-sm text-emerald-700 font-medium">
+                Fulfilled as Distribution Batch: <span className="font-mono">{selected.fulfilledBatchId}</span>
+              </p>
+            </div>
+          )}
+        </motion.div>
+        <ConfirmRenderer />
+      </>
     );
   }
 

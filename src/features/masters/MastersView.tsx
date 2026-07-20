@@ -1,6 +1,18 @@
 import React, { useState, useEffect, lazy, Suspense, Fragment } from 'react';
 import { motion } from 'motion/react';
-import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet, Truck } from 'lucide-react';
+import {
+  Users,
+  ShoppingCart,
+  ShoppingBag,
+  Gift,
+  Package,
+  CreditCard,
+  Link2,
+  Plus,
+  Tag,
+  Wallet,
+  Truck,
+} from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
@@ -9,6 +21,7 @@ import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { useTranslation } from '../../i18n';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
 import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
 const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
@@ -20,7 +33,9 @@ const RewardRulesView = lazy(() => import('./RewardRulesView').then(m => ({ defa
 const PriceListView = lazy(() => import('./PriceListView').then(m => ({ default: m.PriceListView })));
 const StaffMasterView = lazy(() => import('./StaffMasterView').then(m => ({ default: m.StaffMasterView })));
 
-export type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList' | 'staff';
+/** Hub ids — `item` / `expenses` are shortcuts to other tabs (Inventory / Purchases). */
+export type MasterType =
+  'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList' | 'staff' | 'expenses';
 
 type StaffRow = { id: string; name: string; phone?: string; role?: string };
 
@@ -60,6 +75,7 @@ export function MastersView({
       bank: t('masters.banks'),
       staff: t('masters.staff'),
       priceList: t('masters.prices'),
+      expenses: t('masters.expenses'),
       mapping: t('masters.mapping'),
       rewardRules: t('nav.rewards'),
     };
@@ -121,6 +137,11 @@ export function MastersView({
     const master = launch.master;
     if (master === 'item' && !servicePhoneUx) {
       setActiveTab('inventory');
+      onLaunchConsumed?.();
+      return;
+    }
+    if (master === 'expenses') {
+      setActiveTab('purchases');
       onLaunchConsumed?.();
       return;
     }
@@ -204,6 +225,19 @@ export function MastersView({
       color: 'text-indigo-600',
       bg: 'bg-indigo-50',
     },
+    // Shortcut to existing Purchases/Expenses screen (More → Expenses) — not a nested copy.
+    ...(tv('purchases')
+      ? [
+          {
+            id: 'expenses' as const,
+            name: tabConfig['purchases']?.label || t('masters.expenses'),
+            count: '' as number | string,
+            icon: ShoppingBag,
+            color: 'text-violet-600',
+            bg: 'bg-violet-50',
+          },
+        ]
+      : []),
     ...(!servicePhoneUx ? [priceListMaster] : []),
     ...(tv('rewards')
       ? [
@@ -331,6 +365,10 @@ export function MastersView({
       setActiveTab('inventory');
       return;
     }
+    if (id === 'expenses') {
+      setActiveTab('purchases');
+      return;
+    }
     if (id === 'staff') setFocusStaffId(opts?.staffId ?? null);
     else setFocusStaffId(null);
     if (id === 'vendor') setFocusVendorId(opts?.vendorId ?? null);
@@ -342,20 +380,31 @@ export function MastersView({
     openFull(id);
   };
 
+  const closeSelectedMaster = () => {
+    if (selectedMaster === 'staff' && (focusStaffId || focusStaffName)) setHubTab('staff');
+    setSelectedMaster(null);
+    setFocusStaffId(null);
+    setFocusStaffName(null);
+    setFocusVendorId(null);
+  };
+
+  useEscapeKey(() => {
+    if (!selectedMaster) return false;
+    closeSelectedMaster();
+    return true;
+  });
+
   if (selectedMaster === 'customer')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <CustomerMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} user={user} />
+        <CustomerMasterView onBack={closeSelectedMaster} onRefresh={refreshCounts} user={user} />
       </Suspense>
     );
   if (selectedMaster === 'vendor')
     return (
       <Suspense fallback={<MasterFallback />}>
         <VendorMasterView
-          onBack={() => {
-            setSelectedMaster(null);
-            setFocusVendorId(null);
-          }}
+          onBack={closeSelectedMaster}
           onRefresh={refreshCounts}
           businessType={cfg.type}
           initialVendorId={focusVendorId ?? undefined}
@@ -365,38 +414,32 @@ export function MastersView({
   if (selectedMaster === 'bank')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <BankMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} />
+        <BankMasterView onBack={closeSelectedMaster} onRefresh={refreshCounts} />
       </Suspense>
     );
   if (selectedMaster === 'mapping')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <VendorCustomerMappingView onBack={() => setSelectedMaster(null)} />
+        <VendorCustomerMappingView onBack={closeSelectedMaster} />
       </Suspense>
     );
   if (selectedMaster === 'rewardRules')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <RewardRulesView onBack={() => setSelectedMaster(null)} />
+        <RewardRulesView onBack={closeSelectedMaster} />
       </Suspense>
     );
   if (selectedMaster === 'priceList')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <PriceListView onBack={() => setSelectedMaster(null)} />
+        <PriceListView onBack={closeSelectedMaster} />
       </Suspense>
     );
   if (selectedMaster === 'staff')
     return (
       <Suspense fallback={<MasterFallback />}>
         <StaffMasterView
-          onBack={() => {
-            // Hub-originated payment detail calls onBack — keep Staff pill selected.
-            if (focusStaffId || focusStaffName) setHubTab('staff');
-            setSelectedMaster(null);
-            setFocusStaffId(null);
-            setFocusStaffName(null);
-          }}
+          onBack={closeSelectedMaster}
           onRefresh={refreshCounts}
           initialStaffId={focusStaffId ?? undefined}
           initialStaffName={focusStaffName ?? undefined}
@@ -446,7 +489,7 @@ export function MastersView({
           value={active || ''}
           onChange={id => {
             const next = id as MasterType;
-            if (next === 'priceList' || next === 'mapping' || next === 'rewardRules') {
+            if (next === 'priceList' || next === 'mapping' || next === 'rewardRules' || next === 'expenses') {
               openFull(next);
               return;
             }

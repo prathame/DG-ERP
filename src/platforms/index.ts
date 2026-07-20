@@ -32,6 +32,10 @@ export async function initPlatform(): Promise<void> {
     // Android shade / iOS Notification Center (local). Prompt once; no-op if denied.
     const { ensureOsNotificationPermission } = await import('../lib/capLocalNotifications');
     void ensureOsNotificationPermission();
+
+    // Dirty/clean session flags + auto bug report after Cap crash/freeze (e.g. WhatsApp PDF).
+    const { initUnexpectedStopReporting } = await import('../lib/unexpectedStop');
+    await initUnexpectedStopReporting();
   } catch {
     /* web / Electron */
   }
