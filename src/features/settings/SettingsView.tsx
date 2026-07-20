@@ -1845,7 +1845,7 @@ export function SettingsView({
                         send them). Dhando does not store your business data in the cloud.{' '}
                       </>
                     ) : null}
-                    Files are saved in the <strong className="text-gray-700">Dhandho</strong> folder on this phone
+                    Files are saved under <strong className="text-gray-700">Documents/Dhandho</strong> on this phone
                     (backups, invoices, bug reports).
                   </p>
                 )}
@@ -1862,7 +1862,7 @@ export function SettingsView({
                           const { filename, path } = await exportLocalBackupNow({
                             openMail: Boolean(backupSettings?.email),
                           });
-                          const where = path || `Dhandho/backups/${filename}`;
+                          const where = path || `Documents/Dhandho/backups/${filename}`;
                           toast(`Backup done — saved to ${where}`, 'success');
                           setBackupSettings(prev =>
                             prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev,

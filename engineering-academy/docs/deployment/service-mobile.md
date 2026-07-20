@@ -23,15 +23,15 @@ Ships inside the **unified Cap shell** (`dist-service-phone`): first launch pick
 
 ## Policy: we do not store business data
 
-On the Cap phone app (**Online and Offline**), files are written under a fixed **Dhandho/** folder (no path picker):
+On the Cap phone app (**Online and Offline**), files are written under a fixed **Documents/Dhandho/** folder (no path picker):
 
 | Subfolder | Contents |
 |-----------|----------|
-| `Dhandho/backups/` | Offline: encrypted local backup `.json`. Online: cloud backup download `.json` |
-| `Dhandho/invoices/` | Invoice / quote PDFs |
-| `Dhandho/bug-reports/` | Bug report `.txt` |
+| `Documents/Dhandho/backups/` | Offline: encrypted local backup `.json`. Online: cloud backup download `.json` |
+| `Documents/Dhandho/invoices/` | Invoice / quote PDFs |
+| `Documents/Dhandho/bug-reports/` | Bug report `.txt` |
 
-Android uses the app external files directory; iOS uses Documents. Settings → Backup shows **Backup started…** then **Backup done — saved to Dhandho/backups/…**.
+Both platforms use Capacitor `Directory.Documents` (Android public Documents; iOS app Documents + Files sharing). On Samsung/Android open **My Files → Internal storage → Documents → Dhandho → backups**. Settings → Backup shows **Backup started…** then **Backup done — saved to Documents/Dhandho/backups/…** only after `Filesystem.stat` confirms a non-empty file.
 
 Offline Mobile backups are **user-owned** (phone file + optional mailto to staff Gmail). Cloud backup upload/download APIs for Offline return **410**.
 
