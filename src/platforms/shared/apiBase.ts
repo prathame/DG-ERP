@@ -37,13 +37,30 @@ export function resolveConfiguredApiOrigin(configured: string | undefined | null
   }
 }
 
+/** Cap WebView / capacitor: origin is localhost — never the cloud API. */
+function isCapOrLocalWebView(): boolean {
+  try {
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (cap?.isNativePlatform?.()) return true;
+  } catch {
+    /* ignore */
+  }
+  if (typeof window === 'undefined' || !window.location?.origin) return false;
+  const origin = window.location.origin;
+  return origin === 'https://localhost' || origin === 'http://localhost' || origin.startsWith('capacitor:');
+}
+
 /**
  * Origin for API calls (no trailing slash), e.g. https://dg-erp.onrender.com
- * Empty string = same-origin relative `/api` (web).
+ * Empty string = same-origin relative `/api` (hosted web on Render).
+ * Online Cap must never use relative `/api` (that hits Cap localhost).
  */
 export function getApiOrigin(): string {
   const env = (import.meta.env.VITE_API_ORIGIN as string | undefined)?.trim();
-  return resolveConfiguredApiOrigin(env);
+  const resolved = resolveConfiguredApiOrigin(env);
+  if (resolved) return resolved;
+  if (isCapOrLocalWebView()) return CLOUD_ORIGIN_FALLBACK;
+  return '';
 }
 
 /** Base path including `/api`, e.g. https://dg-erp.onrender.com/api or `/api`. */

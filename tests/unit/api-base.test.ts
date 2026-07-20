@@ -35,9 +35,25 @@ describe('resolveConfiguredApiOrigin', () => {
 });
 
 describe('resolveApiUrl / getApiOrigin (no VITE_API_ORIGIN)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('uses relative /api paths for hosted web', () => {
+    vi.stubGlobal('window', {
+      location: { hostname: 'dg-erp.onrender.com', origin: 'https://dg-erp.onrender.com' },
+    });
     // vitest does not set VITE_API_ORIGIN by default
     expect(getApiOrigin()).toBe('');
     expect(resolveApiUrl('/api/tenant/by-slug/test')).toBe('/api/tenant/by-slug/test');
+  });
+
+  it('falls back to Render for Online Cap WebView when env is unset', () => {
+    vi.stubGlobal('window', {
+      location: { hostname: 'localhost', origin: 'https://localhost' },
+      Capacitor: { isNativePlatform: () => true },
+    });
+    expect(getApiOrigin()).toBe(CLOUD_ORIGIN_FALLBACK);
+    expect(resolveApiUrl('/api/tenant/by-slug/test')).toBe(`${CLOUD_ORIGIN_FALLBACK}/api/tenant/by-slug/test`);
   });
 });
