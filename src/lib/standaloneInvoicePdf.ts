@@ -8,9 +8,11 @@
  * 2. Cap WhatsApp (and any Cap bill PDF) → load that template + fill invoice-only fields
  *    (number, date, client, lines, totals/payments), then share.
  * 3. Print still uses generateStandaloneInvoiceHtml + system Print (full HTML fidelity).
+ * 4. Cap Invoice/Quotation Save may pre-bake under Documents/Dhandho/invoices/ (see capBillPdfCache).
  *
- * Follow-up (not in this PR): optionally bake PDF on Cap Invoice Save under
- * Dhandho/invoices and reuse when fresh; rebuild after invoice edit.
+ * Multi-page: continued pages get a compact company/logo strip + doc title “(continued)”
+ * + page indicator (print-like thead repeat for item columns). Bank / totals / amount in
+ * words / signature stay on the last page only.
  */
 
 import type { jsPDF } from 'jspdf';
@@ -145,6 +147,7 @@ export async function buildStandaloneInvoicePdfBlob(
   let y = margin;
   /** Set when ensureSpace starts a new page — used to repeat item table headers. */
   let pageBreakPending = false;
+  const continuedHdrH = 14;
 
   const setBorder = () => {
     doc.setDrawColor(BORDER);
@@ -152,11 +155,48 @@ export async function buildStandaloneInvoicePdfBlob(
   };
   const setFill = () => doc.setFillColor(FILL, FILL, FILL);
 
+  /** Compact header on page 2+ — logo/company + title continued + page N (not full first-page block). */
+  const drawContinuedPageHeader = () => {
+    const pageNum = doc.getNumberOfPages();
+    const h = continuedHdrH;
+    setBorder();
+    doc.rect(margin, margin, contentW, h);
+
+    const logoSize = 9;
+    const logoX = margin + 2.5;
+    const logoY = margin + (h - logoSize) / 2;
+    setBorder();
+    doc.rect(logoX, logoY, logoSize, logoSize);
+    if (!tryAddImage(doc, logoSrc, logoX + 0.4, logoY + 0.4, logoSize - 0.8, logoSize - 0.8)) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text((companyName || 'C').charAt(0).toUpperCase(), logoX + logoSize / 2, logoY + 6.2, {
+        align: 'center',
+      });
+    }
+
+    doc.setTextColor(accent[0], accent[1], accent[2]);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(companyName, margin + 14, margin + 5.5);
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(MUTED);
+    doc.text(`${docTitle} (continued)`, margin + 14, margin + 10.5);
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text(`Page ${pageNum}`, right - 3, margin + 8, { align: 'right' });
+
+    y = margin + h + 2;
+  };
+
   const ensureSpace = (need: number) => {
     if (y + need > pageH - 12) {
       doc.addPage();
-      y = margin;
       pageBreakPending = true;
+      drawContinuedPageHeader();
     }
   };
 

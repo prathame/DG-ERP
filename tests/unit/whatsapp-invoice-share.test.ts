@@ -6,6 +6,7 @@ const getUriMock = vi.fn();
 const mkdirMock = vi.fn();
 const saveDhandhoMock = vi.fn();
 const buildPdfMock = vi.fn();
+const loadCacheMock = vi.fn();
 
 vi.mock('@capacitor/share', () => ({
   Share: { share: (...args: unknown[]) => shareMock(...args) },
@@ -37,6 +38,13 @@ vi.mock('../../src/lib/standaloneInvoicePdf', () => ({
   buildStandaloneInvoicePdfBlob: (...args: unknown[]) => buildPdfMock(...args),
 }));
 
+vi.mock('../../src/lib/capBillPdfCache', () => ({
+  loadFreshCapBillPdfCache: (...args: unknown[]) => loadCacheMock(...args),
+  scheduleBakeCapBillPdfCache: vi.fn(),
+  bakeCapBillPdfCache: vi.fn(),
+  billPdfContentKey: () => 'test-key',
+}));
+
 function stubCap(native: boolean) {
   const loc = { pathname: '/', href: 'http://localhost/', search: '', hash: '' };
   vi.stubGlobal('window', {
@@ -58,6 +66,7 @@ vi.mock('../../src/lib/session', () => ({
 }));
 
 const sampleInv = {
+  id: 'inv-uuid-1',
   invoiceNumber: 'INV-1',
   customerName: 'Acme Corp',
   customerPhone: '9876543210',
@@ -79,6 +88,7 @@ describe('Cap WhatsApp invoice share (light PDF + timeout fallback + debug logs)
     mkdirMock.mockReset();
     saveDhandhoMock.mockReset();
     buildPdfMock.mockReset();
+    loadCacheMock.mockReset();
     shareMock.mockResolvedValue(undefined);
     writeFileMock.mockResolvedValue({});
     getUriMock.mockResolvedValue({ uri: 'content://cache/share/inv.pdf' });
@@ -90,6 +100,7 @@ describe('Cap WhatsApp invoice share (light PDF + timeout fallback + debug logs)
       filename: 'x.pdf',
     });
     buildPdfMock.mockResolvedValue(new Blob(['%PDF-1.4 mock'], { type: 'application/pdf' }));
+    loadCacheMock.mockResolvedValue(null);
     try {
       sessionStorage.clear();
     } catch {
@@ -134,6 +145,7 @@ describe('Cap WhatsApp invoice share (light PDF + timeout fallback + debug logs)
     const result = await shareStandaloneInvoiceWhatsApp(sampleInv, { onPreparing: preparing });
 
     expect(preparing).toHaveBeenCalledOnce();
+    expect(loadCacheMock).toHaveBeenCalledOnce();
     expect(buildPdfMock).toHaveBeenCalledOnce();
     expect(result.how).toBe('shared');
     expect(shareMock).toHaveBeenCalledWith(
@@ -152,6 +164,23 @@ describe('Cap WhatsApp invoice share (light PDF + timeout fallback + debug logs)
     const logs = getRecentClientLogs(40).join('\n');
     expect(logs).toMatch(/correlationId/);
     expect(logs).toMatch(/INV-1/);
+  });
+
+  it('Cap WhatsApp uses fresh baked cache and skips jsPDF build', async () => {
+    stubCap(true);
+    loadCacheMock.mockResolvedValue(new Blob(['%PDF-1.4 cached'], { type: 'application/pdf' }));
+
+    const { shareStandaloneInvoiceWhatsApp } = await import('../../src/lib/printStandaloneInvoice');
+    const { getClientBreadcrumbs } = await import('../../src/lib/logger');
+
+    const result = await shareStandaloneInvoiceWhatsApp(sampleInv);
+
+    expect(result.how).toBe('shared');
+    expect(loadCacheMock).toHaveBeenCalledOnce();
+    expect(buildPdfMock).not.toHaveBeenCalled();
+    expect(shareMock).toHaveBeenCalled();
+    const crumbs = getClientBreadcrumbs(20).join('\n');
+    expect(crumbs).toMatch(/PDF cache hit/);
   });
 
   it('Cap WhatsApp falls back to text on PDF timeout', async () => {

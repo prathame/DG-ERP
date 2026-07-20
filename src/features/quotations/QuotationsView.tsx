@@ -38,6 +38,7 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
 import { session } from '../../lib/session';
 import { generateQuotationHtml, quotationToStandalonePrint } from '../../lib/billTemplates';
+import { scheduleBakeCapBillPdfCache } from '../../lib/capBillPdfCache';
 import { shareStandaloneInvoiceWhatsApp, whatsAppInvoiceShareToast } from '../../lib/printStandaloneInvoice';
 import { useTranslation } from '../../i18n';
 import { SearchSelect } from '../../components/ui/SearchSelect';
@@ -261,6 +262,7 @@ export function QuotationsView() {
           company: { name: companyName || 'Dhandho' },
           billSettings: (billSettings || {}) as Record<string, unknown>,
         }),
+        id: q.id,
         taxTotal: q.gstAmount,
         customerPhone: q.customerPhone,
         grandTotal: q.total,
@@ -415,19 +417,44 @@ export function QuotationsView() {
           withGst: r.withGst,
         })),
       };
-      if (editingId) {
-        await fetchApi(`/quotations/${editingId}`, { method: 'PUT', body: JSON.stringify(body) });
-        toast('Quotation updated', 'success');
-      } else {
-        await fetchApi('/quotations', { method: 'POST', body: JSON.stringify(body) });
-        toast('Quotation created', 'success');
+      const saved = editingId
+        ? await fetchApi<Quotation>(`/quotations/${editingId}`, { method: 'PUT', body: JSON.stringify(body) })
+        : await fetchApi<Quotation>('/quotations', { method: 'POST', body: JSON.stringify(body) });
+      toast(editingId ? 'Quotation updated' : 'Quotation created', 'success');
+      // Cap: bake PDF under Documents/Dhandho/invoices/ for faster WhatsApp (failure ignored).
+      if (saved?.id) {
+        scheduleBakeCapBillPdfCache(
+          {
+            ...quotationToStandalonePrint({
+              quotationNumber: saved.quotationNumber,
+              quotationDate: saved.quotationDate,
+              validUntil: saved.validUntil,
+              status: saved.status,
+              customerName: saved.customerName,
+              customerPhone: saved.customerPhone,
+              customerEmail: saved.customerEmail,
+              vendorName: saved.vendorName,
+              items: saved.items,
+              subtotal: saved.subtotal,
+              gstRate: saved.gstRate,
+              gstAmount: saved.gstAmount,
+              total: saved.total,
+              notes: offlinePdf ? undefined : saved.notes,
+              company: { name: companyName || 'Dhandho' },
+              billSettings: (billSettings || {}) as Record<string, unknown>,
+            }),
+            id: saved.id,
+            taxTotal: saved.gstAmount,
+            grandTotal: saved.total,
+          },
+          { billSettings: (billSettings || {}) as Record<string, unknown>, docType: 'quotation' },
+        );
       }
       setModalOpen(false);
       resetForm();
       load();
       if (editingId && selectedId === editingId) {
-        const refreshed = await fetchApi<Quotation>(`/quotations/${editingId}`);
-        setSelected(refreshed);
+        setSelected(saved);
       }
     } catch (err) {
       toast((err as Error).message, 'error');

@@ -26,6 +26,7 @@ import {
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
+import { scheduleBakeCapBillPdfCache } from '../../lib/capBillPdfCache';
 import {
   printStandaloneInvoice,
   shareStandaloneInvoiceWhatsApp,
@@ -999,6 +1000,10 @@ export function CreateInvoiceModal({
         }),
       });
       toast(`Invoice ${created?.invoiceNumber || invoiceNumber} created`, 'success');
+      // Cap: bake PDF under Documents/Dhandho/invoices/ for faster WhatsApp (failure ignored).
+      if (created?.id) {
+        scheduleBakeCapBillPdfCache(created);
+      }
       // Stay open so vendor/client create can Print immediately
       if (created?.items && Array.isArray(created.items)) {
         setCreatedInvoice(created);

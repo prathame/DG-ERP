@@ -5,6 +5,7 @@ import { invoiceHasGst } from './billSettingsFlags';
 import { clientLogger, ensureCorrelationId, pushClientBreadcrumb } from './logger';
 import { isServicePhoneUx } from '../platforms/service-cloud/mode';
 import { session } from './session';
+import { loadFreshCapBillPdfCache } from './capBillPdfCache';
 import { isNativeCapacitor } from './dhandhoFiles';
 import { buildStandaloneInvoicePdfBlob } from './standaloneInvoicePdf';
 import {
@@ -231,34 +232,55 @@ async function shareCapInvoicePdfWithFallback(
     {};
 
   try {
-    waLog('info', 'WhatsApp PDF build start', {
-      ...baseCtx,
-      path: 'pdf',
-      filename,
-      timeoutMs: CAP_WHATSAPP_PDF_TIMEOUT_MS,
-      engine: 'jspdf-light',
-    });
-    const blob = await withTimeout(
-      buildStandaloneInvoicePdfBlob(
-        inv,
-        {
-          companyName: user.companyName,
-          address: user.address,
-          phone: user.phone,
-          email: user.email,
-          gstNumber: user.gstNumber,
-        },
-        { hasGst: invoiceHasGst(inv), billSettings, docType: options?.docType || 'invoice' },
-      ),
-      CAP_WHATSAPP_PDF_TIMEOUT_MS,
-      'PDF_TIMEOUT',
-    );
-    waLog('info', 'WhatsApp PDF build ok', {
-      ...baseCtx,
-      path: 'pdf',
-      filename,
-      bytes: blob.size,
-    });
+    const docType = options?.docType || 'invoice';
+    const pdfOpts = { hasGst: invoiceHasGst(inv), billSettings, docType };
+
+    // Prefer Save-baked cache (Documents/Dhandho/invoices) when contentKey matches.
+    let blob: Blob | null = null;
+    if (inv.id) {
+      waLog('info', 'WhatsApp PDF cache lookup', { ...baseCtx, path: 'pdf', invoiceId: inv.id, docType });
+      blob = await loadFreshCapBillPdfCache({ ...inv, id: inv.id }, pdfOpts);
+      if (blob) {
+        waLog('info', 'WhatsApp PDF cache hit', {
+          ...baseCtx,
+          path: 'pdf',
+          filename,
+          bytes: blob.size,
+          engine: 'cache',
+        });
+      }
+    }
+
+    if (!blob) {
+      waLog('info', 'WhatsApp PDF build start', {
+        ...baseCtx,
+        path: 'pdf',
+        filename,
+        timeoutMs: CAP_WHATSAPP_PDF_TIMEOUT_MS,
+        engine: 'jspdf-light',
+      });
+      blob = await withTimeout(
+        buildStandaloneInvoicePdfBlob(
+          inv,
+          {
+            companyName: user.companyName,
+            address: user.address,
+            phone: user.phone,
+            email: user.email,
+            gstNumber: user.gstNumber,
+          },
+          pdfOpts,
+        ),
+        CAP_WHATSAPP_PDF_TIMEOUT_MS,
+        'PDF_TIMEOUT',
+      );
+      waLog('info', 'WhatsApp PDF build ok', {
+        ...baseCtx,
+        path: 'pdf',
+        filename,
+        bytes: blob.size,
+      });
+    }
 
     const how = await sharePdfNativeWhatsApp(blob, filename, {
       ...baseCtx,
@@ -301,11 +323,11 @@ async function shareCapInvoicePdfWithFallback(
 
 /**
  * Share invoice via WhatsApp.
- * Cap: shared `buildStandaloneInvoicePdfBlob` (billSettings template + invoice fields;
- * no html2canvas) with hard timeout → Dhandho/Cache file-only Share; on fail → text + toast.
+ * Cap: prefer Save-baked PDF under Dhandho/invoices when fresh; else shared
+ * `buildStandaloneInvoicePdfBlob` (billSettings template + invoice fields; no html2canvas)
+ * with hard timeout → Dhandho/Cache file-only Share; on fail → text + toast.
  * Web: HTML → html2pdf file share / wa.me + download.
  * Print path stays full Tax Invoice HTML + system Print.
- * Follow-up: pre-bake Cap PDF on Invoice Save for faster share (skip if stale).
  */
 export async function shareStandaloneInvoiceWhatsApp(
   inv: PrintableStandaloneInvoice,

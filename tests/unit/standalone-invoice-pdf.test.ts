@@ -145,4 +145,50 @@ describe('buildStandaloneInvoicePdfBlob (Cap light print-like)', () => {
     expect(text).toContain('HSN');
     expect(text).toContain('CGST');
   });
+
+  it('repeats continued page header on multi-page invoices (bank once)', async () => {
+    const manyItems = Array.from({ length: 40 }, (_, i) => ({
+      description: `Line item number ${i + 1} with a longer description for wrap`,
+      hsnSac: '8536',
+      qty: 1,
+      rate: 100 + i,
+      gstPercent: 0,
+      taxable: 100 + i,
+      tax: 0,
+      total: 100 + i,
+    }));
+    const subtotal = manyItems.reduce((s, it) => s + it.total, 0);
+    const blob = await buildStandaloneInvoicePdfBlob(
+      {
+        ...baseInv,
+        items: manyItems,
+        subtotal,
+        grandTotal: subtotal,
+        paidAmount: 0,
+        advanceApplied: 0,
+        outstanding: subtotal,
+        status: 'sent',
+      },
+      { companyName: 'Prathamesh', phone: '9999999999', address: 'Jaipur' },
+      {
+        hasGst: false,
+        billSettings: {
+          bankName: 'Demo Bank',
+          bankAccountNumber: '123456',
+          bankIfsc: 'DEMO0001',
+          footerText: 'Powered by Dhandho Management',
+        },
+      },
+    );
+    const text = await pdfText(blob);
+    // jsPDF escapes parens in PDF strings: \(continued\)
+    expect(text).toMatch(/continued/);
+    expect(text).toContain('Page 2');
+    expect(text).toContain('ITEM NAME');
+    // Bank / signatory footer blocks appear once (last page), not per continued page
+    const bankHits = text.split('Bank Details').length - 1;
+    expect(bankHits).toBe(1);
+    expect(text).toContain('Authorized Signatory');
+    expect(text).toContain('Sub Total');
+  });
 });
