@@ -155,6 +155,25 @@ export async function buildBugReportText(extras: BugReportExtras = {}): Promise<
   return lines.join('\n');
 }
 
+/**
+ * Silently save a bug report under Dhandho/bug-reports (no Share sheet).
+ * Used for unexpected-stop auto-reports after Cap process death.
+ */
+export async function persistBugReport(extras: BugReportExtras = {}): Promise<'saved' | 'skipped'> {
+  if (!(await isNativeCapacitor())) return 'skipped';
+  const text = await buildBugReportText(extras);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `dhandho-bug-report-unexpected-${stamp}.txt`;
+  const { saveDhandhoFile } = await import('./dhandhoFiles');
+  await saveDhandhoFile({
+    subdir: 'bug-reports',
+    filename,
+    data: text,
+    encoding: 'utf8',
+  });
+  return 'saved';
+}
+
 /** Save to Dhandho/bug-reports on Cap; else Share sheet / clipboard / download .txt */
 export async function shareBugReport(extras: BugReportExtras = {}): Promise<BugReportShareResult> {
   const text = await buildBugReportText(extras);

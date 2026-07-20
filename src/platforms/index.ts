@@ -28,6 +28,10 @@ export async function initPlatform(): Promise<void> {
       }
     };
     requestAnimationFrame(() => setTimeout(applyFallbackInsets, 50));
+
+    // Dirty/clean session flags + auto bug report after Cap crash/freeze (e.g. WhatsApp PDF).
+    const { initUnexpectedStopReporting } = await import('../lib/unexpectedStop');
+    await initUnexpectedStopReporting();
   } catch {
     /* web / Electron */
   }

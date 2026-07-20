@@ -29,7 +29,9 @@ On the Cap phone app (**Online and Offline**), files are written under a fixed *
 |-----------|----------|
 | `Dhandho/backups/` | Offline: encrypted local backup `.json`. Online: cloud backup download `.json` |
 | `Dhandho/invoices/` | Invoice / quote PDFs |
-| `Dhandho/bug-reports/` | Bug report `.txt` |
+| `Dhandho/bug-reports/` | Bug report `.txt` (manual Share + **auto** after Cap unexpected stop / freeze) |
+
+**Unexpected stop (Cap):** While the app is foregrounded, a dirty session flag is set; on pause/background it is cleared (clean shutdown). If the process dies without that clean mark (crash, WhatsApp/WebView freeze kill), the next launch silently writes `dhandho-bug-report-unexpected-*.txt` under `Dhandho/bug-reports/`. Client breadcrumbs and the log ring are write-through to `localStorage` so WhatsApp/PDF steps survive process death (sessionStorage alone would be empty). OS background kills after a normal pause do **not** create a report.
 
 Android uses the app external files directory; iOS uses Documents. Settings → Backup shows **Backup started…** then **Backup done — saved to Dhandho/backups/…**.
 
