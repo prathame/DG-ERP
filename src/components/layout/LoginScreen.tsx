@@ -5,6 +5,7 @@ import { PasswordInput } from '../ui/PasswordInput';
 import { session } from '../../lib/session';
 import { bugReportFeedbackMessage, shareBugReport } from '../../lib/bugReport';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
+import { BrandMark } from '../ui/BrandMark';
 
 type LoginMode = 'login' | 'forgot' | 'reset';
 
@@ -164,13 +165,19 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
               alt={tenant.companyName}
               className="w-16 h-16 rounded-2xl object-contain mx-auto mb-4"
             />
-          ) : (
+          ) : isBranded ? (
             <div
               className="inline-flex w-16 h-16 rounded-2xl items-center justify-center font-bold text-2xl text-white mb-4"
               style={{ backgroundColor: accentColor }}
             >
-              {isBranded ? (tenant.companyName || 'C').substring(0, 2).toUpperCase() : 'DG'}
+              {(tenant.companyName || 'C').substring(0, 2).toUpperCase()}
             </div>
+          ) : (
+            <BrandMark
+              relative={isMobileAppShell()}
+              alt="Dhandho"
+              className="w-16 h-16 rounded-2xl object-contain mx-auto mb-4"
+            />
           )}
           <h1 className="text-2xl font-bold text-white">{isBranded ? tenant.companyName : 'Dhandho'}</h1>
           <p className="text-gray-400 text-sm mt-1">

@@ -1,21 +1,31 @@
 # Dhandho Cap brand icons
 
-Source masters for Android / iOS / web launcher icons.
+Single orange master for Android / iOS / web launcher icons and in-app branding.
 
 | File | Use |
 |------|-----|
-| `icon-light.png` | Light launcher (white bg, navy D, orange dot) |
-| `icon-dark.png` | Dark / night launcher (navy bg, white D, orange dot) |
-| `icon-mark-light.png` | Transparent navy mark (adaptive foreground, light) |
-| `icon-mark-dark.png` | Transparent white mark (adaptive foreground, night) |
+| `icon-orange-source.png` | Master Canva export (orange tile, white D + dot) |
+| `icon-source.png` | Copy of the orange master |
+| `icon-light.png` / `icon-dark.png` | Same orange tile (kept as dual names for older paths) |
+| `icon-mark-*.png` | Transparent white mark (adaptive foreground) |
 | `icon-monochrome.png` | Android 13+ themed / monochrome silhouette |
-| `AppIcon-1024-light.png` / `AppIcon-1024-dark.png` | iOS 1024 masters |
-| `icon-*-source.png` | Original Canva exports |
+| `AppIcon-1024-*.png` | iOS 1024 masters (same orange) |
 
-Regenerate densities:
+Regenerate densities + splash + `public/icons`:
 
 ```bash
 python3 scripts/generate-brand-icons.py
 ```
 
 Requires Pillow (`pip install pillow`).
+
+Customer bill / tenant logos (`logoBase64`) are separate — do not overwrite those.
+
+## Landing “logo meaning”
+
+| File | Use |
+|------|-----|
+| `logo-meaning-labeled.png` | Labeled equation (Letter D / Growth / Focus) — also at `public/branding/` |
+| `logo-meaning-equation.png` | Same equation without captions |
+
+Shown on the marketing landing page in `#mark` (after Business types).

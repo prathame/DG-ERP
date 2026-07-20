@@ -556,7 +556,7 @@ export function LandingPage() {
           className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2"
         >
           <div className="flex items-center gap-2.5">
-            <img src="/icons/logo-full.png" alt="Dhando" className="h-8 w-auto object-contain" />
+            <img src="/icons/logo-brand.png" alt="Dhandho" className="h-8 w-8 object-contain rounded-lg" />
           </div>
           <div className="hidden md:flex items-center gap-1">
             {['#business', '#features', '#pricing', '#contact'].map((href, i) => (
@@ -875,6 +875,68 @@ export function LandingPage() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── Logo meaning ────────────────────────────────────────────────────── */}
+      <section id="mark" className={`py-16 sm:py-24 px-4 sm:px-6 ${dark ? 'bg-white/[0.02]' : 'bg-white'}`}>
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10 sm:mb-12">
+            <p className="text-xs font-bold uppercase tracking-widest text-brand mb-3">
+              {L('The mark', 'निशान', 'નિશાની', 'चिन्ह')}
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-bold">
+              {L('What the Dhandho logo means', 'Dhandho logo का मतलब', 'Dhandho logo નો અર્થ', 'Dhandho logo चा अर्थ')}
+            </h2>
+            <p className={`mt-3 text-lg ${muted} max-w-2xl mx-auto`}>
+              {L(
+                'Letter, growth, and focus — combined into one mark for your business.',
+                'अक्षर, वृद्धि, और फोकस — मिलकर एक निशान।',
+                'અક્ષર, વૃદ્ધિ અને ફોકસ — મળીને એક નિશાની.',
+                'अक्षर, वाढ आणि फोकस — एकत्र एक चिन्ह.',
+              )}
+            </p>
+          </div>
+
+          <motion.div {...vi(0.05, 16)} className="flex justify-center">
+            <img
+              src="/branding/logo-meaning-labeled.png"
+              alt="Dhandho logo meaning: Letter D brand identity, plus Growth progress, plus Focus on business, equals the Dhandho mark"
+              className="w-full max-w-3xl h-auto"
+              width={780}
+              height={228}
+            />
+          </motion.div>
+
+          <ul className="mt-10 sm:mt-12 grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-6 text-center">
+            {[
+              {
+                title: L('Letter D', 'Letter D', 'Letter D', 'Letter D'),
+                sub: L('Brand identity', 'ब्रांड पहचान', 'બ્રાન્ડ ઓળખ', 'ब्रँड ओळख'),
+              },
+              {
+                title: L('Growth', 'वृद्धि', 'વૃદ્ધિ', 'वाढ'),
+                sub: L('Progress', 'प्रगति', 'પ્રગતિ', 'प्रगती'),
+              },
+              {
+                title: L('Focus', 'फोकस', 'ફોકસ', 'फोकस'),
+                sub: L('On business', 'बिज़नेस पर', 'બિઝનેસ પર', 'व्यवसायावर'),
+              },
+            ].map((item, i) => (
+              <motion.li key={item.title} {...vi(0.08 + i * 0.06, 12)} className="list-none">
+                <p className="font-bold tracking-wide uppercase text-sm">{item.title}</p>
+                <p className={`mt-1 text-sm ${muted}`}>{item.sub}</p>
+              </motion.li>
+            ))}
+          </ul>
+          <motion.p {...vi(0.28, 10)} className={`mt-8 text-center text-sm sm:text-base font-medium ${text}`}>
+            {L(
+              'Combined = the Dhandho mark',
+              'मिलाकर = Dhandho का निशान',
+              'મળીને = Dhandho ની નિશાની',
+              'एकत्र = Dhandho चे चिन्ह',
+            )}
+          </motion.p>
         </div>
       </section>
 
@@ -1382,7 +1444,7 @@ export function LandingPage() {
       <footer className={`border-t ${border} py-8 px-4 sm:px-6`}>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <img src="/icons/logo-full.png" alt="Dhando" className="h-7 w-auto object-contain" />
+            <img src="/icons/logo-brand.png" alt="Dhandho" className="h-7 w-7 object-contain rounded-md" />
             <span className={`text-xs ${faint}`}>🇮🇳</span>
           </div>
           <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs ${faint}`}>

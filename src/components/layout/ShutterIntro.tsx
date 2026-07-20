@@ -12,10 +12,20 @@ function splitGraphemes(str: string): string[] {
 }
 
 // Characters that cycle on the flap before landing (Latin + symbols look great)
-const NOISE = ['8','M','W','H','#','X','0','@','$','%','&','N','B','R','Z'];
+const NOISE = ['8', 'M', 'W', 'H', '#', 'X', '0', '@', '$', '%', '&', 'N', 'B', 'R', 'Z'];
 
 // One flap cell — dark panel, center divider, rapid char cycling
-const SplitFlapChar = memo(function SplitFlapChar({ char, delayMs, trigger, instant }: { char: string; delayMs: number; trigger: number; instant?: boolean }) {
+const SplitFlapChar = memo(function SplitFlapChar({
+  char,
+  delayMs,
+  trigger,
+  instant,
+}: {
+  char: string;
+  delayMs: number;
+  trigger: number;
+  instant?: boolean;
+}) {
   const [face, setFace] = useState(' ');
   const [scaleY, setScaleY] = useState(1);
   const cancelled = useRef(false);
@@ -29,9 +39,17 @@ const SplitFlapChar = memo(function SplitFlapChar({ char, delayMs, trigger, inst
       const t = setTimeout(() => {
         if (cancelled.current) return;
         setScaleY(0);
-        setTimeout(() => { if (!cancelled.current) { setFace(char); setScaleY(1); } }, 45);
+        setTimeout(() => {
+          if (!cancelled.current) {
+            setFace(char);
+            setScaleY(1);
+          }
+        }, 45);
       }, delayMs);
-      return () => { cancelled.current = true; clearTimeout(t); };
+      return () => {
+        cancelled.current = true;
+        clearTimeout(t);
+      };
     }
 
     let cyclesDone = 0;
@@ -51,21 +69,28 @@ const SplitFlapChar = memo(function SplitFlapChar({ char, delayMs, trigger, inst
     };
 
     const t = setTimeout(flip, delayMs);
-    return () => { cancelled.current = true; clearTimeout(t); };
+    return () => {
+      cancelled.current = true;
+      clearTimeout(t);
+    };
   }, [char, delayMs, trigger, instant]);
 
   return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      background: 'linear-gradient(180deg, #141414 0%, #0e0e0e 100%)',
-      border: '1.5px solid #2c2c2c',
-      borderRadius: 6,
-      minWidth: '0.62em',
-      padding: '0.06em 0.1em',
-      position: 'relative',
-      boxShadow: '0 3px 12px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.05)',
-      overflow: 'hidden',
-    }}>
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(180deg, #141414 0%, #0e0e0e 100%)',
+        border: '1.5px solid #2c2c2c',
+        borderRadius: 6,
+        minWidth: '0.62em',
+        padding: '0.06em 0.1em',
+        position: 'relative',
+        boxShadow: '0 3px 12px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.05)',
+        overflow: 'hidden',
+      }}
+    >
       <motion.span
         style={{ display: 'inline-block', color: '#f5f5f5', fontWeight: 800 }}
         animate={{ scaleY }}
@@ -74,12 +99,18 @@ const SplitFlapChar = memo(function SplitFlapChar({ char, delayMs, trigger, inst
         {face}
       </motion.span>
       {/* Horizontal split line — the signature departure board detail */}
-      <div style={{
-        position: 'absolute', left: 0, right: 0, top: '50%',
-        height: 2, background: '#000',
-        boxShadow: '0 -1px 0 rgba(255,255,255,0.04)',
-        pointerEvents: 'none',
-      }} />
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: '50%',
+          height: 2,
+          background: '#000',
+          boxShadow: '0 -1px 0 rgba(255,255,255,0.04)',
+          pointerEvents: 'none',
+        }}
+      />
     </div>
   );
 });
@@ -91,9 +122,11 @@ function SplitFlapWord({ word, trigger }: { word: string; trigger: number }) {
   return (
     <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
       {chars.map((char, i) =>
-        char === ' '
-          ? <div key={i} style={{ width: '0.35em' }} />
-          : <SplitFlapChar key={i} char={char} delayMs={i * (instant ? 60 : 80)} trigger={trigger} instant={instant} />
+        char === ' ' ? (
+          <div key={i} style={{ width: '0.35em' }} />
+        ) : (
+          <SplitFlapChar key={i} char={char} delayMs={i * (instant ? 60 : 80)} trigger={trigger} instant={instant} />
+        ),
       )}
     </div>
   );
@@ -119,12 +152,12 @@ function playShutterSound() {
     //   stagger per slat  = 0.04s
     //   slat duration     = 0.32s
     //   last slat (13th) done at: 0.04 + 13*0.04 + 0.32 = 0.88s
-    const FIRST_SLAT  = 0.04;
-    const LAST_SLAT   = 0.88; // shutter fully open
+    const FIRST_SLAT = 0.04;
+    const LAST_SLAT = 0.88; // shutter fully open
 
     const rattleStart = now + FIRST_SLAT;
-    const rattleEnd   = now + LAST_SLAT;
-    const rDur        = rattleEnd - rattleStart; // 0.84s
+    const rattleEnd = now + LAST_SLAT;
+    const rDur = rattleEnd - rattleStart; // 0.84s
 
     // ── Metallic rattle (filtered white noise) ────────────────────────
     const bufLen = Math.ceil(ctx.sampleRate * (rDur + 0.1));
@@ -151,9 +184,9 @@ function playShutterSound() {
     // Envelope: attack fast, ride steady, fade as last slat slows
     const rattle = ctx.createGain();
     rattle.gain.setValueAtTime(0, rattleStart);
-    rattle.gain.linearRampToValueAtTime(0.3, rattleStart + 0.08);   // snap up
-    rattle.gain.setValueAtTime(0.26, rattleEnd - 0.18);             // hold
-    rattle.gain.linearRampToValueAtTime(0, rattleEnd);               // fade with last slat
+    rattle.gain.linearRampToValueAtTime(0.3, rattleStart + 0.08); // snap up
+    rattle.gain.setValueAtTime(0.26, rattleEnd - 0.18); // hold
+    rattle.gain.linearRampToValueAtTime(0, rattleEnd); // fade with last slat
 
     noise.connect(bp);
     bp.connect(rattle);
@@ -196,11 +229,11 @@ function playShutterSound() {
     const chimeAt = now + 0.92;
     const chime = ctx.createOscillator();
     chime.type = 'sine';
-    chime.frequency.setValueAtTime(880, chimeAt);           // A5
+    chime.frequency.setValueAtTime(880, chimeAt); // A5
     chime.frequency.exponentialRampToValueAtTime(660, chimeAt + 0.5); // drift down gently
     const chimeGain = ctx.createGain();
     chimeGain.gain.setValueAtTime(0, chimeAt);
-    chimeGain.gain.linearRampToValueAtTime(0.12, chimeAt + 0.02);  // instant attack
+    chimeGain.gain.linearRampToValueAtTime(0.12, chimeAt + 0.02); // instant attack
     chimeGain.gain.exponentialRampToValueAtTime(0.001, chimeAt + 0.7); // natural decay
     chime.connect(chimeGain);
     chimeGain.connect(ctx.destination);
@@ -221,20 +254,39 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
   const WORDS = {
     en: 'Dhandho',
     gu: 'ધંધો',
-    hi: 'धन दो',   // "Give wealth" — wordplay on Dhandho
-    mr: 'धंदा',    // Marathi equivalent
+    hi: 'धन दो', // "Give wealth" — wordplay on Dhandho
+    mr: 'धंदा', // Marathi equivalent
   };
 
   useEffect(() => {
     playShutterSound();
     // EN (1.5s) → GU (1.5s) → HI (1.5s) → MR (1.5s) → fade
-    const t1 = setTimeout(() => { setPhase('reveal'); setFlipTrigger(1); }, 900);
-    const t2 = setTimeout(() => { setWordLang('gu'); setFlipTrigger(2); }, 2400);
-    const t3 = setTimeout(() => { setWordLang('hi'); setFlipTrigger(3); }, 3900);
-    const t4 = setTimeout(() => { setWordLang('mr'); setFlipTrigger(4); }, 5400);
+    const t1 = setTimeout(() => {
+      setPhase('reveal');
+      setFlipTrigger(1);
+    }, 900);
+    const t2 = setTimeout(() => {
+      setWordLang('gu');
+      setFlipTrigger(2);
+    }, 2400);
+    const t3 = setTimeout(() => {
+      setWordLang('hi');
+      setFlipTrigger(3);
+    }, 3900);
+    const t4 = setTimeout(() => {
+      setWordLang('mr');
+      setFlipTrigger(4);
+    }, 5400);
     const t5 = setTimeout(() => setPhase('done'), 7000);
     const t6 = setTimeout(onDone, 7500);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); clearTimeout(t6); };
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+      clearTimeout(t5);
+      clearTimeout(t6);
+    };
   }, [onDone]);
 
   const revealed = phase === 'reveal';
@@ -248,7 +300,6 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
           style={{ background: '#09090B' }}
           exit={{ opacity: 0, transition: { duration: 0.5, ease: 'easeInOut' } }}
         >
-
           {/* ── Warm light sweep — rises from bottom as shutter opens ── */}
           <motion.div
             className="absolute inset-x-0 bottom-0 pointer-events-none"
@@ -263,9 +314,17 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
           />
 
           {/* ── Brand reveal ─────────────────────────────────────────── */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center select-none pointer-events-none" style={{ zIndex: 2 }}>
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center select-none pointer-events-none"
+            style={{ zIndex: 2 }}
+          >
             {/* Ambient glow */}
-            <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 55% 35% at 50% 52%, rgba(242,125,38,0.16) 0%, transparent 70%)' }} />
+            <div
+              className="absolute inset-0"
+              style={{
+                background: 'radial-gradient(ellipse 55% 35% at 50% 52%, rgba(242,125,38,0.16) 0%, transparent 70%)',
+              }}
+            />
 
             {/* Top tagline — changes with each language flip */}
             <div style={{ height: '1.6em', overflow: 'hidden', marginBottom: '0.75rem' }}>
@@ -279,19 +338,32 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
                   exit={{ y: -10, opacity: 0 }}
                   transition={{ delay: revealed ? 0.2 : 0, duration: 0.4 }}
                 >
-                  {{ en: 'Run Smart · Run Simple', gu: 'ધંધો કરો, Smart કરો', hi: 'धन दो, Smart बनो', mr: 'धंदा करा, Smart व्हा' }[wordLang]}
+                  {
+                    {
+                      en: 'Run Smart · Run Simple',
+                      gu: 'ધંધો કરો, Smart કરો',
+                      hi: 'धन दो, Smart बनो',
+                      mr: 'धंदा करा, Smart व्हा',
+                    }[wordLang]
+                  }
                 </motion.p>
               </AnimatePresence>
             </div>
 
             {/* Logo */}
             <motion.img
-              src="/icons/logo-full.png"
-              alt="Dhando"
+              src="/icons/logo-brand.png"
+              alt="Dhandho"
               initial={{ opacity: 0, scale: 0.85 }}
               animate={{ opacity: revealed ? 1 : 0, scale: revealed ? 1 : 0.85 }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              style={{ height: 'clamp(80px, 16vw, 160px)', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 0 32px rgba(242,125,38,0.4))' }}
+              style={{
+                height: 'clamp(80px, 16vw, 160px)',
+                width: 'clamp(80px, 16vw, 160px)',
+                objectFit: 'contain',
+                borderRadius: '22%',
+                filter: 'drop-shadow(0 0 32px rgba(242,125,38,0.4))',
+              }}
             />
 
             {/* Split-flap wordmark */}
@@ -305,18 +377,28 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
                 <motion.p
                   key={wordLang}
                   className="tracking-widest uppercase text-center"
-                  style={{ color: 'rgba(255,255,255,0.28)', fontSize: 'clamp(0.65rem, 1.5vw, 0.85rem)', position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  style={{
+                    color: 'rgba(255,255,255,0.28)',
+                    fontSize: 'clamp(0.65rem, 1.5vw, 0.85rem)',
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: revealed ? 1 : 0, y: revealed ? 0 : 10 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.4 }}
                 >
-                  {{
-                    en: 'The Gujarati Way to Run Business',
-                    gu: 'ધંધો — Business નું બીજું નામ',
-                    hi: 'धन दो — अपने Business को Smart बनाओ',
-                    mr: 'धंदा करा — Smart व्यापार करा',
-                  }[wordLang]}
+                  {
+                    {
+                      en: 'The Gujarati Way to Run Business',
+                      gu: 'ધંધો — Business નું બીજું નામ',
+                      hi: 'धन दो — अपने Business को Smart बनाओ',
+                      mr: 'धंदा करा — Smart व्यापार करा',
+                    }[wordLang]
+                  }
                 </motion.p>
               </AnimatePresence>
             </div>
@@ -331,24 +413,28 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
                 zIndex: 20,
               }}
               initial={{ rotate: -40, opacity: 0, y: -30 }}
-              animate={revealed ? { rotate: [-40, 8, -5, 3, 0], opacity: 1, y: 0 } : { rotate: -40, opacity: 0, y: -30 }}
+              animate={
+                revealed ? { rotate: [-40, 8, -5, 3, 0], opacity: 1, y: 0 } : { rotate: -40, opacity: 0, y: -30 }
+              }
               transition={{ delay: 0.6, duration: 1.2, ease: 'easeOut' }}
             >
               {/* String */}
               <div style={{ width: 2, height: 28, background: 'rgba(255,255,255,0.2)', margin: '0 auto' }} />
               {/* Sign board */}
-              <div style={{
-                background: 'linear-gradient(135deg, #F27D26, #D96A1C)',
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: '0.85rem',
-                letterSpacing: '0.2em',
-                padding: '8px 16px',
-                borderRadius: 6,
-                boxShadow: '0 4px 20px rgba(242,125,38,0.5), inset 0 1px 0 rgba(255,255,255,0.2)',
-                border: '2px solid rgba(255,255,255,0.15)',
-                userSelect: 'none',
-              }}>
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #F27D26, #D96A1C)',
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: '0.85rem',
+                  letterSpacing: '0.2em',
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  boxShadow: '0 4px 20px rgba(242,125,38,0.5), inset 0 1px 0 rgba(255,255,255,0.2)',
+                  border: '2px solid rgba(255,255,255,0.15)',
+                  userSelect: 'none',
+                }}
+              >
                 OPEN
               </div>
             </motion.div>
@@ -363,8 +449,10 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
                 <motion.div key={slat} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                   <motion.div
                     style={{
-                      position: 'absolute', inset: 0,
-                      background: 'linear-gradient(180deg, #2a2a2a 0%, #1f1f1f 30%, #3a3a3a 50%, #1a1a1a 70%, #252525 100%)',
+                      position: 'absolute',
+                      inset: 0,
+                      background:
+                        'linear-gradient(180deg, #2a2a2a 0%, #1f1f1f 30%, #3a3a3a 50%, #1a1a1a 70%, #252525 100%)',
                       boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.5)',
                     }}
                     initial={{ y: 0 }}
@@ -372,7 +460,14 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
                     transition={{ delay, duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
                   />
                   <motion.div
-                    style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: 'rgba(255,255,255,0.06)' }}
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 2,
+                      background: 'rgba(255,255,255,0.06)',
+                    }}
                     initial={{ y: 0 }}
                     animate={{ y: '-100%' }}
                     transition={{ delay, duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
@@ -393,18 +488,28 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
 
           {/* ── Side guides ───────────────────────────────────────────── */}
           {['left-0', 'right-0'].map(side => (
-            <div key={side} className={`absolute top-0 bottom-0 ${side} w-3 sm:w-4`} style={{
-              background: 'linear-gradient(90deg, #1a1a1a, #2d2d2d, #1a1a1a)',
-              zIndex: 12,
-              boxShadow: side === 'left-0' ? 'inset -2px 0 4px rgba(0,0,0,0.6)' : 'inset 2px 0 4px rgba(0,0,0,0.6)',
-            }} />
+            <div
+              key={side}
+              className={`absolute top-0 bottom-0 ${side} w-3 sm:w-4`}
+              style={{
+                background: 'linear-gradient(90deg, #1a1a1a, #2d2d2d, #1a1a1a)',
+                zIndex: 12,
+                boxShadow: side === 'left-0' ? 'inset -2px 0 4px rgba(0,0,0,0.6)' : 'inset 2px 0 4px rgba(0,0,0,0.6)',
+              }}
+            />
           ))}
 
           {/* ── Skip button ───────────────────────────────────────────── */}
           <motion.button
             onClick={onDone}
             className="absolute bottom-6 right-6 text-xs tracking-widest uppercase"
-            style={{ color: 'rgba(255,255,255,0.2)', zIndex: 20, background: 'none', border: 'none', cursor: 'pointer' }}
+            style={{
+              color: 'rgba(255,255,255,0.2)',
+              zIndex: 20,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
             initial={{ opacity: 0 }}
             animate={{ opacity: revealed ? 1 : 0 }}
             transition={{ delay: 1, duration: 0.4 }}
@@ -412,7 +517,6 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
           >
             Skip →
           </motion.button>
-
         </motion.div>
       )}
     </AnimatePresence>
