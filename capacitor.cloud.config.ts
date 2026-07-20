@@ -1,18 +1,13 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
- * Service Cloud seats — online Capacitor shell (talks to cloud API).
- * Distinct from offline Service Mobile (`capacitor.config.ts` + dist-service-mobile).
- *
- * Build + sync (temporary swap; restores capacitor.config.ts after):
- *   npm run cap:sync:cloud
- *
- * Do not mix with Offline Mobile APK / DG-SM licenses.
+ * @deprecated Use unified `capacitor.config.ts` (service-phone) + first-launch Online/Offline picker.
+ * Kept for transitional local builds only — CI publishes a single Cap product.
  */
 const config: CapacitorConfig = {
-  appId: 'in.dhandho.servicecloud',
-  appName: 'Dhando Service Cloud',
-  webDir: 'dist-service-cloud',
+  appId: 'in.dhandho.service',
+  appName: 'Dhandho Service',
+  webDir: 'dist-service-phone',
   server: {
     androidScheme: 'https',
     iosScheme: 'capacitor',

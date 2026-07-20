@@ -2,7 +2,6 @@ import { session } from './lib/session';
 import { resolveApiUrl } from './platforms/shared';
 import { clientLogger, ensureCorrelationId } from './lib/logger';
 import { isServiceMobileMode } from './platforms/service-mobile/mode';
-import { handleLocalApiRequest } from './platforms/service-mobile/local/router';
 import { serviceCloudClientHeader } from './platforms/service-cloud/mode';
 
 export interface DistributionRecord {
@@ -229,8 +228,9 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   const requestUrl = resolveApiUrl(`/api${path.startsWith('/') ? path : `/${path}`}`);
   const started = Date.now();
 
-  // Service Mobile: ERP traffic → on-device PGlite API (license/sync stays on cloud.ts)
+  // Offline stack only: ERP → on-device PGlite (never when Online latch is set)
   if (isServiceMobileMode()) {
+    const { handleLocalApiRequest } = await import('./platforms/service-mobile/local/router');
     const headers = { 'Content-Type': 'application/json', ...authHeaders, ...options?.headers };
     const bodyText =
       options?.body == null ? null : typeof options.body === 'string' ? options.body : JSON.stringify(options.body);

@@ -6,14 +6,16 @@ description: Capacitor iOS/Android offline ERP for service business type — SA 
 
 # Service Mobile
 
-Offline **phone** surface for **`business_type=service` only**. Not desktop on-prem.
+Offline **phone** stack for **`business_type=service` only**. Not desktop on-prem.
+
+Ships inside the **unified Cap shell** (`dist-service-phone`): first launch picks Online or Offline once. Offline mode is this stack (PGlite + `DG-SM-`). Online mode is cloud seats — separate auth/data.
 
 ## Shape
 
 | Piece | Detail |
 |-------|--------|
-| Shell | Capacitor (`android/`, `ios/`), build `dist-service-mobile` |
-| Local data | PGlite (IndexedDB) — source of truth |
+| Shell | Capacitor (`android/`, `ios/`), unified build `dist-service-phone` |
+| Local data | PGlite (IndexedDB) — source of truth **only when Offline is chosen** |
 | Cloud | License activate / heartbeat / hard sync / Bell only — **no ERP backup storage** |
 | SA | Tenants → **Service Mobile** |
 | Keys | `DG-SM-…` — **1 license = 1 user = 1 device** |
@@ -26,14 +28,14 @@ Offline Mobile backups are **user-owned**. The phone saves a file (and may open 
 ## Build & distribute (v1)
 
 ```bash
-cp .env.service-mobile.example .env.service-mobile
+cp .env.service-phone.example .env.service-phone
 # set VITE_API_ORIGIN to your cloud API
-npm run cap:sync       # build + sync + applicationId in.dhandho.service
+npm run cap:sync       # build service-phone + sync + applicationId in.dhandho.service
 npx cap open android   # sideload APK
 npx cap open ios       # Xcode → simulator / device / TestFlight
 ```
 
-Prefer `npm run cap:sync` over bare `npx cap sync` — after an Online cloud sync, `scripts/android-set-product.sh offline` restores the Offline `applicationId` (Capacitor does not rewrite it itself).
+Evergreen downloads: tag `dhandho-mobile` (`dhandho-mobile-debug.apk` / `.app.zip`). Label `mobile` on merge.
 
 ### CI: Offline Mobile (GitLab — Android + iOS)
 

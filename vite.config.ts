@@ -9,7 +9,9 @@ export default defineConfig(({ mode }) => {
   const serviceMobile = mode === 'service-mobile';
   /** Online Cap shell — relative base like Offline; must NOT set VITE_DEPLOYMENT_MODE=service-mobile */
   const serviceCloud = mode === 'service-cloud';
-  const capacitorShell = serviceMobile || serviceCloud;
+  /** Unified Cap shell — Online/Offline chosen once at first launch */
+  const servicePhone = mode === 'service-phone';
+  const capacitorShell = serviceMobile || serviceCloud || servicePhone;
   const plugins: PluginOption[] = [react(), tailwindcss()];
   // Optional — keep as a dynamic import so production installs without
   // rollup-plugin-visualizer (devDependency) still build.
@@ -34,7 +36,13 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      outDir: serviceMobile ? 'dist-service-mobile' : serviceCloud ? 'dist-service-cloud' : 'dist',
+      outDir: servicePhone
+        ? 'dist-service-phone'
+        : serviceMobile
+          ? 'dist-service-mobile'
+          : serviceCloud
+            ? 'dist-service-cloud'
+            : 'dist',
       emptyOutDir: true,
       target: 'es2020',
       cssCodeSplit: true,
@@ -71,7 +79,14 @@ export default defineConfig(({ mode }) => {
       allowedHosts: true as const,
       // Cap/Android build outputs are not part of the Vite app graph (they break dep scan / crash HMR).
       fs: {
-        deny: ['**/android/**', '**/ios/**', '**/dist-apk/**', '**/dist-service-mobile/**', '**/dist-service-cloud/**'],
+        deny: [
+          '**/android/**',
+          '**/ios/**',
+          '**/dist-apk/**',
+          '**/dist-service-mobile/**',
+          '**/dist-service-cloud/**',
+          '**/dist-service-phone/**',
+        ],
       },
       watch: {
         ignored: [
@@ -80,21 +95,24 @@ export default defineConfig(({ mode }) => {
           '**/dist-apk/**',
           '**/dist-service-mobile/**',
           '**/dist-service-cloud/**',
+          '**/dist-service-phone/**',
           '**/node_modules/**',
         ],
       },
       proxy: {
-        // Offline Mobile Vite: proxy license APIs to cloud (avoids CORS on localhost:*).
+        // Cap phone Vite: proxy license/cloud APIs (avoids CORS on localhost:*).
         // Other modes: local Express. Override: DG_DEV_API_PROXY=https://…
         '/api': {
           target:
-            process.env.DG_DEV_API_PROXY || (serviceMobile ? 'https://dg-erp.onrender.com' : 'http://localhost:3001'),
+            process.env.DG_DEV_API_PROXY ||
+            (serviceMobile || servicePhone ? 'https://dg-erp.onrender.com' : 'http://localhost:3001'),
           changeOrigin: true,
           secure: true,
         },
         '/manifest.json': {
           target:
-            process.env.DG_DEV_API_PROXY || (serviceMobile ? 'https://dg-erp.onrender.com' : 'http://localhost:3001'),
+            process.env.DG_DEV_API_PROXY ||
+            (serviceMobile || servicePhone ? 'https://dg-erp.onrender.com' : 'http://localhost:3001'),
           changeOrigin: true,
           secure: true,
         },

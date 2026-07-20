@@ -1,13 +1,15 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
- * Service Mobile (offline phone) — Capacitor shell.
- * Built with: npm run build:service-mobile && npx cap sync
+ * Unified Dhandho Service phone shell (Android + iOS).
+ * First launch: Online (cloud) or Offline (on-device) — one-time, separate auth/data.
+ *
+ * Build: npm run build:service-phone && npx cap sync
  */
 const config: CapacitorConfig = {
   appId: 'in.dhandho.service',
   appName: 'Dhandho Service',
-  webDir: 'dist-service-mobile',
+  webDir: 'dist-service-phone',
   server: {
     androidScheme: 'https',
     iosScheme: 'capacitor',

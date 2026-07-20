@@ -11,23 +11,23 @@ description: Online Capacitor + Cloud Electron for service cloud seats.
 | Client | How it enrolls | Header |
 |--------|----------------|--------|
 | Cloud Electron | `deploymentMode: 'cloud'` or `?desktop=1` | `X-DG-Client: electron-cloud` |
-| Online Capacitor | Native Capacitor (not `VITE_DEPLOYMENT_MODE=service-mobile`) | `X-DG-Client: capacitor-cloud` |
+| Online Capacitor | Unified Cap shell with one-time **Online** latch | `X-DG-Client: capacitor-cloud` |
 | Browser | Not enrolled | — |
 
 ## Public download page
 
-[`/download`](/download) lists **Dhando Service Cloud (ONLINE)** separately from **Dhando Service Mobile (OFFLINE)**. Do not mix installers or licenses.
+[`/download`](/download) lists **one phone app** (Android + iOS). At first launch the user picks Online (this stack) or Offline (PGlite / `DG-SM-`). Modes do not share login or ERP data.
 
-While testing there are **no versioned GitHub releases** — Super Admin → Analytics can override evergreen URLs (`service_cloud_app_url` / `service_mobile_app_url`). Rebuild as often as you want; keep the same link and replace the file behind it. Public API: `GET /api/download-links`.
+While testing there are **no versioned GitHub releases** — Super Admin → Analytics can override evergreen URLs (`service_mobile_app_url` / `service_mobile_ios_url`). Public API: `GET /api/download-links`.
 
-Default APKs (when unset in `platform_config`):
+Default assets (when unset in `platform_config`):
 
-| Product | Evergreen URL |
+| Asset | Evergreen URL |
 |---------|----------------|
-| **Online** Service Cloud | `https://github.com/prathame/DG-ERP/releases/download/service-cloud/service-cloud-online-debug.apk` |
-| **Offline** Service Mobile | `https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk` |
+| Android | `https://github.com/prathame/DG-ERP/releases/download/dhandho-mobile/dhandho-mobile-debug.apk` |
+| iOS | `https://github.com/prathame/DG-ERP/releases/download/dhandho-mobile/dhandho-mobile-debug.app.zip` |
 
-CI (`.github/workflows/apk-build.yml`) builds Online only when the PR is labeled `online` / `service-cloud`, or when Online paths change on `main`. Label `mobile` still builds both. Comment `apk build online` for a preview artifact only.
+CI (`.github/workflows/apk-build.yml`) builds the unified phone (Android + iOS) when labeled `mobile` / `offline` / `online` (aliases). Former separate Online Cap app id is retired.
 
 ## Builds
 
@@ -36,7 +36,9 @@ CI (`.github/workflows/apk-build.yml`) builds Online only when the PR is labeled
 npm run build:electron:cloud:win
 npm run build:electron:cloud:mac
 
-# Online Capacitor (Service Cloud) — separate appId / webDir from Offline
+# Unified Cap phone (Online/Offline picker) — preferred
+npm run build:service-phone          # → dist-service-phone
+# Legacy Online-only Vite mode (deprecated):
 npm run build:service-cloud          # → dist-service-cloud (relative base)
 npm run cap:sync:cloud               # sync + set applicationId in.dhandho.servicecloud
 # Then: cd android && ./gradlew assembleDebug

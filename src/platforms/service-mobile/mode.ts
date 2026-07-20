@@ -1,10 +1,14 @@
-/** True when this build is the offline Service Mobile Capacitor app. */
+import { getPhoneMode, isBakedServiceMobile, isNativeCapacitorShell } from '../mobileMode';
+
+/**
+ * Offline Service Mobile stack is active.
+ * - Legacy Cap/Vite bake: VITE_DEPLOYMENT_MODE=service-mobile
+ * - Unified Cap shell: native + one-time latch === offline
+ */
 export function isServiceMobileMode(): boolean {
-  try {
-    return (import.meta.env.VITE_DEPLOYMENT_MODE as string | undefined) === 'service-mobile';
-  } catch {
-    return false;
-  }
+  if (isBakedServiceMobile()) return true;
+  if (!isNativeCapacitorShell()) return false;
+  return getPhoneMode() === 'offline';
 }
 
 export function serviceMobileAppVersion(): string {

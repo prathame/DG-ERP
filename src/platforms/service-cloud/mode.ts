@@ -1,4 +1,5 @@
 import { isServiceMobileMode } from '../service-mobile/mode';
+import { getPhoneMode, isBakedServiceMobile, isNativeCapacitorShell } from '../mobileMode';
 
 type ElectronBridge = {
   isElectron?: boolean;
@@ -17,12 +18,16 @@ export function isServiceCloudDesktop(): boolean {
   return new URLSearchParams(window.location.search).get('desktop') === '1';
 }
 
-/** Online Capacitor (not the offline Service Mobile build). */
+/**
+ * Online Capacitor stack is active.
+ * Requires native Cap + one-time latch === online.
+ * Never true for baked offline-only builds or when Offline mode is latched.
+ */
 export function isServiceCloudMobile(): boolean {
+  if (isBakedServiceMobile()) return false;
   if (isServiceMobileMode()) return false;
-  if (typeof window === 'undefined') return false;
-  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  return Boolean(cap?.isNativePlatform?.());
+  if (!isNativeCapacitorShell()) return false;
+  return getPhoneMode() === 'online';
 }
 
 /** True when this client participates in service cloud device seats + session lock. */

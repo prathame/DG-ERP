@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
-# CI: Offline / Online Capacitor iOS — parallel to Android assembleDebug.
+# CI: Unified Dhandho Service phone iOS (Online/Offline picker at first launch).
 #
 # Env:
-#   MOBILE_PRODUCT=offline|online   (default: offline)
-#   IOS_BUILD_MODE=debug|ipa        (default: debug — simulator, no Apple certs)
-#   VITE_API_ORIGIN                 optional API origin for env file
+#   MOBILE_PRODUCT=phone|offline|online   (all build the same unified shell; default: phone)
+#   IOS_BUILD_MODE=debug|ipa              (default: debug — simulator, no Apple certs)
+#   VITE_API_ORIGIN                       optional API origin for env file
 #
 # Outputs under dist-apk/:
-#   offline → offline-mobile-service-debug.app.zip (.ipa if mode=ipa)
-#   online  → service-cloud-online-debug.app.zip (.ipa if mode=ipa)
+#   dhandho-mobile-debug.app.zip (+ transitional offline-mobile-service-debug.app.zip alias)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-PRODUCT="${MOBILE_PRODUCT:-offline}"
+PRODUCT="${MOBILE_PRODUCT:-phone}"
 MODE="${IOS_BUILD_MODE:-debug}"
 [[ "$MODE" == "simulator" ]] && MODE=debug
 
@@ -26,94 +25,49 @@ RUNNER_TEMP="${RUNNER_TEMP:-${TMPDIR:-/tmp}/dg-ios-ci}"
 mkdir -p "$RUNNER_TEMP"
 
 case "$PRODUCT" in
-  offline)
+  phone | offline | online)
     BUNDLE_ID="in.dhandho.service"
-    ARTIFACT_STEM="offline-mobile-service-debug"
-    ;;
-  online)
-    BUNDLE_ID="in.dhandho.servicecloud"
-    ARTIFACT_STEM="service-cloud-online-debug"
+    ARTIFACT_STEM="dhandho-mobile-debug"
     ;;
   *)
-    echo "error: MOBILE_PRODUCT must be offline or online (got: $PRODUCT)" >&2
+    echo "error: MOBILE_PRODUCT must be phone, offline, or online (got: $PRODUCT)" >&2
     exit 1
     ;;
 esac
 
 log() { printf '+ %s\n' "$*" >&2; }
 
-prepare_env_offline() {
-  if [[ ! -f .env.service-mobile ]]; then
-    cp .env.service-mobile.example .env.service-mobile
+prepare_env_phone() {
+  if [[ ! -f .env.service-phone ]]; then
+    cp .env.service-phone.example .env.service-phone
   fi
   if [[ -n "${VITE_API_ORIGIN:-}" ]]; then
     tmp="$(mktemp)"
     printf 'VITE_API_ORIGIN=%s\n' "$VITE_API_ORIGIN" >"$tmp"
-    grep -v '^VITE_API_ORIGIN=' .env.service-mobile >>"$tmp" || true
-    mv "$tmp" .env.service-mobile
-    grep -q '^VITE_DEPLOYMENT_MODE=' .env.service-mobile \
-      || echo 'VITE_DEPLOYMENT_MODE=service-mobile' >> .env.service-mobile
+    grep -v '^VITE_API_ORIGIN=' .env.service-phone >>"$tmp" || true
+    mv "$tmp" .env.service-phone
+    grep -q '^VITE_DEPLOYMENT_MODE=' .env.service-phone \
+      || echo 'VITE_DEPLOYMENT_MODE=service-phone' >> .env.service-phone
   fi
   if [[ -n "${CI_PIPELINE_IID:-}" ]]; then
-    echo "VITE_APP_VERSION=ci-${CI_PIPELINE_IID}" >> .env.service-mobile
+    echo "VITE_APP_VERSION=ci-${CI_PIPELINE_IID}" >> .env.service-phone
   elif [[ -n "${GITHUB_RUN_NUMBER:-}" ]]; then
-    echo "VITE_APP_VERSION=ci-${GITHUB_RUN_NUMBER}" >> .env.service-mobile
+    echo "VITE_APP_VERSION=ci-${GITHUB_RUN_NUMBER}" >> .env.service-phone
   elif [[ -n "${CI_JOB_ID:-}" ]]; then
-    echo "VITE_APP_VERSION=ci-${CI_JOB_ID}" >> .env.service-mobile
+    echo "VITE_APP_VERSION=ci-${CI_JOB_ID}" >> .env.service-phone
   fi
-  log "Env keys: $(cut -d= -f1 .env.service-mobile | tr '\n' ' ')"
-}
-
-prepare_env_online() {
-  if [[ ! -f .env.service-cloud ]]; then
-    cp .env.service-cloud.example .env.service-cloud
-  fi
-  if [[ -n "${VITE_API_ORIGIN:-}" ]]; then
-    tmp="$(mktemp)"
-    printf 'VITE_API_ORIGIN=%s\n' "$VITE_API_ORIGIN" >"$tmp"
-    grep -v '^VITE_API_ORIGIN=' .env.service-cloud >>"$tmp" || true
-    mv "$tmp" .env.service-cloud
-  fi
-  if [[ -n "${CI_PIPELINE_IID:-}" ]]; then
-    echo "VITE_APP_VERSION=ci-${CI_PIPELINE_IID}" >> .env.service-cloud
-  elif [[ -n "${GITHUB_RUN_NUMBER:-}" ]]; then
-    echo "VITE_APP_VERSION=ci-${GITHUB_RUN_NUMBER}" >> .env.service-cloud
-  elif [[ -n "${CI_JOB_ID:-}" ]]; then
-    echo "VITE_APP_VERSION=ci-${CI_JOB_ID}" >> .env.service-cloud
-  fi
-  log "Env keys: $(cut -d= -f1 .env.service-cloud | tr '\n' ' ')"
+  log "Env keys: $(cut -d= -f1 .env.service-phone | tr '\n' ' ')"
 }
 
 sync_web() {
-  if [[ "$PRODUCT" == "offline" ]]; then
-    prepare_env_offline
-    if [[ "${SKIP_BUILD:-}" != "1" ]]; then
-      log "npm run build:service-mobile"
-      npm run build:service-mobile
-    fi
-    log "npx cap sync ios"
-    npx cap sync ios
-    bash scripts/ios-set-product.sh offline
-  else
-    prepare_env_online
-    if [[ "${SKIP_BUILD:-}" != "1" ]]; then
-      log "npm run build:service-cloud"
-      npm run build:service-cloud
-    fi
-    BACKUP="$(mktemp)"
-    cp capacitor.config.ts "$BACKUP"
-    cp capacitor.cloud.config.ts capacitor.config.ts
-    cleanup() {
-      cp "$BACKUP" capacitor.config.ts
-      rm -f "$BACKUP"
-    }
-    trap cleanup EXIT
-    log "npx cap sync ios (cloud config)"
-    npx cap sync ios
-    bash scripts/ios-set-product.sh online
-    cleanup
-    trap - EXIT
+  prepare_env_phone
+  if [[ "${SKIP_BUILD:-}" != "1" ]]; then
+    log "npm run build:service-phone"
+    npm run build:service-phone
   fi
+  log "npx cap sync ios"
+  npx cap sync ios
+  bash scripts/ios-set-product.sh offline
 }
 
 build_debug() {
@@ -248,5 +202,10 @@ case "$MODE" in
     exit 1
     ;;
 esac
+
+# Transitional alias for older workflow artifact names
+if [[ -f "$OUT_DIR/${ARTIFACT_STEM}.app.zip" ]]; then
+  cp "$OUT_DIR/${ARTIFACT_STEM}.app.zip" "$OUT_DIR/offline-mobile-service-debug.app.zip"
+fi
 
 ls -lh "$OUT_DIR"

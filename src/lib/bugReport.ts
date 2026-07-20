@@ -66,6 +66,14 @@ export async function buildBugReportText(extras: BugReportExtras = {}): Promise<
     lines.push('Session: (unavailable)');
   }
 
+  try {
+    const { getPhoneMode } = await import('../platforms/mobileMode');
+    const phoneMode = getPhoneMode();
+    if (phoneMode) lines.push(`Phone mode latch: ${phoneMode}`);
+  } catch {
+    /* ignore */
+  }
+
   if (mode === 'service-mobile') {
     try {
       const { loadLicense } = await import('../platforms/service-mobile/licenseStore');
@@ -83,16 +91,24 @@ export async function buildBugReportText(extras: BugReportExtras = {}): Promise<
     } catch (e) {
       lines.push(`Offline diagnostics error: ${e instanceof Error ? e.message : String(e)}`);
     }
-  } else if (native || mode === 'service-cloud') {
+  } else if (native || mode === 'service-cloud' || mode === 'service-phone') {
     try {
       const { isServiceCloudMobile, serviceCloudClientKind } = await import('../platforms/service-cloud/mode');
-      if (isServiceCloudMobile() || mode === 'service-cloud') {
-        lines.push(`Product: Service Cloud ONLINE (Capacitor)`);
+      const { isServiceMobileMode } = await import('../platforms/service-mobile/mode');
+      if (isServiceMobileMode()) {
+        const { loadLicense } = await import('../platforms/service-mobile/licenseStore');
+        const lic = loadLicense();
+        lines.push(`Product: Offline (unified phone shell)`);
+        lines.push(`License: ${redactLicenseKey(lic?.licenseKey)}`);
+      } else if (isServiceCloudMobile() || mode === 'service-cloud') {
+        lines.push(`Product: Online (unified phone shell / Cap)`);
         lines.push(`Client kind: ${serviceCloudClientKind() || 'mobile'}`);
         lines.push(`API origin: ${(import.meta.env.VITE_API_ORIGIN as string | undefined) || '(same-origin)'}`);
+      } else if (native || mode === 'service-phone') {
+        lines.push(`Product: Unified phone shell (mode not chosen yet)`);
       }
     } catch (e) {
-      lines.push(`Online diagnostics error: ${e instanceof Error ? e.message : String(e)}`);
+      lines.push(`Phone diagnostics error: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
