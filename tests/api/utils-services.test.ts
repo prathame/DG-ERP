@@ -337,7 +337,7 @@ describe('utils/tenant', () => {
     await deleteTenant(a.tenantId);
   });
 
-  it('provisionTenant rolls back when insert fails', async () => {
+  it('provisionTenant rejects missing plan with INVALID_PLAN', async () => {
     await expect(
       provisionTenant({
         companyName: `BadPlan ${Date.now()}`,
@@ -345,7 +345,23 @@ describe('utils/tenant', () => {
         adminName: 'X',
         planId: 'plan-does-not-exist-xyz',
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: 'INVALID_PLAN' });
+  });
+
+  it('provisionTenant falls back slug for non-Latin company names', async () => {
+    const plan = (await pool.query(`SELECT id FROM plans ORDER BY id LIMIT 1`)).rows[0];
+    if (!plan) return;
+    const email = `devnagari${Date.now()}@t.com`;
+    const result = await provisionTenant({
+      companyName: 'धरती कंपनी',
+      adminEmail: email,
+      adminName: 'Admin',
+      planId: plan.id,
+    });
+    expect(result.slug).toBeTruthy();
+    expect(result.slug).not.toBe('');
+    expect(result.slug).toMatch(/^[a-z0-9-]+$/);
+    await deleteTenant(result.tenantId);
   });
 
   it('deleteTenant rolls back when a delete fails', async () => {
