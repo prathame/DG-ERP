@@ -7,7 +7,7 @@ Copy these onto the phone under **Documents/Dhandho/import/** (this install push
 1. **Masters → Clients → Import CSV** → `01-clients.csv`
 2. **Masters → Prices → Import** → `02-prices.csv` (creates sellable items + generic prices)
 3. **Quotes → Import CSV** → `03-quotations.csv`  
-   - `Q-PAGED` = 24 lines (multi-page print/WhatsApp PDF)  
+   - `Q-PAGED` = 28 lines incl. a few long descriptions (footer-reserve page break + wrap)  
    - `Q-SHORT` = 2-line quote for a quick WhatsApp check
 
 Then:

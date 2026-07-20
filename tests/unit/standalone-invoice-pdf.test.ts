@@ -191,4 +191,82 @@ describe('buildStandaloneInvoicePdfBlob (Cap light print-like)', () => {
     expect(text).toContain('Authorized Signatory');
     expect(text).toContain('Sub Total');
   });
+
+  it('paginates ~24 short quotation lines via footer reserve (not taller rows)', async () => {
+    const items = Array.from({ length: 24 }, (_, i) => ({
+      description: `Item ${i + 1}`,
+      qty: 1,
+      rate: 100,
+      gstPercent: 0,
+      taxable: 100,
+      tax: 0,
+      total: 100,
+    }));
+    const blob = await buildStandaloneInvoicePdfBlob(
+      {
+        ...baseInv,
+        invoiceNumber: 'Q-PAGED',
+        items,
+        subtotal: 2400,
+        grandTotal: 2400,
+        paidAmount: 0,
+        advanceApplied: 0,
+        outstanding: 2400,
+        status: 'draft',
+      },
+      { companyName: 'Prathamesh', phone: '9999999999' },
+      { hasGst: false, docType: 'quotation' },
+    );
+    const text = await pdfText(blob);
+    expect(text).toContain('QUOTATION');
+    expect(text).toMatch(/continued/);
+    expect(text).toContain('Page 2');
+    const pageObjs = text.match(/\/Type\s*\/Page\b/g) || [];
+    expect(pageObjs.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('moves a wrapped long description to the next page as one row', async () => {
+    const longDesc =
+      'Heavy duty industrial grade copper conductor cable 1.5mm with ISI mark for commercial wiring installation';
+    const items = [
+      ...Array.from({ length: 20 }, (_, i) => ({
+        description: `Item ${i + 1}`,
+        qty: 1,
+        rate: 100,
+        gstPercent: 0,
+        taxable: 100,
+        tax: 0,
+        total: 100,
+      })),
+      {
+        description: longDesc,
+        qty: 1,
+        rate: 1850,
+        gstPercent: 0,
+        taxable: 1850,
+        tax: 0,
+        total: 1850,
+      },
+    ];
+    const subtotal = 20 * 100 + 1850;
+    const blob = await buildStandaloneInvoicePdfBlob(
+      {
+        ...baseInv,
+        items,
+        subtotal,
+        grandTotal: subtotal,
+        paidAmount: 0,
+        advanceApplied: 0,
+        outstanding: subtotal,
+        status: 'draft',
+      },
+      { companyName: 'Prathamesh', phone: '9999999999' },
+      { hasGst: false, docType: 'quotation' },
+    );
+    const text = await pdfText(blob);
+    expect(text).toMatch(/continued/);
+    expect(text).toContain('Page 2');
+    // Wrapped fragments from the long line should appear (jsPDF may split words)
+    expect(text).toMatch(/copper|conductor|commercial/i);
+  });
 });

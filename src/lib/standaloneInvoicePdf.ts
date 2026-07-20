@@ -10,9 +10,11 @@
  * 3. Print still uses generateStandaloneInvoiceHtml + system Print (full HTML fidelity).
  * 4. Cap Invoice/Quotation Save may pre-bake under Documents/Dhandho/invoices/ (see capBillPdfCache).
  *
- * Multi-page: continued pages get a compact company/logo strip + doc title “(continued)”
- * + page indicator (print-like thead repeat for item columns). Bank / totals / amount in
- * words / signature stay on the last page only.
+ * Multi-page: a footer reserve band at the bottom of each page stays clear of item rows.
+ * When the next measured row (incl. wrapped description) would enter that band, break and
+ * continue with a compact company/logo strip + “(continued)” + page # + repeated column
+ * headers. Totals / amount-in-words / bank / signature draw into the reserve on the last
+ * page only; continued pages leave the band empty (page # lives in the continued header).
  */
 
 import type { jsPDF } from 'jspdf';
@@ -145,9 +147,17 @@ export async function buildStandaloneInvoicePdfBlob(
   const right = pageW - margin;
   const contentW = right - margin;
   let y = margin;
-  /** Set when ensureSpace starts a new page — used to repeat item table headers. */
+  /** Set when a page break starts — used to repeat item table headers. */
   let pageBreakPending = false;
   const continuedHdrH = 14;
+  /**
+   * Bottom band reserved for last-page totals / amount-in-words / bank / signature.
+   * Item rows never draw into this zone; on continued pages it stays empty.
+   */
+  const FOOTER_RESERVE = 72;
+  /** Hard bottom pad for any content (incl. last-page footer drawn into the reserve). */
+  const PAGE_BOTTOM_PAD = 10;
+  const itemContentBottom = () => pageH - FOOTER_RESERVE;
 
   const setBorder = () => {
     doc.setDrawColor(BORDER);
@@ -192,12 +202,20 @@ export async function buildStandaloneInvoicePdfBlob(
     y = margin + h + 2;
   };
 
+  const startNewPage = () => {
+    doc.addPage();
+    pageBreakPending = true;
+    drawContinuedPageHeader();
+  };
+
+  /** Last-page blocks (totals / bank / sig / terms) may use the footer reserve. */
   const ensureSpace = (need: number) => {
-    if (y + need > pageH - 12) {
-      doc.addPage();
-      pageBreakPending = true;
-      drawContinuedPageHeader();
-    }
+    if (y + need > pageH - PAGE_BOTTOM_PAD) startNewPage();
+  };
+
+  /** Item rows must stay above the footer reserve; whole row moves to next page if needed. */
+  const ensureItemSpace = (rowH: number) => {
+    if (y + rowH > itemContentBottom()) startNewPage();
   };
 
   // —— Title box ——
@@ -358,13 +376,22 @@ export async function buildStandaloneInvoicePdfBlob(
   const amountTotal = inv.items.reduce((s, it) => s + Number(it.total || 0), 0);
 
   inv.items.forEach((it, i) => {
-    const descParts = wrapLines(doc, String(it.description || 'Item').slice(0, 80), Math.max(28, colItemMaxW));
+    // Measure wrap at the same font used when drawing, so multi-line rows get real height.
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const descParts = wrapLines(doc, String(it.description || 'Item').slice(0, 120), Math.max(28, colItemMaxW));
     const rowH = Math.max(7, 3 + descParts.length * rowPad);
-    ensureSpace(rowH + 20);
+    ensureItemSpace(rowH);
     // Same multi-page rule as HTML thead: repeat column headers after a page break.
     if (pageBreakPending) {
       pageBreakPending = false;
       drawTableHeader();
+      // Thead ate the last slot — one more break so the whole wrapped row stays together.
+      if (y + rowH > itemContentBottom()) {
+        startNewPage();
+        pageBreakPending = false;
+        drawTableHeader();
+      }
     }
     setBorder();
     doc.rect(margin, y, contentW, rowH);
@@ -391,7 +418,8 @@ export async function buildStandaloneInvoicePdfBlob(
     y += rowH;
   });
 
-  const minBodyBottom = margin + 145;
+  // Stretch empty body only within the item zone (never into the footer reserve).
+  const minBodyBottom = Math.min(margin + 145, itemContentBottom());
   if (y < minBodyBottom) {
     const fillH = minBodyBottom - y;
     setBorder();
@@ -399,6 +427,7 @@ export async function buildStandaloneInvoicePdfBlob(
     y += fillH;
   }
 
+  // Totals + bank/sig use the footer reserve on this (last) page.
   ensureSpace(8);
   const totH = 7;
   setFill();
@@ -427,7 +456,7 @@ export async function buildStandaloneInvoicePdfBlob(
   const leftSummaryRows = 1 + (showPaymentRows ? 1 : 0) + (showPaymentRows && advance > 0.001 ? 1 : 0);
   const sumH = Math.max(18, 5 + leftSummaryRows * 5, 8 + wordsLines.length * 3.5 + (showPaymentRows ? 10 : 4));
 
-  ensureSpace(sumH + 50);
+  ensureSpace(sumH);
   pageBreakPending = false;
   setBorder();
   doc.rect(margin, y, contentW, sumH);
