@@ -69,7 +69,7 @@ Cash is counted **once** in Analytics `collections` (row exists from record time
 
 ## User-owned backups (client)
 
-Staff export/restore encrypted JSON on the phone (`src/platforms/service-mobile/localBackup.ts`). Optional Gmail opens their mail app only — we do not store or email the file ourselves. Schedule: Settings → Auto Backup (daily / weekly / monthly).
+Staff export/restore encrypted JSON envelopes on the phone (`src/platforms/service-mobile/localBackup.ts`). Ciphertext is PBKDF2(AES-GCM) from the **DG-SM license key** (same key works after reinstall / new phone; not tied to machineId). Plaintext is usually a PGlite `dumpDataDir` tar; older/fallback dumps are JSON `{ v:1, tables }`. Restore accepts both. Optional Gmail opens their mail app only — we do not store or email the file ourselves. Schedule: Settings → Auto Backup (daily / weekly / monthly).
 
 ## Related
 

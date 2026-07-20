@@ -53,7 +53,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 7 | SA Bell | SA notify on license → phone online | Message appears in in-app Bell |
 | 8 | Local backup file | Settings → Save Backup File | Toast **Backup done — saved to Documents/Dhandho/backups/…**; file visible in My Files → Documents → Dhandho → backups (Samsung/Android). Nothing stored on our cloud. Denied storage permission → error toast, not success |
 | 8b | Auto backup schedule | Settings → Auto Backup → daily / weekly / monthly (+ optional Gmail) | When due, saves file under Documents/Dhandho/backups; Gmail only opens mail app (staff attach file) |
-| 9 | Phone lost restore | SA Unbind → new phone activate → Restore from **their** backup file | Same company data; wrong license key cannot decrypt |
+| 9 | Phone lost restore | SA Unbind → new phone activate → Restore from **their** backup file | Same company data; wrong license key cannot decrypt. Same key that created the file must restore (PGlite tar or JSON table payload). Activation OK + decrypt fail → wrong key/file; decrypt OK + import fail → distinct error (not “wrong key”). |
 | 10 | Cloud backup API | POST `/api/service-mobile/backup` | 410 Gone |
 | 11 | Sideload / TestFlight | Install evergreen debug APK (Android) or GitLab `ios:offline-mobile` debug `.app.zip` / IPA | App opens; onboarding works |
 | 11c | Safe areas / no overlap | Open setup + main app on notched phone | Status bar and bottom nav do not cover title, buttons, or form fields |

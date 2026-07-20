@@ -17,6 +17,7 @@ vi.mock('../../src/platforms/service-mobile/local/db', () => ({
   },
   dumpLocalDb: async () => new TextEncoder().encode(JSON.stringify({ v: 1, tables: { tenants: [] } })),
   restoreLocalDbFromJson: async () => {},
+  restoreLocalDbPlaintext: async () => {},
   wipeLocalDb: async () => {},
   getLocalDb: async () => ({}),
 }));

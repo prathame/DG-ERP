@@ -138,7 +138,7 @@ Phone calls `POST /api/service-mobile/activate` on `VITE_API_ORIGIN` (baked into
 
 1. SA issues Service Mobile license  
 2. Staff activates with key (needs internet once)  
-3. Optional: restore from their backup file → or set admin password (fresh)  
+3. Optional: restore from their backup file → or set admin password (fresh). Restore needs the **same DG-SM key** that created the file (activation can succeed while restore fails if the file was encrypted under a different key, or if the file is corrupt). Cap Offline re-activate on the same unbound/same device is allowed; one active machine binding still applies.  
 4. Work offline; when online, heartbeat applies settings/Bell  
 5. Settings → Auto Backup (daily / weekly / monthly) saves a file on the phone  
 6. Lost phone: SA **Unbind** → new phone activate → **Restore from backup file**
