@@ -29,3 +29,12 @@ export function invoiceHasGst(inv: { gstEnabled?: boolean | null; taxTotal?: num
   if (typeof inv.gstEnabled === 'boolean') return inv.gstEnabled;
   return (Number(inv.taxTotal) || 0) > 0;
 }
+
+/**
+ * Quotation line `withGst` for save/calc: new quotes follow bill GST toggle (like invoice `gstBilling`);
+ * draft edits keep the stored per-line flag.
+ */
+export function quotationLineWithGst(gstBillingEnabled: boolean, isEditing: boolean, lineWithGst: boolean): boolean {
+  if (!gstBillingEnabled && !isEditing) return false;
+  return lineWithGst;
+}

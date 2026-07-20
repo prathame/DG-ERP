@@ -114,7 +114,7 @@ The inbound mirror of Distribution: recording stock **received** from suppliers,
 
 **`features/quotations/QuotationsView.tsx`, `features/orders/OrdersView.tsx`**
 
-A pre-sale pipeline: a `Quotation` (Draft → Sent → Accepted) can be converted into an `Order`, and an Order can later be fulfilled into a Distribution batch (`converted_batch_id`/`fulfilled_batch_id` link the three tables together). In `App.tsx` these two views are shown together under one tab via a small local `QuotationsAndOrdersView` toggle component (see [app-shell.md](./app-shell.md)) rather than being two separate top-level tabs — a UI decision to keep the sidebar from growing past what fits comfortably.
+A pre-sale pipeline: a `Quotation` (Draft → Sent → Accepted) can be converted into an `Order`, and an Order can later be fulfilled into a Distribution batch (`converted_batch_id`/`fulfilled_batch_id` link the three tables together). New quotes read the same Bill Customization **GST** flag as invoices (`isGstBillingEnabled` / `showGst`): when off, the per-line Include GST checkbox is hidden and tax/PDF stay non-GST; when on, Include GST defaults checked and drives line tax + print. In `App.tsx` these two views are shown together under one tab via a small local `QuotationsAndOrdersView` toggle component (see [app-shell.md](./app-shell.md)) rather than being two separate top-level tabs — a UI decision to keep the sidebar from growing past what fits comfortably.
 
 **Business value:** lets a sales team commit numbers to a customer (a quote) before committing real inventory (an order), matching how B2B sales actually negotiate.
 

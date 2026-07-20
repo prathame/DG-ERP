@@ -745,8 +745,8 @@ function BillCustomizationSection() {
               <div>
                 <p className="font-medium text-sm">GST</p>
                 <p className="text-xs text-gray-500">
-                  GST on new invoices (tax %, HSN/SAC, Tax Invoice). Each invoice keeps its own GST/non-GST mode when
-                  printed — changing this later does not rewrite old bills.
+                  GST on new invoices and quotations (tax %, HSN/SAC, Tax Invoice). Each document keeps its own
+                  GST/non-GST mode when printed — changing this later does not rewrite old bills.
                 </p>
               </div>
               {toggleField('showGst')}
