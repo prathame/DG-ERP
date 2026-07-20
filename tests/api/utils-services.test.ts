@@ -364,6 +364,35 @@ describe('utils/tenant', () => {
     await deleteTenant(result.tenantId);
   });
 
+  it('provisionTenant succeeds under FORCE RLS (matches prod 42501 failure mode)', async () => {
+    const plan = (await pool.query(`SELECT id FROM plans ORDER BY id LIMIT 1`)).rows[0];
+    if (!plan) return;
+    const rlsTables = ['users', 'vendors', 'redemption_settings'] as const;
+    for (const t of rlsTables) {
+      await pool.query(`ALTER TABLE ${t} FORCE ROW LEVEL SECURITY`);
+    }
+    let tenantId = '';
+    try {
+      const result = await provisionTenant({
+        companyName: `ForceRls ${Date.now()}`,
+        adminEmail: `forcerls${Date.now()}@t.com`,
+        adminName: 'Admin',
+        adminPassword: 'Test@12345',
+        planId: plan.id,
+      });
+      tenantId = result.tenantId;
+      const user = (await pool.query('SELECT email FROM users WHERE tenant_id = $1', [tenantId])).rows[0];
+      expect(user?.email).toBeTruthy();
+      await deleteTenant(tenantId);
+      tenantId = '';
+    } finally {
+      if (tenantId) await deleteTenant(tenantId).catch(() => {});
+      for (const t of rlsTables) {
+        await pool.query(`ALTER TABLE ${t} NO FORCE ROW LEVEL SECURITY`);
+      }
+    }
+  });
+
   it('deleteTenant rolls back when a delete fails', async () => {
     const realConnect = pool.connect.bind(pool);
     const spy = vi.spyOn(pool, 'connect').mockImplementation(async () => {
