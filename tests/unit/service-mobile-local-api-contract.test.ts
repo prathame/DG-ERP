@@ -508,6 +508,95 @@ describe('service-mobile local API — Mark Paid + Client payment does not doubl
   });
 });
 
+describe('service-mobile local API — Quote convert → invoice surfaces', () => {
+  beforeEach(async () => {
+    await setupDb();
+  });
+
+  afterEach(async () => {
+    await db?.close();
+  });
+
+  it('Accepted quote convert links party, lists on Invoice tab + client hub, feeds analytics', async () => {
+    const client = await api('POST', '/vendors', {
+      name: 'Convert Client',
+      phone: '9000000044',
+      gstNumber: '27AAAAA0000A1Z5',
+    });
+    expect(client.status).toBe(201);
+    const vendorId = (client.json as { id: string }).id;
+
+    const prod = await api('POST', '/products', { name: 'AC Service', price: 1000, stock: 0 });
+    expect(prod.status).toBe(201);
+    const productId = (prod.json as { id: string }).id;
+
+    const quote = await api('POST', '/quotations', {
+      vendorId,
+      customerName: 'Convert Client',
+      customerPhone: '9000000044',
+      quotationDate: '2026-01-05',
+      gstRate: 18,
+      items: [{ productId, quantity: 1 }],
+    });
+    expect(quote.status).toBe(201);
+    const quoteId = (quote.json as { id: string }).id;
+
+    const accepted = await api('PUT', `/quotations/${quoteId}/status`, { status: 'Accepted' });
+    expect(accepted.status).toBe(200);
+
+    const converted = await api('POST', `/quotations/${quoteId}/convert`);
+    expect(converted.status).toBe(200);
+    const conv = converted.json as {
+      target: string;
+      invoiceId: string;
+      invoiceNumber: string;
+      grandTotal: number;
+      fullyConverted: boolean;
+    };
+    expect(conv.target).toBe('invoice');
+    expect(conv.fullyConverted).toBe(true);
+    expect(conv.grandTotal).toBe(1180);
+
+    const list = await api('GET', '/invoices');
+    expect(list.status).toBe(200);
+    const invoices = list.json as {
+      id: string;
+      partyType: string | null;
+      partyId: string | null;
+      status: string;
+      grandTotal: number;
+      items: { description?: string; qty?: number }[];
+    }[];
+    const created = invoices.find(i => i.id === conv.invoiceId);
+    expect(created).toBeTruthy();
+    expect(created!.status).toBe('sent');
+    expect(created!.partyType).toBe('vendor');
+    expect(created!.partyId).toBe(vendorId);
+    expect(created!.grandTotal).toBe(1180);
+    expect(created!.items[0]?.description).toBe('AC Service');
+    expect(created!.items[0]?.qty).toBe(1);
+
+    const hub = await api('GET', `/invoice-finance/client/${encodeURIComponent(`vendor:${vendorId}`)}`);
+    expect(hub.status).toBe(200);
+    const hubBody = hub.json as { invoices: { id: string; balance: number }[]; balance: number };
+    expect(hubBody.invoices.some(i => i.id === conv.invoiceId)).toBe(true);
+    expect(hubBody.balance).toBe(1180);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const overview = await api('GET', `/analytics/overview?from=${today}&to=${today}`);
+    expect(overview.status).toBe(200);
+    const money = (overview.json as { money: { revenue: number; invoiceOutstanding: number; collections: number } })
+      .money;
+    expect(money.revenue).toBe(1180);
+    expect(money.invoiceOutstanding).toBe(1180);
+    expect(money.collections).toBe(0);
+
+    const top = (overview.json as { topVendors: { vendorId: string; vendorName: string; balance: number }[] })
+      .topVendors;
+    expect(top.some(v => v.vendorId === `vendor:${vendorId}` && v.balance === 1180)).toBe(true);
+  });
+});
+
 describe('service-mobile local API contract — Global search', () => {
   beforeEach(async () => {
     await setupDb();
