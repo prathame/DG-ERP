@@ -32,6 +32,7 @@ const SHELL_KEYS = [
   'dashboard.outstanding',
   'masters.staff',
   'masters.prices',
+  'masters.expenses',
   'masters.clientsRates',
   'invoices.newInvoice',
   'invoices.noInvoicesYet',

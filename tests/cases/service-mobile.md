@@ -26,7 +26,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5k | Analytics phone | Analytics tab | Quick actions + dense KPI cards + range pills |
 | 5k2 | Analytics outstanding | Create unpaid invoice for a client → Analytics | Outstanding Clients lists that client with balance; View All opens Invoice Finance |
 | 5k3 | Analytics payroll | Masters → Staff → Record salary payment → Analytics | Staff Payroll shows Total Paid / staff row; Advances if advance type used |
-| 5l | Masters hub | Masters tab on phone | Icon pills (**Clients**, Prices, Banks, Staff, …) — **no Products/Catalog inventory pill**; list cards for selected pill; circular + FAB “Add Client” opens manage |
+| 5l | Masters hub | Masters tab on phone | Icon pills (**Clients**, Prices, Banks, Staff, **Expenses**, …) — **no Products/Catalog inventory pill**; list cards for selected pill; circular + FAB “Add Client” opens manage. **Expenses** pill/card opens the existing Purchases/Expenses tab (`setActiveTab('purchases')`) — not a nested copy under Masters |
 | 5l1 | Client wording | Masters / Invoice create / Quotes / Analytics | UI says **Client(s)** not Vendor(s). API paths remain `/vendors`. Cloud manufacturer still says Vendor |
 | 5l1b | Client email optional | Masters → Clients → Add Client with name + phone only (no email); CSV import without email | Saves successfully; email field/CSV column marked optional; duplicate-email check only when email provided |
 | 5l2 | Masters no Products | Masters pills / desktop cards | **Products / Catalog inventory** absent Offline. **Price List** kept with **Catalog** + **Clients** tabs (rate book). Cloud manufacturer Masters still show Products → Inventory |

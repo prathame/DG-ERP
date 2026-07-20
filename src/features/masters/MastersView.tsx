@@ -1,6 +1,18 @@
 import React, { useState, useEffect, lazy, Suspense, Fragment } from 'react';
 import { motion } from 'motion/react';
-import { Users, ShoppingCart, Gift, Package, CreditCard, Link2, Plus, Tag, Wallet, Truck } from 'lucide-react';
+import {
+  Users,
+  ShoppingCart,
+  ShoppingBag,
+  Gift,
+  Package,
+  CreditCard,
+  Link2,
+  Plus,
+  Tag,
+  Wallet,
+  Truck,
+} from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
@@ -20,7 +32,9 @@ const RewardRulesView = lazy(() => import('./RewardRulesView').then(m => ({ defa
 const PriceListView = lazy(() => import('./PriceListView').then(m => ({ default: m.PriceListView })));
 const StaffMasterView = lazy(() => import('./StaffMasterView').then(m => ({ default: m.StaffMasterView })));
 
-export type MasterType = 'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList' | 'staff';
+/** Hub ids — `item` / `expenses` are shortcuts to other tabs (Inventory / Purchases). */
+export type MasterType =
+  'customer' | 'vendor' | 'item' | 'bank' | 'mapping' | 'rewardRules' | 'priceList' | 'staff' | 'expenses';
 
 type StaffRow = { id: string; name: string; phone?: string; role?: string };
 
@@ -60,6 +74,7 @@ export function MastersView({
       bank: t('masters.banks'),
       staff: t('masters.staff'),
       priceList: t('masters.prices'),
+      expenses: t('masters.expenses'),
       mapping: t('masters.mapping'),
       rewardRules: t('nav.rewards'),
     };
@@ -121,6 +136,11 @@ export function MastersView({
     const master = launch.master;
     if (master === 'item' && !servicePhoneUx) {
       setActiveTab('inventory');
+      onLaunchConsumed?.();
+      return;
+    }
+    if (master === 'expenses') {
+      setActiveTab('purchases');
       onLaunchConsumed?.();
       return;
     }
@@ -204,6 +224,19 @@ export function MastersView({
       color: 'text-indigo-600',
       bg: 'bg-indigo-50',
     },
+    // Shortcut to existing Purchases/Expenses screen (More → Expenses) — not a nested copy.
+    ...(tv('purchases')
+      ? [
+          {
+            id: 'expenses' as const,
+            name: tabConfig['purchases']?.label || t('masters.expenses'),
+            count: '' as number | string,
+            icon: ShoppingBag,
+            color: 'text-violet-600',
+            bg: 'bg-violet-50',
+          },
+        ]
+      : []),
     ...(!servicePhoneUx ? [priceListMaster] : []),
     ...(tv('rewards')
       ? [
@@ -331,6 +364,10 @@ export function MastersView({
       setActiveTab('inventory');
       return;
     }
+    if (id === 'expenses') {
+      setActiveTab('purchases');
+      return;
+    }
     if (id === 'staff') setFocusStaffId(opts?.staffId ?? null);
     else setFocusStaffId(null);
     if (id === 'vendor') setFocusVendorId(opts?.vendorId ?? null);
@@ -446,7 +483,7 @@ export function MastersView({
           value={active || ''}
           onChange={id => {
             const next = id as MasterType;
-            if (next === 'priceList' || next === 'mapping' || next === 'rewardRules') {
+            if (next === 'priceList' || next === 'mapping' || next === 'rewardRules' || next === 'expenses') {
               openFull(next);
               return;
             }
