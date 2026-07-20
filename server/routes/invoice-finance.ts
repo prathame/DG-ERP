@@ -204,11 +204,12 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
-    const { invoiceId, amount, paymentDate, paymentMethod, referenceNumber, notes, clientName } = req.body;
-    if (!invoiceId || !amount || Number(amount) <= 0)
-      return res.status(400).json({ error: 'Invoice ID and positive amount required' });
-
+    const { invoiceId, amount, paymentDate, paymentMethod, referenceNumber, notes } = req.body;
     const payAmt = Number(amount);
+    // Reject NaN/Infinity — `Number("abc") <= 0` is false, so a bare `<= 0` check is not enough
+    if (!invoiceId || !Number.isFinite(payAmt) || payAmt <= 0)
+      return res.status(400).json({ error: 'Invoice ID and positive amount required' });
+    if (payAmt > 100_000_000) return res.status(400).json({ error: 'Amount exceeds maximum limit' });
     const pDate = paymentDate || new Date().toISOString().slice(0, 10);
     const id = uid('IP');
 

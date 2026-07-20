@@ -202,7 +202,11 @@ export function createApp(): express.Application {
   };
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin && (allowedOrigins.includes(origin) || capacitorOrigins.has(origin) || isLoopbackOrigin(origin))) {
+    // Capacitor shells use fixed localhost origins; arbitrary loopback ports only in non-prod (Vite QA)
+    if (
+      origin &&
+      (allowedOrigins.includes(origin) || capacitorOrigins.has(origin) || (!isProduction && isLoopbackOrigin(origin)))
+    ) {
       res.header('Access-Control-Allow-Origin', origin);
     }
     // Never reflect * — unlisted origins get no Allow-Origin header

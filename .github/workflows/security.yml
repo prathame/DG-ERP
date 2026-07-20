@@ -62,8 +62,8 @@ jobs:
             FOUND=1
           fi
 
-          # Check .env is not committed
-          if [ -f ".env" ]; then
+          # Check .env is not tracked (existence on disk alone is fine — gitignored)
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
             echo "FAIL: .env file is tracked in git!"
             FOUND=1
           fi
