@@ -163,7 +163,7 @@ function CompanySlugEntry() {
     e.preventDefault();
     setSlugError('');
     const checked = validateCompanySlug(slug);
-    if (!checked.ok) {
+    if (checked.ok === false) {
       // Soft UX block — breadcrumb + warn so Cap bug reports are not empty
       reportActionBlocked('slug.entry', checked.error, slugEntryApiContext(normalizeCompanySlug(slug)));
       setSlugError(checked.error);

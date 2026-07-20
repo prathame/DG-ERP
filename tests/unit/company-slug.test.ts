@@ -13,7 +13,7 @@ describe('companySlug', () => {
   it('rejects reserved static paths with a clear message', () => {
     const r = validateCompanySlug('admin');
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/reserved/i);
+    if (r.ok === false) expect(r.error).toMatch(/reserved/i);
   });
 
   it('rejects invalid characters and double hyphens', () => {
