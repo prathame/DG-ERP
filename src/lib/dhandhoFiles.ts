@@ -17,7 +17,7 @@ export type SaveDhandhoFileResult = {
 
 export function sanitizeDhandhoFilename(name: string): string {
   const cleaned = name
-    .replace(/[^\p{L}\p{N}.\- ()#]+/gu, '_')
+    .replace(/[^\p{L}\p{M}\p{N}.\- ()#]+/gu, '_')
     .replace(/_+/g, '_')
     .replace(/^[_.\s]+|[_.\s]+$/g, '')
     .trim();

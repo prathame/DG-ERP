@@ -76,7 +76,7 @@ export function standaloneInvoicePdfBasename(customerName?: string, when = new D
   const name =
     (customerName || 'Client')
       .trim()
-      .replace(/[^\p{L}\p{N}.\- ()#]+/gu, '_')
+      .replace(/[^\p{L}\p{M}\p{N}.\- ()#]+/gu, '_')
       .replace(/_+/g, '_')
       .replace(/^[_.\s]+|[_.\s]+$/g, '')
       .slice(0, 40) || 'Client';
