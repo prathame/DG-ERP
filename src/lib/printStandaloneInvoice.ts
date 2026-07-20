@@ -213,8 +213,15 @@ async function shareCapInvoicePdfWithFallback(
     companyName?: string;
     address?: string;
     phone?: string;
+    email?: string;
     gstNumber?: string;
   };
+  // Saved Bill Customization = WhatsApp PDF template (logo/sig/bank/colors/terms/footer).
+  // No separate template file; no UPI QR network fetch (text bank fields only).
+  const billSettings =
+    options?.billSettings ||
+    ((await api.settings.getBillSettings().catch(() => ({}))) as Record<string, unknown>) ||
+    {};
 
   try {
     waLog('info', 'WhatsApp PDF build start', {
@@ -231,9 +238,10 @@ async function shareCapInvoicePdfWithFallback(
           companyName: user.companyName,
           address: user.address,
           phone: user.phone,
+          email: user.email,
           gstNumber: user.gstNumber,
         },
-        { hasGst: invoiceHasGst(inv) },
+        { hasGst: invoiceHasGst(inv), billSettings },
       ),
       CAP_WHATSAPP_PDF_TIMEOUT_MS,
       'PDF_TIMEOUT',
