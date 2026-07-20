@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { PasswordInput } from '../ui/PasswordInput';
 import { session } from '../../lib/session';
-import { shareBugReport } from '../../lib/bugReport';
+import { bugReportFeedbackMessage, shareBugReport } from '../../lib/bugReport';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
 
 type LoginMode = 'login' | 'forgot' | 'reset';
@@ -376,13 +376,7 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
                 setSharingReport(true);
                 try {
                   const how = await shareBugReport({ lastError: error || undefined });
-                  setSuccessMessage(
-                    how === 'shared'
-                      ? 'Bug report ready to share'
-                      : how === 'copied'
-                        ? 'Bug report copied — paste into WhatsApp/email'
-                        : 'Bug report downloaded',
-                  );
+                  setSuccessMessage(bugReportFeedbackMessage(how));
                   setError('');
                 } catch (e) {
                   setError(e instanceof Error ? e.message : 'Could not create bug report');

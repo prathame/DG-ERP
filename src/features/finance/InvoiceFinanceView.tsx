@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Plus, Trash2, FileText, IndianRupee, Clock, Search, Printer } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText, IndianRupee, Clock, Search, Printer, MessageCircle } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { api } from '../../api';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useToast, LoadingSpinner, isBillFullyPaid, PaidBadge, PaidStamp } from '../../components/ui';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
-import { printStandaloneInvoiceById } from '../../lib/printStandaloneInvoice';
+import { printStandaloneInvoiceById, shareStandaloneInvoiceWhatsAppById } from '../../lib/printStandaloneInvoice';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 
 type Summary = Awaited<ReturnType<typeof api.invoiceFinance.summary>>[number];
@@ -95,11 +95,36 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     setCreatePrefill(null);
   };
 
+  const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
+
   const printInvoicePdf = async (invoiceId: string) => {
     try {
       await printStandaloneInvoiceById(invoiceId, { businessType: cfg.type });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
+    }
+  };
+
+  const shareInvoiceWhatsApp = async (invoiceId: string) => {
+    if (whatsappBusyId) return;
+    setWhatsappBusyId(invoiceId);
+    try {
+      const how = await shareStandaloneInvoiceWhatsAppById(invoiceId, { businessType: cfg.type });
+      if (how === 'cancelled') return;
+      toast(
+        how === 'shared'
+          ? 'Share the PDF via WhatsApp'
+          : how === 'saved'
+            ? 'PDF saved to Dhandho/invoices on this phone'
+            : how === 'text'
+              ? 'WhatsApp opened — PDF also saved/downloaded to attach'
+              : 'WhatsApp opened — PDF downloaded to attach',
+        'success',
+      );
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not share invoice', 'error');
+    } finally {
+      setWhatsappBusyId(null);
     }
   };
 
@@ -337,18 +362,16 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                   {detail.invoices.map(inv => {
                     const paid = isBillFullyPaid(inv.grandTotal, inv.balance);
                     return (
-                      <div key={inv.id} className="px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
-                        <div>
-                          <p className="font-bold font-mono text-sm">{inv.invoiceNumber}</p>
-                          <p className="text-xs text-gray-500">
-                            {formatDate(inv.invoiceDate)}
-                            {inv.dueDate ? ` · Due ${formatDate(inv.dueDate)}` : ''}
-                          </p>
-                          {inv.notes && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{inv.notes}</p>}
-                        </div>
-                        <div className="flex items-center gap-4 flex-wrap">
-                          <div className="text-right">
-                            <p className="text-sm font-bold">{fmt(inv.grandTotal)}</p>
+                      <div key={inv.id} className="px-5 py-4 space-y-2.5">
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div className="min-w-0">
+                            <p className="font-bold font-mono text-sm">{inv.invoiceNumber}</p>
+                            <p className="text-xs text-gray-500">
+                              {formatDate(inv.invoiceDate)}
+                              {inv.dueDate ? ` · Due ${formatDate(inv.dueDate)}` : ''}
+                            </p>
+                            {inv.notes && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{inv.notes}</p>}
+                            <p className="text-sm font-bold mt-1">{fmt(inv.grandTotal)}</p>
                             {(inv.advanceApplied || 0) > 0 && (
                               <p className="text-xs text-emerald-600">
                                 Advance payment: {fmt(inv.advanceApplied || 0)}
@@ -370,11 +393,13 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                             <PaidBadge size="sm" />
                           ) : (
                             inv.balance > 0 && (
-                              <span className="text-xs bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <span className="text-xs bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
                                 <Clock size={10} /> Unpaid
                               </span>
                             )
                           )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
                           <button
                             type="button"
                             onClick={() => void printInvoicePdf(inv.id)}
@@ -382,6 +407,16 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                             title="Print invoice"
                           >
                             <Printer size={12} /> Print
+                          </button>
+                          <button
+                            type="button"
+                            disabled={whatsappBusyId === inv.id}
+                            onClick={() => void shareInvoiceWhatsApp(inv.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-green-200 text-green-700 rounded-lg text-xs font-bold hover:bg-green-50 disabled:opacity-50"
+                            title="WhatsApp PDF"
+                          >
+                            <MessageCircle size={12} />
+                            {whatsappBusyId === inv.id ? '…' : 'WhatsApp'}
                           </button>
                           {!isReadOnly && !paid && inv.balance > 0 && (
                             <button
