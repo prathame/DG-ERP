@@ -16,8 +16,18 @@ vi.mock('../../src/platforms/service-mobile/local/db', () => ({
     return { rows: [] };
   },
   dumpLocalDb: async () => new TextEncoder().encode(JSON.stringify({ v: 1, tables: { tenants: [] } })),
-  restoreLocalDbFromJson: async () => {},
-  restoreLocalDbPlaintext: async () => {},
+  restoreLocalDbFromJson: async (
+    _b: unknown,
+    onProgress?: (i: { tablesDone: number; tablesTotal: number; table: string }) => void | Promise<void>,
+  ) => {
+    await onProgress?.({ tablesDone: 1, tablesTotal: 1, table: 'tenants' });
+  },
+  restoreLocalDbPlaintext: async (
+    _b: unknown,
+    onProgress?: (i: { tablesDone: number; tablesTotal: number; table: string }) => void | Promise<void>,
+  ) => {
+    await onProgress?.({ tablesDone: 1, tablesTotal: 1, table: 'tenants' });
+  },
   wipeLocalDb: async () => {},
   getLocalDb: async () => ({}),
 }));
@@ -76,5 +86,23 @@ describe('service-mobile localBackup (user-owned)', () => {
 
     await mod.saveLocalBackupSettings({ enabled: false });
     expect(await mod.shouldRunLocalBackup()).toBe(false);
+  });
+
+  it('reports stage-mapped restore progress 0→100', async () => {
+    const mod = await import('../../src/platforms/service-mobile/localBackup');
+    const { envelope } = await mod.buildLocalBackupEnvelope();
+    const percents: number[] = [];
+    const stages: string[] = [];
+    const r = await mod.restoreFromLocalBackupJson(JSON.stringify(envelope), p => {
+      percents.push(p.percent);
+      stages.push(p.stage);
+    });
+    expect(r.ok).toBe(true);
+    expect(percents[0]).toBeGreaterThanOrEqual(0);
+    expect(percents[percents.length - 1]).toBe(100);
+    expect(stages).toEqual(expect.arrayContaining(['validating', 'decrypting', 'wiping', 'applying', 'done']));
+    for (let i = 1; i < percents.length; i++) {
+      expect(percents[i]).toBeGreaterThanOrEqual(percents[i - 1]);
+    }
   });
 });

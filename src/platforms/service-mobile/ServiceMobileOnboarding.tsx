@@ -12,6 +12,8 @@ import { getLocalDb } from './local/db';
 import { restoreFromLocalBackupFile } from './restore';
 import { serviceMobileAppVersion } from './mode';
 import { shareBugReport } from '../../lib/bugReport';
+import { PercentProgressBar } from '../../components/ui';
+import type { RestoreProgress } from './restoreProgress';
 
 type Props = {
   onReady: () => void;
@@ -24,6 +26,7 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
   const [password2, setPassword2] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [restorePct, setRestorePct] = useState<RestoreProgress | null>(null);
   const [companyName, setCompanyName] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -87,12 +90,14 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
     if (!file) return;
     setError('');
     setBusy(true);
+    setRestorePct({ percent: 0, stage: 'reading', label: 'Reading backup file…' });
     try {
-      const r = await restoreFromLocalBackupFile(file);
+      const r = await restoreFromLocalBackupFile(file, p => setRestorePct(p));
       if (!r.ok) {
         setError(r.error || 'Restore failed');
         return;
       }
+      setRestorePct({ percent: 100, stage: 'done', label: 'Restore complete' });
       if (await isLocalProvisioned()) {
         onReady();
         return;
@@ -100,6 +105,7 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
       setStep('password');
     } finally {
       setBusy(false);
+      setRestorePct(null);
       if (fileRef.current) fileRef.current.value = '';
     }
   };
@@ -203,8 +209,11 @@ export function ServiceMobileOnboarding({ onReady }: Props) {
               className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-emerald-600 text-white disabled:opacity-50"
             >
               {busy ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />}
-              Restore from backup file
+              {busy && restorePct ? `Restoring… ${restorePct.percent}%` : 'Restore from backup file'}
             </button>
+            {restorePct && (
+              <PercentProgressBar percent={restorePct.percent} label={restorePct.label} barClassName="bg-emerald-500" />
+            )}
             <button
               type="button"
               disabled={busy}

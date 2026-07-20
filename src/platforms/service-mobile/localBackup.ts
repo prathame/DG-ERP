@@ -7,6 +7,9 @@ import { encryptBackup, decryptBackup } from './local/crypto';
 import { loadLicense } from './licenseStore';
 import { localQuery } from './local/db';
 import { isNativeCapacitor, saveDhandhoFile } from '../../lib/dhandhoFiles';
+import { restoreProgress, yieldRestoreUi, type RestoreProgressCallback } from './restoreProgress';
+
+export type { RestoreProgress, RestoreProgressCallback, RestoreStage } from './restoreProgress';
 
 export type BackupFrequency = 'daily' | 'weekly' | 'monthly';
 
@@ -174,9 +177,18 @@ export async function runScheduledLocalBackupIfDue(): Promise<boolean> {
   return true;
 }
 
-export async function restoreFromLocalBackupJson(text: string): Promise<{ ok: boolean; error?: string }> {
+/**
+ * Restore Offline Mobile backup.
+ * Progress: validate ~10% → decrypt ~25% → wipe ~35% → apply tables 35–95% → done 100%.
+ */
+export async function restoreFromLocalBackupJson(
+  text: string,
+  onProgress?: RestoreProgressCallback,
+): Promise<{ ok: boolean; error?: string }> {
   const lic = loadLicense();
   if (!lic) return { ok: false, error: 'Activate license first' };
+  onProgress?.(restoreProgress('validating', 10));
+  await yieldRestoreUi();
   let parsed: LocalBackupEnvelope;
   try {
     parsed = JSON.parse(text) as LocalBackupEnvelope;
@@ -191,6 +203,8 @@ export async function restoreFromLocalBackupJson(text: string): Promise<{ ok: bo
     .toUpperCase();
   let plain: Uint8Array;
   try {
+    onProgress?.(restoreProgress('decrypting', 25));
+    await yieldRestoreUi();
     // Same DG-SM key that encrypted the file (not machineId) — reinstall / new phone OK
     plain = await decryptBackup(parsed.ciphertext, parsed.nonce, licenseKey);
   } catch {
@@ -200,8 +214,15 @@ export async function restoreFromLocalBackupJson(text: string): Promise<{ ok: bo
     };
   }
   try {
+    onProgress?.(restoreProgress('wiping', 35));
+    await yieldRestoreUi();
     await wipeLocalDb();
-    await restoreLocalDbPlaintext(plain);
+    await restoreLocalDbPlaintext(plain, async ({ tablesDone, tablesTotal, table }) => {
+      const pct = 35 + Math.round((tablesDone / tablesTotal) * 60);
+      onProgress?.(restoreProgress('applying', pct, `Restoring ${table}…`));
+      await yieldRestoreUi();
+    });
+    onProgress?.(restoreProgress('done', 100));
     return { ok: true };
   } catch (err) {
     const detail = err instanceof Error && err.message ? err.message : 'import failed';
