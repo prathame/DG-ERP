@@ -294,9 +294,11 @@ async function shareCapInvoicePdfWithFallback(
 
 /**
  * Share invoice via WhatsApp.
- * Cap: light jsPDF (no html2canvas) with hard timeout → file-only Share; on fail → text + toast.
+ * Cap: shared `buildStandaloneInvoicePdfBlob` (billSettings template + invoice fields;
+ * no html2canvas) with hard timeout → Dhandho/Cache file-only Share; on fail → text + toast.
  * Web: HTML → html2pdf file share / wa.me + download.
  * Print path stays full Tax Invoice HTML + system Print.
+ * Follow-up: pre-bake Cap PDF on Invoice Save for faster share (skip if stale).
  */
 export async function shareStandaloneInvoiceWhatsApp(
   inv: PrintableStandaloneInvoice,

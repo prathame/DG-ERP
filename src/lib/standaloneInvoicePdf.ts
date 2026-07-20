@@ -1,12 +1,16 @@
 /**
- * Cap WhatsApp invoice PDF — jsPDF text/draw/addImage only (no html2pdf/html2canvas).
+ * Cap bill PDF — single shared jsPDF builder (text/draw/addImage only).
+ * No html2pdf/html2canvas on Cap (WebView OOM/freeze).
  *
- * Template model: Bill Customization Save persists billSettings (logo, signature, bank,
- * colors, terms, footer, tagline, signatory…). That saved record IS the template — no
- * separate binary template file. WhatsApp share loads billSettings and fills only
- * invoice-specific fields (number, date, Bill To, lines, totals/payments).
+ * Product model (confirmed):
+ * 1. Bill Customization Save → persist/normalize billSettings (logo, signature, bank,
+ *    colors, terms, footer, tagline, signatory…). That record IS the ready template.
+ * 2. Cap WhatsApp (and any Cap bill PDF) → load that template + fill invoice-only fields
+ *    (number, date, client, lines, totals/payments), then share.
+ * 3. Print still uses generateStandaloneInvoiceHtml + system Print (full HTML fidelity).
  *
- * Print path still uses generateStandaloneInvoiceHtml + system Print.
+ * Follow-up (not in this PR): optionally bake PDF on Cap Invoice Save under
+ * Dhandho/invoices and reuse when fresh; rebuild after invoice edit.
  */
 
 import type { jsPDF } from 'jspdf';
