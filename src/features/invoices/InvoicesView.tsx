@@ -26,7 +26,11 @@ import {
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
-import { printStandaloneInvoice, shareStandaloneInvoiceWhatsApp } from '../../lib/printStandaloneInvoice';
+import {
+  printStandaloneInvoice,
+  shareStandaloneInvoiceWhatsApp,
+  whatsAppInvoiceShareToast,
+} from '../../lib/printStandaloneInvoice';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
@@ -235,16 +239,7 @@ export function InvoicesView() {
         businessType: cfg.type,
       });
       if (how === 'cancelled') return;
-      toast(
-        how === 'shared'
-          ? 'Share the PDF via WhatsApp'
-          : how === 'saved'
-            ? 'PDF saved to Dhandho/invoices on this phone'
-            : how === 'text'
-              ? 'WhatsApp opened — PDF also saved/downloaded to attach'
-              : 'WhatsApp opened — PDF downloaded to attach',
-        'success',
-      );
+      toast(whatsAppInvoiceShareToast(how), 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not share invoice', 'error');
     } finally {
@@ -404,8 +399,8 @@ export function InvoicesView() {
                       disabled={whatsappBusyId === inv.id}
                       onClick={() => shareInvoiceWhatsApp(inv)}
                       className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50"
-                      title="WhatsApp PDF"
-                      aria-label="Share invoice PDF on WhatsApp"
+                      title="Share on WhatsApp"
+                      aria-label="Share invoice on WhatsApp"
                     >
                       <MessageCircle size={14} />
                     </button>
@@ -490,8 +485,8 @@ export function InvoicesView() {
                           disabled={whatsappBusyId === inv.id}
                           onClick={() => shareInvoiceWhatsApp(inv)}
                           className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50"
-                          title="WhatsApp PDF"
-                          aria-label="Share invoice PDF on WhatsApp"
+                          title="Share on WhatsApp"
+                          aria-label="Share invoice on WhatsApp"
                         >
                           <MessageCircle size={15} />
                         </button>

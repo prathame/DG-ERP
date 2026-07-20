@@ -71,6 +71,36 @@ export function getRecentClientLogs(limit = 40): string[] {
   return ring.slice(-Math.max(1, limit));
 }
 
+const BREADCRUMB_KEY = 'dg_bug_breadcrumbs';
+
+/** Persist a short breadcrumb so bug reports survive soft hangs (ring buffer alone can be empty). */
+export function pushClientBreadcrumb(message: string, context?: Record<string, unknown>): void {
+  const line = JSON.stringify({
+    ts: new Date().toISOString(),
+    msg: message,
+    ...(redact(context || {}) as Record<string, unknown>),
+  });
+  try {
+    const prev = JSON.parse(sessionStorage.getItem(BREADCRUMB_KEY) || '[]') as string[];
+    const next = Array.isArray(prev) ? prev : [];
+    next.push(line);
+    sessionStorage.setItem(BREADCRUMB_KEY, JSON.stringify(next.slice(-20)));
+  } catch {
+    /* private mode / quota */
+  }
+}
+
+/** Breadcrumbs from sessionStorage for bug reports (newest last). */
+export function getClientBreadcrumbs(limit = 20): string[] {
+  try {
+    const prev = JSON.parse(sessionStorage.getItem(BREADCRUMB_KEY) || '[]') as string[];
+    if (!Array.isArray(prev)) return [];
+    return prev.slice(-Math.max(1, limit));
+  } catch {
+    return [];
+  }
+}
+
 function emit(level: ClientLogLevel, message: string, context?: Record<string, unknown>): void {
   const entry = {
     ts: new Date().toISOString(),

@@ -2,7 +2,7 @@
  * Build a shareable bug-report text (no passwords / tokens).
  * Offline Mobile + Capacitor: save under Dhandho/bug-reports (+ optional Share); web: clipboard / download.
  */
-import { ensureCorrelationId, getRecentClientLogs } from './logger';
+import { ensureCorrelationId, getClientBreadcrumbs, getRecentClientLogs } from './logger';
 import { session } from './session';
 
 export type BugReportExtras = {
@@ -135,6 +135,13 @@ export async function buildBugReportText(extras: BugReportExtras = {}): Promise<
     lines.push('');
     lines.push('User note:');
     lines.push(extras.note.trim());
+  }
+
+  const crumbs = getClientBreadcrumbs(20);
+  if (crumbs.length > 0) {
+    lines.push('');
+    lines.push(`Breadcrumbs (${crumbs.length}):`);
+    lines.push(...crumbs);
   }
 
   const logs = getRecentClientLogs(40);

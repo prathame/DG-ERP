@@ -27,7 +27,11 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { CreateInvoiceModal, type InvoicePartyPrefill } from '../invoices/InvoicesView';
-import { printStandaloneInvoiceById, shareStandaloneInvoiceWhatsAppById } from '../../lib/printStandaloneInvoice';
+import {
+  printStandaloneInvoiceById,
+  shareStandaloneInvoiceWhatsAppById,
+  whatsAppInvoiceShareToast,
+} from '../../lib/printStandaloneInvoice';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
@@ -185,16 +189,7 @@ export function VendorMasterView({
     try {
       const how = await shareStandaloneInvoiceWhatsAppById(invoiceId, { businessType: cfg.type });
       if (how === 'cancelled') return;
-      toast(
-        how === 'shared'
-          ? 'Share the PDF via WhatsApp'
-          : how === 'saved'
-            ? 'PDF saved to Dhandho/invoices on this phone'
-            : how === 'text'
-              ? 'WhatsApp opened — PDF also saved/downloaded to attach'
-              : 'WhatsApp opened — PDF downloaded to attach',
-        'success',
-      );
+      toast(whatsAppInvoiceShareToast(how), 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not share invoice', 'error');
     } finally {
@@ -539,7 +534,7 @@ export function VendorMasterView({
                             disabled={whatsappBusyId === inv.id}
                             onClick={() => void shareInvoiceWhatsApp(inv.id)}
                             className="flex items-center gap-1 px-3 py-1.5 min-h-[36px] border border-green-200 text-green-700 rounded-lg text-xs font-bold hover:bg-green-50 disabled:opacity-50"
-                            title="WhatsApp PDF"
+                            title="Share on WhatsApp"
                           >
                             <MessageCircle size={12} />
                             {whatsappBusyId === inv.id ? '…' : 'WhatsApp'}

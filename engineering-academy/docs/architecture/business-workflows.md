@@ -214,7 +214,7 @@ All bill HTML (sales invoice, distribution challan, quotation, price list, stand
 - Templates in `src/lib/billTemplates.ts` wrap footers in `.print-end` and use a slim repeating banner in `thead` where needed
 - Standalone invoices use `generateStandaloneInvoiceHtml` — **bordered `.outer` sections** (title, seller/meta, Bill To, items with fill space, Sub Total/Received/Balance, HSN-wise GST table at end, bank + signatory), matching classic Tax Invoice layout
 - After create (including from Client/Vendor hub), modal shows **Print** before Done (system print / Save as PDF — **not** html2pdf Download, which collapses Tax Invoice borders). Client detail + Invoice Finance rows use the same Print action (`printStandaloneInvoice` / `GET /api/invoices/:id`)
-- Offline Mobile / service-mobile: PDF is generated with html2pdf.js and downloaded (or shared) — no system print sheet
+- Offline Mobile / Cap: Print uses system print / overlay (Save as PDF) with full Tax Invoice HTML. WhatsApp share is **text summary only** (Share / wa.me) — never html2pdf/html2canvas or jsPDF on the tap path (Android WebView freeze). Toast points users to Print → Save as PDF for a file. Web still shares/downloads a PDF via html2pdf.
 
 Do not open a raw `window.print()` on bill HTML without that inject — long item lists will paginate incorrectly.
 

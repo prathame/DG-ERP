@@ -2,8 +2,10 @@ import { fetchApi } from '../api';
 import { api } from '../api';
 import { generateStandaloneInvoiceHtml, type StandaloneInvoicePrint } from './billTemplates';
 import { invoiceHasGst } from './billSettingsFlags';
+import { clientLogger, pushClientBreadcrumb } from './logger';
 import { isServicePhoneUx } from '../platforms/service-cloud/mode';
 import { session } from './session';
+import { isNativeCapacitor } from './dhandhoFiles';
 import {
   closePrintOverlay,
   fetchImageAsDataUrl,
@@ -11,7 +13,26 @@ import {
   printBillInWindow,
   PRINT_POPUP_BLOCKED,
   shareHtmlPdfViaWhatsApp,
+  shareInvoiceSummaryViaWhatsApp,
 } from './utils';
+
+export type WhatsAppInvoiceShareHow = 'shared' | 'saved' | 'text' | 'downloaded' | 'cancelled' | 'summary';
+
+/** User-facing toast after WhatsApp invoice share (skip for `cancelled`). */
+export function whatsAppInvoiceShareToast(how: Exclude<WhatsAppInvoiceShareHow, 'cancelled'>): string {
+  switch (how) {
+    case 'summary':
+      return 'Shared summary. For PDF: Print → Save as PDF, then share from Files.';
+    case 'shared':
+      return 'Invoice PDF shared';
+    case 'saved':
+      return 'PDF saved to Dhandho/invoices on this phone';
+    case 'text':
+      return 'WhatsApp opened — PDF also saved/downloaded to attach';
+    case 'downloaded':
+      return 'WhatsApp opened — PDF downloaded to attach';
+  }
+}
 
 export type PrintableStandaloneInvoice = StandaloneInvoicePrint & {
   id?: string;
@@ -110,18 +131,37 @@ export async function printStandaloneInvoice(
   }
 }
 
+function invoiceWhatsAppMessage(inv: PrintableStandaloneInvoice): string {
+  const total = typeof inv.grandTotal === 'number' ? `₹${inv.grandTotal.toLocaleString('en-IN')}` : '';
+  return [`Invoice ${inv.invoiceNumber}`, inv.customerName, total && `Total: ${total}`].filter(Boolean).join('\n');
+}
+
 /**
- * Share invoice as PDF via WhatsApp (Cap Share sheet / web file share or wa.me + download).
+ * Share invoice via WhatsApp.
+ * Cap: text summary only (Share / wa.me) — no html2pdf, no jsPDF on the tap path (WebView freeze).
+ * Web: HTML → html2pdf file share / wa.me + download.
+ * Print path stays full Tax Invoice HTML + system Print.
  */
 export async function shareStandaloneInvoiceWhatsApp(
   inv: PrintableStandaloneInvoice,
   options?: { billSettings?: Record<string, unknown>; businessType?: string },
-): Promise<'shared' | 'saved' | 'text' | 'downloaded' | 'cancelled'> {
+): Promise<WhatsAppInvoiceShareHow> {
+  const message = invoiceWhatsAppMessage(inv);
+  const ctx = {
+    invoiceNumber: inv.invoiceNumber,
+    native: isNativeCapacitor(),
+  };
+  // Log + breadcrumb before any share work so bug reports aren't empty if WebView soft-hangs.
+  clientLogger.info('WhatsApp invoice share start', ctx);
+  pushClientBreadcrumb('WhatsApp invoice share start', ctx);
+
+  if (isNativeCapacitor()) {
+    // Let React paint "Preparing…" / disabled button before Share sheet opens.
+    await new Promise<void>(r => setTimeout(r, 0));
+    return shareInvoiceSummaryViaWhatsApp({ phone: inv.customerPhone, message });
+  }
+
   const { html, filename } = await buildStandaloneInvoiceHtml(inv, options);
-  const total = typeof inv.grandTotal === 'number' ? `₹${inv.grandTotal.toLocaleString('en-IN')}` : '';
-  const message = [`Invoice ${inv.invoiceNumber}`, inv.customerName, total && `Total: ${total}`]
-    .filter(Boolean)
-    .join('\n');
   return shareHtmlPdfViaWhatsApp({
     html,
     filename,
@@ -140,11 +180,11 @@ export async function printStandaloneInvoiceById(
   await printStandaloneInvoice(inv, options);
 }
 
-/** Load full invoice by id then share PDF via WhatsApp. */
+/** Load full invoice by id then share via WhatsApp. */
 export async function shareStandaloneInvoiceWhatsAppById(
   invoiceId: string,
   options?: { businessType?: string },
-): Promise<'shared' | 'saved' | 'text' | 'downloaded' | 'cancelled'> {
+): Promise<WhatsAppInvoiceShareHow> {
   const inv = await fetchApi<PrintableStandaloneInvoice & { id: string }>(`/invoices/${invoiceId}`);
   if (!inv?.id) throw new Error('Invoice not found for PDF');
   return shareStandaloneInvoiceWhatsApp(inv, options);
