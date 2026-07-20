@@ -147,6 +147,20 @@ export async function runServiceMobileSync(): Promise<SyncResult> {
       notificationsInserted = ids.length;
       if (ids.length) {
         await markNotificationsDelivered({ licenseKey: lic.licenseKey, machineId, notificationIds: ids });
+        // Cap OS shade — SA messages arrive via heartbeat even when Bell isn't open
+        try {
+          const { showOsNotification } = await import('../../lib/capLocalNotifications');
+          for (const n of pending.filter(p => ids.includes(p.id))) {
+            await showOsNotification({
+              id: n.id,
+              title: n.title,
+              body: n.body,
+              priority: 'high',
+            });
+          }
+        } catch {
+          /* web / permission denied */
+        }
       }
     }
 
@@ -162,6 +176,21 @@ export async function runServiceMobileSync(): Promise<SyncResult> {
       localBackupSaved = await runScheduledLocalBackupIfDue();
     } catch {
       /* skip if user dismisses download / offline quirks */
+    }
+    if (localBackupSaved) {
+      try {
+        const { showOsNotification } = await import('../../lib/capLocalNotifications');
+        const day = new Date().toISOString().slice(0, 10);
+        await showOsNotification({
+          id: `local_backup:${day}`,
+          title: 'Backup saved',
+          body: 'Offline backup written under Documents/Dhandho/backups.',
+          hrefTab: 'settings',
+          priority: 'high',
+        });
+      } catch {
+        /* ignore */
+      }
     }
 
     const lastSync = new Date().toISOString();

@@ -28,6 +28,10 @@ export async function initPlatform(): Promise<void> {
       }
     };
     requestAnimationFrame(() => setTimeout(applyFallbackInsets, 50));
+
+    // Android shade / iOS Notification Center (local). Prompt once; no-op if denied.
+    const { ensureOsNotificationPermission } = await import('../lib/capLocalNotifications');
+    void ensureOsNotificationPermission();
   } catch {
     /* web / Electron */
   }

@@ -126,12 +126,11 @@ export function NotificationCenter({ onNavigate, canAccessTab }: Props) {
       const list = data.items || [];
       setItems(list);
 
-      const fp = highFingerprint(
-        list.filter(i => {
-          if (i.kind === 'admin_message') return !i.read;
-          return !loadDismissed().has(i.id);
-        }),
-      );
+      const active = list.filter(i => {
+        if (i.kind === 'admin_message') return !i.read;
+        return !loadDismissed().has(i.id);
+      });
+      const fp = highFingerprint(active);
       const prevKey = `${FINGERPRINT_KEY}:${storageScope()}`;
       const prev = localStorage.getItem(prevKey) || '';
       if (fp && fp !== prev && fp !== knownFp.current) {
@@ -142,6 +141,11 @@ export function NotificationCenter({ onNavigate, canAccessTab }: Props) {
       }
       knownFp.current = fp;
       localStorage.setItem(prevKey, fp);
+
+      // Cap: mirror Bell → Android shade / iOS Notification Center (deduped; high always)
+      void import('../../lib/capLocalNotifications').then(({ mirrorBellItemsToOs }) => {
+        void mirrorBellItemsToOs(active);
+      });
     } catch {
       /* quiet fail — Bell stays usable */
     } finally {

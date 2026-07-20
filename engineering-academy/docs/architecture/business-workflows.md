@@ -205,6 +205,8 @@ The header Bell loads `GET /api/notifications` — a **merged feed**, not a toas
 
 Anti-noise: digests capped (≤6); client dismisses digests in `localStorage`; soft chime only when a *new* high-priority unread id appears and sound is unmuted. Poll every 5 minutes while focused.
 
+**Cap phone (OS notification shade):** `@capacitor/local-notifications` mirrors Bell items and Offline heartbeat SA messages / local-backup-done into the **Android notification shade / iOS Notification Center** (not only the in-app Bell). High-priority always; medium only while the WebView is not visible. Tap opens `hrefTab` when set, else just foregrounds the app. Android 13+ uses `POST_NOTIFICATIONS`. **Remote push (FCM/APNs)** is not wired — needs `google-services.json` + server keys (follow-up). Until then, OS alerts only fire for events the Cap process already sees (heartbeat, Bell poll, local backup).
+
 ## Workflow 8: Multi-page bill PDF / print
 
 All bill HTML (sales invoice, distribution challan, quotation, price list, standalone invoice, payment history, accounts reports) goes through `printBillInWindow` / `writePrintHtml` / `downloadHtmlAsPdf` / `saveBillAsPdf` in `src/lib/utils.ts`, which injects `withPrintPagination()` CSS:

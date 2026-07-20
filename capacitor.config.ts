@@ -23,6 +23,11 @@ const config: CapacitorConfig = {
       style: 'LIGHT',
       hidden: false,
     },
+    LocalNotifications: {
+      // Status-bar glyph must be a white silhouette drawable (not adaptive mipmap).
+      // Omit smallIcon → Capacitor default; large shade icon still uses the app icon.
+      iconColor: '#E87722',
+    },
   },
 };
 
