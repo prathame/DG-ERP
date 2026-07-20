@@ -1,19 +1,52 @@
-/** Optional API host override for non-same-origin clients (e.g. Electron). */
+/** Optional API host override for non-same-origin clients (e.g. Capacitor). */
 function stripTrailingSlash(s: string): string {
   return s.replace(/\/+$/, '');
 }
 
 /**
- * Origin for API calls (no trailing slash), e.g. https://dhandho.app
- * Empty string = same-origin relative `/api` (web + Electron).
+ * Working public cloud host while `dhandho.app` DNS is NXDOMAIN.
+ * Cap / Electron may still set `VITE_API_ORIGIN` to the canonical domain later.
+ */
+export const CLOUD_ORIGIN_FALLBACK = 'https://dg-erp.onrender.com';
+
+const BROKEN_CANONICAL_HOSTS = new Set(['dhandho.app', 'www.dhandho.app']);
+
+/**
+ * Normalize a configured API origin.
+ * - Empty → same-origin relative `/api` (hosted web on Render).
+ * - `dhandho.app` (no DNS yet) → same-origin when the page is already on a real host,
+ *   otherwise {@link CLOUD_ORIGIN_FALLBACK} for Cap/native (`https://localhost`).
+ */
+export function resolveConfiguredApiOrigin(configured: string | undefined | null): string {
+  const raw = configured?.trim();
+  if (!raw) return '';
+  const stripped = stripTrailingSlash(raw);
+  try {
+    const host = new URL(stripped).hostname.toLowerCase();
+    if (!BROKEN_CANONICAL_HOSTS.has(host)) return stripped;
+
+    if (typeof window !== 'undefined' && window.location?.hostname) {
+      const pageHost = window.location.hostname.toLowerCase();
+      if (pageHost && !BROKEN_CANONICAL_HOSTS.has(pageHost) && pageHost !== 'localhost' && pageHost !== '127.0.0.1') {
+        return '';
+      }
+    }
+    return CLOUD_ORIGIN_FALLBACK;
+  } catch {
+    return stripped;
+  }
+}
+
+/**
+ * Origin for API calls (no trailing slash), e.g. https://dg-erp.onrender.com
+ * Empty string = same-origin relative `/api` (web).
  */
 export function getApiOrigin(): string {
   const env = (import.meta.env.VITE_API_ORIGIN as string | undefined)?.trim();
-  if (env) return stripTrailingSlash(env);
-  return '';
+  return resolveConfiguredApiOrigin(env);
 }
 
-/** Base path including `/api`, e.g. https://dhandho.app/api or `/api`. */
+/** Base path including `/api`, e.g. https://dg-erp.onrender.com/api or `/api`. */
 export function getApiBase(): string {
   const envBase = (import.meta.env.VITE_API_BASE as string | undefined)?.trim();
   if (envBase) return stripTrailingSlash(envBase);

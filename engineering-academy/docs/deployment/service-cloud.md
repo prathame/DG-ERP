@@ -69,7 +69,9 @@ Password reset is **online/cloud only** (shareable link per user). Tenant-wide n
 
 ## Phone UX (service Capacitor)
 
-**First open (no session):** Online Cap and Cloud Electron show **company slug entry** (`dhandho.app/your-company` → Continue → branded login). They do **not** show the public marketing LandingPage (that stays for browser `/` only). Last-used company is restored from `dg_last_slug`; **Change company** on login returns to slug entry. Online Cap also keeps **Share bug report** on that screen (same helper as login / Settings).
+**First open (no session):** Online Cap and Cloud Electron show **company slug entry** (current host prefix, e.g. `dg-erp.onrender.com/your-company` → Continue → branded login on the **same origin**). They do **not** show the public marketing LandingPage (that stays for browser `/` only). Last-used company is restored from `dg_last_slug`; **Change company** on login returns to slug entry. Online Cap also keeps **Share bug report** on that screen (same helper as login / Settings).
+
+**API origin:** Hosted web uses same-origin `/api` (no hardcoded `dhandho.app`). Cap Offline/Online builds set `VITE_API_ORIGIN` (see `.env.service-phone.example` → Render until `dhandho.app` DNS is live). Runtime remaps a broken `dhandho.app` origin to `https://dg-erp.onrender.com` on Cap/native. Reserved path slugs: `admin`, `privacy`, `terms`, `download`, `api`, `assets` — `test` is a normal tenant slug.
 
 Online Capacitor + `businessType=service` uses the same Emergent phone IA as Offline Mobile via `isServicePhoneUx()` — bottom tabs Analytics · Masters · Invoice · Quotes · More; Masters shows Prices (not Products); Analytics/bill settings match Offline phone chrome. **Live · Online** badge on Cap only (desktop Electron UI untouched). **Session lock / `ServiceCloudGate` is unchanged.** Sync Now, demo seed, Show Accounts, and client advances stay Offline-only.
 

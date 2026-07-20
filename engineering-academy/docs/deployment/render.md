@@ -50,7 +50,7 @@ services:
       - key: LOGTAIL_TOKEN
         sync: false
       - key: PUBLIC_APP_URL
-        value: https://dhandho.app
+        value: https://dg-erp.onrender.com
 ```
 
 ## The `--include=dev` gotcha — why it's there and what breaks without it
@@ -92,7 +92,7 @@ The comment says it plainly: **tests must not hit the production database.** Ren
 | `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` | `sync: false` — you must set these manually in the Render dashboard, they are **not** committed or auto-generated | These are real, sensitive platform-owner credentials — `generateValue` wouldn't make sense (you need to know the value to log in), and committing a plaintext value to `render.yaml` would defeat the entire point |
 | `ALLOWED_ORIGINS` | `sync: false` | Production-specific list of allowed CORS origins (e.g. `https://dhandho.app,https://www.dhandho.app`) — environment-specific, not something to hardcode in a file that also describes staging/preview environments |
 | `LOGTAIL_TOKEN` | `sync: false` | Optional; logging works fine without it (see [Logging](/sre/logging)), so it's not required at first deploy, but also not something to commit |
-| `PUBLIC_APP_URL` | Static `https://dhandho.app` | The canonical public URL, used wherever the server needs to construct absolute links (e.g. invite links, PDF footers) |
+| `PUBLIC_APP_URL` | Static `https://dg-erp.onrender.com` (until `dhandho.app` DNS is live) | The public URL used wherever the server needs absolute links (invite links, PDF footers). Switch back to `https://dhandho.app` after DNS cutover. |
 
 ## The doc-only build filter (`render-build-filter.sh`)
 

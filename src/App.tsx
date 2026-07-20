@@ -55,6 +55,7 @@ import { PhoneModePicker } from './platforms/PhoneModePicker';
 import { bugReportFeedbackMessage, shareBugReport } from './lib/bugReport';
 import { isMobileAppShell } from './lib/mobileAppShell';
 import { useEscapeKey } from './lib/useEscapeKey';
+import { normalizeCompanySlug, validateCompanySlug } from './lib/companySlug';
 
 const AppShutterIntro = lazy(() =>
   import('./components/layout/AppShutterIntro').then(m => ({ default: m.AppShutterIntro })),
@@ -124,23 +125,21 @@ const SuperAdminLogin = lazy(() =>
 function CompanySlugEntry() {
   const [slug, setSlug] = React.useState(() => {
     try {
-      return String(localStorage.getItem('dg_last_slug') || '')
-        .trim()
-        .toLowerCase();
+      return normalizeCompanySlug(String(localStorage.getItem('dg_last_slug') || ''));
     } catch {
       return '';
     }
   });
+  const [slugError, setSlugError] = React.useState('');
   const [sharingReport, setSharingReport] = React.useState(false);
   const [reportHint, setReportHint] = React.useState('');
   const mobileApp = isMobileAppShell();
+  const hostPrefix = typeof window !== 'undefined' && window.location?.host ? `${window.location.host}/` : 'app/';
 
   React.useEffect(() => {
     // Returning users: skip the form when we already know the company
     try {
-      const last = String(localStorage.getItem('dg_last_slug') || '')
-        .trim()
-        .toLowerCase();
+      const last = normalizeCompanySlug(String(localStorage.getItem('dg_last_slug') || ''));
       if (last && window.location.pathname === '/') {
         window.location.replace(`/${last}`);
       }
@@ -151,8 +150,14 @@ function CompanySlugEntry() {
 
   const go = (e: React.FormEvent) => {
     e.preventDefault();
-    const s = slug.trim().toLowerCase().replace(/^\/+/, '');
-    if (s) window.location.href = `/${s}`;
+    setSlugError('');
+    const checked = validateCompanySlug(slug);
+    if (!checked.ok) {
+      setSlugError(checked.error);
+      return;
+    }
+    // Same-origin path tenancy — never navigates to dhandho.app
+    window.location.href = `/${checked.slug}`;
   };
   return (
     <div className="min-h-screen bg-[#09090B] flex flex-col items-center justify-center gap-8 px-4">
@@ -164,14 +169,17 @@ function CompanySlugEntry() {
       />
       <div className="w-full max-w-sm">
         <p className="text-white/50 text-sm text-center mb-2">Enter your company to continue</p>
-        <p className="text-white/30 text-xs text-center mb-6">Use the company URL slug (same as dhandho.app/…)</p>
+        <p className="text-white/30 text-xs text-center mb-6">Use the company URL slug (path after / on this host)</p>
         <form onSubmit={go} className="flex flex-col gap-3">
           <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-brand/60 transition-colors">
-            <span className="text-white/30 text-sm pl-4 pr-1 shrink-0">dhandho.app/</span>
+            <span className="text-white/30 text-sm pl-4 pr-1 shrink-0">{hostPrefix}</span>
             <input
               autoFocus
               value={slug}
-              onChange={e => setSlug(e.target.value)}
+              onChange={e => {
+                setSlug(e.target.value);
+                if (slugError) setSlugError('');
+              }}
               placeholder="your-company"
               autoCapitalize="none"
               autoCorrect="off"
@@ -179,6 +187,7 @@ function CompanySlugEntry() {
               className="flex-1 bg-transparent py-3 pr-4 text-white placeholder-white/20 text-sm outline-none"
             />
           </div>
+          {slugError && <p className="text-rose-400/90 text-xs text-center">{slugError}</p>}
           <button
             type="submit"
             disabled={!slug.trim()}
@@ -723,16 +732,24 @@ export default function App() {
     tagline: string | null;
   } | null>(null);
   const [slugNotFound, setSlugNotFound] = useState(false);
+  const [slugLookupNetworkError, setSlugLookupNetworkError] = useState(false);
 
   useEffect(() => {
     if (urlSlug && !user && urlSlug !== 'admin') {
+      setSlugLookupNetworkError(false);
       api
         .tenantBySlug(urlSlug)
         .then(t => {
           setTenantBranding(t);
           setSlugNotFound(false);
+          setSlugLookupNetworkError(false);
         })
-        .catch(() => setSlugNotFound(true));
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          // Network / wrong API host must not look like an "invalid slug"
+          setSlugLookupNetworkError(/connection lost|failed to fetch|network/i.test(msg));
+          setSlugNotFound(true);
+        });
     }
   }, [urlSlug, !user]);
 
@@ -884,7 +901,7 @@ export default function App() {
       );
     }
 
-    // Slug URL but tenant not found
+    // Slug URL but tenant not found (or API unreachable)
     if (urlSlug && slugNotFound) {
       return (
         <div className="min-h-screen bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center p-4">
@@ -892,9 +909,20 @@ export default function App() {
             <div className="inline-flex w-16 h-16 bg-gray-700 rounded-2xl items-center justify-center font-bold text-2xl text-gray-400 mb-4">
               ?
             </div>
-            <h1 className="text-xl font-bold text-white mb-2">Company Not Found</h1>
+            <h1 className="text-xl font-bold text-white mb-2">
+              {slugLookupNetworkError ? 'Cannot reach server' : 'Company Not Found'}
+            </h1>
             <p className="text-gray-400 text-sm mb-6">
-              No company registered with URL <span className="font-mono text-gray-300">/{urlSlug}</span>
+              {slugLookupNetworkError ? (
+                <>
+                  Could not look up <span className="font-mono text-gray-300">/{urlSlug}</span>. Check internet and try
+                  again.
+                </>
+              ) : (
+                <>
+                  No company registered with URL <span className="font-mono text-gray-300">/{urlSlug}</span>
+                </>
+              )}
             </p>
             <a
               href={isServiceCloudDesktop() || isServiceCloudMobile() ? cloudSlugHomeHref() : '/'}

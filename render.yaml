@@ -40,5 +40,6 @@ services:
         sync: false
       - key: LOGTAIL_TOKEN
         sync: false
+      # Canonical product domain later: https://dhandho.app (DNS not live yet)
       - key: PUBLIC_APP_URL
-        value: https://dhandho.app
+        value: https://dg-erp.onrender.com
