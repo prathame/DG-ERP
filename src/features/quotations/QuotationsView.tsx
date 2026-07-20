@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Download,
   Printer,
+  Upload,
 } from 'lucide-react';
 import {
   cn,
@@ -49,6 +50,8 @@ import { session } from '../../lib/session';
 import { generateQuotationHtml } from '../../lib/billTemplates';
 import { useTranslation } from '../../i18n';
 import { SearchSelect } from '../../components/ui/SearchSelect';
+import { CsvImport } from '../../components/ui/CsvImport';
+import { importQuotationsFromRows, QUOTATION_IMPORT_COLUMNS } from '../../lib/documentImport';
 
 function asApiList<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
@@ -104,6 +107,7 @@ export function QuotationsView() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'Draft' | 'Sent' | 'Accepted' | 'Converted'>('all');
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [partialConvert, setPartialConvert] = useState<{
     quote: Quotation;
     lines: { lineIndex: number; productId: string; productName: string; remaining: number; qty: number }[];
@@ -146,7 +150,8 @@ export function QuotationsView() {
   const convertLabel = isService ? 'Convert to Invoice' : 'Convert to Distribution';
 
   useEscapeKey(() => {
-    if (partialConvert) setPartialConvert(null);
+    if (csvImportOpen) setCsvImportOpen(false);
+    else if (partialConvert) setPartialConvert(null);
     else if (modalOpen) {
       setModalOpen(false);
       setEditingId(null);
@@ -746,17 +751,35 @@ export function QuotationsView() {
           </h2>
           <p className="text-sm text-gray-500">Create quotes, share with customers, convert to distribution</p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
-        >
-          <Plus size={16} /> New Quotation
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setCsvImportOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"
+          >
+            <Upload size={16} /> Import
+          </button>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+          >
+            <Plus size={16} /> New Quotation
+          </button>
+        </div>
       </div>
 
-      {/* Phone pills */}
-      <div className="sm:hidden">
+      {/* Phone pills + import */}
+      <div className="sm:hidden space-y-2">
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setCsvImportOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-bold"
+          >
+            <Upload size={14} /> Import
+          </button>
+        </div>
         <MobilePillTabs
           items={(['all', 'Draft', 'Sent', 'Accepted', 'Converted'] as const).map(s => ({
             id: s,
@@ -1358,6 +1381,26 @@ export function QuotationsView() {
           </div>
         )}
       </AnimatePresence>
+      {csvImportOpen && (
+        <CsvImport
+          templateName="quotations"
+          itemLabel="quotations"
+          columns={[...QUOTATION_IMPORT_COLUMNS]}
+          requireAnyOf={[['productName', 'barcode']]}
+          onClose={() => setCsvImportOpen(false)}
+          onImport={async rows => {
+            const result = await importQuotationsFromRows(rows, {
+              products,
+              vendors,
+              allowCustomLines: offlinePdf,
+              gstRate: 18,
+              post: body => fetchApi('/quotations', { method: 'POST', body: JSON.stringify(body) }),
+            });
+            if (result.success > 0) load();
+            return result;
+          }}
+        />
+      )}
       <ConfirmRenderer />
     </motion.div>
   );
