@@ -399,13 +399,35 @@ export function DistributionView({
   const [batchPaymentSubmitting, setBatchPaymentSubmitting] = useState(false);
 
   useEscapeKey(() => {
-    if (eWayBillModal) setEWayBillModal(null);
-    else if (batchPaymentModal) setBatchPaymentModal(null);
-    else if (splitBillModal) setSplitBillModal(null);
-    else if (editBatchModal) setEditBatchModal(null);
-    else if (modalOpen) setModalOpen(false);
-    else if (selectedBatchProductId) setSelectedBatchProductId(null);
-    else if (selectedBatchId) setSelectedBatchId(null);
+    if (eWayBillModal) {
+      setEWayBillModal(null);
+      return true;
+    }
+    if (batchPaymentModal) {
+      setBatchPaymentModal(null);
+      return true;
+    }
+    if (splitBillModal) {
+      setSplitBillModal(null);
+      return true;
+    }
+    if (editBatchModal) {
+      setEditBatchModal(null);
+      return true;
+    }
+    if (modalOpen) {
+      setModalOpen(false);
+      return true;
+    }
+    if (selectedBatchProductId) {
+      setSelectedBatchProductId(null);
+      return true;
+    }
+    if (selectedBatchId) {
+      setSelectedBatchId(null);
+      return true;
+    }
+    return false;
   });
 
   const challanOptions = (forVendorId: string) => {

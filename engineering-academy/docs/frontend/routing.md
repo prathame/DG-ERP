@@ -107,6 +107,7 @@ The honest verdict: this is the right call **for this product's shape today** (f
 ## How this interacts with mobile & desktop
 
 - **Electron (desktop):** loads the same built `dist/index.html`; pathname-based tenant slug matching works the same way once a URL like `/acme-electronics?desktop=1` is loaded. The `?desktop=1` query flag (see `ElectronSlugEntry` in `App.tsx`) is how the Electron shell prompts an operator for their company slug on first launch, before any tenant is known.
+- **Capacitor Android:** `setActiveTab` uses `history.replaceState` (not `pushState`) so switching Invoice → Quotes → Masters does **not** build a back stack of every tab. Hardware back is handled by `androidBackButton.ts`: pop overlays/details first, then double-back to minimize. Desktop web still uses `pushState` so browser Back between tabs keeps working.
 
 ## Quiz
 

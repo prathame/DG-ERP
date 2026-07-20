@@ -9,6 +9,7 @@ import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { useTranslation } from '../../i18n';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
 import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
+import { useEscapeKey } from '../../lib/useEscapeKey';
 
 const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
 const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
@@ -342,20 +343,31 @@ export function MastersView({
     openFull(id);
   };
 
+  const closeSelectedMaster = () => {
+    if (selectedMaster === 'staff' && (focusStaffId || focusStaffName)) setHubTab('staff');
+    setSelectedMaster(null);
+    setFocusStaffId(null);
+    setFocusStaffName(null);
+    setFocusVendorId(null);
+  };
+
+  useEscapeKey(() => {
+    if (!selectedMaster) return false;
+    closeSelectedMaster();
+    return true;
+  });
+
   if (selectedMaster === 'customer')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <CustomerMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} user={user} />
+        <CustomerMasterView onBack={closeSelectedMaster} onRefresh={refreshCounts} user={user} />
       </Suspense>
     );
   if (selectedMaster === 'vendor')
     return (
       <Suspense fallback={<MasterFallback />}>
         <VendorMasterView
-          onBack={() => {
-            setSelectedMaster(null);
-            setFocusVendorId(null);
-          }}
+          onBack={closeSelectedMaster}
           onRefresh={refreshCounts}
           businessType={cfg.type}
           initialVendorId={focusVendorId ?? undefined}
@@ -365,38 +377,32 @@ export function MastersView({
   if (selectedMaster === 'bank')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <BankMasterView onBack={() => setSelectedMaster(null)} onRefresh={refreshCounts} />
+        <BankMasterView onBack={closeSelectedMaster} onRefresh={refreshCounts} />
       </Suspense>
     );
   if (selectedMaster === 'mapping')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <VendorCustomerMappingView onBack={() => setSelectedMaster(null)} />
+        <VendorCustomerMappingView onBack={closeSelectedMaster} />
       </Suspense>
     );
   if (selectedMaster === 'rewardRules')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <RewardRulesView onBack={() => setSelectedMaster(null)} />
+        <RewardRulesView onBack={closeSelectedMaster} />
       </Suspense>
     );
   if (selectedMaster === 'priceList')
     return (
       <Suspense fallback={<MasterFallback />}>
-        <PriceListView onBack={() => setSelectedMaster(null)} />
+        <PriceListView onBack={closeSelectedMaster} />
       </Suspense>
     );
   if (selectedMaster === 'staff')
     return (
       <Suspense fallback={<MasterFallback />}>
         <StaffMasterView
-          onBack={() => {
-            // Hub-originated payment detail calls onBack — keep Staff pill selected.
-            if (focusStaffId || focusStaffName) setHubTab('staff');
-            setSelectedMaster(null);
-            setFocusStaffId(null);
-            setFocusStaffName(null);
-          }}
+          onBack={closeSelectedMaster}
           onRefresh={refreshCounts}
           initialStaffId={focusStaffId ?? undefined}
           initialStaffName={focusStaffName ?? undefined}

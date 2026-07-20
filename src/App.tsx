@@ -45,6 +45,7 @@ import {
   getPhoneMode,
   hydratePhoneMode,
   isBakedServiceMobile,
+  isNativeCapacitorShell,
   needsPhoneModePicker,
   setPhoneModeOnce,
   type PhoneMode,
@@ -52,6 +53,7 @@ import {
 import { PhoneModePicker } from './platforms/PhoneModePicker';
 import { bugReportFeedbackMessage, shareBugReport } from './lib/bugReport';
 import { isMobileAppShell } from './lib/mobileAppShell';
+import { useEscapeKey } from './lib/useEscapeKey';
 
 const AppShutterIntro = lazy(() =>
   import('./components/layout/AppShutterIntro').then(m => ({ default: m.AppShutterIntro })),
@@ -429,7 +431,14 @@ export default function App() {
   const setActiveTab = (tab: Tab) => {
     setActiveTabRaw(tab);
     setTabKey(k => k + 1);
-    window.history.pushState({ tab }, '', window.location.pathname);
+    // Cap: replace so Android back is not a deep tab history (double-back exits instead).
+    // Desktop web keeps pushState so browser Back still moves between tabs.
+    const path = window.location.pathname;
+    if (isNativeCapacitorShell()) {
+      window.history.replaceState({ tab }, '', path);
+    } else {
+      window.history.pushState({ tab }, '', path);
+    }
   };
   const navigateFromGlobalSearch = (nav: GlobalSearchNavigate) => {
     if (nav.tab === 'masters' && nav.master) {
@@ -515,7 +524,12 @@ export default function App() {
       if (e.state?.tab) {
         setActiveTabRaw(e.state.tab);
       } else {
-        window.history.pushState({ tab: 'analytics' }, '', window.location.pathname);
+        const path = window.location.pathname;
+        if (isNativeCapacitorShell()) {
+          window.history.replaceState({ tab: 'analytics' }, '', path);
+        } else {
+          window.history.pushState({ tab: 'analytics' }, '', path);
+        }
         setActiveTabRaw('analytics');
       }
     };
@@ -534,6 +548,29 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  useEscapeKey(() => {
+    if (cmdOpen) {
+      setCmdOpen(false);
+      return true;
+    }
+    return false;
+  }, cmdOpen);
+
+  useEscapeKey(() => {
+    if (userMenuOpen) {
+      setUserMenuOpen(false);
+      return true;
+    }
+    return false;
+  }, userMenuOpen);
+
+  useEscapeKey(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) return false;
+    if (!isSidebarOpen) return false;
+    setIsSidebarOpen(false);
+    return true;
+  }, isSidebarOpen);
 
   const handleLogout = () => {
     const slug = session.getSlug();

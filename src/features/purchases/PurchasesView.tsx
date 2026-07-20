@@ -131,10 +131,23 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEscapeKey(() => {
-    if (paymentModal) setPaymentModal(null);
-    else if (supplierModal) setSupplierModal(false);
-    else if (modalOpen) setModalOpen(false);
-    else if (selectedBatchId) setSelectedBatchId(null);
+    if (paymentModal) {
+      setPaymentModal(null);
+      return true;
+    }
+    if (supplierModal) {
+      setSupplierModal(false);
+      return true;
+    }
+    if (modalOpen) {
+      setModalOpen(false);
+      return true;
+    }
+    if (selectedBatchId) {
+      setSelectedBatchId(null);
+      return true;
+    }
+    return false;
   });
 
   const load = () => {

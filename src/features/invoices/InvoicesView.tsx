@@ -157,9 +157,19 @@ export function InvoicesView() {
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
 
   useEscapeKey(() => {
-    if (deleteTarget) setDeleteTarget(null);
-    else if (selectedInvoice) setSelectedInvoice(null);
-    else if (createOpen) setCreateOpen(false);
+    if (deleteTarget) {
+      setDeleteTarget(null);
+      return true;
+    }
+    if (selectedInvoice) {
+      setSelectedInvoice(null);
+      return true;
+    }
+    if (createOpen) {
+      setCreateOpen(false);
+      return true;
+    }
+    return false;
   });
 
   const load = () => {

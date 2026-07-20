@@ -1,6 +1,7 @@
-import React, { useState, createContext, useContext, useCallback } from 'react';
+import React, { useState, createContext, useContext, useCallback, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, X, Info } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { initAndroidBackButton } from '../../lib/androidBackButton';
 
 type ToastType = 'success' | 'error' | 'info';
 type Toast = { id: number; message: string; type: ToastType };
@@ -53,6 +54,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), TOAST_DURATION);
   }, []);
   const dismiss = useCallback((id: number) => setToasts(t => t.filter(x => x.id !== id)), []);
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    void initAndroidBackButton(toast).then(fn => {
+      cleanup = fn;
+    });
+    return () => cleanup?.();
+  }, [toast]);
+
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}

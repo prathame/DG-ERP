@@ -33,7 +33,10 @@ export function ConfirmDialog({
         ? 'bg-amber-600 hover:bg-amber-700'
         : 'bg-brand hover:bg-brand-dark';
 
-  useEscapeKey(onCancel, true);
+  useEscapeKey(() => {
+    onCancel();
+    return true;
+  }, true);
   useFocusTrap(panelRef);
   useEffect(() => {
     confirmRef.current?.focus();

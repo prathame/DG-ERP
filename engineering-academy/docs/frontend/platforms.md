@@ -33,6 +33,8 @@ graph TD
 
 **Phone IA vs Offline runtime:** `isServicePhoneUx` shares bottom nav / Masters pills / dense hubs across Offline Mobile and online Service Cloud Capacitor (service). Sync, demo seed, Show Accounts, advances, and PGlite stay behind `isServiceMobileMode` only. Seat lock stays on `ServiceCloudGate` (unchanged).
 
+**Android system back (Cap):** `App.addListener('backButton')` in `src/lib/androidBackButton.ts` (wired from `ToastProvider`). Order: close print overlay → LIFO handlers from `useEscapeKey` / `androidBackStack` (modals, sheets, invoice/quote detail, Masters manage) → at tab root toast **Press back again to exit** and second press within ~2s calls `App.minimizeApp()` (fallback `exitApp`). Native tab switches use `history.replaceState` so prior tabs do not stack into a deep back history.
+
 **Do not mix** Service Cloud (online seats) with Service Mobile (offline `DG-SM`). Different Capacitor configs, download URLs, and SA panels.
 
 Native Electron processes live under repo-root `electron/` — see [Deployment → Electron](/deployment/electron).  
