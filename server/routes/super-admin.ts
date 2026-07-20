@@ -12,6 +12,10 @@ import {
   DEFAULT_SERVICE_CLOUD_IOS_URL,
   DEFAULT_SERVICE_MOBILE_APP_URL,
   DEFAULT_SERVICE_MOBILE_IOS_URL,
+  DEFAULT_DESKTOP_MAC_ARM64_URL,
+  DEFAULT_DESKTOP_MAC_X64_URL,
+  DEFAULT_DESKTOP_WIN_URL,
+  DEFAULT_DESKTOP_APP_URL,
 } from '../download-defaults';
 
 const router = Router();
@@ -994,7 +998,10 @@ router.get('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       serviceCloudIosUrl: cfg['service_cloud_ios_url'] || DEFAULT_SERVICE_CLOUD_IOS_URL,
       serviceMobileAppUrl: cfg['service_mobile_app_url'] || DEFAULT_SERVICE_MOBILE_APP_URL,
       serviceMobileIosUrl: cfg['service_mobile_ios_url'] || DEFAULT_SERVICE_MOBILE_IOS_URL,
-      desktopAppUrl: cfg['desktop_app_url'] || null,
+      desktopMacArm64Url: cfg['desktop_mac_arm64_url'] || DEFAULT_DESKTOP_MAC_ARM64_URL,
+      desktopMacX64Url: cfg['desktop_mac_x64_url'] || DEFAULT_DESKTOP_MAC_X64_URL,
+      desktopWinUrl: cfg['desktop_win_url'] || DEFAULT_DESKTOP_WIN_URL,
+      desktopAppUrl: cfg['desktop_app_url'] || DEFAULT_DESKTOP_APP_URL,
       cloudVersion: process.env.npm_package_version || process.env.CLOUD_VERSION || '2.1.0',
       onpremVersions: versions,
       serviceMobileVersions: smVersions,
@@ -1016,6 +1023,9 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       serviceMobileAppUrl,
       serviceMobileIosUrl,
       desktopAppUrl,
+      desktopMacArm64Url,
+      desktopMacX64Url,
+      desktopWinUrl,
     } = req.body as {
       latestOnpremVersion?: string | null;
       minOnpremVersion?: string | null;
@@ -1026,6 +1036,9 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       serviceMobileAppUrl?: string | null;
       serviceMobileIosUrl?: string | null;
       desktopAppUrl?: string | null;
+      desktopMacArm64Url?: string | null;
+      desktopMacX64Url?: string | null;
+      desktopWinUrl?: string | null;
     };
 
     const upsert = async (key: string, value: string | null) => {
@@ -1061,11 +1074,17 @@ router.put('/api/super-admin/version-config', superAdminMiddleware, async (req, 
       const mobile = normalizeUrl(serviceMobileAppUrl);
       const mobileIos = normalizeUrl(serviceMobileIosUrl);
       const desktop = normalizeUrl(desktopAppUrl);
+      const desktopMacArm64 = normalizeUrl(desktopMacArm64Url);
+      const desktopMacX64 = normalizeUrl(desktopMacX64Url);
+      const desktopWin = normalizeUrl(desktopWinUrl);
       if (cloud !== undefined) await upsert('service_cloud_app_url', cloud);
       if (cloudIos !== undefined) await upsert('service_cloud_ios_url', cloudIos);
       if (mobile !== undefined) await upsert('service_mobile_app_url', mobile);
       if (mobileIos !== undefined) await upsert('service_mobile_ios_url', mobileIos);
       if (desktop !== undefined) await upsert('desktop_app_url', desktop);
+      if (desktopMacArm64 !== undefined) await upsert('desktop_mac_arm64_url', desktopMacArm64);
+      if (desktopMacX64 !== undefined) await upsert('desktop_mac_x64_url', desktopMacX64);
+      if (desktopWin !== undefined) await upsert('desktop_win_url', desktopWin);
     } catch (e) {
       return res.status(400).json({ error: e instanceof Error ? e.message : 'Invalid URL' });
     }

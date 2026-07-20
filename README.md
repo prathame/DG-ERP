@@ -50,7 +50,7 @@ Each tenant is provisioned as one of five types. The type controls which tabs ar
 - **Backend**: Node.js, Express 4, PostgreSQL 16 (RLS per tenant)
 - **Auth**: JWT (HS256, 24h), bcrypt
 - **Desktop**: Electron (cloud wrapper + on-prem with embedded PostgreSQL)
-- **Clients**: Responsive web + Electron cloud + Electron on-prem + Service Mobile (offline Capacitor, service type only)
+- **Clients**: Responsive web + unified Desktop Electron (Online/Offline) + unified Cap phone (Online/Offline)
 - **Hosting**: Render (cloud), self-hosted (on-prem)
 
 ---
@@ -99,27 +99,16 @@ npm start       # serves both API + static from port 3001
 
 ## Desktop Apps
 
-Two Electron builds, same codebase. See also [`electron/README.md`](electron/README.md).
-
-### Cloud Wrapper (~20 MB)
-Wraps the live cloud URL in a native window. No local database.
+One Electron installer (~180 MB). First launch picks **Online** (cloud) or **Offline** (on-prem). See [`electron/README.md`](electron/README.md).
 
 ```bash
-npm run electron:cloud:dev
-npm run build:electron:cloud:win   # → .exe
-npm run build:electron:cloud:mac   # → .dmg
+npm run electron:desktop:dev
+npm run build:electron:desktop:win   # → dhandho-desktop-win-x64.exe
+npm run build:electron:desktop:mac   # → dhandho-desktop-mac-*.dmg
 ```
 
-### On-Prem (~180 MB)
-Full self-contained install — embedded PostgreSQL, Express server, React frontend. No internet required after activation.
-
-```bash
-npm run electron:onprem:dev
-npm run build:electron:onprem:win  # → .exe installer
-npm run build:electron:onprem:mac  # → .dmg
-```
-
-On first launch shows a wizard: enter the license key issued by super admin → activates against cloud → creates local tenant → opens app. Heartbeat keeps the super admin dashboard updated.
+- **Online** — hosted ERP in a native window (company login / seats).
+- **Offline** — embedded PostgreSQL + Express; license wizard; works offline after activation.
 
 ---
 
@@ -130,9 +119,8 @@ Public URL: **`/download`**
 
 | Section | What |
 |---------|------|
-| Service Mobile | Offline phone (GitLab Android+iOS debug CI) — `DG-SM-` license |
-| On-Prem desktop | Electron offline installers |
-| Cloud desktop | Electron online installers |
+| Phone | Unified Cap — Online/Offline picker; Offline uses `DG-SM-` |
+| Desktop | Unified Electron Mac + Windows — Online/Offline picker |
 
 ---
 
@@ -155,7 +143,7 @@ Accessible at `/admin` (or `/super-admin` depending on deploy) with the platform
 |-----|----------|
 | [`DEVELOPER.md`](DEVELOPER.md) | Architecture, routes, Electron, platforms |
 | [`src/platforms/README.md`](src/platforms/README.md) | Shared, Electron, Service Mobile |
-| [`electron/README.md`](electron/README.md) | Electron cloud vs on-prem |
+| [`electron/README.md`](electron/README.md) | Unified Desktop Electron |
 | Super Admin → **Guide** | Operator how-tos inside the product |
 
 ---

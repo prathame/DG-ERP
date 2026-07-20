@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dhandho — Choose mode</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #0c0f12;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: #fff;
+      padding: 24px;
+    }
+    .wrap { width: 100%; max-width: 420px; }
+    .brand { text-align: center; margin-bottom: 28px; }
+    .brand h1 { font-size: 20px; font-weight: 800; margin: 12px 0 8px; }
+    .brand p { font-size: 13px; color: rgba(255,255,255,0.5); line-height: 1.45; }
+    .warn {
+      display: flex; gap: 10px; align-items: flex-start;
+      border: 1px solid rgba(245,158,11,0.35);
+      background: rgba(245,158,11,0.1);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: rgba(254,243,199,0.95);
+      margin-bottom: 16px;
+    }
+    .choice {
+      width: 100%; text-align: left;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      transition: background 0.15s;
+    }
+    .choice.online {
+      border-color: rgba(56,189,248,0.35);
+      background: rgba(56,189,248,0.1);
+    }
+    .choice.online:hover { background: rgba(56,189,248,0.15); }
+    .choice.offline {
+      border-color: rgba(52,211,153,0.35);
+      background: rgba(52,211,153,0.1);
+    }
+    .choice.offline:hover { background: rgba(52,211,153,0.15); }
+    .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .row strong { font-size: 15px; }
+    .badge {
+      font-size: 10px; font-weight: 800;
+      padding: 2px 8px; border-radius: 999px;
+    }
+    .badge.sky { background: rgba(56,189,248,0.25); color: #bae6fd; }
+    .badge.em { background: rgba(52,211,153,0.25); color: #a7f3d0; }
+    .choice p { font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.4; }
+    .confirm {
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .confirm p { font-size: 14px; color: rgba(255,255,255,0.8); margin-bottom: 16px; line-height: 1.45; }
+    .actions { display: flex; gap: 8px; }
+    .actions button {
+      flex: 1; padding: 11px;
+      border-radius: 12px;
+      font-size: 13px; font-weight: 700;
+      cursor: pointer; border: none;
+    }
+    .back {
+      border: 1px solid rgba(255,255,255,0.15) !important;
+      background: transparent;
+      color: rgba(255,255,255,0.7);
+    }
+    .go { background: #F27D26; color: #fff; }
+    .go:disabled { background: #6b7280; cursor: not-allowed; }
+    .error { color: #fb7185; font-size: 13px; text-align: center; margin-top: 12px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <div style="font-size:28px;font-weight:800;color:#F27D26">D</div>
+      <h1>Choose how this PC works</h1>
+      <p>One-time setup. Online and Offline use different accounts and data — they never mix.</p>
+    </div>
+
+    <div class="warn">
+      <span>⚠</span>
+      <span>You cannot switch later without reinstalling the app. Pick carefully.</span>
+    </div>
+
+    <div id="choices">
+      <button type="button" class="choice online" data-mode="online">
+        <div class="row">
+          <strong>Online</strong>
+          <span class="badge sky">CLOUD</span>
+        </div>
+        <p>Connect to your company on the cloud. Uses company login and device seats. Needs internet.</p>
+      </button>
+      <button type="button" class="choice offline" data-mode="offline">
+        <div class="row">
+          <strong>Offline</strong>
+          <span class="badge em">ON THIS PC</span>
+        </div>
+        <p>Store data on this computer. Uses a separate on-prem license. Works without internet after activation.</p>
+      </button>
+    </div>
+
+    <div id="confirm" class="confirm hidden">
+      <p id="confirmText"></p>
+      <div class="actions">
+        <button type="button" class="back" id="backBtn">Back</button>
+        <button type="button" class="go" id="confirmBtn">Confirm</button>
+      </div>
+    </div>
+
+    <p id="error" class="error hidden"></p>
+  </div>
+
+  <script>
+    var pending = null;
+    var choices = document.getElementById('choices');
+    var confirmEl = document.getElementById('confirm');
+    var confirmText = document.getElementById('confirmText');
+    var errorEl = document.getElementById('error');
+    var confirmBtn = document.getElementById('confirmBtn');
+
+    function showError(msg) {
+      errorEl.textContent = msg || '';
+      errorEl.classList.toggle('hidden', !msg);
+    }
+
+    document.querySelectorAll('.choice').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        pending = btn.getAttribute('data-mode');
+        showError('');
+        choices.classList.add('hidden');
+        confirmEl.classList.remove('hidden');
+        confirmText.innerHTML = 'Confirm <strong>' +
+          (pending === 'online' ? 'Online (cloud)' : 'Offline (on this PC)') +
+          '</strong>? This cannot be changed without reinstalling.';
+      });
+    });
+
+    document.getElementById('backBtn').addEventListener('click', function () {
+      pending = null;
+      confirmEl.classList.add('hidden');
+      choices.classList.remove('hidden');
+      showError('');
+    });
+
+    confirmBtn.addEventListener('click', async function () {
+      if (!pending || !window.desktopPicker) return;
+      confirmBtn.disabled = true;
+      showError('');
+      try {
+        var result = await window.desktopPicker.chooseMode(pending);
+        if (!result || !result.ok) {
+          showError((result && result.reason) || 'Could not set mode');
+          confirmBtn.disabled = false;
+        }
+      } catch (e) {
+        showError('Could not set mode');
+        confirmBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

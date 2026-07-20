@@ -33,8 +33,9 @@ CI (`.github/workflows/apk-build.yml`) builds the unified phone (Android + iOS) 
 
 ```bash
 # Desktop wrapper (reuse cloud Electron)
-npm run build:electron:cloud:win
-npm run build:electron:cloud:mac
+npm run build:electron:desktop:win
+npm run build:electron:desktop:mac
+# At first launch choose Online
 
 # Unified Cap phone (Online/Offline picker) — preferred
 npm run build:service-phone          # → dist-service-phone

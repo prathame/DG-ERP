@@ -1,6 +1,6 @@
 /**
- * Cloud Electron — thin wrapper around the hosted web app.
- * ~20MB installer. No embedded database or server.
+ * @deprecated Use electron-desktop.config.cjs (unified Online/Offline).
+ * package.json scripts redirect to the unified desktop build.
  */
 module.exports = {
   appId: 'in.dhandho.cloud',

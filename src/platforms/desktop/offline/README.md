@@ -1,6 +1,5 @@
 # Desktop · offline
 
-On-prem Electron (`electron/onprem/`): local Postgres + Express.
+On-prem stack after Offline latch (`electron/onprem/boot.ts`): local Postgres + Express.
 
 - `OnlineStatus.tsx` — sidebar widget for cloud sync / license expiry
-- Future: offline-first desktop renderer helpers belong here

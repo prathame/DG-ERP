@@ -3,8 +3,7 @@
 | Path | Surface |
 |------|---------|
 | `shared/` | API base URL helpers (web + Electron) |
-| `desktop/online/` | Electron cloud |
-| `desktop/offline/` | Electron on-prem UI chrome |
+| `desktop/` | Electron renderer helpers (OnlineStatus after Offline latch) |
 | `service-mobile/` | Offline phone stack (PGlite, `DG-SM-` license) |
 | `service-cloud/` | Online Cap seats + phone UX helpers |
 | `mobileMode.ts` / `PhoneModePicker.tsx` | Unified Cap shell — one-time Online/Offline latch |
@@ -17,3 +16,7 @@ One Android + one iOS app (`in.dhandho.service`, Vite mode `service-phone`). At 
 - **Online** — cloud JWT + company slug + device seats; never opens PGlite ERP
 
 Do not merge auth or sync Offline ERP into Online cloud.
+
+## Unified desktop shell
+
+One Mac + Windows Electron installer (`in.dhandho.desktop`). Mode latch is in the **main process** (`userData/desktop-mode.json` + HTML picker) — see `electron/desktop/`. Renderer still uses `deploymentMode: 'cloud' | 'onprem'` from preload after latch.

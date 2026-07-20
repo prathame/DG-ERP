@@ -1,19 +1,24 @@
 # Electron (native desktop processes)
 
-Maps to `src/platforms/desktop/`:
+**Unified desktop** (`desktop/`): one installer. First launch picks Online or Offline once.
 
-| Folder | Platform label | Mode | What it is |
-|--------|----------------|------|------------|
-| `cloud/` | **desktop · online** | Online | Thin window around hosted ERP (~20MB) |
-| `onprem/` | **desktop · offline** | Offline | Bundled React + Express + embedded Postgres |
-| `shared/` | — | — | Shared constants / helpers |
+| Folder | Role |
+|--------|------|
+| `desktop/` | Unified entry — mode latch + picker → online or offline boot |
+| `cloud/` | Online boot (`boot.ts`) + legacy thin-client helpers |
+| `onprem/` | Offline boot (`boot.ts`) — Express + embedded Postgres + wizard |
+| `shared/` | Shared constants / helpers |
 
-Build outputs:
+Build:
 
-- `dist-electron/cloud/` — desktop online installer
-- `dist-electron/onprem/` — desktop offline installer
+```bash
+npm run build:electron:desktop:mac   # → dist-electron/desktop/*.dmg
+npm run build:electron:desktop:win   # → dist-electron/desktop/*.exe
+```
 
-Renderer (React) platform code lives under `src/platforms/desktop/`.
-Mobile Capacitor code lives under `src/platforms/mobile/` (not here).
+Evergreen release tag: `dhandho-desktop` (Mac arm64/x64 DMGs + Windows x64 exe).
 
-Public download page (desktop + mobile): **`/download`** — see [`docs/MOBILE.md`](../docs/MOBILE.md) and `src/components/layout/DownloadPage.tsx`.
+Renderer platform code: `src/platforms/desktop/`.  
+Phone Capacitor: `src/platforms/service-mobile/` / unified phone shell.
+
+Public downloads: **`/download`**.

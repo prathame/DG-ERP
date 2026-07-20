@@ -253,10 +253,10 @@ Manual test cases in `tests/cases/` — one markdown file per feature area.
 | `npm test` | Vitest unit tests |
 | `npm run cap:android` / `cap:ios` | Sync + open native IDE |
 | `npm run ci:android` / `ci:ios` | Offline debug builds (same as GitLab CI) |
-| `npm run electron:cloud:dev` | Cloud Electron (dev) |
-| `npm run electron:onprem:dev` | On-prem Electron (dev, needs server running) |
-| `npm run build:electron:cloud:win` | Cloud .exe |
-| `npm run build:electron:onprem:win` | On-prem .exe |
+| `npm run electron:desktop:dev` | Unified Desktop Electron (Online/Offline picker) |
+| `npm run electron:desktop:dev:local` | Desktop with `DG_CLOUD_URL=http://localhost:3001` |
+| `npm run build:electron:desktop:win` | Desktop Windows .exe |
+| `npm run build:electron:desktop:mac` | Desktop Mac .dmg |
 
 ---
 

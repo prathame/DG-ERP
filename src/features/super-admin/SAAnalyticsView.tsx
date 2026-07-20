@@ -292,6 +292,9 @@ function VersionControlPanel() {
     serviceCloudIosUrl: string | null;
     serviceMobileAppUrl: string | null;
     serviceMobileIosUrl: string | null;
+    desktopMacArm64Url: string | null;
+    desktopMacX64Url: string | null;
+    desktopWinUrl: string | null;
     desktopAppUrl: string | null;
     cloudVersion: string;
     onpremVersions: { version: string; count: string; latest_seen: string }[];
@@ -305,6 +308,9 @@ function VersionControlPanel() {
   const [serviceCloudIosUrl, setServiceCloudIosUrl] = useState('');
   const [serviceMobileUrl, setServiceMobileUrl] = useState('');
   const [serviceMobileIosUrl, setServiceMobileIosUrl] = useState('');
+  const [desktopMacArm64Url, setDesktopMacArm64Url] = useState('');
+  const [desktopMacX64Url, setDesktopMacX64Url] = useState('');
+  const [desktopWinUrl, setDesktopWinUrl] = useState('');
   const [desktopUrl, setDesktopUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -323,6 +329,9 @@ function VersionControlPanel() {
       setServiceCloudIosUrl(d.serviceCloudIosUrl || '');
       setServiceMobileUrl(d.serviceMobileAppUrl || '');
       setServiceMobileIosUrl(d.serviceMobileIosUrl || '');
+      setDesktopMacArm64Url(d.desktopMacArm64Url || '');
+      setDesktopMacX64Url(d.desktopMacX64Url || '');
+      setDesktopWinUrl(d.desktopWinUrl || '');
       setDesktopUrl(d.desktopAppUrl || '');
     }
   };
@@ -344,6 +353,9 @@ function VersionControlPanel() {
         serviceCloudIosUrl: serviceCloudIosUrl || null,
         serviceMobileAppUrl: serviceMobileUrl || null,
         serviceMobileIosUrl: serviceMobileIosUrl || null,
+        desktopMacArm64Url: desktopMacArm64Url || null,
+        desktopMacX64Url: desktopMacX64Url || null,
+        desktopWinUrl: desktopWinUrl || null,
         desktopAppUrl: desktopUrl || null,
       }),
     });
@@ -456,11 +468,38 @@ function VersionControlPanel() {
           />
         </div>
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Desktop (optional)</label>
+          <label className="text-xs font-bold text-gray-400 uppercase">Desktop — Mac Apple Silicon</label>
+          <input
+            value={desktopMacArm64Url}
+            onChange={e => setDesktopMacArm64Url(e.target.value)}
+            placeholder="https://github.com/prathame/DG-ERP/releases/download/dhandho-desktop/dhandho-desktop-mac-arm64.dmg"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Desktop — Mac Intel</label>
+          <input
+            value={desktopMacX64Url}
+            onChange={e => setDesktopMacX64Url(e.target.value)}
+            placeholder="https://github.com/prathame/DG-ERP/releases/download/dhandho-desktop/dhandho-desktop-mac-x64.dmg"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Desktop — Windows x64</label>
+          <input
+            value={desktopWinUrl}
+            onChange={e => setDesktopWinUrl(e.target.value)}
+            placeholder="https://github.com/prathame/DG-ERP/releases/download/dhandho-desktop/dhandho-desktop-win-x64.exe"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Legacy alias — Desktop (optional)</label>
           <input
             value={desktopUrl}
             onChange={e => setDesktopUrl(e.target.value)}
-            placeholder="https://…/dhandho-desktop.dmg"
+            placeholder="Falls back to Mac arm64 if unset"
             className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
           />
         </div>

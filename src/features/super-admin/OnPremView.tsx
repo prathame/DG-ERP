@@ -858,7 +858,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
                       </li>
                       <li>
                         Or run the app against local cloud:{' '}
-                        <span className="font-mono">npm run electron:onprem:dev:local</span> (+{' '}
+                        <span className="font-mono">npm run electron:desktop:dev:local</span> (+{' '}
                         <span className="font-mono">npm run server</span>)
                       </li>
                     </ul>
