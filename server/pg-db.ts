@@ -1153,6 +1153,9 @@ export async function initSchema() {
     ];
     for (const table of rlsTables) {
       await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
+      // Clear leftover FORCE from the reverted experiment — FORCE + unset app.tenant_id
+      // breaks SA inserts (42501) and silently empties pool.query() SELECTs.
+      await client.query(`ALTER TABLE ${table} NO FORCE ROW LEVEL SECURITY`);
       await client.query(`
         DO $$ BEGIN
           IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = '${table}' AND policyname = '${table}_tenant_isolation') THEN

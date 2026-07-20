@@ -1,4 +1,4 @@
-import { pool } from '../pg-db';
+import { pool, setTenantContext } from '../pg-db';
 import bcrypt from 'bcrypt';
 
 function slugify(input: string): string {
@@ -54,6 +54,10 @@ export async function provisionTenant(data: {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // SA provisioning inserts into RLS-protected tables (users, vendors, …).
+    // Production may enforce policies (FORCE leftover, or non-owner role) — set
+    // app.tenant_id so WITH CHECK passes. Does not change RLS for normal tenant requests.
+    await setTenantContext(client, tenantId);
 
     // Default tab config — super-admin route overrides this with business-type preset after provisioning
     const defaultTabConfig = JSON.stringify({
@@ -138,6 +142,7 @@ export async function deleteTenant(tenantId: string) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await setTenantContext(client, tenantId);
     const tables = [
       'expenses',
       'staff_payments',
