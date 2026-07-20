@@ -50,6 +50,31 @@ function isCapOrLocalWebView(): boolean {
   return origin === 'https://localhost' || origin === 'http://localhost' || origin.startsWith('capacitor:');
 }
 
+function isLocalDevHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1';
+}
+
+/**
+ * Host prefix for onboarding slug UI (`dg-erp.onrender.com/` or `dhandho.app/`).
+ * Uses the live page host when it is a real public host; on Cap/localhost uses the
+ * resolved API origin (Render today, canonical domain after DNS cutover).
+ */
+export function getPublicAppHostPrefix(): string {
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const pageHost = window.location.hostname;
+    if (pageHost && !isLocalDevHost(pageHost)) {
+      return `${window.location.host}/`;
+    }
+  }
+  const origin = getApiOrigin() || CLOUD_ORIGIN_FALLBACK;
+  try {
+    return `${new URL(origin).host}/`;
+  } catch {
+    return 'app/';
+  }
+}
+
 /**
  * Origin for API calls (no trailing slash), e.g. https://dg-erp.onrender.com
  * Empty string = same-origin relative `/api` (hosted web on Render).

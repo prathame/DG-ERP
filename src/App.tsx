@@ -57,7 +57,7 @@ import { isMobileAppShell } from './lib/mobileAppShell';
 import { useEscapeKey } from './lib/useEscapeKey';
 import { normalizeCompanySlug, validateCompanySlug } from './lib/companySlug';
 import { reportActionBlocked, reportActionFailed } from './lib/reportActionFailure';
-import { getApiOrigin } from './platforms/shared';
+import { getApiOrigin, getPublicAppHostPrefix } from './platforms/shared';
 
 const AppShutterIntro = lazy(() =>
   import('./components/layout/AppShutterIntro').then(m => ({ default: m.AppShutterIntro })),
@@ -145,7 +145,8 @@ function CompanySlugEntry() {
   const [sharingReport, setSharingReport] = React.useState(false);
   const [reportHint, setReportHint] = React.useState('');
   const mobileApp = isMobileAppShell();
-  const hostPrefix = typeof window !== 'undefined' && window.location?.host ? `${window.location.host}/` : 'app/';
+  // Cap WebView is localhost — show cloud API host (Render / future dhandho.app), not Cap loopback
+  const hostPrefix = getPublicAppHostPrefix();
 
   React.useEffect(() => {
     // Returning users: skip the form when we already know the company
