@@ -1176,26 +1176,8 @@ export async function initSchema() {
   }
 }
 
-export async function seedPlatformData() {
-  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
-  const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
-  if (!superAdminEmail || !superAdminPassword) {
-    logger.warn('SUPER_ADMIN_EMAIL + SUPER_ADMIN_PASSWORD not set — skipping admin seed');
-  } else {
-    const existing = await pool.query('SELECT id FROM super_admins WHERE email = $1', [superAdminEmail]);
-    if (existing.rows.length === 0) {
-      const hash = await bcrypt.hash(superAdminPassword, 12);
-      await pool.query('INSERT INTO super_admins (id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5)', [
-        'SA1',
-        superAdminEmail,
-        hash,
-        'Platform Owner',
-        'owner',
-      ]);
-      logger.info('Super admin created');
-    }
-  }
-
+/** Upsert TRIAL/BASIC/STANDARD/PROFESSIONAL so cloud tenant create never hits plan_id FK 500s on empty DBs. */
+export async function ensureDefaultPlans() {
   const plans = [
     [
       'TRIAL',
@@ -1251,6 +1233,29 @@ export async function seedPlatformData() {
     );
   }
   logger.info('Plans seeded', { plans: ['Trial', 'Basic', 'Standard', 'Professional'] });
+}
+
+export async function seedPlatformData() {
+  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL;
+  const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
+  if (!superAdminEmail || !superAdminPassword) {
+    logger.warn('SUPER_ADMIN_EMAIL + SUPER_ADMIN_PASSWORD not set — skipping admin seed');
+  } else {
+    const existing = await pool.query('SELECT id FROM super_admins WHERE email = $1', [superAdminEmail]);
+    if (existing.rows.length === 0) {
+      const hash = await bcrypt.hash(superAdminPassword, 12);
+      await pool.query('INSERT INTO super_admins (id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5)', [
+        'SA1',
+        superAdminEmail,
+        hash,
+        'Platform Owner',
+        'owner',
+      ]);
+      logger.info('Super admin created');
+    }
+  }
+
+  await ensureDefaultPlans();
 }
 
 export async function initDatabase() {

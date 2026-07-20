@@ -31,9 +31,11 @@ Fail-fast startup validation. Notably:
 
 The in-memory, 30-second-TTL, 5,000-entry-capped cache backing `app.ts`'s per-request auth lookup (see [`app.ts` walkthrough](/files/server/app)). Keyed by `userId:tenantId:iat` specifically so a password change (which changes effective `iat` validity) or a new login doesn't accidentally serve pre-change cached data — old cache entries for an old `iat` simply become irrelevant, not wrong. `invalidateAuthCache` is called explicitly after known-stale-triggering actions (e.g. right after a password change) to avoid waiting out the 30s TTL.
 
-### `tenant.ts` (129 lines)
+### `tenant.ts`
 
 Cross-cutting tenant lifecycle operations that don't belong to any one route file: `provisionTenant()` (creates a new tenant + first Admin user + default vendor + default redemption settings, all in one transaction), `deleteTenant()` (the exact reverse — explicit `DELETE FROM` for ~28 tables in dependency order, then the tenant row itself, all in one transaction), and `getTenantStats()` (dashboard counts via `Promise.all` for parallel independent queries).
+
+Before insert, `provisionTenant` validates `plan_id` exists (throws `INVALID_PLAN`) and builds a non-empty ASCII slug (falls back to email local-part / timestamp when the company name is non-Latin). Cloud SA create also calls `ensureDefaultPlans()` in `pg-db.ts` so a wiped `plans` table cannot turn Create Cloud Tenant into a opaque `500` FK error (same class of bug as on-prem ensuring the `LOCAL` plan).
 
 **Notably:** `deleteTenant`'s table list is a **manually maintained array** — if a new multi-tenant table is added to the schema and this list isn't updated, deleting a tenant leaves orphaned rows in that table forever (not a foreign-key cascade failure, just silent orphan data, since there's no `ON DELETE CASCADE` in play for most of these). This is a real, easy-to-forget maintenance burden — see [Common Mistakes](#common-mistakes) below.
 

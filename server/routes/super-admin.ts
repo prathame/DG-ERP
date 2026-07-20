@@ -1,12 +1,11 @@
 import { Router } from 'express';
 import { logger } from '../utils/logger';
-import { pool } from '../pg-db';
+import { pool, ensureDefaultPlans } from '../pg-db';
 import bcrypt from 'bcrypt';
-import { uid } from '../utils/helpers';
+import { uid, logAudit } from '../utils/helpers';
 import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
 import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
-import { logAudit } from '../utils/helpers';
 import {
   DEFAULT_SERVICE_CLOUD_APP_URL,
   DEFAULT_SERVICE_CLOUD_IOS_URL,
@@ -201,6 +200,8 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       return res.status(400).json({ error: 'Company name, admin email, and admin name are required' });
     const existing = (await pool.query('SELECT id FROM tenants WHERE admin_email = $1', [adminEmail])).rows[0];
     if (existing) return res.status(400).json({ error: 'A tenant with this email already exists' });
+    // Fresh / wiped DBs: seed default plans before insert (same class of bug as on-prem LOCAL plan ensure)
+    await ensureDefaultPlans();
     const selectedPlan = planId || plan || 'BASIC';
     const isTrial = selectedPlan === 'TRIAL';
     const trialEnd = isTrial ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() : undefined;
@@ -346,7 +347,11 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
     });
   } catch (err) {
     const e = err as Error & { code?: string };
-    if (e.code === 'DUPLICATE_SLUG') return res.status(400).json({ error: e.message });
+    if (e.code === 'DUPLICATE_SLUG' || e.code === 'INVALID_PLAN') return res.status(400).json({ error: e.message });
+    // plan_id FK (or other FK) — surface as 400 instead of opaque 500
+    if (e.code === '23503') {
+      return res.status(400).json({ error: 'Invalid plan or related data — ensure default plans exist and try again' });
+    }
     return handleApiError(req, res, err, 'Tenant create failed');
   }
 });

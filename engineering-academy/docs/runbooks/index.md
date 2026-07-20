@@ -36,6 +36,7 @@ flowchart TD
 | [Auth Failures](/runbooks/auth-failures) | Logins failing broadly, or "session expired" reports spiking | Critical if broad, minor if one user |
 | [Deploy Rollback](/runbooks/deploy-rollback) | A fresh deploy is misbehaving and you need to revert fast | Critical — time-sensitive |
 | [Tenant Suspended](/runbooks/tenant-suspended) | A specific customer reports sudden lockout | Minor — single tenant |
+| [Cloud Tenant Create 500](/runbooks/cloud-tenant-create-500) | Super Admin Create Cloud Tenant returns Internal server error | Moderate — blocks onboarding |
 | [GST API Failures](/runbooks/gst-api-failures) | E-invoicing/e-way-bill generation failing for one or more tenants | Moderate — compliance-impacting but usually tenant-scoped |
 | [Mobile Sync](/runbooks/mobile-sync) | Field/dealer staff report the mobile app "isn't updating" or "lost changes" | Moderate — usually resolves once connectivity returns, but data-loss claims need care |
 | [On-Prem License](/runbooks/onprem-license) | An on-prem customer's install won't activate or has stopped heartbeating | Moderate — single customer, but potentially business-critical for them |
