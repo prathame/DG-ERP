@@ -2,10 +2,11 @@ import { fetchApi } from '../api';
 import { api } from '../api';
 import { generateStandaloneInvoiceHtml, type StandaloneInvoicePrint } from './billTemplates';
 import { invoiceHasGst } from './billSettingsFlags';
-import { clientLogger, pushClientBreadcrumb } from './logger';
+import { clientLogger, ensureCorrelationId, pushClientBreadcrumb } from './logger';
 import { isServicePhoneUx } from '../platforms/service-cloud/mode';
 import { session } from './session';
 import { isNativeCapacitor } from './dhandhoFiles';
+import { buildStandaloneInvoicePdfBlob } from './standaloneInvoicePdf';
 import {
   closePrintOverlay,
   fetchImageAsDataUrl,
@@ -14,15 +15,34 @@ import {
   PRINT_POPUP_BLOCKED,
   shareHtmlPdfViaWhatsApp,
   shareInvoiceSummaryViaWhatsApp,
+  sharePdfNativeWhatsApp,
+  truncateShareError,
 } from './utils';
 
-export type WhatsAppInvoiceShareHow = 'shared' | 'saved' | 'text' | 'downloaded' | 'cancelled' | 'summary';
+/** Hard timeout for Cap light-jsPDF build before falling back to text share. */
+export const CAP_WHATSAPP_PDF_TIMEOUT_MS = 7000;
+
+export type WhatsAppInvoiceShareHow =
+  'shared' | 'saved' | 'text' | 'downloaded' | 'cancelled' | 'summary' | 'pdf_fallback';
+
+export type WhatsAppInvoiceShareResult = {
+  how: WhatsAppInvoiceShareHow;
+  /** Truncated safe error for toast when PDF failed / timed out. */
+  errorHint?: string;
+};
 
 /** User-facing toast after WhatsApp invoice share (skip for `cancelled`). */
-export function whatsAppInvoiceShareToast(how: Exclude<WhatsAppInvoiceShareHow, 'cancelled'>): string {
+export function whatsAppInvoiceShareToast(
+  how: Exclude<WhatsAppInvoiceShareHow, 'cancelled'>,
+  errorHint?: string,
+): string {
   switch (how) {
     case 'summary':
       return 'Shared summary. For PDF: Print → Save as PDF, then share from Files.';
+    case 'pdf_fallback': {
+      const hint = errorHint?.trim();
+      return hint ? `PDF failed (${hint}) — shared text summary instead` : 'PDF failed — shared text summary instead';
+    }
     case 'shared':
       return 'Invoice PDF shared';
     case 'saved':
@@ -41,6 +61,40 @@ export type PrintableStandaloneInvoice = StandaloneInvoicePrint & {
   customerPhone?: string;
   grandTotal?: number;
 };
+
+export type ShareStandaloneInvoiceWhatsAppOptions = {
+  billSettings?: Record<string, unknown>;
+  businessType?: string;
+  /** Cap: called after breadcrumb so UI can toast "Preparing PDF…". */
+  onPreparing?: () => void;
+};
+
+function waLog(level: 'info' | 'warn' | 'error', message: string, ctx: Record<string, unknown>): void {
+  const full = { correlationId: ensureCorrelationId(), ...ctx };
+  clientLogger[level](message, full);
+  pushClientBreadcrumb(message, full);
+}
+
+async function yieldToUi(): Promise<void> {
+  // setTimeout(0) lets React paint "Preparing…" before PDF work (rAF is flaky under test / backgrounded WebView).
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+    promise.then(
+      v => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      e => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
 
 async function buildStandaloneInvoiceHtml(
   inv: PrintableStandaloneInvoice,
@@ -136,38 +190,132 @@ function invoiceWhatsAppMessage(inv: PrintableStandaloneInvoice): string {
   return [`Invoice ${inv.invoiceNumber}`, inv.customerName, total && `Total: ${total}`].filter(Boolean).join('\n');
 }
 
+async function shareCapInvoicePdfWithFallback(
+  inv: PrintableStandaloneInvoice,
+  message: string,
+  options?: ShareStandaloneInvoiceWhatsAppOptions,
+): Promise<WhatsAppInvoiceShareResult> {
+  const correlationId = ensureCorrelationId();
+  const baseCtx = {
+    correlationId,
+    invoiceNumber: inv.invoiceNumber,
+    native: true,
+  };
+
+  waLog('info', 'WhatsApp invoice share start', { ...baseCtx, path: 'pdf' });
+  options?.onPreparing?.();
+
+  waLog('info', 'WhatsApp share yield UI', baseCtx);
+  await yieldToUi();
+
+  const filename = standaloneInvoicePdfBasename(inv.customerName);
+  const user = (session.getUser() || {}) as {
+    companyName?: string;
+    address?: string;
+    phone?: string;
+    gstNumber?: string;
+  };
+
+  try {
+    waLog('info', 'WhatsApp PDF build start', {
+      ...baseCtx,
+      path: 'pdf',
+      filename,
+      timeoutMs: CAP_WHATSAPP_PDF_TIMEOUT_MS,
+      engine: 'jspdf-light',
+    });
+    const blob = await withTimeout(
+      buildStandaloneInvoicePdfBlob(
+        inv,
+        {
+          companyName: user.companyName,
+          address: user.address,
+          phone: user.phone,
+          gstNumber: user.gstNumber,
+        },
+        { hasGst: invoiceHasGst(inv) },
+      ),
+      CAP_WHATSAPP_PDF_TIMEOUT_MS,
+      'PDF_TIMEOUT',
+    );
+    waLog('info', 'WhatsApp PDF build ok', {
+      ...baseCtx,
+      path: 'pdf',
+      filename,
+      bytes: blob.size,
+    });
+
+    const how = await sharePdfNativeWhatsApp(blob, filename, {
+      ...baseCtx,
+      path: 'pdf',
+    });
+    if (how === 'failed') {
+      const errorHint = 'Share file failed';
+      waLog('warn', 'WhatsApp PDF share failed — text fallback', {
+        ...baseCtx,
+        path: 'fallback',
+        errorHint,
+      });
+      const textHow = await shareInvoiceSummaryViaWhatsApp({
+        phone: inv.customerPhone,
+        message,
+        logCtx: { ...baseCtx, path: 'fallback' },
+      });
+      return textHow === 'cancelled' ? { how: 'cancelled', errorHint } : { how: 'pdf_fallback', errorHint };
+    }
+    return { how };
+  } catch (err) {
+    const timedOut = err instanceof Error && err.message === 'PDF_TIMEOUT';
+    const errorHint = truncateShareError(err);
+    waLog(timedOut ? 'warn' : 'error', timedOut ? 'WhatsApp PDF build timeout' : 'WhatsApp PDF build fail', {
+      ...baseCtx,
+      path: 'fallback',
+      errorName: err instanceof Error ? err.name : 'Error',
+      errorMessage: errorHint,
+      timedOut,
+    });
+    waLog('info', 'WhatsApp text fallback start', { ...baseCtx, path: 'fallback' });
+    const textHow = await shareInvoiceSummaryViaWhatsApp({
+      phone: inv.customerPhone,
+      message,
+      logCtx: { ...baseCtx, path: 'fallback' },
+    });
+    return textHow === 'cancelled' ? { how: 'cancelled', errorHint } : { how: 'pdf_fallback', errorHint };
+  }
+}
+
 /**
  * Share invoice via WhatsApp.
- * Cap: text summary only (Share / wa.me) — no html2pdf, no jsPDF on the tap path (WebView freeze).
+ * Cap: light jsPDF (no html2canvas) with hard timeout → file-only Share; on fail → text + toast.
  * Web: HTML → html2pdf file share / wa.me + download.
  * Print path stays full Tax Invoice HTML + system Print.
  */
 export async function shareStandaloneInvoiceWhatsApp(
   inv: PrintableStandaloneInvoice,
-  options?: { billSettings?: Record<string, unknown>; businessType?: string },
-): Promise<WhatsAppInvoiceShareHow> {
+  options?: ShareStandaloneInvoiceWhatsAppOptions,
+): Promise<WhatsAppInvoiceShareResult> {
   const message = invoiceWhatsAppMessage(inv);
+  const correlationId = ensureCorrelationId();
   const ctx = {
+    correlationId,
     invoiceNumber: inv.invoiceNumber,
     native: isNativeCapacitor(),
   };
-  // Log + breadcrumb before any share work so bug reports aren't empty if WebView soft-hangs.
-  clientLogger.info('WhatsApp invoice share start', ctx);
-  pushClientBreadcrumb('WhatsApp invoice share start', ctx);
 
   if (isNativeCapacitor()) {
-    // Let React paint "Preparing…" / disabled button before Share sheet opens.
-    await new Promise<void>(r => setTimeout(r, 0));
-    return shareInvoiceSummaryViaWhatsApp({ phone: inv.customerPhone, message });
+    return shareCapInvoicePdfWithFallback(inv, message, options);
   }
 
+  waLog('info', 'WhatsApp invoice share start', { ...ctx, path: 'pdf' });
   const { html, filename } = await buildStandaloneInvoiceHtml(inv, options);
-  return shareHtmlPdfViaWhatsApp({
+  const how = await shareHtmlPdfViaWhatsApp({
     html,
     filename,
     phone: inv.customerPhone,
     message,
+    logCtx: ctx,
   });
+  return { how };
 }
 
 /** Load full invoice by id then print — for vendor/finance hubs. */
@@ -183,8 +331,8 @@ export async function printStandaloneInvoiceById(
 /** Load full invoice by id then share via WhatsApp. */
 export async function shareStandaloneInvoiceWhatsAppById(
   invoiceId: string,
-  options?: { businessType?: string },
-): Promise<WhatsAppInvoiceShareHow> {
+  options?: ShareStandaloneInvoiceWhatsAppOptions,
+): Promise<WhatsAppInvoiceShareResult> {
   const inv = await fetchApi<PrintableStandaloneInvoice & { id: string }>(`/invoices/${invoiceId}`);
   if (!inv?.id) throw new Error('Invoice not found for PDF');
   return shareStandaloneInvoiceWhatsApp(inv, options);

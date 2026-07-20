@@ -1,8 +1,7 @@
 /**
  * Light programmatic invoice PDF via jsPDF text/table API only.
  * Never uses html2pdf/html2canvas (Android WebView OOM/crash).
- * Kept for a future Cap "Share PDF" action — WhatsApp tap path must NOT call this until proven safe.
- * Print path stays full Tax Invoice HTML + system Print.
+ * Cap WhatsApp uses this with a hard timeout + text fallback; Print stays full Tax Invoice HTML.
  */
 
 import type { jsPDF } from 'jspdf';

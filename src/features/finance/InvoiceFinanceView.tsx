@@ -113,11 +113,15 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     if (whatsappBusyId) return;
     setWhatsappBusyId(invoiceId);
     try {
-      const how = await shareStandaloneInvoiceWhatsAppById(invoiceId, { businessType: cfg.type });
+      const { how, errorHint } = await shareStandaloneInvoiceWhatsAppById(invoiceId, {
+        businessType: cfg.type,
+        onPreparing: () => toast('Preparing PDF…', 'info'),
+      });
       if (how === 'cancelled') return;
-      toast(whatsAppInvoiceShareToast(how), 'success');
+      toast(whatsAppInvoiceShareToast(how, errorHint), how === 'pdf_fallback' ? 'info' : 'success');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not share invoice', 'error');
+      const msg = err instanceof Error ? err.message : 'Could not share invoice';
+      toast(msg.length > 100 ? `${msg.slice(0, 99)}…` : msg, 'error');
     } finally {
       setWhatsappBusyId(null);
     }

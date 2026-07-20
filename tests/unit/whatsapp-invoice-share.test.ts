@@ -1,17 +1,61 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const shareMock = vi.fn();
+const writeFileMock = vi.fn();
+const getUriMock = vi.fn();
+const mkdirMock = vi.fn();
+const saveDhandhoMock = vi.fn();
+const buildPdfMock = vi.fn();
 
 vi.mock('@capacitor/share', () => ({
   Share: { share: (...args: unknown[]) => shareMock(...args) },
 }));
 
+vi.mock('@capacitor/filesystem', () => ({
+  Filesystem: {
+    writeFile: (...args: unknown[]) => writeFileMock(...args),
+    getUri: (...args: unknown[]) => getUriMock(...args),
+    mkdir: (...args: unknown[]) => mkdirMock(...args),
+  },
+  Directory: { Cache: 'CACHE', External: 'EXTERNAL', Documents: 'DOCUMENTS' },
+  Encoding: { UTF8: 'utf8' },
+}));
+
+vi.mock('../../src/lib/dhandhoFiles', async () => {
+  const actual = await vi.importActual<typeof import('../../src/lib/dhandhoFiles')>('../../src/lib/dhandhoFiles');
+  return {
+    ...actual,
+    saveDhandhoFile: (...args: unknown[]) => saveDhandhoMock(...args),
+    isNativeCapacitor: () =>
+      Boolean(
+        (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.(),
+      ),
+  };
+});
+
+vi.mock('../../src/lib/standaloneInvoicePdf', () => ({
+  buildStandaloneInvoicePdfBlob: (...args: unknown[]) => buildPdfMock(...args),
+}));
+
 function stubCap(native: boolean) {
+  const loc = { pathname: '/', href: 'http://localhost/', search: '', hash: '' };
   vi.stubGlobal('window', {
     Capacitor: native ? { isNativePlatform: () => true } : undefined,
     open: vi.fn(),
+    location: loc,
+    sessionStorage: globalThis.sessionStorage,
+    localStorage: globalThis.localStorage,
   });
+  // session.ts reads window.location; keep it defined after stubGlobal
+  Object.defineProperty(window, 'location', { value: loc, writable: true, configurable: true });
 }
+
+vi.mock('../../src/lib/session', () => ({
+  session: {
+    getUser: () => ({ companyName: 'Test Co', phone: '999', gstNumber: 'GST1' }),
+    getToken: () => null,
+  },
+}));
 
 const sampleInv = {
   invoiceNumber: 'INV-1',
@@ -25,12 +69,32 @@ const sampleInv = {
   invoiceDate: '2026-07-20',
 };
 
-describe('Cap WhatsApp invoice share (text only, no PDF gen)', () => {
+describe('Cap WhatsApp invoice share (light PDF + timeout fallback + debug logs)', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.unstubAllGlobals();
     shareMock.mockReset();
+    writeFileMock.mockReset();
+    getUriMock.mockReset();
+    mkdirMock.mockReset();
+    saveDhandhoMock.mockReset();
+    buildPdfMock.mockReset();
     shareMock.mockResolvedValue(undefined);
+    writeFileMock.mockResolvedValue({});
+    getUriMock.mockResolvedValue({ uri: 'content://cache/share/inv.pdf' });
+    mkdirMock.mockResolvedValue({});
+    saveDhandhoMock.mockResolvedValue({
+      path: 'Dhandho/invoices/x.pdf',
+      relativePath: 'Dhandho/invoices/x.pdf',
+      uri: 'file://dhandho/x.pdf',
+      filename: 'x.pdf',
+    });
+    buildPdfMock.mockResolvedValue(new Blob(['%PDF-1.4 mock'], { type: 'application/pdf' }));
+    try {
+      sessionStorage.clear();
+    } catch {
+      /* ignore */
+    }
   });
 
   it('standaloneInvoicePdfBasename is ClientName-datetime', async () => {
@@ -39,18 +103,11 @@ describe('Cap WhatsApp invoice share (text only, no PDF gen)', () => {
     expect(standaloneInvoicePdfBasename('Acme Corp', when)).toBe('Acme Corp-2026-07-20_13-45-07');
   });
 
-  it('whatsAppInvoiceShareToast covers summary and PDF web outcomes', async () => {
+  it('whatsAppInvoiceShareToast covers pdf_fallback with error hint', async () => {
     const { whatsAppInvoiceShareToast } = await import('../../src/lib/printStandaloneInvoice');
-    expect(whatsAppInvoiceShareToast('summary')).toMatch(/Print → Save as PDF/);
     expect(whatsAppInvoiceShareToast('shared')).toMatch(/PDF shared/i);
-  });
-
-  it('buildStandaloneInvoicePdfBlob helper still builds a PDF (future Share PDF)', async () => {
-    const { buildStandaloneInvoicePdfBlob } = await import('../../src/lib/standaloneInvoicePdf');
-    const blob = await buildStandaloneInvoicePdfBlob(sampleInv, { companyName: 'Test Co' }, { hasGst: true });
-    expect(blob).toBeInstanceOf(Blob);
-    expect(blob.size).toBeGreaterThan(200);
-    expect(blob.type).toMatch(/pdf/i);
+    expect(whatsAppInvoiceShareToast('pdf_fallback')).toMatch(/PDF failed/i);
+    expect(whatsAppInvoiceShareToast('pdf_fallback', 'PDF_TIMEOUT')).toMatch(/PDF_TIMEOUT/);
   });
 
   it('shareHtmlPdfViaWhatsApp on Cap skips html2pdf (text summary)', async () => {
@@ -64,19 +121,80 @@ describe('Cap WhatsApp invoice share (text only, no PDF gen)', () => {
     });
     expect(how).toBe('summary');
     expect(shareMock).toHaveBeenCalledWith(expect.objectContaining({ text: expect.any(String) }));
+    expect(buildPdfMock).not.toHaveBeenCalled();
   });
 
-  it('shareStandaloneInvoiceWhatsApp on Cap shares text only (no PDF)', async () => {
+  it('Cap WhatsApp shares light PDF file-only on success', async () => {
     stubCap(true);
+    const preparing = vi.fn();
     const { shareStandaloneInvoiceWhatsApp } = await import('../../src/lib/printStandaloneInvoice');
-    const how = await shareStandaloneInvoiceWhatsApp(sampleInv);
-    expect(how).toBe('summary');
+    const { getClientBreadcrumbs, getRecentClientLogs } = await import('../../src/lib/logger');
+
+    const result = await shareStandaloneInvoiceWhatsApp(sampleInv, { onPreparing: preparing });
+
+    expect(preparing).toHaveBeenCalledOnce();
+    expect(buildPdfMock).toHaveBeenCalledOnce();
+    expect(result.how).toBe('shared');
     expect(shareMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        text: expect.stringContaining('INV-1'),
+        url: 'content://cache/share/inv.pdf',
         dialogTitle: 'Share via WhatsApp',
       }),
     );
-    expect(shareMock.mock.calls[0][0]).not.toHaveProperty('url');
+    expect(shareMock.mock.calls[0][0]).not.toHaveProperty('text');
+    expect(saveDhandhoMock).toHaveBeenCalled();
+    expect(writeFileMock).toHaveBeenCalled();
+
+    const crumbs = getClientBreadcrumbs(20).join('\n');
+    expect(crumbs).toMatch(/WhatsApp invoice share start/);
+    expect(crumbs).toMatch(/PDF build ok|Share\.share ok/);
+    const logs = getRecentClientLogs(40).join('\n');
+    expect(logs).toMatch(/correlationId/);
+    expect(logs).toMatch(/INV-1/);
+  });
+
+  it('Cap WhatsApp falls back to text on PDF timeout', async () => {
+    stubCap(true);
+    buildPdfMock.mockImplementation(() => new Promise(() => {})); // never resolves
+
+    const { shareStandaloneInvoiceWhatsApp, CAP_WHATSAPP_PDF_TIMEOUT_MS } =
+      await import('../../src/lib/printStandaloneInvoice');
+    const { getClientBreadcrumbs } = await import('../../src/lib/logger');
+
+    vi.useFakeTimers();
+    try {
+      const pending = shareStandaloneInvoiceWhatsApp(sampleInv);
+      // flush yieldToUi setTimeout(0), then fire PDF timeout
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(CAP_WHATSAPP_PDF_TIMEOUT_MS + 10);
+      const result = await pending;
+
+      expect(result.how).toBe('pdf_fallback');
+      expect(result.errorHint).toMatch(/PDF_TIMEOUT/i);
+      expect(shareMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: expect.stringContaining('INV-1'),
+          dialogTitle: 'Share via WhatsApp',
+        }),
+      );
+      expect(shareMock.mock.calls[0][0]).not.toHaveProperty('url');
+
+      const crumbs = getClientBreadcrumbs(20).join('\n');
+      expect(crumbs).toMatch(/PDF build timeout|text fallback/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Cap WhatsApp falls back to text on PDF build failure', async () => {
+    stubCap(true);
+    buildPdfMock.mockRejectedValue(new Error('no items'));
+
+    const { shareStandaloneInvoiceWhatsApp } = await import('../../src/lib/printStandaloneInvoice');
+    const result = await shareStandaloneInvoiceWhatsApp(sampleInv);
+
+    expect(result.how).toBe('pdf_fallback');
+    expect(result.errorHint).toMatch(/no items/i);
+    expect(shareMock).toHaveBeenCalledWith(expect.objectContaining({ text: expect.any(String) }));
   });
 });
