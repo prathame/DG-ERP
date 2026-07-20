@@ -415,43 +415,43 @@ function VersionControlPanel() {
         <div>
           <h4 className="text-sm font-bold text-gray-800">App download URLs (testing)</h4>
           <p className="text-xs text-gray-500 mt-0.5">
-            One stable link per app on <code className="bg-white px-1 rounded">/download</code>. Rebuild as often as you
-            want — keep the same URL, replace the file behind it. Do not mix Online vs Offline links.
+            Unified Cap shell: one Android + one iOS URL on <code className="bg-white px-1 rounded">/download</code>.
+            First launch picks Online or Offline once. Prefer the Mobile fields; Cloud fields are legacy aliases.
           </p>
         </div>
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Service Cloud ONLINE — Android APK</label>
-          <input
-            value={serviceCloudUrl}
-            onChange={e => setServiceCloudUrl(e.target.value)}
-            placeholder="https://github.com/prathame/DG-ERP/releases/download/service-cloud/service-cloud-online-debug.apk"
-            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Service Cloud ONLINE — iOS (.app.zip)</label>
-          <input
-            value={serviceCloudIosUrl}
-            onChange={e => setServiceCloudIosUrl(e.target.value)}
-            placeholder="https://github.com/prathame/DG-ERP/releases/download/service-cloud/service-cloud-online-debug.app.zip"
-            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Service Mobile OFFLINE — Android APK</label>
+          <label className="text-xs font-bold text-gray-400 uppercase">Phone — Android APK</label>
           <input
             value={serviceMobileUrl}
             onChange={e => setServiceMobileUrl(e.target.value)}
-            placeholder="https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.apk"
+            placeholder="https://github.com/prathame/DG-ERP/releases/download/dhandho-mobile/dhandho-mobile-debug.apk"
             className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
           />
         </div>
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Service Mobile OFFLINE — iOS (.app.zip)</label>
+          <label className="text-xs font-bold text-gray-400 uppercase">Phone — iOS (.app.zip)</label>
           <input
             value={serviceMobileIosUrl}
             onChange={e => setServiceMobileIosUrl(e.target.value)}
-            placeholder="https://github.com/prathame/DG-ERP/releases/download/offline-mobile/offline-mobile-service-debug.app.zip"
+            placeholder="https://github.com/prathame/DG-ERP/releases/download/dhandho-mobile/dhandho-mobile-debug.app.zip"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Legacy alias — Cloud Android (optional)</label>
+          <input
+            value={serviceCloudUrl}
+            onChange={e => setServiceCloudUrl(e.target.value)}
+            placeholder="Same as Phone Android (optional override)"
+            className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-gray-400 uppercase">Legacy alias — Cloud iOS (optional)</label>
+          <input
+            value={serviceCloudIosUrl}
+            onChange={e => setServiceCloudIosUrl(e.target.value)}
+            placeholder="Same as Phone iOS (optional override)"
             className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand"
           />
         </div>

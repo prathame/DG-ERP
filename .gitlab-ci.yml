@@ -1,16 +1,17 @@
-# Offline Service Mobile — Android + iOS on GitLab
+# Unified Dhandho Service phone — Android + iOS on GitLab
 # Same idea as .github/workflows/apk-build.yml (debug artifacts + evergreen).
+# First launch: Online or Offline picker (one-time). Separate auth/data stacks.
 #
 # Labels (MR → preview artifacts; main path / manual → evergreen):
-#   offline | offline-mobile | service-mobile | mobile | apk | apk-build
+#   mobile | apk | apk-build | offline | offline-mobile | service-mobile | online | service-cloud
 #
-# Manual: Run pipeline → set MOBILE_PRODUCT=offline (optional PUSH_EVERGREEN=false)
+# Manual: Run pipeline → set MOBILE_PRODUCT=phone (optional PUSH_EVERGREEN=false)
 #
-# Debug artifacts (like assembleDebug):
-#   dist-apk/offline-mobile-service-debug.apk
-#   dist-apk/offline-mobile-service-debug.app.zip
+# Debug artifacts:
+#   dist-apk/dhandho-mobile-debug.apk
+#   dist-apk/dhandho-mobile-debug.app.zip
 #
-# Evergreen: GitLab generic package `offline-mobile/latest/…`
+# Evergreen: GitLab generic package `dhandho-mobile/latest/…`
 #
 # Runners: Android = Linux Docker; iOS = macOS+Xcode tag `macos` (IOS_RUNNER_TAG)
 # Vars: VITE_API_ORIGIN; for IPA set IOS_BUILD_MODE=ipa + Apple signing vars
@@ -23,7 +24,7 @@ variables:
   FF_USE_FASTZIP: 'true'
   IOS_RUNNER_TAG: macos
   IOS_BUILD_MODE: debug
-  EVERGREEN_PACKAGE: offline-mobile
+  EVERGREEN_PACKAGE: dhandho-mobile
   EVERGREEN_VERSION: latest
   ANDROID_SDK_ROOT: $CI_PROJECT_DIR/.android-sdk
   ANDROID_HOME: $CI_PROJECT_DIR/.android-sdk
@@ -36,12 +37,14 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "api"
     - if: $CI_PIPELINE_SOURCE == "pipeline"
 
-.offline_changes: &offline_changes
+.phone_changes: &phone_changes
   - android/**/*
   - ios/**/*
   - capacitor.config.ts
+  - capacitor.cloud.config.ts
   - package.json
   - package-lock.json
+  - .env.service-phone.example
   - .env.service-mobile.example
   - scripts/ci-build-android.sh
   - scripts/ci-build-ios.sh
@@ -50,44 +53,49 @@ workflow:
   - scripts/android-set-product.sh
   - .gitlab-ci.yml
   - src/platforms/service-mobile/**/*
+  - src/platforms/service-cloud/**/*
+  - src/platforms/mobileMode.ts
+  - src/platforms/PhoneModePicker.tsx
   - src/App.tsx
   - src/main.tsx
   - src/index.css
   - src/lib/billTemplates.ts
   - src/lib/utils.ts
   - src/lib/billSettingsFlags.ts
+  - src/lib/mobileAppShell.ts
   - src/features/invoices/**/*
   - src/features/settings/SettingsView.tsx
   - src/components/layout/LoginScreen.tsx
+  - src/components/layout/DownloadPage.tsx
   - src/components/ui/AppModal.tsx
   - src/components/ui/ConfirmDialog.tsx
   - src/components/ui/Toast.tsx
   - src/components/ui/MobileShell.tsx
 
-.offline_rules: &offline_rules
-  - if: $MOBILE_PRODUCT == "offline" || $MOBILE_PRODUCT == "both"
+.phone_rules: &phone_rules
+  - if: $MOBILE_PRODUCT == "phone" || $MOBILE_PRODUCT == "offline" || $MOBILE_PRODUCT == "both" || $MOBILE_PRODUCT == "online"
   - if: $CI_PIPELINE_SOURCE == "web"
   - if: $CI_PIPELINE_SOURCE == "api"
   - if: $CI_PIPELINE_SOURCE == "pipeline"
-  - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(?:^|,)\s*(offline|offline-mobile|service-mobile|mobile|apk|apk-build)\s*(,|$)/
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(?:^|,)\s*(mobile|apk|apk-build|offline|offline-mobile|service-mobile|online|service-cloud|servicecloud)\s*(,|$)/
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    changes: *offline_changes
+    changes: *phone_changes
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    changes: *offline_changes
+    changes: *phone_changes
 
 .evergreen_rules: &evergreen_rules
   - if: $PUSH_EVERGREEN == "false"
     when: never
-  - if: $MOBILE_PRODUCT == "offline" || $MOBILE_PRODUCT == "both"
+  - if: $MOBILE_PRODUCT == "phone" || $MOBILE_PRODUCT == "offline" || $MOBILE_PRODUCT == "both" || $MOBILE_PRODUCT == "online"
   - if: $CI_PIPELINE_SOURCE == "web"
   - if: $CI_PIPELINE_SOURCE == "api"
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    changes: *offline_changes
+    changes: *phone_changes
 
-android:offline-mobile:
+android:dhandho-mobile:
   stage: build
   image: node:22-bookworm
-  rules: *offline_rules
+  rules: *phone_rules
   timeout: 60m
   interruptible: true
   cache:
@@ -117,17 +125,17 @@ android:offline-mobile:
     - chmod +x scripts/ci-build-android.sh scripts/android-set-product.sh
     - bash scripts/ci-build-android.sh
   artifacts:
-    name: "offline-mobile-service-debug-apk-$CI_COMMIT_SHORT_SHA"
+    name: "dhandho-mobile-debug-apk-$CI_COMMIT_SHORT_SHA"
     when: on_success
     expire_in: 14 days
     paths:
-      - dist-apk/offline-mobile-service-debug.apk
+      - dist-apk/dhandho-mobile-debug.apk
 
-ios:offline-mobile:
+ios:dhandho-mobile:
   stage: build
   tags:
     - $IOS_RUNNER_TAG
-  rules: *offline_rules
+  rules: *phone_rules
   timeout: 60m
   interruptible: true
   cache:
@@ -153,13 +161,13 @@ ios:offline-mobile:
     - xcodebuild -version
     - npm ci
   variables:
-    MOBILE_PRODUCT: offline
+    MOBILE_PRODUCT: phone
     IOS_BUILD_MODE: debug
   script:
     - chmod +x scripts/ci-build-ios.sh scripts/ios-set-product.sh
     - bash scripts/ci-build-ios.sh
   artifacts:
-    name: "offline-mobile-service-debug-ios-$CI_COMMIT_SHORT_SHA"
+    name: "dhandho-mobile-debug-ios-$CI_COMMIT_SHORT_SHA"
     when: on_success
     expire_in: 14 days
     paths:
@@ -171,10 +179,10 @@ publish:evergreen:
   stage: publish
   image: curlimages/curl:8.10.1
   needs:
-    - job: android:offline-mobile
+    - job: android:dhandho-mobile
       optional: true
       artifacts: true
-    - job: ios:offline-mobile
+    - job: ios:dhandho-mobile
       optional: true
       artifacts: true
   rules: *evergreen_rules
@@ -182,9 +190,9 @@ publish:evergreen:
     - chmod +x scripts/ci-publish-evergreen.sh
     - |
       published=0
-      for f in dist-apk/offline-mobile-service-debug.apk \
-               dist-apk/offline-mobile-service-debug.app.zip \
-               dist-apk/offline-mobile-service-debug.ipa; do
+      for f in dist-apk/dhandho-mobile-debug.apk \
+               dist-apk/dhandho-mobile-debug.app.zip \
+               dist-apk/dhandho-mobile-debug.ipa; do
         if [ -f "$f" ]; then
           sh scripts/ci-publish-evergreen.sh "$f"
           published=1

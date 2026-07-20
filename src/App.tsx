@@ -34,17 +34,9 @@ import { CommandPalette } from './components/ui/CommandPalette';
 import type { GlobalSearchNavigate } from './lib/globalSearch';
 import type { MasterType } from './features/masters/MastersView';
 import { OnlineStatus } from './platforms/desktop/offline';
-import {
-  isServiceMobileMode,
-  loadLicense,
-  isLocalProvisioned,
-  getLocalSlug,
-  getLocalDb,
-  ServiceMobileOnboarding,
-  startServiceMobileHeartbeat,
-  getAccountsTabVisiblePref,
-} from './platforms/service-mobile';
-import { serviceMobileOnlineStatusAdapter } from './platforms/service-mobile/serviceMobileOnlineStatusAdapter';
+import { isServiceMobileMode } from './platforms/service-mobile/mode';
+import { loadLicense } from './platforms/service-mobile/licenseStore';
+import { getAccountsTabVisiblePref } from './platforms/service-mobile/tabPrefs';
 import {
   ServiceCloudGate,
   ServiceCloudLiveBadge,
@@ -52,8 +44,23 @@ import {
   isServiceCloudMobile,
   isServicePhoneUx,
 } from './platforms/service-cloud';
+import {
+  getPhoneMode,
+  hydratePhoneMode,
+  isBakedServiceMobile,
+  needsPhoneModePicker,
+  setPhoneModeOnce,
+  type PhoneMode,
+} from './platforms/mobileMode';
+import { PhoneModePicker } from './platforms/PhoneModePicker';
 import { shareBugReport } from './lib/bugReport';
 import { isMobileAppShell } from './lib/mobileAppShell';
+
+const ServiceMobileOnboarding = lazy(() =>
+  import('./platforms/service-mobile/ServiceMobileOnboarding').then(m => ({
+    default: m.ServiceMobileOnboarding,
+  })),
+);
 
 const LandingPage = lazy(() => import('./components/layout/LandingPage').then(m => ({ default: m.LandingPage })));
 const LoginScreen = lazy(() => import('./components/layout/LoginScreen').then(m => ({ default: m.LoginScreen })));
@@ -309,14 +316,61 @@ if (typeof window !== 'undefined') {
 }
 
 export default function App() {
+  /** Unified Cap: resolve one-time Online/Offline latch before any stack boots. */
+  const [phoneGate, setPhoneGate] = useState<'loading' | 'picker' | 'ready'>(() => {
+    if (isBakedServiceMobile()) return 'ready';
+    if (needsPhoneModePicker()) return 'loading';
+    return 'ready';
+  });
+  const [, setPhoneModeTick] = useState(0);
   const serviceMobile = isServiceMobileMode();
   const [smBoot, setSmBoot] = useState<'loading' | 'onboarding' | 'ready'>(() => (serviceMobile ? 'loading' : 'ready'));
+  const [smOnlineAdapter, setSmOnlineAdapter] = useState<
+    import('./platforms/desktop/offline/OnlineStatus').OnlineStatusAdapter | undefined
+  >(undefined);
 
   useEffect(() => {
-    if (!serviceMobile) return;
+    if (isBakedServiceMobile()) {
+      setPhoneGate('ready');
+      return;
+    }
     let cancelled = false;
     (async () => {
+      await hydratePhoneMode();
+      if (cancelled) return;
+      if (getPhoneMode() == null) {
+        // Upgrade path: existing Offline license → lock offline, skip picker
+        const lic = loadLicense();
+        if (lic) {
+          setPhoneModeOnce('offline');
+          setPhoneModeTick(t => t + 1);
+          setPhoneGate('ready');
+          return;
+        }
+        if (needsPhoneModePicker()) {
+          setPhoneGate('picker');
+          return;
+        }
+      }
+      setPhoneGate('ready');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (phoneGate !== 'ready' || !serviceMobile) {
+      if (phoneGate === 'ready' && !serviceMobile) setSmBoot('ready');
+      return;
+    }
+    let cancelled = false;
+    setSmBoot('loading');
+    (async () => {
       try {
+        const { getLocalDb } = await import('./platforms/service-mobile/local/db');
+        const { isLocalProvisioned, getLocalSlug } = await import('./platforms/service-mobile/local/provision');
+        const { startServiceMobileHeartbeat } = await import('./platforms/service-mobile/sync');
         await getLocalDb();
         const lic = loadLicense();
         const provisioned = await isLocalProvisioned();
@@ -333,6 +387,20 @@ export default function App() {
         if (!cancelled) setSmBoot('onboarding');
       }
     })();
+    return () => {
+      cancelled = true;
+    };
+  }, [phoneGate, serviceMobile]);
+
+  useEffect(() => {
+    if (!serviceMobile) {
+      setSmOnlineAdapter(undefined);
+      return;
+    }
+    let cancelled = false;
+    void import('./platforms/service-mobile/serviceMobileOnlineStatusAdapter').then(m => {
+      if (!cancelled) setSmOnlineAdapter(() => m.serviceMobileOnlineStatusAdapter);
+    });
     return () => {
       cancelled = true;
     };
@@ -635,6 +703,28 @@ export default function App() {
       </Suspense>
     );
 
+  // Unified Cap: one-time Online/Offline latch before either stack boots
+  if (phoneGate === 'loading') {
+    return (
+      <div
+        className="min-h-[100dvh] flex items-center justify-center bg-[#0c0f12]"
+        style={{ paddingTop: 'var(--safe-top)', paddingBottom: 'var(--safe-bottom)' }}
+      >
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+  if (phoneGate === 'picker') {
+    return (
+      <PhoneModePicker
+        onChosen={(_mode: PhoneMode) => {
+          setPhoneModeTick(t => t + 1);
+          setPhoneGate('ready');
+        }}
+      />
+    );
+  }
+
   // /admin route — super admin portal
   if (isSuperAdminRoute) {
     if (authState.isSuperAdmin) {
@@ -690,18 +780,23 @@ export default function App() {
     }
     if (smBoot === 'onboarding') {
       return (
-        <ServiceMobileOnboarding
-          onReady={() => {
-            void getLocalSlug().then(slug => {
-              if (slug) {
-                session.setSlug(slug);
-                window.history.replaceState(null, '', `/${slug}`);
-              }
-              setSmBoot('ready');
-              startServiceMobileHeartbeat();
-            });
-          }}
-        />
+        <Suspense fallback={<LazyFallback />}>
+          <ServiceMobileOnboarding
+            onReady={() => {
+              void (async () => {
+                const { getLocalSlug } = await import('./platforms/service-mobile/local/provision');
+                const { startServiceMobileHeartbeat } = await import('./platforms/service-mobile/sync');
+                const slug = await getLocalSlug();
+                if (slug) {
+                  session.setSlug(slug);
+                  window.history.replaceState(null, '', `/${slug}`);
+                }
+                setSmBoot('ready');
+                startServiceMobileHeartbeat();
+              })();
+            }}
+          />
+        </Suspense>
       );
     }
   }
@@ -951,10 +1046,7 @@ export default function App() {
                 ((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)
                   ?.deploymentMode === 'onprem') && (
                 <div className="px-2.5 lg:px-3 pt-2">
-                  <OnlineStatus
-                    collapsed={!isSidebarOpen}
-                    adapter={serviceMobile ? serviceMobileOnlineStatusAdapter : undefined}
-                  />
+                  <OnlineStatus collapsed={!isSidebarOpen} adapter={serviceMobile ? smOnlineAdapter : undefined} />
                 </div>
               )}
               {/* Online Cap only — Live chip (no Sync); desktop Electron UI untouched */}

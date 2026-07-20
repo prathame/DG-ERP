@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Download, Monitor, ExternalLink, Smartphone, Cloud, Loader } from 'lucide-react';
+import { Download, Monitor, ExternalLink, Smartphone, Loader } from 'lucide-react';
 
 type DownloadLinks = {
   serviceCloudAppUrl: string | null;
@@ -10,14 +10,12 @@ type DownloadLinks = {
   desktopAppUrl: string | null;
 };
 
-function DownloadButton({ href, label, accent }: { href: string; label: string; accent: 'sky' | 'emerald' | 'brand' }) {
+function DownloadButton({ href, label, accent }: { href: string; label: string; accent: 'emerald' | 'brand' }) {
   const ring =
-    accent === 'sky'
-      ? 'border-sky-500/30 hover:border-sky-400/60 hover:bg-sky-500/10'
-      : accent === 'emerald'
-        ? 'border-emerald-500/30 hover:border-emerald-400/60 hover:bg-emerald-500/10'
-        : 'border-brand/30 hover:border-brand/60 hover:bg-brand/10';
-  const icon = accent === 'sky' ? 'text-sky-300' : accent === 'emerald' ? 'text-emerald-400' : 'text-brand';
+    accent === 'emerald'
+      ? 'border-emerald-500/30 hover:border-emerald-400/60 hover:bg-emerald-500/10'
+      : 'border-brand/30 hover:border-brand/60 hover:bg-brand/10';
+  const icon = accent === 'emerald' ? 'text-emerald-400' : 'text-brand';
   return (
     <a
       href={href}
@@ -48,6 +46,9 @@ export function DownloadPage() {
       .catch(() => setLinks(null))
       .finally(() => setLoading(false));
   }, []);
+
+  const androidUrl = links?.serviceMobileAppUrl || links?.serviceCloudAppUrl;
+  const iosUrl = links?.serviceMobileIosUrl || links?.serviceCloudIosUrl;
 
   return (
     <div className="min-h-[100dvh] bg-[#09090B] text-white">
@@ -87,7 +88,7 @@ export function DownloadPage() {
           </div>
           <h1 className="text-3xl sm:text-5xl font-bold mb-4 leading-tight">Get the App</h1>
           <p className="text-white/50 text-base sm:text-lg px-1">
-            Testing builds — one stable URL each. No versioned releases.
+            One phone app for Android and iOS. At first launch, choose Online (cloud) or Offline (on-device) — once.
           </p>
         </motion.div>
 
@@ -99,111 +100,41 @@ export function DownloadPage() {
 
         {!loading && (
           <div className="space-y-6">
-            <p className="text-xs font-bold uppercase tracking-widest text-white/35 px-1">Service businesses</p>
-            <p className="text-sm text-white/45 -mt-3 px-1">
-              Two different products — do <strong className="text-white/70">not</strong> mix installers or licenses.
-            </p>
-
-            {/* Service Cloud — ONLINE */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-sky-500/25 bg-sky-500/5 overflow-hidden"
-            >
-              <div className="px-4 sm:px-6 py-5 border-b border-white/10">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <Cloud size={18} className="text-sky-400 shrink-0" />
-                  <span className="font-bold text-base sm:text-lg">Dhando Service Cloud</span>
-                  <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-full font-bold">
-                    ONLINE
-                  </span>
-                </div>
-                <p className="text-sm text-white/45">
-                  Cloud seats for service tenants. Needs internet. One live session company-wide.
-                </p>
-              </div>
-              <div className="px-4 sm:px-6 py-4 space-y-3">
-                {links?.serviceCloudAppUrl || links?.serviceCloudIosUrl ? (
-                  <>
-                    {links.serviceCloudAppUrl && (
-                      <DownloadButton
-                        href={links.serviceCloudAppUrl}
-                        label="Android APK — Service Cloud"
-                        accent="sky"
-                      />
-                    )}
-                    {links.serviceCloudIosUrl && (
-                      <DownloadButton
-                        href={links.serviceCloudIosUrl}
-                        label="iOS (.app.zip) — Service Cloud"
-                        accent="sky"
-                      />
-                    )}
-                  </>
-                ) : (
-                  <p className="text-sm text-white/40">
-                    Download URL not set yet. Super Admin → Analytics → paste evergreen links (rebuilds overwrite the
-                    same files).
-                  </p>
-                )}
-                <p className="text-xs text-white/40">
-                  SA seats panel on the service tenant — not a{' '}
-                  <span className="font-mono text-emerald-400/70">DG-SM-</span> license. iOS is a simulator debug build
-                  (not App Store).
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Service Mobile — OFFLINE */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 }}
               className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 overflow-hidden"
             >
               <div className="px-4 sm:px-6 py-5 border-b border-white/10">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <Smartphone size={18} className="text-emerald-400 shrink-0" />
-                  <span className="font-bold text-base sm:text-lg">Dhando Service Mobile</span>
+                  <span className="font-bold text-base sm:text-lg">Dhando Service</span>
                   <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
-                    OFFLINE
+                    PHONE
                   </span>
                 </div>
                 <p className="text-sm text-white/45">
-                  Phone-only offline ERP. Separate from Service Cloud seats above.
+                  Online and Offline use different accounts and data. The app asks once; they never mix.
                 </p>
               </div>
               <div className="px-4 sm:px-6 py-4 space-y-3">
-                {links?.serviceMobileAppUrl || links?.serviceMobileIosUrl ? (
+                {androidUrl || iosUrl ? (
                   <>
-                    {links.serviceMobileAppUrl && (
-                      <DownloadButton
-                        href={links.serviceMobileAppUrl}
-                        label="Android APK — Service Mobile (offline)"
-                        accent="emerald"
-                      />
-                    )}
-                    {links.serviceMobileIosUrl && (
-                      <DownloadButton
-                        href={links.serviceMobileIosUrl}
-                        label="iOS (.app.zip) — Service Mobile (offline)"
-                        accent="emerald"
-                      />
-                    )}
+                    {androidUrl && <DownloadButton href={androidUrl} label="Android APK" accent="emerald" />}
+                    {iosUrl && <DownloadButton href={iosUrl} label="iOS (.app.zip)" accent="emerald" />}
                   </>
                 ) : (
                   <p className="text-sm text-white/40">
-                    Download URL not set yet. Super Admin → Analytics → paste evergreen links for the offline builds.
+                    Download URL not set yet. Super Admin → Analytics → paste evergreen links.
                   </p>
                 )}
                 <p className="text-xs text-white/40">
-                  Requires a <span className="font-mono text-emerald-400/80">DG-SM-…</span> license. Do not use for
-                  online cloud seats. iOS is a simulator debug build (not App Store).
+                  Offline mode needs a <span className="font-mono text-emerald-400/80">DG-SM-…</span> license. Online
+                  mode uses company cloud seats. iOS is a simulator debug build (not App Store).
                 </p>
               </div>
             </motion.div>
 
-            {/* Optional single desktop URL */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}

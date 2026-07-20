@@ -1,20 +1,14 @@
-# Mobile debug builds — Offline Service Mobile + Online Service Cloud
-# Each product run builds Android APK + iOS simulator .app.zip (2 triggers → 4 assets).
+# Unified Dhandho Service phone — one Android APK + one iOS .app.zip.
+# First launch: Online (cloud) or Offline (on-device) picker (one-time).
 #
 # Labels (merge → evergreen; label on open PR → preview):
-#   offline | offline-mobile | service-mobile  → Offline APK + iOS
-#   online  | service-cloud                    → Online APK + iOS
-#   mobile  | apk | apk-build                 → both products (legacy)
-#
-# Path push to main: builds only the product(s) whose paths changed
-#   (shared UI / package.json / this workflow → both).
+#   mobile | apk | offline | online | service-mobile | service-cloud → Android + iOS
 #
 # Comment preview (does NOT overwrite evergreen):
-#   apk build | apk build offline | apk build online | apk build both
+#   apk build | apk build both
 #
-# Evergreen releases (same tags, four assets):
-#   offline-mobile / offline-mobile-service-debug.apk + .app.zip
-#   service-cloud  / service-cloud-online-debug.apk + .app.zip
+# Evergreen release tag `dhandho-mobile`:
+#   dhandho-mobile-debug.apk + dhandho-mobile-debug.app.zip
 name: APK Build
 
 on:
@@ -32,6 +26,7 @@ on:
       - 'package-lock.json'
       - '.env.service-mobile.example'
       - '.env.service-cloud.example'
+      - '.env.service-phone.example'
       - 'scripts/cap-sync-cloud.sh'
       - 'scripts/ci-build-android.sh'
       - 'scripts/ci-build-ios.sh'
@@ -62,7 +57,7 @@ on:
         description: 'PR number to build (leave empty for main tip)'
         required: false
       product:
-        description: 'Which APK(s) to build'
+        description: 'Which APK(s) to build (unified phone — options are aliases)'
         type: choice
         options: [both, offline, online]
         default: both
@@ -101,38 +96,44 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const BOTH_LABELS = new Set(['mobile', 'apk', 'apk-build']);
-            const OFFLINE_LABELS = new Set(['offline', 'offline-mobile', 'service-mobile']);
-            const ONLINE_LABELS = new Set(['online', 'service-cloud', 'servicecloud']);
+            // Unified phone: any historical mobile label triggers Android + iOS.
+            const BOTH_LABELS = new Set([
+              'mobile', 'apk', 'apk-build',
+              'offline', 'offline-mobile', 'service-mobile',
+              'online', 'service-cloud', 'servicecloud',
+            ]);
+            const OFFLINE_LABELS = BOTH_LABELS;
+            const ONLINE_LABELS = new Set(); // online Cap product retired
 
             const OFFLINE_PATH = [
               /^android\//,
               /^ios\//,
               /^capacitor\.config\.ts$/,
+              /^capacitor\.cloud\.config\.ts$/,
               /^\.env\.service-mobile/,
+              /^\.env\.service-cloud/,
+              /^\.env\.service-phone/,
               /^src\/platforms\/service-mobile\//,
+              /^src\/platforms\/service-cloud\//,
+              /^src\/platforms\/mobileMode\.ts$/,
+              /^src\/platforms\/PhoneModePicker\.tsx$/,
               /^scripts\/ci-build-(android|ios)\.sh$/,
               /^scripts\/ci-setup-android-sdk\.sh$/,
               /^scripts\/ci-upload-evergreen-asset\.sh$/,
               /^scripts\/android-set-product\.sh$/,
               /^scripts\/ios-set-product\.sh$/,
-            ];
-            const ONLINE_PATH = [
-              /^capacitor\.cloud\.config\.ts$/,
-              /^\.env\.service-cloud/,
               /^scripts\/cap-sync-cloud\.sh$/,
-              /^scripts\/ios-set-product\.sh$/,
-              /^src\/platforms\/service-cloud\//,
             ];
+            const ONLINE_PATH = []; // unused — unified shell only
             const SHARED_PATH = [
               /^package(-lock)?\.json$/,
               /^src\/App\.tsx$/,
               /^src\/main\.tsx$/,
               /^src\/index\.css$/,
-              /^src\/lib\/(billTemplates|utils|billSettingsFlags)\.ts$/,
+              /^src\/lib\/(billTemplates|utils|billSettingsFlags|mobileAppShell)\.ts$/,
               /^src\/features\/invoices\//,
               /^src\/features\/settings\/SettingsView\.tsx$/,
-              /^src\/components\/layout\/LoginScreen\.tsx$/,
+              /^src\/components\/layout\/(LoginScreen|DownloadPage)\.tsx$/,
               /^src\/components\/ui\/(AppModal|ConfirmDialog|Toast|MobileShell)\.tsx$/,
               /^\.github\/workflows\/apk-build\.yml$/,
             ];
@@ -149,37 +150,32 @@ jobs:
               (pr.labels || []).map((l) => String(l.name || '').toLowerCase());
 
             const productsFromLabels = (names) => {
-              const both = names.some((n) => BOTH_LABELS.has(n));
-              const offline = both || names.some((n) => OFFLINE_LABELS.has(n));
-              const online = both || names.some((n) => ONLINE_LABELS.has(n));
-              return { offline, online };
+              // Any mobile label → unified Android+iOS (build_offline jobs).
+              const hit = names.some((n) => BOTH_LABELS.has(n) || OFFLINE_LABELS.has(n) || ONLINE_LABELS.has(n));
+              return { offline: hit, online: false };
             };
 
             const productsFromFiles = (files) => {
               let offline = false;
-              let online = false;
               for (const f of files) {
-                if (SHARED_PATH.some((r) => r.test(f))) {
-                  offline = true;
-                  online = true;
-                }
+                if (SHARED_PATH.some((r) => r.test(f))) offline = true;
                 if (OFFLINE_PATH.some((r) => r.test(f))) offline = true;
-                if (ONLINE_PATH.some((r) => r.test(f))) online = true;
               }
-              return { offline, online };
+              return { offline, online: false };
             };
 
             const set = (opts = {}) => {
-              const offline = !!opts.offline;
-              const online = !!opts.online;
+              // Unified phone only — former "online" Cap jobs are retired.
+              const offline = !!(opts.offline || opts.online);
+              const online = false;
               core.setOutput('build_offline', offline ? 'true' : 'false');
-              core.setOutput('build_online', online ? 'true' : 'false');
+              core.setOutput('build_online', 'false');
               core.setOutput('pr_number', opts.pr || '');
               core.setOutput('head_sha', opts.sha || '');
               core.setOutput('head_ref', opts.ref || '');
               core.setOutput('push_release', opts.pushRelease ?? 'true');
               core.setOutput('trigger', opts.trigger || event);
-              core.info(`APK gate: offline=${offline} online=${online} trigger=${opts.trigger || event}`);
+              core.info(`APK gate: unified_phone=${offline} trigger=${opts.trigger || event}`);
             };
 
             // ── Merge to main → evergreen for labeled product(s) ───────────
@@ -361,7 +357,7 @@ jobs:
             set({ offline: false, online: false });
 
   build-apk:
-    name: Build Offline Mobile APK
+    name: Build Dhandho Mobile APK
     needs: gate
     if: needs.gate.outputs.build_offline == 'true'
     runs-on: ubuntu-latest
@@ -387,7 +383,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Offline Mobile debug APK
+      - name: Build unified phone debug APK
         env:
           VITE_API_ORIGIN: ${{ secrets.VITE_API_ORIGIN }}
         run: |
@@ -397,8 +393,8 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: offline-mobile-service-debug
-          path: dist-apk/offline-mobile-service-debug.apk
+          name: dhandho-mobile-debug
+          path: dist-apk/dhandho-mobile-debug.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -408,10 +404,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           chmod +x scripts/ci-upload-evergreen-asset.sh
-          bash scripts/ci-upload-evergreen-asset.sh offline-mobile \
-            dist-apk/offline-mobile-service-debug.apk \
-            "Offline Mobile (evergreen)" \
-            "Offline Android APK + iOS .app.zip. Published when an \`offline\`/\`mobile\`-labeled PR merges (or Offline paths change on main)."
+          bash scripts/ci-upload-evergreen-asset.sh dhandho-mobile \
+            dist-apk/dhandho-mobile-debug.apk \
+            "Dhandho Mobile (evergreen)" \
+            "Unified Android APK + iOS .app.zip. First launch picks Online or Offline once."
 
       - name: Comment on PR
         if: needs.gate.outputs.pr_number != ''
@@ -422,11 +418,11 @@ jobs:
             const sha = '${{ needs.gate.outputs.head_sha }}'.slice(0, 7);
             const trigger = '${{ needs.gate.outputs.trigger }}';
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-            const evergreen = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/offline-mobile/offline-mobile-service-debug.apk`;
+            const evergreen = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/dhandho-mobile/dhandho-mobile-debug.apk`;
             const pushed = '${{ needs.gate.outputs.push_release }}' === 'true';
             const title = pushed
-              ? '## ✅ Offline Mobile APK published (evergreen)'
-              : '## ✅ Offline Mobile APK ready (PR preview)';
+              ? '## ✅ Dhandho Mobile APK published (evergreen)'
+              : '## ✅ Dhandho Mobile APK ready (PR preview)';
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -439,16 +435,16 @@ jobs:
                 `| Trigger | \`${trigger}\` |`,
                 `| Commit | \`${sha}\` |`,
                 `| Workflow | [run](${runUrl}) |`,
-                `| Artifact | Actions → **Artifacts** → \`offline-mobile-service-debug\` |`,
+                `| Artifact | Actions → **Artifacts** → \`dhandho-mobile-debug\` |`,
                 pushed
                   ? `| Evergreen | [${evergreen}](${evergreen}) |`
-                  : `| Evergreen | not updated — add label \`offline\` (or \`mobile\`) and merge to publish |`,
-                `| Product | **Offline** Service Mobile (\`in.dhandho.service\`) — not Service Cloud |`,
+                  : `| Evergreen | not updated — add label \`mobile\` and merge to publish |`,
+                `| Product | Unified Cap (\`in.dhandho.service\`) — Online/Offline one-time picker |`,
               ].join('\n'),
             });
 
   build-offline-ios:
-    name: Build Offline Mobile iOS
+    name: Build Dhandho Mobile iOS
     needs: gate
     if: needs.gate.outputs.build_offline == 'true'
     runs-on: macos-latest
@@ -468,10 +464,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Offline Mobile debug iOS
+      - name: Build unified phone debug iOS
         env:
           VITE_API_ORIGIN: ${{ secrets.VITE_API_ORIGIN }}
-          MOBILE_PRODUCT: offline
+          MOBILE_PRODUCT: phone
           IOS_BUILD_MODE: debug
         run: |
           chmod +x scripts/ci-build-ios.sh scripts/ios-set-product.sh
@@ -480,8 +476,8 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: offline-mobile-service-debug-ios
-          path: dist-apk/offline-mobile-service-debug.app.zip
+          name: dhandho-mobile-debug-ios
+          path: dist-apk/dhandho-mobile-debug.app.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -491,10 +487,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           chmod +x scripts/ci-upload-evergreen-asset.sh
-          bash scripts/ci-upload-evergreen-asset.sh offline-mobile \
-            dist-apk/offline-mobile-service-debug.app.zip \
-            "Offline Mobile (evergreen)" \
-            "Offline Android APK + iOS .app.zip. Published when an \`offline\`/\`mobile\`-labeled PR merges (or Offline paths change on main)."
+          bash scripts/ci-upload-evergreen-asset.sh dhandho-mobile \
+            dist-apk/dhandho-mobile-debug.app.zip \
+            "Dhandho Mobile (evergreen)" \
+            "Unified Android APK + iOS .app.zip. First launch picks Online or Offline once."
 
       - name: Comment on PR
         if: needs.gate.outputs.pr_number != ''
@@ -505,11 +501,11 @@ jobs:
             const sha = '${{ needs.gate.outputs.head_sha }}'.slice(0, 7);
             const trigger = '${{ needs.gate.outputs.trigger }}';
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-            const evergreen = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/offline-mobile/offline-mobile-service-debug.app.zip`;
+            const evergreen = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/dhandho-mobile/dhandho-mobile-debug.app.zip`;
             const pushed = '${{ needs.gate.outputs.push_release }}' === 'true';
             const title = pushed
-              ? '## ✅ Offline Mobile iOS published (evergreen)'
-              : '## ✅ Offline Mobile iOS ready (PR preview)';
+              ? '## ✅ Dhandho Mobile iOS published (evergreen)'
+              : '## ✅ Dhandho Mobile iOS ready (PR preview)';
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -522,206 +518,10 @@ jobs:
                 `| Trigger | \`${trigger}\` |`,
                 `| Commit | \`${sha}\` |`,
                 `| Workflow | [run](${runUrl}) |`,
-                `| Artifact | Actions → **Artifacts** → \`offline-mobile-service-debug-ios\` |`,
+                `| Artifact | Actions → **Artifacts** → \`dhandho-mobile-debug-ios\` |`,
                 pushed
                   ? `| Evergreen | [${evergreen}](${evergreen}) |`
-                  : `| Evergreen | not updated — add label \`offline\` (or \`mobile\`) and merge to publish |`,
-                `| Product | **Offline** iOS simulator build (\`in.dhandho.service\`) — debug .app.zip |`,
-              ].join('\n'),
-            });
-
-  build-service-cloud-apk:
-    name: Build Service Cloud Online APK
-    needs: gate
-    if: needs.gate.outputs.build_online == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.gate.outputs.head_sha || github.sha }}
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v7
-        with:
-          # Capacitor CLI 8 requires Node >= 22
-          node-version: 22
-          cache: npm
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Service Cloud env (cloud API — not Offline Mobile)
-        env:
-          VITE_API_ORIGIN_SECRET: ${{ secrets.VITE_API_ORIGIN }}
-        run: |
-          # Mode service-cloud loads .env.service-cloud(.local) — never set VITE_DEPLOYMENT_MODE=service-mobile
-          cp .env.service-cloud.example .env.service-cloud
-          if [ -n "$VITE_API_ORIGIN_SECRET" ]; then
-            printf 'VITE_API_ORIGIN=%s\n' "$VITE_API_ORIGIN_SECRET" > .env.service-cloud.origin
-            grep -v '^VITE_API_ORIGIN=' .env.service-cloud >> .env.service-cloud.origin || true
-            mv .env.service-cloud.origin .env.service-cloud
-          fi
-          echo "VITE_APP_VERSION=ci-${GITHUB_RUN_NUMBER}" >> .env.service-cloud
-          echo "Env keys:"; cut -d= -f1 .env.service-cloud
-
-      - name: Build web + Capacitor sync (cloud config)
-        run: |
-          npm run build:service-cloud
-          # cap sync does not rewrite applicationId on an existing android/ —
-          # cap-sync-cloud.sh + android-set-product.sh set in.dhandho.servicecloud
-          SKIP_BUILD=1 bash scripts/cap-sync-cloud.sh
-          grep -q 'applicationId "in.dhandho.servicecloud"' android/app/build.gradle
-
-      - name: Assemble debug APK
-        working-directory: android
-        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
-
-      - name: Stage APK
-        run: |
-          mkdir -p dist-apk
-          SRC=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
-          cp "$SRC" dist-apk/service-cloud-online-debug.apk
-          ls -lh dist-apk/
-
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: service-cloud-online-debug
-          path: dist-apk/service-cloud-online-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Push evergreen release asset
-        if: needs.gate.outputs.push_release == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          chmod +x scripts/ci-upload-evergreen-asset.sh
-          bash scripts/ci-upload-evergreen-asset.sh service-cloud \
-            dist-apk/service-cloud-online-debug.apk \
-            "Service Cloud ONLINE (evergreen)" \
-            "Online Capacitor APK + iOS .app.zip (cloud API + seats). Not Offline Mobile — do not mix with DG-SM."
-
-      - name: Comment on PR
-        if: needs.gate.outputs.pr_number != ''
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const pr = '${{ needs.gate.outputs.pr_number }}';
-            const sha = '${{ needs.gate.outputs.head_sha }}'.slice(0, 7);
-            const trigger = '${{ needs.gate.outputs.trigger }}';
-            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-            const evergreen = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/service-cloud/service-cloud-online-debug.apk`;
-            const pushed = '${{ needs.gate.outputs.push_release }}' === 'true';
-            const title = pushed
-              ? '## ✅ Service Cloud ONLINE APK published (evergreen)'
-              : '## ✅ Service Cloud ONLINE APK ready (PR preview)';
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: Number(pr),
-              body: [
-                title,
-                ``,
-                `| | |`,
-                `|---|---|`,
-                `| Trigger | \`${trigger}\` |`,
-                `| Commit | \`${sha}\` |`,
-                `| Workflow | [run](${runUrl}) |`,
-                `| Artifact | Actions → **Artifacts** → \`service-cloud-online-debug\` |`,
-                pushed
-                  ? `| Evergreen | [${evergreen}](${evergreen}) |`
-                  : `| Evergreen | not updated — add label \`online\` (or \`mobile\`) and merge to publish |`,
-                `| Product | **Online** Service Cloud (\`in.dhandho.servicecloud\`) — not Offline Mobile |`,
-              ].join('\n'),
-            });
-
-  build-online-ios:
-    name: Build Service Cloud Online iOS
-    needs: gate
-    if: needs.gate.outputs.build_online == 'true'
-    runs-on: macos-latest
-    timeout-minutes: 60
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.gate.outputs.head_sha || github.sha }}
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build Service Cloud Online debug iOS
-        env:
-          VITE_API_ORIGIN: ${{ secrets.VITE_API_ORIGIN }}
-          MOBILE_PRODUCT: online
-          IOS_BUILD_MODE: debug
-        run: |
-          chmod +x scripts/ci-build-ios.sh scripts/ios-set-product.sh
-          bash scripts/ci-build-ios.sh
-
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: service-cloud-online-debug-ios
-          path: dist-apk/service-cloud-online-debug.app.zip
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Push evergreen release asset
-        if: needs.gate.outputs.push_release == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          chmod +x scripts/ci-upload-evergreen-asset.sh
-          bash scripts/ci-upload-evergreen-asset.sh service-cloud \
-            dist-apk/service-cloud-online-debug.app.zip \
-            "Service Cloud ONLINE (evergreen)" \
-            "Online Capacitor APK + iOS .app.zip (cloud API + seats). Not Offline Mobile — do not mix with DG-SM."
-
-      - name: Comment on PR
-        if: needs.gate.outputs.pr_number != ''
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const pr = '${{ needs.gate.outputs.pr_number }}';
-            const sha = '${{ needs.gate.outputs.head_sha }}'.slice(0, 7);
-            const trigger = '${{ needs.gate.outputs.trigger }}';
-            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-            const evergreen = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/service-cloud/service-cloud-online-debug.app.zip`;
-            const pushed = '${{ needs.gate.outputs.push_release }}' === 'true';
-            const title = pushed
-              ? '## ✅ Service Cloud ONLINE iOS published (evergreen)'
-              : '## ✅ Service Cloud ONLINE iOS ready (PR preview)';
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: Number(pr),
-              body: [
-                title,
-                ``,
-                `| | |`,
-                `|---|---|`,
-                `| Trigger | \`${trigger}\` |`,
-                `| Commit | \`${sha}\` |`,
-                `| Workflow | [run](${runUrl}) |`,
-                `| Artifact | Actions → **Artifacts** → \`service-cloud-online-debug-ios\` |`,
-                pushed
-                  ? `| Evergreen | [${evergreen}](${evergreen}) |`
-                  : `| Evergreen | not updated — add label \`online\` (or \`mobile\`) and merge to publish |`,
-                `| Product | **Online** iOS simulator build (\`in.dhandho.servicecloud\`) — debug .app.zip |`,
+                  : `| Evergreen | not updated — add label \`mobile\` and merge to publish |`,
+                `| Product | Unified Cap iOS simulator (\`in.dhandho.service\`) — debug .app.zip |`,
               ].join('\n'),
             });
