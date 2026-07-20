@@ -32,6 +32,7 @@ import {
   shareStandaloneInvoiceWhatsApp,
   whatsAppInvoiceShareToast,
 } from '../../lib/printStandaloneInvoice';
+import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
@@ -195,6 +196,7 @@ export function InvoicesView() {
       toast('Invoice deleted', 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('invoice.delete', err, { invoiceNumber: deleteTarget.invoiceNumber });
     }
   };
 
@@ -205,6 +207,7 @@ export function InvoicesView() {
       toast(`Invoice marked as ${status}`, 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('invoice.status', err, { status, invoiceNumber: inv.invoiceNumber });
     }
   };
 
@@ -228,6 +231,7 @@ export function InvoicesView() {
       await printStandaloneInvoice(inv, { billSettings, businessType: cfg.type });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
+      void reportActionFailed('invoice.print', err, { invoiceNumber: inv.invoiceNumber });
     }
   };
 
@@ -245,6 +249,7 @@ export function InvoicesView() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not share invoice';
       toast(msg.length > 100 ? `${msg.slice(0, 99)}…` : msg, 'error');
+      void reportActionFailed('invoice.whatsapp', err, { invoiceNumber: inv.invoiceNumber });
     } finally {
       setWhatsappBusyId(null);
     }
@@ -1012,6 +1017,7 @@ export function CreateInvoiceModal({
       }
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('invoice.save', err);
     } finally {
       setSubmitting(false);
     }
@@ -1023,17 +1029,20 @@ export function CreateInvoiceModal({
       await printStandaloneInvoice(createdInvoice, { businessType: cfg.type });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
+      void reportActionFailed('invoice.print', err, { invoiceNumber: createdInvoice.invoiceNumber });
     }
   };
 
   const goNext = () => {
     if (step === 0 && !form.customerName.trim()) {
+      reportActionBlocked('invoice.save', 'Customer name is required');
       toast('Customer name is required', 'error');
       return;
     }
     if (step === 1) {
       const validRows = rows.filter(r => r.description.trim() && r.rate > 0);
       if (!validRows.length) {
+        reportActionBlocked('invoice.save', 'Add at least one line item');
         toast('Add at least one line item', 'error');
         return;
       }

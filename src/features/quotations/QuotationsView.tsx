@@ -44,6 +44,7 @@ import { useTranslation } from '../../i18n';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { importQuotationsFromRows, QUOTATION_IMPORT_COLUMNS } from '../../lib/documentImport';
+import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
 
 function asApiList<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
@@ -194,6 +195,7 @@ export function QuotationsView() {
     // Shared bill template (QUOTATION title, no bank) + same print pagination as invoices
     const w = openPrintWindow('Preparing quotation…', { hidePdfDownload: true });
     if (!w) {
+      reportActionBlocked('quote.print', PRINT_POPUP_BLOCKED, { quotationNumber: q.quotationNumber });
       toast(PRINT_POPUP_BLOCKED, 'error');
       return;
     }
@@ -236,6 +238,7 @@ export function QuotationsView() {
         /* ignore */
       }
       toast((err as Error).message || 'Print failed', 'error');
+      void reportActionFailed('quote.print', err, { quotationNumber: q.quotationNumber });
     }
   };
 
@@ -278,6 +281,7 @@ export function QuotationsView() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not share quotation';
       toast(msg.length > 100 ? `${msg.slice(0, 99)}…` : msg, 'error');
+      void reportActionFailed('quote.whatsapp', err, { quotationNumber: q.quotationNumber });
     } finally {
       setWhatsappBusyId(null);
     }
@@ -390,10 +394,13 @@ export function QuotationsView() {
       return Boolean(r.description.trim() && parseFloat(r.customPrice) > 0);
     });
     if (validRows.length === 0) {
-      toast(offlinePdf ? 'Add at least one line (Price List item or custom)' : 'Add at least one product', 'error');
+      const reason = offlinePdf ? 'Add at least one line (Price List item or custom)' : 'Add at least one product';
+      reportActionBlocked('quote.save', reason);
+      toast(reason, 'error');
       return;
     }
     if (!offlinePdf && validRows.some(r => !r.productId)) {
+      reportActionBlocked('quote.save', 'Select a product for each line');
       toast('Select a product for each line', 'error');
       return;
     }
@@ -458,12 +465,31 @@ export function QuotationsView() {
       }
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('quote.save', err, { editing: Boolean(editingId) });
     } finally {
       setSubmitting(false);
     }
   };
 
   const openConvert = (q: Quotation) => {
+    if (q.status !== 'Accepted') {
+      const reason =
+        q.status === 'Draft'
+          ? 'Mark as Sent, then Accepted before converting'
+          : q.status === 'Sent'
+            ? 'Mark as Accepted first'
+            : `Cannot convert while status is ${q.status}`;
+      reportActionBlocked('quote.convert', reason, { status: q.status, quotationNumber: q.quotationNumber });
+      toast(reason, 'error');
+      return;
+    }
+    if (!isService && !q.vendorId) {
+      reportActionBlocked('quote.convert', 'Link a vendor before converting', {
+        quotationNumber: q.quotationNumber,
+      });
+      toast('Link a vendor before converting', 'error');
+      return;
+    }
     const lines = q.items
       .map((i, lineIndex) => {
         const remaining = i.quantity - (Number(i.convertedQty) || 0);
@@ -477,6 +503,7 @@ export function QuotationsView() {
       })
       .filter(l => l.remaining > 0);
     if (lines.length === 0) {
+      reportActionBlocked('quote.convert', 'Nothing left to convert', { quotationNumber: q.quotationNumber });
       toast('Nothing left to convert', 'error');
       return;
     }
@@ -492,6 +519,9 @@ export function QuotationsView() {
           .filter(l => l.qty > 0)
           .map(l => ({ productId: l.productId, quantity: l.qty, lineIndex: l.lineIndex }));
     if (!full && (!items || items.length === 0)) {
+      reportActionBlocked('quote.convert', 'Select at least one quantity to convert', {
+        quotationNumber: q.quotationNumber,
+      });
       toast('Select at least one quantity to convert', 'error');
       return;
     }
@@ -530,6 +560,7 @@ export function QuotationsView() {
       setSelected(null);
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('quote.convert', err, { quotationNumber: q.quotationNumber });
     }
   };
 
@@ -541,6 +572,7 @@ export function QuotationsView() {
       toast(`Status updated to ${status}`, 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('quote.status', err, { status, quotationNumber: q.quotationNumber });
     }
   };
 
@@ -592,8 +624,8 @@ export function QuotationsView() {
   };
   const filtered = statusFilter === 'all' ? quotations : quotations.filter(q => q.status === statusFilter);
 
-  if (selectedId && selected) {
-    return (
+  const detailPane =
+    selectedId && selected ? (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
@@ -644,7 +676,7 @@ export function QuotationsView() {
                   <Check size={14} /> Accepted
                 </button>
               )}
-              {selected.status === 'Accepted' && (isService || selected.vendorId) && (
+              {(selected.status === 'Draft' || selected.status === 'Sent' || selected.status === 'Accepted') && (
                 <button
                   type="button"
                   onClick={() => openConvert(selected)}
@@ -784,8 +816,7 @@ export function QuotationsView() {
           </div>
         </div>
       </motion.div>
-    );
-  }
+    ) : null;
 
   const openCreate = () => {
     resetForm();
@@ -793,7 +824,7 @@ export function QuotationsView() {
     setModalOpen(true);
   };
 
-  return (
+  const listPane = (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2 sm:space-y-6 pb-14 sm:pb-0">
       <div className="hidden sm:flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -972,8 +1003,13 @@ export function QuotationsView() {
       )}
 
       {quotations.length > 0 && <MobileFab label="Quote" onClick={openCreate} />}
+    </motion.div>
+  );
 
-      {/* Create Quotation Modal */}
+  return (
+    <>
+      {detailPane || listPane}
+      {/* Create Quotation Modal — must mount on detail too (Convert / Edit Draft / confirm) */}
       <AnimatePresence>
         {modalOpen && (
           <AppModal
@@ -1388,7 +1424,7 @@ export function QuotationsView() {
       </AnimatePresence>
       <AnimatePresence>
         {partialConvert && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40">
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1476,6 +1512,6 @@ export function QuotationsView() {
         />
       )}
       <ConfirmRenderer />
-    </motion.div>
+    </>
   );
 }
