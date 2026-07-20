@@ -24,10 +24,11 @@ import {
 } from './billTemplates';
 import { invoiceHasGst } from './billSettingsFlags';
 
-const BORDER = 34; // ~#222
+const BORDER = 34; // ~#222 — all strokes use this (no washed #ccc/#c8 grays)
 const MUTED = 100;
 const FILL = 245;
 const ACCENT_DEFAULT = '#F27D26';
+const LINE_W = 0.35;
 
 function money(n: number): string {
   return `Rs ${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -145,7 +146,10 @@ export async function buildStandaloneInvoicePdfBlob(
   /** Set when ensureSpace starts a new page — used to repeat item table headers. */
   let pageBreakPending = false;
 
-  const setBorder = () => doc.setDrawColor(BORDER);
+  const setBorder = () => {
+    doc.setDrawColor(BORDER);
+    doc.setLineWidth(LINE_W);
+  };
   const setFill = () => doc.setFillColor(FILL, FILL, FILL);
 
   const ensureSpace = (need: number) => {
@@ -159,7 +163,6 @@ export async function buildStandaloneInvoicePdfBlob(
   // —— Title box ——
   const titleH = 9;
   setBorder();
-  doc.setLineWidth(0.35);
   doc.rect(margin, y, contentW, titleH);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
@@ -229,9 +232,8 @@ export async function buildStandaloneInvoicePdfBlob(
     doc.text(value, right - 3, my, { align: 'right' });
     my += 5.5;
     if (my < y + hdrH - 1) {
-      doc.setDrawColor(200);
-      doc.line(metaX, my - 2.2, right, my - 2.2);
       setBorder();
+      doc.line(metaX, my - 2.2, right, my - 2.2);
     }
   }
   y += hdrH;
@@ -503,11 +505,10 @@ export async function buildStandaloneInvoicePdfBlob(
   const sigBoxX = right - sigBoxW - 2;
   const sigBoxY = Math.min(sigY + 1, y + footH - 16);
   if (!tryAddImage(doc, sigSrc, sigBoxX, sigBoxY, sigBoxW, sigBoxH)) {
-    doc.setDrawColor(180);
+    setBorder();
     doc.setLineDashPattern([1, 1], 0);
     doc.rect(sigBoxX, sigBoxY, sigBoxW, sigBoxH);
     doc.setLineDashPattern([], 0);
-    setBorder();
   }
 
   let nameY = sigBoxY + sigBoxH + 3.5;

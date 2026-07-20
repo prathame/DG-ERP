@@ -85,6 +85,8 @@ describe('buildStandaloneInvoicePdfBlob (Cap light print-like)', () => {
     // Human date, not raw ISO timestamp
     expect(text).not.toContain('2026-07-20T00:00:00');
     expect(text).toMatch(/20 Jul 2026|Jul 2026/);
+    // No washed-gray strokes (former meta dividers / sig placeholder used 180–200)
+    expect(text).not.toMatch(/(?:^|[^0-9])(?:180|200)(?:\s+(?:180|200)){0,2}\s+(?:RG|G)\b/);
   });
 
   it('quotation variant titles QUOTATION and omits bank', async () => {

@@ -59,6 +59,9 @@ describe('generateStandaloneInvoiceHtml', () => {
     const printEndAt = html.indexOf('class="print-end');
     const gstTableAt = html.indexOf('CGST Rate');
     expect(gstTableAt).toBeGreaterThan(printEndAt);
+    // Table/section borders stay dark (#222), not washed #ccc/#ddd
+    expect(html).toContain('border:1px solid #222');
+    expect(html).not.toMatch(/border:[^;]*#ccc|border-bottom:[^;]*#ddd/);
   });
 
   it('omits GST summary table when invoice is non-GST', () => {
