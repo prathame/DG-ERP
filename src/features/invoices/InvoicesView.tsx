@@ -377,9 +377,6 @@ export function InvoicesView() {
                             Adv ₹{Number(inv.advanceApplied).toLocaleString()}
                           </p>
                         )}
-                        {(inv.outstanding || 0) > 0.001 && inv.status !== 'paid' && (
-                          <p className="text-[10px] text-rose-600">Due ₹{Number(inv.outstanding).toLocaleString()}</p>
-                        )}
                         {statusBadge(inv.status)}
                       </div>
                     </div>
