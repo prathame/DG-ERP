@@ -4,11 +4,10 @@
  */
 import { clientLogger } from '../../lib/logger';
 import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
+import { CLOUD_ORIGIN_FALLBACK, resolveConfiguredApiOrigin } from '../shared/apiBase';
 import { normalizeActivateResult, type ServiceMobileActivateResult } from './activateResult';
 
 export type { ServiceMobileActivateResult };
-
-const DEFAULT_CLOUD_ORIGIN = 'https://dg-erp.onrender.com';
 
 function cloudOrigin(): string {
   const fromEnv = (import.meta as { env?: { VITE_API_ORIGIN?: string } }).env?.VITE_API_ORIGIN;
@@ -23,22 +22,25 @@ function cloudOrigin(): string {
       return '';
     }
   }
-  if (fromEnv) return fromEnv.replace(/\/$/, '');
+  if (fromEnv) {
+    // Empty = same-origin (web). Cap/native with broken dhandho.app → Render fallback inside helper.
+    return resolveConfiguredApiOrigin(fromEnv);
+  }
   // Native WebView origin is https://localhost — that is NOT the cloud API.
   try {
     const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-    if (cap?.isNativePlatform?.()) return DEFAULT_CLOUD_ORIGIN;
+    if (cap?.isNativePlatform?.()) return CLOUD_ORIGIN_FALLBACK;
   } catch {
     /* ignore */
   }
   if (typeof window !== 'undefined' && window.location?.origin) {
     const origin = window.location.origin;
     if (origin === 'https://localhost' || origin === 'http://localhost' || origin.startsWith('capacitor:')) {
-      return DEFAULT_CLOUD_ORIGIN;
+      return CLOUD_ORIGIN_FALLBACK;
     }
     return origin;
   }
-  return DEFAULT_CLOUD_ORIGIN;
+  return CLOUD_ORIGIN_FALLBACK;
 }
 
 function abortAfter(ms: number): AbortSignal {
