@@ -6,6 +6,7 @@ describe('dhandhoFiles path helpers', () => {
     expect(sanitizeDhandhoFilename('inv/../a:b*.pdf')).toBe('inv_.._a_b_.pdf');
     expect(sanitizeDhandhoFilename('  ok-name (1).json  ')).toBe('ok-name (1).json');
     expect(sanitizeDhandhoFilename('$$$')).toBe('file');
+    expect(sanitizeDhandhoFilename('प्रविण.pdf')).toBe('प्रविण.pdf');
   });
 
   it('builds Dhandho/{subdir}/{filename} paths', () => {

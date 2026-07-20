@@ -71,12 +71,12 @@ async function buildStandaloneInvoiceHtml(
   return { html, filename, hasGst };
 }
 
-/** PDF basename: `{ClientName}-{YYYY-MM-DD_HH-mm-ss}` (sanitized). */
+/** PDF basename: `{ClientName}-{YYYY-MM-DD_HH-mm-ss}` (sanitized; keeps Unicode letters). */
 export function standaloneInvoicePdfBasename(customerName?: string, when = new Date()): string {
   const name =
     (customerName || 'Client')
       .trim()
-      .replace(/[^\w.\- ()#]+/g, '_')
+      .replace(/[^\p{L}\p{N}.\- ()#]+/gu, '_')
       .replace(/_+/g, '_')
       .replace(/^[_.\s]+|[_.\s]+$/g, '')
       .slice(0, 40) || 'Client';
@@ -116,7 +116,7 @@ export async function printStandaloneInvoice(
 export async function shareStandaloneInvoiceWhatsApp(
   inv: PrintableStandaloneInvoice,
   options?: { billSettings?: Record<string, unknown>; businessType?: string },
-): Promise<'shared' | 'text' | 'downloaded' | 'cancelled'> {
+): Promise<'shared' | 'saved' | 'text' | 'downloaded' | 'cancelled'> {
   const { html, filename } = await buildStandaloneInvoiceHtml(inv, options);
   const total = typeof inv.grandTotal === 'number' ? `₹${inv.grandTotal.toLocaleString('en-IN')}` : '';
   const message = [`Invoice ${inv.invoiceNumber}`, inv.customerName, total && `Total: ${total}`]
@@ -144,7 +144,7 @@ export async function printStandaloneInvoiceById(
 export async function shareStandaloneInvoiceWhatsAppById(
   invoiceId: string,
   options?: { businessType?: string },
-): Promise<'shared' | 'text' | 'downloaded' | 'cancelled'> {
+): Promise<'shared' | 'saved' | 'text' | 'downloaded' | 'cancelled'> {
   const inv = await fetchApi<PrintableStandaloneInvoice & { id: string }>(`/invoices/${invoiceId}`);
   if (!inv?.id) throw new Error('Invoice not found for PDF');
   return shareStandaloneInvoiceWhatsApp(inv, options);

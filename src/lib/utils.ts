@@ -137,13 +137,18 @@ async function savePdfNative(blob: Blob, safeName: string): Promise<{ ok: boolea
 }
 
 /** Capacitor: save PDF (Dhandho + Cache) and open system Share sheet for WhatsApp. */
-async function sharePdfNativeWhatsApp(blob: Blob, safeName: string): Promise<boolean> {
+async function sharePdfNativeWhatsApp(
+  blob: Blob,
+  safeName: string,
+): Promise<'shared' | 'saved' | 'cancelled' | 'failed'> {
+  let persisted = false;
   try {
     const { Filesystem, Directory } = await import('@capacitor/filesystem');
     const { Share } = await import('@capacitor/share');
     const base64 = await blobToBase64(blob);
     // Persist findable copy
-    await savePdfNative(blob, safeName);
+    const saved = await savePdfNative(blob, safeName);
+    persisted = saved.ok;
     // Cache is always FileProvider-safe for Share → WhatsApp
     const cachePath = `share/${safeName}`;
     await Filesystem.writeFile({
@@ -158,12 +163,14 @@ async function sharePdfNativeWhatsApp(blob: Blob, safeName: string): Promise<boo
       url: uri,
       dialogTitle: 'Share via WhatsApp',
     });
-    return true;
+    return 'shared';
   } catch (err) {
     const name = (err as { name?: string })?.name || '';
     const msg = String((err as Error)?.message || err || '');
-    if (name === 'AbortError' || /cancel|dismiss|share canceled/i.test(msg)) return true;
-    return false;
+    if (name === 'AbortError' || /cancel|dismiss|share canceled/i.test(msg)) {
+      return persisted ? 'saved' : 'cancelled';
+    }
+    return persisted ? 'saved' : 'failed';
   }
 }
 
@@ -392,14 +399,15 @@ export async function shareHtmlPdfViaWhatsApp(opts: {
   filename?: string;
   phone?: string;
   message: string;
-}): Promise<'shared' | 'text' | 'downloaded' | 'cancelled'> {
+}): Promise<'shared' | 'saved' | 'text' | 'downloaded' | 'cancelled'> {
   const safeName = safePdfFilename(opts.filename);
   const blob = await htmlToPdfBlob(opts.html, safeName);
   if (!blob) throw new Error('Could not create PDF');
 
   if (isNativeCapacitor()) {
-    const ok = await sharePdfNativeWhatsApp(blob, safeName);
-    return ok ? 'shared' : 'cancelled';
+    const how = await sharePdfNativeWhatsApp(blob, safeName);
+    if (how === 'failed') throw new Error('Could not share PDF');
+    return how;
   }
 
   if (typeof navigator.share === 'function' && typeof File !== 'undefined') {

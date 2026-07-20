@@ -114,9 +114,11 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
       toast(
         how === 'shared'
           ? 'Share the PDF via WhatsApp'
-          : how === 'text'
-            ? 'WhatsApp opened — PDF also saved/downloaded to attach'
-            : 'WhatsApp opened — PDF downloaded to attach',
+          : how === 'saved'
+            ? 'PDF saved to Dhandho/invoices on this phone'
+            : how === 'text'
+              ? 'WhatsApp opened — PDF also saved/downloaded to attach'
+              : 'WhatsApp opened — PDF downloaded to attach',
         'success',
       );
     } catch (err) {

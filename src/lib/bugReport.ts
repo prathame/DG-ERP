@@ -157,21 +157,32 @@ export async function shareBugReport(extras: BugReportExtras = {}): Promise<BugR
   if (await isNativeCapacitor()) {
     try {
       const { saveDhandhoFile } = await import('./dhandhoFiles');
-      const saved = await saveDhandhoFile({
+      await saveDhandhoFile({
         subdir: 'bug-reports',
         filename,
         data: text,
         encoding: 'utf8',
       });
       try {
+        // Cache URI is FileProvider-safe for Share (Documents/External often is not)
+        const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
         const { Share } = await import('@capacitor/share');
+        const cachePath = `share/${filename}`;
+        await Filesystem.writeFile({
+          path: cachePath,
+          data: text,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+          recursive: true,
+        });
+        const { uri } = await Filesystem.getUri({ path: cachePath, directory: Directory.Cache });
         await Share.share({
           title,
-          url: saved.uri,
+          url: uri,
           dialogTitle: title,
         });
       } catch {
-        /* optional — file already saved */
+        /* optional — file already saved under Dhandho/bug-reports */
       }
       return 'saved';
     } catch {
