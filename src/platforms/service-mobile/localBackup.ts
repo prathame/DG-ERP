@@ -2,7 +2,7 @@
  * User-owned backups for Offline Mobile App.
  * We do NOT upload ERP data to our servers — staff keep the file (and may email it to their own Gmail).
  */
-import { dumpLocalDb, restoreLocalDbFromJson, wipeLocalDb, getLocalDb } from './local/db';
+import { dumpLocalDb, restoreLocalDbPlaintext, wipeLocalDb } from './local/db';
 import { encryptBackup, decryptBackup } from './local/crypto';
 import { loadLicense } from './licenseStore';
 import { localQuery } from './local/db';
@@ -104,7 +104,7 @@ export async function buildLocalBackupEnvelope(): Promise<{ envelope: LocalBacku
   const lic = loadLicense();
   if (!lic) throw new Error('Activate license before exporting a backup');
   const dump = await dumpLocalDb();
-  const enc = await encryptBackup(dump, lic.licenseKey);
+  const enc = await encryptBackup(dump, String(lic.licenseKey || '').trim().toUpperCase());
   const exportedAt = new Date().toISOString();
   const envelope: LocalBackupEnvelope = {
     format: FORMAT,
@@ -186,16 +186,28 @@ export async function restoreFromLocalBackupJson(text: string): Promise<{ ok: bo
   if (parsed.format !== FORMAT || !parsed.ciphertext || !parsed.nonce) {
     return { ok: false, error: 'Not an Offline Mobile backup file' };
   }
+  const licenseKey = String(lic.licenseKey || '')
+    .trim()
+    .toUpperCase();
+  let plain: Uint8Array;
   try {
-    const plain = await decryptBackup(parsed.ciphertext, parsed.nonce, lic.licenseKey);
-    await wipeLocalDb();
-    await getLocalDb();
-    await restoreLocalDbFromJson(plain);
-    return { ok: true };
+    // Same DG-SM key that encrypted the file (not machineId) — reinstall / new phone OK
+    plain = await decryptBackup(parsed.ciphertext, parsed.nonce, licenseKey);
   } catch {
     return {
       ok: false,
       error: 'Could not decrypt backup — use the same DG-SM license key that created this file',
+    };
+  }
+  try {
+    await wipeLocalDb();
+    await restoreLocalDbPlaintext(plain);
+    return { ok: true };
+  } catch (err) {
+    const detail = err instanceof Error && err.message ? err.message : 'import failed';
+    return {
+      ok: false,
+      error: `Backup decrypted but restore failed (${detail}). Try again or Share bug report.`,
     };
   }
 }

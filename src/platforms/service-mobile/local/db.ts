@@ -3,6 +3,9 @@
  */
 import { PGlite } from '@electric-sql/pglite';
 import { SERVICE_MOBILE_MIGRATIONS_SQL, SERVICE_MOBILE_SCHEMA_SQL } from './schema';
+import { isJsonTablesDump } from './backupPayload';
+
+export { isJsonTablesDump } from './backupPayload';
 
 let db: PGlite | null = null;
 let ready: Promise<PGlite> | null = null;
@@ -179,6 +182,33 @@ export async function restoreLocalDbFromJson(bytes: Uint8Array): Promise<void> {
     }
   }
   await runDataRepairs();
+}
+
+/**
+ * Restore a PGlite `dumpDataDir()` tarball (what encryptBackup usually stores).
+ * Caller must wipe IndexedDB first; this opens a fresh IDB with loadDataDir.
+ */
+export async function restoreLocalDbFromPgliteDump(bytes: Uint8Array): Promise<void> {
+  db = null;
+  ready = null;
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const blob = new Blob([copy], { type: 'application/x-tar' });
+  const instance = await PGlite.create('idb://dhandho-service-mobile', { loadDataDir: blob });
+  await runMigrations(instance);
+  db = instance;
+  ready = Promise.resolve(instance);
+  await runDataRepairs();
+}
+
+/** Dispatch JSON table dump vs PGlite tar after decrypt. DB must already be wiped. */
+export async function restoreLocalDbPlaintext(bytes: Uint8Array): Promise<void> {
+  if (isJsonTablesDump(bytes)) {
+    await getLocalDb();
+    await restoreLocalDbFromJson(bytes);
+    return;
+  }
+  await restoreLocalDbFromPgliteDump(bytes);
 }
 
 export async function wipeLocalDb(): Promise<void> {
