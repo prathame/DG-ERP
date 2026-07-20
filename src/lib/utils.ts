@@ -136,44 +136,6 @@ async function savePdfNative(blob: Blob, safeName: string): Promise<{ ok: boolea
   }
 }
 
-/** Capacitor: save PDF (Dhandho + Cache) and open system Share sheet for WhatsApp. */
-async function sharePdfNativeWhatsApp(
-  blob: Blob,
-  safeName: string,
-): Promise<'shared' | 'saved' | 'cancelled' | 'failed'> {
-  let persisted = false;
-  try {
-    const { Filesystem, Directory } = await import('@capacitor/filesystem');
-    const { Share } = await import('@capacitor/share');
-    const base64 = await blobToBase64(blob);
-    // Persist findable copy
-    const saved = await savePdfNative(blob, safeName);
-    persisted = saved.ok;
-    // Cache is always FileProvider-safe for Share → WhatsApp
-    const cachePath = `share/${safeName}`;
-    await Filesystem.writeFile({
-      path: cachePath,
-      data: base64,
-      directory: Directory.Cache,
-      recursive: true,
-    });
-    const { uri } = await Filesystem.getUri({ path: cachePath, directory: Directory.Cache });
-    await Share.share({
-      title: safeName,
-      url: uri,
-      dialogTitle: 'Share via WhatsApp',
-    });
-    return 'shared';
-  } catch (err) {
-    const name = (err as { name?: string })?.name || '';
-    const msg = String((err as Error)?.message || err || '');
-    if (name === 'AbortError' || /cancel|dismiss|share canceled/i.test(msg)) {
-      return persisted ? 'saved' : 'cancelled';
-    }
-    return persisted ? 'saved' : 'failed';
-  }
-}
-
 /** Native print dialog for HTML bills (Capacitor). */
 export async function printHtmlNative(html: string, name = 'Document'): Promise<boolean> {
   if (!isNativeCapacitor()) return false;
@@ -390,8 +352,40 @@ export async function downloadHtmlAsPdf(html: string, filename?: string): Promis
 }
 
 /**
+ * Cap-safe WhatsApp: text summary only (Share sheet / wa.me).
+ * Never runs html2pdf/jsPDF — those freeze mid-range Android WebViews.
+ */
+export async function shareInvoiceSummaryViaWhatsApp(opts: {
+  phone?: string;
+  message: string;
+}): Promise<'summary' | 'cancelled'> {
+  try {
+    const { Share } = await import('@capacitor/share');
+    await Share.share({
+      title: 'Invoice',
+      text: opts.message,
+      dialogTitle: 'Share via WhatsApp',
+    });
+    return 'summary';
+  } catch (err) {
+    const name = (err as { name?: string })?.name || '';
+    const msg = String((err as Error)?.message || err || '');
+    if (name === 'AbortError' || /cancel|dismiss|share canceled/i.test(msg)) {
+      return 'cancelled';
+    }
+  }
+  const phone = (opts.phone || '').trim();
+  if (phone) {
+    shareViaWhatsApp(phone, opts.message);
+  } else {
+    window.open(`https://wa.me/?text=${encodeURIComponent(opts.message)}`, '_blank');
+  }
+  return 'summary';
+}
+
+/**
  * Share invoice/quote HTML as a PDF via WhatsApp.
- * Cap: save under Dhandho/invoices + system Share sheet (pick WhatsApp).
+ * Cap: text summary only — never html2pdf/html2canvas (WebView freeze/OOM).
  * Web: try file share, else open WhatsApp with text and download the PDF.
  */
 export async function shareHtmlPdfViaWhatsApp(opts: {
@@ -399,16 +393,15 @@ export async function shareHtmlPdfViaWhatsApp(opts: {
   filename?: string;
   phone?: string;
   message: string;
-}): Promise<'shared' | 'saved' | 'text' | 'downloaded' | 'cancelled'> {
+}): Promise<'shared' | 'saved' | 'text' | 'downloaded' | 'cancelled' | 'summary'> {
+  // Cap Android WebView: html2pdf/html2canvas OOMs and can freeze/crash System WebView.
+  if (isNativeCapacitor()) {
+    return shareInvoiceSummaryViaWhatsApp({ phone: opts.phone, message: opts.message });
+  }
+
   const safeName = safePdfFilename(opts.filename);
   const blob = await htmlToPdfBlob(opts.html, safeName);
   if (!blob) throw new Error('Could not create PDF');
-
-  if (isNativeCapacitor()) {
-    const how = await sharePdfNativeWhatsApp(blob, safeName);
-    if (how === 'failed') throw new Error('Could not share PDF');
-    return how;
-  }
 
   if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
     try {
