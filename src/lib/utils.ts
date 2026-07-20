@@ -672,8 +672,9 @@ function openPrintOverlay(placeholder = 'Preparing…', opts?: OpenPrintWindowOp
 
   const bar = document.createElement('div');
   bar.className = 'no-print';
+  // Cap Android: env(safe-area-inset-top) is often 0 — use --safe-top (SystemBars / dg-capacitor-native floor).
   bar.style.cssText =
-    'display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));background:#111827;color:#fff;flex-shrink:0;';
+    'display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:calc(10px + var(--safe-top, env(safe-area-inset-top, 0px)));background:#111827;color:#fff;flex-shrink:0;';
 
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
@@ -730,13 +731,18 @@ function openPrintOverlay(placeholder = 'Preparing…', opts?: OpenPrintWindowOp
   bar.appendChild(title);
   bar.appendChild(actions);
 
+  const frameWrap = document.createElement('div');
+  frameWrap.style.cssText =
+    'flex:1;min-height:0;width:100%;overflow:auto;-webkit-overflow-scrolling:touch;background:#fff;';
+
   const iframe = document.createElement('iframe');
   iframe.id = PRINT_FRAME_ID;
   iframe.title = nativePdf ? 'PDF preview' : 'Print preview';
-  iframe.style.cssText = 'flex:1;width:100%;border:0;background:#fff;';
+  iframe.style.cssText = 'display:block;width:100%;min-height:100%;border:0;background:#fff;';
 
   host.appendChild(bar);
-  host.appendChild(iframe);
+  frameWrap.appendChild(iframe);
+  host.appendChild(frameWrap);
   document.body.appendChild(host);
 
   const win = iframe.contentWindow;
@@ -810,6 +816,10 @@ function applyPrintTitle(html: string, filename?: string): string {
  * (totals / bank / signature) from splitting awkwardly. Injected into every print HTML.
  */
 const PRINT_PAGINATION_CSS = `
+@media screen {
+  /* Cap preview: A4 tables can exceed phone width — allow pan instead of clipping */
+  html, body { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+}
 @media print {
   @page { margin: 8mm; size: A4; }
   html, body { height: auto !important; overflow: visible !important; width: 100% !important; }
