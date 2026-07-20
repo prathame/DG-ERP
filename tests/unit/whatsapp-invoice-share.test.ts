@@ -110,7 +110,7 @@ describe('Cap WhatsApp invoice share (light PDF + timeout fallback + debug logs)
     expect(whatsAppInvoiceShareToast('pdf_fallback', 'PDF_TIMEOUT')).toMatch(/PDF_TIMEOUT/);
   });
 
-  it('shareHtmlPdfViaWhatsApp on Cap skips html2pdf (text summary)', async () => {
+  it('shareHtmlPdfViaWhatsApp on Cap skips html2pdf (wa.me text, not Share sheet)', async () => {
     stubCap(true);
     const { shareHtmlPdfViaWhatsApp } = await import('../../src/lib/utils');
     const how = await shareHtmlPdfViaWhatsApp({
@@ -120,7 +120,8 @@ describe('Cap WhatsApp invoice share (light PDF + timeout fallback + debug logs)
       message: 'Invoice INV-1\nAcme\nTotal: ₹100',
     });
     expect(how).toBe('summary');
-    expect(shareMock).toHaveBeenCalledWith(expect.objectContaining({ text: expect.any(String) }));
+    expect(shareMock).not.toHaveBeenCalled();
+    expect(window.open).toHaveBeenCalledWith(expect.stringContaining('wa.me/'), '_blank');
     expect(buildPdfMock).not.toHaveBeenCalled();
   });
 
@@ -171,13 +172,8 @@ describe('Cap WhatsApp invoice share (light PDF + timeout fallback + debug logs)
 
       expect(result.how).toBe('pdf_fallback');
       expect(result.errorHint).toMatch(/PDF_TIMEOUT/i);
-      expect(shareMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          text: expect.stringContaining('INV-1'),
-          dialogTitle: 'Share via WhatsApp',
-        }),
-      );
-      expect(shareMock.mock.calls[0][0]).not.toHaveProperty('url');
+      expect(shareMock).not.toHaveBeenCalled();
+      expect(window.open).toHaveBeenCalledWith(expect.stringMatching(/wa\.me\/91.*INV-1|wa\.me\/.*text=/), '_blank');
 
       const crumbs = getClientBreadcrumbs(20).join('\n');
       expect(crumbs).toMatch(/PDF build timeout|text fallback/i);
@@ -195,6 +191,7 @@ describe('Cap WhatsApp invoice share (light PDF + timeout fallback + debug logs)
 
     expect(result.how).toBe('pdf_fallback');
     expect(result.errorHint).toMatch(/no items/i);
-    expect(shareMock).toHaveBeenCalledWith(expect.objectContaining({ text: expect.any(String) }));
+    expect(shareMock).not.toHaveBeenCalled();
+    expect(window.open).toHaveBeenCalledWith(expect.stringContaining('wa.me/'), '_blank');
   });
 });

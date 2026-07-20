@@ -447,7 +447,7 @@ export async function downloadHtmlAsPdf(html: string, filename?: string): Promis
 }
 
 /**
- * Cap-safe WhatsApp: text summary only (Share sheet / wa.me).
+ * Cap-safe WhatsApp: text summary via wa.me (opens WhatsApp, not a Gmail-heavy share sheet).
  * Used as Cap fallback when light jsPDF times out or fails.
  */
 export async function shareInvoiceSummaryViaWhatsApp(opts: {
@@ -456,11 +456,29 @@ export async function shareInvoiceSummaryViaWhatsApp(opts: {
   logCtx?: Record<string, unknown>;
 }): Promise<'summary' | 'cancelled'> {
   const ctx = { path: 'text', ...opts.logCtx, correlationId: ensureCorrelationId() };
+  const phone = (opts.phone || '').trim();
+  // Prefer WhatsApp-targeted wa.me — Cap Share.share is a generic chooser (often surfaces Gmail).
+  if (phone) {
+    shareViaWhatsApp(phone, opts.message);
+    waShareLog('info', 'WhatsApp text share via wa.me', { ...ctx, shareMode: 'wa.me' });
+    return 'summary';
+  }
+  try {
+    window.open(`https://wa.me/?text=${encodeURIComponent(opts.message)}`, '_blank');
+    waShareLog('info', 'WhatsApp text share via wa.me', { ...ctx, shareMode: 'wa.me-open' });
+    return 'summary';
+  } catch (err) {
+    waShareLog('warn', 'WhatsApp wa.me open fail — Share sheet fallback', {
+      ...ctx,
+      shareMode: 'text-only',
+      errorMessage: truncateShareError(err),
+    });
+  }
   try {
     const { Share } = await import('@capacitor/share');
     waShareLog('info', 'WhatsApp Share.share start', { ...ctx, shareMode: 'text-only' });
     await Share.share({
-      title: 'Invoice',
+      title: 'WhatsApp',
       text: opts.message,
       dialogTitle: 'Share via WhatsApp',
     });
@@ -478,21 +496,14 @@ export async function shareInvoiceSummaryViaWhatsApp(opts: {
       });
       return 'cancelled';
     }
-    waShareLog('warn', 'WhatsApp Share.share fail — wa.me fallback', {
+    waShareLog('warn', 'WhatsApp Share.share fail', {
       ...ctx,
       shareMode: 'text-only',
       errorName: name || 'Error',
       errorMessage: truncateShareError(err),
     });
+    return 'summary';
   }
-  const phone = (opts.phone || '').trim();
-  if (phone) {
-    shareViaWhatsApp(phone, opts.message);
-  } else {
-    window.open(`https://wa.me/?text=${encodeURIComponent(opts.message)}`, '_blank');
-  }
-  waShareLog('info', 'WhatsApp text share via wa.me', ctx);
-  return 'summary';
 }
 
 /**

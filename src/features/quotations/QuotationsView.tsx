@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   Send,
   MessageCircle,
-  Mail,
   Check,
   X,
   Trash2,
@@ -15,14 +14,7 @@ import {
   Printer,
   Upload,
 } from 'lucide-react';
-import {
-  cn,
-  formatDate,
-  shareViaEmail,
-  openPrintWindow,
-  printBillInWindow,
-  PRINT_POPUP_BLOCKED,
-} from '../../lib/utils';
+import { cn, formatDate, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { api, fetchApi } from '../../api';
 import type { BillSettings, Product, Vendor } from '../../types';
@@ -539,17 +531,6 @@ export function QuotationsView() {
     }
   };
 
-  const formatQuotationText = (q: Quotation) => {
-    let text = `📋 *QUOTATION ${q.quotationNumber}*\n${companyName ? `From: ${companyName}\n` : ''}${q.customerName ? `To: ${q.customerName}\n` : ''}Date: ${formatDate(q.quotationDate)}\n${q.validUntil ? `Valid until: ${formatDate(q.validUntil)}\n` : ''}\n`;
-    text += `*Items:*\n`;
-    for (const item of q.items) {
-      text += `• ${item.productName} × ${item.quantity} — ₹${item.lineTotal.toLocaleString()}\n`;
-    }
-    text += `\n*Subtotal:* ₹${q.subtotal.toLocaleString()}\n*GST:* ₹${q.gstAmount.toLocaleString()}\n*Total:* ₹${q.total.toLocaleString()}`;
-    if (q.notes) text += `\n\n_${q.notes}_`;
-    return text;
-  };
-
   if (loading)
     return (
       <div className="flex items-center justify-center py-20">
@@ -660,31 +641,16 @@ export function QuotationsView() {
                   </>
                 )}
               </button>
-              {selected.customerPhone && (
-                <button
-                  type="button"
-                  disabled={whatsappBusyId === selected.id}
-                  onClick={() => void shareQuotationWhatsApp(selected)}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-60"
-                >
-                  <MessageCircle size={14} /> {whatsappBusyId === selected.id ? 'Preparing…' : 'WhatsApp'}
-                </button>
-              )}
-              {selected.customerEmail && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    shareViaEmail(
-                      selected.customerEmail!,
-                      `Quotation ${selected.quotationNumber}`,
-                      formatQuotationText(selected),
-                    )
-                  }
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg"
-                >
-                  <Mail size={14} /> Email
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={whatsappBusyId === selected.id}
+                onClick={() => void shareQuotationWhatsApp(selected)}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-60"
+                title="Share on WhatsApp"
+                aria-label="Share quotation on WhatsApp"
+              >
+                <MessageCircle size={14} /> {whatsappBusyId === selected.id ? 'Preparing…' : 'WhatsApp'}
+              </button>
               {(selected.status === 'Draft' || selected.status === 'Rejected') && (
                 <button
                   type="button"
@@ -766,6 +732,28 @@ export function QuotationsView() {
                 Converted to distribution: {selected.convertedBatchId}
               </p>
             )}
+            {/* Cap / phone: Print + WhatsApp always visible (header can wrap with status actions) */}
+            <div className="sm:hidden flex gap-2 mt-4 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => void printQuotation(selected)}
+                className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold flex items-center justify-center gap-2"
+              >
+                {offlinePdf ? <Download size={16} /> : <Printer size={16} />}
+                {offlinePdf ? t('common.downloadPdf') : 'Print'}
+              </button>
+              <button
+                type="button"
+                disabled={whatsappBusyId === selected.id}
+                onClick={() => void shareQuotationWhatsApp(selected)}
+                className="px-4 py-2.5 border border-green-200 text-green-700 rounded-xl font-medium text-sm inline-flex items-center gap-1.5 disabled:opacity-50"
+                title="Share on WhatsApp"
+                aria-label="Share quotation on WhatsApp"
+              >
+                <MessageCircle size={16} />
+                {whatsappBusyId === selected.id ? 'Preparing…' : 'WhatsApp'}
+              </button>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -879,23 +867,46 @@ export function QuotationsView() {
         </>
       ) : (
         <>
-          {/* Phone dense rows */}
-          <div className="sm:hidden space-y-1.5">
+          {/* Phone cards with Print / WhatsApp (same pattern as Invoices) */}
+          <div className="sm:hidden space-y-2">
             {filtered.map(q => (
               <Fragment key={q.id}>
-                <MobileListRow
-                  icon={<FileText />}
-                  title={q.quotationNumber}
-                  subtitle={`${q.customerName || q.vendorName || 'No customer'} · ${formatDate(q.quotationDate)}`}
-                  trailing={`₹${q.total.toLocaleString()}`}
-                  meta={q.status}
-                  onClick={() => {
-                    setSelectedId(q.id);
-                    fetchApi<Quotation>(`/quotations/${q.id}`)
-                      .then(setSelected)
-                      .catch(err => toast(err.message, 'error'));
-                  }}
-                />
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                  <MobileListRow
+                    icon={<FileText />}
+                    title={q.quotationNumber}
+                    subtitle={`${q.customerName || q.vendorName || 'No customer'} · ${formatDate(q.quotationDate)}`}
+                    trailing={`₹${q.total.toLocaleString()}`}
+                    meta={q.status}
+                    onClick={() => {
+                      setSelectedId(q.id);
+                      fetchApi<Quotation>(`/quotations/${q.id}`)
+                        .then(setSelected)
+                        .catch(err => toast(err.message, 'error'));
+                    }}
+                  />
+                  <div className="flex items-center justify-end gap-0.5 border-t border-gray-50 px-1.5 py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => void printQuotation(q)}
+                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
+                      title={offlinePdf ? t('common.downloadPdf') : 'Print / PDF'}
+                      aria-label={offlinePdf ? t('common.downloadPdf') : 'Print quotation'}
+                    >
+                      {offlinePdf ? <Download size={14} /> : <Printer size={14} />}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={whatsappBusyId === q.id}
+                      onClick={() => void shareQuotationWhatsApp(q)}
+                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50"
+                      title="Share on WhatsApp"
+                      aria-label="Share quotation on WhatsApp"
+                    >
+                      <MessageCircle size={14} />
+                    </button>
+                  </div>
+                </div>
               </Fragment>
             ))}
           </div>
