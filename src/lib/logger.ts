@@ -26,21 +26,46 @@ function durableStorage(): Storage | null {
   }
 }
 
+function readStoredLines(key: string, max: number): string[] {
+  try {
+    const raw = durableStorage()?.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    const out: string[] = [];
+    for (const line of parsed.slice(-max)) {
+      if (typeof line === 'string') out.push(line);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Merge write-through localStorage into memory (safe to call repeatedly).
+ * Disk order wins; append any in-memory-only lines not yet persisted.
+ */
+function mergeLinesFromStorage(mem: string[], key: string, max: number): void {
+  const fromDisk = readStoredLines(key, max);
+  if (fromDisk.length === 0) return;
+  const seen = new Set(fromDisk);
+  const merged = [...fromDisk];
+  for (const line of mem) {
+    if (!seen.has(line)) {
+      merged.push(line);
+      seen.add(line);
+    }
+  }
+  mem.length = 0;
+  mem.push(...merged.slice(-max));
+}
+
 function hydrateRingIfNeeded(): void {
   if (ringHydrated) return;
   ringHydrated = true;
   if (ring.length > 0) return;
-  try {
-    const raw = durableStorage()?.getItem(RING_STORAGE_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return;
-    for (const line of parsed.slice(-RING_MAX)) {
-      if (typeof line === 'string') ring.push(line);
-    }
-  } catch {
-    /* corrupt / quota */
-  }
+  ring.push(...readStoredLines(RING_STORAGE_KEY, RING_MAX));
 }
 
 function persistRing(): void {
@@ -106,9 +131,14 @@ function pushRing(line: string): void {
   persistRing();
 }
 
-/** Recent log lines for bug reports (newest last). No secrets — already redacted. Hydrates from localStorage after process death. */
+/**
+ * Recent log lines for bug reports (newest last). No secrets — already redacted.
+ * Always merges localStorage write-through so Share/Generate never misses lines
+ * after an early empty hydrate (Cap onboarding before full app shell).
+ */
 export function getRecentClientLogs(limit = 40): string[] {
   hydrateRingIfNeeded();
+  mergeLinesFromStorage(ring, RING_STORAGE_KEY, RING_MAX);
   return ring.slice(-Math.max(1, limit));
 }
 
@@ -120,17 +150,7 @@ function hydrateBreadcrumbsIfNeeded(): void {
   if (breadcrumbsHydrated) return;
   breadcrumbsHydrated = true;
   if (breadcrumbs.length > 0) return;
-  try {
-    const raw = durableStorage()?.getItem(BREADCRUMB_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return;
-    for (const line of parsed.slice(-BREADCRUMB_MAX)) {
-      if (typeof line === 'string') breadcrumbs.push(line);
-    }
-  } catch {
-    /* corrupt / quota */
-  }
+  breadcrumbs.push(...readStoredLines(BREADCRUMB_KEY, BREADCRUMB_MAX));
 }
 
 function persistBreadcrumbs(): void {
@@ -157,9 +177,10 @@ export function pushClientBreadcrumb(message: string, context?: Record<string, u
   persistBreadcrumbs();
 }
 
-/** Breadcrumbs for bug reports (newest last). Hydrates from localStorage after process death. */
+/** Breadcrumbs for bug reports (newest last). Always merges localStorage write-through. */
 export function getClientBreadcrumbs(limit = 20): string[] {
   hydrateBreadcrumbsIfNeeded();
+  mergeLinesFromStorage(breadcrumbs, BREADCRUMB_KEY, BREADCRUMB_MAX);
   return breadcrumbs.slice(-Math.max(1, limit));
 }
 
