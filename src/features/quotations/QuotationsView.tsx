@@ -45,6 +45,7 @@ import { SearchSelect } from '../../components/ui/SearchSelect';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { importQuotationsFromRows, QUOTATION_IMPORT_COLUMNS } from '../../lib/documentImport';
 import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
+import { isGstBillingEnabled, quotationLineWithGst } from '../../lib/billSettingsFlags';
 
 function asApiList<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
@@ -123,17 +124,30 @@ export function QuotationsView() {
     discount: number;
     withGst: boolean;
   };
+  /** Same bill-settings GST flag as invoices (`showGst` / legacy `showHsnSac`). */
+  const [gstBilling, setGstBilling] = useState(() => isGstBillingEnabled(null));
   const emptyQuoteRow = (): QuoteLineRow => ({
     productId: '',
     description: '',
     quantity: 1,
     customPrice: '',
     discount: 0,
-    withGst: true,
+    withGst: gstBilling,
   });
-  const [rows, setRows] = useState<QuoteLineRow[]>([emptyQuoteRow()]);
+  const [rows, setRows] = useState<QuoteLineRow[]>(() => [
+    {
+      productId: '',
+      description: '',
+      quantity: 1,
+      customPrice: '',
+      discount: 0,
+      withGst: isGstBillingEnabled(null),
+    },
+  ]);
   const [billSettings, setBillSettings] = useState<BillSettings | null>(null);
   const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
+  /** New quotes follow settings; draft edits keep GST controls if lines already have GST. */
+  const showGstControls = gstBilling || (!!editingId && rows.some(r => r.withGst));
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const sessionUser = session.getUser() as Record<string, unknown> | null;
@@ -182,7 +196,18 @@ export function QuotationsView() {
         setProducts(p);
         setVendors(v.filter(x => x && x.id && x.id !== 'OWNER'));
         if (results[3].status === 'fulfilled' && results[3].value) {
-          setBillSettings(results[3].value as BillSettings);
+          const s = results[3].value as BillSettings;
+          setBillSettings(s);
+          const on = isGstBillingEnabled(s);
+          setGstBilling(on);
+          // Match invoices: only stamp GST defaults on a fresh (unedited) single empty row.
+          if (!modalOpen && !editingId) {
+            setRows(prev =>
+              prev.length === 1 && !prev[0]?.productId && !prev[0]?.description.trim()
+                ? [{ ...prev[0]!, withGst: on }]
+                : prev,
+            );
+          }
         }
         if (results[0].status === 'rejected') {
           setLoadError(results[0].reason instanceof Error ? results[0].reason.message : 'Failed to load quotations');
@@ -331,12 +356,13 @@ export function QuotationsView() {
     const disc = Math.min(100, Math.max(0, r.discount || 0));
     const afterDisc = Math.round(((basePrice * (100 - disc)) / 100) * 100) / 100;
     const inclGst = !!p?.priceIncludesGst;
+    const withGst = showGstControls && r.withGst;
     let netPer = afterDisc;
     let billedPer = afterDisc;
-    if (r.withGst && inclGst) {
+    if (withGst && inclGst) {
       billedPer = afterDisc;
       netPer = Math.round((afterDisc / (1 + defaultGstRate / 100)) * 100) / 100;
-    } else if (r.withGst) {
+    } else if (withGst) {
       netPer = afterDisc;
       billedPer = Math.round((afterDisc * (100 + defaultGstRate)) / 100);
     }
@@ -431,7 +457,7 @@ export function QuotationsView() {
           quantity: r.quantity,
           customPrice: r.customPrice ? parseFloat(r.customPrice) : undefined,
           discountPercent: r.discount > 0 ? r.discount : undefined,
-          withGst: r.withGst,
+          withGst: quotationLineWithGst(gstBilling, !!editingId, r.withGst),
         })),
       };
       const saved = editingId
@@ -1238,23 +1264,27 @@ export function QuotationsView() {
                         />
                       ),
                     },
-                    {
-                      key: 'gst',
-                      label: 'GST',
-                      node: (
-                        <label className="flex items-center gap-2 min-h-11 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={row.withGst}
-                            onChange={e =>
-                              setRows(rows.map((r, i) => (i === idx ? { ...r, withGst: e.target.checked } : r)))
-                            }
-                            className="rounded w-5 h-5"
-                          />
-                          Include GST
-                        </label>
-                      ),
-                    },
+                    ...(showGstControls
+                      ? [
+                          {
+                            key: 'gst',
+                            label: 'GST',
+                            node: (
+                              <label className="flex items-center gap-2 min-h-11 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={row.withGst}
+                                  onChange={e =>
+                                    setRows(rows.map((r, i) => (i === idx ? { ...r, withGst: e.target.checked } : r)))
+                                  }
+                                  className="rounded w-5 h-5"
+                                />
+                                Include GST
+                              </label>
+                            ),
+                          } satisfies LineItemCardField,
+                        ]
+                      : []),
                   ];
                   return (
                     <div key={idx}>
@@ -1280,7 +1310,7 @@ export function QuotationsView() {
                       <th className="px-3 py-3 w-16">Qty</th>
                       <th className="px-3 py-3 w-24">Price</th>
                       <th className="px-3 py-3 w-16">Disc%</th>
-                      <th className="px-3 py-3 w-12 text-center">GST</th>
+                      {showGstControls && <th className="px-3 py-3 w-12 text-center">GST</th>}
                       <th className="px-3 py-3 w-24 text-right">Total</th>
                       <th className="px-3 py-3 w-8"></th>
                     </tr>
@@ -1377,16 +1407,18 @@ export function QuotationsView() {
                               className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
                             />
                           </td>
-                          <td className="px-3 py-2 text-center">
-                            <input
-                              type="checkbox"
-                              checked={row.withGst}
-                              onChange={e =>
-                                setRows(rows.map((r, i) => (i === idx ? { ...r, withGst: e.target.checked } : r)))
-                              }
-                              className="rounded"
-                            />
-                          </td>
+                          {showGstControls && (
+                            <td className="px-3 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={row.withGst}
+                                onChange={e =>
+                                  setRows(rows.map((r, i) => (i === idx ? { ...r, withGst: e.target.checked } : r)))
+                                }
+                                className="rounded"
+                              />
+                            </td>
+                          )}
                           <td className="px-3 py-2 text-right text-sm font-bold">
                             {lineTotal > 0 ? `₹${lineTotal.toLocaleString()}` : '—'}
                           </td>
@@ -1417,7 +1449,13 @@ export function QuotationsView() {
               </button>
               <div className="bg-gray-50 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-xs sm:text-sm text-gray-600">
-                  {totals.items} items · Net ₹{totals.net.toLocaleString()} · GST ₹{totals.gst.toLocaleString()}
+                  {totals.items} items · Net ₹{totals.net.toLocaleString()}
+                  {showGstControls ? ` · GST ₹${totals.gst.toLocaleString()}` : ''}
+                  {!showGstControls && (
+                    <span className="block text-[10px] text-gray-400 mt-0.5">
+                      GST off — enable in Settings → Bill Customization for tax quotations
+                    </span>
+                  )}
                 </span>
                 <span className="text-lg font-bold text-brand tabular-nums">₹{totals.total.toLocaleString()}</span>
               </div>

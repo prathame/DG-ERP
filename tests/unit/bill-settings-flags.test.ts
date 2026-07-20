@@ -52,4 +52,19 @@ describe('GST bill settings flags', () => {
     expect(isGstBillingEnabled({ showGst: false, showHsnSac: true })).toBe(false);
     expect(isGstBillingEnabled({ showGst: true, showHsnSac: false })).toBe(true);
   });
+
+  it('quotationLineWithGst follows bill toggle on create; keeps draft lines when editing', async () => {
+    vi.doMock('../../src/lib/session', () => ({
+      session: { getUser: () => ({ businessType: 'service' }) },
+    }));
+    vi.doMock('../../src/platforms/service-cloud/mode', () => ({
+      isServicePhoneUx: () => true,
+    }));
+    const { quotationLineWithGst } = await import('../../src/lib/billSettingsFlags');
+    expect(quotationLineWithGst(false, false, true)).toBe(false);
+    expect(quotationLineWithGst(true, false, true)).toBe(true);
+    expect(quotationLineWithGst(true, false, false)).toBe(false);
+    expect(quotationLineWithGst(false, true, true)).toBe(true);
+    expect(quotationLineWithGst(false, true, false)).toBe(false);
+  });
 });
