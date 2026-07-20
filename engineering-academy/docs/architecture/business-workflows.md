@@ -97,6 +97,8 @@ stateDiagram-v2
   - **service** → creates `standalone_invoices` (frozen prices), sets `converted_invoice_id`
   - **goods** → creates `product_distribution` batch (needs `vendor_id`), sets `converted_batch_id`
 - Convert freezes quote `items[].price` (no re-resolve). GST uses `unitPricesAfterDiscount` / `price_includes_gst`.
+- **Offline Mobile (Cap) convert** must stamp `party_type`/`party_id`/`client_id` from `quote.vendor_id` (same as cloud) and write invoice line shape (`description`/`qty`/`rate`/`taxable`…). Without party fields, Masters Client hub and Analytics Outstanding Clients miss the invoice even though Invoice tab can still list it by name.
+- **Offline boot repair** (`repairLegacyConvertedInvoices`): idempotently remaps any invoice whose `items` are still quote-shaped (`productName`/`quantity`/`lineNet`) and backfills missing party from `quotations.converted_invoice_id`, `orders.fulfilled_batch_id`, or exact Masters client name match. `mapInvoice` also normalizes line shape on read.
 
 :::tip Analogy
 Converting a quotation is like a **firing pin** — the transition from paperwork to stock movement or a billed invoice is deliberately funneled through one narrow, transactional, audit-logged path.

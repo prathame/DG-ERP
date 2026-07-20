@@ -508,6 +508,200 @@ describe('service-mobile local API — Mark Paid + Client payment does not doubl
   });
 });
 
+describe('service-mobile local API — Quote convert → invoice surfaces', () => {
+  beforeEach(async () => {
+    await setupDb();
+  });
+
+  afterEach(async () => {
+    await db?.close();
+  });
+
+  it('Accepted quote convert links party, lists on Invoice tab + client hub, feeds analytics', async () => {
+    const client = await api('POST', '/vendors', {
+      name: 'Convert Client',
+      phone: '9000000044',
+      gstNumber: '27AAAAA0000A1Z5',
+    });
+    expect(client.status).toBe(201);
+    const vendorId = (client.json as { id: string }).id;
+
+    const prod = await api('POST', '/products', { name: 'AC Service', price: 1000, stock: 0 });
+    expect(prod.status).toBe(201);
+    const productId = (prod.json as { id: string }).id;
+
+    const quote = await api('POST', '/quotations', {
+      vendorId,
+      customerName: 'Convert Client',
+      customerPhone: '9000000044',
+      quotationDate: '2026-01-05',
+      gstRate: 18,
+      items: [{ productId, quantity: 1 }],
+    });
+    expect(quote.status).toBe(201);
+    const quoteId = (quote.json as { id: string }).id;
+
+    const accepted = await api('PUT', `/quotations/${quoteId}/status`, { status: 'Accepted' });
+    expect(accepted.status).toBe(200);
+
+    const converted = await api('POST', `/quotations/${quoteId}/convert`);
+    expect(converted.status).toBe(200);
+    const conv = converted.json as {
+      target: string;
+      invoiceId: string;
+      invoiceNumber: string;
+      grandTotal: number;
+      fullyConverted: boolean;
+    };
+    expect(conv.target).toBe('invoice');
+    expect(conv.fullyConverted).toBe(true);
+    expect(conv.grandTotal).toBe(1180);
+
+    const list = await api('GET', '/invoices');
+    expect(list.status).toBe(200);
+    const invoices = list.json as {
+      id: string;
+      partyType: string | null;
+      partyId: string | null;
+      status: string;
+      grandTotal: number;
+      items: { description?: string; qty?: number }[];
+    }[];
+    const created = invoices.find(i => i.id === conv.invoiceId);
+    expect(created).toBeTruthy();
+    expect(created!.status).toBe('sent');
+    expect(created!.partyType).toBe('vendor');
+    expect(created!.partyId).toBe(vendorId);
+    expect(created!.grandTotal).toBe(1180);
+    expect(created!.items[0]?.description).toBe('AC Service');
+    expect(created!.items[0]?.qty).toBe(1);
+
+    const hub = await api('GET', `/invoice-finance/client/${encodeURIComponent(`vendor:${vendorId}`)}`);
+    expect(hub.status).toBe(200);
+    const hubBody = hub.json as { invoices: { id: string; balance: number }[]; balance: number };
+    expect(hubBody.invoices.some(i => i.id === conv.invoiceId)).toBe(true);
+    expect(hubBody.balance).toBe(1180);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const overview = await api('GET', `/analytics/overview?from=${today}&to=${today}`);
+    expect(overview.status).toBe(200);
+    const money = (overview.json as { money: { revenue: number; invoiceOutstanding: number; collections: number } })
+      .money;
+    expect(money.revenue).toBe(1180);
+    expect(money.invoiceOutstanding).toBe(1180);
+    expect(money.collections).toBe(0);
+
+    const top = (overview.json as { topVendors: { vendorId: string; vendorName: string; balance: number }[] })
+      .topVendors;
+    expect(top.some(v => v.vendorId === `vendor:${vendorId}` && v.balance === 1180)).toBe(true);
+  });
+
+  it('repairs legacy convert rows (quote line shape + missing party) without hardcoded ids', async () => {
+    const { repairLegacyConvertedInvoices } =
+      await import('../../src/platforms/service-mobile/local/repairConvertedInvoices');
+
+    const client = await api('POST', '/vendors', {
+      name: 'Legacy Client Co',
+      phone: '9000000099',
+      gstNumber: '27BBBBB1111B1Z5',
+    });
+    const vendorId = (client.json as { id: string }).id;
+
+    const prod = await api('POST', '/products', { name: 'Legacy Job', price: 1010, stock: 0 });
+    const productId = (prod.json as { id: string }).id;
+
+    // Simulate pre-fix convert: quote-shaped items, no party_type/party_id
+    const invId = 'INV-legacy-shape';
+    const quoteId = 'Q-legacy-shape';
+    await db.query(
+      `INSERT INTO standalone_invoices
+         (id, tenant_id, invoice_number, customer_name, client_name, status, items,
+          subtotal, tax, tax_total, grand_total, total, invoice_date)
+       VALUES ($1,'t1','INV/LEGACY/0001','Legacy Client Co','Legacy Client Co','sent',$2,
+               1010,0,0,1010,1010,'2026-07-20')`,
+      [
+        invId,
+        JSON.stringify([
+          {
+            productId,
+            productName: 'Legacy Job',
+            quantity: 1,
+            unitPrice: 1010,
+            lineNet: 1010,
+            lineGst: 0,
+            lineTotal: 1010,
+          },
+        ]),
+      ],
+    );
+    await db.query(
+      `INSERT INTO quotations
+         (id, tenant_id, quotation_number, vendor_id, vendor_name, customer_name, status,
+          items, subtotal, gst_rate, gst_amount, total, converted_invoice_id, quotation_date)
+       VALUES ($1,'t1','Q-LEGACY',$2,'Legacy Client Co','Legacy Client Co','Converted',
+               $3,1010,0,0,1010,$4,'2026-07-20')`,
+      [
+        quoteId,
+        vendorId,
+        JSON.stringify([
+          {
+            productId,
+            productName: 'Legacy Job',
+            quantity: 1,
+            price: 1010,
+            lineNet: 1010,
+            lineGst: 0,
+            lineTotal: 1010,
+            withGst: false,
+          },
+        ]),
+        invId,
+      ],
+    );
+
+    const before = await api('GET', `/invoices/${invId}`);
+    expect(before.status).toBe(200);
+    // Mapper defensively normalizes for display even before persist repair
+    expect((before.json as { items: { description: string }[] }).items[0]?.description).toBe('Legacy Job');
+
+    const hubBefore = await api('GET', `/invoice-finance/client/${encodeURIComponent(`vendor:${vendorId}`)}`);
+    expect((hubBefore.json as { invoices: unknown[] }).invoices).toHaveLength(0);
+
+    const result = await repairLegacyConvertedInvoices();
+    expect(result.linesRemapped).toBeGreaterThanOrEqual(1);
+    expect(result.partyFromQuotes).toBeGreaterThanOrEqual(1);
+
+    const after = await api('GET', `/invoices/${invId}`);
+    const inv = after.json as {
+      partyType: string;
+      partyId: string;
+      items: { description: string; qty: number; taxable: number }[];
+    };
+    expect(inv.partyType).toBe('vendor');
+    expect(inv.partyId).toBe(vendorId);
+    expect(inv.items[0]?.description).toBe('Legacy Job');
+    expect(inv.items[0]?.qty).toBe(1);
+    expect(inv.items[0]?.taxable).toBe(1010);
+
+    const stored = await db.query<{ items: unknown }>(`SELECT items FROM standalone_invoices WHERE id=$1`, [invId]);
+    const rawItems = stored.rows[0]!.items;
+    const storedItems = (typeof rawItems === 'string' ? JSON.parse(rawItems) : rawItems) as {
+      description?: string;
+      productName?: string;
+    }[];
+    expect(storedItems[0]?.description).toBe('Legacy Job');
+    expect(storedItems[0]?.productName).toBeUndefined();
+
+    const hubAfter = await api('GET', `/invoice-finance/client/${encodeURIComponent(`vendor:${vendorId}`)}`);
+    expect((hubAfter.json as { invoices: { id: string }[] }).invoices.some(i => i.id === invId)).toBe(true);
+
+    // Idempotent
+    const again = await repairLegacyConvertedInvoices();
+    expect(again.linesRemapped).toBe(0);
+    expect(again.partyFromQuotes).toBe(0);
+  });
+});
+
 describe('service-mobile local API contract — Global search', () => {
   beforeEach(async () => {
     await setupDb();

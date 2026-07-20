@@ -24,6 +24,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5g | Invoice create mobile | Invoices → New → Party → Items → Review | Stepper on phone; line items as cards (no sideways scroll); stacked Cancel/Draft/Send; Party step has **Invoice Date** only (no Due Date). Tax Invoice print/PDF/WhatsApp shows Date, not Due |
 | 5h | Purchase/Quote lines | Purchases / Quotations create modals | Line items as cards on phone; desktop table unchanged |
 | 5i | Drawer + toast | More → drawer; trigger a toast | Settings pinned at bottom; toast below status bar / safe area |
+| 5i2 | Android system back | Open invoice/quote detail or Masters manage → Back; close to list → Back on tab root; Back again within ~2s | Detail/modal closes first; at list root toast “Press back again to exit”; second Back minimizes app (not endless tab history). Switch tabs then Back should not walk every prior tab |
 | 5j | Bottom nav IA | Glance at phone tab bar | Analytics · Masters · Invoice · Quotes · More (not Inventory/Finance as primary). Same Emergent IA as Service Cloud Capacitor service via `isServicePhoneUx`; Sync / demo seed / Show Accounts / advances stay Offline-only here |
 | 5k | Analytics phone | Analytics tab | Quick actions + dense KPI cards + range pills |
 | 5k2 | Analytics outstanding | Create unpaid invoice for a client → Analytics | Outstanding Clients lists that client with balance; View All opens Invoice Finance |
@@ -42,6 +43,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5l4 | Masters no ErrorBoundary | Hard refresh → Masters (Chrome localhost OK) | Hub loads Clients/Banks/Staff/Prices — no “Something went wrong”. Stale Products pill/state must not crash |
 | 5l3 | Masters no Vendor-Customer Map | Masters pills / desktop cards | **Vendor-Customer Map** absent Offline (no mapping routes). Cloud manufacturer Masters still show Mapping |
 | 5m | Invoice hub phone | Invoices list | Outstanding/Collected KPIs; status pills; FAB creates invoice |
+| 5m4 | Quote → Convert to Invoice | Masters client → Quote Accepted → **Convert to Invoice** | Invoice appears on **Invoice** tab (`sent`); detail shows ITEM/QTY lines; same client hub under Masters → Client shows it; Analytics **This Month** → Invoice Revenue + Unpaid Invoices include the amount (Received stays 0 until payment). Older bad converts remapped on Offline DB open (generic repair — not per-invoice hardcoding) |
 | 5n | More shortcuts | More drawer | Shortcut grid includes Stock, Finance, Accounts, Settings |
 | 5o | Accounts tab toggle | Settings → Appearance → Show Accounts off/on | Off: Accounts gone from More / sidebar / command palette; On: Accounts returns. Preference survives reload (localStorage) |
 | 5p | Header global search | Tap header Search (or ⌘K on desktop web build) → type a client / product / staff name | Palette shows **Pages** + entity hits (Clients, Products, Staff…). Tap a client → Masters → that client. **No** barcode verify / Scan. Search / Verify tab stays hidden. |

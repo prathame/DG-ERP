@@ -1390,25 +1390,29 @@ export async function handleLocalApiRequest(
         });
       }
       if (!plan.length) return json(400, { error: 'Nothing left to convert' });
+      // Mirror cloud convert + normal Offline invoice create: invoice line shape + party link
+      const gstRate = Number(quote.gst_rate) || 18;
       const invItems = plan.map(p => {
         const withGst = p.item.withGst !== false;
         const unitNet = p.item.lineNet / Math.max(1, p.item.quantity);
         const unitGst = p.item.lineGst / Math.max(1, p.item.quantity);
         const qty = p.convertQty;
-        const lineNet = Math.round(unitNet * qty * 100) / 100;
-        const lineGst = withGst ? Math.round(unitGst * qty * 100) / 100 : 0;
+        const taxable = Math.round(unitNet * qty * 100) / 100;
+        const tax = withGst ? Math.round(unitGst * qty * 100) / 100 : 0;
         return {
-          productId: p.item.productId,
-          productName: p.item.productName,
-          quantity: qty,
-          unitPrice: p.item.price,
-          lineNet,
-          lineGst,
-          lineTotal: Math.round((lineNet + lineGst) * 100) / 100,
+          description: p.item.productName,
+          productId: p.item.productId || undefined,
+          qty,
+          rate: p.item.price,
+          discountPercent: Number(p.item.discountPercent) || 0,
+          gstPercent: withGst ? gstRate : 0,
+          taxable,
+          tax,
+          total: Math.round((taxable + tax) * 100) / 100,
         };
       });
-      const subtotal = invItems.reduce((s, i) => s + i.lineNet, 0);
-      const taxTotal = invItems.reduce((s, i) => s + i.lineGst, 0);
+      const subtotal = Math.round(invItems.reduce((s, i) => s + i.taxable, 0) * 100) / 100;
+      const taxTotal = Math.round(invItems.reduce((s, i) => s + i.tax, 0) * 100) / 100;
       const grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
       const invId = uid('INV');
       const { rows: cntRows } = await localQuery(
@@ -1422,23 +1426,52 @@ export async function handleLocalApiRequest(
           ? `${now.getFullYear()}-${(now.getFullYear() + 1).toString().slice(2)}`
           : `${now.getFullYear() - 1}-${now.getFullYear().toString().slice(2)}`;
       const invNum = `INV/${fy}/${String(count).padStart(4, '0')}`;
-      const customerName = String(quote.customer_name || quote.client_name || 'Customer');
+      const customerName = String(quote.customer_name || quote.vendor_name || quote.client_name || 'Customer');
+      const vendorId = (quote.vendor_id as string) || null;
+      let buyerGstin: string | null = null;
+      if (vendorId) {
+        const { rows: vr } = await localQuery(`SELECT gstin FROM vendors WHERE id=$1 AND tenant_id=$2`, [
+          vendorId,
+          tid,
+        ]);
+        buyerGstin = ((vr[0] as { gstin?: string } | undefined)?.gstin as string) || null;
+      }
+      const gstEnabled = taxTotal > 0 || invItems.some(it => (Number(it.gstPercent) || 0) > 0);
+      const sellerGstin = await resolveSellerGstin(tid!);
+      const interstate = gstEnabled ? isInterstateSupply(sellerGstin, buyerGstin) : false;
+      const { taxCgst, taxSgst, taxIgst } = splitGstTax(taxTotal, interstate);
+      // Bill date = convert day so Invoice tab sort + Analytics "This Month" match generate time
+      const invoiceDate = new Date().toISOString().slice(0, 10);
       await localQuery(
         `INSERT INTO standalone_invoices
-           (id, tenant_id, invoice_number, customer_name, client_name, status, items, subtotal, tax, tax_total, grand_total, total, invoice_date)
-         VALUES ($1,$2,$3,$4,$4,'sent',$5,$6,$7,$7,$8,$8,$9)`,
+           (id, tenant_id, invoice_number, customer_name, client_name, client_id, customer_gstin,
+            customer_phone, party_type, party_id, status, items, subtotal, tax, tax_total, grand_total, total,
+            notes, invoice_date, tax_cgst, tax_sgst, tax_igst, is_interstate, gst_enabled)
+         VALUES ($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,'sent',$10,$11,$12,$12,$13,$13,$14,$15,$16,$17,$18,$19,$20)`,
         [
           invId,
           tid,
           invNum,
           customerName,
+          vendorId,
+          buyerGstin,
+          quote.customer_phone ?? null,
+          vendorId ? 'vendor' : null,
+          vendorId,
           JSON.stringify(invItems),
           subtotal,
           taxTotal,
           grandTotal,
-          quote.quotation_date || new Date().toISOString().slice(0, 10),
+          quote.notes || `From quotation ${quote.quotation_number || ''}`,
+          invoiceDate,
+          taxCgst,
+          taxSgst,
+          taxIgst,
+          interstate,
+          gstEnabled,
         ],
       );
+      await applyAdvancesToInvoice(tid!, invId);
       for (const p of plan) {
         items[p.idx]!.convertedQty = (items[p.idx]!.convertedQty || 0) + p.convertQty;
       }
@@ -1599,22 +1632,67 @@ export async function handleLocalApiRequest(
           ? `${now.getFullYear()}-${(now.getFullYear() + 1).toString().slice(2)}`
           : `${now.getFullYear() - 1}-${now.getFullYear().toString().slice(2)}`;
       const invNum = `INV/${fy}/${String(count).padStart(4, '0')}`;
+      const vendorId = (order.vendor_id as string) || null;
+      const gstRate = Number(order.gst_rate) || 18;
+      const invItems = mapped.items.map(item => {
+        const withGst = item.withGst !== false;
+        return {
+          description: item.productName,
+          productId: item.productId || undefined,
+          qty: item.quantity,
+          rate: item.price,
+          discountPercent: Number(item.discountPercent) || 0,
+          gstPercent: withGst ? gstRate : 0,
+          taxable: item.lineNet,
+          tax: item.lineGst,
+          total: item.lineTotal,
+        };
+      });
+      let buyerGstin: string | null = (mapped.customerGstNumber as string) || null;
+      if (!buyerGstin && vendorId) {
+        const { rows: vr } = await localQuery(`SELECT gstin FROM vendors WHERE id=$1 AND tenant_id=$2`, [
+          vendorId,
+          tid,
+        ]);
+        buyerGstin = ((vr[0] as { gstin?: string } | undefined)?.gstin as string) || null;
+      }
+      const taxTotal = mapped.gstAmount;
+      const gstEnabled = taxTotal > 0 || invItems.some(it => (Number(it.gstPercent) || 0) > 0);
+      const sellerGstin = await resolveSellerGstin(tid!);
+      const interstate = gstEnabled ? isInterstateSupply(sellerGstin, buyerGstin) : false;
+      const { taxCgst, taxSgst, taxIgst } = splitGstTax(taxTotal, interstate);
+      const customerName = mapped.customerName || 'Customer';
+      const invoiceDate = new Date().toISOString().slice(0, 10);
       await localQuery(
         `INSERT INTO standalone_invoices
-           (id, tenant_id, invoice_number, customer_name, client_name, status, items, subtotal, tax, tax_total, grand_total, total, invoice_date)
-         VALUES ($1,$2,$3,$4,$4,'sent',$5,$6,$7,$7,$8,$8,$9)`,
+           (id, tenant_id, invoice_number, customer_name, client_name, client_id, customer_gstin,
+            customer_phone, party_type, party_id, status, items, subtotal, tax, tax_total, grand_total, total,
+            notes, invoice_date, tax_cgst, tax_sgst, tax_igst, is_interstate, gst_enabled)
+         VALUES ($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,'sent',$10,$11,$12,$12,$13,$13,$14,$15,$16,$17,$18,$19,$20)`,
         [
           invId,
           tid,
           invNum,
-          mapped.customerName || 'Customer',
-          JSON.stringify(mapped.items),
+          customerName,
+          vendorId,
+          buyerGstin,
+          mapped.customerPhone ?? null,
+          vendorId ? 'vendor' : null,
+          vendorId,
+          JSON.stringify(invItems),
           mapped.subtotal,
-          mapped.gstAmount,
+          taxTotal,
           mapped.total,
-          mapped.orderDate || new Date().toISOString().slice(0, 10),
+          order.notes || `From order ${mapped.orderNumber || ''}`,
+          invoiceDate,
+          taxCgst,
+          taxSgst,
+          taxIgst,
+          interstate,
+          gstEnabled,
         ],
       );
+      await applyAdvancesToInvoice(tid!, invId);
       await localQuery(`UPDATE orders SET status='Fulfilled', fulfilled_batch_id=$1 WHERE id=$2 AND tenant_id=$3`, [
         invId,
         oid,
