@@ -536,7 +536,6 @@ export function generateStandaloneInvoiceHtml(
   const hasGst = options?.hasGst ?? inv.gstEnabled === true;
   const docTitle = isQuote ? 'Quotation' : hasGst ? 'Tax Invoice' : 'Invoice';
   const numberLabel = isQuote ? 'Quotation No' : 'Invoice No';
-  const dueLabel = isQuote ? 'Valid until' : 'Due';
   const certText = isQuote
     ? 'This quotation is subject to confirmation.'
     : 'Certified that the particulars given above are true and correct.';
@@ -657,7 +656,7 @@ export function generateStandaloneInvoiceHtml(
       <table style="width:100%;">
         <tr class="cust-row"><td class="cust-label">${esc(numberLabel)}</td><td><strong style="font-family:monospace;">${esc(invPrefix)}${esc(inv.invoiceNumber)}</strong></td></tr>
         <tr class="cust-row"><td class="cust-label">Date</td><td><strong>${fmtDate(inv.invoiceDate)}</strong></td></tr>
-        ${inv.dueDate ? `<tr class="cust-row"><td class="cust-label">${esc(dueLabel)}</td><td>${fmtDate(inv.dueDate)}</td></tr>` : ''}
+        ${isQuote && inv.dueDate ? `<tr class="cust-row"><td class="cust-label">Valid until</td><td>${fmtDate(inv.dueDate)}</td></tr>` : ''}
         ${!isQuote && inv.status === 'paid' ? '<tr class="cust-row"><td class="cust-label">Status</td><td><strong>PAID</strong></td></tr>' : ''}
         ${isQuote && inv.status ? `<tr class="cust-row"><td class="cust-label">Status</td><td><strong>${esc(inv.status)}</strong></td></tr>` : ''}
       </table>

@@ -492,10 +492,7 @@ export function VendorMasterView({
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="font-bold font-mono text-sm">{inv.invoiceNumber}</p>
-                            <p className="text-xs text-gray-500">
-                              {formatDate(inv.invoiceDate)}
-                              {inv.dueDate ? ` · Due ${formatDate(inv.dueDate)}` : ''}
-                            </p>
+                            <p className="text-xs text-gray-500">{formatDate(inv.invoiceDate)}</p>
                             <p className="text-sm font-bold mt-1">{fmt(inv.grandTotal)}</p>
                             {(inv.advanceApplied || 0) > 0 && (
                               <p className="text-xs text-emerald-600">

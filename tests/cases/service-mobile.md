@@ -21,7 +21,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5d5 | Unexpected-stop bug report | Force-stop Cap while foregrounded mid-WhatsApp PDF (or kill WebView); relaunch. Separately: background app then swipe away | After force-stop: `Dhandho/bug-reports/dhandho-bug-report-unexpected-*.txt` appears with WhatsApp/PDF breadcrumb trail. After normal background dismiss: **no** new auto report |
 | 5e | No chatbot | Any screen (sidebar / floating help) | No “May I help you?” widget; chatbot not in Offline Mobile |
 | 5f | UI density | Masters hub, Invoices, bottom nav | Smaller titles/body than desktop web; compact header + tab bar; forms not oversized |
-| 5g | Invoice create mobile | Invoices → New → Party → Items → Review | Stepper on phone; line items as cards (no sideways scroll); stacked Cancel/Draft/Send |
+| 5g | Invoice create mobile | Invoices → New → Party → Items → Review | Stepper on phone; line items as cards (no sideways scroll); stacked Cancel/Draft/Send; Party step has **Invoice Date** only (no Due Date). Tax Invoice print/PDF/WhatsApp shows Date, not Due |
 | 5h | Purchase/Quote lines | Purchases / Quotations create modals | Line items as cards on phone; desktop table unchanged |
 | 5i | Drawer + toast | More → drawer; trigger a toast | Settings pinned at bottom; toast below status bar / safe area |
 | 5j | Bottom nav IA | Glance at phone tab bar | Analytics · Masters · Invoice · Quotes · More (not Inventory/Finance as primary). Same Emergent IA as Service Cloud Capacitor service via `isServicePhoneUx`; Sync / demo seed / Show Accounts / advances stay Offline-only here |

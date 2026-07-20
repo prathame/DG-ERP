@@ -103,6 +103,28 @@ describe('generateStandaloneInvoiceHtml', () => {
     expect(html).not.toContain('Tax Invoice');
     expect(html).toContain('This quotation is subject to confirmation.');
   });
+
+  it('omits invoice due date even when present; quotations still show Valid until', () => {
+    const invoiceHtml = generateStandaloneInvoiceHtml(
+      { ...baseInv, dueDate: '2026-08-01' },
+      { companyName: 'Shop' },
+      {},
+      { hasGst: true },
+    );
+    expect(invoiceHtml).toContain('Tax Invoice');
+    expect(invoiceHtml).toContain('Date');
+    expect(invoiceHtml).not.toContain('cust-label">Due');
+    expect(invoiceHtml).not.toContain('Valid until');
+
+    const quoteHtml = generateStandaloneInvoiceHtml(
+      { ...baseInv, dueDate: '2026-08-01' },
+      { companyName: 'Shop' },
+      {},
+      { hasGst: true, docType: 'quotation' },
+    );
+    expect(quoteHtml).toContain('Valid until');
+    expect(quoteHtml).not.toContain('cust-label">Due');
+  });
 });
 
 describe('amountInWords', () => {

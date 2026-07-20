@@ -89,6 +89,27 @@ describe('buildStandaloneInvoicePdfBlob (Cap light print-like)', () => {
     expect(text).not.toMatch(/(?:^|[^0-9])(?:180|200)(?:\s+(?:180|200)){0,2}\s+(?:RG|G)\b/);
   });
 
+  it('omits invoice due date meta even when set; quotations keep Valid until', async () => {
+    const invoiceBlob = await buildStandaloneInvoicePdfBlob(
+      { ...baseInv, dueDate: '2026-08-01' },
+      { companyName: 'Prathamesh' },
+      { hasGst: false, billSettings: { footerText: 'Powered by Dhandho Management' } },
+    );
+    const invoiceText = await pdfText(invoiceBlob);
+    expect(invoiceText).toContain('INVOICE');
+    expect(invoiceText).not.toMatch(/\bDue\b/);
+    expect(invoiceText).not.toContain('Valid until');
+
+    const quoteBlob = await buildStandaloneInvoicePdfBlob(
+      { ...baseInv, dueDate: '2026-08-01' },
+      { companyName: 'Prathamesh' },
+      { hasGst: false, docType: 'quotation', billSettings: {} },
+    );
+    const quoteText = await pdfText(quoteBlob);
+    expect(quoteText).toContain('Valid until');
+    expect(quoteText).not.toMatch(/(?:^|[^a-zA-Z])Due(?:[^a-zA-Z]|$)/);
+  });
+
   it('quotation variant titles QUOTATION and omits bank', async () => {
     const blob = await buildStandaloneInvoicePdfBlob(
       baseInv,

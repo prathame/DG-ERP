@@ -735,7 +735,6 @@ export function CreateInvoiceModal({
     customerAddress: initialParty?.customerAddress || '',
     customerPhone: initialParty?.customerPhone || '',
     invoiceDate: new Date().toISOString().slice(0, 10),
-    dueDate: '',
     notes: '',
     terms: '',
   });
@@ -987,7 +986,6 @@ export function CreateInvoiceModal({
         body: JSON.stringify({
           ...form,
           ...(servicePhoneUx ? { notes: '', terms: '' } : {}),
-          dueDate: form.dueDate?.trim() || null,
           invoiceNumber,
           gstEnabled: gstBilling,
           items: validRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId }) => ({
@@ -1391,14 +1389,6 @@ export function CreateInvoiceModal({
                       onChange={e => setForm({ ...form, invoiceDate: e.target.value })}
                       className={formControlClass}
                       required
-                    />
-                  </FormField>
-                  <FormField label="Due Date" hint="Optional — leave blank if not needed">
-                    <input
-                      type="date"
-                      value={form.dueDate}
-                      onChange={e => setForm({ ...form, dueDate: e.target.value })}
-                      className={formControlClass}
                     />
                   </FormField>
                 </FormGrid>

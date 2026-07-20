@@ -135,7 +135,6 @@ export async function buildStandaloneInvoicePdfBlob(
   const sigSrc = safeImgSrc(bs.signatureBase64);
   const docTitle = isQuote ? 'QUOTATION' : hasGst ? 'TAX INVOICE' : 'INVOICE';
   const numberLabel = isQuote ? 'Quotation No' : 'Invoice No';
-  const dueLabel = isQuote ? 'Valid until' : 'Due';
   const certText = isQuote
     ? 'This quotation is subject to confirmation.'
     : 'Certified that the particulars given above are true and correct.';
@@ -240,7 +239,7 @@ export async function buildStandaloneInvoicePdfBlob(
     [numberLabel, `${invPrefix}${inv.invoiceNumber}`],
     ['Date', fmtDate(inv.invoiceDate)],
   ];
-  if (inv.dueDate) metaRows.push([dueLabel, fmtDate(inv.dueDate)]);
+  if (isQuote && inv.dueDate) metaRows.push(['Valid until', fmtDate(inv.dueDate)]);
   if (!isQuote && String(inv.status || '').toLowerCase() === 'paid') metaRows.push(['Status', 'PAID']);
   if (isQuote && inv.status) metaRows.push(['Status', String(inv.status)]);
   const hdrH = Math.max(22, 12 + companyLines.length * 3.6, 6 + metaRows.length * 5.5);
