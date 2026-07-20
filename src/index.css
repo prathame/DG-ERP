@@ -224,24 +224,13 @@ select:focus-visible {
   background: #D1D5DB;
 }
 
-/* Mobile table scroll hint */
+/* Mobile wide tables: allow horizontal pan; no fake edge chrome (ghost stripe on Cap). */
 @media (max-width: 640px) {
   .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
-    position: relative;
   }
   .overflow-x-auto table {
     min-width: 600px;
-  }
-  .overflow-x-auto::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 20px;
-    background: linear-gradient(to right, transparent, rgba(0,0,0,0.03));
-    pointer-events: none;
   }
 }
 

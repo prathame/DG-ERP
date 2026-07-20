@@ -23,15 +23,17 @@ Ships inside the **unified Cap shell** (`dist-service-phone`): first launch pick
 
 ## Policy: we do not store business data
 
-On the Cap phone app (**Online and Offline**), files are written under a fixed **Dhandho/** folder (no path picker):
+On the Cap phone app (**Online and Offline**), files are written under a fixed **Documents/Dhandho/** folder (no path picker):
 
 | Subfolder | Contents |
 |-----------|----------|
-| `Dhandho/backups/` | Offline: encrypted local backup `.json`. Online: cloud backup download `.json` |
-| `Dhandho/invoices/` | Invoice / quote PDFs |
-| `Dhandho/bug-reports/` | Bug report `.txt` |
+| `Documents/Dhandho/backups/` | Offline: encrypted local backup `.json`. Online: cloud backup download `.json` |
+| `Documents/Dhandho/invoices/` | Invoice / quote PDFs |
+| `Documents/Dhandho/bug-reports/` | Bug report `.txt` (manual Share + **auto** after Cap unexpected stop / freeze) |
 
-Android uses the app external files directory; iOS uses Documents. Settings → Backup shows **Backup started…** then **Backup done — saved to Dhandho/backups/…**.
+**Unexpected stop (Cap):** While the app is foregrounded, a dirty session flag is set; on pause/background it is cleared (clean shutdown). If the process dies without that clean mark (crash, WhatsApp/WebView freeze kill), the next launch silently writes `dhandho-bug-report-unexpected-*.txt` under `Documents/Dhandho/bug-reports/`. Client breadcrumbs and the log ring are write-through to `localStorage` so WhatsApp/PDF steps survive process death (sessionStorage alone would be empty). OS background kills after a normal pause do **not** create a report.
+
+Both platforms use Capacitor `Directory.Documents` (Android public Documents; iOS app Documents + Files sharing). On Samsung/Android open **My Files → Internal storage → Documents → Dhandho → backups**. Settings → Backup shows **Backup started…** then **Backup done — saved to Documents/Dhandho/backups/…** only after `Filesystem.stat` confirms a non-empty file.
 
 Offline Mobile backups are **user-owned** (phone file + optional mailto to staff Gmail). Cloud backup upload/download APIs for Offline return **410**.
 

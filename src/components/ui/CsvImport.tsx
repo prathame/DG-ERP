@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Download, X, Check, AlertCircle, AlertTriangle } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { reportActionFailed } from '../../lib/reportActionFailure';
 
 export interface CsvImportProps {
   onImport: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[] }>;
@@ -125,10 +126,14 @@ export function CsvImport({
       if (r.success === 0 && r.errors.length > 0) {
         const rowMatch = r.errors[0].match(/Row\s+(\d+)/i);
         if (rowMatch) setErrorRow(parseInt(rowMatch[1]) - 2);
+        void reportActionFailed(`import.${templateName}`, r.errors[0] || 'Import failed', {
+          errorCount: r.errors.length,
+        });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Import failed';
       setError(msg);
+      void reportActionFailed(`import.${templateName}`, err);
       const rowMatch = msg.match(/Row\s+(\d+)/i);
       if (rowMatch) setErrorRow(parseInt(rowMatch[1]) - 2);
       const nameMatch = msg.match(/"([^"]+)" already exists/);

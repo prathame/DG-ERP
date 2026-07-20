@@ -3,6 +3,7 @@
  * Business ERP traffic never goes here — only activate, heartbeat, backup.
  */
 import { clientLogger } from '../../lib/logger';
+import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
 import { normalizeActivateResult, type ServiceMobileActivateResult } from './activateResult';
 
 export type { ServiceMobileActivateResult };
@@ -78,6 +79,9 @@ export async function activateLicense(input: {
         responseKeys: data && typeof data === 'object' ? Object.keys(data as object) : [],
         cloudOrigin: cloudOrigin() || '(vite-proxy)',
       });
+      reportActionBlocked('license.activate', result.error || 'Activation failed', {
+        statusCode: status,
+      });
       return result;
     }
     clientLogger.info('License activation ok', {
@@ -94,6 +98,7 @@ export async function activateLicense(input: {
       licenseKeyPrefix: input.licenseKey.slice(0, 8),
       cloudOrigin: cloudOrigin() || '(vite-proxy)',
     });
+    void reportActionFailed('license.activate', err);
     throw err;
   }
 }
