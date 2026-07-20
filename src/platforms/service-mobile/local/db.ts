@@ -37,6 +37,16 @@ async function createAndMigrate(): Promise<PGlite> {
   return instance;
 }
 
+/** After `db` is assigned — remaps legacy convert line/party shape (idempotent). */
+async function runDataRepairs(): Promise<void> {
+  try {
+    const { repairLegacyConvertedInvoices } = await import('./repairConvertedInvoices');
+    await repairLegacyConvertedInvoices();
+  } catch (err) {
+    console.warn('[service-mobile] convert-invoice repair skipped', err);
+  }
+}
+
 async function deleteIdbStore(): Promise<void> {
   if (typeof indexedDB === 'undefined') return;
   await new Promise<void>(resolve => {
@@ -54,6 +64,7 @@ export async function getLocalDb(): Promise<PGlite> {
       try {
         const instance = await createAndMigrate();
         db = instance;
+        await runDataRepairs();
         return instance;
       } catch (first) {
         // Corrupted IDB or interrupted first boot (common after Vite/WASM hiccups) — wipe once and retry.
@@ -61,6 +72,7 @@ export async function getLocalDb(): Promise<PGlite> {
         await deleteIdbStore();
         const instance = await createAndMigrate();
         db = instance;
+        await runDataRepairs();
         return instance;
       }
     })().catch(err => {
@@ -166,6 +178,7 @@ export async function restoreLocalDbFromJson(bytes: Uint8Array): Promise<void> {
       }
     }
   }
+  await runDataRepairs();
 }
 
 export async function wipeLocalDb(): Promise<void> {

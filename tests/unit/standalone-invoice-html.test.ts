@@ -59,6 +59,9 @@ describe('generateStandaloneInvoiceHtml', () => {
     const printEndAt = html.indexOf('class="print-end');
     const gstTableAt = html.indexOf('CGST Rate');
     expect(gstTableAt).toBeGreaterThan(printEndAt);
+    // Table/section borders stay dark (#222), not washed #ccc/#ddd
+    expect(html).toContain('border:1px solid #222');
+    expect(html).not.toMatch(/border:[^;]*#ccc|border-bottom:[^;]*#ddd/);
   });
 
   it('omits GST summary table when invoice is non-GST', () => {
@@ -77,6 +80,50 @@ describe('generateStandaloneInvoiceHtml', () => {
     expect(html).toContain('Invoice');
     expect(html).not.toContain('CGST Rate');
     expect(html).toContain('class="outer');
+  });
+
+  it('quotation variant uses QUOTATION title and omits bank', () => {
+    const html = generateStandaloneInvoiceHtml(
+      baseInv,
+      { companyName: 'Shop', phone: '999' },
+      {
+        bankName: 'Demo Bank',
+        bankAccountNumber: '123',
+        bankUpiId: 'a@upi',
+        footerText: 'Thanks for business with us',
+        termsAndConditions: 'Material cost 100% advance',
+      },
+      { hasGst: true, docType: 'quotation' },
+    );
+    expect(html).toContain('Quotation');
+    expect(html).toContain('Quotation No');
+    expect(html).toContain('print-end');
+    expect(html).toContain('Thanks for business with us');
+    expect(html).not.toContain('Bank Details');
+    expect(html).not.toContain('Tax Invoice');
+    expect(html).toContain('This quotation is subject to confirmation.');
+  });
+
+  it('omits invoice due date even when present; quotations still show Valid until', () => {
+    const invoiceHtml = generateStandaloneInvoiceHtml(
+      { ...baseInv, dueDate: '2026-08-01' },
+      { companyName: 'Shop' },
+      {},
+      { hasGst: true },
+    );
+    expect(invoiceHtml).toContain('Tax Invoice');
+    expect(invoiceHtml).toContain('Date');
+    expect(invoiceHtml).not.toContain('cust-label">Due');
+    expect(invoiceHtml).not.toContain('Valid until');
+
+    const quoteHtml = generateStandaloneInvoiceHtml(
+      { ...baseInv, dueDate: '2026-08-01' },
+      { companyName: 'Shop' },
+      {},
+      { hasGst: true, docType: 'quotation' },
+    );
+    expect(quoteHtml).toContain('Valid until');
+    expect(quoteHtml).not.toContain('cust-label">Due');
   });
 });
 

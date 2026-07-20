@@ -113,11 +113,15 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
     if (whatsappBusyId) return;
     setWhatsappBusyId(invoiceId);
     try {
-      const how = await shareStandaloneInvoiceWhatsAppById(invoiceId, { businessType: cfg.type });
+      const { how, errorHint } = await shareStandaloneInvoiceWhatsAppById(invoiceId, {
+        businessType: cfg.type,
+        onPreparing: () => toast('Preparing PDF…', 'info'),
+      });
       if (how === 'cancelled') return;
-      toast(whatsAppInvoiceShareToast(how), 'success');
+      toast(whatsAppInvoiceShareToast(how, errorHint), how === 'pdf_fallback' ? 'info' : 'success');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not share invoice', 'error');
+      const msg = err instanceof Error ? err.message : 'Could not share invoice';
+      toast(msg.length > 100 ? `${msg.slice(0, 99)}…` : msg, 'error');
     } finally {
       setWhatsappBusyId(null);
     }
@@ -361,10 +365,7 @@ export function InvoiceFinanceView({ accessLevel = 'full' }: { accessLevel?: 'hi
                         <div className="flex items-start justify-between gap-4 flex-wrap">
                           <div className="min-w-0">
                             <p className="font-bold font-mono text-sm">{inv.invoiceNumber}</p>
-                            <p className="text-xs text-gray-500">
-                              {formatDate(inv.invoiceDate)}
-                              {inv.dueDate ? ` · Due ${formatDate(inv.dueDate)}` : ''}
-                            </p>
+                            <p className="text-xs text-gray-500">{formatDate(inv.invoiceDate)}</p>
                             {inv.notes && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{inv.notes}</p>}
                             <p className="text-sm font-bold mt-1">{fmt(inv.grandTotal)}</p>
                             {(inv.advanceApplied || 0) > 0 && (

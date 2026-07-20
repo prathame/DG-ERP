@@ -26,11 +26,13 @@ import {
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
+import { scheduleBakeCapBillPdfCache } from '../../lib/capBillPdfCache';
 import {
   printStandaloneInvoice,
   shareStandaloneInvoiceWhatsApp,
   whatsAppInvoiceShareToast,
 } from '../../lib/printStandaloneInvoice';
+import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
@@ -194,6 +196,7 @@ export function InvoicesView() {
       toast('Invoice deleted', 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('invoice.delete', err, { invoiceNumber: deleteTarget.invoiceNumber });
     }
   };
 
@@ -204,6 +207,7 @@ export function InvoicesView() {
       toast(`Invoice marked as ${status}`, 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('invoice.status', err, { status, invoiceNumber: inv.invoiceNumber });
     }
   };
 
@@ -227,6 +231,7 @@ export function InvoicesView() {
       await printStandaloneInvoice(inv, { billSettings, businessType: cfg.type });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
+      void reportActionFailed('invoice.print', err, { invoiceNumber: inv.invoiceNumber });
     }
   };
 
@@ -234,14 +239,17 @@ export function InvoicesView() {
     if (whatsappBusyId) return;
     setWhatsappBusyId(inv.id);
     try {
-      const how = await shareStandaloneInvoiceWhatsApp(inv, {
+      const { how, errorHint } = await shareStandaloneInvoiceWhatsApp(inv, {
         billSettings,
         businessType: cfg.type,
+        onPreparing: () => toast('Preparing PDF…', 'info'),
       });
       if (how === 'cancelled') return;
-      toast(whatsAppInvoiceShareToast(how), 'success');
+      toast(whatsAppInvoiceShareToast(how, errorHint), how === 'pdf_fallback' ? 'info' : 'success');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not share invoice', 'error');
+      const msg = err instanceof Error ? err.message : 'Could not share invoice';
+      toast(msg.length > 100 ? `${msg.slice(0, 99)}…` : msg, 'error');
+      void reportActionFailed('invoice.whatsapp', err, { invoiceNumber: inv.invoiceNumber });
     } finally {
       setWhatsappBusyId(null);
     }
@@ -376,9 +384,6 @@ export function InvoicesView() {
                           <p className="text-[10px] text-emerald-600">
                             Adv ₹{Number(inv.advanceApplied).toLocaleString()}
                           </p>
-                        )}
-                        {(inv.outstanding || 0) > 0.001 && inv.status !== 'paid' && (
-                          <p className="text-[10px] text-rose-600">Due ₹{Number(inv.outstanding).toLocaleString()}</p>
                         )}
                         {statusBadge(inv.status)}
                       </div>
@@ -727,7 +732,6 @@ export function CreateInvoiceModal({
     customerAddress: initialParty?.customerAddress || '',
     customerPhone: initialParty?.customerPhone || '',
     invoiceDate: new Date().toISOString().slice(0, 10),
-    dueDate: '',
     notes: '',
     terms: '',
   });
@@ -979,7 +983,6 @@ export function CreateInvoiceModal({
         body: JSON.stringify({
           ...form,
           ...(servicePhoneUx ? { notes: '', terms: '' } : {}),
-          dueDate: form.dueDate?.trim() || null,
           invoiceNumber,
           gstEnabled: gstBilling,
           items: validRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId }) => ({
@@ -997,6 +1000,10 @@ export function CreateInvoiceModal({
         }),
       });
       toast(`Invoice ${created?.invoiceNumber || invoiceNumber} created`, 'success');
+      // Cap: bake PDF under Documents/Dhandho/invoices/ for faster WhatsApp (failure ignored).
+      if (created?.id) {
+        scheduleBakeCapBillPdfCache(created);
+      }
       // Stay open so vendor/client create can Print immediately
       if (created?.items && Array.isArray(created.items)) {
         setCreatedInvoice(created);
@@ -1005,6 +1012,7 @@ export function CreateInvoiceModal({
       }
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('invoice.save', err);
     } finally {
       setSubmitting(false);
     }
@@ -1016,17 +1024,20 @@ export function CreateInvoiceModal({
       await printStandaloneInvoice(createdInvoice, { businessType: cfg.type });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
+      void reportActionFailed('invoice.print', err, { invoiceNumber: createdInvoice.invoiceNumber });
     }
   };
 
   const goNext = () => {
     if (step === 0 && !form.customerName.trim()) {
+      reportActionBlocked('invoice.save', 'Customer name is required');
       toast('Customer name is required', 'error');
       return;
     }
     if (step === 1) {
       const validRows = rows.filter(r => r.description.trim() && r.rate > 0);
       if (!validRows.length) {
+        reportActionBlocked('invoice.save', 'Add at least one line item');
         toast('Add at least one line item', 'error');
         return;
       }
@@ -1375,14 +1386,6 @@ export function CreateInvoiceModal({
                       onChange={e => setForm({ ...form, invoiceDate: e.target.value })}
                       className={formControlClass}
                       required
-                    />
-                  </FormField>
-                  <FormField label="Due Date" hint="Optional — leave blank if not needed">
-                    <input
-                      type="date"
-                      value={form.dueDate}
-                      onChange={e => setForm({ ...form, dueDate: e.target.value })}
-                      className={formControlClass}
                     />
                   </FormField>
                 </FormGrid>

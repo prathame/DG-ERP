@@ -134,10 +134,10 @@ export function openBackupMailto(email: string, filename: string, companyName: s
   const to = email.trim();
   if (!to || typeof window === 'undefined') return;
   const subject = encodeURIComponent(`Offline Mobile backup — ${companyName}`);
-  const where = relativePath || `Dhandho/backups/${filename}`;
+  const where = relativePath || `Documents/Dhandho/backups/${filename}`;
   const body = encodeURIComponent(
     `Your Offline Mobile App backup file was saved on this phone as:\n\n${where}\n\n` +
-      `Open the Files app and look under the Dhandho folder (backups) to attach it in Gmail.\n\n` +
+      `Open My Files / Files → Documents → Dhandho → backups to attach it in Gmail.\n\n` +
       `Dhando does not store your business data — keep this file safe.`,
   );
   window.location.href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;

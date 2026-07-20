@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   Send,
   MessageCircle,
-  Mail,
   Check,
   X,
   Trash2,
@@ -15,16 +14,7 @@ import {
   Printer,
   Upload,
 } from 'lucide-react';
-import {
-  cn,
-  formatDate,
-  shareViaWhatsApp,
-  shareViaEmail,
-  openPrintWindow,
-  printBillInWindow,
-  fetchImageAsDataUrl,
-  PRINT_POPUP_BLOCKED,
-} from '../../lib/utils';
+import { cn, formatDate, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { api, fetchApi } from '../../api';
 import type { BillSettings, Product, Vendor } from '../../types';
@@ -47,11 +37,14 @@ import {
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
 import { session } from '../../lib/session';
-import { generateQuotationHtml } from '../../lib/billTemplates';
+import { generateQuotationHtml, quotationToStandalonePrint } from '../../lib/billTemplates';
+import { scheduleBakeCapBillPdfCache } from '../../lib/capBillPdfCache';
+import { shareStandaloneInvoiceWhatsApp, whatsAppInvoiceShareToast } from '../../lib/printStandaloneInvoice';
 import { useTranslation } from '../../i18n';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 import { CsvImport } from '../../components/ui/CsvImport';
 import { importQuotationsFromRows, QUOTATION_IMPORT_COLUMNS } from '../../lib/documentImport';
+import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
 
 function asApiList<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
@@ -140,6 +133,7 @@ export function QuotationsView() {
   });
   const [rows, setRows] = useState<QuoteLineRow[]>([emptyQuoteRow()]);
   const [billSettings, setBillSettings] = useState<BillSettings | null>(null);
+  const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const sessionUser = session.getUser() as Record<string, unknown> | null;
@@ -198,24 +192,16 @@ export function QuotationsView() {
   };
 
   const printQuotation = async (q: Quotation) => {
-    // Same A4 preview chrome as invoice bills (system Print → Save as PDF)
+    // Shared bill template (QUOTATION title, no bank) + same print pagination as invoices
     const w = openPrintWindow('Preparing quotation…', { hidePdfDownload: true });
     if (!w) {
+      reportActionBlocked('quote.print', PRINT_POPUP_BLOCKED, { quotationNumber: q.quotationNumber });
       toast(PRINT_POPUP_BLOCKED, 'error');
       return;
     }
     try {
       const user = session.getUser() as Record<string, unknown> | null;
       const bs = (billSettings || {}) as Record<string, unknown>;
-      let qrDataUrl: string | undefined;
-      if (bs.bankUpiId) {
-        qrDataUrl =
-          (await fetchImageAsDataUrl(
-            `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(
-              `upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`,
-            )}`,
-          )) || undefined;
-      }
       const html = generateQuotationHtml(
         {
           quotationNumber: q.quotationNumber,
@@ -231,7 +217,7 @@ export function QuotationsView() {
           gstRate: q.gstRate,
           gstAmount: q.gstAmount,
           total: q.total,
-          // Offline: do not print per-quote notes; bank/T&C come from bill settings
+          // Offline: do not print per-quote notes; T&C come from bill settings
           notes: offlinePdf ? undefined : q.notes,
           company: {
             name: String(user?.companyName || 'Dhandho'),
@@ -242,7 +228,7 @@ export function QuotationsView() {
           },
           billSettings: bs,
         },
-        { qrDataUrl },
+        { hideNotes: offlinePdf },
       );
       printBillInWindow(w, html, `Quotation-${q.quotationNumber}`);
     } catch (err) {
@@ -252,6 +238,52 @@ export function QuotationsView() {
         /* ignore */
       }
       toast((err as Error).message || 'Print failed', 'error');
+      void reportActionFailed('quote.print', err, { quotationNumber: q.quotationNumber });
+    }
+  };
+
+  const shareQuotationWhatsApp = async (q: Quotation) => {
+    if (whatsappBusyId) return;
+    setWhatsappBusyId(q.id);
+    try {
+      const printable = {
+        ...quotationToStandalonePrint({
+          quotationNumber: q.quotationNumber,
+          quotationDate: q.quotationDate,
+          validUntil: q.validUntil,
+          status: q.status,
+          customerName: q.customerName,
+          customerPhone: q.customerPhone,
+          customerEmail: q.customerEmail,
+          vendorName: q.vendorName,
+          items: q.items,
+          subtotal: q.subtotal,
+          gstRate: q.gstRate,
+          gstAmount: q.gstAmount,
+          total: q.total,
+          notes: offlinePdf ? undefined : q.notes,
+          company: { name: companyName || 'Dhandho' },
+          billSettings: (billSettings || {}) as Record<string, unknown>,
+        }),
+        id: q.id,
+        taxTotal: q.gstAmount,
+        customerPhone: q.customerPhone,
+        grandTotal: q.total,
+      };
+      const { how, errorHint } = await shareStandaloneInvoiceWhatsApp(printable, {
+        billSettings: (billSettings || {}) as Record<string, unknown>,
+        businessType: String(sessionUser?.businessType || ''),
+        docType: 'quotation',
+        onPreparing: () => toast('Preparing PDF…', 'info'),
+      });
+      if (how === 'cancelled') return;
+      toast(whatsAppInvoiceShareToast(how, errorHint), how === 'pdf_fallback' ? 'info' : 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not share quotation';
+      toast(msg.length > 100 ? `${msg.slice(0, 99)}…` : msg, 'error');
+      void reportActionFailed('quote.whatsapp', err, { quotationNumber: q.quotationNumber });
+    } finally {
+      setWhatsappBusyId(null);
     }
   };
 
@@ -362,10 +394,13 @@ export function QuotationsView() {
       return Boolean(r.description.trim() && parseFloat(r.customPrice) > 0);
     });
     if (validRows.length === 0) {
-      toast(offlinePdf ? 'Add at least one line (Price List item or custom)' : 'Add at least one product', 'error');
+      const reason = offlinePdf ? 'Add at least one line (Price List item or custom)' : 'Add at least one product';
+      reportActionBlocked('quote.save', reason);
+      toast(reason, 'error');
       return;
     }
     if (!offlinePdf && validRows.some(r => !r.productId)) {
+      reportActionBlocked('quote.save', 'Select a product for each line');
       toast('Select a product for each line', 'error');
       return;
     }
@@ -389,28 +424,72 @@ export function QuotationsView() {
           withGst: r.withGst,
         })),
       };
-      if (editingId) {
-        await fetchApi(`/quotations/${editingId}`, { method: 'PUT', body: JSON.stringify(body) });
-        toast('Quotation updated', 'success');
-      } else {
-        await fetchApi('/quotations', { method: 'POST', body: JSON.stringify(body) });
-        toast('Quotation created', 'success');
+      const saved = editingId
+        ? await fetchApi<Quotation>(`/quotations/${editingId}`, { method: 'PUT', body: JSON.stringify(body) })
+        : await fetchApi<Quotation>('/quotations', { method: 'POST', body: JSON.stringify(body) });
+      toast(editingId ? 'Quotation updated' : 'Quotation created', 'success');
+      // Cap: bake PDF under Documents/Dhandho/invoices/ for faster WhatsApp (failure ignored).
+      if (saved?.id) {
+        scheduleBakeCapBillPdfCache(
+          {
+            ...quotationToStandalonePrint({
+              quotationNumber: saved.quotationNumber,
+              quotationDate: saved.quotationDate,
+              validUntil: saved.validUntil,
+              status: saved.status,
+              customerName: saved.customerName,
+              customerPhone: saved.customerPhone,
+              customerEmail: saved.customerEmail,
+              vendorName: saved.vendorName,
+              items: saved.items,
+              subtotal: saved.subtotal,
+              gstRate: saved.gstRate,
+              gstAmount: saved.gstAmount,
+              total: saved.total,
+              notes: offlinePdf ? undefined : saved.notes,
+              company: { name: companyName || 'Dhandho' },
+              billSettings: (billSettings || {}) as Record<string, unknown>,
+            }),
+            id: saved.id,
+            taxTotal: saved.gstAmount,
+            grandTotal: saved.total,
+          },
+          { billSettings: (billSettings || {}) as Record<string, unknown>, docType: 'quotation' },
+        );
       }
       setModalOpen(false);
       resetForm();
       load();
       if (editingId && selectedId === editingId) {
-        const refreshed = await fetchApi<Quotation>(`/quotations/${editingId}`);
-        setSelected(refreshed);
+        setSelected(saved);
       }
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('quote.save', err, { editing: Boolean(editingId) });
     } finally {
       setSubmitting(false);
     }
   };
 
   const openConvert = (q: Quotation) => {
+    if (q.status !== 'Accepted') {
+      const reason =
+        q.status === 'Draft'
+          ? 'Mark as Sent, then Accepted before converting'
+          : q.status === 'Sent'
+            ? 'Mark as Accepted first'
+            : `Cannot convert while status is ${q.status}`;
+      reportActionBlocked('quote.convert', reason, { status: q.status, quotationNumber: q.quotationNumber });
+      toast(reason, 'error');
+      return;
+    }
+    if (!isService && !q.vendorId) {
+      reportActionBlocked('quote.convert', 'Link a vendor before converting', {
+        quotationNumber: q.quotationNumber,
+      });
+      toast('Link a vendor before converting', 'error');
+      return;
+    }
     const lines = q.items
       .map((i, lineIndex) => {
         const remaining = i.quantity - (Number(i.convertedQty) || 0);
@@ -424,6 +503,7 @@ export function QuotationsView() {
       })
       .filter(l => l.remaining > 0);
     if (lines.length === 0) {
+      reportActionBlocked('quote.convert', 'Nothing left to convert', { quotationNumber: q.quotationNumber });
       toast('Nothing left to convert', 'error');
       return;
     }
@@ -439,6 +519,9 @@ export function QuotationsView() {
           .filter(l => l.qty > 0)
           .map(l => ({ productId: l.productId, quantity: l.qty, lineIndex: l.lineIndex }));
     if (!full && (!items || items.length === 0)) {
+      reportActionBlocked('quote.convert', 'Select at least one quantity to convert', {
+        quotationNumber: q.quotationNumber,
+      });
       toast('Select at least one quantity to convert', 'error');
       return;
     }
@@ -477,6 +560,7 @@ export function QuotationsView() {
       setSelected(null);
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('quote.convert', err, { quotationNumber: q.quotationNumber });
     }
   };
 
@@ -488,6 +572,7 @@ export function QuotationsView() {
       toast(`Status updated to ${status}`, 'success');
     } catch (err) {
       toast((err as Error).message, 'error');
+      void reportActionFailed('quote.status', err, { status, quotationNumber: q.quotationNumber });
     }
   };
 
@@ -503,17 +588,6 @@ export function QuotationsView() {
     } catch (err) {
       toast((err as Error).message, 'error');
     }
-  };
-
-  const formatQuotationText = (q: Quotation) => {
-    let text = `📋 *QUOTATION ${q.quotationNumber}*\n${companyName ? `From: ${companyName}\n` : ''}${q.customerName ? `To: ${q.customerName}\n` : ''}Date: ${formatDate(q.quotationDate)}\n${q.validUntil ? `Valid until: ${formatDate(q.validUntil)}\n` : ''}\n`;
-    text += `*Items:*\n`;
-    for (const item of q.items) {
-      text += `• ${item.productName} × ${item.quantity} — ₹${item.lineTotal.toLocaleString()}\n`;
-    }
-    text += `\n*Subtotal:* ₹${q.subtotal.toLocaleString()}\n*GST:* ₹${q.gstAmount.toLocaleString()}\n*Total:* ₹${q.total.toLocaleString()}`;
-    if (q.notes) text += `\n\n_${q.notes}_`;
-    return text;
   };
 
   if (loading)
@@ -560,8 +634,8 @@ export function QuotationsView() {
   );
   const filtered = statusFilter === 'all' ? quotations : quotations.filter(q => q.status === statusFilter);
 
-  if (selectedId && selected) {
-    return (
+  const detailPane =
+    selectedId && selected ? (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
@@ -605,7 +679,7 @@ export function QuotationsView() {
                   <Check size={14} /> Accepted
                 </button>
               )}
-              {selected.status === 'Accepted' && (isService || selected.vendorId) && (
+              {(selected.status === 'Draft' || selected.status === 'Sent' || selected.status === 'Accepted') && (
                 <button
                   type="button"
                   onClick={() => openConvert(selected)}
@@ -629,30 +703,16 @@ export function QuotationsView() {
                   </>
                 )}
               </button>
-              {selected.customerPhone && (
-                <button
-                  type="button"
-                  onClick={() => shareViaWhatsApp(selected.customerPhone!, formatQuotationText(selected))}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg"
-                >
-                  <MessageCircle size={14} /> WhatsApp
-                </button>
-              )}
-              {selected.customerEmail && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    shareViaEmail(
-                      selected.customerEmail!,
-                      `Quotation ${selected.quotationNumber}`,
-                      formatQuotationText(selected),
-                    )
-                  }
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg"
-                >
-                  <Mail size={14} /> Email
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={whatsappBusyId === selected.id}
+                onClick={() => void shareQuotationWhatsApp(selected)}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-60"
+                title="Share on WhatsApp"
+                aria-label="Share quotation on WhatsApp"
+              >
+                <MessageCircle size={14} /> {whatsappBusyId === selected.id ? 'Preparing…' : 'WhatsApp'}
+              </button>
               {(selected.status === 'Draft' || selected.status === 'Rejected') && (
                 <button
                   type="button"
@@ -734,11 +794,32 @@ export function QuotationsView() {
                 Converted to distribution: {selected.convertedBatchId}
               </p>
             )}
+            {/* Cap / phone: Print + WhatsApp always visible (header can wrap with status actions) */}
+            <div className="sm:hidden flex gap-2 mt-4 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => void printQuotation(selected)}
+                className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold flex items-center justify-center gap-2"
+              >
+                {offlinePdf ? <Download size={16} /> : <Printer size={16} />}
+                {offlinePdf ? t('common.downloadPdf') : 'Print'}
+              </button>
+              <button
+                type="button"
+                disabled={whatsappBusyId === selected.id}
+                onClick={() => void shareQuotationWhatsApp(selected)}
+                className="px-4 py-2.5 border border-green-200 text-green-700 rounded-xl font-medium text-sm inline-flex items-center gap-1.5 disabled:opacity-50"
+                title="Share on WhatsApp"
+                aria-label="Share quotation on WhatsApp"
+              >
+                <MessageCircle size={16} />
+                {whatsappBusyId === selected.id ? 'Preparing…' : 'WhatsApp'}
+              </button>
+            </div>
           </div>
         </div>
       </motion.div>
-    );
-  }
+    ) : null;
 
   const openCreate = () => {
     resetForm();
@@ -746,7 +827,7 @@ export function QuotationsView() {
     setModalOpen(true);
   };
 
-  return (
+  const listPane = (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2 sm:space-y-6 pb-14 sm:pb-0">
       <div className="hidden sm:flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -847,27 +928,50 @@ export function QuotationsView() {
         </>
       ) : (
         <>
-          {/* Phone dense rows */}
-          <div className="sm:hidden space-y-1.5">
+          {/* Phone cards with Print / WhatsApp (same pattern as Invoices) */}
+          <div className="sm:hidden space-y-2">
             {filtered.map(q => (
               <Fragment key={q.id}>
-                <MobileListRow
-                  icon={<FileText />}
-                  title={
-                    <span className="flex items-center gap-1.5 min-w-0">
-                      <span className="truncate">{q.quotationNumber}</span>
-                      {statusBadge(q.status)}
-                    </span>
-                  }
-                  subtitle={`${q.customerName || q.vendorName || 'No customer'} · ${formatDate(q.quotationDate)}`}
-                  trailing={`₹${q.total.toLocaleString()}`}
-                  onClick={() => {
-                    setSelectedId(q.id);
-                    fetchApi<Quotation>(`/quotations/${q.id}`)
-                      .then(setSelected)
-                      .catch(err => toast(err.message, 'error'));
-                  }}
-                />
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                  <MobileListRow
+                    icon={<FileText />}
+                    title={
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <span className="truncate">{q.quotationNumber}</span>
+                        {statusBadge(q.status)}
+                      </span>
+                    }
+                    subtitle={`${q.customerName || q.vendorName || 'No customer'} · ${formatDate(q.quotationDate)}`}
+                    trailing={`₹${q.total.toLocaleString()}`}
+                    onClick={() => {
+                      setSelectedId(q.id);
+                      fetchApi<Quotation>(`/quotations/${q.id}`)
+                        .then(setSelected)
+                        .catch(err => toast(err.message, 'error'));
+                    }}
+                  />
+                  <div className="flex items-center justify-end gap-0.5 border-t border-gray-50 px-1.5 py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => void printQuotation(q)}
+                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-brand hover:bg-orange-50 rounded-lg"
+                      title={offlinePdf ? t('common.downloadPdf') : 'Print / PDF'}
+                      aria-label={offlinePdf ? t('common.downloadPdf') : 'Print quotation'}
+                    >
+                      {offlinePdf ? <Download size={14} /> : <Printer size={14} />}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={whatsappBusyId === q.id}
+                      onClick={() => void shareQuotationWhatsApp(q)}
+                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50"
+                      title="Share on WhatsApp"
+                      aria-label="Share quotation on WhatsApp"
+                    >
+                      <MessageCircle size={14} />
+                    </button>
+                  </div>
+                </div>
               </Fragment>
             ))}
           </div>
@@ -904,8 +1008,13 @@ export function QuotationsView() {
       )}
 
       {quotations.length > 0 && <MobileFab label="Quote" onClick={openCreate} />}
+    </motion.div>
+  );
 
-      {/* Create Quotation Modal */}
+  return (
+    <>
+      {detailPane || listPane}
+      {/* Create Quotation Modal — must mount on detail too (Convert / Edit Draft / confirm) */}
       <AnimatePresence>
         {modalOpen && (
           <AppModal
@@ -1320,7 +1429,7 @@ export function QuotationsView() {
       </AnimatePresence>
       <AnimatePresence>
         {partialConvert && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40">
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1408,6 +1517,6 @@ export function QuotationsView() {
         />
       )}
       <ConfirmRenderer />
-    </motion.div>
+    </>
   );
 }

@@ -1,0 +1,293 @@
+import { describe, expect, it } from 'vitest';
+import { buildStandaloneInvoicePdfBlob } from '../../src/lib/standaloneInvoicePdf';
+
+const baseInv = {
+  invoiceNumber: 'INV/2026-27/0001',
+  customerName: 'City Cafe',
+  customerPhone: '9123456780',
+  customerAddress: '8 Market Lane Jaipur Rajasthan 302001',
+  items: [
+    {
+      description: 'MCB 32A Single Pole',
+      hsnSac: '8536',
+      qty: 1,
+      rate: 170,
+      gstPercent: 0,
+      taxable: 170,
+      tax: 0,
+      total: 170,
+    },
+  ],
+  subtotal: 170,
+  taxTotal: 0,
+  gstEnabled: false,
+  grandTotal: 170,
+  status: 'paid',
+  invoiceDate: '2026-07-20',
+  paidAmount: 170,
+  advanceApplied: 170,
+  outstanding: 0,
+};
+
+async function pdfText(blob: Blob): Promise<string> {
+  const buf = Buffer.from(await blob.arrayBuffer());
+  // jsPDF embeds ASCII strings literally — enough for layout label checks.
+  return buf.toString('latin1');
+}
+
+describe('buildStandaloneInvoicePdfBlob (Cap light print-like)', () => {
+  it('draws print-like sections without html2canvas', async () => {
+    const blob = await buildStandaloneInvoicePdfBlob(
+      baseInv,
+      {
+        companyName: 'Prathamesh',
+        email: 'patelprathamesh007@gmail.com',
+        phone: '9999999999',
+      },
+      {
+        hasGst: false,
+        billSettings: {
+          footerText: 'Powered by Dhandho Management',
+          tagline: 'Quality Service',
+          bankName: 'Demo Bank',
+          bankAccountNumber: '123456',
+          bankIfsc: 'DEMO0001',
+          signatoryName: 'Owner',
+          signatoryDesignation: 'Proprietor',
+          termsAndConditions: 'Payment due on receipt.',
+          // 1x1 PNG — exercises addImage path without html2canvas
+          logoBase64:
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+          signatureBase64:
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        },
+      },
+    );
+
+    expect(blob.type).toMatch(/pdf/i);
+    expect(blob.size).toBeGreaterThan(2000);
+
+    const text = await pdfText(blob);
+    expect(text).toContain('INVOICE');
+    expect(text).toContain('BILL TO');
+    expect(text).toContain('ITEM NAME');
+    expect(text).toContain('PRICE/UNIT');
+    expect(text).toContain('City Cafe');
+    expect(text).toContain('Sub Total');
+    expect(text).toContain('Balance');
+    expect(text).toContain('Authorized Signatory');
+    expect(text).toContain('Bank Details');
+    expect(text).toContain('Powered by Dhandho Management');
+    expect(text).toContain('Quality Service');
+    expect(text).toContain('Terms and Conditions');
+    expect(text).toContain('Owner');
+    expect(text).toContain('Proprietor');
+    // Human date, not raw ISO timestamp
+    expect(text).not.toContain('2026-07-20T00:00:00');
+    expect(text).toMatch(/20 Jul 2026|Jul 2026/);
+    // No washed-gray strokes (former meta dividers / sig placeholder used 180–200)
+    expect(text).not.toMatch(/(?:^|[^0-9])(?:180|200)(?:\s+(?:180|200)){0,2}\s+(?:RG|G)\b/);
+  });
+
+  it('omits invoice due date meta even when set; quotations keep Valid until', async () => {
+    const invoiceBlob = await buildStandaloneInvoicePdfBlob(
+      { ...baseInv, dueDate: '2026-08-01' },
+      { companyName: 'Prathamesh' },
+      { hasGst: false, billSettings: { footerText: 'Powered by Dhandho Management' } },
+    );
+    const invoiceText = await pdfText(invoiceBlob);
+    expect(invoiceText).toContain('INVOICE');
+    expect(invoiceText).not.toMatch(/\bDue\b/);
+    expect(invoiceText).not.toContain('Valid until');
+
+    const quoteBlob = await buildStandaloneInvoicePdfBlob(
+      { ...baseInv, dueDate: '2026-08-01' },
+      { companyName: 'Prathamesh' },
+      { hasGst: false, docType: 'quotation', billSettings: {} },
+    );
+    const quoteText = await pdfText(quoteBlob);
+    expect(quoteText).toContain('Valid until');
+    expect(quoteText).not.toMatch(/(?:^|[^a-zA-Z])Due(?:[^a-zA-Z]|$)/);
+  });
+
+  it('quotation variant titles QUOTATION and omits bank', async () => {
+    const blob = await buildStandaloneInvoicePdfBlob(
+      baseInv,
+      { companyName: 'Prathamesh', phone: '9999999999' },
+      {
+        hasGst: false,
+        docType: 'quotation',
+        billSettings: {
+          bankName: 'Demo Bank',
+          bankAccountNumber: '123456',
+          footerText: 'Thanks for business with us',
+        },
+      },
+    );
+    const text = await pdfText(blob);
+    expect(text).toContain('QUOTATION');
+    expect(text).toContain('Quotation No');
+    expect(text).not.toContain('Bank Details');
+    expect(text).not.toContain('TAX INVOICE');
+    expect(text).toContain('Thanks for business with us');
+  });
+
+  it('uses TAX INVOICE title and GST columns when hasGst', async () => {
+    const blob = await buildStandaloneInvoicePdfBlob(
+      {
+        ...baseInv,
+        gstEnabled: true,
+        taxTotal: 30.6,
+        taxCgst: 15.3,
+        taxSgst: 15.3,
+        grandTotal: 200.6,
+        paidAmount: 0,
+        advanceApplied: 0,
+        outstanding: 200.6,
+        status: 'sent',
+        items: [
+          {
+            description: 'Service',
+            hsnSac: '9983',
+            qty: 1,
+            rate: 170,
+            gstPercent: 18,
+            taxable: 170,
+            tax: 30.6,
+            total: 200.6,
+          },
+        ],
+      },
+      { companyName: 'Shop', gstNumber: '24AAAAA0000A1Z5' },
+      { hasGst: true },
+    );
+    const text = await pdfText(blob);
+    expect(text).toContain('TAX INVOICE');
+    expect(text).toContain('HSN');
+    expect(text).toContain('CGST');
+  });
+
+  it('repeats continued page header on multi-page invoices (bank once)', async () => {
+    const manyItems = Array.from({ length: 40 }, (_, i) => ({
+      description: `Line item number ${i + 1} with a longer description for wrap`,
+      hsnSac: '8536',
+      qty: 1,
+      rate: 100 + i,
+      gstPercent: 0,
+      taxable: 100 + i,
+      tax: 0,
+      total: 100 + i,
+    }));
+    const subtotal = manyItems.reduce((s, it) => s + it.total, 0);
+    const blob = await buildStandaloneInvoicePdfBlob(
+      {
+        ...baseInv,
+        items: manyItems,
+        subtotal,
+        grandTotal: subtotal,
+        paidAmount: 0,
+        advanceApplied: 0,
+        outstanding: subtotal,
+        status: 'sent',
+      },
+      { companyName: 'Prathamesh', phone: '9999999999', address: 'Jaipur' },
+      {
+        hasGst: false,
+        billSettings: {
+          bankName: 'Demo Bank',
+          bankAccountNumber: '123456',
+          bankIfsc: 'DEMO0001',
+          footerText: 'Powered by Dhandho Management',
+        },
+      },
+    );
+    const text = await pdfText(blob);
+    // jsPDF escapes parens in PDF strings: \(continued\)
+    expect(text).toMatch(/continued/);
+    expect(text).toContain('Page 2');
+    expect(text).toContain('ITEM NAME');
+    // Bank / signatory footer blocks appear once (last page), not per continued page
+    const bankHits = text.split('Bank Details').length - 1;
+    expect(bankHits).toBe(1);
+    expect(text).toContain('Authorized Signatory');
+    expect(text).toContain('Sub Total');
+  });
+
+  it('paginates ~24 short quotation lines via footer reserve (not taller rows)', async () => {
+    const items = Array.from({ length: 24 }, (_, i) => ({
+      description: `Item ${i + 1}`,
+      qty: 1,
+      rate: 100,
+      gstPercent: 0,
+      taxable: 100,
+      tax: 0,
+      total: 100,
+    }));
+    const blob = await buildStandaloneInvoicePdfBlob(
+      {
+        ...baseInv,
+        invoiceNumber: 'Q-PAGED',
+        items,
+        subtotal: 2400,
+        grandTotal: 2400,
+        paidAmount: 0,
+        advanceApplied: 0,
+        outstanding: 2400,
+        status: 'draft',
+      },
+      { companyName: 'Prathamesh', phone: '9999999999' },
+      { hasGst: false, docType: 'quotation' },
+    );
+    const text = await pdfText(blob);
+    expect(text).toContain('QUOTATION');
+    expect(text).toMatch(/continued/);
+    expect(text).toContain('Page 2');
+    const pageObjs = text.match(/\/Type\s*\/Page\b/g) || [];
+    expect(pageObjs.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('moves a wrapped long description to the next page as one row', async () => {
+    const longDesc =
+      'Heavy duty industrial grade copper conductor cable 1.5mm with ISI mark for commercial wiring installation';
+    const items = [
+      ...Array.from({ length: 20 }, (_, i) => ({
+        description: `Item ${i + 1}`,
+        qty: 1,
+        rate: 100,
+        gstPercent: 0,
+        taxable: 100,
+        tax: 0,
+        total: 100,
+      })),
+      {
+        description: longDesc,
+        qty: 1,
+        rate: 1850,
+        gstPercent: 0,
+        taxable: 1850,
+        tax: 0,
+        total: 1850,
+      },
+    ];
+    const subtotal = 20 * 100 + 1850;
+    const blob = await buildStandaloneInvoicePdfBlob(
+      {
+        ...baseInv,
+        items,
+        subtotal,
+        grandTotal: subtotal,
+        paidAmount: 0,
+        advanceApplied: 0,
+        outstanding: subtotal,
+        status: 'draft',
+      },
+      { companyName: 'Prathamesh', phone: '9999999999' },
+      { hasGst: false, docType: 'quotation' },
+    );
+    const text = await pdfText(blob);
+    expect(text).toMatch(/continued/);
+    expect(text).toContain('Page 2');
+    // Wrapped fragments from the long line should appear (jsPDF may split words)
+    expect(text).toMatch(/copper|conductor|commercial/i);
+  });
+});

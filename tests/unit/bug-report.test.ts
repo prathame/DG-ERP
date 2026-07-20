@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { clientLogger, getRecentClientLogs } from '../../src/lib/logger';
+import { clientLogger, getRecentClientLogs, pushClientBreadcrumb } from '../../src/lib/logger';
 import { buildBugReportText } from '../../src/lib/bugReport';
 import { isMobileAppShell } from '../../src/lib/mobileAppShell';
 
@@ -25,6 +25,17 @@ describe('bug report', () => {
     expect(text).toContain('Invalid credentials');
     expect(text).toContain('Login failed after update');
     expect(text).toContain('Recent client logs');
+  });
+
+  it('includes durable WhatsApp breadcrumbs in report body', async () => {
+    pushClientBreadcrumb('WhatsApp PDF build start', { invoiceId: 'INV-CRASH' });
+    const text = await buildBugReportText({
+      note: 'Auto-report: previous session stopped unexpectedly',
+      lastError: 'unexpected_stop',
+    });
+    expect(text).toContain('unexpected_stop');
+    expect(text).toContain('WhatsApp PDF build start');
+    expect(text).toContain('INV-CRASH');
   });
 
   it('isMobileAppShell is false in plain vitest (no Capacitor / offline mode)', () => {

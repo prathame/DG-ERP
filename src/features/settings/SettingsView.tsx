@@ -33,6 +33,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { isGstBillingEnabled, isServicePhoneBillUx } from '../../lib/billSettingsFlags';
 import { bugReportFeedbackMessage, shareBugReport } from '../../lib/bugReport';
+import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
 import { isNativeCapacitor, saveDhandhoFile } from '../../lib/dhandhoFiles';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
 import {
@@ -337,6 +338,7 @@ function BillCustomizationSection() {
 
   const handleSave = async () => {
     if (form.primaryColor && !/^#[0-9a-fA-F]{6}$/.test(form.primaryColor)) {
+      reportActionBlocked('bill.save', 'Invalid color format');
       toast('Invalid color format', 'error');
       return;
     }
@@ -356,6 +358,7 @@ function BillCustomizationSection() {
       toast('Bill settings saved', 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to save', 'error');
+      void reportActionFailed('bill.save', err);
     } finally {
       setSaving(false);
     }
@@ -1845,7 +1848,7 @@ export function SettingsView({
                         send them). Dhando does not store your business data in the cloud.{' '}
                       </>
                     ) : null}
-                    Files are saved in the <strong className="text-gray-700">Dhandho</strong> folder on this phone
+                    Files are saved under <strong className="text-gray-700">Documents/Dhandho</strong> on this phone
                     (backups, invoices, bug reports).
                   </p>
                 )}
@@ -1862,7 +1865,7 @@ export function SettingsView({
                           const { filename, path } = await exportLocalBackupNow({
                             openMail: Boolean(backupSettings?.email),
                           });
-                          const where = path || `Dhandho/backups/${filename}`;
+                          const where = path || `Documents/Dhandho/backups/${filename}`;
                           toast(`Backup done — saved to ${where}`, 'success');
                           setBackupSettings(prev =>
                             prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev,
@@ -1898,6 +1901,7 @@ export function SettingsView({
                         setBackupSettings(prev => (prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev));
                       } catch (e) {
                         toast((e as Error).message, 'error');
+                        void reportActionFailed('backup.export', e);
                       } finally {
                         setBackupBusy(false);
                       }

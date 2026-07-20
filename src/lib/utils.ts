@@ -1,7 +1,22 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
+import { clientLogger, ensureCorrelationId, pushClientBreadcrumb } from './logger';
 import { session } from './session';
+
+/** Truncate error text for toasts / breadcrumbs (no stacks, no secrets). */
+export function truncateShareError(err: unknown, max = 80): string {
+  const name = err instanceof Error ? err.name : '';
+  const msg = err instanceof Error ? err.message : String(err ?? 'unknown');
+  const raw = [name, msg].filter(Boolean).join(': ').replace(/\s+/g, ' ').trim();
+  return raw.length > max ? `${raw.slice(0, max - 1)}…` : raw || 'unknown';
+}
+
+function waShareLog(level: 'info' | 'warn' | 'error', message: string, ctx: Record<string, unknown>): void {
+  const full = { correlationId: ensureCorrelationId(), ...ctx };
+  clientLogger[level](message, full);
+  pushClientBreadcrumb(message, full);
+}
 
 async function blobToBase64(blob: Blob): Promise<string> {
   const buf = await blob.arrayBuffer();
@@ -120,7 +135,11 @@ function safePdfFilename(filename?: string): string {
 }
 
 /** Capacitor: write PDF under Dhandho/invoices/ (no path picker / Share required). */
-async function savePdfNative(blob: Blob, safeName: string): Promise<{ ok: boolean; path?: string; uri?: string }> {
+async function savePdfNative(
+  blob: Blob,
+  safeName: string,
+  logCtx?: Record<string, unknown>,
+): Promise<{ ok: boolean; path?: string; uri?: string }> {
   try {
     const { saveDhandhoFile } = await import('./dhandhoFiles');
     const base64 = await blobToBase64(blob);
@@ -130,9 +149,85 @@ async function savePdfNative(blob: Blob, safeName: string): Promise<{ ok: boolea
       data: base64,
       encoding: 'base64',
     });
+    if (logCtx) {
+      waShareLog('info', 'WhatsApp share dhandho save ok', {
+        ...logCtx,
+        path: saved.relativePath,
+        bytes: blob.size,
+      });
+    }
     return { ok: true, path: saved.relativePath, uri: saved.uri };
-  } catch {
+  } catch (err) {
+    if (logCtx) {
+      waShareLog('warn', 'WhatsApp share dhandho save fail', {
+        ...logCtx,
+        errorName: err instanceof Error ? err.name : 'Error',
+        errorMessage: truncateShareError(err),
+      });
+    }
     return { ok: false };
+  }
+}
+
+/**
+ * Cap: persist PDF (Dhandho + Cache FileProvider) and Share **file-only** (no text).
+ * Cache URI is required — Documents/External URIs often fail WhatsApp FileProvider.
+ */
+export async function sharePdfNativeWhatsApp(
+  blob: Blob,
+  filename: string,
+  logCtx: Record<string, unknown> = {},
+): Promise<'shared' | 'saved' | 'cancelled' | 'failed'> {
+  const safeName = safePdfFilename(filename);
+  const ctx = { ...logCtx, path: 'pdf', filename: safeName, bytes: blob.size };
+  let persisted = false;
+
+  try {
+    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+    const { Share } = await import('@capacitor/share');
+    const base64 = await blobToBase64(blob);
+
+    const saved = await savePdfNative(blob, safeName, ctx);
+    persisted = saved.ok;
+
+    waShareLog('info', 'WhatsApp share cache write start', ctx);
+    const cachePath = `share/${safeName}`;
+    await Filesystem.writeFile({
+      path: cachePath,
+      data: base64,
+      directory: Directory.Cache,
+      recursive: true,
+    });
+    const { uri } = await Filesystem.getUri({ path: cachePath, directory: Directory.Cache });
+    waShareLog('info', 'WhatsApp share cache write ok', { ...ctx, cachePath });
+
+    waShareLog('info', 'WhatsApp Share.share start', { ...ctx, shareMode: 'file-only' });
+    await Share.share({
+      title: safeName,
+      url: uri,
+      dialogTitle: 'Share via WhatsApp',
+    });
+    waShareLog('info', 'WhatsApp Share.share ok', { ...ctx, shareMode: 'file-only' });
+    return 'shared';
+  } catch (err) {
+    const name = (err as { name?: string })?.name || '';
+    const msg = String((err as Error)?.message || err || '');
+    if (name === 'AbortError' || /cancel|dismiss|share canceled/i.test(msg)) {
+      waShareLog('info', 'WhatsApp Share.share abort', {
+        ...ctx,
+        errorName: name || 'AbortError',
+        errorMessage: truncateShareError(err),
+        persisted,
+      });
+      return persisted ? 'saved' : 'cancelled';
+    }
+    waShareLog('error', 'WhatsApp Share.share fail', {
+      ...ctx,
+      errorName: name || 'Error',
+      errorMessage: truncateShareError(err),
+      persisted,
+    });
+    return persisted ? 'saved' : 'failed';
   }
 }
 
@@ -352,40 +447,69 @@ export async function downloadHtmlAsPdf(html: string, filename?: string): Promis
 }
 
 /**
- * Cap-safe WhatsApp: text summary only (Share sheet / wa.me).
- * Never runs html2pdf/jsPDF — those freeze mid-range Android WebViews.
+ * Cap-safe WhatsApp: text summary via wa.me (opens WhatsApp, not a Gmail-heavy share sheet).
+ * Used as Cap fallback when light jsPDF times out or fails.
  */
 export async function shareInvoiceSummaryViaWhatsApp(opts: {
   phone?: string;
   message: string;
+  logCtx?: Record<string, unknown>;
 }): Promise<'summary' | 'cancelled'> {
+  const ctx = { path: 'text', ...opts.logCtx, correlationId: ensureCorrelationId() };
+  const phone = (opts.phone || '').trim();
+  // Prefer WhatsApp-targeted wa.me — Cap Share.share is a generic chooser (often surfaces Gmail).
+  if (phone) {
+    shareViaWhatsApp(phone, opts.message);
+    waShareLog('info', 'WhatsApp text share via wa.me', { ...ctx, shareMode: 'wa.me' });
+    return 'summary';
+  }
+  try {
+    window.open(`https://wa.me/?text=${encodeURIComponent(opts.message)}`, '_blank');
+    waShareLog('info', 'WhatsApp text share via wa.me', { ...ctx, shareMode: 'wa.me-open' });
+    return 'summary';
+  } catch (err) {
+    waShareLog('warn', 'WhatsApp wa.me open fail — Share sheet fallback', {
+      ...ctx,
+      shareMode: 'text-only',
+      errorMessage: truncateShareError(err),
+    });
+  }
   try {
     const { Share } = await import('@capacitor/share');
+    waShareLog('info', 'WhatsApp Share.share start', { ...ctx, shareMode: 'text-only' });
     await Share.share({
-      title: 'Invoice',
+      title: 'WhatsApp',
       text: opts.message,
       dialogTitle: 'Share via WhatsApp',
     });
+    waShareLog('info', 'WhatsApp Share.share ok', { ...ctx, shareMode: 'text-only' });
     return 'summary';
   } catch (err) {
     const name = (err as { name?: string })?.name || '';
     const msg = String((err as Error)?.message || err || '');
     if (name === 'AbortError' || /cancel|dismiss|share canceled/i.test(msg)) {
+      waShareLog('info', 'WhatsApp Share.share abort', {
+        ...ctx,
+        shareMode: 'text-only',
+        errorName: name || 'AbortError',
+        errorMessage: truncateShareError(err),
+      });
       return 'cancelled';
     }
+    waShareLog('warn', 'WhatsApp Share.share fail', {
+      ...ctx,
+      shareMode: 'text-only',
+      errorName: name || 'Error',
+      errorMessage: truncateShareError(err),
+    });
+    return 'summary';
   }
-  const phone = (opts.phone || '').trim();
-  if (phone) {
-    shareViaWhatsApp(phone, opts.message);
-  } else {
-    window.open(`https://wa.me/?text=${encodeURIComponent(opts.message)}`, '_blank');
-  }
-  return 'summary';
 }
 
 /**
  * Share invoice/quote HTML as a PDF via WhatsApp.
  * Cap: text summary only — never html2pdf/html2canvas (WebView freeze/OOM).
+ * Cap invoice PDF uses `shareStandaloneInvoiceWhatsApp` (light jsPDF) instead.
  * Web: try file share, else open WhatsApp with text and download the PDF.
  */
 export async function shareHtmlPdfViaWhatsApp(opts: {
@@ -393,15 +517,32 @@ export async function shareHtmlPdfViaWhatsApp(opts: {
   filename?: string;
   phone?: string;
   message: string;
+  logCtx?: Record<string, unknown>;
 }): Promise<'shared' | 'saved' | 'text' | 'downloaded' | 'cancelled' | 'summary'> {
+  const baseCtx = { ...opts.logCtx, correlationId: ensureCorrelationId() };
   // Cap Android WebView: html2pdf/html2canvas OOMs and can freeze/crash System WebView.
   if (isNativeCapacitor()) {
-    return shareInvoiceSummaryViaWhatsApp({ phone: opts.phone, message: opts.message });
+    waShareLog('info', 'WhatsApp html2pdf path skipped on Cap', { ...baseCtx, path: 'text' });
+    return shareInvoiceSummaryViaWhatsApp({
+      phone: opts.phone,
+      message: opts.message,
+      logCtx: { ...baseCtx, path: 'text' },
+    });
   }
 
   const safeName = safePdfFilename(opts.filename);
+  waShareLog('info', 'WhatsApp web html2pdf start', { ...baseCtx, path: 'pdf', filename: safeName });
   const blob = await htmlToPdfBlob(opts.html, safeName);
-  if (!blob) throw new Error('Could not create PDF');
+  if (!blob) {
+    waShareLog('error', 'WhatsApp web html2pdf fail', { ...baseCtx, path: 'pdf', filename: safeName });
+    throw new Error('Could not create PDF');
+  }
+  waShareLog('info', 'WhatsApp web html2pdf ok', {
+    ...baseCtx,
+    path: 'pdf',
+    filename: safeName,
+    bytes: blob.size,
+  });
 
   if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
     try {
@@ -409,10 +550,19 @@ export async function shareHtmlPdfViaWhatsApp(opts: {
       const payload = { files: [file], title: safeName };
       if (!navigator.canShare || navigator.canShare(payload)) {
         await navigator.share(payload);
+        waShareLog('info', 'WhatsApp web navigator.share ok', { ...baseCtx, path: 'pdf' });
         return 'shared';
       }
     } catch (err) {
-      if ((err as Error)?.name === 'AbortError') return 'cancelled';
+      if ((err as Error)?.name === 'AbortError') {
+        waShareLog('info', 'WhatsApp web navigator.share abort', { ...baseCtx, path: 'pdf' });
+        return 'cancelled';
+      }
+      waShareLog('warn', 'WhatsApp web navigator.share fail', {
+        ...baseCtx,
+        path: 'pdf',
+        errorMessage: truncateShareError(err),
+      });
     }
   }
 
@@ -522,8 +672,9 @@ function openPrintOverlay(placeholder = 'Preparing…', opts?: OpenPrintWindowOp
 
   const bar = document.createElement('div');
   bar.className = 'no-print';
+  // Cap Android: env(safe-area-inset-top) is often 0 — use --safe-top (SystemBars / dg-capacitor-native floor).
   bar.style.cssText =
-    'display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));background:#111827;color:#fff;flex-shrink:0;';
+    'display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:calc(10px + var(--safe-top, env(safe-area-inset-top, 0px)));background:#111827;color:#fff;flex-shrink:0;';
 
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
@@ -580,13 +731,18 @@ function openPrintOverlay(placeholder = 'Preparing…', opts?: OpenPrintWindowOp
   bar.appendChild(title);
   bar.appendChild(actions);
 
+  const frameWrap = document.createElement('div');
+  frameWrap.style.cssText =
+    'flex:1;min-height:0;width:100%;overflow:auto;-webkit-overflow-scrolling:touch;background:#fff;';
+
   const iframe = document.createElement('iframe');
   iframe.id = PRINT_FRAME_ID;
   iframe.title = nativePdf ? 'PDF preview' : 'Print preview';
-  iframe.style.cssText = 'flex:1;width:100%;border:0;background:#fff;';
+  iframe.style.cssText = 'display:block;width:100%;min-height:100%;border:0;background:#fff;';
 
   host.appendChild(bar);
-  host.appendChild(iframe);
+  frameWrap.appendChild(iframe);
+  host.appendChild(frameWrap);
   document.body.appendChild(host);
 
   const win = iframe.contentWindow;
@@ -660,6 +816,10 @@ function applyPrintTitle(html: string, filename?: string): string {
  * (totals / bank / signature) from splitting awkwardly. Injected into every print HTML.
  */
 const PRINT_PAGINATION_CSS = `
+@media screen {
+  /* Cap preview: A4 tables can exceed phone width — allow pan instead of clipping */
+  html, body { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+}
 @media print {
   @page { margin: 8mm; size: A4; }
   html, body { height: auto !important; overflow: visible !important; width: 100% !important; }

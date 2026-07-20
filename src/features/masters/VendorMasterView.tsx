@@ -187,11 +187,15 @@ export function VendorMasterView({
     if (whatsappBusyId) return;
     setWhatsappBusyId(invoiceId);
     try {
-      const how = await shareStandaloneInvoiceWhatsAppById(invoiceId, { businessType: cfg.type });
+      const { how, errorHint } = await shareStandaloneInvoiceWhatsAppById(invoiceId, {
+        businessType: cfg.type,
+        onPreparing: () => toast('Preparing PDF…', 'info'),
+      });
       if (how === 'cancelled') return;
-      toast(whatsAppInvoiceShareToast(how), 'success');
+      toast(whatsAppInvoiceShareToast(how, errorHint), how === 'pdf_fallback' ? 'info' : 'success');
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not share invoice', 'error');
+      const msg = err instanceof Error ? err.message : 'Could not share invoice';
+      toast(msg.length > 100 ? `${msg.slice(0, 99)}…` : msg, 'error');
     } finally {
       setWhatsappBusyId(null);
     }
@@ -488,10 +492,7 @@ export function VendorMasterView({
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="font-bold font-mono text-sm">{inv.invoiceNumber}</p>
-                            <p className="text-xs text-gray-500">
-                              {formatDate(inv.invoiceDate)}
-                              {inv.dueDate ? ` · Due ${formatDate(inv.dueDate)}` : ''}
-                            </p>
+                            <p className="text-xs text-gray-500">{formatDate(inv.invoiceDate)}</p>
                             <p className="text-sm font-bold mt-1">{fmt(inv.grandTotal)}</p>
                             {(inv.advanceApplied || 0) > 0 && (
                               <p className="text-xs text-emerald-600">

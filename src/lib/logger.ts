@@ -12,6 +12,44 @@ const SENSITIVE_KEY =
 
 const RING_MAX = 80;
 const ring: string[] = [];
+/** Survives Cap WebView process death (sessionStorage does not). */
+const RING_STORAGE_KEY = 'dg_client_log_ring';
+const BREADCRUMB_KEY = 'dg_bug_breadcrumbs';
+let ringHydrated = false;
+
+function durableStorage(): Storage | null {
+  try {
+    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return null;
+    return localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function hydrateRingIfNeeded(): void {
+  if (ringHydrated) return;
+  ringHydrated = true;
+  if (ring.length > 0) return;
+  try {
+    const raw = durableStorage()?.getItem(RING_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return;
+    for (const line of parsed.slice(-RING_MAX)) {
+      if (typeof line === 'string') ring.push(line);
+    }
+  } catch {
+    /* corrupt / quota */
+  }
+}
+
+function persistRing(): void {
+  try {
+    durableStorage()?.setItem(RING_STORAGE_KEY, JSON.stringify(ring));
+  } catch {
+    /* private mode / quota */
+  }
+}
 
 function redact(value: unknown): unknown {
   if (typeof value === 'string') {
@@ -62,43 +100,67 @@ function baseContext(): Record<string, unknown> {
 }
 
 function pushRing(line: string): void {
+  hydrateRingIfNeeded();
   ring.push(line);
   if (ring.length > RING_MAX) ring.splice(0, ring.length - RING_MAX);
+  persistRing();
 }
 
-/** Recent log lines for bug reports (newest last). No secrets — already redacted. */
+/** Recent log lines for bug reports (newest last). No secrets — already redacted. Hydrates from localStorage after process death. */
 export function getRecentClientLogs(limit = 40): string[] {
+  hydrateRingIfNeeded();
   return ring.slice(-Math.max(1, limit));
 }
 
-const BREADCRUMB_KEY = 'dg_bug_breadcrumbs';
+const BREADCRUMB_MAX = 20;
+const breadcrumbs: string[] = [];
+let breadcrumbsHydrated = false;
 
-/** Persist a short breadcrumb so bug reports survive soft hangs (ring buffer alone can be empty). */
+function hydrateBreadcrumbsIfNeeded(): void {
+  if (breadcrumbsHydrated) return;
+  breadcrumbsHydrated = true;
+  if (breadcrumbs.length > 0) return;
+  try {
+    const raw = durableStorage()?.getItem(BREADCRUMB_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return;
+    for (const line of parsed.slice(-BREADCRUMB_MAX)) {
+      if (typeof line === 'string') breadcrumbs.push(line);
+    }
+  } catch {
+    /* corrupt / quota */
+  }
+}
+
+function persistBreadcrumbs(): void {
+  try {
+    durableStorage()?.setItem(BREADCRUMB_KEY, JSON.stringify(breadcrumbs));
+  } catch {
+    /* private mode / quota — in-memory trail still works this session */
+  }
+}
+
+/**
+ * Write-through breadcrumb trail (memory + localStorage) so Cap WhatsApp/PDF steps
+ * survive WebView process death. Used by manual + unexpected-stop bug reports.
+ */
 export function pushClientBreadcrumb(message: string, context?: Record<string, unknown>): void {
   const line = JSON.stringify({
     ts: new Date().toISOString(),
     msg: message,
     ...(redact(context || {}) as Record<string, unknown>),
   });
-  try {
-    const prev = JSON.parse(sessionStorage.getItem(BREADCRUMB_KEY) || '[]') as string[];
-    const next = Array.isArray(prev) ? prev : [];
-    next.push(line);
-    sessionStorage.setItem(BREADCRUMB_KEY, JSON.stringify(next.slice(-20)));
-  } catch {
-    /* private mode / quota */
-  }
+  hydrateBreadcrumbsIfNeeded();
+  breadcrumbs.push(line);
+  if (breadcrumbs.length > BREADCRUMB_MAX) breadcrumbs.splice(0, breadcrumbs.length - BREADCRUMB_MAX);
+  persistBreadcrumbs();
 }
 
-/** Breadcrumbs from sessionStorage for bug reports (newest last). */
+/** Breadcrumbs for bug reports (newest last). Hydrates from localStorage after process death. */
 export function getClientBreadcrumbs(limit = 20): string[] {
-  try {
-    const prev = JSON.parse(sessionStorage.getItem(BREADCRUMB_KEY) || '[]') as string[];
-    if (!Array.isArray(prev)) return [];
-    return prev.slice(-Math.max(1, limit));
-  } catch {
-    return [];
-  }
+  hydrateBreadcrumbsIfNeeded();
+  return breadcrumbs.slice(-Math.max(1, limit));
 }
 
 function emit(level: ClientLogLevel, message: string, context?: Record<string, unknown>): void {

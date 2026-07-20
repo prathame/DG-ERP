@@ -1,15 +1,5 @@
 /** Map local snake_case rows → API camelCase shapes used by the UI. */
-
-function parseJsonArray(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value;
-  if (typeof value !== 'string' || !value.trim()) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+import { normalizeInvoiceLineItems } from './invoiceLineNormalize';
 
 export function mapVendor(r: Record<string, unknown>) {
   const gst = (r.gstin ?? r.gst_number ?? null) as string | null;
@@ -75,7 +65,8 @@ export function mapBank(r: Record<string, unknown>) {
 }
 
 export function mapInvoice(r: Record<string, unknown>) {
-  const items = parseJsonArray(r.items);
+  // Defensive: accept quote-shaped lines from older converts until row repair runs.
+  const items = normalizeInvoiceLineItems(r.items);
   return {
     id: r.id,
     invoiceNumber: r.invoice_number ?? r.invoiceNumber,
