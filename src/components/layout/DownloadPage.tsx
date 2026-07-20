@@ -66,9 +66,9 @@ export function DownloadPage() {
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
           <a href="/" className="flex items-center gap-2 min-w-0">
             <img
-              src="/icons/logo-full.png"
-              alt="Dhando"
-              className="h-8 w-auto object-contain"
+              src="/icons/logo-brand.png"
+              alt="Dhandho"
+              className="h-8 w-8 object-contain rounded-lg"
               style={{ filter: 'drop-shadow(0 0 8px rgba(242,125,38,0.3))' }}
             />
           </a>
