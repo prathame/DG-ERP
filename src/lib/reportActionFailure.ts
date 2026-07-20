@@ -2,6 +2,7 @@
  * Critical-action failure reporting for Cap bug reports.
  * - Soft UX blocks (validation): breadcrumb + toast at call site; no file.
  * - Hard failures (exception / save/share/import/backup/convert failed): breadcrumb + full bug report file.
+ * - Online Cap slug/onboarding failures: always full report (see reportSlugOnboardingFailure).
  * Success taps are never logged here.
  */
 import { clientLogger, pushClientBreadcrumb } from './logger';
@@ -55,6 +56,35 @@ export async function reportActionFailed(
   } catch {
     /* never break the UI because reporting failed */
   }
+}
+
+/** Why company-slug onboarding failed (Online Cap / cloud Electron). */
+export type SlugOnboardingFailureKind = 'invalid' | 'reserved' | 'not_found' | 'network' | 'unknown';
+
+/**
+ * Slug/onboarding failure → write-through breadcrumb + client log + Cap bug-report file.
+ * Soft UX copy stays at the call site; reporting always uses the hard-failure path so
+ * Share bug report never shows empty Recent client logs after a failed attempt.
+ */
+export async function reportSlugOnboardingFailure(opts: {
+  action?: 'slug.entry' | 'slug.lookup';
+  kind: SlugOnboardingFailureKind;
+  reason: string;
+  slug: string;
+  apiOrigin?: string;
+  pageOrigin?: string;
+  detail?: Record<string, unknown>;
+}): Promise<void> {
+  const action = opts.action ?? 'slug.entry';
+  const reason = shortReason(opts.reason);
+  const ctx = {
+    kind: opts.kind,
+    slug: opts.slug,
+    apiOrigin: opts.apiOrigin,
+    pageOrigin: opts.pageOrigin,
+    ...opts.detail,
+  };
+  await reportActionFailed(action, new Error(`[${opts.kind}] ${reason}`), ctx);
 }
 
 /** Test helper — reset dedupe window. */

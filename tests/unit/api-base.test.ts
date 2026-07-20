@@ -4,6 +4,7 @@ import {
   resolveConfiguredApiOrigin,
   resolveApiUrl,
   getApiOrigin,
+  getPublicAppHostPrefix,
 } from '../../src/platforms/shared/apiBase';
 
 describe('resolveConfiguredApiOrigin', () => {
@@ -55,5 +56,33 @@ describe('resolveApiUrl / getApiOrigin (no VITE_API_ORIGIN)', () => {
     });
     expect(getApiOrigin()).toBe(CLOUD_ORIGIN_FALLBACK);
     expect(resolveApiUrl('/api/tenant/by-slug/test')).toBe(`${CLOUD_ORIGIN_FALLBACK}/api/tenant/by-slug/test`);
+  });
+});
+
+describe('getPublicAppHostPrefix', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('uses the live page host on Render web', () => {
+    vi.stubGlobal('window', {
+      location: { hostname: 'dg-erp.onrender.com', host: 'dg-erp.onrender.com', origin: 'https://dg-erp.onrender.com' },
+    });
+    expect(getPublicAppHostPrefix()).toBe('dg-erp.onrender.com/');
+  });
+
+  it('uses cloud API host on Cap localhost (not Cap loopback)', () => {
+    vi.stubGlobal('window', {
+      location: { hostname: 'localhost', host: 'localhost', origin: 'https://localhost' },
+      Capacitor: { isNativePlatform: () => true },
+    });
+    expect(getPublicAppHostPrefix()).toBe('dg-erp.onrender.com/');
+  });
+
+  it('keeps dhandho.app when that is the live page host', () => {
+    vi.stubGlobal('window', {
+      location: { hostname: 'dhandho.app', host: 'dhandho.app', origin: 'https://dhandho.app' },
+    });
+    expect(getPublicAppHostPrefix()).toBe('dhandho.app/');
   });
 });

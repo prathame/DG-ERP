@@ -56,8 +56,8 @@ import { bugReportFeedbackMessage, shareBugReport } from './lib/bugReport';
 import { isMobileAppShell } from './lib/mobileAppShell';
 import { useEscapeKey } from './lib/useEscapeKey';
 import { normalizeCompanySlug, validateCompanySlug } from './lib/companySlug';
-import { reportActionBlocked, reportActionFailed } from './lib/reportActionFailure';
-import { getApiOrigin } from './platforms/shared';
+import { reportSlugOnboardingFailure } from './lib/reportActionFailure';
+import { getApiOrigin, getPublicAppHostPrefix } from './platforms/shared';
 
 const AppShutterIntro = lazy(() =>
   import('./components/layout/AppShutterIntro').then(m => ({ default: m.AppShutterIntro })),
@@ -123,12 +123,53 @@ const SuperAdminLogin = lazy(() =>
   import('./features/super-admin/SuperAdminLogin').then(m => ({ default: m.SuperAdminLogin })),
 );
 
-function slugEntryApiContext(slug: string): Record<string, unknown> {
+function slugEntryApiContext(slug: string): {
+  slug: string;
+  apiOrigin: string;
+  pageOrigin: string | undefined;
+} {
   return {
     slug,
     apiOrigin: getApiOrigin() || '(same-origin)',
     pageOrigin: typeof window !== 'undefined' ? window.location.origin : undefined,
   };
+}
+
+function slugFailureKindFromValidationError(error: string): 'reserved' | 'invalid' {
+  return /reserved/i.test(error) ? 'reserved' : 'invalid';
+}
+
+/** Cap-only share control for slug onboarding / not-found screens (before full app shell). */
+function CapSlugOnboardingShare({ lastError, note }: { lastError?: string; note: string }) {
+  const [sharingReport, setSharingReport] = React.useState(false);
+  const [reportHint, setReportHint] = React.useState('');
+  if (!isMobileAppShell()) return null;
+  return (
+    <div className="mt-4 w-full max-w-sm mx-auto">
+      {reportHint ? <p className="mb-2 text-center text-xs text-emerald-400/90">{reportHint}</p> : null}
+      <button
+        type="button"
+        disabled={sharingReport}
+        onClick={() => {
+          void (async () => {
+            setSharingReport(true);
+            setReportHint('');
+            try {
+              const how = await shareBugReport({ note, lastError: lastError || undefined });
+              setReportHint(bugReportFeedbackMessage(how));
+            } catch (e) {
+              setReportHint(e instanceof Error ? e.message : 'Could not create bug report');
+            } finally {
+              setSharingReport(false);
+            }
+          })();
+        }}
+        className="w-full py-2.5 text-xs text-gray-500 hover:text-white border border-white/10 rounded-xl transition-colors disabled:opacity-50"
+      >
+        {sharingReport ? 'Preparing report…' : 'Share bug report'}
+      </button>
+    </div>
+  );
 }
 
 /** Cloud Electron + Online Cap: company slug → /{slug} login (not marketing LandingPage). */
@@ -142,10 +183,9 @@ function CompanySlugEntry() {
   });
   const [slugError, setSlugError] = React.useState('');
   const [checking, setChecking] = React.useState(false);
-  const [sharingReport, setSharingReport] = React.useState(false);
-  const [reportHint, setReportHint] = React.useState('');
   const mobileApp = isMobileAppShell();
-  const hostPrefix = typeof window !== 'undefined' && window.location?.host ? `${window.location.host}/` : 'app/';
+  // Cap WebView is localhost — show cloud API host (Render / future dhandho.app), not Cap loopback
+  const hostPrefix = getPublicAppHostPrefix();
 
   React.useEffect(() => {
     // Returning users: skip the form when we already know the company
@@ -164,8 +204,14 @@ function CompanySlugEntry() {
     setSlugError('');
     const checked = validateCompanySlug(slug);
     if (checked.ok === false) {
-      // Soft UX block — breadcrumb + warn so Cap bug reports are not empty
-      reportActionBlocked('slug.entry', checked.error, slugEntryApiContext(normalizeCompanySlug(slug)));
+      const kind = slugFailureKindFromValidationError(checked.error);
+      const ctx = slugEntryApiContext(normalizeCompanySlug(slug));
+      void reportSlugOnboardingFailure({
+        action: 'slug.entry',
+        kind,
+        reason: checked.error,
+        ...ctx,
+      });
       setSlugError(checked.error);
       return;
     }
@@ -178,15 +224,34 @@ function CompanySlugEntry() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         const network = /connection lost|failed to fetch|network|abort|timeout/i.test(msg);
+        const ctx = slugEntryApiContext(checked.slug);
         if (network) {
-          void reportActionFailed('slug.entry', err, slugEntryApiContext(checked.slug));
-          setSlugError('Cannot reach the cloud server. Check internet and try again.');
+          const ui = 'Cannot reach the cloud server. Check internet and try again.';
+          void reportSlugOnboardingFailure({
+            action: 'slug.entry',
+            kind: 'network',
+            reason: msg || ui,
+            ...ctx,
+          });
+          setSlugError(ui);
         } else if (/not found|company not found/i.test(msg)) {
-          reportActionBlocked('slug.entry', 'Company not found', slugEntryApiContext(checked.slug));
-          setSlugError(`No company registered as “${checked.slug}”. Check the slug and try again.`);
+          const ui = `No company registered as “${checked.slug}”. Check the slug and try again.`;
+          void reportSlugOnboardingFailure({
+            action: 'slug.entry',
+            kind: 'not_found',
+            reason: msg || 'Company not found',
+            ...ctx,
+          });
+          setSlugError(ui);
         } else {
-          void reportActionFailed('slug.entry', err, slugEntryApiContext(checked.slug));
-          setSlugError(msg || 'Could not look up that company. Try again.');
+          const ui = msg || 'Could not look up that company. Try again.';
+          void reportSlugOnboardingFailure({
+            action: 'slug.entry',
+            kind: 'unknown',
+            reason: ui,
+            ...ctx,
+          });
+          setSlugError(ui);
         }
       } finally {
         setChecking(false);
@@ -231,29 +296,8 @@ function CompanySlugEntry() {
             {checking ? 'Checking…' : 'Continue →'}
           </button>
         </form>
-        {reportHint && <p className="mt-3 text-center text-xs text-emerald-400/90">{reportHint}</p>}
-        {mobileApp && (
-          <button
-            type="button"
-            disabled={sharingReport || checking}
-            onClick={() => {
-              void (async () => {
-                setSharingReport(true);
-                setReportHint('');
-                try {
-                  const how = await shareBugReport({ note: 'Online Cap company slug entry' });
-                  setReportHint(bugReportFeedbackMessage(how));
-                } catch (e) {
-                  setReportHint(e instanceof Error ? e.message : 'Could not create bug report');
-                } finally {
-                  setSharingReport(false);
-                }
-              })();
-            }}
-            className="w-full mt-4 py-2.5 text-xs text-gray-500 hover:text-white border border-white/10 rounded-xl transition-colors disabled:opacity-50"
-          >
-            {sharingReport ? 'Preparing report…' : 'Share bug report'}
-          </button>
+        {!checking && (
+          <CapSlugOnboardingShare lastError={slugError || undefined} note="Online Cap company slug entry" />
         )}
       </div>
     </div>
@@ -785,11 +829,13 @@ export default function App() {
           // Network / wrong API host must not look like an "invalid slug"
           setSlugLookupNetworkError(network);
           setSlugNotFound(true);
-          if (network) {
-            void reportActionFailed('slug.lookup', err, slugEntryApiContext(urlSlug));
-          } else {
-            reportActionBlocked('slug.lookup', msg || 'Company not found', slugEntryApiContext(urlSlug));
-          }
+          const ctx = slugEntryApiContext(urlSlug);
+          void reportSlugOnboardingFailure({
+            action: 'slug.lookup',
+            kind: network ? 'network' : 'not_found',
+            reason: msg || (network ? 'Cannot reach server' : 'Company not found'),
+            ...ctx,
+          });
         });
     }
   }, [urlSlug, !user]);
@@ -944,6 +990,9 @@ export default function App() {
 
     // Slug URL but tenant not found (or API unreachable)
     if (urlSlug && slugNotFound) {
+      const lookupError = slugLookupNetworkError
+        ? `Cannot reach server looking up /${urlSlug}`
+        : `Company not found: /${urlSlug}`;
       return (
         <div className="min-h-screen bg-gradient-to-br from-[#151619] via-[#1A1D21] to-[#151619] flex items-center justify-center p-4">
           <div className="text-center">
@@ -971,6 +1020,7 @@ export default function App() {
             >
               {isServiceCloudDesktop() || isServiceCloudMobile() ? 'Choose company' : 'Go to Dhandho Home'}
             </a>
+            <CapSlugOnboardingShare lastError={lookupError} note="Online Cap company slug lookup" />
           </div>
         </div>
       );
