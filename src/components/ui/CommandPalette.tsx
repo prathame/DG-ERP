@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { motion } from 'motion/react';
 import { Search, Package, ShoppingCart, Users, Barcode, FileText, IndianRupee, LayoutDashboard, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useGlobalSearch } from '../../hooks/useGlobalSearch';
@@ -206,23 +205,12 @@ export function CommandPalette({
 
   return (
     <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/40 z-[300]"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <motion.div
+      <div className="dg-fade-enter fixed inset-0 bg-black/40 z-[300]" onClick={onClose} aria-hidden="true" />
+      <div
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        initial={{ opacity: 0, scale: 0.95, y: -20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: -20 }}
-        transition={{ duration: 0.15 }}
-        className="fixed top-[12%] sm:top-[20%] left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-lg max-h-[80dvh] z-[301] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col"
+        className="dg-cmd-enter fixed top-[12%] sm:top-[20%] left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-lg max-h-[80dvh] z-[301] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col"
       >
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 shrink-0">
           <Search size={20} className="text-gray-400 shrink-0" aria-hidden="true" />
@@ -322,7 +310,7 @@ export function CommandPalette({
             <kbd className="font-mono bg-gray-100 px-1 rounded">esc</kbd> close
           </span>
         </div>
-      </motion.div>
+      </div>
     </>
   );
 }

@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { api } from '../../api';
 import { PasswordInput } from '../ui/PasswordInput';
@@ -157,7 +156,7 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
         paddingBottom: 'max(2rem, var(--safe-bottom))',
       }}
     >
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
+      <div className="dg-login-enter w-full max-w-md">
         <div className="text-center mb-6 sm:mb-8">
           {tenant?.logoBase64 ? (
             <img
@@ -390,7 +389,7 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
             </button>
           )}
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

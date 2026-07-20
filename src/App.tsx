@@ -21,16 +21,13 @@ import {
   ReceiptIndianRupee,
   ChevronDown,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { Tab } from './types';
 import { ToastProvider, LoadingSpinner, NotificationCenter } from './components/ui';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { useTranslation } from './i18n';
-import { AppShutterIntro } from './components/layout/AppShutterIntro';
 import { session } from './lib/session';
 import { resolveTabAccess, type AccessLevel } from './lib/tabAccess';
-import { CommandPalette } from './components/ui/CommandPalette';
 import type { GlobalSearchNavigate } from './lib/globalSearch';
 import type { MasterType } from './features/masters/MastersView';
 import { OnlineStatus } from './platforms/desktop/offline';
@@ -55,6 +52,11 @@ import {
 import { PhoneModePicker } from './platforms/PhoneModePicker';
 import { bugReportFeedbackMessage, shareBugReport } from './lib/bugReport';
 import { isMobileAppShell } from './lib/mobileAppShell';
+
+const AppShutterIntro = lazy(() =>
+  import('./components/layout/AppShutterIntro').then(m => ({ default: m.AppShutterIntro })),
+);
+const CommandPalette = lazy(() => import('./components/ui/CommandPalette').then(m => ({ default: m.CommandPalette })));
 
 const ServiceMobileOnboarding = lazy(() =>
   import('./platforms/service-mobile/ServiceMobileOnboarding').then(m => ({
@@ -928,12 +930,16 @@ export default function App() {
   return (
     <ToastProvider>
       <ServiceCloudGate enabled={(userConfig?.businessType as string) === 'service'}>
-        {appShutter && <AppShutterIntro companyName={appShutter} onDone={() => setAppShutter(null)} />}
+        {appShutter && (
+          <Suspense fallback={null}>
+            <AppShutterIntro companyName={appShutter} onDone={() => setAppShutter(null)} />
+          </Suspense>
+        )}
         <div className="app-shell flex h-[100dvh] max-h-[100dvh] bg-[#F8F9FA] text-[#1A1A1A] font-sans overflow-hidden">
           {/* Mobile sidebar backdrop */}
           {isSidebarOpen && (
             <div
-              className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-[1px]"
+              className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-[1px] dg-fade-enter"
               onClick={() => setIsSidebarOpen(false)}
               aria-hidden="true"
             />
@@ -1197,49 +1203,44 @@ export default function App() {
                       aria-hidden="true"
                     />
                   )}
-                  <AnimatePresence>
-                    {userMenuOpen && (
-                      <motion.div
-                        key="user-menu"
-                        role="menu"
-                        aria-labelledby="account-menu-button"
-                        initial={{ opacity: 0, y: -8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        className="absolute right-0 top-full mt-2 z-50 w-52 bg-white rounded-xl border border-gray-100 shadow-xl py-1 overflow-hidden"
-                      >
-                        <div className="px-4 py-3 border-b border-gray-100">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{user?.name}</p>
-                          <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-                        </div>
-                        <div className="py-1">
-                          {canAccess('settings') && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveTab('settings');
-                                setUserMenuOpen(false);
-                              }}
-                              className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                            >
-                              <Settings size={15} className="text-gray-400" />
-                              {t('nav.settings')}
-                            </button>
-                          )}
-                        </div>
-                        <div className="border-t border-gray-100 py-1">
+                  {userMenuOpen && (
+                    <div
+                      key="user-menu"
+                      role="menu"
+                      aria-labelledby="account-menu-button"
+                      className="dg-menu-enter absolute right-0 top-full mt-2 z-50 w-52 bg-white rounded-xl border border-gray-100 shadow-xl py-1 overflow-hidden"
+                    >
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{user?.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                      </div>
+                      <div className="py-1">
+                        {canAccess('settings') && (
                           <button
                             type="button"
-                            onClick={handleLogout}
-                            className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium"
+                            onClick={() => {
+                              setActiveTab('settings');
+                              setUserMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                           >
-                            <LogOut size={15} />
-                            {t('common.logout')}
+                            <Settings size={15} className="text-gray-400" />
+                            {t('nav.settings')}
                           </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                        )}
+                      </div>
+                      <div className="border-t border-gray-100 py-1">
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 font-medium"
+                        >
+                          <LogOut size={15} />
+                          {t('common.logout')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </header>
@@ -1369,8 +1370,8 @@ export default function App() {
             </div>
           </nav>
         </div>
-        <AnimatePresence>
-          {cmdOpen && (
+        {cmdOpen && (
+          <Suspense fallback={null}>
             <CommandPalette
               items={[
                 ...visibleNavItems.map(i => ({ id: i.id, label: i.label, icon: i.icon })),
@@ -1383,8 +1384,8 @@ export default function App() {
               distributionVisible={tv('distribution')}
               serviceMobile={servicePhoneUx}
             />
-          )}
-        </AnimatePresence>
+          </Suspense>
+        )}
       </ServiceCloudGate>
     </ToastProvider>
   );

@@ -1,5 +1,4 @@
 import React, { useState, createContext, useContext, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { AlertCircle, CheckCircle2, X, Info } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -13,12 +12,9 @@ export const useToast = () => useContext(ToastContext);
 
 function ToastItem({ t, onDismiss }: { key?: React.Key; t: Toast; onDismiss: () => void }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 60, scale: 0.95 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: 60, scale: 0.95 }}
+    <div
       className={cn(
-        'relative px-4 py-3 rounded-xl shadow-lg border text-sm font-medium flex items-center gap-2 overflow-hidden pr-9',
+        'dg-toast-enter relative px-4 py-3 rounded-xl shadow-lg border text-sm font-medium flex items-center gap-2 overflow-hidden pr-9',
         t.type === 'success' && 'bg-emerald-50 border-emerald-200 text-emerald-800',
         t.type === 'error' && 'bg-rose-50 border-rose-200 text-rose-800',
         t.type === 'info' && 'bg-blue-50 border-blue-200 text-blue-800',
@@ -35,19 +31,16 @@ function ToastItem({ t, onDismiss }: { key?: React.Key; t: Toast; onDismiss: () 
       >
         <X size={14} />
       </button>
-      {/* Progress bar */}
-      <motion.div
-        initial={{ scaleX: 1 }}
-        animate={{ scaleX: 0 }}
-        transition={{ duration: TOAST_DURATION / 1000, ease: 'linear' }}
+      {/* Progress bar — CSS so ToastProvider stays off the motion cold path */}
+      <div
         className={cn(
-          'absolute bottom-0 left-0 right-0 h-[3px] origin-left',
+          'dg-toast-progress absolute bottom-0 left-0 right-0 h-[3px] origin-left',
           t.type === 'success' && 'bg-emerald-400',
           t.type === 'error' && 'bg-rose-400',
           t.type === 'info' && 'bg-blue-400',
         )}
       />
-    </motion.div>
+    </div>
   );
 }
 
@@ -67,11 +60,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         className="fixed right-3 sm:right-4 z-[200] flex flex-col gap-2 max-w-[min(100vw-1.5rem,24rem)] w-full pointer-events-none [&_*]:pointer-events-auto"
         style={{ top: 'max(0.75rem, var(--safe-top))' }}
       >
-        <AnimatePresence>
-          {toasts.map(t => (
-            <ToastItem key={t.id} t={t} onDismiss={() => dismiss(t.id)} />
-          ))}
-        </AnimatePresence>
+        {toasts.map(t => (
+          <ToastItem key={t.id} t={t} onDismiss={() => dismiss(t.id)} />
+        ))}
       </div>
     </ToastContext.Provider>
   );
