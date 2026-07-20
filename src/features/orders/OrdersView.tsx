@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ClipboardList, Plus, ArrowLeft, Check, X, Truck, Trash2, Search } from 'lucide-react';
+import { ClipboardList, Plus, ArrowLeft, Check, X, Truck, Trash2, Search, Upload } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Product, Vendor } from '../../types';
 import { useToast, LoadingSpinner } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
+import { CsvImport } from '../../components/ui/CsvImport';
+import { importOrdersFromRows, ORDER_IMPORT_COLUMNS } from '../../lib/documentImport';
 
 interface Order {
   id: string;
@@ -52,6 +54,7 @@ export function OrdersView() {
   const [submitting, setSubmitting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'Pending' | 'Confirmed' | 'Fulfilled' | 'Cancelled'>('all');
   const [searchText, setSearchText] = useState('');
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
 
   const [form, setForm] = useState({
     vendorId: '',
@@ -67,7 +70,8 @@ export function OrdersView() {
   >([{ productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }]);
 
   useEscapeKey(() => {
-    if (modalOpen) setModalOpen(false);
+    if (csvImportOpen) setCsvImportOpen(false);
+    else if (modalOpen) setModalOpen(false);
     else if (selectedId) {
       setSelectedId(null);
       setSelected(null);
@@ -394,13 +398,22 @@ export function OrdersView() {
           <h2 className="text-xl font-bold">Orders</h2>
           <p className="text-sm text-gray-500">Manage customer and vendor orders</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
-        >
-          <Plus size={18} /> New Order
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setCsvImportOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"
+          >
+            <Upload size={18} /> Import
+          </button>
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+          >
+            <Plus size={18} /> New Order
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -706,6 +719,26 @@ export function OrdersView() {
           </div>
         )}
       </AnimatePresence>
+      {csvImportOpen && (
+        <CsvImport
+          templateName="orders"
+          itemLabel="orders"
+          columns={[...ORDER_IMPORT_COLUMNS]}
+          requireAnyOf={[['productName', 'barcode']]}
+          onClose={() => setCsvImportOpen(false)}
+          onImport={async rows => {
+            const result = await importOrdersFromRows(rows, {
+              products,
+              vendors,
+              requireProduct: true,
+              gstRate: 18,
+              post: body => fetchApi('/orders', { method: 'POST', body: JSON.stringify(body) }),
+            });
+            if (result.success > 0) load();
+            return result;
+          }}
+        />
+      )}
       <ConfirmRenderer />
     </motion.div>
   );
