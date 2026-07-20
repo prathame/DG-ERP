@@ -605,18 +605,18 @@ export default function App() {
           icon: ScanSearch,
           show: tv('verification'),
         },
-        {
-          id: 'quotations',
-          label: tc('quotations', t('nav.quotesOrders')),
-          icon: FileText,
-          show: tv('quotations'),
-        },
       ],
     },
     {
       label: t('navSections.financeReports'),
       items: [
         { id: 'invoices', label: tc('invoices', t('nav.invoices')), icon: ReceiptIndianRupee, show: tv('invoices') },
+        {
+          id: 'quotations',
+          label: tc('quotations', t('nav.quotesOrders')),
+          icon: FileText,
+          show: tv('quotations'),
+        },
         { id: 'finance', label: tc('finance', t('nav.finance')), icon: IndianRupee, show: tv('finance') },
         { id: 'accounts', label: tc('accounts', t('nav.accounts')), icon: BarChart3, show: tv('accounts') },
       ],
