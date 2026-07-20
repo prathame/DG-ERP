@@ -70,12 +70,20 @@ export function OrdersView() {
   >([{ productId: '', quantity: 1, customPrice: '', discount: 0, withGst: true }]);
 
   useEscapeKey(() => {
-    if (csvImportOpen) setCsvImportOpen(false);
-    else if (modalOpen) setModalOpen(false);
-    else if (selectedId) {
+    if (csvImportOpen) {
+      setCsvImportOpen(false);
+      return true;
+    }
+    if (modalOpen) {
+      setModalOpen(false);
+      return true;
+    }
+    if (selectedId) {
       setSelectedId(null);
       setSelected(null);
+      return true;
     }
+    return false;
   });
 
   const load = () => {

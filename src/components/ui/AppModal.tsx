@@ -33,7 +33,10 @@ export function AppModal({
   const titleId = useRef(`app-modal-title-${Math.random().toString(36).slice(2, 9)}`).current;
   const panelRef = useRef<HTMLDivElement>(null);
 
-  useEscapeKey(onClose, true);
+  useEscapeKey(() => {
+    onClose();
+    return true;
+  }, true);
   useFocusTrap(panelRef);
 
   useEffect(() => {

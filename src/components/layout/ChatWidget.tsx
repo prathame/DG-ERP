@@ -78,7 +78,10 @@ export function ChatWidget() {
     }
   }, [open]);
 
-  useEscapeKey(() => setOpen(false), open);
+  useEscapeKey(() => {
+    setOpen(false);
+    return true;
+  }, open);
 
   const sendMessage = async () => {
     const text = input.trim();

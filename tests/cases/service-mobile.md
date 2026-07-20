@@ -22,6 +22,7 @@ Offline Capacitor phone app for **service** business type. SA keys `DG-SM-…`. 
 | 5g | Invoice create mobile | Invoices → New → Party → Items → Review | Stepper on phone; line items as cards (no sideways scroll); stacked Cancel/Draft/Send |
 | 5h | Purchase/Quote lines | Purchases / Quotations create modals | Line items as cards on phone; desktop table unchanged |
 | 5i | Drawer + toast | More → drawer; trigger a toast | Settings pinned at bottom; toast below status bar / safe area |
+| 5i2 | Android system back | Open invoice/quote detail or Masters manage → Back; close to list → Back on tab root; Back again within ~2s | Detail/modal closes first; at list root toast “Press back again to exit”; second Back minimizes app (not endless tab history). Switch tabs then Back should not walk every prior tab |
 | 5j | Bottom nav IA | Glance at phone tab bar | Analytics · Masters · Invoice · Quotes · More (not Inventory/Finance as primary). Same Emergent IA as Service Cloud Capacitor service via `isServicePhoneUx`; Sync / demo seed / Show Accounts / advances stay Offline-only here |
 | 5k | Analytics phone | Analytics tab | Quick actions + dense KPI cards + range pills |
 | 5k2 | Analytics outstanding | Create unpaid invoice for a client → Analytics | Outstanding Clients lists that client with balance; View All opens Invoice Finance |

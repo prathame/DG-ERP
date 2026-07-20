@@ -150,15 +150,25 @@ export function QuotationsView() {
   const convertLabel = isService ? 'Convert to Invoice' : 'Convert to Distribution';
 
   useEscapeKey(() => {
-    if (csvImportOpen) setCsvImportOpen(false);
-    else if (partialConvert) setPartialConvert(null);
-    else if (modalOpen) {
+    if (csvImportOpen) {
+      setCsvImportOpen(false);
+      return true;
+    }
+    if (partialConvert) {
+      setPartialConvert(null);
+      return true;
+    }
+    if (modalOpen) {
       setModalOpen(false);
       setEditingId(null);
-    } else if (selectedId) {
+      return true;
+    }
+    if (selectedId) {
       setSelectedId(null);
       setSelected(null);
+      return true;
     }
+    return false;
   });
 
   const load = () => {

@@ -99,11 +99,27 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
     batches: { date: string; barcodeFirst: string; barcodeLast: string; count: number }[];
   } | null>(null);
   useEscapeKey(() => {
-    if (productToDelete) setProductToDelete(null);
-    else if (barcodeDetailsModal) setBarcodeDetailsModal(null);
-    else if (addStockModal) setAddStockModal(null);
-    else if (csvImportOpen) setCsvImportOpen(false);
-    else if (addModalOpen) setAddModalOpen(false);
+    if (productToDelete) {
+      setProductToDelete(null);
+      return true;
+    }
+    if (barcodeDetailsModal) {
+      setBarcodeDetailsModal(null);
+      return true;
+    }
+    if (addStockModal) {
+      setAddStockModal(null);
+      return true;
+    }
+    if (csvImportOpen) {
+      setCsvImportOpen(false);
+      return true;
+    }
+    if (addModalOpen) {
+      setAddModalOpen(false);
+      return true;
+    }
+    return false;
   });
 
   useEffect(() => {
