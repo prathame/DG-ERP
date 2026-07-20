@@ -1,13 +1,13 @@
 import type { OnlineStatusAdapter } from '../desktop/offline/OnlineStatus';
 import { runServiceMobileSync } from './sync';
-import { getServiceMobileConnectionStatus, subscribeSyncState } from './syncState';
+import { getSyncState, subscribeSyncState } from './syncState';
 
 export const serviceMobileOnlineStatusAdapter: OnlineStatusAdapter = {
-  getConnectionStatus: () => getServiceMobileConnectionStatus(),
+  getConnectionStatus: () => getSyncState(),
   subscribe: subscribeSyncState,
   syncNow: async () => {
     await runServiceMobileSync();
-    const s = getServiceMobileConnectionStatus();
+    const s = getSyncState();
     return { status: s.status, lastSync: s.lastSync };
   },
 };

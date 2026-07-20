@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, FileText, Trash2, Send, Check, X, Printer } from 'lucide-react';
-import { cn, formatDate, exportToCsv, useTabLabel } from '../../lib/utils';
+import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { fetchApi } from '../../api';
@@ -140,7 +140,7 @@ function resolveCatalogPrice(product: Product, rules: PriceRule[], vendorId: str
 export function InvoicesView() {
   const { toast } = useToast();
   const { t } = useTranslation();
-  const invoicesLabel = useTabLabel('invoices', t('invoices.title'));
+  const invoicesLabel = getTabLabel('invoices', t('invoices.title'));
   const cfg = useBusinessConfig();
   const servicePhoneUx = isServicePhoneUx(cfg.type);
   const [invoices, setInvoices] = useState<Invoice[]>([]);

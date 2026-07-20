@@ -1,8 +1,9 @@
-import { useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { useRef, useEffect, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useEscapeKey } from '../../lib/useEscapeKey';
+import { useFocusTrap } from '../../lib/useFocusTrap';
 
 /**
  * Responsive modal: bottom sheet on phones, centered dialog on sm+.
@@ -33,33 +34,15 @@ export function AppModal({
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEscapeKey(onClose, true);
-
-  const trapFocus = useCallback((e: KeyboardEvent) => {
-    if (e.key !== 'Tab' || !panelRef.current) return;
-    const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }, []);
+  useFocusTrap(panelRef);
 
   useEffect(() => {
-    document.addEventListener('keydown', trapFocus);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      document.removeEventListener('keydown', trapFocus);
       document.body.style.overflow = prev;
     };
-  }, [trapFocus]);
+  }, []);
 
   const maxW = size === 'sm' ? 'max-w-sm' : size === 'md' ? 'max-w-lg' : size === 'xl' ? 'max-w-4xl' : 'max-w-3xl';
 

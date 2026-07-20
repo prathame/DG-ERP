@@ -26,7 +26,7 @@ Ask: *If this file disappeared tomorrow, which user-facing workflow would break?
 
 ## Exports and symbols
 
-**Exported names:** `fetchImageAsDataUrl`, `bizTypeLabel`, `useTabLabel`, `cn`, `formatDate`, `resolveIrnQrPayload`, `PRINT_POPUP_BLOCKED`, `downloadHtmlAsPdf`, `closePrintOverlay`, `openPrintWindow`, `withPrintPagination`, `printBillInWindow`, `writePrintHtml`, `saveBillAsPdf`, `shareViaWhatsApp`, `shareViaEmail`, `formatSalesInvoiceText`, `formatDistributionChallanText`, `exportToCsv`
+**Exported names:** `fetchImageAsDataUrl`, `bizTypeLabel`, `getTabLabel`, `cn`, `formatDate`, `resolveIrnQrPayload`, `PRINT_POPUP_BLOCKED`, `downloadHtmlAsPdf`, `closePrintOverlay`, `openPrintWindow`, `withPrintPagination`, `printBillInWindow`, `writePrintHtml`, `saveBillAsPdf`, `shareViaWhatsApp`, `shareViaEmail`, `formatSalesInvoiceText`, `formatDistributionChallanText`, `exportToCsv`
 
 **Classes:** _none_
 
@@ -62,17 +62,17 @@ bizTypeLabel(type: string | null | undefined, companyName?: string)
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |
 
-### Function: useTabLabel
+### Function: getTabLabel
 
 ```ts
-useTabLabel(tabId: string, defaultLabel: string)
+getTabLabel(tabId: string, defaultLabel: string)
 ```
 
 | Aspect | Detail |
 | --- | --- |
 | Purpose | Symbol in `src/lib/utils.ts`. Open the source and read the body. |
 | Parameters | See signature above. |
-| What breaks if removed | Search the repo for `useTabLabel` before deleting. |
+| What breaks if removed | Search the repo for `getTabLabel` before deleting. |
 | Security | If it touches auth, tenant_id, money, GST, or PII — treat as security-sensitive. |
 | Performance | Watch for N+1 queries, unbounded loops, sync crypto, large JSON. |
 | Alternatives | Inline (worse), extract shared helper (if duplicated), or use a standard library. |

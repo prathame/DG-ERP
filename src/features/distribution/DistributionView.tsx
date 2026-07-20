@@ -27,7 +27,7 @@ import {
   shareViaEmail,
   formatDistributionChallanText,
   formatDate,
-  useTabLabel,
+  getTabLabel,
   fetchImageAsDataUrl,
   resolveIrnQrPayload,
 } from '../../lib/utils';
@@ -633,7 +633,7 @@ export function DistributionView({
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-xl font-bold">{useTabLabel('distribution', isDirectSell ? 'Sales' : 'Distribution')}</h2>
+          <h2 className="text-xl font-bold">{getTabLabel('distribution', isDirectSell ? 'Sales' : 'Distribution')}</h2>
           <p className="text-sm text-gray-500">
             {vendorId
               ? 'Your distributed products'

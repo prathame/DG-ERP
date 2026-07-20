@@ -86,56 +86,8 @@ export async function localExec(sql: string): Promise<void> {
   await d.exec(sql);
 }
 
-/** Dump raw SQL dump for encrypted backup (pg_dump-style text). */
-export async function dumpLocalDb(): Promise<Uint8Array> {
-  const d = await getLocalDb();
-  // PGlite dump API — fall back to JSON export of key tables
-  try {
-    const dumpFn = (d as unknown as { dumpDataDir?: () => Promise<Blob | File> }).dumpDataDir;
-    if (typeof dumpFn === 'function') {
-      const blob = await dumpFn.call(d);
-      return new Uint8Array(await blob.arrayBuffer());
-    }
-  } catch {
-    /* fall through */
-  }
-  const tables = [
-    'plans',
-    'tenants',
-    'users',
-    'vendors',
-    'customers',
-    'categories',
-    'products',
-    'banks',
-    'expenses',
-    'quotations',
-    'orders',
-    'standalone_invoices',
-    'invoice_payments',
-    'price_lists',
-    'bill_settings',
-    'tenant_notifications',
-    'staff_members',
-    'staff_payments',
-    'suppliers',
-    'product_purchases',
-    'supplier_payments',
-    'audit_log',
-  ];
-  const payload: Record<string, unknown[]> = {};
-  for (const t of tables) {
-    try {
-      const { rows } = await localQuery(`SELECT * FROM ${t}`);
-      payload[t] = rows;
-    } catch {
-      payload[t] = [];
-    }
-  }
-  return new TextEncoder().encode(JSON.stringify({ v: 1, tables: payload }));
-}
-
-const RESTORE_TABLE_ALLOWLIST = new Set([
+/** ERP tables dumped/restored for Offline Mobile JSON fallback backup. */
+const LOCAL_ERP_TABLES = [
   'plans',
   'tenants',
   'users',
@@ -158,8 +110,34 @@ const RESTORE_TABLE_ALLOWLIST = new Set([
   'product_purchases',
   'supplier_payments',
   'audit_log',
-  'sm_meta',
-]);
+] as const;
+
+const RESTORE_TABLE_ALLOWLIST = new Set<string>([...LOCAL_ERP_TABLES, 'sm_meta']);
+
+/** Dump raw SQL dump for encrypted backup (pg_dump-style text). */
+export async function dumpLocalDb(): Promise<Uint8Array> {
+  const d = await getLocalDb();
+  // PGlite dump API — fall back to JSON export of key tables
+  try {
+    const dumpFn = (d as unknown as { dumpDataDir?: () => Promise<Blob | File> }).dumpDataDir;
+    if (typeof dumpFn === 'function') {
+      const blob = await dumpFn.call(d);
+      return new Uint8Array(await blob.arrayBuffer());
+    }
+  } catch {
+    /* fall through */
+  }
+  const payload: Record<string, unknown[]> = {};
+  for (const t of LOCAL_ERP_TABLES) {
+    try {
+      const { rows } = await localQuery(`SELECT * FROM ${t}`);
+      payload[t] = rows;
+    } catch {
+      payload[t] = [];
+    }
+  }
+  return new TextEncoder().encode(JSON.stringify({ v: 1, tables: payload }));
+}
 
 const IDENT = /^[a-z_][a-z0-9_]*$/i;
 

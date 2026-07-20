@@ -28,11 +28,6 @@ export function getSyncState(): SyncConnectionStatus {
   return { ...state };
 }
 
-/** Alias for OnlineStatus adapter. */
-export function getServiceMobileConnectionStatus(): SyncConnectionStatus {
-  return getSyncState();
-}
-
 export function subscribeSyncState(listener: Listener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);

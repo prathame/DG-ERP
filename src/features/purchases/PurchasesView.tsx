@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShoppingBag, Plus, ArrowLeft, Search, IndianRupee, Trash2, Receipt } from 'lucide-react';
-import { cn, formatDate, exportToCsv, useTabLabel } from '../../lib/utils';
+import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
 import {
@@ -45,7 +45,7 @@ interface PurchaseBatch {
 export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const canEdit = accessLevel === 'full';
   const { toast } = useToast();
-  const purchasesLabel = useTabLabel('purchases', 'Purchases & Expenses');
+  const purchasesLabel = getTabLabel('purchases', 'Purchases & Expenses');
   const { confirm, ConfirmRenderer } = useConfirm();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [batches, setBatches] = useState<PurchaseBatch[]>([]);

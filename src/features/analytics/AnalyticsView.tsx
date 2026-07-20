@@ -13,7 +13,7 @@ import {
   FileText,
   Wallet,
 } from 'lucide-react';
-import { cn, formatDate, useTabLabel } from '../../lib/utils';
+import { cn, formatDate, getTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { api } from '../../api';
@@ -209,7 +209,7 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-6">
       <div className="hidden sm:block">
-        <h2 className="text-xl font-bold">{useTabLabel('analytics', t('nav.analytics'))}</h2>
+        <h2 className="text-xl font-bold">{getTabLabel('analytics', t('nav.analytics'))}</h2>
         <p className="text-sm text-gray-500">{t('dashboard.subtitle')}</p>
       </div>
 
