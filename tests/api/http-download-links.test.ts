@@ -40,16 +40,18 @@ describe('GET /api/download-links', () => {
     }
   });
 
-  it('returns evergreen Offline + Online Android/iOS when platform_config is unset', async () => {
+  it('returns unified dhandho-mobile Android/iOS defaults when platform_config is unset', async () => {
     const res = await api().get('/api/download-links');
     expect(res.status).toBe(200);
     expect(res.body.serviceMobileAppUrl).toBe(DEFAULT_SERVICE_MOBILE_APP_URL);
     expect(res.body.serviceMobileIosUrl).toBe(DEFAULT_SERVICE_MOBILE_IOS_URL);
+    // Legacy cloud keys alias the same unified evergreen assets
     expect(res.body.serviceCloudAppUrl).toBe(DEFAULT_SERVICE_CLOUD_APP_URL);
     expect(res.body.serviceCloudIosUrl).toBe(DEFAULT_SERVICE_CLOUD_IOS_URL);
-    expect(res.body.serviceMobileAppUrl).toContain('/releases/download/offline-mobile/');
+    expect(res.body.serviceMobileAppUrl).toContain('/releases/download/dhandho-mobile/');
+    expect(res.body.serviceMobileAppUrl).toContain('dhandho-mobile-debug.apk');
     expect(res.body.serviceMobileIosUrl).toContain('.app.zip');
-    expect(res.body.serviceCloudAppUrl).toContain('/releases/download/service-cloud/');
+    expect(res.body.serviceCloudAppUrl).toContain('/releases/download/dhandho-mobile/');
     expect(res.body.serviceCloudIosUrl).toContain('.app.zip');
   });
 
