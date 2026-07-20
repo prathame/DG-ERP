@@ -26,7 +26,7 @@ Same shape as Android `assembleDebug`:
 | `android:offline-mobile` | `dist-apk/offline-mobile-service-debug.apk` |
 | `ios:offline-mobile` | `dist-apk/offline-mobile-service-debug.app.zip` |
 
-Labels: `offline` / `mobile` / … · Manual: `MOBILE_PRODUCT=offline` · Evergreen: GitLab package `offline-mobile/latest/`.
+Label: `mobile` · Manual: `MOBILE_PRODUCT=phone` · Evergreen: GitLab package `dhandho-mobile/latest/`.
 
 ```bash
 npm run ci:android

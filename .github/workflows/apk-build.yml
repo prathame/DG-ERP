@@ -2,10 +2,10 @@
 # First launch: Online (cloud) or Offline (on-device) picker (one-time).
 #
 # Labels (merge → evergreen; label on open PR → preview):
-#   mobile | apk | offline | online | service-mobile | service-cloud → Android + iOS
+#   mobile → Android + iOS
 #
 # Comment preview (does NOT overwrite evergreen):
-#   apk build | apk build both
+#   apk build | /apk
 #
 # Evergreen release tag `dhandho-mobile`:
 #   dhandho-mobile-debug.apk + dhandho-mobile-debug.app.zip
@@ -96,14 +96,10 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Unified phone: any historical mobile label triggers Android + iOS.
-            const BOTH_LABELS = new Set([
-              'mobile', 'apk', 'apk-build',
-              'offline', 'offline-mobile', 'service-mobile',
-              'online', 'service-cloud', 'servicecloud',
-            ]);
+            // Unified phone: single label triggers Android + iOS.
+            const BOTH_LABELS = new Set(['mobile']);
             const OFFLINE_LABELS = BOTH_LABELS;
-            const ONLINE_LABELS = new Set(); // online Cap product retired
+            const ONLINE_LABELS = new Set(); // unused — Online/Offline chosen in-app
 
             const OFFLINE_PATH = [
               /^android\//,

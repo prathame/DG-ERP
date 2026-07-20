@@ -3,7 +3,7 @@
 # First launch: Online or Offline picker (one-time). Separate auth/data stacks.
 #
 # Labels (MR → preview artifacts; main path / manual → evergreen):
-#   mobile | apk | apk-build | offline | offline-mobile | service-mobile | online | service-cloud
+#   mobile
 #
 # Manual: Run pipeline → set MOBILE_PRODUCT=phone (optional PUSH_EVERGREEN=false)
 #
@@ -77,7 +77,7 @@ workflow:
   - if: $CI_PIPELINE_SOURCE == "web"
   - if: $CI_PIPELINE_SOURCE == "api"
   - if: $CI_PIPELINE_SOURCE == "pipeline"
-  - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(?:^|,)\s*(mobile|apk|apk-build|offline|offline-mobile|service-mobile|online|service-cloud|servicecloud)\s*(,|$)/
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(?:^|,)\s*mobile\s*(,|$)/
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes: *phone_changes
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
