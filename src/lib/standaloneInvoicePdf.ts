@@ -18,6 +18,7 @@ import type { jsPDF } from 'jspdf';
 import {
   amountInWords,
   safeImgSrc,
+  type BillDocType,
   type StandaloneInvoicePrint,
   type StandaloneInvoicePrintCompany,
 } from './billTemplates';
@@ -88,6 +89,8 @@ function tryAddImage(doc: jsPDF, dataUrl: string, x: number, y: number, w: numbe
 
 export type StandaloneInvoicePdfOptions = {
   hasGst?: boolean;
+  /** quotation = same template as invoice, title QUOTATION, no bank. */
+  docType?: BillDocType;
   /**
    * Saved Bill Customization (the WhatsApp/print template): logoBase64, signatureBase64,
    * primaryColor, bank*, termsAndConditions, footerText, tagline, invoicePrefix,
@@ -97,8 +100,8 @@ export type StandaloneInvoicePdfOptions = {
 };
 
 /**
- * Programmatic A4 invoice PDF from billSettings template + invoice data.
- * Lazy-imports jspdf so Cap invoice list doesn't pay the chunk cost until share.
+ * Programmatic A4 bill PDF from billSettings template + invoice/quotation data.
+ * Lazy-imports jspdf so Cap list screens don't pay the chunk cost until share.
  */
 export async function buildStandaloneInvoicePdfBlob(
   inv: StandaloneInvoicePrint,
@@ -110,6 +113,7 @@ export async function buildStandaloneInvoicePdfBlob(
   }
 
   const { jsPDF } = await import('jspdf');
+  const isQuote = options?.docType === 'quotation';
   const hasGst = options?.hasGst ?? invoiceHasGst(inv);
   const bs = options?.billSettings || {};
   const companyName = company.companyName || 'Dhandho';
@@ -121,9 +125,15 @@ export async function buildStandaloneInvoicePdfBlob(
       ? bs.primaryColor
       : ACCENT_DEFAULT,
   );
-  const invPrefix = String(bs.invoicePrefix || '');
+  const invPrefix = isQuote ? '' : String(bs.invoicePrefix || '');
   const logoSrc = safeImgSrc(bs.logoBase64);
   const sigSrc = safeImgSrc(bs.signatureBase64);
+  const docTitle = isQuote ? 'QUOTATION' : hasGst ? 'TAX INVOICE' : 'INVOICE';
+  const numberLabel = isQuote ? 'Quotation No' : 'Invoice No';
+  const dueLabel = isQuote ? 'Valid until' : 'Due';
+  const certText = isQuote
+    ? 'This quotation is subject to confirmation.'
+    : 'Certified that the particulars given above are true and correct.';
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const pageW = doc.internal.pageSize.getWidth();
@@ -132,6 +142,8 @@ export async function buildStandaloneInvoicePdfBlob(
   const right = pageW - margin;
   const contentW = right - margin;
   let y = margin;
+  /** Set when ensureSpace starts a new page — used to repeat item table headers. */
+  let pageBreakPending = false;
 
   const setBorder = () => doc.setDrawColor(BORDER);
   const setFill = () => doc.setFillColor(FILL, FILL, FILL);
@@ -140,6 +152,7 @@ export async function buildStandaloneInvoicePdfBlob(
     if (y + need > pageH - 12) {
       doc.addPage();
       y = margin;
+      pageBreakPending = true;
     }
   };
 
@@ -150,7 +163,7 @@ export async function buildStandaloneInvoicePdfBlob(
   doc.rect(margin, y, contentW, titleH);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
-  doc.text(hasGst ? 'TAX INVOICE' : 'INVOICE', pageW / 2, y + 6.2, { align: 'center' });
+  doc.text(docTitle, pageW / 2, y + 6.2, { align: 'center' });
   y += titleH;
 
   // —— Company | meta ——
@@ -163,11 +176,12 @@ export async function buildStandaloneInvoicePdfBlob(
   if (hasGst && company.gstNumber) companyLines.push(`GSTIN: ${company.gstNumber}`);
   if (tagline) companyLines.push(tagline);
   const metaRows: [string, string][] = [
-    ['Invoice No', `${invPrefix}${inv.invoiceNumber}`],
+    [numberLabel, `${invPrefix}${inv.invoiceNumber}`],
     ['Date', fmtDate(inv.invoiceDate)],
   ];
-  if (inv.dueDate) metaRows.push(['Due', fmtDate(inv.dueDate)]);
-  if (String(inv.status || '').toLowerCase() === 'paid') metaRows.push(['Status', 'PAID']);
+  if (inv.dueDate) metaRows.push([dueLabel, fmtDate(inv.dueDate)]);
+  if (!isQuote && String(inv.status || '').toLowerCase() === 'paid') metaRows.push(['Status', 'PAID']);
+  if (isQuote && inv.status) metaRows.push(['Status', String(inv.status)]);
   const hdrH = Math.max(22, 12 + companyLines.length * 3.6, 6 + metaRows.length * 5.5);
 
   setBorder();
@@ -305,7 +319,11 @@ export async function buildStandaloneInvoicePdfBlob(
     const descParts = wrapLines(doc, String(it.description || 'Item').slice(0, 80), Math.max(28, colItemMaxW));
     const rowH = Math.max(7, 3 + descParts.length * rowPad);
     ensureSpace(rowH + 20);
-    if (y < margin + 2) drawTableHeader();
+    // Same multi-page rule as HTML thead: repeat column headers after a page break.
+    if (pageBreakPending) {
+      pageBreakPending = false;
+      drawTableHeader();
+    }
     setBorder();
     doc.rect(margin, y, contentW, rowH);
     doc.setFont('helvetica', 'normal');
@@ -359,13 +377,16 @@ export async function buildStandaloneInvoicePdfBlob(
       ? inv.outstanding
       : Math.max(0, Number(inv.grandTotal || 0) - Number(inv.paidAmount || 0));
   const advance = Number(inv.advanceApplied || 0);
+  const showPaymentRows =
+    !isQuote || received > 0.001 || advance > 0.001 || (typeof inv.outstanding === 'number' && inv.outstanding > 0.001);
   const midX = margin + contentW / 2;
   const words = `(${amountInWords(inv.grandTotal)})`.toUpperCase();
   const wordsLines = wrapLines(doc, words, contentW / 2 - 8);
-  const leftSummaryRows = 2 + (advance > 0.001 ? 1 : 0);
-  const sumH = Math.max(18, 5 + leftSummaryRows * 5, 8 + wordsLines.length * 3.5 + 10);
+  const leftSummaryRows = 1 + (showPaymentRows ? 1 : 0) + (showPaymentRows && advance > 0.001 ? 1 : 0);
+  const sumH = Math.max(18, 5 + leftSummaryRows * 5, 8 + wordsLines.length * 3.5 + (showPaymentRows ? 10 : 4));
 
   ensureSpace(sumH + 50);
+  pageBreakPending = false;
   setBorder();
   doc.rect(margin, y, contentW, sumH);
   doc.line(midX, y, midX, y + sumH);
@@ -380,11 +401,11 @@ export async function buildStandaloneInvoicePdfBlob(
   let sy = y + 5.5;
   drawKV(margin + 3, midX - 3, sy, 'Sub Total', money(inv.subtotal));
   sy += 5;
-  if (advance > 0.001) {
+  if (showPaymentRows && advance > 0.001) {
     drawKV(margin + 3, midX - 3, sy, 'Advance', `-${money(advance)}`);
     sy += 5;
   }
-  drawKV(margin + 3, midX - 3, sy, 'Received', money(received));
+  if (showPaymentRows) drawKV(margin + 3, midX - 3, sy, 'Received', money(received));
 
   sy = y + 5.5;
   drawKV(midX + 3, right - 3, sy, 'Total', money(inv.grandTotal), true);
@@ -397,8 +418,10 @@ export async function buildStandaloneInvoicePdfBlob(
     sy += 3.2;
   }
   doc.setTextColor(0);
-  sy += 1.5;
-  drawKV(midX + 3, right - 3, sy, 'Balance', money(balance), true);
+  if (showPaymentRows) {
+    sy += 1.5;
+    drawKV(midX + 3, right - 3, sy, 'Balance', money(balance), true);
+  }
   y += sumH;
 
   if (hasGst && (inv.taxTotal || 0) > 0) {
@@ -421,8 +444,8 @@ export async function buildStandaloneInvoicePdfBlob(
     y += gstH;
   }
 
-  // —— Bank | Signatory (from billSettings template) ——
-  const hasBank = !!(bs.bankAccountName || bs.bankAccountNumber || bs.bankName || bs.bankUpiId);
+  // —— Bank | Signatory (from billSettings template; bank omitted for quotations) ——
+  const hasBank = !isQuote && !!(bs.bankAccountName || bs.bankAccountNumber || bs.bankName || bs.bankUpiId);
   const bankLines: string[] = [];
   if (hasBank) {
     bankLines.push('Bank Details');
@@ -463,7 +486,7 @@ export async function buildStandaloneInvoicePdfBlob(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(MUTED);
-  const cert = wrapLines(doc, 'Certified that the particulars given above are true and correct.', contentW * 0.42);
+  const cert = wrapLines(doc, certText, contentW * 0.42);
   let sigY = y + 4.5;
   for (const ln of cert) {
     doc.text(ln, right - 3, sigY, { align: 'right' });

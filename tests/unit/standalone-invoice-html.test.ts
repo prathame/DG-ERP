@@ -78,6 +78,28 @@ describe('generateStandaloneInvoiceHtml', () => {
     expect(html).not.toContain('CGST Rate');
     expect(html).toContain('class="outer');
   });
+
+  it('quotation variant uses QUOTATION title and omits bank', () => {
+    const html = generateStandaloneInvoiceHtml(
+      baseInv,
+      { companyName: 'Shop', phone: '999' },
+      {
+        bankName: 'Demo Bank',
+        bankAccountNumber: '123',
+        bankUpiId: 'a@upi',
+        footerText: 'Thanks for business with us',
+        termsAndConditions: 'Material cost 100% advance',
+      },
+      { hasGst: true, docType: 'quotation' },
+    );
+    expect(html).toContain('Quotation');
+    expect(html).toContain('Quotation No');
+    expect(html).toContain('print-end');
+    expect(html).toContain('Thanks for business with us');
+    expect(html).not.toContain('Bank Details');
+    expect(html).not.toContain('Tax Invoice');
+    expect(html).toContain('This quotation is subject to confirmation.');
+  });
 });
 
 describe('amountInWords', () => {

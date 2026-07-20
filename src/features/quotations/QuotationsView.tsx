@@ -18,11 +18,9 @@ import {
 import {
   cn,
   formatDate,
-  shareViaWhatsApp,
   shareViaEmail,
   openPrintWindow,
   printBillInWindow,
-  fetchImageAsDataUrl,
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
@@ -47,7 +45,8 @@ import {
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
 import { session } from '../../lib/session';
-import { generateQuotationHtml } from '../../lib/billTemplates';
+import { generateQuotationHtml, quotationToStandalonePrint } from '../../lib/billTemplates';
+import { shareStandaloneInvoiceWhatsApp, whatsAppInvoiceShareToast } from '../../lib/printStandaloneInvoice';
 import { useTranslation } from '../../i18n';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 import { CsvImport } from '../../components/ui/CsvImport';
@@ -140,6 +139,7 @@ export function QuotationsView() {
   });
   const [rows, setRows] = useState<QuoteLineRow[]>([emptyQuoteRow()]);
   const [billSettings, setBillSettings] = useState<BillSettings | null>(null);
+  const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const sessionUser = session.getUser() as Record<string, unknown> | null;
@@ -198,7 +198,7 @@ export function QuotationsView() {
   };
 
   const printQuotation = async (q: Quotation) => {
-    // Same A4 preview chrome as invoice bills (system Print → Save as PDF)
+    // Shared bill template (QUOTATION title, no bank) + same print pagination as invoices
     const w = openPrintWindow('Preparing quotation…', { hidePdfDownload: true });
     if (!w) {
       toast(PRINT_POPUP_BLOCKED, 'error');
@@ -207,15 +207,6 @@ export function QuotationsView() {
     try {
       const user = session.getUser() as Record<string, unknown> | null;
       const bs = (billSettings || {}) as Record<string, unknown>;
-      let qrDataUrl: string | undefined;
-      if (bs.bankUpiId) {
-        qrDataUrl =
-          (await fetchImageAsDataUrl(
-            `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(
-              `upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`,
-            )}`,
-          )) || undefined;
-      }
       const html = generateQuotationHtml(
         {
           quotationNumber: q.quotationNumber,
@@ -231,7 +222,7 @@ export function QuotationsView() {
           gstRate: q.gstRate,
           gstAmount: q.gstAmount,
           total: q.total,
-          // Offline: do not print per-quote notes; bank/T&C come from bill settings
+          // Offline: do not print per-quote notes; T&C come from bill settings
           notes: offlinePdf ? undefined : q.notes,
           company: {
             name: String(user?.companyName || 'Dhandho'),
@@ -242,7 +233,7 @@ export function QuotationsView() {
           },
           billSettings: bs,
         },
-        { qrDataUrl },
+        { hideNotes: offlinePdf },
       );
       printBillInWindow(w, html, `Quotation-${q.quotationNumber}`);
     } catch (err) {
@@ -252,6 +243,49 @@ export function QuotationsView() {
         /* ignore */
       }
       toast((err as Error).message || 'Print failed', 'error');
+    }
+  };
+
+  const shareQuotationWhatsApp = async (q: Quotation) => {
+    if (whatsappBusyId) return;
+    setWhatsappBusyId(q.id);
+    try {
+      const printable = {
+        ...quotationToStandalonePrint({
+          quotationNumber: q.quotationNumber,
+          quotationDate: q.quotationDate,
+          validUntil: q.validUntil,
+          status: q.status,
+          customerName: q.customerName,
+          customerPhone: q.customerPhone,
+          customerEmail: q.customerEmail,
+          vendorName: q.vendorName,
+          items: q.items,
+          subtotal: q.subtotal,
+          gstRate: q.gstRate,
+          gstAmount: q.gstAmount,
+          total: q.total,
+          notes: offlinePdf ? undefined : q.notes,
+          company: { name: companyName || 'Dhandho' },
+          billSettings: (billSettings || {}) as Record<string, unknown>,
+        }),
+        taxTotal: q.gstAmount,
+        customerPhone: q.customerPhone,
+        grandTotal: q.total,
+      };
+      const { how, errorHint } = await shareStandaloneInvoiceWhatsApp(printable, {
+        billSettings: (billSettings || {}) as Record<string, unknown>,
+        businessType: String(sessionUser?.businessType || ''),
+        docType: 'quotation',
+        onPreparing: () => toast('Preparing PDF…', 'info'),
+      });
+      if (how === 'cancelled') return;
+      toast(whatsAppInvoiceShareToast(how, errorHint), how === 'pdf_fallback' ? 'info' : 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not share quotation';
+      toast(msg.length > 100 ? `${msg.slice(0, 99)}…` : msg, 'error');
+    } finally {
+      setWhatsappBusyId(null);
     }
   };
 
@@ -629,10 +663,11 @@ export function QuotationsView() {
               {selected.customerPhone && (
                 <button
                   type="button"
-                  onClick={() => shareViaWhatsApp(selected.customerPhone!, formatQuotationText(selected))}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg"
+                  disabled={whatsappBusyId === selected.id}
+                  onClick={() => void shareQuotationWhatsApp(selected)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-60"
                 >
-                  <MessageCircle size={14} /> WhatsApp
+                  <MessageCircle size={14} /> {whatsappBusyId === selected.id ? 'Preparing…' : 'WhatsApp'}
                 </button>
               )}
               {selected.customerEmail && (

@@ -514,12 +514,16 @@ export type StandaloneInvoicePrintCompany = {
   gstNumber?: string;
 };
 
+/** Shared bill HTML/PDF variant — quotation = same template, title QUOTATION, no bank. */
+export type BillDocType = 'invoice' | 'quotation';
+
 export function generateStandaloneInvoiceHtml(
   inv: StandaloneInvoicePrint,
   company: StandaloneInvoicePrintCompany,
   billSettings: Record<string, unknown>,
-  options?: { qrDataUrl?: string; hideNotes?: boolean; hasGst?: boolean },
+  options?: { qrDataUrl?: string; hideNotes?: boolean; hasGst?: boolean; docType?: BillDocType },
 ): string {
+  const isQuote = options?.docType === 'quotation';
   const color = safeColor(billSettings.primaryColor as string);
   const logoSrc = safeImgSrc(billSettings.logoBase64);
   const sigSrc = safeImgSrc(billSettings.signatureBase64);
@@ -527,9 +531,15 @@ export function generateStandaloneInvoiceHtml(
     ? `<img src="${logoSrc}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
     : `<div style="width:48px;height:48px;border:1px solid #222;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;">${esc((company.companyName || 'C').substring(0, 1))}</div>`;
   const tagline = String(billSettings.tagline || '');
-  const invPrefix = String(billSettings.invoicePrefix || '');
+  const invPrefix = isQuote ? '' : String(billSettings.invoicePrefix || '');
   const footerText = String(billSettings.footerText || 'Powered by Dhandho Management');
   const hasGst = options?.hasGst ?? inv.gstEnabled === true;
+  const docTitle = isQuote ? 'Quotation' : hasGst ? 'Tax Invoice' : 'Invoice';
+  const numberLabel = isQuote ? 'Quotation No' : 'Invoice No';
+  const dueLabel = isQuote ? 'Valid until' : 'Due';
+  const certText = isQuote
+    ? 'This quotation is subject to confirmation.'
+    : 'Certified that the particulars given above are true and correct.';
   const useIgst = inv.isInterstate === true || (typeof inv.taxIgst === 'number' && inv.taxIgst > 0);
   const taxCgst = typeof inv.taxCgst === 'number' ? inv.taxCgst : Math.round((inv.taxTotal || 0) / 2);
   const taxSgst =
@@ -548,6 +558,11 @@ export function generateStandaloneInvoiceHtml(
     typeof inv.outstanding === 'number'
       ? inv.outstanding
       : Math.max(0, Number(inv.grandTotal || 0) - Number(inv.paidAmount || 0));
+  const showPaymentRows =
+    !isQuote ||
+    received > 0.001 ||
+    (inv.advanceApplied || 0) > 0.001 ||
+    (typeof inv.outstanding === 'number' && inv.outstanding > 0.001);
 
   // HSN-wise GST summary (end of bill — matches classic Tax Invoice layout)
   const hsnMap = new Map<
@@ -571,10 +586,17 @@ export function generateStandaloneInvoiceHtml(
   const colCount =
     5 + (showHsn ? 1 : 0) + (showDiscCol ? 1 : 0) + (hasGst ? 2 : 0); /* # name [hsn] qty rate [disc] [gst tax] amt */
 
+  // Quotations never show bank / UPI (invoice-only).
   const hasBank =
-    billSettings.bankAccountName || billSettings.bankAccountNumber || billSettings.bankName || billSettings.bankUpiId;
+    !isQuote &&
+    !!(
+      billSettings.bankAccountName ||
+      billSettings.bankAccountNumber ||
+      billSettings.bankName ||
+      billSettings.bankUpiId
+    );
   const upiQr =
-    billSettings.bankUpiId && options?.qrDataUrl
+    !isQuote && billSettings.bankUpiId && options?.qrDataUrl
       ? `<div style="text-align:center;"><img src="${options.qrDataUrl}" style="width:100px;height:100px;" /><div style="font-size:9px;color:#666;margin-top:2px;">Scan to pay via UPI</div></div>`
       : '';
 
@@ -613,9 +635,9 @@ export function generateStandaloneInvoiceHtml(
     )
     .join('');
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${hasGst ? 'Tax Invoice' : 'Invoice'} — ${esc(invPrefix)}${esc(inv.invoiceNumber)}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(docTitle)} — ${esc(invPrefix)}${esc(inv.invoiceNumber)}</title>
 <style>${billDocCss(color)}</style></head><body>
-<table class="outer title-box avoid-break"><tr><td>${hasGst ? 'Tax Invoice' : 'Invoice'}</td></tr></table>
+<table class="outer title-box avoid-break"><tr><td>${esc(docTitle)}</td></tr></table>
 <table class="outer avoid-break" style="margin-top:-1px;">
   <tr class="hdr">
     <td style="width:62%;border-right:1px solid #222;">
@@ -633,10 +655,11 @@ export function generateStandaloneInvoiceHtml(
     </td>
     <td style="vertical-align:top;">
       <table style="width:100%;">
-        <tr class="cust-row"><td class="cust-label">Invoice No</td><td><strong style="font-family:monospace;">${esc(invPrefix)}${esc(inv.invoiceNumber)}</strong></td></tr>
+        <tr class="cust-row"><td class="cust-label">${esc(numberLabel)}</td><td><strong style="font-family:monospace;">${esc(invPrefix)}${esc(inv.invoiceNumber)}</strong></td></tr>
         <tr class="cust-row"><td class="cust-label">Date</td><td><strong>${fmtDate(inv.invoiceDate)}</strong></td></tr>
-        ${inv.dueDate ? `<tr class="cust-row"><td class="cust-label">Due</td><td>${fmtDate(inv.dueDate)}</td></tr>` : ''}
-        ${inv.status === 'paid' ? '<tr class="cust-row"><td class="cust-label">Status</td><td><strong>PAID</strong></td></tr>' : ''}
+        ${inv.dueDate ? `<tr class="cust-row"><td class="cust-label">${esc(dueLabel)}</td><td>${fmtDate(inv.dueDate)}</td></tr>` : ''}
+        ${!isQuote && inv.status === 'paid' ? '<tr class="cust-row"><td class="cust-label">Status</td><td><strong>PAID</strong></td></tr>' : ''}
+        ${isQuote && inv.status ? `<tr class="cust-row"><td class="cust-label">Status</td><td><strong>${esc(inv.status)}</strong></td></tr>` : ''}
       </table>
     </td>
   </tr>
@@ -686,18 +709,18 @@ export function generateStandaloneInvoiceHtml(
       <table style="width:100%;">
         <tr><td class="summary-label">Sub Total</td><td class="right">${money(inv.subtotal)}</td></tr>
         ${
-          (inv.advanceApplied || 0) > 0.001
+          showPaymentRows && (inv.advanceApplied || 0) > 0.001
             ? `<tr><td>Advance</td><td class="right">−${money(inv.advanceApplied || 0)}</td></tr>`
             : ''
         }
-        <tr><td>Received</td><td class="right">${money(received)}</td></tr>
+        ${showPaymentRows ? `<tr><td>Received</td><td class="right">${money(received)}</td></tr>` : ''}
       </table>
     </td>
     <td style="vertical-align:top;padding:0;">
       <table style="width:100%;">
         <tr><td class="summary-label">Total</td><td class="right grand-total">${money(inv.grandTotal)}</td></tr>
         <tr><td colspan="2" style="font-size:9px;color:#555;text-transform:uppercase;">(${esc(amountInWords(inv.grandTotal))})</td></tr>
-        <tr><td><strong>Balance</strong></td><td class="right"><strong>${money(balance)}</strong></td></tr>
+        ${showPaymentRows ? `<tr><td><strong>Balance</strong></td><td class="right"><strong>${money(balance)}</strong></td></tr>` : ''}
       </table>
     </td>
   </tr>
@@ -751,7 +774,7 @@ ${!options?.hideNotes && inv.notes ? `<table class="outer" style="margin-top:-1p
       }
     </td>
     <td style="vertical-align:top;padding:8px 10px;text-align:right;">
-      <div style="font-size:9px;color:#666;margin-bottom:4px;">Certified that the particulars given above are true and correct.</div>
+      <div style="font-size:9px;color:#666;margin-bottom:4px;">${esc(certText)}</div>
       <div style="font-weight:700;margin-bottom:8px;">For ${esc(companyName)}</div>
       ${sigSrc ? `<img src="${sigSrc}" style="height:48px;margin-bottom:4px;" />` : '<div style="height:48px;border:1px dashed #ccc;margin:0 0 4px auto;width:140px;"></div>'}
       ${billSettings.signatoryName ? `<div style="font-size:11px;font-weight:600;">${esc(billSettings.signatoryName)}</div>` : ''}
@@ -1127,169 +1150,50 @@ export type QuotationBillInput = {
   billSettings?: Record<string, unknown> | null;
 };
 
-export function generateQuotationHtml(q: QuotationBillInput, options?: { qrDataUrl?: string }): string {
-  const billConfig = q.billSettings || {};
-  const color = safeColor(billConfig.primaryColor as string);
-  const logoSrc = safeImgSrc(billConfig.logoBase64);
-  const companyName = q.company.name || 'Dhandho';
-  const logoHtml = logoSrc
-    ? `<img src="${logoSrc}" style="width:48px;height:48px;border-radius:10px;object-fit:contain;" />`
-    : `<div style="width:48px;height:48px;border:1px solid #222;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;">${esc(companyName.substring(0, 1))}</div>`;
-  const tagline = String(billConfig.tagline || '');
-  const footerText = String(billConfig.footerText || 'Powered by Dhandho Management');
+/** Map quotation fields onto the shared standalone bill print shape. */
+export function quotationToStandalonePrint(q: QuotationBillInput): StandaloneInvoicePrint {
   const hasGst = (q.gstAmount || 0) > 0;
-  const halfGst = Math.round((q.gstAmount || 0) / 2);
-  const billTo = q.customerName || q.vendorName || 'Customer';
-  const money = (n: number) =>
-    `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const showDiscCol = q.items.some(it => (it.discountPercent || 0) > 0);
-  const colCount = 5 + (showDiscCol ? 1 : 0) + (hasGst ? 1 : 0); /* # name qty rate [disc] [gst] amt */
-  const qtyTotal = q.items.reduce((s, it) => s + Number(it.quantity || 0), 0);
-
-  const hasBank =
-    billConfig.bankAccountName || billConfig.bankAccountNumber || billConfig.bankName || billConfig.bankUpiId;
-  const upiQr =
-    billConfig.bankUpiId && options?.qrDataUrl
-      ? `<div style="text-align:center;"><img src="${options.qrDataUrl}" style="width:100px;height:100px;" /><div style="font-size:9px;color:#666;margin-top:2px;">Scan to pay via UPI</div></div>`
-      : '';
-  const sigSrc = safeImgSrc(billConfig.signatureBase64);
-  const termsText = String(billConfig.termsAndConditions || '');
-
-  const rowsHtml = q.items
-    .map((it, i) => {
-      const disc = it.discountPercent || 0;
-      return `<tr>
-      <td>${i + 1}</td>
-      <td class="left">${esc(it.productName)}</td>
-      <td>${it.quantity}</td>
-      <td class="right">${money(it.price)}</td>
-      ${showDiscCol ? `<td class="right">${disc > 0 ? `${disc}%` : '—'}</td>` : ''}
-      ${hasGst ? `<td class="right">${money(it.lineGst)}</td>` : ''}
-      <td class="right">${money(it.lineTotal)}</td>
-    </tr>`;
-    })
-    .join('');
-
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quotation — ${esc(q.quotationNumber)}</title>
-<style>${billDocCss(color)}</style></head><body>
-<table class="outer title-box avoid-break"><tr><td>Quotation</td></tr></table>
-<table class="outer avoid-break" style="margin-top:-1px;">
-  <tr class="hdr">
-    <td style="width:62%;border-right:1px solid #222;">
-      <div style="display:flex;align-items:flex-start;gap:10px;">
-        ${logoHtml}
-        <div>
-          <div style="font-size:16px;font-weight:700;color:${color};">${esc(companyName)}</div>
-          ${q.company.address ? `<div style="font-size:10px;color:#555;">${esc(q.company.address)}</div>` : ''}
-          ${q.company.phone ? `<div style="font-size:10px;color:#555;">Phone: ${esc(q.company.phone)}</div>` : ''}
-          ${q.company.email ? `<div style="font-size:10px;color:#555;">Email: ${esc(q.company.email)}</div>` : ''}
-          ${hasGst && q.company.gstNumber ? `<div class="gstin-text" style="margin-top:2px;">GSTIN: ${esc(q.company.gstNumber)}</div>` : ''}
-          ${tagline ? `<div class="tagline" style="margin-top:6px;display:inline-block;padding:2px 8px;">${esc(tagline)}</div>` : ''}
-        </div>
-      </div>
-    </td>
-    <td style="vertical-align:top;">
-      <table style="width:100%;">
-        <tr class="cust-row"><td class="cust-label">Quotation No</td><td><strong style="font-family:monospace;">${esc(q.quotationNumber)}</strong></td></tr>
-        <tr class="cust-row"><td class="cust-label">Date</td><td><strong>${fmtDate(q.quotationDate)}</strong></td></tr>
-        ${q.validUntil ? `<tr class="cust-row"><td class="cust-label">Valid until</td><td>${fmtDate(q.validUntil)}</td></tr>` : ''}
-        ${q.status ? `<tr class="cust-row"><td class="cust-label">Status</td><td><strong>${esc(q.status)}</strong></td></tr>` : ''}
-      </table>
-    </td>
-  </tr>
-</table>
-<table class="outer avoid-break" style="margin-top:-1px;">
-  <tr><td class="section-head" style="color:#111;">Bill To</td></tr>
-  <tr><td style="padding:8px 10px;">
-    <strong>${esc(billTo)}</strong>
-    ${q.customerPhone ? `<div style="font-size:10px;color:#555;margin-top:2px;">Ph: ${esc(q.customerPhone)}</div>` : ''}
-    ${q.customerEmail ? `<div style="font-size:10px;color:#555;">${esc(q.customerEmail)}</div>` : ''}
-  </td></tr>
-</table>
-<table class="outer items" style="margin-top:-1px;">
-  <thead>
-    <tr>
-      <th style="width:28px;">#</th>
-      <th class="left">Item Name</th>
-      <th>Qty</th>
-      <th class="right">Price/Unit</th>
-      ${showDiscCol ? '<th class="right">Disc%</th>' : ''}
-      ${hasGst ? '<th class="right">GST Amt</th>' : ''}
-      <th class="right">Amount</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${rowsHtml}
-    <tr class="fill-row"><td colspan="${colCount}"></td></tr>
-    <tr class="total-row">
-      <td></td>
-      <td class="right"><strong>Total</strong></td>
-      <td><strong>${qtyTotal}</strong></td>
-      <td></td>
-      ${showDiscCol ? '<td></td>' : ''}
-      ${hasGst ? `<td class="right"><strong>${money(q.gstAmount)}</strong></td>` : ''}
-      <td class="right"><strong>${money(q.total)}</strong></td>
-    </tr>
-  </tbody>
-</table>
-<div class="print-end avoid-break">
-<table class="outer" style="margin-top:-1px;">
-  <tr>
-    <td style="width:50%;border-right:1px solid #222;vertical-align:top;padding:0;">
-      <table style="width:100%;">
-        <tr><td class="summary-label">Sub Total</td><td class="right">${money(q.subtotal)}</td></tr>
-        ${
-          hasGst
-            ? `<tr><td>CGST (${q.gstRate / 2}%)</td><td class="right">${money(halfGst)}</td></tr>
-        <tr><td>SGST (${q.gstRate / 2}%)</td><td class="right">${money(q.gstAmount - halfGst)}</td></tr>`
-            : ''
-        }
-      </table>
-    </td>
-    <td style="vertical-align:top;padding:0;">
-      <table style="width:100%;">
-        <tr><td class="summary-label">Total</td><td class="right grand-total">${money(q.total)}</td></tr>
-        <tr><td colspan="2" style="font-size:9px;color:#555;text-transform:uppercase;">(${esc(amountInWords(q.total))})</td></tr>
-      </table>
-    </td>
-  </tr>
-</table>
-${q.notes ? `<table class="outer" style="margin-top:-1px;"><tr><td style="padding:8px;"><strong>Notes:</strong> ${esc(q.notes)}</td></tr></table>` : ''}
-<table class="outer" style="margin-top:-1px;">
-  <tr>
-    <td style="width:55%;border-right:1px solid #222;vertical-align:top;padding:8px 10px;">
-      ${
-        hasBank
-          ? `<div style="font-weight:700;margin-bottom:6px;">Bank Details</div>
-      <table class="bank-section">
-        ${billConfig.bankAccountName ? `<tr><td class="bank-label">Name</td><td>${esc(billConfig.bankAccountName)}</td></tr>` : ''}
-        ${billConfig.bankName ? `<tr><td class="bank-label">Bank</td><td>${esc(billConfig.bankName)}${billConfig.bankBranch ? `, ${esc(billConfig.bankBranch)}` : ''}</td></tr>` : ''}
-        ${billConfig.bankAccountNumber ? `<tr><td class="bank-label">A/c No.</td><td style="font-family:monospace;">${esc(billConfig.bankAccountNumber)}</td></tr>` : ''}
-        ${billConfig.bankIfsc ? `<tr><td class="bank-label">IFSC</td><td style="font-family:monospace;">${esc(billConfig.bankIfsc)}</td></tr>` : ''}
-        ${billConfig.bankUpiId ? `<tr><td class="bank-label">UPI</td><td>${esc(billConfig.bankUpiId)}</td></tr>` : ''}
-      </table>${upiQr ? `<div style="margin-top:8px;">${upiQr}</div>` : ''}`
-          : upiQr || '<div style="font-size:10px;color:#666;">—</div>'
-      }
-    </td>
-    <td style="vertical-align:top;padding:8px 10px;text-align:right;">
-      <div style="font-size:9px;color:#666;margin-bottom:4px;">This quotation is subject to confirmation.</div>
-      <div style="font-weight:700;margin-bottom:8px;">For ${esc(companyName)}</div>
-      ${sigSrc ? `<img src="${sigSrc}" style="height:48px;margin-bottom:4px;" />` : '<div style="height:48px;border:1px dashed #ccc;margin:0 0 4px auto;width:140px;"></div>'}
-      ${billConfig.signatoryName ? `<div style="font-size:11px;font-weight:600;">${esc(billConfig.signatoryName)}</div>` : ''}
-      ${billConfig.signatoryDesignation ? `<div style="font-size:10px;color:#666;">${esc(billConfig.signatoryDesignation)}</div>` : ''}
-      <div style="border-top:1px solid #333;margin-top:6px;padding-top:4px;font-size:10px;font-weight:600;">Authorized Signatory</div>
-    </td>
-  </tr>
-</table>
-${
-  termsText
-    ? `<table class="outer" style="margin-top:-1px;"><tr><td style="padding:6px 10px;font-size:10px;">
-  <div style="font-weight:700;margin-bottom:4px;">Terms and Conditions</div>
-  <div style="color:#555;white-space:pre-line;">${esc(termsText)}</div>
-</td></tr></table>`
-    : ''
+  return {
+    invoiceNumber: q.quotationNumber,
+    customerName: q.customerName || q.vendorName || 'Customer',
+    customerPhone: q.customerPhone || undefined,
+    items: q.items.map(it => ({
+      description: it.productName,
+      qty: it.quantity,
+      rate: it.price,
+      gstPercent: it.withGst ? q.gstRate : 0,
+      discountPercent: it.discountPercent,
+      taxable: it.lineNet,
+      tax: it.lineGst,
+      total: it.lineTotal,
+    })),
+    subtotal: q.subtotal,
+    taxTotal: q.gstAmount,
+    gstEnabled: hasGst,
+    grandTotal: q.total,
+    notes: q.notes || undefined,
+    status: q.status,
+    invoiceDate: q.quotationDate,
+    dueDate: q.validUntil || undefined,
+  };
 }
-<div class="footer-text">${esc(footerText)}</div>
-</div>
-</body></html>`;
+
+/** Quotation print HTML — same billSettings template as Tax Invoice (no bank). */
+export function generateQuotationHtml(q: QuotationBillInput, options?: { hideNotes?: boolean }): string {
+  return generateStandaloneInvoiceHtml(
+    quotationToStandalonePrint(q),
+    {
+      companyName: q.company.name || 'Dhandho',
+      address: q.company.address || undefined,
+      phone: q.company.phone || undefined,
+      email: q.company.email || undefined,
+      gstNumber: q.company.gstNumber || undefined,
+    },
+    q.billSettings || {},
+    {
+      hideNotes: options?.hideNotes,
+      hasGst: (q.gstAmount || 0) > 0,
+      docType: 'quotation',
+    },
+  );
 }

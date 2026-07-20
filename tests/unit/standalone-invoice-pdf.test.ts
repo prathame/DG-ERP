@@ -87,6 +87,28 @@ describe('buildStandaloneInvoicePdfBlob (Cap light print-like)', () => {
     expect(text).toMatch(/20 Jul 2026|Jul 2026/);
   });
 
+  it('quotation variant titles QUOTATION and omits bank', async () => {
+    const blob = await buildStandaloneInvoicePdfBlob(
+      baseInv,
+      { companyName: 'Prathamesh', phone: '9999999999' },
+      {
+        hasGst: false,
+        docType: 'quotation',
+        billSettings: {
+          bankName: 'Demo Bank',
+          bankAccountNumber: '123456',
+          footerText: 'Thanks for business with us',
+        },
+      },
+    );
+    const text = await pdfText(blob);
+    expect(text).toContain('QUOTATION');
+    expect(text).toContain('Quotation No');
+    expect(text).not.toContain('Bank Details');
+    expect(text).not.toContain('TAX INVOICE');
+    expect(text).toContain('Thanks for business with us');
+  });
+
   it('uses TAX INVOICE title and GST columns when hasGst', async () => {
     const blob = await buildStandaloneInvoicePdfBlob(
       {

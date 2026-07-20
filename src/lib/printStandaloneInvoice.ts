@@ -1,6 +1,6 @@
 import { fetchApi } from '../api';
 import { api } from '../api';
-import { generateStandaloneInvoiceHtml, type StandaloneInvoicePrint } from './billTemplates';
+import { generateStandaloneInvoiceHtml, type BillDocType, type StandaloneInvoicePrint } from './billTemplates';
 import { invoiceHasGst } from './billSettingsFlags';
 import { clientLogger, ensureCorrelationId, pushClientBreadcrumb } from './logger';
 import { isServicePhoneUx } from '../platforms/service-cloud/mode';
@@ -44,9 +44,9 @@ export function whatsAppInvoiceShareToast(
       return hint ? `PDF failed (${hint}) — shared text summary instead` : 'PDF failed — shared text summary instead';
     }
     case 'shared':
-      return 'Invoice PDF shared';
+      return 'PDF shared';
     case 'saved':
-      return 'PDF saved to Dhandho/invoices on this phone';
+      return 'PDF saved to Dhandho on this phone';
     case 'text':
       return 'WhatsApp opened — PDF also saved/downloaded to attach';
     case 'downloaded':
@@ -65,6 +65,8 @@ export type PrintableStandaloneInvoice = StandaloneInvoicePrint & {
 export type ShareStandaloneInvoiceWhatsAppOptions = {
   billSettings?: Record<string, unknown>;
   businessType?: string;
+  /** quotation = shared bill template, title QUOTATION, no bank. */
+  docType?: BillDocType;
   /** Cap: called after breadcrumb so UI can toast "Preparing PDF…". */
   onPreparing?: () => void;
 };
@@ -98,11 +100,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string)
 
 async function buildStandaloneInvoiceHtml(
   inv: PrintableStandaloneInvoice,
-  options?: { billSettings?: Record<string, unknown>; businessType?: string },
+  options?: { billSettings?: Record<string, unknown>; businessType?: string; docType?: BillDocType },
 ): Promise<{ html: string; filename: string; hasGst: boolean }> {
   if (!Array.isArray(inv.items) || inv.items.length === 0) {
     throw new Error('Invoice has no line items to print');
   }
+  const docType = options?.docType || 'invoice';
+  const isQuote = docType === 'quotation';
   const user = (session.getUser() || {}) as {
     companyName?: string;
     address?: string;
@@ -118,11 +122,13 @@ async function buildStandaloneInvoiceHtml(
   const logoSrc = typeof bs.logoBase64 === 'string' && bs.logoBase64.startsWith('data:image/') ? bs.logoBase64 : '';
   const sigSrc =
     typeof bs.signatureBase64 === 'string' && bs.signatureBase64.startsWith('data:image/') ? bs.signatureBase64 : '';
-  const upiQrDataUrl = bs.bankUpiId
-    ? await fetchImageAsDataUrl(
-        `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`,
-      )
-    : '';
+  // Quotations omit bank/UPI — skip QR network fetch.
+  const upiQrDataUrl =
+    !isQuote && bs.bankUpiId
+      ? await fetchImageAsDataUrl(
+          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`,
+        )
+      : '';
   const phoneUx = isServicePhoneUx(options?.businessType);
   const hasGst = invoiceHasGst(inv);
   const html = generateStandaloneInvoiceHtml(
@@ -140,7 +146,7 @@ async function buildStandaloneInvoiceHtml(
       signatureBase64: sigSrc || bs.signatureBase64,
       primaryColor: color,
     },
-    { qrDataUrl: upiQrDataUrl || undefined, hideNotes: phoneUx, hasGst },
+    { qrDataUrl: upiQrDataUrl || undefined, hideNotes: phoneUx, hasGst, docType },
   );
   const filename = standaloneInvoicePdfBasename(inv.customerName);
   return { html, filename, hasGst };
@@ -185,9 +191,10 @@ export async function printStandaloneInvoice(
   }
 }
 
-function invoiceWhatsAppMessage(inv: PrintableStandaloneInvoice): string {
+function invoiceWhatsAppMessage(inv: PrintableStandaloneInvoice, docType: BillDocType = 'invoice'): string {
   const total = typeof inv.grandTotal === 'number' ? `₹${inv.grandTotal.toLocaleString('en-IN')}` : '';
-  return [`Invoice ${inv.invoiceNumber}`, inv.customerName, total && `Total: ${total}`].filter(Boolean).join('\n');
+  const label = docType === 'quotation' ? 'Quotation' : 'Invoice';
+  return [`${label} ${inv.invoiceNumber}`, inv.customerName, total && `Total: ${total}`].filter(Boolean).join('\n');
 }
 
 async function shareCapInvoicePdfWithFallback(
@@ -241,7 +248,7 @@ async function shareCapInvoicePdfWithFallback(
           email: user.email,
           gstNumber: user.gstNumber,
         },
-        { hasGst: invoiceHasGst(inv), billSettings },
+        { hasGst: invoiceHasGst(inv), billSettings, docType: options?.docType || 'invoice' },
       ),
       CAP_WHATSAPP_PDF_TIMEOUT_MS,
       'PDF_TIMEOUT',
@@ -304,11 +311,13 @@ export async function shareStandaloneInvoiceWhatsApp(
   inv: PrintableStandaloneInvoice,
   options?: ShareStandaloneInvoiceWhatsAppOptions,
 ): Promise<WhatsAppInvoiceShareResult> {
-  const message = invoiceWhatsAppMessage(inv);
+  const docType = options?.docType || 'invoice';
+  const message = invoiceWhatsAppMessage(inv, docType);
   const correlationId = ensureCorrelationId();
   const ctx = {
     correlationId,
     invoiceNumber: inv.invoiceNumber,
+    docType,
     native: isNativeCapacitor(),
   };
 
