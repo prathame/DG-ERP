@@ -33,7 +33,7 @@ On the Cap phone app (**Online and Offline**), files are written under a fixed *
 
 **Unexpected stop (Cap):** While the app is foregrounded, a dirty session flag is set; on pause/background it is cleared (clean shutdown). If the process dies without that clean mark (crash, WhatsApp/WebView freeze kill), the next launch silently writes `dhandho-bug-report-unexpected-*.txt` under `Documents/Dhandho/bug-reports/`. Client breadcrumbs and the log ring are write-through to `localStorage` so WhatsApp/PDF steps survive process death (sessionStorage alone would be empty). OS background kills after a normal pause do **not** create a report.
 
-Both platforms use Capacitor `Directory.Documents` (Android public Documents; iOS app Documents + Files sharing). On Samsung/Android open **My Files → Internal storage → Documents → Dhandho → backups**. Settings → Backup shows **Backup started…** then **Backup done — saved to Documents/Dhandho/backups/…** only after `Filesystem.stat` confirms a non-empty file.
+Both platforms use Capacitor `Directory.Documents` (Android public Documents; iOS app Documents + Files sharing). On Samsung/Android open **My Files → Internal storage → Documents → Dhandho → backups**. Settings → Backup shows **Backup started…** then **Backup done — saved to Documents/Dhandho/backups/…** only after `Filesystem.stat` confirms a non-empty file. Restore shows **Restore started…** plus a determinate **0–100%** progress bar (Offline: stage + per-table apply; Online Cap: stage-mapped around `/api/backup/restore`).
 
 Offline Mobile backups are **user-owned** (phone file + optional mailto to staff Gmail). Cloud backup upload/download APIs for Offline return **410**.
 

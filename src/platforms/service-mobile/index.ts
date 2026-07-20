@@ -21,7 +21,11 @@ export {
   restoreFromLocalBackupJson,
   type LocalBackupSettings,
   type BackupFrequency,
+  type RestoreProgress,
+  type RestoreProgressCallback,
+  type RestoreStage,
 } from './localBackup';
+export { restoreProgress } from './restoreProgress';
 export { getLocalDb } from './local/db';
 export { isLocalProvisioned, getLocalSlug, provisionLocalTenant } from './local/provision';
 export { handleLocalApiRequest } from './local/router';

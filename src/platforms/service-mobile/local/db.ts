@@ -156,7 +156,10 @@ export async function dumpLocalDb(): Promise<Uint8Array> {
 
 const IDENT = /^[a-z_][a-z0-9_]*$/i;
 
-export async function restoreLocalDbFromJson(bytes: Uint8Array): Promise<void> {
+export async function restoreLocalDbFromJson(
+  bytes: Uint8Array,
+  onProgress?: (info: { tablesDone: number; tablesTotal: number; table: string }) => void | Promise<void>,
+): Promise<void> {
   const text = new TextDecoder().decode(bytes);
   const parsed = JSON.parse(text) as {
     v?: number;
@@ -166,9 +169,12 @@ export async function restoreLocalDbFromJson(bytes: Uint8Array): Promise<void> {
   const d = await getLocalDb();
   await d.exec(SERVICE_MOBILE_SCHEMA_SQL);
   await runMigrations(d);
-  for (const [table, rows] of Object.entries(parsed.tables)) {
-    if (!RESTORE_TABLE_ALLOWLIST.has(table) || !IDENT.test(table)) continue;
-    if (!rows?.length) continue;
+  const entries = Object.entries(parsed.tables).filter(
+    ([table, rows]) => RESTORE_TABLE_ALLOWLIST.has(table) && IDENT.test(table) && rows?.length,
+  );
+  const tablesTotal = Math.max(1, entries.length);
+  let tablesDone = 0;
+  for (const [table, rows] of entries) {
     for (const row of rows) {
       const cols = Object.keys(row).filter(c => IDENT.test(c));
       if (!cols.length) continue;
@@ -180,6 +186,8 @@ export async function restoreLocalDbFromJson(bytes: Uint8Array): Promise<void> {
         /* skip incompatible rows */
       }
     }
+    tablesDone += 1;
+    await onProgress?.({ tablesDone, tablesTotal, table });
   }
   await runDataRepairs();
 }
@@ -202,13 +210,19 @@ export async function restoreLocalDbFromPgliteDump(bytes: Uint8Array): Promise<v
 }
 
 /** Dispatch JSON table dump vs PGlite tar after decrypt. DB must already be wiped. */
-export async function restoreLocalDbPlaintext(bytes: Uint8Array): Promise<void> {
+export async function restoreLocalDbPlaintext(
+  bytes: Uint8Array,
+  onProgress?: (info: { tablesDone: number; tablesTotal: number; table: string }) => void | Promise<void>,
+): Promise<void> {
   if (isJsonTablesDump(bytes)) {
     await getLocalDb();
-    await restoreLocalDbFromJson(bytes);
+    await restoreLocalDbFromJson(bytes, onProgress);
     return;
   }
+  // Tar restore is one opaque step — report coarse apply progress for UI.
+  await onProgress?.({ tablesDone: 0, tablesTotal: 1, table: 'database' });
   await restoreLocalDbFromPgliteDump(bytes);
+  await onProgress?.({ tablesDone: 1, tablesTotal: 1, table: 'database' });
 }
 
 export async function wipeLocalDb(): Promise<void> {

@@ -71,6 +71,8 @@ Cash is counted **once** in Analytics `collections` (row exists from record time
 
 Staff export/restore encrypted JSON envelopes on the phone (`src/platforms/service-mobile/localBackup.ts`). Ciphertext is PBKDF2(AES-GCM) from the **DG-SM license key** (same key works after reinstall / new phone; not tied to machineId). Plaintext is usually a PGlite `dumpDataDir` tar; older/fallback dumps are JSON `{ v:1, tables }`. Restore accepts both. Optional Gmail opens their mail app only — we do not store or email the file ourselves. Schedule: Settings → Auto Backup (daily / weekly / monthly).
 
+**Restore progress UI:** Settings and Offline onboarding show a determinate 0–100% bar. Offline maps stages — reading → validating (~10%) → decrypting (~25%) → wiping (~35%) → applying tables (35–95%, by table count) → done (100%). Online Cap/cloud Settings uses stage-mapped % (read → validate → apply API → done) because `/api/backup/restore` has no progress stream.
+
 ## Related
 
 - [Deployment → Service Mobile](/deployment/service-mobile)

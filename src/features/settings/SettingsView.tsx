@@ -26,7 +26,7 @@ import { api } from '../../api';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import type { Vendor, BillSettings } from '../../types';
 import { useTranslation, LANGUAGES } from '../../i18n';
-import { useToast, LoadingSpinner } from '../../components/ui';
+import { useToast, LoadingSpinner, PercentProgressBar } from '../../components/ui';
 import { session } from '../../lib/session';
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 import { useConfirm } from '../../hooks/useConfirm';
@@ -41,6 +41,8 @@ import {
   restoreFromLocalBackupFile,
   getAccountsTabVisiblePref,
   setAccountsTabVisiblePref,
+  restoreProgress,
+  type RestoreProgress,
 } from '../../platforms/service-mobile';
 
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
@@ -937,6 +939,8 @@ export function SettingsView({
     email: string | null;
   } | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restorePct, setRestorePct] = useState<RestoreProgress | null>(null);
   useEffect(() => {
     api.backup
       .settings()
@@ -1855,9 +1859,9 @@ export function SettingsView({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
-                    disabled={backupBusy}
+                    disabled={backupBusy || restoreBusy}
                     onClick={async () => {
-                      if (backupBusy) return;
+                      if (backupBusy || restoreBusy) return;
                       setBackupBusy(true);
                       toast('Backup started…', 'info');
                       try {
@@ -1922,13 +1926,26 @@ export function SettingsView({
                         ? st('settings.saveBackupFile')
                         : st('settings.downloadBackupNow')}
                   </button>
-                  <label className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-amber-600 text-white hover:bg-amber-700 cursor-pointer">
-                    <Upload size={15} className="shrink-0" />
-                    {st('settings.restoreBackup')}
+                  <label
+                    className={cn(
+                      'dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-amber-600 text-white hover:bg-amber-700 cursor-pointer',
+                      (restoreBusy || backupBusy) && 'opacity-60 pointer-events-none',
+                    )}
+                  >
+                    {restoreBusy ? (
+                      <span
+                        className="w-4 h-4 shrink-0 border-2 border-white border-t-transparent rounded-full animate-spin"
+                        aria-hidden
+                      />
+                    ) : (
+                      <Upload size={15} className="shrink-0" />
+                    )}
+                    {restoreBusy ? `Restoring… ${restorePct?.percent ?? 0}%` : st('settings.restoreBackup')}
                     <input
                       type="file"
                       accept=".json"
                       className="hidden"
+                      disabled={restoreBusy || backupBusy}
                       onChange={async e => {
                         const file = e.target.files?.[0];
                         if (!file) return;
@@ -1943,16 +1960,26 @@ export function SettingsView({
                           e.target.value = '';
                           return;
                         }
+                        setRestoreBusy(true);
+                        setRestorePct(restoreProgress('reading', 0));
+                        toast('Restore started…', 'info');
+                        const report = (p: RestoreProgress) => setRestorePct(p);
                         try {
                           if (serviceMobile) {
-                            const r = await restoreFromLocalBackupFile(file);
+                            const r = await restoreFromLocalBackupFile(file, report);
                             if (!r.ok) throw new Error(r.error || 'Restore failed');
+                            setRestorePct(restoreProgress('done', 100));
                             toast('Backup restored — reloading…', 'success');
                             setTimeout(() => window.location.reload(), 600);
                             return;
                           }
+                          // Online / Cap Cloud: stage-mapped % (server has no stream)
+                          report(restoreProgress('reading', 10));
                           const text = await file.text();
+                          report(restoreProgress('validating', 25));
                           const data = JSON.parse(text);
+                          if (!data?._meta) throw new Error('Invalid backup file — missing _meta header');
+                          report(restoreProgress('uploading', 40));
                           const r = await fetch('/api/backup/restore', {
                             method: 'POST',
                             headers: {
@@ -1964,18 +1991,29 @@ export function SettingsView({
                           });
                           const result = await r.json();
                           if (!r.ok) throw new Error(result.error || 'Restore failed');
+                          report(restoreProgress('done', 100));
                           toast(
                             `Restored ${result.restored} records from ${data._meta?.companyName || 'backup'}`,
                             'success',
                           );
                         } catch (err) {
                           toast((err as Error).message, 'error');
+                        } finally {
+                          setRestoreBusy(false);
+                          setRestorePct(null);
+                          e.target.value = '';
                         }
-                        e.target.value = '';
                       }}
                     />
                   </label>
                 </div>
+                {restorePct && (
+                  <PercentProgressBar
+                    percent={restorePct.percent}
+                    label={restorePct.label}
+                    barClassName="bg-amber-500"
+                  />
+                )}
                 {backupSettings?.lastBackupAt && (
                   <p className="text-[11px] text-gray-400">
                     Last backup: {new Date(backupSettings.lastBackupAt).toLocaleString('en-IN')}
