@@ -1,6 +1,6 @@
 /**
  * Build a shareable bug-report text (no passwords / tokens).
- * Offline Mobile + Capacitor: Share sheet; web: clipboard / download.
+ * Offline Mobile + Capacitor: save under Dhandho/bug-reports (+ optional Share); web: clipboard / download.
  */
 import { ensureCorrelationId, getRecentClientLogs } from './logger';
 import { session } from './session';
@@ -11,6 +11,21 @@ export type BugReportExtras = {
   /** e.g. login error string */
   lastError?: string;
 };
+
+export type BugReportShareResult = 'saved' | 'shared' | 'copied' | 'downloaded';
+
+export function bugReportFeedbackMessage(how: BugReportShareResult): string {
+  switch (how) {
+    case 'saved':
+      return 'Bug report saved to Dhandho/bug-reports on this phone';
+    case 'shared':
+      return 'Bug report ready to share';
+    case 'copied':
+      return 'Bug report copied — paste into WhatsApp/email';
+    default:
+      return 'Bug report downloaded';
+  }
+}
 
 function redactLicenseKey(key: string | null | undefined): string {
   if (!key) return '(none)';
@@ -133,19 +148,40 @@ export async function buildBugReportText(extras: BugReportExtras = {}): Promise<
   return lines.join('\n');
 }
 
-/** Share via native sheet, else clipboard, else download .txt */
-export async function shareBugReport(extras: BugReportExtras = {}): Promise<'shared' | 'copied' | 'downloaded'> {
+/** Save to Dhandho/bug-reports on Cap; else Share sheet / clipboard / download .txt */
+export async function shareBugReport(extras: BugReportExtras = {}): Promise<BugReportShareResult> {
   const text = await buildBugReportText(extras);
   const title = 'Dhando bug report';
   const filename = `dhandho-bug-report-${new Date().toISOString().slice(0, 10)}.txt`;
 
   if (await isNativeCapacitor()) {
     try {
-      const { Share } = await import('@capacitor/share');
-      await Share.share({ title, text, dialogTitle: title });
-      return 'shared';
+      const { saveDhandhoFile } = await import('./dhandhoFiles');
+      const saved = await saveDhandhoFile({
+        subdir: 'bug-reports',
+        filename,
+        data: text,
+        encoding: 'utf8',
+      });
+      try {
+        const { Share } = await import('@capacitor/share');
+        await Share.share({
+          title,
+          url: saved.uri,
+          dialogTitle: title,
+        });
+      } catch {
+        /* optional — file already saved */
+      }
+      return 'saved';
     } catch {
-      /* fall through */
+      try {
+        const { Share } = await import('@capacitor/share');
+        await Share.share({ title, text, dialogTitle: title });
+        return 'shared';
+      } catch {
+        /* fall through */
+      }
     }
   }
 

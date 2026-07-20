@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Trash2, Send, Check, X, Printer } from 'lucide-react';
+import { Plus, FileText, Trash2, Send, Check, X, Printer, MessageCircle } from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -26,7 +26,7 @@ import {
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { invoiceHasGst, isGstBillingEnabled } from '../../lib/billSettingsFlags';
-import { printStandaloneInvoice } from '../../lib/printStandaloneInvoice';
+import { printStandaloneInvoice, shareStandaloneInvoiceWhatsApp } from '../../lib/printStandaloneInvoice';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
@@ -216,11 +216,37 @@ export function InvoicesView() {
   const [pdfStyle, setPdfStyle] = useState<'modern' | 'classic' | 'minimal'>('modern');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'sent' | 'paid' | 'cancelled'>('all');
 
+  const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
+
   const printInvoice = async (inv: Invoice) => {
     try {
       await printStandaloneInvoice(inv, { billSettings, businessType: cfg.type });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Print failed', 'error');
+    }
+  };
+
+  const shareInvoiceWhatsApp = async (inv: Invoice) => {
+    if (whatsappBusyId) return;
+    setWhatsappBusyId(inv.id);
+    try {
+      const how = await shareStandaloneInvoiceWhatsApp(inv, {
+        billSettings,
+        businessType: cfg.type,
+      });
+      if (how === 'cancelled') return;
+      toast(
+        how === 'shared'
+          ? 'Share the PDF via WhatsApp'
+          : how === 'text'
+            ? 'WhatsApp opened — PDF also saved/downloaded to attach'
+            : 'WhatsApp opened — PDF downloaded to attach',
+        'success',
+      );
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not share invoice', 'error');
+    } finally {
+      setWhatsappBusyId(null);
     }
   };
 
@@ -371,6 +397,16 @@ export function InvoicesView() {
                     >
                       <Printer size={14} />
                     </button>
+                    <button
+                      type="button"
+                      disabled={whatsappBusyId === inv.id}
+                      onClick={() => shareInvoiceWhatsApp(inv)}
+                      className="p-2 min-w-[40px] min-h-[40px] inline-flex items-center justify-center text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50"
+                      title="WhatsApp PDF"
+                      aria-label="Share invoice PDF on WhatsApp"
+                    >
+                      <MessageCircle size={14} />
+                    </button>
                     {inv.status === 'draft' && (
                       <button
                         type="button"
@@ -446,6 +482,16 @@ export function InvoicesView() {
                           aria-label="Print invoice"
                         >
                           <Printer size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={whatsappBusyId === inv.id}
+                          onClick={() => shareInvoiceWhatsApp(inv)}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50"
+                          title="WhatsApp PDF"
+                          aria-label="Share invoice PDF on WhatsApp"
+                        >
+                          <MessageCircle size={15} />
                         </button>
                         {inv.status === 'draft' && (
                           <button
@@ -584,13 +630,12 @@ export function InvoicesView() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    const text = `Invoice ${selectedInvoice.invoiceNumber}\n${selectedInvoice.customerName}\nTotal: ₹${selectedInvoice.grandTotal.toLocaleString()}`;
-                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
-                  }}
-                  className="px-4 py-2.5 border border-gray-200 rounded-xl font-medium text-sm"
+                  disabled={whatsappBusyId === selectedInvoice.id}
+                  onClick={() => shareInvoiceWhatsApp(selectedInvoice)}
+                  className="px-4 py-2.5 border border-green-200 text-green-700 rounded-xl font-medium text-sm inline-flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  WhatsApp
+                  <MessageCircle size={16} />
+                  {whatsappBusyId === selectedInvoice.id ? 'Preparing…' : 'WhatsApp'}
                 </button>
               </div>
             </motion.div>

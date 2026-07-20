@@ -4,7 +4,7 @@ import { ClipboardList, Plus, ArrowLeft, Check, X, Truck, Trash2, Search, Upload
 import { cn, formatDate } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import type { Product, Vendor } from '../../types';
-import { useToast, LoadingSpinner } from '../../components/ui';
+import { useToast, LoadingSpinner, MobilePillTabs, MobileFab } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CsvImport } from '../../components/ui/CsvImport';
@@ -392,8 +392,8 @@ export function OrdersView() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2 sm:space-y-6 pb-14 sm:pb-0">
+      <div className="hidden sm:flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-xl font-bold">Orders</h2>
           <p className="text-sm text-gray-500">Manage customer and vendor orders</p>
@@ -416,7 +416,28 @@ export function OrdersView() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
+      {/* Phone: status pills + Import on one row */}
+      <div className="sm:hidden flex items-center gap-2">
+        <MobilePillTabs
+          className="min-w-0 flex-1"
+          items={(['all', 'Pending', 'Confirmed', 'Fulfilled', 'Cancelled'] as const).map(s => ({
+            id: s,
+            label: s === 'all' ? 'All' : s,
+          }))}
+          value={statusFilter}
+          onChange={id => setStatusFilter(id as typeof statusFilter)}
+        />
+        <button
+          type="button"
+          onClick={() => setCsvImportOpen(true)}
+          className="dg-compact shrink-0 inline-flex items-center gap-1 h-8 min-h-8 max-h-8 !min-h-8 px-2.5 rounded-full border border-gray-200 bg-white text-gray-600 text-[11px] font-bold"
+          title="Import orders"
+        >
+          <Upload size={12} /> Import
+        </button>
+      </div>
+
+      <div className="hidden sm:flex items-center gap-3 flex-wrap">
         {(['all', 'Pending', 'Confirmed', 'Fulfilled', 'Cancelled'] as const).map(s => (
           <button
             key={s}
@@ -452,15 +473,27 @@ export function OrdersView() {
         </div>
       </div>
 
+      {/* Phone search */}
+      <div className="sm:hidden relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+        <input
+          type="text"
+          placeholder="Search orders..."
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          className="w-full pl-8 pr-3 h-9 bg-white border border-gray-200 rounded-xl text-sm"
+        />
+      </div>
+
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
-          <ClipboardList size={48} className="mx-auto mb-3 opacity-30" />
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 sm:p-12 text-center text-gray-400">
+          <ClipboardList size={40} className="mx-auto mb-3 opacity-30" />
           <p className="font-medium mb-2">No orders yet</p>
-          <p className="text-sm mb-4">Create your first order to track customer requests</p>
+          <p className="text-sm mb-4 hidden sm:block">Create your first order to track customer requests</p>
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark"
+            className="hidden sm:inline-flex px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark"
           >
             + New Order
           </button>
@@ -496,6 +529,8 @@ export function OrdersView() {
           ))}
         </div>
       )}
+
+      <MobileFab label="Order" onClick={() => setModalOpen(true)} />
 
       {/* Create Order Modal */}
       <AnimatePresence>

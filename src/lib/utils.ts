@@ -119,30 +119,49 @@ function safePdfFilename(filename?: string): string {
   return base.toLowerCase().endsWith('.pdf') ? base : `${base}.pdf`;
 }
 
-/** Capacitor: write PDF to cache and open native share/save sheet (WebView download is a no-op). */
-async function sharePdfNative(blob: Blob, safeName: string): Promise<boolean> {
+/** Capacitor: write PDF under Dhandho/invoices/ (no path picker / Share required). */
+async function savePdfNative(blob: Blob, safeName: string): Promise<{ ok: boolean; path?: string; uri?: string }> {
+  try {
+    const { saveDhandhoFile } = await import('./dhandhoFiles');
+    const base64 = await blobToBase64(blob);
+    const saved = await saveDhandhoFile({
+      subdir: 'invoices',
+      filename: safeName,
+      data: base64,
+      encoding: 'base64',
+    });
+    return { ok: true, path: saved.relativePath, uri: saved.uri };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** Capacitor: save PDF (Dhandho + Cache) and open system Share sheet for WhatsApp. */
+async function sharePdfNativeWhatsApp(blob: Blob, safeName: string): Promise<boolean> {
   try {
     const { Filesystem, Directory } = await import('@capacitor/filesystem');
     const { Share } = await import('@capacitor/share');
     const base64 = await blobToBase64(blob);
-    const path = `pdfs/${safeName}`;
+    // Persist findable copy
+    await savePdfNative(blob, safeName);
+    // Cache is always FileProvider-safe for Share → WhatsApp
+    const cachePath = `share/${safeName}`;
     await Filesystem.writeFile({
-      path,
+      path: cachePath,
       data: base64,
       directory: Directory.Cache,
       recursive: true,
     });
-    const { uri } = await Filesystem.getUri({ path, directory: Directory.Cache });
+    const { uri } = await Filesystem.getUri({ path: cachePath, directory: Directory.Cache });
     await Share.share({
       title: safeName,
       url: uri,
-      dialogTitle: 'Save or share PDF',
+      dialogTitle: 'Share via WhatsApp',
     });
     return true;
   } catch (err) {
     const name = (err as { name?: string })?.name || '';
     const msg = String((err as Error)?.message || err || '');
-    // User dismissed the sheet
     if (name === 'AbortError' || /cancel|dismiss|share canceled/i.test(msg)) return true;
     return false;
   }
@@ -244,23 +263,23 @@ async function renderElementToPdfBlob(element: HTMLElement, safeName: string): P
   return blob;
 }
 
-async function deliverPdfBlob(blob: Blob, safeName: string): Promise<boolean> {
+async function deliverPdfBlob(blob: Blob, safeName: string): Promise<{ ok: boolean; path?: string }> {
   if (isNativeCapacitor()) {
-    const shared = await sharePdfNative(blob, safeName);
-    if (shared) return true;
+    const saved = await savePdfNative(blob, safeName);
+    if (saved.ok) return saved;
     if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
       try {
         const file = new File([blob], safeName, { type: 'application/pdf' });
         const payload = { files: [file], title: safeName };
         if (!navigator.canShare || navigator.canShare(payload)) {
           await navigator.share(payload);
-          return true;
+          return { ok: true };
         }
       } catch (err) {
-        if ((err as Error)?.name === 'AbortError') return true;
+        if ((err as Error)?.name === 'AbortError') return { ok: true };
       }
     }
-    return false;
+    return { ok: false };
   }
 
   const url = URL.createObjectURL(blob);
@@ -272,7 +291,7 @@ async function deliverPdfBlob(blob: Blob, safeName: string): Promise<boolean> {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
-  return true;
+  return { ok: true };
 }
 
 /**
@@ -307,30 +326,23 @@ async function pdfBlobFromOverlayFrame(safeName: string): Promise<Blob | null> {
   }
 }
 
-/**
- * Render bill/quote/invoice HTML to a PDF and download (web) or share/save (Capacitor).
- */
-export async function downloadHtmlAsPdf(html: string, filename?: string): Promise<boolean> {
+/** Render HTML to a PDF blob (overlay iframe if open, else on-screen capture host). */
+async function htmlToPdfBlob(html: string, filename?: string): Promise<Blob | null> {
   const safeName = safePdfFilename(filename);
-
   try {
-    // 1) Overlay preview already painted → capture that (fixes empty download)
     const fromPreview = await pdfBlobFromOverlayFrame(safeName);
-    if (fromPreview) return deliverPdfBlob(fromPreview, safeName);
+    if (fromPreview) return fromPreview;
 
-    // 2) Fallback: on-screen invisible host (never left:-10000px — blank canvas on WebView)
     const host = createOnscreenPdfHost();
     document.body.appendChild(host);
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(withPrintPagination(html), 'text/html');
-      // Apply body styles to the host so layout matches print (selectors target `body`)
       const bodyStyle = doc.body.getAttribute('style') || '';
       host.style.cssText += `;${bodyStyle}`;
       for (const node of Array.from(doc.head.querySelectorAll('style, link[rel="stylesheet"]'))) {
         host.appendChild(document.importNode(node, true));
       }
-      // Rewrite body{} rules onto the capture host so typography/spacing apply
       for (const styleEl of Array.from(host.querySelectorAll('style'))) {
         const css = styleEl.textContent || '';
         if (css.includes('body')) {
@@ -342,9 +354,7 @@ export async function downloadHtmlAsPdf(html: string, filename?: string): Promis
       while (doc.body.firstChild) {
         host.appendChild(document.importNode(doc.body.firstChild, true));
       }
-      const blob = await renderElementToPdfBlob(host, safeName);
-      if (!blob) return false;
-      return deliverPdfBlob(blob, safeName);
+      return await renderElementToPdfBlob(host, safeName);
     } finally {
       try {
         host.remove();
@@ -353,8 +363,68 @@ export async function downloadHtmlAsPdf(html: string, filename?: string): Promis
       }
     }
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Render bill/quote/invoice HTML to a PDF and download (web) or save under Dhandho/invoices (Cap).
+ * Returns path when saved to the fixed Dhandho folder.
+ */
+export async function downloadHtmlAsPdf(html: string, filename?: string): Promise<{ ok: boolean; path?: string }> {
+  const safeName = safePdfFilename(filename);
+  try {
+    const blob = await htmlToPdfBlob(html, safeName);
+    if (!blob) return { ok: false };
+    return deliverPdfBlob(blob, safeName);
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * Share invoice/quote HTML as a PDF via WhatsApp.
+ * Cap: save under Dhandho/invoices + system Share sheet (pick WhatsApp).
+ * Web: try file share, else open WhatsApp with text and download the PDF.
+ */
+export async function shareHtmlPdfViaWhatsApp(opts: {
+  html: string;
+  filename?: string;
+  phone?: string;
+  message: string;
+}): Promise<'shared' | 'text' | 'downloaded' | 'cancelled'> {
+  const safeName = safePdfFilename(opts.filename);
+  const blob = await htmlToPdfBlob(opts.html, safeName);
+  if (!blob) throw new Error('Could not create PDF');
+
+  if (isNativeCapacitor()) {
+    const ok = await sharePdfNativeWhatsApp(blob, safeName);
+    return ok ? 'shared' : 'cancelled';
+  }
+
+  if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
+    try {
+      const file = new File([blob], safeName, { type: 'application/pdf' });
+      const payload = { files: [file], title: safeName };
+      if (!navigator.canShare || navigator.canShare(payload)) {
+        await navigator.share(payload);
+        return 'shared';
+      }
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') return 'cancelled';
+    }
+  }
+
+  const phone = (opts.phone || '').trim();
+  if (phone) {
+    shareViaWhatsApp(phone, opts.message);
+    await deliverPdfBlob(blob, safeName);
+    return 'text';
+  }
+
+  window.open(`https://wa.me/?text=${encodeURIComponent(opts.message)}`, '_blank');
+  await deliverPdfBlob(blob, safeName);
+  return 'downloaded';
 }
 
 /** Close the in-app PDF overlay (Capacitor / popup-blocked fallback). */
@@ -388,10 +458,11 @@ async function triggerOverlayDownload(): Promise<boolean> {
   if (!payload) return false;
   setOverlayDownloadBusy(true);
   // downloadHtmlAsPdf prefers capturing the visible preview iframe (avoids empty PDF)
-  const ok = await downloadHtmlAsPdf(payload.html, payload.name);
-  // Keep preview open until the user taps Close (including cancelled share / AbortError).
-  setOverlayDownloadBusy(false, ok ? 'Download PDF' : 'Retry download');
-  return ok;
+  const result = await downloadHtmlAsPdf(payload.html, payload.name);
+  // Keep preview open until the user taps Close.
+  const label = !result.ok ? 'Retry download' : result.path ? `Saved to ${result.path}` : 'Download PDF';
+  setOverlayDownloadBusy(false, label);
+  return result.ok;
 }
 
 async function triggerOverlayNativePrint(): Promise<void> {
@@ -781,7 +852,7 @@ export function writePrintHtml(
 export async function saveBillAsPdf(html: string, filename?: string, win?: Window | null): Promise<boolean> {
   const titled = withPrintPagination(applyPrintTitle(html, filename));
   if (needsNativePrintPath()) {
-    const ok = await downloadHtmlAsPdf(titled, filename);
+    const result = await downloadHtmlAsPdf(titled, filename);
     if (win) {
       try {
         if (document.getElementById(PRINT_OVERLAY_ID)) closePrintOverlay();
@@ -790,7 +861,7 @@ export async function saveBillAsPdf(html: string, filename?: string, win?: Windo
         /* ignore */
       }
     }
-    if (ok) return true;
+    if (result.ok) return true;
     // Fallback: overlay with Download PDF button
     const w = win && !win.closed ? win : openPrintWindow('Preparing PDF…');
     if (!w) return false;

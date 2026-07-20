@@ -198,7 +198,8 @@ export function QuotationsView() {
   };
 
   const printQuotation = async (q: Quotation) => {
-    const w = openPrintWindow();
+    // Same A4 preview chrome as invoice bills (system Print → Save as PDF)
+    const w = openPrintWindow('Preparing quotation…', { hidePdfDownload: true });
     if (!w) {
       toast(PRINT_POPUP_BLOCKED, 'error');
       return;
@@ -743,7 +744,7 @@ export function QuotationsView() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3 sm:space-y-6 pb-14 sm:pb-0">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2 sm:space-y-6 pb-14 sm:pb-0">
       <div className="hidden sm:flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
@@ -769,18 +770,10 @@ export function QuotationsView() {
         </div>
       </div>
 
-      {/* Phone pills + import */}
-      <div className="sm:hidden space-y-2">
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => setCsvImportOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-bold"
-          >
-            <Upload size={14} /> Import
-          </button>
-        </div>
+      {/* Phone: status pills + Import on one row */}
+      <div className="sm:hidden flex items-center gap-2">
         <MobilePillTabs
+          className="min-w-0 flex-1"
           items={(['all', 'Draft', 'Sent', 'Accepted', 'Converted'] as const).map(s => ({
             id: s,
             label:
@@ -797,6 +790,14 @@ export function QuotationsView() {
           value={statusFilter}
           onChange={id => setStatusFilter(id as typeof statusFilter)}
         />
+        <button
+          type="button"
+          onClick={() => setCsvImportOpen(true)}
+          className="dg-compact shrink-0 inline-flex items-center gap-1 h-8 min-h-8 max-h-8 !min-h-8 px-2.5 rounded-full border border-gray-200 bg-white text-gray-600 text-[11px] font-bold"
+          title="Import quotations"
+        >
+          <Upload size={12} /> Import
+        </button>
       </div>
 
       {/* Desktop filters */}

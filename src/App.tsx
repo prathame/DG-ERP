@@ -53,7 +53,7 @@ import {
   type PhoneMode,
 } from './platforms/mobileMode';
 import { PhoneModePicker } from './platforms/PhoneModePicker';
-import { shareBugReport } from './lib/bugReport';
+import { bugReportFeedbackMessage, shareBugReport } from './lib/bugReport';
 import { isMobileAppShell } from './lib/mobileAppShell';
 
 const ServiceMobileOnboarding = lazy(() =>
@@ -193,13 +193,7 @@ function CompanySlugEntry() {
                 setReportHint('');
                 try {
                   const how = await shareBugReport({ note: 'Online Cap company slug entry' });
-                  setReportHint(
-                    how === 'shared'
-                      ? 'Bug report ready to share'
-                      : how === 'copied'
-                        ? 'Bug report copied — paste into WhatsApp/email'
-                        : 'Bug report downloaded',
-                  );
+                  setReportHint(bugReportFeedbackMessage(how));
                 } catch (e) {
                   setReportHint(e instanceof Error ? e.message : 'Could not create bug report');
                 } finally {
@@ -224,22 +218,37 @@ function cloudSlugHomeHref(): string {
 function QuotationsAndOrdersView() {
   const [view, setView] = React.useState<'quotations' | 'orders'>('quotations');
   return (
-    <div>
-      <div className="flex gap-2 mb-4">
-        <button
-          type="button"
-          onClick={() => setView('quotations')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${view === 'quotations' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-        >
-          Quotations
-        </button>
-        <button
-          type="button"
-          onClick={() => setView('orders')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${view === 'orders' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-        >
-          Orders
-        </button>
+    <div className="space-y-2 sm:space-y-4">
+      {/* Compact Quotes | Orders segment — opt out of 44px bg-brand / phone min-heights */}
+      <div
+        className="inline-flex w-full sm:w-auto p-0.5 rounded-full border border-gray-200 bg-gray-100/80"
+        role="tablist"
+        aria-label="Quotations or Orders"
+      >
+        {(
+          [
+            { id: 'quotations' as const, label: 'Quotes' },
+            { id: 'orders' as const, label: 'Orders' },
+          ] as const
+        ).map(tab => {
+          const active = view === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setView(tab.id)}
+              className={`dg-pill-tab dg-compact flex-1 sm:flex-none box-border h-8 min-h-8 max-h-8 !min-h-8 px-4 rounded-full text-[11px] font-bold border border-solid transition-colors ${
+                active
+                  ? 'bg-brand text-white border-brand'
+                  : 'bg-transparent text-gray-600 border-transparent hover:bg-white/80'
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
       {view === 'quotations' ? <QuotationsView /> : <OrdersView />}
     </div>

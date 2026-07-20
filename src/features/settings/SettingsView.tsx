@@ -32,7 +32,8 @@ import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 import { useConfirm } from '../../hooks/useConfirm';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
 import { isGstBillingEnabled, isServicePhoneBillUx } from '../../lib/billSettingsFlags';
-import { shareBugReport } from '../../lib/bugReport';
+import { bugReportFeedbackMessage, shareBugReport } from '../../lib/bugReport';
+import { isNativeCapacitor, saveDhandhoFile } from '../../lib/dhandhoFiles';
 import { isMobileAppShell } from '../../lib/mobileAppShell';
 import {
   exportLocalBackupNow,
@@ -932,6 +933,7 @@ export function SettingsView({
     lastBackupAt: string | null;
     email: string | null;
   } | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
   useEffect(() => {
     api.backup
       .settings()
@@ -1811,14 +1813,7 @@ export function SettingsView({
                   onClick={async () => {
                     try {
                       const how = await shareBugReport();
-                      toast(
-                        how === 'shared'
-                          ? 'Bug report ready to share'
-                          : how === 'copied'
-                            ? 'Bug report copied — paste into WhatsApp/email'
-                            : 'Bug report downloaded',
-                        'success',
-                      );
+                      toast(bugReportFeedbackMessage(how), 'success');
                     } catch (e) {
                       toast((e as Error).message || 'Could not create bug report', 'error');
                     }
@@ -1842,22 +1837,33 @@ export function SettingsView({
                 </h3>
               </div>
               <div className="p-4 sm:p-6 space-y-3">
-                {serviceMobile && (
+                {mobileApp && (
                   <p className="text-xs sm:text-sm text-gray-500 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 leading-relaxed">
-                    Backups stay on <strong className="text-gray-700">your phone</strong> (and your Gmail if you send
-                    them). Dhando does not store your business data in the cloud.
+                    {serviceMobile ? (
+                      <>
+                        Backups stay on <strong className="text-gray-700">your phone</strong> (and your Gmail if you
+                        send them). Dhando does not store your business data in the cloud.{' '}
+                      </>
+                    ) : null}
+                    Files are saved in the <strong className="text-gray-700">Dhandho</strong> folder on this phone
+                    (backups, invoices, bug reports).
                   </p>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
+                    disabled={backupBusy}
                     onClick={async () => {
+                      if (backupBusy) return;
+                      setBackupBusy(true);
+                      toast('Backup started…', 'info');
                       try {
                         if (serviceMobile) {
-                          const { filename } = await exportLocalBackupNow({
+                          const { filename, path } = await exportLocalBackupNow({
                             openMail: Boolean(backupSettings?.email),
                           });
-                          toast(`Backup saved: ${filename}`, 'success');
+                          const where = path || `Dhandho/backups/${filename}`;
+                          toast(`Backup done — saved to ${where}`, 'success');
                           setBackupSettings(prev =>
                             prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev,
                           );
@@ -1871,22 +1877,46 @@ export function SettingsView({
                         });
                         if (!r.ok) throw new Error('Backup failed');
                         const blob = await r.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `backup-${new Date().toISOString().slice(0, 10)}.json`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                        toast('Backup downloaded', 'success');
+                        const filename = `backup-${new Date().toISOString().slice(0, 10)}.json`;
+                        if (isNativeCapacitor()) {
+                          const saved = await saveDhandhoFile({
+                            subdir: 'backups',
+                            filename,
+                            data: await blob.text(),
+                            encoding: 'utf8',
+                          });
+                          toast(`Backup done — saved to ${saved.relativePath}`, 'success');
+                        } else {
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = filename;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                          toast('Backup downloaded', 'success');
+                        }
                         setBackupSettings(prev => (prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev));
                       } catch (e) {
                         toast((e as Error).message, 'error');
+                      } finally {
+                        setBackupBusy(false);
                       }
                     }}
-                    className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700"
+                    className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
                   >
-                    <Download size={15} className="shrink-0" />
-                    {serviceMobile ? st('settings.saveBackupFile') : st('settings.downloadBackupNow')}
+                    {backupBusy ? (
+                      <span
+                        className="w-4 h-4 shrink-0 border-2 border-white border-t-transparent rounded-full animate-spin"
+                        aria-hidden
+                      />
+                    ) : (
+                      <Download size={15} className="shrink-0" />
+                    )}
+                    {backupBusy
+                      ? 'Backing up…'
+                      : serviceMobile
+                        ? st('settings.saveBackupFile')
+                        : st('settings.downloadBackupNow')}
                   </button>
                   <label className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-amber-600 text-white hover:bg-amber-700 cursor-pointer">
                     <Upload size={15} className="shrink-0" />

@@ -6,6 +6,7 @@ import { dumpLocalDb, restoreLocalDbFromJson, wipeLocalDb, getLocalDb } from './
 import { encryptBackup, decryptBackup } from './local/crypto';
 import { loadLicense } from './licenseStore';
 import { localQuery } from './local/db';
+import { isNativeCapacitor, saveDhandhoFile } from '../../lib/dhandhoFiles';
 
 export type BackupFrequency = 'daily' | 'weekly' | 'monthly';
 
@@ -129,27 +130,41 @@ export function downloadLocalBackupFile(envelope: LocalBackupEnvelope, filename:
 }
 
 /** Opens the staff's mail app — we do not send or store the backup. */
-export function openBackupMailto(email: string, filename: string, companyName: string): void {
+export function openBackupMailto(email: string, filename: string, companyName: string, relativePath?: string): void {
   const to = email.trim();
   if (!to || typeof window === 'undefined') return;
   const subject = encodeURIComponent(`Offline Mobile backup — ${companyName}`);
+  const where = relativePath || `Dhandho/backups/${filename}`;
   const body = encodeURIComponent(
-    `Your Offline Mobile App backup file was saved on this phone as:\n\n${filename}\n\n` +
-      `Attach that file from Downloads / Files if you want a copy in Gmail.\n\n` +
+    `Your Offline Mobile App backup file was saved on this phone as:\n\n${where}\n\n` +
+      `Open the Files app and look under the Dhandho folder (backups) to attach it in Gmail.\n\n` +
       `Dhando does not store your business data — keep this file safe.`,
   );
   window.location.href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
 }
 
-export async function exportLocalBackupNow(opts?: { openMail?: boolean }): Promise<{ filename: string }> {
+export async function exportLocalBackupNow(opts?: {
+  openMail?: boolean;
+}): Promise<{ filename: string; path?: string }> {
   const { envelope, filename } = await buildLocalBackupEnvelope();
-  downloadLocalBackupFile(envelope, filename);
+  let path: string | undefined;
+  if (isNativeCapacitor()) {
+    const saved = await saveDhandhoFile({
+      subdir: 'backups',
+      filename,
+      data: JSON.stringify(envelope, null, 2),
+      encoding: 'utf8',
+    });
+    path = saved.relativePath;
+  } else {
+    downloadLocalBackupFile(envelope, filename);
+  }
   await saveLocalBackupSettings({ lastBackupAt: envelope.exportedAt });
   if (opts?.openMail) {
     const s = await loadLocalBackupSettings();
-    if (s.email) openBackupMailto(s.email, filename, envelope.companyName);
+    if (s.email) openBackupMailto(s.email, filename, envelope.companyName, path);
   }
-  return { filename };
+  return { filename, path };
 }
 
 export async function runScheduledLocalBackupIfDue(): Promise<boolean> {
