@@ -27,7 +27,7 @@
     "electron:cloud:dev": "npm run electron:desktop:dev",
     "electron:onprem:dev": "npm run electron:desktop:dev",
     "electron:onprem:dev:local": "npm run electron:desktop:dev:local",
-    "tsc:electron": "node_modules/.bin/tsc -p tsconfig.electron.json",
+    "tsc:electron": "tsc -p tsconfig.electron.json",
     "build:electron:desktop": "npm run build && npm run tsc:electron && electron-builder --config electron-desktop.config.cjs",
     "build:electron:desktop:win": "npm run build && npm run tsc:electron && electron-builder --config electron-desktop.config.cjs --win",
     "build:electron:desktop:mac": "npm run build && npm run tsc:electron && electron-builder --config electron-desktop.config.cjs --mac",
