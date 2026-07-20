@@ -23,10 +23,11 @@ Complete test case suite for the Splendor ERP application. Each file covers a sp
 | 17 | [service-mobile.md](service-mobile.md) | Service Mobile (offline phone) | 12 | Critical |
 | 18 | [service-cloud.md](service-cloud.md) | Service Cloud Seats (online) | 16 | Critical |
 | 19 | [cloud-mobile.md](cloud-mobile.md) | Cloud mobile UX (phones) | 12 | High |
+| 20 | [desktop-electron.md](desktop-electron.md) | Unified Desktop Electron | 6 | Critical |
 
 ---
 
-**Total:** see each file for exact counts. Service Mobile = offline Capacitor (`DG-SM`). Service Cloud Seats = online seats on a service cloud tenant. Cloud mobile = phone usability for the cloud web/SA app (desktop unchanged).
+**Total:** see each file for exact counts. Service Mobile = offline Capacitor (`DG-SM`). Service Cloud Seats = online seats on a service cloud tenant. Cloud mobile = phone usability for the cloud web/SA app. Desktop Electron = one Mac/Windows installer with Online/Offline picker.
 
 **Product docs:** [`DEVELOPER.md`](../../DEVELOPER.md) · [`README.md`](../../README.md)
 

@@ -7,6 +7,9 @@ type DownloadLinks = {
   serviceCloudIosUrl: string | null;
   serviceMobileAppUrl: string | null;
   serviceMobileIosUrl: string | null;
+  desktopMacArm64Url: string | null;
+  desktopMacX64Url: string | null;
+  desktopWinUrl: string | null;
   desktopAppUrl: string | null;
 };
 
@@ -49,6 +52,10 @@ export function DownloadPage() {
 
   const androidUrl = links?.serviceMobileAppUrl || links?.serviceCloudAppUrl;
   const iosUrl = links?.serviceMobileIosUrl || links?.serviceCloudIosUrl;
+  const macArm = links?.desktopMacArm64Url || links?.desktopAppUrl;
+  const macX64 = links?.desktopMacX64Url;
+  const winUrl = links?.desktopWinUrl;
+  const hasDesktop = Boolean(macArm || macX64 || winUrl);
 
   return (
     <div className="min-h-[100dvh] bg-[#09090B] text-white">
@@ -88,7 +95,7 @@ export function DownloadPage() {
           </div>
           <h1 className="text-3xl sm:text-5xl font-bold mb-4 leading-tight">Get the App</h1>
           <p className="text-white/50 text-base sm:text-lg px-1">
-            One phone app for Android and iOS. At first launch, choose Online (cloud) or Offline (on-device) — once.
+            Phone and desktop each ship as one installer. At first launch, choose Online (cloud) or Offline — once.
           </p>
         </motion.div>
 
@@ -144,20 +151,27 @@ export function DownloadPage() {
               <div className="px-6 py-5 border-b border-white/10">
                 <div className="flex items-center gap-2 mb-1">
                   <Monitor size={18} className="text-brand" />
-                  <span className="font-bold text-lg">Desktop app</span>
+                  <span className="font-bold text-lg">Desktop</span>
                   <span className="text-[10px] bg-white/10 text-white/60 px-2 py-0.5 rounded-full font-bold">
-                    OPTIONAL
+                    MAC + WINDOWS
                   </span>
                 </div>
                 <p className="text-sm text-white/40">
-                  One desktop installer URL for testing (Cloud Electron / On-Prem).
+                  One app. First launch picks Online (cloud) or Offline (on this PC). Unsigned builds — Mac: right-click
+                  → Open; Windows: SmartScreen may warn.
                 </p>
               </div>
-              <div className="px-6 py-4">
-                {links?.desktopAppUrl ? (
-                  <DownloadButton href={links.desktopAppUrl} label="Download desktop app" accent="brand" />
+              <div className="px-6 py-4 space-y-3">
+                {hasDesktop ? (
+                  <>
+                    {macArm && <DownloadButton href={macArm} label="Mac Apple Silicon (.dmg)" accent="brand" />}
+                    {macX64 && <DownloadButton href={macX64} label="Mac Intel (.dmg)" accent="brand" />}
+                    {winUrl && <DownloadButton href={winUrl} label="Windows x64 (.exe)" accent="brand" />}
+                  </>
                 ) : (
-                  <p className="text-sm text-white/40">Optional — set when you have a desktop build to share.</p>
+                  <p className="text-sm text-white/40">
+                    Desktop URLs not set yet. Super Admin → Analytics → paste evergreen links.
+                  </p>
                 )}
               </div>
             </motion.div>

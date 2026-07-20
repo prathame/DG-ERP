@@ -49,9 +49,9 @@ jobs:
           sleep 8
           python3 tests/e2e_by_type.py --base http://localhost:3001
 
-  # ── 2. Build Mac DMGs ────────────────────────────────────────────────────────
+  # ── 2. Build Mac DMGs (unified desktop) ─────────────────────────────────────
   build-mac:
-    name: Build Mac DMGs
+    name: Build Desktop Mac
     runs-on: macos-latest
     needs: test
 
@@ -65,69 +65,71 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build frontend
-        run: npm run build
-
-      - name: Compile Electron TypeScript
-        run: npm run tsc:electron
-
-      - name: Build Cloud DMG (Mac)
-        run: npm run build:electron:cloud:mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build On-Prem DMG (Mac)
-        run: npm run build:electron:onprem:mac
+      - name: Build unified desktop (Mac)
+        run: npm run build:electron:desktop:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: List built artifacts
-        run: |
-          echo "=== Cloud DMGs ==="
-          ls -lh dist-electron/cloud/*.dmg
-          echo "=== On-Prem DMGs ==="
-          ls -lh dist-electron/onprem/*.dmg
+        run: ls -lh dist-electron/desktop/*.dmg
 
-      - name: Upload Cloud DMG (arm64)
+      - name: Upload Mac DMGs
         uses: softprops/action-gh-release@v3
         with:
-          files: dist-electron/cloud/Dhandho-*-arm64.dmg
+          files: |
+            dist-electron/desktop/dhandho-desktop-mac-arm64.dmg
+            dist-electron/desktop/dhandho-desktop-mac-x64.dmg
           name: Dhandho ${{ github.ref_name }}
           body: |
             ## Dhandho ${{ github.ref_name }}
 
-            ### Downloads
+            ### Desktop (unified)
 
-            | App | Platform | Download |
-            |-----|----------|----------|
-            | Dhandho Cloud | Mac Apple Silicon (M1/M2/M3) | Dhandho-*-arm64.dmg |
-            | Dhandho Cloud | Mac Intel | Dhandho-*.dmg |
-            | Dhandho On-Prem | Mac Apple Silicon | Dhandho-On-Prem-*-arm64.dmg |
-            | Dhandho On-Prem | Mac Intel | Dhandho-On-Prem-*.dmg |
+            | Platform | Download |
+            |----------|----------|
+            | Mac Apple Silicon | dhandho-desktop-mac-arm64.dmg |
+            | Mac Intel | dhandho-desktop-mac-x64.dmg |
+            | Windows x64 | dhandho-desktop-win-x64.exe |
 
-            **Cloud app**: Opens dhandho.app in a native window. Requires internet.
-            **On-Prem app**: Full offline app with embedded database. Requires license key.
+            One installer. At first launch, choose **Online** (cloud) or **Offline** (on-prem) once.
 
-            > Note: Apps are unsigned. On first open, right-click → Open to bypass Gatekeeper.
+            > Apps are unsigned. Mac: right-click → Open. Windows: SmartScreen may warn.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Cloud DMG (x64)
+  # ── 3. Build Windows installer (unified desktop) ────────────────────────────
+  build-windows:
+    name: Build Desktop Windows
+    runs-on: windows-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build unified desktop (Windows)
+        run: npm run build:electron:desktop:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List built artifacts
+        shell: bash
+        run: ls -lh dist-electron/desktop/*.exe
+
+      - name: Upload Windows installer
         uses: softprops/action-gh-release@v3
         with:
-          files: |
-            dist-electron/cloud/Dhandho-[0-9]*.dmg
+          files: dist-electron/desktop/dhandho-desktop-win-x64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload On-Prem DMGs
-        uses: softprops/action-gh-release@v3
-        with:
-          files: dist-electron/onprem/*.dmg
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # ── 3. Production checks ─────────────────────────────────────────────────────
+  # ── 4. Production checks ─────────────────────────────────────────────────────
   production-check:
     name: Production Checks
     runs-on: ubuntu-latest

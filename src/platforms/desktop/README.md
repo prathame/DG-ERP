@@ -1,9 +1,10 @@
 # Desktop (Electron)
 
-| Folder | Electron process | Mode |
-|--------|------------------|------|
-| `online/` | `electron/cloud` | Thin client → hosted ERP (needs internet) |
-| `offline/` | `electron/onprem` | Full local stack; UI helpers for sync / license |
+One installer (`electron/desktop`). First launch chooses Online or Offline once.
 
-Renderer UI for on-prem connection lives in `offline/OnlineStatus.tsx`.
-Cloud desktop has little renderer-specific code — it loads the same web UI.
+| Folder | Mode | Electron |
+|--------|------|----------|
+| `online/` | Cloud ERP (after Online latch) | `electron/cloud/boot.ts` |
+| `offline/` | Local Postgres + Express (after Offline latch) | `electron/onprem/boot.ts` + `OnlineStatus.tsx` |
+
+Mode latch lives in the main process (`userData/desktop-mode.json`), not in this renderer folder.

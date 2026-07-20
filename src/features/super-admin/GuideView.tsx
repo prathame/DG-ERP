@@ -389,14 +389,14 @@ export function GuideView() {
           <Step n={3} title="Staff download the online apps">
             <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
               <p>
-                Public page <code className="bg-gray-200 px-1 rounded">/download</code> →{' '}
-                <strong>Dhando Service Cloud (ONLINE)</strong> — not the emerald Offline Mobile card
+                Public page <code className="bg-gray-200 px-1 rounded">/download</code> → Desktop or Phone installers
               </p>
               <p>
-                Desktop: Cloud Electron from that section (
-                <code className="bg-gray-200 px-1 rounded font-mono">npm run build:electron:cloud</code>)
+                Desktop: unified Electron (
+                <code className="bg-gray-200 px-1 rounded font-mono">npm run build:electron:desktop</code>) — pick{' '}
+                <strong>Online</strong> at first launch
               </p>
-              <p>Mobile: online Capacitor / APK from SA (never the DG-SM offline installer)</p>
+              <p>Phone: unified Cap APK — pick Online at first launch (never Offline DG-SM for seats)</p>
               <p>If someone else holds the session, the app freezes until they leave or idle out — no takeover</p>
               <p>No internet → app freezes (not offline ERP)</p>
             </div>
@@ -410,43 +410,35 @@ export function GuideView() {
         </div>
       </Section>
 
-      {/* Cloud Electron */}
-      <Section title="Cloud Electron App — Testing" icon={Cloud} color="bg-blue-500">
+      {/* Desktop Online path */}
+      <Section title="Desktop Online path — Testing" icon={Cloud} color="bg-blue-500">
         <p className="text-sm text-gray-600">
-          A thin desktop wrapper (~20MB) that opens the cloud app in a dedicated window. No database or server needed.
+          Same unified desktop installer. At first launch choose <strong>Online</strong> — loads the hosted ERP (no
+          on-prem license key).
         </p>
 
-        <Step n={1} title="Compile Electron TypeScript">
-          <CodeBlock code="npx tsc -p tsconfig.electron.json" />
-        </Step>
-
-        <Step n={2} title="Run the Cloud Electron app">
-          <CodeBlock code="npx electron electron/cloud/main.js" />
+        <Step n={1} title="Run unified desktop">
+          <CodeBlock code="npm run electron:desktop:dev" />
           <p className="text-xs text-gray-500">
-            A window opens showing the cloud app. Login, features — everything works identically to the browser version.
+            Choose Online → Confirm. Window opens on the cloud app (company slug / login).
           </p>
         </Step>
 
-        <Step n={3} title="Build installer for distribution">
+        <Step n={2} title="Build installer">
           <CodeBlock
-            code={`# Windows (.exe)\nnpm run build:electron:cloud:win\n\n# Mac (.dmg)\nnpm run build:electron:cloud:mac\n\n# Output: dist-electron/cloud/`}
+            code={`npm run build:electron:desktop:win\nnpm run build:electron:desktop:mac\n# Output: dist-electron/desktop/`}
           />
         </Step>
-
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-          <p className="text-sm text-blue-800 font-medium">
-            ℹ️ Cloud Electron does not need a license key — uses existing Dhandho login.
-          </p>
-        </div>
       </Section>
 
-      {/* On-Prem Electron */}
-      <Section title="On-Prem Electron App — Testing" icon={Monitor} color="bg-purple-500">
+      {/* Unified Desktop Electron */}
+      <Section title="Desktop Electron — Testing" icon={Monitor} color="bg-purple-500">
         <p className="text-sm text-gray-600">
-          Full local stack (~180MB). Embedded PostgreSQL + Express server runs on customer's PC. Works offline.
+          One installer (~180MB). First launch picks Online (cloud) or Offline (on-prem). Offline embeds PostgreSQL +
+          Express.
         </p>
 
-        <Step n={1} title="Create a test license in super admin">
+        <Step n={1} title="Create a test Offline license (if testing Offline)">
           <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 font-mono text-gray-700">
             <p>1. Super Admin → On-Prem tab</p>
             <p>2. Click "Issue License"</p>
@@ -458,37 +450,36 @@ export function GuideView() {
           </div>
         </Step>
 
-        <Step n={2} title="Restart backend (picks up new DB table)">
-          <CodeBlock code={`# Kill existing server\nlsof -ti:3001 | xargs kill -9\n\n# Restart\nnpm run server`} />
+        <Step n={2} title="Compile + run unified desktop">
+          <CodeBlock code={`npm run electron:desktop:dev:local`} />
+          <p className="text-xs text-gray-500 mt-2">
+            First launch shows Online / Offline picker (once). Online needs cloud; Offline continues to the license
+            wizard.
+          </p>
         </Step>
 
-        <Step n={3} title="Compile + run on-prem app">
-          <CodeBlock
-            code={`npx tsc -p tsconfig.electron.json\nDEPLOYMENT_MODE=onprem npx electron electron/onprem/main.js`}
-          />
-        </Step>
-
-        <Step n={4} title="Complete first-run wizard">
+        <Step n={3} title="Offline path — complete first-run wizard">
           <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
-            <p>1. Wizard appears — enter the license key from Step 1</p>
-            <p>2. Set admin password (min 8 characters)</p>
+            <p>1. Choose Offline → confirm</p>
+            <p>2. Wizard — enter the license key from Step 1</p>
+            <p>3. Set admin password (min 8 characters)</p>
             <p>
-              3. Click <strong>"Activate & Start"</strong>
+              4. Click <strong>"Activate & Start"</strong>
             </p>
-            <p>4. App opens with full ERP</p>
+            <p>5. App opens with full ERP</p>
           </div>
         </Step>
 
-        <Step n={5} title="Build installer for distribution">
+        <Step n={4} title="Build installer for distribution">
           <CodeBlock
-            code={`# Windows (.exe ~180MB)\nnpm run build:electron:onprem:win\n\n# Mac (.dmg ~180MB)\nnpm run build:electron:onprem:mac\n\n# Output: dist-electron/onprem/`}
+            code={`# Windows (.exe ~180MB)\nnpm run build:electron:desktop:win\n\n# Mac (.dmg ~180MB)\nnpm run build:electron:desktop:mac\n\n# Output: dist-electron/desktop/`}
           />
         </Step>
 
         <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
           <p className="text-sm text-amber-800 font-medium">
-            ⚠️ On-prem installer is large (~180MB) because it bundles PostgreSQL binaries. Normal — same approach as
-            Tally.
+            Installer is ~180MB because Offline bundles PostgreSQL. Online mode does not start that stack. Mode cannot
+            be changed without reinstalling.
           </p>
         </div>
       </Section>
@@ -615,12 +606,9 @@ export function GuideView() {
       <Section title="Build Commands — Quick Reference" icon={Terminal} color="bg-gray-700">
         <div className="space-y-3">
           {[
-            { label: 'Cloud Electron — Windows', cmd: 'npm run build:electron:cloud:win' },
-            { label: 'Cloud Electron — Mac', cmd: 'npm run build:electron:cloud:mac' },
-            { label: 'On-Prem Electron — Windows', cmd: 'npm run build:electron:onprem:win' },
-            { label: 'On-Prem Electron — Mac', cmd: 'npm run build:electron:onprem:mac' },
-            { label: 'Both platforms (cloud)', cmd: 'npm run build:electron:cloud' },
-            { label: 'Both platforms (on-prem)', cmd: 'npm run build:electron:onprem' },
+            { label: 'Desktop — Windows', cmd: 'npm run build:electron:desktop:win' },
+            { label: 'Desktop — Mac', cmd: 'npm run build:electron:desktop:mac' },
+            { label: 'Desktop — both (local)', cmd: 'npm run build:electron:desktop' },
           ].map(({ label, cmd }) => (
             <div key={label} className="flex items-center gap-4">
               <span className="text-sm text-gray-500 w-48 shrink-0">{label}</span>
@@ -630,9 +618,8 @@ export function GuideView() {
         </div>
         <div className="bg-gray-50 rounded-xl p-4 mt-2">
           <p className="text-xs text-gray-500">
-            Output: <code className="bg-gray-200 px-1 rounded">dist-electron/cloud/</code> and{' '}
-            <code className="bg-gray-200 px-1 rounded">dist-electron/onprem/</code> — upload the installer files to
-            GitHub Releases for auto-update distribution.
+            Output: <code className="bg-gray-200 px-1 rounded">dist-electron/desktop/</code> — CI publishes evergreen
+            assets on the <code className="bg-gray-200 px-1 rounded">dhandho-desktop</code> release tag.
           </p>
         </div>
       </Section>

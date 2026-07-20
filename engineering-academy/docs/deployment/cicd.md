@@ -131,13 +131,17 @@ flowchart TB
 
 This is the **only** CI workflow that runs the full 453-test Python E2E suite (see [E2E Testing](/testing/e2e)) — it's reserved for release time specifically because it's slower and more expensive than the Vitest unit/integration suites that gate every PR; releases are infrequent enough to afford it, and it's the last line of defense before artifacts ship to real users.
 
-### `build-mac` job — macOS DMG builds
+### `build-mac` / `build-windows` — unified desktop
 
-Runs on `macos-latest` (required — you cannot cross-compile signed-adjacent macOS `.dmg` artifacts from a Linux runner with `electron-builder` reliably), `needs: test`. Builds **both** Cloud and On-Prem DMGs (`npm run build:electron:cloud:mac`, `npm run build:electron:onprem:mac`), then uploads them to the GitHub Release via `softprops/action-gh-release@v3`, split into separate upload steps for arm64 vs. x64 Cloud DMGs and a combined On-Prem upload glob.
+`release.yml` builds the **unified** desktop installer (`npm run build:electron:desktop:mac` / `:win`) and uploads:
 
-Notice the release body template explicitly warns: *"Apps are unsigned. On first open, right-click → Open to bypass Gatekeeper."* — see [Electron](./electron) for why signing isn't set up yet.
+- `dhandho-desktop-mac-arm64.dmg`
+- `dhandho-desktop-mac-x64.dmg`
+- `dhandho-desktop-win-x64.exe`
 
-**Gap worth naming:** there's no `build-windows` job in this workflow — only Mac DMGs are built and uploaded automatically on tag push. Windows `.exe` builds (`build:electron:cloud:win`, `build:electron:onprem:win`) exist as `package.json` scripts but aren't wired into `release.yml`'s automation; producing them today requires a manual local/CI run on a Windows runner. This is a real gap, not a deliberate omission documented anywhere else — flag it if you're planning a release that needs Windows artifacts.
+Evergreen testing builds (label / path / dispatch) use `.github/workflows/desktop-build.yml` → release tag `dhandho-desktop`.
+
+Apps are unsigned — Gatekeeper / SmartScreen warnings expected. See [Electron](./electron).
 
 ### `production-check` job — the strictest gate in the repo
 

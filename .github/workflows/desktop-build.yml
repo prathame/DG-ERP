@@ -1,0 +1,453 @@
+# Unified Dhandho Desktop — one Mac + Windows installer.
+# First launch: Online (cloud) or Offline (on-prem) picker (one-time).
+#
+# Labels (merge → evergreen; label on open PR → preview):
+#   desktop → Mac + Windows
+#   windows / mac → that platform only (optional)
+#
+# Comment preview (does NOT overwrite evergreen):
+#   desktop build | /desktop-build
+#
+# Evergreen release tag `dhandho-desktop`:
+#   dhandho-desktop-mac-arm64.dmg
+#   dhandho-desktop-mac-x64.dmg
+#   dhandho-desktop-win-x64.exe
+name: Desktop Build
+
+on:
+  pull_request:
+    types: [closed, labeled]
+    branches: [main]
+  push:
+    branches: [main]
+    paths:
+      - 'electron/**'
+      - 'electron-desktop.config.cjs'
+      - 'electron-cloud.config.cjs'
+      - 'electron-onprem.config.cjs'
+      - 'tsconfig.electron.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'server/**'
+      - 'src/platforms/desktop/**'
+      - 'scripts/ci-upload-evergreen-asset.sh'
+      - '.github/workflows/desktop-build.yml'
+      - '.github/workflows/release.yml'
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to build (leave empty for main tip)'
+        required: false
+      platform:
+        description: 'Which desktop platform(s) to build'
+        type: choice
+        options: [both, mac, windows]
+        default: both
+      push_release:
+        description: 'Upload evergreen release assets'
+        type: boolean
+        default: true
+
+concurrency:
+  group: desktop-build-${{ (github.event.pull_request.merged && 'main') || github.event.pull_request.number || github.event.issue.number || (github.ref == 'refs/heads/main' && 'main') || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+
+jobs:
+  gate:
+    name: Check trigger
+    runs-on: ubuntu-latest
+    outputs:
+      build_mac: ${{ steps.check.outputs.build_mac }}
+      build_win: ${{ steps.check.outputs.build_win }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
+      head_sha: ${{ steps.check.outputs.head_sha }}
+      head_ref: ${{ steps.check.outputs.head_ref }}
+      push_release: ${{ steps.check.outputs.push_release }}
+      trigger: ${{ steps.check.outputs.trigger }}
+    steps:
+      - name: Decide which desktop platform(s) to build
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const LABELS = new Set(['desktop', 'windows', 'mac']);
+            const PATHS = [
+              /^electron\//,
+              /^electron-desktop\.config\.cjs$/,
+              /^electron-cloud\.config\.cjs$/,
+              /^electron-onprem\.config\.cjs$/,
+              /^tsconfig\.electron\.json$/,
+              /^src\/platforms\/desktop\//,
+              /^scripts\/ci-upload-evergreen-asset\.sh$/,
+              /^\.github\/workflows\/desktop-build\.yml$/,
+              /^\.github\/workflows\/release\.yml$/,
+              /^package(-lock)?\.json$/,
+            ];
+
+            const event = context.eventName;
+            const actor = context.payload.sender?.login || '';
+            const assoc = context.payload.comment?.author_association
+              || context.payload.sender?.author_association
+              || '';
+            const allowed = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(assoc)
+              || ['prathame'].includes(actor);
+
+            const labelNames = (pr) =>
+              (pr.labels || []).map((l) => String(l.name || '').toLowerCase());
+
+            const platformsFromLabels = (names) => {
+              const hit = names.some((n) => LABELS.has(n));
+              if (!hit) return { mac: false, win: false };
+              const onlyWin = names.includes('windows') && !names.includes('mac') && !names.includes('desktop');
+              const onlyMac = names.includes('mac') && !names.includes('windows') && !names.includes('desktop');
+              if (onlyWin) return { mac: false, win: true };
+              if (onlyMac) return { mac: true, win: false };
+              return { mac: true, win: true };
+            };
+
+            const set = (opts = {}) => {
+              core.setOutput('build_mac', opts.mac ? 'true' : 'false');
+              core.setOutput('build_win', opts.win ? 'true' : 'false');
+              core.setOutput('pr_number', opts.pr || '');
+              core.setOutput('head_sha', opts.sha || '');
+              core.setOutput('head_ref', opts.ref || '');
+              core.setOutput('push_release', opts.pushRelease ?? 'true');
+              core.setOutput('trigger', opts.trigger || event);
+              core.info(`Desktop gate: mac=${!!opts.mac} win=${!!opts.win} trigger=${opts.trigger || event}`);
+            };
+
+            if (event === 'pull_request' && context.payload.action === 'closed') {
+              const pr = context.payload.pull_request;
+              if (!pr?.merged) {
+                set({ mac: false, win: false });
+                return;
+              }
+              const { mac, win } = platformsFromLabels(labelNames(pr));
+              if (!mac && !win) {
+                core.info(`PR #${pr.number} merged without desktop label — skip (path push may still build).`);
+                set({ mac: false, win: false });
+                return;
+              }
+              set({
+                mac, win,
+                pr: String(pr.number),
+                sha: pr.merge_commit_sha || pr.head.sha,
+                ref: 'main',
+                pushRelease: 'true',
+                trigger: 'merge-label',
+              });
+              return;
+            }
+
+            if (event === 'push') {
+              let files = [];
+              const before = context.payload.before;
+              const after = context.payload.after;
+              if (before && after && !/^0+$/.test(before)) {
+                try {
+                  const { data } = await github.rest.repos.compareCommits({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    base: before,
+                    head: after,
+                  });
+                  files = (data.files || []).map((f) => f.filename);
+                } catch (e) {
+                  core.warning(`compareCommits failed: ${e.message}; building both`);
+                  files = ['electron/desktop/main.ts'];
+                }
+              } else {
+                files = ['electron/desktop/main.ts'];
+              }
+              const hit = files.some((f) => PATHS.some((r) => r.test(f)));
+              set({
+                mac: hit, win: hit,
+                sha: context.sha,
+                ref: context.ref,
+                pushRelease: 'true',
+                trigger: 'push-main-paths',
+              });
+              return;
+            }
+
+            if (event === 'issue_comment') {
+              const issue = context.payload.issue;
+              if (!issue?.pull_request) {
+                set({ mac: false, win: false });
+                return;
+              }
+              const body = String(context.payload.comment?.body || '').toLowerCase();
+              const hit = /\bdesktop[\s_-]*build\b/.test(body) || /(^|\s)\/desktop(-build)?\b/.test(body);
+              if (!hit) {
+                set({ mac: false, win: false });
+                return;
+              }
+              if (!allowed) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: `⛔ @${actor} cannot trigger desktop builds (need repo write access).`,
+                });
+                set({ mac: false, win: false });
+                return;
+              }
+              let mac = true;
+              let win = true;
+              if (/\bwindows?\b/.test(body) && !/\bmac(os)?\b/.test(body) && !/\bboth\b/.test(body)) {
+                mac = false; win = true;
+              } else if (/\bmac(os)?\b/.test(body) && !/\bwindows?\b/.test(body) && !/\bboth\b/.test(body)) {
+                mac = true; win = false;
+              }
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: issue.number,
+              });
+              await github.rest.reactions.createForIssueComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: context.payload.comment.id,
+                content: 'eyes',
+              });
+              set({
+                mac, win,
+                pr: String(pr.number),
+                sha: pr.head.sha,
+                ref: pr.head.ref,
+                pushRelease: 'false',
+                trigger: 'pr-comment',
+              });
+              return;
+            }
+
+            if (event === 'pull_request' && context.payload.action === 'labeled') {
+              const label = String(context.payload.label?.name || '').toLowerCase();
+              const pr = context.payload.pull_request;
+              if (pr.state === 'closed' && pr.merged) {
+                set({ mac: false, win: false });
+                return;
+              }
+              const { mac, win } = platformsFromLabels([label]);
+              if (!mac && !win) {
+                set({ mac: false, win: false });
+                return;
+              }
+              set({
+                mac, win,
+                pr: String(pr.number),
+                sha: pr.head.sha,
+                ref: pr.head.ref,
+                pushRelease: 'false',
+                trigger: 'pr-label-preview',
+              });
+              return;
+            }
+
+            if (event === 'workflow_dispatch') {
+              const prNum = String(context.payload.inputs?.pr_number || '').trim();
+              const push = String(context.payload.inputs?.push_release ?? 'true');
+              const platform = String(context.payload.inputs?.platform || 'both');
+              const mac = platform === 'both' || platform === 'mac';
+              const win = platform === 'both' || platform === 'windows';
+              if (prNum) {
+                const { data: pr } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: Number(prNum),
+                });
+                set({
+                  mac, win,
+                  pr: String(pr.number),
+                  sha: pr.head.sha,
+                  ref: pr.head.ref,
+                  pushRelease: push,
+                  trigger: 'dispatch',
+                });
+              } else {
+                set({
+                  mac, win,
+                  sha: context.sha,
+                  ref: context.ref,
+                  pushRelease: push,
+                  trigger: 'dispatch',
+                });
+              }
+              return;
+            }
+
+            set({ mac: false, win: false });
+
+  build-mac:
+    name: Build Desktop Mac
+    needs: gate
+    if: needs.gate.outputs.build_mac == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build unified desktop (Mac)
+        run: npm run build:electron:desktop:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List artifacts
+        run: ls -lh dist-electron/desktop/
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dhandho-desktop-mac
+          path: |
+            dist-electron/desktop/dhandho-desktop-mac-arm64.dmg
+            dist-electron/desktop/dhandho-desktop-mac-x64.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Push evergreen Mac assets
+        if: needs.gate.outputs.push_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x scripts/ci-upload-evergreen-asset.sh
+          NOTES='Unified desktop. First launch picks Online (cloud) or Offline (on-prem) once. Unsigned — right-click → Open on Mac.'
+          bash scripts/ci-upload-evergreen-asset.sh dhandho-desktop \
+            dist-electron/desktop/dhandho-desktop-mac-arm64.dmg \
+            "Dhandho Desktop (evergreen)" "$NOTES"
+          bash scripts/ci-upload-evergreen-asset.sh dhandho-desktop \
+            dist-electron/desktop/dhandho-desktop-mac-x64.dmg \
+            "Dhandho Desktop (evergreen)" "$NOTES"
+
+      - name: Comment on PR
+        if: needs.gate.outputs.pr_number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = '${{ needs.gate.outputs.pr_number }}';
+            const sha = '${{ needs.gate.outputs.head_sha }}'.slice(0, 7);
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const pushed = '${{ needs.gate.outputs.push_release }}' === 'true';
+            const base = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/dhandho-desktop`;
+            const title = pushed
+              ? '## ✅ Desktop Mac published (evergreen)'
+              : '## ✅ Desktop Mac ready (PR preview)';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(pr),
+              body: [
+                title,
+                '',
+                `Commit \`${sha}\` · [workflow run](${runUrl})`,
+                '',
+                pushed
+                  ? `- [Mac arm64 DMG](${base}/dhandho-desktop-mac-arm64.dmg)`
+                  : '- Download from workflow **Artifacts** → `dhandho-desktop-mac`',
+                pushed
+                  ? `- [Mac x64 DMG](${base}/dhandho-desktop-mac-x64.dmg)`
+                  : '',
+                '',
+                'First launch: choose Online or Offline once.',
+              ].filter(Boolean).join('\n'),
+            });
+
+  build-windows:
+    name: Build Desktop Windows
+    needs: gate
+    if: needs.gate.outputs.build_win == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build unified desktop (Windows)
+        run: npm run build:electron:desktop:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List artifacts
+        shell: bash
+        run: ls -lh dist-electron/desktop/
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dhandho-desktop-win
+          path: dist-electron/desktop/dhandho-desktop-win-x64.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Push evergreen Windows asset
+        if: needs.gate.outputs.push_release == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x scripts/ci-upload-evergreen-asset.sh
+          bash scripts/ci-upload-evergreen-asset.sh dhandho-desktop \
+            dist-electron/desktop/dhandho-desktop-win-x64.exe \
+            "Dhandho Desktop (evergreen)" \
+            "Unified desktop. First launch picks Online (cloud) or Offline (on-prem) once. Unsigned — SmartScreen may warn."
+
+      - name: Comment on PR
+        if: needs.gate.outputs.pr_number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = '${{ needs.gate.outputs.pr_number }}';
+            const sha = '${{ needs.gate.outputs.head_sha }}'.slice(0, 7);
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const pushed = '${{ needs.gate.outputs.push_release }}' === 'true';
+            const base = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/releases/download/dhandho-desktop`;
+            const title = pushed
+              ? '## ✅ Desktop Windows published (evergreen)'
+              : '## ✅ Desktop Windows ready (PR preview)';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(pr),
+              body: [
+                title,
+                '',
+                `Commit \`${sha}\` · [workflow run](${runUrl})`,
+                '',
+                pushed
+                  ? `- [Windows x64 installer](${base}/dhandho-desktop-win-x64.exe)`
+                  : '- Download from workflow **Artifacts** → `dhandho-desktop-win`',
+                '',
+                'First launch: choose Online or Offline once.',
+              ].join('\n'),
+            });
