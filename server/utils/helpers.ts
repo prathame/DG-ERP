@@ -184,9 +184,28 @@ export async function logAudit(
   userName?: string,
 ) {
   const { redactPii } = await import('./pii');
-  const safeDetails = details ? redactPii(details) : null;
-  const safeName = userName ? redactPii(userName) : null;
-  const ctx = { tenantId, action, entityType, entityId, details: safeDetails, userId, userName: safeName };
+  const { requestContext } = await import('./logger');
+  const store = requestContext.getStore();
+  const impersonatedBy = store?.impersonatedBy;
+  let safeDetails = details ? redactPii(details) : null;
+  if (impersonatedBy) {
+    const tag = `[impersonatedBy=${impersonatedBy}]`;
+    safeDetails = safeDetails ? `${safeDetails} ${tag}` : tag;
+  }
+  let safeName = userName ? redactPii(userName) : null;
+  if (impersonatedBy && safeName) {
+    safeName = `${safeName} (via SA)`;
+  }
+  const ctx = {
+    tenantId,
+    action,
+    entityType,
+    entityId,
+    details: safeDetails,
+    userId,
+    userName: safeName,
+    impersonatedBy,
+  };
   try {
     await pool.query(
       'INSERT INTO audit_log (tenant_id, user_id, user_name, action, entity_type, entity_id, details) VALUES ($1, $2, $3, $4, $5, $6, $7)',

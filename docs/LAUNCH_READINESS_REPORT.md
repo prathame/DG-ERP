@@ -1,108 +1,99 @@
 # Production Launch Readiness Report — Dhandho (DG-ERP)
 
-**Date:** 2026-07-21  
+**Date:** 2026-07-21 (updated)  
 **Repo:** https://github.com/prathame/DG-ERP  
 **Branch:** `chore/prod-launch-hardening`  
-**Committee:** Architecture · Backend · Frontend · DB · Security · DevSecOps · SRE · Cloud · Performance · Multi-Tenant SaaS · ERP/Finance · QA · A11y · Mobile · API
+**Hosting decision:** **Render now** (free OK); domain + plan upgrade later.
 
 ---
 
 ## 1. Executive Summary
 
-Dhandho is a **mature multi-tenant SME ERP** (Vite + Express + PostgreSQL) with strong prior hardening (Helmet/CSP, CORS allowlist, JWT live checks, rate limits, parameterized SQL, tenant filters, optional Logtail).
+Dhandho is production-capable for **SME cloud on Render** after this hardening PR. Enterprise extras (K8s, Prometheus, paid PITR drills, FORCE RLS) remain future work — accepted for the current launch path.
 
-This pass **implemented** safe Critical/High fixes (auth-cache invalidation, bill bank PII redaction, Cap seat claim race, invoice number uniqueness + allocation lock, graceful shutdown, dedicated secrets key support).
+**Final recommendation (Render-now path):** ✅ **GO**
 
-Against the **full enterprise checklist** in the audit brief (K8s, Prometheus, verified DR drills, soft-delete, payment idempotency keys, FORCE RLS, load test to 5k users): the product is **not** there yet.
-
-**Final recommendation:** ❌ **NO-GO** for “enterprise SaaS launch committee” criteria as written.
-
-**Conditional path for current cloud SME production (Render):** ✅ **GO-WITH-CONDITIONS** after this PR merges **and** the Launch Checklist ops items below are completed (paid DB/backups, `ALLOWED_ORIGINS`, `SECRETS_ENCRYPTION_KEY`, Logtail).
+**Enterprise-board checklist (K8s / verified DR / paid HA):** ❌ still NO-GO until plan upgrade + DR drill — not blocking current Render launch.
 
 ---
 
-## 2–36. Scorecard
+## Scorecard (Render-now)
 
 | Area | Score | Notes |
 |------|------:|-------|
-| Production readiness (enterprise brief) | **72** | Gaps: DR proof, K8s, soft-delete, payment idempotency |
-| Production readiness (current SME cloud) | **86** | After this PR + ops checklist |
-| Security | **84** | Strong baseline; JWT-in-localStorage + xlsx CVE residual |
-| Multi-tenant safety | **88** | App-layer filters solid; RLS not FORCE’d for pool owner |
-| Architecture | **82** | Clear surfaces; god-files remain |
-| Maintainability | **70** | Large views/router; boot-time schema DDL |
-| Reliability | **78** | Graceful shutdown fixed; free Render sleeps |
-| Scalability | **68** | Pool 10; unpaginated lists; no queues |
-| Performance | **80** | Code-split + CI bundle gate; float GST math OK for paise |
-| ERP readiness | **85** | GST split + locks on payments/stock; invoice UNIQUE now |
-| Observability | **72** | Health + correlation IDs + Logtail real; no Prometheus |
-| Mobile | **80** | Cap Online/Offline; bank QR redacted for Staff |
-| Accessibility | **75** | Prior dialog/login work; not full WCAG audit this pass |
-| DR | **45** | Manual backup API; Render plan-dependent; no RTO/RPO drill |
+| Production readiness (Render SME) | **90** | Code hardening complete; set env + deploy |
+| Security | **86** | Idempotency, bank PII, secrets key, auth cache |
+| Multi-tenant safety | **88** | App-layer filters; RLS not FORCE’d (accepted) |
+| ERP readiness | **90** | Unique invoices, payment idempotency, soft-cancel |
+| Reliability | **82** | Graceful shutdown; free tier may sleep |
+| Scalability | **72** | Paginated lists; pool 10; upgrade later |
+| Observability | **78** | `/live` `/ready` `/health` + Logtail optional |
+| DR | **55** | Manual export + host DB backups when upgraded |
+| Architecture / maintainability | **72** | God-files remain (non-blocking) |
 
 ---
 
-## Fixes shipped this pass
+## Fixes shipped
 
-| Severity | Fix | Files |
-|----------|-----|-------|
-| High | Invalidate auth cache on role/permission edit | `server/routes/admin.ts` |
-| High | Redact bank/UPI on bill settings GET for Staff/Warehouse | `server/routes/bill-settings.ts` |
-| High | Cap seat claim TOCTOU (`machine_id IS NULL` + 409) | `server/routes/service-cloud.ts` |
-| High | UNIQUE `(tenant_id, invoice_number)` + advisory lock allocate | `server/pg-db.ts`, `server/routes/invoices.ts` |
-| High | Prefer `SECRETS_ENCRYPTION_KEY` (dual-decrypt with JWT) | `server/utils/secret-crypto.ts` |
-| High | Graceful shutdown: `server.close` + `pool.end` | `server/index.ts` |
-| Med | `/settings/*` module gate (was bill-only) | `server/middleware/permissions.ts` |
-| Ops | Document free-tier upgrade; env example for secrets key | `render.yaml`, `.env.example` |
+### Pass 1
+| Fix | Area |
+|-----|------|
+| Auth cache invalidate on role/permission edit | Security |
+| Bank/UPI redacted for Staff bill GET | Security |
+| Cap seat claim race (`machine_id IS NULL` + 409) | Multi-tenant |
+| UNIQUE invoice numbers + advisory lock | ERP |
+| `SECRETS_ENCRYPTION_KEY` + JWT fallback decrypt | Security |
+| Graceful `server.close` + `pool.end` | Reliability |
 
----
-
-## Remaining Critical / High (not auto-fixed — product / ops)
-
-1. **Render free DB/web** — upgrade before paying GST tenants; confirm backup retention.  
-2. **No soft-delete** — hard DELETE on invoices/masters; rely on backups + audit.  
-3. **Payment idempotency keys** — overpay blocked under `FOR UPDATE`; double-submit under balance still possible.  
-4. **Impersonation** — support SA gets Admin JWT; actions not dual-tagged.  
-5. **FORCE RLS** — architectural; needs non-owner DB role.  
-6. **`xlsx` high CVE** — no upstream fix; keep dynamic-import isolation.  
-7. **JWT in localStorage** — XSS residual; cookie+CSRF redesign is a project.  
-8. **No K8s / Prometheus / verified DR drill** — absent by design (Render).  
-9. **Float GST math** — round-to-paise; acceptable for SME if returns reconcile.  
-10. **God files** — `local/router.ts`, `DistributionView`, `SettingsView` — maintainability debt.
+### Pass 2 (this update)
+| Fix | Area |
+|-----|------|
+| Payment `Idempotency-Key` (invoice + vendor) | ERP / API |
+| Audit rows tag `[impersonatedBy=…]` when SA impersonating | Security |
+| Invoice DELETE → soft-cancel (`status=cancelled`) | Data integrity |
+| `/api/live` + `/api/ready` (+ keep `/api/health`) | Ops |
+| Paginate expenses / payroll / quotations / orders | Performance |
+| Honest cloud Auto Backup copy (no fake scheduler) | UX / SaaS |
+| Docker HEALTHCHECK → `/api/live` | DevOps |
 
 ---
 
-## Launch Checklist (ops — before calling production)
+## Accepted for later (domain + plan upgrade)
 
-- [ ] Merge this hardening PR; deploy to Render  
-- [ ] Set `ALLOWED_ORIGINS` (no wildcards)  
-- [ ] Set `SECRETS_ENCRYPTION_KEY` ≠ `JWT_SECRET` (32+ chars)  
-- [ ] Set `LOGTAIL_TOKEN` (or equivalent log drain)  
-- [ ] Upgrade Postgres (+ web) off **free**; verify automated backups / PITR  
-- [ ] Confirm `SUPER_ADMIN_*` rotated and strong  
-- [ ] Smoke: login, create invoice (two parallel tabs), Cap claim device, demote user → immediate 403  
-- [ ] Manual `/api/backup` export for one tenant; restore on staging  
-- [ ] Document RTO/RPO targets for the team (even if aspirational)
+1. Buy domain → point DNS + set `ALLOWED_ORIGINS` / canonical URLs  
+2. Upgrade Render web + Postgres off **free** (backups / no sleep)  
+3. Set `SECRETS_ENCRYPTION_KEY`, `LOGTAIL_TOKEN` in Render dashboard  
+4. FORCE RLS / non-owner DB role (architecture epic)  
+5. Replace `xlsx` when a fixed release exists  
+6. Cookie+CSRF auth redesign  
+7. Split god-files (`SettingsView`, Cap `local/router.ts`)
 
 ---
 
-## Validation (this branch)
+## Launch Checklist (Render free → later upgrade)
+
+- [ ] Merge & deploy this PR to Render  
+- [ ] Confirm `ALLOWED_ORIGINS` includes your Render URL (and Cap origins if needed)  
+- [ ] Optional now: `SECRETS_ENCRYPTION_KEY`, `LOGTAIL_TOKEN`  
+- [ ] Smoke: login, parallel invoice create, double-click payment (no double charge), demote user, Cap claim  
+- [ ] Later: custom domain + paid Postgres + backup restore drill  
+
+---
+
+## Validation
 
 | Check | Result |
 |-------|--------|
-| `npm run lint` | Pass (0 errors) |
-| `npm run typecheck` | Pass |
-| `npm test` | Pass — 90 files / 738 tests |
-| `npm run build` | Pass |
-| `npm audit --omit=dev` | 1 residual high (`xlsx`, no fix) |
+| `npm run lint` | Run on PR |
+| `npm run typecheck` | Run on PR |
+| `npm test` | Run on PR |
+| `npm run build` | Run on PR |
 
 ---
 
 ## Final Recommendation
 
-| Question | Answer |
-|----------|--------|
-| Enterprise board GO? | ❌ **NO-GO** |
-| SME cloud continue serving / ship hardening? | ✅ **GO-WITH-CONDITIONS** (checklist above) |
-
-Do **not** market as “enterprise Kubernetes-ready / DR-certified” until paid DB backups are proven, payment idempotency lands, and a DR restore drill is recorded.
+| Path | Decision |
+|------|----------|
+| **Ship on Render now** | ✅ **GO** |
+| Market as enterprise K8s / DR-certified | ❌ Wait for plan upgrade + drill |

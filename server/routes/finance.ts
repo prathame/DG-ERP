@@ -241,6 +241,9 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const { readIdempotencyKey } = await import('../utils/idempotency');
+    const idemKey = readIdempotencyKey(req);
+
     const { vendorId } = req.params;
     const { amount, paymentDate, paymentMethod, referenceNumber, notes, batchId } = req.body;
     const parsedAmount = Number(amount);
@@ -252,6 +255,38 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
     const pMethod = paymentMethod || 'Cash';
 
     await client.query('BEGIN');
+    if (idemKey) {
+      const existing = (
+        await client.query(
+          `SELECT id, amount, payment_date, payment_method, reference_number, notes
+           FROM vendor_payments WHERE tenant_id = $1 AND idempotency_key = $2
+           ORDER BY created_at LIMIT 1`,
+          [tenantId, idemKey],
+        )
+      ).rows[0] as
+        | {
+            id: string;
+            amount: number;
+            payment_date: string;
+            payment_method: string;
+            reference_number: string | null;
+            notes: string | null;
+          }
+        | undefined;
+      if (existing) {
+        await client.query('COMMIT');
+        return res.status(200).json({
+          id: existing.id,
+          amount: Number(existing.amount),
+          paymentDate: existing.payment_date,
+          paymentMethod: existing.payment_method || 'Cash',
+          referenceNumber: existing.reference_number,
+          notes: existing.notes,
+          replayed: true,
+        });
+      }
+    }
+
     const vendor = (
       await client.query('SELECT id, name FROM vendors WHERE id = $1 AND tenant_id = $2 FOR UPDATE', [
         vendorId,
@@ -263,6 +298,7 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
       return res.status(404).json({ error: 'Vendor not found' });
     }
     const vendorName = vendor.name ?? vendorId;
+    let responseId = uid('VP');
 
     if (batchId) {
       const batchDue = (
@@ -290,10 +326,59 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
       }
 
       const id = uid('VP');
-      await client.query(
-        'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-        [id, vendorId, parsedAmount, pDate, pMethod, referenceNumber || null, notes || null, tenantId, batchId],
-      );
+      responseId = id;
+      try {
+        await client.query(
+          `INSERT INTO vendor_payments
+             (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id, idempotency_key)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            id,
+            vendorId,
+            parsedAmount,
+            pDate,
+            pMethod,
+            referenceNumber || null,
+            notes || null,
+            tenantId,
+            batchId,
+            idemKey,
+          ],
+        );
+      } catch (insErr) {
+        const code = (insErr as { code?: string }).code;
+        if (code === '23505' && idemKey) {
+          const existing = (
+            await client.query(
+              `SELECT id, amount, payment_date, payment_method, reference_number, notes
+               FROM vendor_payments WHERE tenant_id = $1 AND idempotency_key = $2 LIMIT 1`,
+              [tenantId, idemKey],
+            )
+          ).rows[0] as
+            | {
+                id: string;
+                amount: number;
+                payment_date: string;
+                payment_method: string;
+                reference_number: string | null;
+                notes: string | null;
+              }
+            | undefined;
+          await client.query('COMMIT');
+          if (existing) {
+            return res.status(200).json({
+              id: existing.id,
+              amount: Number(existing.amount),
+              paymentDate: existing.payment_date,
+              paymentMethod: existing.payment_method || 'Cash',
+              referenceNumber: existing.reference_number,
+              notes: existing.notes,
+              replayed: true,
+            });
+          }
+        }
+        throw insErr;
+      }
       await client.query('COMMIT');
       logAudit(
         pool,
@@ -302,6 +387,8 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
         'payment',
         id,
         `${vendorName} paid ₹${parsedAmount}, batch ${batchId}`,
+        req.user?.userId,
+        req.user?.name,
       );
     } else {
       // Re-read dues inside the locked transaction to avoid concurrent over-allocation
@@ -332,13 +419,17 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
       }
 
       let remaining = parsedAmount;
+      let firstId: string | null = null;
       for (const b of batches) {
         if (remaining <= 0) break;
         const due = Number(b.bill_value) - Number(b.paid);
         const pay = Math.min(remaining, due);
         const id = uid('VP');
+        if (!firstId) firstId = id;
         await client.query(
-          'INSERT INTO vendor_payments (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+          `INSERT INTO vendor_payments
+             (id, vendor_id, amount, payment_date, payment_method, reference_number, notes, tenant_id, batch_id, idempotency_key)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
             id,
             vendorId,
@@ -349,23 +440,28 @@ router.post('/api/vendor-finance/:vendorId/payments', blockVendors, async (req: 
             notes ? `${notes} (batch ${b.batch_id})` : `All-batch payment`,
             tenantId,
             b.batch_id,
+            // Only the first split row carries the key (unique per tenant)
+            firstId === id ? idemKey : null,
           ],
         );
         remaining -= pay;
       }
+      responseId = firstId || responseId;
       await client.query('COMMIT');
       logAudit(
         pool,
         tenantId,
         'Payment Recorded',
         'payment',
-        uid('VP'),
+        responseId,
         `${vendorName} paid ₹${parsedAmount} across ${batches.length} batches`,
+        req.user?.userId,
+        req.user?.name,
       );
     }
 
     res.status(201).json({
-      id: uid('VP'),
+      id: responseId,
       amount: parsedAmount,
       paymentDate: pDate,
       paymentMethod: pMethod,

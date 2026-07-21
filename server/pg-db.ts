@@ -940,6 +940,18 @@ export async function initSchema() {
       )
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_inv_payments ON invoice_payments(tenant_id, invoice_id)');
+    await client.query('ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS idempotency_key TEXT');
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_invoice_payments_idempotency
+      ON invoice_payments (tenant_id, idempotency_key)
+      WHERE idempotency_key IS NOT NULL
+    `);
+    await client.query('ALTER TABLE vendor_payments ADD COLUMN IF NOT EXISTS idempotency_key TEXT');
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_vendor_payments_idempotency
+      ON vendor_payments (tenant_id, idempotency_key)
+      WHERE idempotency_key IS NOT NULL
+    `);
     // Drop orphan payment rows then enforce FK (ON DELETE RESTRICT)
     await client.query(`
       DELETE FROM invoice_payments ip

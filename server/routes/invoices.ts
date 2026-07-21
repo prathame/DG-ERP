@@ -453,7 +453,7 @@ router.put('/api/invoices/:id/status', blockVendors, async (req: AuthRequest, re
   }
 });
 
-// Delete invoice — blocked if any payments exist (avoids orphan money rows)
+// Soft-cancel invoice (keeps row for audit) — blocked if any payments exist
 router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) => {
   const client = await pool.connect();
   try {
@@ -471,6 +471,10 @@ router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) =
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Invoice not found' });
     }
+    if (inv.status === 'cancelled') {
+      await client.query('COMMIT');
+      return res.json({ ok: true, cancelled: true });
+    }
 
     const payCount = Number(
       (
@@ -483,23 +487,27 @@ router.delete('/api/invoices/:id', blockVendors, async (req: AuthRequest, res) =
     if (payCount > 0) {
       await client.query('ROLLBACK');
       return res.status(400).json({
-        error: 'Cannot delete invoice with payments. Delete payments first, or keep the invoice for audit.',
+        error: 'Cannot cancel invoice with payments. Delete payments first, or keep the invoice for audit.',
       });
     }
 
-    await client.query('DELETE FROM standalone_invoices WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
+    await client.query(
+      `UPDATE standalone_invoices SET status = 'cancelled', updated_at = NOW()
+       WHERE id = $1 AND tenant_id = $2`,
+      [req.params.id, tenantId],
+    );
     await client.query('COMMIT');
     await logAudit(
       pool,
       tenantId,
-      'Invoice Deleted',
+      'Invoice Cancelled',
       'invoice',
       req.params.id as string,
-      `${inv.invoice_number} (${inv.status})`,
+      `${inv.invoice_number} (${inv.status} → cancelled)`,
       req.user?.userId,
       req.user?.name,
     );
-    res.json({ ok: true });
+    res.json({ ok: true, cancelled: true });
   } catch (err) {
     await client.query('ROLLBACK');
     return handleApiError(req, res, err);

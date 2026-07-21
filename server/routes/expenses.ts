@@ -3,6 +3,7 @@ import { blockVendors, requireAdmin, AuthRequest } from '../middleware/auth';
 import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { parsePagination } from '../utils/pagination';
 
 const router = Router();
 
@@ -11,23 +12,30 @@ router.get('/api/expenses', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { category, from, to } = req.query;
-    let sql = 'SELECT * FROM expenses WHERE tenant_id = $1';
+    const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
+    let where = 'WHERE tenant_id = $1';
     const params: unknown[] = [tenantId];
     let idx = 2;
     if (typeof category === 'string' && category) {
-      sql += ` AND category = $${idx++}`;
+      where += ` AND category = $${idx++}`;
       params.push(category);
     }
     if (typeof from === 'string' && from) {
-      sql += ` AND expense_date >= $${idx++}`;
+      where += ` AND expense_date >= $${idx++}`;
       params.push(from);
     }
     if (typeof to === 'string' && to) {
-      sql += ` AND expense_date <= $${idx++}`;
+      where += ` AND expense_date <= $${idx++}`;
       params.push(to);
     }
-    sql += ' ORDER BY expense_date DESC';
-    const { rows } = await pool.query(sql, params);
+    const total = Number((await pool.query(`SELECT COUNT(*)::int AS c FROM expenses ${where}`, params)).rows[0].c);
+    const { rows } = await pool.query(
+      `SELECT * FROM expenses ${where} ORDER BY expense_date DESC LIMIT $${idx++} OFFSET $${idx}`,
+      [...params, limit, offset],
+    );
+    res.setHeader('X-Total-Count', String(total));
+    res.setHeader('X-Page', String(page));
+    res.setHeader('X-Limit', String(limit));
     res.json(
       rows.map((r: Record<string, unknown>) => ({
         id: r.id,

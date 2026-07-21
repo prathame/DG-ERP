@@ -12,14 +12,23 @@ router.get('/api/orders', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { status } = req.query;
-    let sql = 'SELECT * FROM orders WHERE tenant_id = $1';
+    const { parsePagination } = await import('../utils/pagination');
+    const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
+    let where = 'WHERE tenant_id = $1';
     const params: unknown[] = [tenantId];
+    let idx = 2;
     if (typeof status === 'string' && status) {
-      sql += ' AND status = $2';
+      where += ` AND status = $${idx++}`;
       params.push(status);
     }
-    sql += ' ORDER BY created_at DESC';
-    const { rows } = await pool.query(sql, params);
+    const total = Number((await pool.query(`SELECT COUNT(*)::int AS c FROM orders ${where}`, params)).rows[0].c);
+    const { rows } = await pool.query(
+      `SELECT * FROM orders ${where} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx}`,
+      [...params, limit, offset],
+    );
+    res.setHeader('X-Total-Count', String(total));
+    res.setHeader('X-Page', String(page));
+    res.setHeader('X-Limit', String(limit));
     res.json(
       rows.map((r: Record<string, unknown>) => ({
         id: r.id,
@@ -220,12 +229,10 @@ router.put('/api/orders/:id/status', blockVendors, async (req: AuthRequest, res)
     const { status } = req.body;
     // Fulfilled only via POST /fulfill (deducts stock). Do not allow status-only bypass.
     if (!['Pending', 'Confirmed', 'Cancelled'].includes(status)) {
-      return res
-        .status(400)
-        .json({
-          error:
-            status === 'Fulfilled' ? 'Use POST /api/orders/:id/fulfill to fulfill (deducts stock)' : 'Invalid status',
-        });
+      return res.status(400).json({
+        error:
+          status === 'Fulfilled' ? 'Use POST /api/orders/:id/fulfill to fulfill (deducts stock)' : 'Invalid status',
+      });
     }
     const current = (
       await pool.query('SELECT status FROM orders WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId])

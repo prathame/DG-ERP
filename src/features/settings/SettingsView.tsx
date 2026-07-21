@@ -2023,10 +2023,16 @@ export function SettingsView({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <span className="text-sm font-bold">Auto Backup</span>
-                      {serviceMobile && (
+                      {serviceMobile ? (
                         <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
                           Saves a file on this phone (daily / weekly / monthly). Optional Gmail opens your mail app — we
                           never upload your data.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                          Preference only for now — the cloud server does not run a scheduled backup job yet. Use{' '}
+                          <strong className="font-semibold text-gray-500">Export now</strong> for a tenant JSON copy;
+                          database backups come from your host (Render Postgres) when you upgrade off the free plan.
                         </p>
                       )}
                     </div>
