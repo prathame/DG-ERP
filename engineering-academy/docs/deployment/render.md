@@ -122,9 +122,9 @@ fi
 - Watch the Render dashboard's deploy logs for the `npm ci --include=dev` step specifically if a build fails right after a dependency change — it's the first thing to check.
 - After deploy, hit `https://dhandho.onrender.com/api/health` (or the service URL shown in the Dashboard) to confirm `{"ok":true,"db":"up"}`. Do not use `dhandho.app` until that DNS is live.
 
-## Hostname cutover (`dg-erp` → `dhandho`)
+## Hostname cutover (`dg-erp` → `dhandho`) {#recreate-web-service-as-dhandho}
 
-**How Render hostnames work:** the web service **name** chosen at create time becomes `https://<name>.onrender.com`. That subdomain is **not** renamable later ([Render feedback](https://feedback.render.com/features/p/ability-to-change-onrendercom-sub-domain)) — changing the display name in the Dashboard does not move the URL. Root `render.yaml` already defines service **`dhandho`**; ops must **create** that service (not rename `dg-erp`).
+**How Render hostnames work:** the web service **name** chosen at create time becomes `https://<name>.onrender.com`. That subdomain is **not** renamable later ([Render feedback](https://feedback.render.com/features/p/ability-to-change-onrendercom-sub-domain)) — changing the display name in the Dashboard does not move the URL. Root `render.yaml` already defines service **`dhandho`**; ops must **create** that service (not rename `dg-erp`). Cap/Electron already default to `https://dhandho.onrender.com` (`apiBase.ts` / env examples / Electron default) — creating this service is what makes that URL answer.
 
 **Probe (expected before cutover):**
 
@@ -166,9 +166,9 @@ fi
    - Optional: `LOGTAIL_TOKEN`, `SECRETS_ENCRYPTION_KEY`
 3. Confirm Build Command is `npm ci --include=dev && npm run build:prod` and health check path is `/api/health`.
 4. Wait for the first deploy to go live, then verify:
-   - `curl -sI https://dhandho.onrender.com/` → `200`
+   - `curl -sI https://dhandho.onrender.com/` → `200` (not `x-render-routing: no-server`)
    - `curl -s https://dhandho.onrender.com/api/health` → `{"ok":true,"db":"up",…}`
-5. Once health is green, point humans (and Cap/Electron after their cutover) at `https://dhandho.onrender.com`. Client default/remap may still target `dg-erp` until that cutover lands — that is independent of creating this web service.
+5. Cap Online / Electron Cloud need **no code change** once health is green — they already default to this host. Rebuild only if you baked a different `VITE_API_ORIGIN` / `DG_CLOUD_URL`.
 6. After `dhandho` is healthy for a day or two: suspend or delete the `dg-erp` service so you are not paying/sleeping two free web services.
 7. Later: attach custom domain `dhandho.app` on the `dhandho` service when DNS is ready; then switch `PUBLIC_APP_URL` / `ALLOWED_ORIGINS` to that host.
 
