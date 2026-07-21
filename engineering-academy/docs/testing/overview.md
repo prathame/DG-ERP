@@ -29,7 +29,7 @@ flowchart TB
 | | Unit | API Integration | E2E |
 |---|---|---|---|
 | **Tool** | Vitest | Vitest + Supertest | Python 3, `urllib` (no framework) |
-| **Location** | `tests/unit/*.test.ts` | `tests/api/*.test.ts` | `tests/e2e_by_type.py`, `tests/e2e_full.py` |
+| **Location** | `tests/unit/*.test.ts` | `tests/api/*.test.ts` | `tests/e2e_by_type.py` |
 | **Talks to** | Nothing external — pure functions | Real PostgreSQL 16, via `createApp()` in-process (no network) | A **running** server over real HTTP |
 | **Speed** | Milliseconds per test | Tens of ms per test (real queries, but local/CI DB) | Minutes for the full 453-test run |
 | **Runs in CI** | Every PR (`pr-check.yml`, `build.yml`) | Every PR (same workflows, same Vitest invocation) | Only on release (`release.yml`, tag push) |
@@ -60,9 +60,8 @@ tests/
 │   ├── cross-tenant.md
 │   ├── landing-page.md
 │   └── ...
-├── e2e_by_type.py           # Layer 3 — 453 tests across 4 business types
-├── e2e_full.py               # broader/legacy end-to-end coverage
-├── stress-test.ts           # load/perf probing, not correctness
+├── e2e_by_type.py           # Layer 3 — release E2E across business types
+├── stress-test.ts           # load/perf probing, not correctness (manual)
 ├── globalSetup.ts           # runs initDatabase() once before the whole Vitest run
 ├── setup.ts                 # per-file env assertion (DATABASE_URL, JWT_SECRET present)
 └── helpers.ts                # createTestToken, createSuperAdminToken, cleanupTestData

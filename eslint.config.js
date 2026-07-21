@@ -17,7 +17,6 @@ export default tseslint.config(
       'node_modules/**',
       'engineering-academy/**',
       'tests/stress-test.ts',
-      'tests/e2e_full.py',
     ],
   },
   js.configs.recommended,
