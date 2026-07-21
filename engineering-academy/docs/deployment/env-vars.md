@@ -60,14 +60,14 @@ This scans the connection string itself for obviously-default passwords and **re
 
 | Variable | Read by | Effect |
 |---|---|---|
-| `DG_CLOUD_URL` | `electron/shared/constants.ts` (`CLOUD_API`) | Overrides the cloud URL the Electron Cloud wrapper points at — set at build time for the packaged app, or at dev time for `npm run electron:onprem:dev:local` (points the on-prem app's cloud-facing calls, like activation, at a local server instead of the real production API) |
+| `DG_CLOUD_URL` | `electron/shared/constants.ts` (`CLOUD_API`) | Overrides the cloud URL the Electron Cloud wrapper points at. Default is the live Render host (`https://dg-erp.onrender.com`). Set at build time for the packaged app, or at dev time for `npm run electron:onprem:dev:local` (local cloud). After the `dhandho` Render service exists, flip the default (see [Service Cloud](./service-cloud.md)). |
 
 ## Mobile (`.env.mobile`) — client-embedded, public-safe only
 
 | Variable | Prefix requirement | Effect |
 |---|---|---|
 | `VITE_MOBILE` | Must be `VITE_` (it's a build flag consumed by `vite.config.ts` and `isMobileClient()`) | Set to `1` to force mobile build mode |
-| `VITE_API_ORIGIN` | `VITE_` | The cloud API's public hostname the mobile WebView calls — this is public information (it's the same URL anyone can visit in a browser), safe to embed |
+| `VITE_API_ORIGIN` | `VITE_` | The cloud API's public hostname Cap/WebView calls (same host anyone can visit). Default examples use live `https://dg-erp.onrender.com`; `apiBase.ts` remaps premature `dhandho.onrender.com` / broken `dhandho.app` to that fallback until cutover |
 | `VITE_APP_VERSION` | `VITE_` | Compared against `mobile_min_version`/`mobile_latest_version` for update prompts |
 | `VITE_ANDROID_STORE_URL` / `VITE_IOS_STORE_URL` | `VITE_` | Store links shown in update prompts / `/download` page |
 

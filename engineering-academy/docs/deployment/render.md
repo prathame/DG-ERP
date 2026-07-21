@@ -90,7 +90,7 @@ The comment says it plainly: **tests must not hit the production database.** Ren
 | `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` | `sync: false` — you must set these manually in the Render dashboard, they are **not** committed or auto-generated | These are real, sensitive platform-owner credentials — `generateValue` wouldn't make sense (you need to know the value to log in), and committing a plaintext value to `render.yaml` would defeat the entire point |
 | `ALLOWED_ORIGINS` | `sync: false` | Production-specific list of allowed CORS origins (e.g. `https://dhandho.app,https://www.dhandho.app`) — environment-specific, not something to hardcode in a file that also describes staging/preview environments |
 | `LOGTAIL_TOKEN` | `sync: false` | Optional; logging works fine without it (see [Logging](/sre/logging)), so it's not required at first deploy, but also not something to commit |
-| `PUBLIC_APP_URL` | Static `https://dhandho.onrender.com` (until `dhandho.app` DNS is live) | The public URL used wherever the server needs absolute links (invite links, PDF footers). Switch back to `https://dhandho.app` after DNS cutover. |
+| `PUBLIC_APP_URL` | Blueprint default `https://dhandho.onrender.com` (for a service named `dhandho`) | Absolute links (invite links, PDF footers). **Live production today is still `https://dg-erp.onrender.com`** — set Dashboard env to that host until you create the `dhandho` service. After `dhandho` is healthy, use its URL; switch to `https://dhandho.app` only after DNS is live. Cap/Electron cutover steps: [Service Cloud](./service-cloud.md). |
 
 ## The doc-only build filter (`render-build-filter.sh`)
 
@@ -119,7 +119,7 @@ fi
 
 - Push to `main` → Render's auto-deploy (assuming it's watching that branch) picks it up, runs the build filter, then the build/start commands.
 - Watch the Render dashboard's deploy logs for the `npm ci --include=dev` step specifically if a build fails right after a dependency change — it's the first thing to check.
-- After deploy, hit `https://dhandho.app/api/health` to confirm `{"ok":true,"db":"up"}` before considering the deploy verified.
+- After deploy, hit the **live** service health URL (today: `https://dg-erp.onrender.com/api/health`) to confirm `{"ok":true,"db":"up"}`. Do not use `dhandho.onrender.com` until a Render service with that name exists, and do not use `dhandho.app` until DNS is live.
 
 ## Related pages
 
