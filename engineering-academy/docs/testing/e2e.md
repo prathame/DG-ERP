@@ -67,10 +67,6 @@ That's it — no assertion library, no stack traces on failure, just a boolean c
 
 The count emerges from the sum of: 4 business types × (shared scaffold assertions + type-specific feature assertions), where each type has a different-sized feature test list matching what that business type's `tab_config` actually exposes (a Service business type doesn't test Distribution's E-Way Bill flow, because that tab isn't even relevant to it — see [Mental Models](/tutorials/mental-models) on business type as data, not code fork). The number will drift slightly release-to-release as tests are added — treat "453" as "the current count," not a fixed target to preserve.
 
-## `tests/e2e_full.py` — the older/broader sibling
-
-A second Python E2E script exists alongside `e2e_by_type.py`, covering additional ground not tied to the four-business-type structure (or predating that structure). If you're adding a new E2E test, check both files before deciding where a new test belongs — duplicating coverage across both scripts wastes CI minutes on release day for no additional signal.
-
 ## Manual test cases (`tests/cases/*.md`) — the fourth, human layer
 
 Not automated at all — markdown specs for a human QA pass, covering things genuinely hard to assert programmatically: `landing-page.md`, `multi-language.md`, `super-admin.md`, `cross-tenant.md`, `chatbot.md`, `service-mobile.md`, `service-cloud.md`, `cloud-mobile.md`, and others. These exist because some regressions (a broken layout, a mistranslated string, a confusing UX flow) are real risks the automated suites cannot catch, and pretending otherwise would be worse than admitting a human still needs to click through these before a significant release.
