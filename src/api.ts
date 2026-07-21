@@ -3,6 +3,7 @@ import { resolveApiUrl } from './platforms/shared';
 import { clientLogger, ensureCorrelationId } from './lib/logger';
 import { isServiceMobileMode } from './platforms/service-mobile/mode';
 import { serviceCloudClientHeader } from './platforms/service-cloud/mode';
+import { appClientHeader } from './lib/deviceId';
 
 export interface DistributionRecord {
   id: string;
@@ -220,7 +221,8 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   if (token) authHeaders['Authorization'] = `Bearer ${token}`;
   if (tenantId) authHeaders['X-Tenant-ID'] = tenantId;
   const scClient = serviceCloudClientHeader();
-  if (scClient) authHeaders['X-DG-Client'] = scClient;
+  const dgClient = scClient || appClientHeader();
+  if (dgClient) authHeaders['X-DG-Client'] = dgClient;
   const correlationId = ensureCorrelationId();
   authHeaders['X-Correlation-ID'] = correlationId;
 

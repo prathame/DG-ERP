@@ -6,7 +6,8 @@ Covers branded and generic login flows, credential validation, rate limiting, ve
 |---|-----------|-------|-----------------|
 | 1 | Branded login page loads | Navigate to `/{tenant-slug}/login` | Login page shows tenant logo, name, and branded colors |
 | 2 | Generic login page loads | Navigate to `/login` | Generic login page loads without tenant branding |
-| 3 | Login with valid credentials | Enter correct email and password; click Login | User is authenticated; redirected to dashboard |
+| 3 | Login with valid credentials | Enter correct email and password in desktop or mobile app; click Login | User is authenticated; redirected to dashboard |
+| 3b | Browser login blocked | Open tenant login URL in a normal browser and submit credentials | `403 APP_ONLY` — message to use desktop or mobile app |
 | 4 | Login with wrong password | Enter correct email but wrong password | Error message "Invalid email or password" is shown |
 | 5 | Login with non-existent email | Enter an email that does not exist; submit | Error message "Invalid email or password" is shown (no email enumeration) |
 | 6 | Rate limiting after failed attempts | Enter wrong password 5 times in a row | Account is temporarily locked; message "Too many attempts, try again later" |

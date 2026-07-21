@@ -52,5 +52,29 @@ export function detectClientPlatform(): ClientPlatform {
   } catch {
     /* ignore */
   }
+  try {
+    if (new URLSearchParams(window.location.search).get('desktop') === '1') return 'desktop';
+  } catch {
+    /* ignore */
+  }
   return 'web';
+}
+
+/** Header identifying native/desktop shells (not set in plain browser). */
+export function appClientHeader(): string | null {
+  try {
+    const ea = (window as unknown as { electronAPI?: { isElectron?: boolean; deploymentMode?: string } }).electronAPI;
+    if (ea?.deploymentMode === 'onprem') return 'electron-onprem';
+    if (ea?.isElectron || ea?.deploymentMode === 'cloud') return 'electron-cloud';
+  } catch {
+    /* ignore */
+  }
+  try {
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (cap?.isNativePlatform?.()) return 'capacitor';
+  } catch {
+    /* ignore */
+  }
+  if (detectClientPlatform() === 'desktop') return 'electron-cloud';
+  return null;
 }

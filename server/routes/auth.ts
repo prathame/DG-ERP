@@ -19,6 +19,15 @@ router.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
+    // ERP is desktop + mobile apps only — reject browser / unknown clients
+    const loginPlatform = req.body?.platform;
+    if (loginPlatform !== 'desktop' && loginPlatform !== 'mobile') {
+      return res.status(403).json({
+        error: 'Sign in is only available in the Dhandho desktop or mobile app.',
+        code: 'APP_ONLY',
+      });
+    }
+
     // Login searches across all tenants using JOIN
     // H3 fix: scope login to the tenant's slug when provided, preventing cross-tenant
     // email collision (two tenants sharing an email address get deterministic routing).

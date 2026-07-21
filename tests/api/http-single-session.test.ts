@@ -82,10 +82,12 @@ describe('Single-device session', () => {
   it('heartbeat fails after session is replaced', async () => {
     const first = await api()
       .post('/api/auth/login')
-      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG });
+      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG, platform: 'desktop' });
     const tokenA = first.body.token as string;
 
-    await api().post('/api/auth/login').send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG });
+    await api()
+      .post('/api/auth/login')
+      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG, platform: 'mobile' });
 
     const hb = await api().post('/api/auth/session/heartbeat').set(authHeaders(tokenA)).send({});
     expect(hb.status).toBe(401);
@@ -117,7 +119,7 @@ describe('Single-device session', () => {
   it('logout clears session so old token cannot be reused', async () => {
     const login = await api()
       .post('/api/auth/login')
-      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG });
+      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG, platform: 'desktop' });
     const token = login.body.token as string;
 
     const out = await api().post('/api/auth/logout').set(authHeaders(token)).send({});

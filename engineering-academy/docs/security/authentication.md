@@ -52,6 +52,10 @@ export function generateToken(payload: object, expiresIn: string | number = '24h
 | Default expiry | `24h` |
 | Payload | `userId`, `email`, `role`, `name`, `tenantId`, `vendorId` (nullable), `sessionId` (single-device session) |
 
+## App-only login (no browser ERP)
+
+Tenant `POST /api/auth/login` requires `platform: "desktop" | "mobile"`. Browser / web clients receive `403` with `code: APP_ONLY`. Super-admin `/admin` may still use the browser for platform ops.
+
 ## Single-device sessions (one user → one machine)
 
 Desktop and mobile cloud apps enforce **one active login per user**. A new login replaces the previous session immediately.

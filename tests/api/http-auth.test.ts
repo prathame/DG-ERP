@@ -41,16 +41,24 @@ describe('HTTP Auth', () => {
   it('POST /api/auth/login succeeds with valid credentials', async () => {
     const res = await api()
       .post('/api/auth/login')
-      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG });
+      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG, platform: 'desktop' });
     expect(res.status).toBe(200);
     expect(res.body.token).toBeTruthy();
     expect(res.body.tenantId).toBe(TEST_TENANT);
   });
 
+  it('POST /api/auth/login rejects browser / web clients', async () => {
+    const res = await api()
+      .post('/api/auth/login')
+      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG, platform: 'web' });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('APP_ONLY');
+  });
+
   it('POST /api/auth/login rejects wrong password', async () => {
     const res = await api()
       .post('/api/auth/login')
-      .send({ email: TEST_EMAIL, password: 'wrong-password', slug: TEST_SLUG });
+      .send({ email: TEST_EMAIL, password: 'wrong-password', slug: TEST_SLUG, platform: 'desktop' });
     expect(res.status).toBe(401);
   });
 
