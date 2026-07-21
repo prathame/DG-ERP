@@ -21,10 +21,16 @@ describe('mobileFeatures', () => {
       quotations: false,
       collections: true,
       reports: false,
+      chatbot: true,
     });
     expect(mobileFeatureAllowsTab('inventory', f)).toBe(true);
     expect(mobileFeatureAllowsTab('invoices', f)).toBe(false);
     expect(mobileFeatureAllowsTab('finance', f)).toBe(true);
+    expect(mobileFeatureAllowsTab('chatbot', f)).toBe(true);
     expect(mobileFeatureAllowsTab('settings', f)).toBe(false);
+  });
+
+  it('defaults chatbot off for companion pack', () => {
+    expect(defaultMobileFeatures('manufacturer').chatbot).toBe(false);
   });
 });

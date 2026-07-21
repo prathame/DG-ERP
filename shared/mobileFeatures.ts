@@ -3,7 +3,7 @@
  * Service tenants keep Emergent phone IA — this pack is for manufacturer/silver/etc.
  */
 
-export type MobileFeatureKey = 'stock' | 'sales' | 'quotations' | 'collections' | 'reports';
+export type MobileFeatureKey = 'stock' | 'sales' | 'quotations' | 'collections' | 'reports' | 'chatbot';
 
 export type MobileFeatures = Record<MobileFeatureKey, boolean>;
 
@@ -13,6 +13,7 @@ export const MOBILE_FEATURE_LABELS: Record<MobileFeatureKey, string> = {
   quotations: 'Quotations',
   collections: 'Collections / payments',
   reports: 'Light reports',
+  chatbot: 'Chatbot',
 };
 
 export const MOBILE_FEATURE_KEYS = Object.keys(MOBILE_FEATURE_LABELS) as MobileFeatureKey[];
@@ -25,6 +26,7 @@ export function defaultMobileFeatures(businessType?: string | null): MobileFeatu
     quotations: true,
     collections: true,
     reports: true,
+    chatbot: false,
   };
   if (businessType === 'silver_casting') {
     // Weigh / metal intake stays desktop — companion is stock + sales + collections
@@ -59,6 +61,8 @@ export function mobileFeatureAllowsTab(tabId: string, features: MobileFeatures):
     case 'analytics':
     case 'accounts':
       return features.reports;
+    case 'chatbot':
+      return features.chatbot;
     case 'masters':
       // Light masters (customers) useful with sales — allow if any write feature on
       return features.sales || features.quotations || features.collections;

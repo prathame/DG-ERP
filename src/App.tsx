@@ -1286,13 +1286,16 @@ export default function App() {
 
             {/* Pinned footer: chatbot (cloud), settings, status */}
             <div className="shrink-0 border-t border-gray-100 bg-white pb-[max(0.5rem,var(--safe-bottom))] lg:pb-2">
-              {!serviceMobile && tv('chatbot') && (
-                <div className="px-3 pt-2">
-                  <Suspense fallback={null}>
-                    <ChatWidget />
-                  </Suspense>
-                </div>
-              )}
+              {!serviceMobile &&
+                tv('chatbot') &&
+                // Cap Online companion: SA mobile_features.chatbot; desktop / service Cap use tab_config only
+                (!companionFeatures || companionFeatures.chatbot) && (
+                  <div className="px-3 pt-2">
+                    <Suspense fallback={null}>
+                      <ChatWidget />
+                    </Suspense>
+                  </div>
+                )}
               {/* Sync: on-prem desktop + Offline Mobile only — never Cloud Electron chrome changes */}
               {(serviceMobile ||
                 ((window as unknown as Record<string, unknown>).electronAPI as Record<string, unknown> | undefined)
