@@ -33,6 +33,7 @@ import {
   whatsAppInvoiceShareToast,
 } from '../../lib/printStandaloneInvoice';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
 type PayModal = {
@@ -86,6 +87,8 @@ export function VendorMasterView({
   const [createPrefill, setCreatePrefill] = useState<InvoicePartyPrefill | null>(null);
   const [payModal, setPayModal] = useState<PayModal | null>(null);
   const offlineAdvance = isServiceMobileMode();
+  /** Cap Offline + Cap Online service phone only — never Electron desktop / plain web. */
+  const servicePhoneUx = isServicePhoneUx(cfg.type);
   const [payForm, setPayForm] = useState({
     amount: '',
     paymentDate: new Date().toISOString().slice(0, 10),
@@ -421,13 +424,15 @@ export function VendorMasterView({
             >
               <IndianRupee size={16} /> Record Payment
             </button>
-            <button
-              type="button"
-              onClick={openNewInvoice}
-              className="flex items-center gap-1.5 px-4 py-2 min-h-[44px] bg-brand text-white rounded-xl text-sm font-bold"
-            >
-              <Plus size={16} /> New Invoice
-            </button>
+            {servicePhoneUx && (
+              <button
+                type="button"
+                onClick={openNewInvoice}
+                className="flex items-center gap-1.5 px-4 py-2 min-h-[44px] bg-brand text-white rounded-xl text-sm font-bold"
+              >
+                <Plus size={16} /> New Invoice
+              </button>
+            )}
           </div>
         </div>
 
@@ -481,7 +486,9 @@ export function VendorMasterView({
                 <div className="py-12 text-center text-gray-400 rounded-2xl border border-dashed border-gray-200">
                   <FileText size={32} className="mx-auto mb-2 opacity-30" />
                   <p className="font-medium text-sm">No invoices yet</p>
-                  <p className="text-xs mt-1">Tap “New Invoice” to bill this {label.toLowerCase()}</p>
+                  {servicePhoneUx && (
+                    <p className="text-xs mt-1">Tap “New Invoice” to bill this {label.toLowerCase()}</p>
+                  )}
                 </div>
               ) : (
                 <ul className="space-y-2">
@@ -595,7 +602,7 @@ export function VendorMasterView({
           </>
         )}
 
-        {createOpen && (
+        {servicePhoneUx && createOpen && (
           <CreateInvoiceModal
             initialParty={createPrefill}
             onClose={() => {
