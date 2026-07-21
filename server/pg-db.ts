@@ -1333,6 +1333,7 @@ export async function initDatabase() {
       error: hint,
       stack: err instanceof Error ? err.stack : undefined,
     });
-    throw new Error(hint, { cause: err });
+    // Single-arg Error — electron tsc targets ES2020 (no `{ cause }` options bag)
+    throw new Error(hint);
   }
 }
