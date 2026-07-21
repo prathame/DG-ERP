@@ -4,29 +4,21 @@ function stripTrailingSlash(s: string): string {
 }
 
 /**
- * Live public cloud host (the Render service that currently answers).
- * Cap / Electron fall back here when env is unset or points at a not-yet-live host.
- *
- * Cutover (after Render service `dhandho` is healthy):
- * 1. Set this to `https://dhandho.onrender.com`
- * 2. Remove the premature `dhandho.onrender.com` remap (or replace with a legacy remap of `dg-erp` → `dhandho`)
- * 3. Flip env examples / Electron `DG_CLOUD_URL` default / Vite proxy to match
+ * Working public cloud host while `dhandho.app` DNS is NXDOMAIN.
+ * Cap / Electron may still set `VITE_API_ORIGIN` to the canonical domain later.
  */
-export const CLOUD_ORIGIN_FALLBACK = 'https://dg-erp.onrender.com';
+export const CLOUD_ORIGIN_FALLBACK = 'https://dhandho.onrender.com';
 
 const BROKEN_CANONICAL_HOSTS = new Set(['dhandho.app', 'www.dhandho.app']);
-/**
- * Hostname reserved for the future Render service name — no server yet (`no-server`).
- * Remap to the live host so Cap/Electron builds from the premature rename keep working.
- */
-const PREMATURE_CLOUD_HOSTS = new Set(['dhandho.onrender.com']);
+/** Old Render subdomain — remap so Cap/Electron builds keep working after rename. */
+const LEGACY_CLOUD_HOSTS = new Set(['dg-erp.onrender.com']);
 
 /**
  * Normalize a configured API origin.
  * - Empty → same-origin relative `/api` (hosted web on Render).
  * - `dhandho.app` (no DNS yet) → same-origin when the page is already on a real host,
  *   otherwise {@link CLOUD_ORIGIN_FALLBACK} for Cap/native (`https://localhost`).
- * - Premature `dhandho.onrender.com` → {@link CLOUD_ORIGIN_FALLBACK} until that service exists.
+ * - Legacy `dg-erp.onrender.com` → {@link CLOUD_ORIGIN_FALLBACK}.
  */
 export function resolveConfiguredApiOrigin(configured: string | undefined | null): string {
   const raw = configured?.trim();
@@ -34,7 +26,7 @@ export function resolveConfiguredApiOrigin(configured: string | undefined | null
   const stripped = stripTrailingSlash(raw);
   try {
     const host = new URL(stripped).hostname.toLowerCase();
-    if (PREMATURE_CLOUD_HOSTS.has(host)) return CLOUD_ORIGIN_FALLBACK;
+    if (LEGACY_CLOUD_HOSTS.has(host)) return CLOUD_ORIGIN_FALLBACK;
     if (!BROKEN_CANONICAL_HOSTS.has(host)) return stripped;
 
     if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -68,7 +60,7 @@ function isLocalDevHost(hostname: string): boolean {
 }
 
 /**
- * Host prefix for onboarding slug UI (`dg-erp.onrender.com/` or `dhandho.app/`).
+ * Host prefix for onboarding slug UI (`dhandho.onrender.com/` or `dhandho.app/`).
  * Uses the live page host when it is a real public host; on Cap/localhost uses the
  * resolved API origin (Render today, canonical domain after DNS cutover).
  */
@@ -88,7 +80,7 @@ export function getPublicAppHostPrefix(): string {
 }
 
 /**
- * Origin for API calls (no trailing slash), e.g. https://dg-erp.onrender.com
+ * Origin for API calls (no trailing slash), e.g. https://dhandho.onrender.com
  * Empty string = same-origin relative `/api` (hosted web on Render).
  * Online Cap must never use relative `/api` (that hits Cap localhost).
  */
@@ -100,7 +92,7 @@ export function getApiOrigin(): string {
   return '';
 }
 
-/** Base path including `/api`, e.g. https://dg-erp.onrender.com/api or `/api`. */
+/** Base path including `/api`, e.g. https://dhandho.onrender.com/api or `/api`. */
 export function getApiBase(): string {
   const envBase = (import.meta.env.VITE_API_BASE as string | undefined)?.trim();
   if (envBase) return stripTrailingSlash(envBase);
