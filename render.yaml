@@ -4,11 +4,12 @@
 
 services:
   - type: web
-    # Subdomain is fixed at create time → https://dhandho.onrender.com
-    # Render cannot rename *.onrender.com after create. Create a NEW Blueprint/service
-    # named exactly `dhandho` (do not rename dg-erp). Copy Neon + secrets from dg-erp, then retire dg-erp.
-    # See engineering-academy/docs/deployment/render.md → "Hostname cutover".
-    name: dhandho
+    # Live service: https://dhandho-2kdx.onrender.com (srv-d9fmf3gk1i2s73b4flgg).
+    # Render assigned the `-2kdx` suffix because plain `dhandho` was taken or the
+    # service was created with that name. Subdomains are fixed at create time and
+    # cannot be renamed — do not fight for `dhandho.onrender.com`; use this URL.
+    # `name` must match the existing Dashboard service for Blueprint sync.
+    name: dhandho-2kdx
     # Launch: upgrade off free for production SLA (sleep on free).
     plan: free
     runtime: node
@@ -44,11 +45,11 @@ services:
         sync: false
       # Same-origin browser + hosted web. Extend in Dashboard for extra hosts / Cap allowlists if needed.
       - key: ALLOWED_ORIGINS
-        value: https://dhandho.onrender.com
+        value: https://dhandho-2kdx.onrender.com
       - key: LOGTAIL_TOKEN
         sync: false
       - key: SECRETS_ENCRYPTION_KEY
         sync: false
       # Canonical product domain later: https://dhandho.app (DNS not live yet)
       - key: PUBLIC_APP_URL
-        value: https://dhandho.onrender.com
+        value: https://dhandho-2kdx.onrender.com

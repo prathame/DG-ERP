@@ -55,7 +55,7 @@ describe('bug report', () => {
       kind: 'reserved',
       reason: '"admin" is reserved for the app. Try another company slug.',
       slug: 'admin',
-      apiOrigin: 'https://dhandho.onrender.com',
+      apiOrigin: 'https://dhandho-2kdx.onrender.com',
       pageOrigin: 'https://localhost',
     });
     const text = await buildBugReportText({

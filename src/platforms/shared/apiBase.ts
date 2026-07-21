@@ -5,20 +5,22 @@ function stripTrailingSlash(s: string): string {
 
 /**
  * Working public cloud host while `dhandho.app` DNS is NXDOMAIN.
- * Cap / Electron may still set `VITE_API_ORIGIN` to the canonical domain later.
+ * Live Render service: `dhandho-2kdx` (srv-d9fmf3gk1i2s73b4flgg) — not `dhandho`
+ * (`dhandho` was taken / not the created name). Cap/Electron may later point at
+ * the canonical domain once DNS is live.
  */
-export const CLOUD_ORIGIN_FALLBACK = 'https://dhandho.onrender.com';
+export const CLOUD_ORIGIN_FALLBACK = 'https://dhandho-2kdx.onrender.com';
 
 const BROKEN_CANONICAL_HOSTS = new Set(['dhandho.app', 'www.dhandho.app']);
-/** Old Render subdomain — remap so Cap/Electron builds keep working after rename. */
-const LEGACY_CLOUD_HOSTS = new Set(['dg-erp.onrender.com']);
+/** Former Render subdomains — remap so Cap/Electron builds keep working. */
+const LEGACY_CLOUD_HOSTS = new Set(['dg-erp.onrender.com', 'dhandho.onrender.com']);
 
 /**
  * Normalize a configured API origin.
  * - Empty → same-origin relative `/api` (hosted web on Render).
  * - `dhandho.app` (no DNS yet) → same-origin when the page is already on a real host,
  *   otherwise {@link CLOUD_ORIGIN_FALLBACK} for Cap/native (`https://localhost`).
- * - Legacy `dg-erp.onrender.com` → {@link CLOUD_ORIGIN_FALLBACK}.
+ * - Legacy `dg-erp.onrender.com` / `dhandho.onrender.com` → {@link CLOUD_ORIGIN_FALLBACK}.
  */
 export function resolveConfiguredApiOrigin(configured: string | undefined | null): string {
   const raw = configured?.trim();
@@ -60,7 +62,7 @@ function isLocalDevHost(hostname: string): boolean {
 }
 
 /**
- * Host prefix for onboarding slug UI (`dhandho.onrender.com/` or `dhandho.app/`).
+ * Host prefix for onboarding slug UI (`dhandho-2kdx.onrender.com/` or `dhandho.app/`).
  * Uses the live page host when it is a real public host; on Cap/localhost uses the
  * resolved API origin (Render today, canonical domain after DNS cutover).
  */
@@ -80,7 +82,7 @@ export function getPublicAppHostPrefix(): string {
 }
 
 /**
- * Origin for API calls (no trailing slash), e.g. https://dhandho.onrender.com
+ * Origin for API calls (no trailing slash), e.g. https://dhandho-2kdx.onrender.com
  * Empty string = same-origin relative `/api` (hosted web on Render).
  * Online Cap must never use relative `/api` (that hits Cap localhost).
  */
@@ -92,7 +94,7 @@ export function getApiOrigin(): string {
   return '';
 }
 
-/** Base path including `/api`, e.g. https://dhandho.onrender.com/api or `/api`. */
+/** Base path including `/api`, e.g. https://dhandho-2kdx.onrender.com/api or `/api`. */
 export function getApiBase(): string {
   const envBase = (import.meta.env.VITE_API_BASE as string | undefined)?.trim();
   if (envBase) return stripTrailingSlash(envBase);

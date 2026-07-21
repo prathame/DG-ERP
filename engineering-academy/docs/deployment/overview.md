@@ -38,7 +38,7 @@ flowchart TB
 # Postgres is external (Neon). Do not provision Render Postgres here.
 services:
   - type: web
-    name: dhandho   # → https://dhandho.onrender.com (fixed at create; not renamable)
+    name: dhandho-2kdx   # → https://dhandho-2kdx.onrender.com (live; not renamable)
     plan: free
     buildCommand: npm ci --include=dev && npm run build:prod
     startCommand: npm start
@@ -53,7 +53,7 @@ services:
       - key: DATABASE_SSL
         value: "true"
       - key: PUBLIC_APP_URL
-        value: https://dhandho.onrender.com
+        value: https://dhandho-2kdx.onrender.com
 ```
 
 Two details worth knowing cold:
@@ -61,7 +61,7 @@ Two details worth knowing cold:
 1. **`--include=dev` in the build command.** Because `NODE_ENV=production` during `npm ci` would otherwise omit dev dependencies — but Vite's build needs `@tailwindcss/vite`, `typescript`, and friends, which are (correctly) `devDependencies`. Without this flag, the production build would simply fail.
 2. **`healthCheckPath: /api/health`.** Render polls this to decide if a deploy is healthy before routing traffic to it and to detect a crashed process for auto-restart. The handler itself does a real `SELECT 1` against Postgres — a genuinely meaningful health check, not just "the process is alive."
 
-If production still answers on `dg-erp.onrender.com` while `dhandho.onrender.com` returns Render `no-server`, see [Hostname cutover](./render.md#hostname-cutover-dg-erp--dhandho) — the repo cannot create that hostname; you need a Dashboard service named `dhandho`.
+Live production is **`https://dhandho-2kdx.onrender.com`** (Render assigned `-2kdx` because plain `dhandho` was taken / not the created name). See [Hostname cutover](./render.md#hostname-cutover-dg-erp--dhandho).
 
 ## 3. Environment variables — the fail-fast gate
 
@@ -126,7 +126,7 @@ That last row is worth dwelling on: **on-prem installs still run the full multi-
 1. `npm ci --include=dev && npm run build:prod` — builds `dist/`.
 2. `assertCriticalEnv()` runs on process start — any missing/weak config crashes the boot immediately (visible in Render logs, and the health check will keep failing until fixed).
 3. `initSchema()` runs — safe to run against a database that already has the schema (idempotent), including a fresh empty Render Postgres on first deploy.
-4. `seedPlatformData()` creates the Super Admin account (from env) and the four subscription plans, if they don't already exist.
+4. `seedPlatformData()` creates the Super Admin account (from env) and the four subscription plans when missing — idempotent (`ON CONFLICT` / skip-if-exists) so a Neon DB that already has `SA1` from a prior deploy does not crash boot.
 5. Render's health check polls `/api/health` until it returns 200, then cuts traffic over.
 
 ## Hands-on exercise
