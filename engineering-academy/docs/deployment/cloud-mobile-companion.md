@@ -26,7 +26,7 @@ On create: **Need mobile app?** → `client_access_mode` `both` or `desktop`, pl
 
 ## Cap Online companion features
 
-Stored in `tenants.mobile_features` (`stock`, `sales`, `quotations`, `collections`, `reports`). Service phone UX stays Emergent IA; manufacturer/silver use this pack to hide tabs.
+Stored in `tenants.mobile_features` (`stock`, `sales`, `quotations`, `collections`, `reports`, `chatbot`). Service phone UX stays Emergent IA; manufacturer/silver use this pack to hide tabs / chatbot. Chatbot defaults **off** on companion; SA can enable.
 
 ## Refresh config (not data sync)
 

@@ -1292,6 +1292,7 @@ export const api = {
           quotations: boolean;
           collections: boolean;
           reports: boolean;
+          chatbot: boolean;
         };
         tabConfig?: Record<string, { label?: string; visible?: boolean }> | null;
         vendorPortalEnabled?: boolean;
