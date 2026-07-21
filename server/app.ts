@@ -70,6 +70,8 @@ const PUBLIC_PATHS = [
   '/api/super-admin/login',
   '/api/tenant/by-slug/',
   '/api/health',
+  '/api/live',
+  '/api/ready',
   '/manifest.json',
   '/api/onprem/activate',
   '/api/onprem/heartbeat',
@@ -405,6 +407,7 @@ export function createApp(): express.Application {
       if (store) {
         store.userId = decoded.userId;
         store.tenantId = decoded.tenantId ?? store.tenantId;
+        if (decoded.impersonatedBy) store.impersonatedBy = decoded.impersonatedBy;
       }
     } catch (err) {
       const name = err instanceof Error ? err.name : 'Error';
@@ -566,6 +569,26 @@ export function createApp(): express.Application {
     });
   }
 
+  /** Liveness — process is up (no DB). Use for container kill/restart probes. */
+  app.get('/api/live', (_req, res) => {
+    res.json({ ok: true, message: 'alive' });
+  });
+
+  /** Readiness — DB reachable. Use for load-balancer / Render health. */
+  app.get('/api/ready', async (req, res) => {
+    try {
+      await pool.query('SELECT 1');
+      res.json({ ok: true, db: 'up', message: 'ready' });
+    } catch (err) {
+      logger.fatal('Readiness check database unavailable', {
+        correlationId: (req as express.Request & { correlationId?: string }).correlationId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      res.status(503).json({ ok: false, db: 'down', message: 'Database unavailable' });
+    }
+  });
+
+  /** Deep health (alias of ready) — kept for Render healthCheckPath + existing monitors. */
   app.get('/api/health', async (req, res) => {
     try {
       await pool.query('SELECT 1');

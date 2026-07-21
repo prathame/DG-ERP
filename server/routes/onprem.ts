@@ -275,6 +275,30 @@ function assertLocalOnpremOnly(
   return true;
 }
 
+/**
+ * Local on-prem DB usually has one tenant. Prefer company_name match when a
+ * license row exists (CI / hybrid); else stable ORDER BY id (never bare LIMIT 1).
+ */
+async function resolveLocalOnpremTenant(licenseKey: string): Promise<{ id: string; tab_config?: unknown } | null> {
+  const lic = (await pool.query(`SELECT company_name FROM onprem_licenses WHERE license_key = $1`, [licenseKey]))
+    .rows[0] as { company_name: string } | undefined;
+  if (lic?.company_name) {
+    const byName = (
+      await pool.query(
+        `SELECT id, tab_config FROM tenants
+         WHERE company_name = $1 AND slug <> 'OWNER'
+         ORDER BY id
+         LIMIT 1`,
+        [lic.company_name],
+      )
+    ).rows[0] as { id: string; tab_config: unknown } | undefined;
+    if (byName) return byName;
+  }
+  const fallback = (await pool.query(`SELECT id, tab_config FROM tenants WHERE slug <> 'OWNER' ORDER BY id LIMIT 1`))
+    .rows[0] as { id: string; tab_config: unknown } | undefined;
+  return fallback ?? null;
+}
+
 // ── Apply SA notifications from cloud into local Bell feed ───────────────────
 router.post('/api/onprem/apply-notifications', async (req, res) => {
   try {
@@ -298,8 +322,7 @@ router.post('/api/onprem/apply-notifications', async (req, res) => {
       return res.json({ ok: true, inserted: 0, ids: [] as string[] });
     }
 
-    const tenant = (await pool.query("SELECT id FROM tenants WHERE slug != 'OWNER' LIMIT 1")).rows[0] as
-      { id: string } | undefined;
+    const tenant = await resolveLocalOnpremTenant(licenseKey);
     if (!tenant) return res.json({ ok: true, skipped: true, inserted: 0, ids: [] as string[] });
 
     const ackIds: string[] = [];
@@ -389,9 +412,8 @@ router.post('/api/onprem/apply-settings', async (req, res) => {
       return res.status(400).json({ error: 'licenseKey required' });
     }
 
-    // Find the local tenant and apply settings
-    const tenant = (await pool.query("SELECT id, tab_config FROM tenants WHERE slug != 'OWNER' LIMIT 1")).rows[0] as
-      { id: string; tab_config: unknown } | undefined;
+    // Find the local tenant and apply settings (stable — not bare LIMIT 1)
+    const tenant = await resolveLocalOnpremTenant(licenseKey);
     if (!tenant) return res.json({ ok: true, skipped: true });
 
     const updates: string[] = [];

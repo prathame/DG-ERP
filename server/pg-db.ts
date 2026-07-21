@@ -887,6 +887,25 @@ export async function initSchema() {
     await client.query(
       `UPDATE standalone_invoices SET gst_enabled = (COALESCE(tax_total, 0) > 0) WHERE gst_enabled IS NULL`,
     );
+    // Rename historical duplicates so UNIQUE (tenant_id, invoice_number) can be applied safely
+    await client.query(`
+      WITH dups AS (
+        SELECT id,
+               ROW_NUMBER() OVER (
+                 PARTITION BY tenant_id, invoice_number
+                 ORDER BY created_at NULLS LAST, id
+               ) AS rn
+        FROM standalone_invoices
+      )
+      UPDATE standalone_invoices si
+      SET invoice_number = si.invoice_number || '-dup-' || SUBSTRING(si.id FROM 1 FOR 8)
+      FROM dups d
+      WHERE si.id = d.id AND d.rn > 1
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_standalone_invoices_tenant_number
+      ON standalone_invoices (tenant_id, invoice_number)
+    `);
 
     // In-app notifications (Super Admin / control-panel pushes)
     await client.query(`
@@ -921,6 +940,18 @@ export async function initSchema() {
       )
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_inv_payments ON invoice_payments(tenant_id, invoice_id)');
+    await client.query('ALTER TABLE invoice_payments ADD COLUMN IF NOT EXISTS idempotency_key TEXT');
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_invoice_payments_idempotency
+      ON invoice_payments (tenant_id, idempotency_key)
+      WHERE idempotency_key IS NOT NULL
+    `);
+    await client.query('ALTER TABLE vendor_payments ADD COLUMN IF NOT EXISTS idempotency_key TEXT');
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_vendor_payments_idempotency
+      ON vendor_payments (tenant_id, idempotency_key)
+      WHERE idempotency_key IS NOT NULL
+    `);
     // Drop orphan payment rows then enforce FK (ON DELETE RESTRICT)
     await client.query(`
       DELETE FROM invoice_payments ip

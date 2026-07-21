@@ -204,6 +204,9 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const { readIdempotencyKey } = await import('../utils/idempotency');
+    const idemKey = readIdempotencyKey(req);
+
     const { invoiceId, amount, paymentDate, paymentMethod, referenceNumber, notes } = req.body;
     const payAmt = Number(amount);
     // Reject NaN/Infinity — `Number("abc") <= 0` is false, so a bare `<= 0` check is not enough
@@ -214,6 +217,28 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
     const id = uid('IP');
 
     await client.query('BEGIN');
+    if (idemKey) {
+      const existing = (
+        await client.query(
+          `SELECT id, invoice_id, amount, payment_date, payment_method
+           FROM invoice_payments WHERE tenant_id = $1 AND idempotency_key = $2`,
+          [tenantId, idemKey],
+        )
+      ).rows[0] as
+        { id: string; invoice_id: string; amount: number; payment_date: string; payment_method: string } | undefined;
+      if (existing) {
+        await client.query('COMMIT');
+        return res.status(200).json({
+          id: existing.id,
+          invoiceId: existing.invoice_id,
+          amount: Number(existing.amount),
+          paymentDate: existing.payment_date,
+          paymentMethod: existing.payment_method || 'Cash',
+          replayed: true,
+        });
+      }
+    }
+
     const inv = (
       await client.query(
         'SELECT id, grand_total, customer_name FROM standalone_invoices WHERE id = $1 AND tenant_id = $2 AND status != $3 FOR UPDATE',
@@ -241,10 +266,48 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
         .json({ error: `Payment exceeds remaining balance (₹${Math.max(0, remaining).toFixed(2)})` });
     }
 
-    await client.query(
-      'INSERT INTO invoice_payments (id, tenant_id, invoice_id, amount, payment_date, payment_method, reference_number, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-      [id, tenantId, invoiceId, payAmt, pDate, paymentMethod || 'Cash', referenceNumber || null, notes || null],
-    );
+    try {
+      await client.query(
+        `INSERT INTO invoice_payments
+           (id, tenant_id, invoice_id, amount, payment_date, payment_method, reference_number, notes, idempotency_key)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          id,
+          tenantId,
+          invoiceId,
+          payAmt,
+          pDate,
+          paymentMethod || 'Cash',
+          referenceNumber || null,
+          notes || null,
+          idemKey,
+        ],
+      );
+    } catch (insErr) {
+      const code = (insErr as { code?: string }).code;
+      if (code === '23505' && idemKey) {
+        const existing = (
+          await client.query(
+            `SELECT id, invoice_id, amount, payment_date, payment_method
+             FROM invoice_payments WHERE tenant_id = $1 AND idempotency_key = $2`,
+            [tenantId, idemKey],
+          )
+        ).rows[0] as
+          { id: string; invoice_id: string; amount: number; payment_date: string; payment_method: string } | undefined;
+        await client.query('COMMIT');
+        if (existing) {
+          return res.status(200).json({
+            id: existing.id,
+            invoiceId: existing.invoice_id,
+            amount: Number(existing.amount),
+            paymentDate: existing.payment_date,
+            paymentMethod: existing.payment_method || 'Cash',
+            replayed: true,
+          });
+        }
+      }
+      throw insErr;
+    }
 
     // Auto-mark invoice as paid if fully paid
     const totalPaid = alreadyPaid + payAmt;
@@ -263,6 +326,8 @@ router.post('/api/invoice-finance/payments', blockVendors, async (req: AuthReque
       'invoice_payment',
       id,
       `₹${payAmt.toLocaleString()} for ${inv.customer_name}`,
+      req.user?.userId,
+      req.user?.name,
     );
     res.status(201).json({ id, invoiceId, amount: payAmt, paymentDate: pDate, paymentMethod: paymentMethod || 'Cash' });
   } catch (err) {

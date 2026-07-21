@@ -22,6 +22,8 @@ export interface RequestLogContext {
   userId?: string;
   tenantId?: string;
   organizationId?: string;
+  /** Super-admin id when JWT was issued via impersonation */
+  impersonatedBy?: string;
   method?: string;
   path?: string;
   url?: string;

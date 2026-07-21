@@ -92,7 +92,8 @@ const PATH_MODULE: [string, string][] = [
   ['/admin', 'settings'],
   ['/backup', 'settings'],
   ['/masters', 'settings'],
-  ['/settings/bill', 'settings'],
+  // Covers /settings/bill, /settings/profile, etc. (not Cap seat APIs)
+  ['/settings', 'settings'],
   ['/chatbot', 'dashboard'],
   ['/price-lists', 'inventory'],
   ['/invoices', 'sales'],

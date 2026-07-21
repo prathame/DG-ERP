@@ -75,7 +75,19 @@ router.get('/api/settings/bill', authMiddleware, async (req: AuthRequest, res) =
     if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
 
     const { rows } = await pool.query('SELECT * FROM bill_settings WHERE tenant_id = $1', [tenantId]);
-    res.json(rows[0] ? rowToResponse(rows[0]) : DEFAULTS);
+    const payload = rows[0] ? rowToResponse(rows[0]) : { ...DEFAULTS };
+    // Staff/Warehouse may load branding for print, but must not read bank/UPI PII
+    const role = req.user?.role || '';
+    const canSeeBank = ['Admin', 'Super Admin', 'super_admin', 'Manager'].includes(role);
+    if (!canSeeBank) {
+      payload.bankAccountName = null;
+      payload.bankAccountNumber = null;
+      payload.bankName = null;
+      payload.bankBranch = null;
+      payload.bankIfsc = null;
+      payload.bankUpiId = null;
+    }
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ error: 'Failed to load bill settings' });
   }

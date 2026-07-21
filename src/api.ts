@@ -900,7 +900,14 @@ export const api = {
       paymentMethod: string;
       referenceNumber?: string;
       notes?: string;
-    }) => fetchApi<{ id: string }>('/invoice-finance/payments', { method: 'POST', body: JSON.stringify(data) }),
+    }) => {
+      const idempotencyKey = crypto.randomUUID();
+      return fetchApi<{ id: string }>('/invoice-finance/payments', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
+        body: JSON.stringify({ ...data, idempotencyKey }),
+      });
+    },
     deletePayment: (id: string) => fetchApi<void>(`/invoice-finance/payments/${id}`, { method: 'DELETE' }),
   },
   vendorFinance: {
@@ -944,11 +951,14 @@ export const api = {
         notes?: string;
         batchId?: string;
       },
-    ) =>
-      fetchApi<{ id: string; amount: number; paymentDate: string }>(`/vendor-finance/${vendorId}/payments`, {
+    ) => {
+      const idempotencyKey = crypto.randomUUID();
+      return fetchApi<{ id: string; amount: number; paymentDate: string }>(`/vendor-finance/${vendorId}/payments`, {
         method: 'POST',
-        body: JSON.stringify(data),
-      }),
+        headers: { 'Idempotency-Key': idempotencyKey },
+        body: JSON.stringify({ ...data, idempotencyKey }),
+      });
+    },
     updateReminder: (vendorId: string, data: { enabled: boolean; reminderDays: number }) =>
       fetchApi<{ enabled: boolean; days: number; lastSent: string | null }>(`/vendor-finance/${vendorId}/reminder`, {
         method: 'PUT',

@@ -150,6 +150,8 @@ router.get('/api/quotations', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { status } = req.query;
+    const { parsePagination } = await import('../utils/pagination');
+    const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
     // Auto-expire past-due Draft/Sent before listing
     await pool.query(
       `UPDATE quotations SET status = 'Expired'
@@ -157,14 +159,24 @@ router.get('/api/quotations', async (req, res) => {
          AND valid_until IS NOT NULL AND valid_until < CURRENT_DATE`,
       [tenantId],
     );
-    let sql = 'SELECT * FROM quotations WHERE tenant_id = $1';
+    let where = 'WHERE tenant_id = $1';
     const params: unknown[] = [tenantId];
+    let idx = 2;
     if (typeof status === 'string' && status) {
-      sql += ' AND status = $2';
+      where += ` AND status = $${idx++}`;
       params.push(status);
     }
-    sql += ' ORDER BY created_at DESC';
-    const rows = (await pool.query(sql, params)).rows as Record<string, unknown>[];
+    const total = Number((await pool.query(`SELECT COUNT(*)::int AS c FROM quotations ${where}`, params)).rows[0].c);
+    const rows = (
+      await pool.query(`SELECT * FROM quotations ${where} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx}`, [
+        ...params,
+        limit,
+        offset,
+      ])
+    ).rows as Record<string, unknown>[];
+    res.setHeader('X-Total-Count', String(total));
+    res.setHeader('X-Page', String(page));
+    res.setHeader('X-Limit', String(limit));
     res.json(rows.map(mapQuote));
   } catch (err) {
     return handleApiError(req, res, err);

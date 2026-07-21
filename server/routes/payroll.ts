@@ -253,19 +253,29 @@ router.get('/api/payroll', async (req, res) => {
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
     const { month, year, staffName } = req.query;
-    let sql = 'SELECT * FROM staff_payments WHERE tenant_id = $1';
+    const { parsePagination } = await import('../utils/pagination');
+    const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
+    let where = 'WHERE tenant_id = $1';
     const params: unknown[] = [tenantId];
     let idx = 2;
     if (month && year) {
-      sql += ` AND month = $${idx++} AND year = $${idx++}`;
+      where += ` AND month = $${idx++} AND year = $${idx++}`;
       params.push(month, Number(year));
     }
     if (typeof staffName === 'string' && staffName) {
-      sql += ` AND staff_name ILIKE $${idx++}`;
+      where += ` AND staff_name ILIKE $${idx++}`;
       params.push(`%${staffName}%`);
     }
-    sql += ' ORDER BY payment_date DESC';
-    const { rows } = await pool.query(sql, params);
+    const total = Number(
+      (await pool.query(`SELECT COUNT(*)::int AS c FROM staff_payments ${where}`, params)).rows[0].c,
+    );
+    const { rows } = await pool.query(
+      `SELECT * FROM staff_payments ${where} ORDER BY payment_date DESC LIMIT $${idx++} OFFSET $${idx}`,
+      [...params, limit, offset],
+    );
+    res.setHeader('X-Total-Count', String(total));
+    res.setHeader('X-Page', String(page));
+    res.setHeader('X-Limit', String(limit));
     res.json(
       rows.map((r: Record<string, unknown>) => ({
         id: r.id,
