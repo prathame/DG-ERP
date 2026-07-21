@@ -1122,6 +1122,35 @@ export async function initSchema() {
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_sc_sessions_expires ON service_cloud_sessions(expires_at)`);
 
+    // One active login session per tenant user (desktop/mobile single-device auth)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        user_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        device_id TEXT,
+        platform TEXT NOT NULL DEFAULT 'unknown',
+        user_agent TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (user_id, tenant_id),
+        FOREIGN KEY (user_id, tenant_id) REFERENCES users(id, tenant_id) ON DELETE CASCADE
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_tenant ON user_sessions(tenant_id)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS super_admin_sessions (
+        user_id TEXT PRIMARY KEY REFERENCES super_admins(id) ON DELETE CASCADE,
+        session_id TEXT NOT NULL,
+        device_id TEXT,
+        platform TEXT NOT NULL DEFAULT 'unknown',
+        user_agent TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
     // Row Level Security (RLS) — DB-level tenant isolation safety net
     // RLS policies enforce tenant_id filtering at the DB level.
     // Table owner (our pool user) bypasses RLS — this is intentional.

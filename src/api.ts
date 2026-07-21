@@ -3,6 +3,7 @@ import { resolveApiUrl } from './platforms/shared';
 import { clientLogger, ensureCorrelationId } from './lib/logger';
 import { isServiceMobileMode } from './platforms/service-mobile/mode';
 import { serviceCloudClientHeader } from './platforms/service-cloud/mode';
+import { appClientHeader } from './lib/deviceId';
 
 export interface DistributionRecord {
   id: string;
@@ -220,7 +221,8 @@ export async function fetchApi<T>(path: string, options?: RequestInit): Promise<
   if (token) authHeaders['Authorization'] = `Bearer ${token}`;
   if (tenantId) authHeaders['X-Tenant-ID'] = tenantId;
   const scClient = serviceCloudClientHeader();
-  if (scClient) authHeaders['X-DG-Client'] = scClient;
+  const dgClient = scClient || appClientHeader();
+  if (dgClient) authHeaders['X-DG-Client'] = dgClient;
   const correlationId = ensureCorrelationId();
   authHeaders['X-Correlation-ID'] = correlationId;
 
@@ -304,16 +306,32 @@ async function handleResponse<T>(
       path.startsWith('/auth/forgot') ||
       path.startsWith('/super-admin/login');
     if (!isAuthEndpoint && session.getToken()) {
-      clientLogger.warn('Session expired — redirecting to login', {
+      const errBody = await res
+        .clone()
+        .json()
+        .catch(() => ({}) as { error?: string; code?: string });
+      const replaced = (errBody as { code?: string }).code === 'SESSION_REPLACED';
+      clientLogger.warn(replaced ? 'Session replaced on another device' : 'Session expired — redirecting to login', {
         path,
         method,
         statusCode: 401,
         correlationId: serverCorrelation,
         durationMs,
+        code: (errBody as { code?: string }).code,
       });
       const slug = session.getSlug();
       const pathSlug = window.location.pathname.match(/^\/([a-z0-9][a-z0-9-]*)/i)?.[1];
       session.clearAll();
+      if (replaced) {
+        const msg =
+          (errBody as { error?: string }).error || 'Your account was signed in on another device. Please log in again.';
+        try {
+          sessionStorage.setItem('dg_session_replaced_msg', msg);
+        } catch {
+          /* ignore */
+        }
+        alert(msg);
+      }
       const redirectSlug = slug || pathSlug;
       window.location.href = redirectSlug ? `/${redirectSlug}` : '/';
       return new Promise(() => {}) as T;
@@ -1053,8 +1071,11 @@ export const api = {
           companyName?: string;
         };
       }>('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
-    login: (email: string, password: string, slug?: string) =>
-      fetchApi<{
+    login: async (email: string, password: string, slug?: string) => {
+      const { detectClientPlatform, getOrCreateDeviceId } = await import('./lib/deviceId');
+      const deviceId = await getOrCreateDeviceId();
+      const platform = detectClientPlatform();
+      return fetchApi<{
         token: string;
         tenantId: string;
         tenantSlug?: string;
@@ -1078,7 +1099,19 @@ export const api = {
         billCustomizationEnabled?: boolean;
         multiLanguageEnabled?: boolean;
         vendorPortalEnabled?: boolean;
-      }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, ...(slug ? { slug } : {}) }) }),
+      }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          password,
+          deviceId,
+          platform,
+          ...(slug ? { slug } : {}),
+        }),
+      });
+    },
+    logout: () => fetchApi<{ ok: boolean }>('/auth/logout', { method: 'POST', body: '{}' }),
+    sessionHeartbeat: () => fetchApi<{ ok: boolean }>('/auth/session/heartbeat', { method: 'POST', body: '{}' }),
     forgotPassword: (email: string) =>
       fetchApi<{ ok: boolean; message: string; token?: string }>('/auth/forgot-password', {
         method: 'POST',

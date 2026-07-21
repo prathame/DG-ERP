@@ -41,16 +41,24 @@ describe('HTTP Auth', () => {
   it('POST /api/auth/login succeeds with valid credentials', async () => {
     const res = await api()
       .post('/api/auth/login')
-      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG });
+      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG, platform: 'desktop' });
     expect(res.status).toBe(200);
     expect(res.body.token).toBeTruthy();
     expect(res.body.tenantId).toBe(TEST_TENANT);
   });
 
+  it('POST /api/auth/login rejects browser / web clients', async () => {
+    const res = await api()
+      .post('/api/auth/login')
+      .send({ email: TEST_EMAIL, password: TEST_PASSWORD, slug: TEST_SLUG, platform: 'web' });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('APP_ONLY');
+  });
+
   it('POST /api/auth/login rejects wrong password', async () => {
     const res = await api()
       .post('/api/auth/login')
-      .send({ email: TEST_EMAIL, password: 'wrong-password', slug: TEST_SLUG });
+      .send({ email: TEST_EMAIL, password: 'wrong-password', slug: TEST_SLUG, platform: 'desktop' });
     expect(res.status).toBe(401);
   });
 
@@ -60,6 +68,8 @@ describe('HTTP Auth', () => {
   });
 
   it('authenticated routes accept valid JWT', async () => {
+    // Clear any session left by prior login tests so bare test tokens still work
+    await pool.query(`DELETE FROM user_sessions WHERE user_id = $1 AND tenant_id = $2`, ['U-HTTP-AUTH-1', TEST_TENANT]);
     const token = createTestToken({
       userId: 'U-HTTP-AUTH-1',
       tenantId: TEST_TENANT,

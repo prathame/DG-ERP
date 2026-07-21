@@ -63,6 +63,7 @@ export async function cleanupTestData(tenantId: string) {
     'tenant_notifications',
     'service_cloud_device_slots',
     'service_cloud_sessions',
+    'user_sessions',
   ];
   for (const t of tables) {
     await pool.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [tenantId]).catch(() => {});
