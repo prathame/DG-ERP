@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   LayoutDashboard,
-  Building2,
+  Cloud,
+  Monitor,
+  Smartphone,
   CreditCard,
   BarChart3,
   LogOut,
@@ -20,11 +22,14 @@ import { SuperAdminBilling } from './SuperAdminBilling';
 import { TenantDetailView } from './TenantDetailView';
 import { PlanManagementView } from './PlanManagementView';
 import { GuideView } from './GuideView';
-import { TenantsView } from './TenantsView';
+import { TenantListView } from './TenantListView';
+import { OnPremView } from './OnPremView';
+import { ServiceMobileView } from './ServiceMobileView';
 import { SAAnalyticsView } from './SAAnalyticsView';
 import { session } from '../../lib/session';
 
-type AdminTab = 'dashboard' | 'tenants' | 'plans' | 'billing' | 'audit' | 'analytics' | 'guide';
+type AdminTab =
+  'dashboard' | 'cloud' | 'onprem' | 'offline-mobile' | 'plans' | 'billing' | 'audit' | 'analytics' | 'guide';
 
 interface SuperAdminUser {
   id: string;
@@ -48,7 +53,9 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
 
   const navItems: { id: AdminTab; label: string; icon: typeof LayoutDashboard }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'tenants', label: 'Tenants', icon: Building2 },
+    { id: 'cloud', label: 'Cloud', icon: Cloud },
+    { id: 'onprem', label: 'On-Prem', icon: Monitor },
+    { id: 'offline-mobile', label: 'Offline Mobile', icon: Smartphone },
     { id: 'plans', label: 'Plans', icon: CreditCard },
     { id: 'billing', label: 'Billing', icon: IndianRupee },
     { id: 'audit', label: 'Audit Log', icon: FileText },
@@ -79,19 +86,23 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
 
   const goTab = (id: AdminTab) => {
     setActiveTab(id);
-    if (id !== 'tenants') setSelectedTenantId(null);
+    if (id !== 'cloud') setSelectedTenantId(null);
     setMobileNavOpen(false);
   };
 
   const renderContent = () => {
-    if (activeTab === 'tenants' && selectedTenantId) {
+    if (activeTab === 'cloud' && selectedTenantId) {
       return <TenantDetailView tenantId={selectedTenantId} onBack={handleBackFromDetail} />;
     }
     switch (activeTab) {
       case 'dashboard':
         return <SuperAdminDashboard />;
-      case 'tenants':
-        return <TenantsView onSelectTenant={handleSelectTenant} />;
+      case 'cloud':
+        return <TenantListView onSelectTenant={handleSelectTenant} />;
+      case 'onprem':
+        return <OnPremView saToken={session.getToken() || ''} />;
+      case 'offline-mobile':
+        return <ServiceMobileView saToken={session.getToken() || ''} />;
       case 'plans':
         return <PlanManagementView />;
       case 'billing':

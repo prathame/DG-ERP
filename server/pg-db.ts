@@ -1080,10 +1080,11 @@ export async function initSchema() {
        ON service_mobile_backups(license_id, created_at DESC)`,
     );
 
-    // Service cloud seats (online) — access mode + device slots + single-tenant session
-    // Only meaningful when tenants.business_type = 'service'
+    // Cloud Cap seats (online) — access mode + device slots; company session lock for service only
     await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS client_access_mode TEXT`);
     // client_access_mode: mobile | desktop | both | NULL (unset / N/A)
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS mobile_features JSONB`);
+    // mobile_features: companion pack for Cap Online (non-service); NULL = defaults
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS service_cloud_device_slots (

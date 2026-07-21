@@ -1128,6 +1128,8 @@ export const api = {
       tenantId: string;
       companyName: string;
       slug: string;
+      businessType?: string;
+      clientAccessMode?: string | null;
       logoBase64: string | null;
       primaryColor: string;
       tagline: string | null;

@@ -17,7 +17,7 @@ Online-only seats on a **service** cloud tenant. Clients: Cloud Electron + onlin
 | 11 | Unbind lost device | SA Unbind on bound slot → new device login | New machine claims free slot |
 | 12 | Cannot shrink below bound | Bound 1 desktop; set desktop slots to 0 without unbind | API error; must unbind first |
 | 13 | Browser not enrolled | Login in normal browser (no Electron/Capacitor) | No seat gate; claim with web client rejected |
-| 14 | Manufacturer tenant | Open manufacturer tenant detail | No Service cloud seats panel |
+| 14 | Manufacturer tenant | Open manufacturer tenant detail | Cloud app seats panel shown; multi-user (no company freeze); Cap Online features when mode is mobile/both |
 | 15 | Not Service Mobile | Compare with Service Mobile licenses | No `DG-SM-` key; uses cloud tenant users |
 | 16 | Download page split | Open `/download` | **Service Cloud ONLINE** and **Service Mobile OFFLINE** are separate cards; Android + iOS buttons each (4 evergreen links) |
 | 17 | Set download URL | SA → Analytics → paste Service Cloud URLs → Save → open `/download` | Buttons use those URLs |

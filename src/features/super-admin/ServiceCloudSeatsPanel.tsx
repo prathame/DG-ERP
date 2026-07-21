@@ -3,6 +3,7 @@ import { Smartphone, Monitor, Plus, Unlink, RefreshCw, KeyRound, Bell, Copy, Che
 import { session } from '../../lib/session';
 import { useToast } from '../../components/ui';
 import { cn } from '../../lib/utils';
+import { MOBILE_FEATURE_KEYS, MOBILE_FEATURE_LABELS, type MobileFeatures } from '../../../shared/mobileFeatures';
 
 type AccessMode = 'mobile' | 'desktop' | 'both';
 
@@ -28,6 +29,9 @@ type SeatUser = {
 
 type SeatsPayload = {
   clientAccessMode: AccessMode | null;
+  businessType?: string;
+  companySessionLock?: boolean;
+  mobileFeatures?: MobileFeatures;
   activeSession: {
     userId: string;
     userName: string;
@@ -107,6 +111,27 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
       toast('Access mode updated', 'success');
+      load();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveMobileFeatures = async (next: MobileFeatures) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/super-admin/tenants/${tenantId}/service-cloud/mobile-features`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token()}`,
+        },
+        body: JSON.stringify({ mobileFeatures: next }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      toast('Mobile features updated', 'success');
       load();
     } catch (err) {
       toast((err as Error).message, 'error');
@@ -233,21 +258,26 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
   if (loading && !data) {
     return (
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <p className="text-sm text-gray-500">Loading service cloud seats…</p>
+        <p className="text-sm text-gray-500">Loading cloud seats…</p>
       </div>
     );
   }
 
   const mode = data?.clientAccessMode;
+  const isService = data?.businessType === 'service';
+  const companyLock = data?.companySessionLock ?? isService;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="p-6 border-b border-gray-100 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Service cloud seats</h2>
+          <h2 className="text-lg font-bold text-gray-900">Cloud app seats</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Online-only. Manage each user (Mobile phone + Laptop/Desktop slots). One live session company-wide; 5‑minute
-            idle release. Not Offline Mobile.
+            Cap Online + cloud desktop device slots. Same phone APK (Online + company slug). Not Offline Mobile (
+            DG-SM).
+            {companyLock
+              ? ' Service: one live session company-wide; 5‑minute idle release.'
+              : ' Multi-user: several people can work at once (DB locks on payments).'}
           </p>
         </div>
         <button type="button" onClick={load} className="p-2 rounded-lg hover:bg-gray-50 text-gray-500" title="Refresh">
@@ -282,7 +312,33 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
           )}
         </div>
 
-        {data?.activeSession && (
+        {!isService && data?.mobileFeatures && (mode === 'mobile' || mode === 'both') && (
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase mb-2">Cap Online features</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {MOBILE_FEATURE_KEYS.map(key => (
+                <label
+                  key={key}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm cursor-pointer hover:border-gray-300"
+                >
+                  <input
+                    type="checkbox"
+                    disabled={saving}
+                    checked={Boolean(data.mobileFeatures?.[key])}
+                    onChange={e => {
+                      if (!data.mobileFeatures) return;
+                      void saveMobileFeatures({ ...data.mobileFeatures, [key]: e.target.checked });
+                    }}
+                    className="rounded border-gray-300 text-brand focus:ring-brand"
+                  />
+                  {MOBILE_FEATURE_LABELS[key]}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {data?.activeSession && companyLock && (
           <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800">
             Live session: <strong>{data.activeSession.userName}</strong> on {data.activeSession.client}
             <span className="text-amber-600"> · expires {new Date(data.activeSession.expiresAt).toLocaleString()}</span>
