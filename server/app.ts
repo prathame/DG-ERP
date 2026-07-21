@@ -324,6 +324,18 @@ export function createApp(): express.Application {
       if (decoded.tenantId && decoded.userId) {
         req.headers['x-tenant-id'] = decoded.tenantId;
 
+        // Tenant ERP is desktop/mobile apps only (browser blocked). Impersonation + tests exempt.
+        if (!decoded.impersonatedBy && !isTest) {
+          const dgClient = String(req.headers['x-dg-client'] || '');
+          const allowed = new Set(['electron-cloud', 'electron-onprem', 'capacitor', 'capacitor-cloud']);
+          if (!allowed.has(dgClient)) {
+            return res.status(403).json({
+              error: 'Dhandho ERP is only available in the desktop or mobile app.',
+              code: 'APP_ONLY',
+            });
+          }
+        }
+
         let row = getCachedAuth(decoded.userId, decoded.tenantId, decoded.iat);
         if (!row) {
           const userRow = await pool.query(

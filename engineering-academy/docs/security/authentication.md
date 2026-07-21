@@ -52,9 +52,19 @@ export function generateToken(payload: object, expiresIn: string | number = '24h
 | Default expiry | `24h` |
 | Payload | `userId`, `email`, `role`, `name`, `tenantId`, `vendorId` (nullable), `sessionId` (single-device session) |
 
-## App-only login (no browser ERP)
+## App-only ERP (no browser workspace)
 
-Tenant `POST /api/auth/login` requires `platform: "desktop" | "mobile"`. Browser / web clients receive `403` with `code: APP_ONLY`. Super-admin `/admin` may still use the browser for platform ops.
+Tenant ERP is **desktop + mobile apps only**:
+
+| Surface | Browser | Desktop / Mobile app |
+|---|---|---|
+| Marketing `/`, `/download`, privacy, terms | Allowed | Allowed |
+| Super-admin `/admin` | Allowed | Allowed |
+| Tenant login `/{slug}` + workspace | **Blocked** | Allowed |
+| `POST /api/auth/login` | `403 APP_ONLY` unless `platform` is `desktop`/`mobile` | Allowed |
+| Authenticated tenant APIs | `403 APP_ONLY` unless `X-DG-Client` is an app shell | Allowed |
+
+`X-DG-Client` allowlist: `electron-cloud`, `electron-onprem`, `capacitor`, `capacitor-cloud`. Super-admin impersonation skips the client check. Local UI test: `?desktop=1`.
 
 ## Single-device sessions (one user → one machine)
 

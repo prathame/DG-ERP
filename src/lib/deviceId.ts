@@ -60,6 +60,11 @@ export function detectClientPlatform(): ClientPlatform {
   return 'web';
 }
 
+/** True when running inside Electron or Capacitor (or ?desktop=1 local test). */
+export function isErpAppShell(): boolean {
+  return detectClientPlatform() !== 'web';
+}
+
 /** Header identifying native/desktop shells (not set in plain browser). */
 export function appClientHeader(): string | null {
   try {
