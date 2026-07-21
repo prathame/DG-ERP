@@ -1,9 +1,13 @@
 # Web on Render; database is external (Neon recommended — or any Postgres via DATABASE_URL).
 # Do NOT provision Render Postgres here — stale dpg-* hosts cause ENOTFOUND at boot.
+# No `databases:` / `fromDatabase` — paste Neon into DATABASE_URL in the Dashboard.
 
 services:
   - type: web
-    # Subdomain → https://dhandho.onrender.com (rename existing service in Render Dashboard if needed)
+    # Subdomain is fixed at create time → https://dhandho.onrender.com
+    # Render cannot rename *.onrender.com after create. Create a NEW Blueprint/service
+    # named exactly `dhandho` (do not rename dg-erp). Copy Neon + secrets from dg-erp, then retire dg-erp.
+    # See engineering-academy/docs/deployment/render.md → "Hostname cutover".
     name: dhandho
     # Launch: upgrade off free for production SLA (sleep on free).
     plan: free
@@ -18,6 +22,7 @@ services:
       # Paste Neon (or any Postgres) URI in Render Dashboard — not fromDatabase
       - key: DATABASE_URL
         sync: false
+      # Fresh Blueprint gets a random secret; for cutover from dg-erp, overwrite with the old JWT_SECRET
       - key: JWT_SECRET
         generateValue: true
       - key: NODE_ENV
@@ -37,8 +42,9 @@ services:
         sync: false
       - key: SUPER_ADMIN_PASSWORD
         sync: false
+      # Same-origin browser + hosted web. Extend in Dashboard for extra hosts / Cap allowlists if needed.
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: https://dhandho.onrender.com
       - key: LOGTAIL_TOKEN
         sync: false
       - key: SECRETS_ENCRYPTION_KEY

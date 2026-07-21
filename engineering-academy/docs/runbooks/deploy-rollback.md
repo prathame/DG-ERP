@@ -8,7 +8,7 @@ description: A bad deploy shipped. How to roll back on Render, and the very diff
 
 ## Cloud (Render) — the fast path
 
-Render keeps previous successful deploys available for one-click rollback in its dashboard: **Render dashboard → dg-erp service → Deploys → select a previous healthy deploy → "Redeploy this version."** This re-runs that exact prior build/commit — no `git revert` required to restore service immediately.
+Render keeps previous successful deploys available for one-click rollback in its dashboard: **Render dashboard → live web service (`dhandho`, or legacy `dg-erp`) → Deploys → select a previous healthy deploy → "Redeploy this version."** This re-runs that exact prior build/commit — no `git revert` required to restore service immediately.
 
 ```mermaid
 flowchart TD

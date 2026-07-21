@@ -12,9 +12,10 @@ Render is the production home for the cloud SaaS. Deployment is declarative via 
 
 ```yaml
 # Web on Render; Postgres is external (Neon recommended) via DATABASE_URL.
+# No databases: / fromDatabase — paste Neon into DATABASE_URL.
 services:
   - type: web
-    name: dhandho
+    name: dhandho   # → https://dhandho.onrender.com (new service; not a rename)
     plan: free
     runtime: node
     buildCommand: npm ci --include=dev && npm run build:prod
@@ -40,7 +41,7 @@ services:
       - key: SUPER_ADMIN_PASSWORD
         sync: false
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: https://dhandho.onrender.com
       - key: LOGTAIL_TOKEN
         sync: false
       - key: PUBLIC_APP_URL
@@ -88,30 +89,9 @@ The comment says it plainly: **tests must not hit the production database.** Ren
 | `PORT` | Static `3001` | Must match what `server/index.ts` binds to; Render's own routing layer expects the app to listen on this port |
 | `DATABASE_SSL` | Static `"true"` | Forces TLS to the managed Postgres — also enforced independently by `assertCriticalEnv()`'s production checks, so this is belt-and-suspenders |
 | `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` | `sync: false` — you must set these manually in the Render dashboard, they are **not** committed or auto-generated | These are real, sensitive platform-owner credentials — `generateValue` wouldn't make sense (you need to know the value to log in), and committing a plaintext value to `render.yaml` would defeat the entire point |
-| `ALLOWED_ORIGINS` | `sync: false` | Include `https://dhandho.onrender.com` and Cap origins you allowlist. Add `https://dhandho.app` / `https://www.dhandho.app` only after DNS is live. |
+| `ALLOWED_ORIGINS` | Static `https://dhandho.onrender.com` | Required by `assertCriticalEnv()` so Blueprint boots without a blank CORS list. Cap shells (`capacitor://localhost`, etc.) are allowlisted in code. Extend in the Dashboard (comma-separated) for `dg-erp` while both exist, or `dhandho.app` after DNS is live. |
 | `LOGTAIL_TOKEN` | `sync: false` | Optional; logging works fine without it (see [Logging](/sre/logging)), so it's not required at first deploy, but also not something to commit |
 | `PUBLIC_APP_URL` | Static `https://dhandho.onrender.com` (until `dhandho.app` DNS is live) | Absolute links (invite links, PDF footers). Must match the live web service URL. Switch to `https://dhandho.app` only after DNS is live. |
-
-## Recreate web service as `dhandho`
-
-Render locks `https://<name>.onrender.com` at **create** time — you cannot rename an existing subdomain. Cap/Electron already use `https://dhandho.onrender.com` (`apiBase.ts` / env examples / Electron default). Recreate (or Blueprint-deploy) a service whose **name is exactly `dhandho`**.
-
-**Checklist (copy env from old `dg-erp` if you still have it open):**
-
-1. **New → Web Service** (or Blueprint from this repo). **Name:** `dhandho` (not `dg-erp`, not `dhandho-app`).
-2. **Build:** `npm ci --include=dev && npm run build:prod` · **Start:** `npm start` · **Health:** `/api/health`
-3. **Env to set in Dashboard** (do not leave blank):
-   - `DATABASE_URL` — same Neon URI as before (`…neon.tech…?sslmode=require`)
-   - `DATABASE_SSL=true`, `DATABASE_SSL_REJECT_UNAUTHORIZED=false`
-   - `JWT_SECRET` — **same value as old service** if you want existing sessions/tokens to keep working
-   - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`
-   - `PUBLIC_APP_URL=https://dhandho.onrender.com`
-   - `ALLOWED_ORIGINS` — at least `https://dhandho.onrender.com` (plus Cap origins you already allowlisted; keep old host only if that service still exists)
-   - Optional: `LOGTAIL_TOKEN`, `SECRETS_ENCRYPTION_KEY` (same as old if restoring encrypted fields)
-4. Deploy → wait for live → verify:
-   - `curl -sI https://dhandho.onrender.com/` → `200` (not `x-render-routing: no-server`)
-   - `curl -s https://dhandho.onrender.com/api/health` → `{"ok":true,"db":"up",…}`
-5. Cap Online / Electron Cloud need **no code change** once health is green — they already default to this host. Rebuild only if you baked a different `VITE_API_ORIGIN` / `DG_CLOUD_URL`.
 
 ## The doc-only build filter (`render-build-filter.sh`)
 
@@ -140,7 +120,59 @@ fi
 
 - Push to `main` → Render's auto-deploy (assuming it's watching that branch) picks it up, runs the build filter, then the build/start commands.
 - Watch the Render dashboard's deploy logs for the `npm ci --include=dev` step specifically if a build fails right after a dependency change — it's the first thing to check.
-- After deploy, hit `https://dhandho.onrender.com/api/health` to confirm `{"ok":true,"db":"up"}`. Do not use `dhandho.app` until DNS is live.
+- After deploy, hit `https://dhandho.onrender.com/api/health` (or the service URL shown in the Dashboard) to confirm `{"ok":true,"db":"up"}`. Do not use `dhandho.app` until that DNS is live.
+
+## Hostname cutover (`dg-erp` → `dhandho`) {#recreate-web-service-as-dhandho}
+
+**How Render hostnames work:** the web service **name** chosen at create time becomes `https://<name>.onrender.com`. That subdomain is **not** renamable later ([Render feedback](https://feedback.render.com/features/p/ability-to-change-onrendercom-sub-domain)) — changing the display name in the Dashboard does not move the URL. Root `render.yaml` already defines service **`dhandho`**; ops must **create** that service (not rename `dg-erp`). Cap/Electron already default to `https://dhandho.onrender.com` (`apiBase.ts` / env examples / Electron default) — creating this service is what makes that URL answer.
+
+**Probe (expected before cutover):**
+
+| URL | Expected |
+|---|---|
+| `https://dg-erp.onrender.com/api/health` | `200` + `{"ok":true,"db":"up"}` (current live app) |
+| `https://dhandho.onrender.com/` | `404` with `x-render-routing: no-server` (no service with that name yet) |
+
+### How to apply `render.yaml` in the Dashboard
+
+**Option A — Blueprint (preferred if starting from the file):**
+
+1. Render Dashboard → **Blueprints** → **New Blueprint Instance** (or upload / connect this repo).
+2. Point at the repo (branch with this `render.yaml`, usually `main` after merge). Confirm the web service **name** is `dhandho`.
+3. When prompted for `sync: false` env vars, paste at least:
+   - `DATABASE_URL` — Neon URI (`…neon.tech…?sslmode=require`)
+   - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`
+   - Optional: `LOGTAIL_TOKEN`, `SECRETS_ENCRYPTION_KEY` (same as `dg-erp` if restoring encrypted fields)
+4. After first deploy: if sessions from `dg-erp` must keep working, overwrite Blueprint-generated `JWT_SECRET` with the old service’s value.
+
+**Option B — New Web Service + paste (no Blueprint sync):**
+
+1. **New → Web Service** → connect the same GitHub repo → **Name:** `dhandho` (exact).
+2. Set Build / Start / Health from `render.yaml`: `npm ci --include=dev && npm run build:prod` · `npm start` · `/api/health`.
+3. Paste Environment from `dg-erp` (or from Neon + secrets), including `DATABASE_URL`, SSL flags, `PUBLIC_APP_URL=https://dhandho.onrender.com`, and `ALLOWED_ORIGINS` at least `https://dhandho.onrender.com`.
+
+**Do not** add a Render Postgres database — keep using Neon via `DATABASE_URL`.
+
+**Checklist (new service, same Neon DB):**
+
+1. Create `dhandho` via Blueprint or New Web Service (above). Do **not** expect renaming `dg-erp` to free that hostname.
+2. Env must include:
+   - `DATABASE_URL` — same Neon URI; never a deleted `dpg-*` host
+   - `DATABASE_SSL=true`, `DATABASE_SSL_REJECT_UNAUTHORIZED=false` (Blueprint sets these)
+   - `JWT_SECRET` — **same value** as `dg-erp` if you want existing sessions/tokens to keep working
+   - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`
+   - `ALLOWED_ORIGINS` — Blueprint defaults to `https://dhandho.onrender.com`; add `https://dg-erp.onrender.com` while both exist if needed; add `https://dhandho.app` only after DNS is live
+   - `PUBLIC_APP_URL=https://dhandho.onrender.com`
+   - Optional: `LOGTAIL_TOKEN`, `SECRETS_ENCRYPTION_KEY`
+3. Confirm Build Command is `npm ci --include=dev && npm run build:prod` and health check path is `/api/health`.
+4. Wait for the first deploy to go live, then verify:
+   - `curl -sI https://dhandho.onrender.com/` → `200` (not `x-render-routing: no-server`)
+   - `curl -s https://dhandho.onrender.com/api/health` → `{"ok":true,"db":"up",…}`
+5. Cap Online / Electron Cloud need **no code change** once health is green — they already default to this host. Rebuild only if you baked a different `VITE_API_ORIGIN` / `DG_CLOUD_URL`.
+6. After `dhandho` is healthy for a day or two: suspend or delete the `dg-erp` service so you are not paying/sleeping two free web services.
+7. Later: attach custom domain `dhandho.app` on the `dhandho` service when DNS is ready; then switch `PUBLIC_APP_URL` / `ALLOWED_ORIGINS` to that host.
+
+**Do not** create an empty `dhandho` service without wiring the same Neon `DATABASE_URL` and secrets — that yields a blank or failing host while `dg-erp` still holds production data.
 
 ## Related pages
 
