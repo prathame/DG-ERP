@@ -1,6 +1,7 @@
 /**
  * Build a shareable bug-report text (no passwords / tokens).
- * Offline Mobile + Capacitor: save under Dhandho/bug-reports (+ optional Share); web: clipboard / download.
+ * Cap: save under Dhandho/bug-reports (+ optional Share).
+ * Electron / browser: clipboard, then download .txt fallback.
  */
 import { ensureCorrelationId, getClientBreadcrumbs, getRecentClientLogs } from './logger';
 import { session } from './session';
@@ -124,6 +125,21 @@ export async function buildBugReportText(extras: BugReportExtras = {}): Promise<
       }
     } catch (e) {
       lines.push(`Phone diagnostics error: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  } else {
+    try {
+      const { isServiceCloudDesktop, serviceCloudClientKind } = await import('../platforms/service-cloud/mode');
+      const ea = (
+        window as unknown as { electronAPI?: { isElectron?: boolean; deploymentMode?: string; platform?: string } }
+      ).electronAPI;
+      if (ea?.isElectron || isServiceCloudDesktop()) {
+        const deploy = ea?.deploymentMode || 'cloud';
+        lines.push(`Product: ${deploy === 'onprem' ? 'Offline (Electron)' : 'Online (Cloud Electron)'}`);
+        lines.push(`Client kind: ${serviceCloudClientKind() || (deploy === 'onprem' ? 'desktop-onprem' : 'desktop')}`);
+        if (ea?.platform) lines.push(`Electron platform: ${ea.platform}`);
+      }
+    } catch {
+      /* ignore */
     }
   }
 

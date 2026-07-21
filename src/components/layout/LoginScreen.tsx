@@ -4,7 +4,7 @@ import { api } from '../../api';
 import { PasswordInput } from '../ui/PasswordInput';
 import { session } from '../../lib/session';
 import { bugReportFeedbackMessage, shareBugReport } from '../../lib/bugReport';
-import { isMobileAppShell } from '../../lib/mobileAppShell';
+import { isMobileAppShell, offersBugReportShare } from '../../lib/mobileAppShell';
 import { BrandMark } from '../ui/BrandMark';
 
 type LoginMode = 'login' | 'forgot' | 'reset';
@@ -51,6 +51,7 @@ interface LoginScreenProps {
 
 export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenProps) {
   const mobileApp = isMobileAppShell();
+  const showBugReport = offersBugReportShare();
   const [sharingReport, setSharingReport] = useState(false);
   const urlToken = new URLSearchParams(window.location.search).get('token');
   const [mode, setMode] = useState<LoginMode>(urlToken ? 'reset' : 'login');
@@ -385,7 +386,7 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
               Change company
             </button>
           )}
-          {mobileApp && (
+          {showBugReport && (
             <button
               type="button"
               disabled={sharingReport}
