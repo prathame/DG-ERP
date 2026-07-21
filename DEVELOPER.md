@@ -40,14 +40,17 @@ Browser / Electron window
 
 ```
 platforms/
-├── shared/           # API URL helpers (all clients)
-└── desktop/
-    ├── online/       # Electron cloud (thin online client)
-    └── offline/      # On-prem sync UI (OnlineStatus)
+├── shared/             # API URL helpers (all clients)
+├── desktop/
+│   ├── online/         # Electron cloud (thin online client)
+│   └── offline/        # On-prem sync UI (OnlineStatus)
+├── service-cloud/      # Cap Online (cloud companion)
+├── service-mobile/     # Cap Offline (PGlite local ERP)
+└── service-phone/      # Unified Cap shell (Online/Offline latch)
 ```
 
-Native Electron processes: `electron/cloud` = desktop·online, `electron/onprem` = desktop·offline.  
-See `src/platforms/README.md` and `electron/README.md`. Offline phone ERP is **Service Mobile** (`src/platforms/service-mobile/`, Capacitor) — service business type only, SA keys `DG-SM-…`.
+Native Electron: `electron/desktop` (unified Online/Offline). Legacy `electron/cloud` + `electron/onprem` still pack with the desktop builder.  
+See `src/platforms/README.md` and `electron/README.md`. Cap package `in.dhandho.service` is one APK; Offline stays service-type (`DG-SM-…`); Online companion uses SA `mobile_features` for all business types.
 
 ---
 
