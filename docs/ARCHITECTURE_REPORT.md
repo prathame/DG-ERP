@@ -171,7 +171,7 @@ Render: `render.yaml` — Node web + Postgres. SPA fallback for non-API routes.
 1. JWT in `localStorage` (XSS risk; mitigated by production CSP)
 2. SPA tab routing (no deep-linkable module URLs)
 3. Per-request DB auth revalidation (correctness over latency; cacheable with short TTL)
-5. Dual domain history: `dhandho.app` vs `dg-erp.onrender.com`
+5. Dual domain history: `dhandho.app` vs `dhandho.onrender.com`
 
 ---
 

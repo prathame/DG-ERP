@@ -3,7 +3,8 @@
 
 services:
   - type: web
-    name: dg-erp
+    # Subdomain → https://dhandho.onrender.com (rename existing service in Render Dashboard if needed)
+    name: dhandho
     # Launch: upgrade off free for production SLA (sleep on free).
     plan: free
     runtime: node
@@ -44,4 +45,4 @@ services:
         sync: false
       # Canonical product domain later: https://dhandho.app (DNS not live yet)
       - key: PUBLIC_APP_URL
-        value: https://dg-erp.onrender.com
+        value: https://dhandho.onrender.com

@@ -778,13 +778,14 @@ export function OnPremView({ saToken }: { saToken: string }) {
                   <div className="rounded-xl bg-red-50 text-red-800 px-3 py-2.5 text-xs leading-relaxed">
                     <p className="font-bold mb-1">Why status stays “Waiting”</p>
                     <p>
-                      This Super Admin is <b>localhost</b>. The on-prem app syncs to <b>dg-erp.onrender.com</b>. Device
+                      This Super Admin is <b>localhost</b>. The on-prem app syncs to <b>dhandho.onrender.com</b>. Device
                       can apply settings, but this page never sees “applied”.
                     </p>
                     <p className="mt-1.5 font-medium">Pick one:</p>
                     <ul className="list-disc ml-4 mt-1 space-y-0.5">
                       <li>
-                        Open Super Admin on Render: <span className="font-mono">https://dg-erp.onrender.com/admin</span>
+                        Open Super Admin on Render:{' '}
+                        <span className="font-mono">https://dhandho.onrender.com/admin</span>
                       </li>
                       <li>
                         Or run the app against local cloud:{' '}

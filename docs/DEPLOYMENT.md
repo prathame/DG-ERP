@@ -13,7 +13,7 @@ The web service runs on Render. **Postgres is external** — use Neon (or Supaba
    - `DATABASE_SSL=true`
    - `DATABASE_SSL_REJECT_UNAUTHORIZED=false` (Neon / most managed PaaS)
    - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` (≥12 chars)
-   - `ALLOWED_ORIGINS` — e.g. `https://dhandho.app,https://www.dhandho.app,https://dg-erp.onrender.com`
+   - `ALLOWED_ORIGINS` — e.g. `https://dhandho.app,https://www.dhandho.app,https://dhandho.onrender.com`
    - Optional: `LOGTAIL_TOKEN`, `SECRETS_ENCRYPTION_KEY`, `PUBLIC_APP_URL`
 4. Remove any stale `DATABASE_URL` that still points at `dpg-…` (causes `ENOTFOUND` at boot).
 5. Build: `npm ci --include=dev && npm run build:prod`  
