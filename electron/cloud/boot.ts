@@ -8,7 +8,8 @@ import { CLOUD_API as CLOUD_URL } from '../shared/constants';
 let win: BrowserWindow | null = null;
 
 function createWindow() {
-  const icon = nativeImage.createFromPath(path.join(__dirname, '../../public/icons/icon-192.svg'));
+  // PNG required — Electron nativeImage often fails silently on SVG
+  const icon = nativeImage.createFromPath(path.join(__dirname, '../../public/icons/icon-512.png'));
 
   win = new BrowserWindow({
     width: 1400,
