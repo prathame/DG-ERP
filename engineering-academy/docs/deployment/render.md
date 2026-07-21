@@ -11,26 +11,18 @@ Render is the production home for the cloud SaaS. Deployment is declarative via 
 ## `render.yaml`, annotated
 
 ```yaml
-databases:
-  - name: dg-erp-db
-    plan: free
-    databaseName: dg_erp
-    user: dg_erp_user
-
+# Web on Render; Postgres is external (Neon recommended) via DATABASE_URL.
 services:
   - type: web
     name: dg-erp
     plan: free
     runtime: node
-    # Do NOT run `npm test` here: tests must not hit the production DB (CI runs them).
-    # --include=dev: NODE_ENV=production would otherwise omit build tools
-    # (tailwindcss, etc.) even when vite plugins are in dependencies.
     buildCommand: npm ci --include=dev && npm run build:prod
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
-        fromDatabase: { name: dg-erp-db, property: connectionString }
+        sync: false   # paste Neon (or any Postgres) URI in the dashboard
       - key: JWT_SECRET
         generateValue: true
       - key: NODE_ENV
@@ -41,6 +33,8 @@ services:
         value: 3001
       - key: DATABASE_SSL
         value: "true"
+      - key: DATABASE_SSL_REJECT_UNAUTHORIZED
+        value: "false"
       - key: SUPER_ADMIN_EMAIL
         sync: false
       - key: SUPER_ADMIN_PASSWORD
@@ -52,6 +46,10 @@ services:
       - key: PUBLIC_APP_URL
         value: https://dg-erp.onrender.com
 ```
+
+:::tip Neon (or any Postgres)
+The app does **not** require Render-managed Postgres. Set `DATABASE_URL` to a Neon connection string (`…neon.tech…?sslmode=require`). A stale Render `dpg-*` host causes `getaddrinfo ENOTFOUND` at boot — replace it with the Neon URI.
+:::
 
 ## The `--include=dev` gotcha — why it's there and what breaks without it
 
@@ -77,13 +75,13 @@ Both currently resolve to the same underlying command (`vite build`) in `package
 
 ## Why `npm test` is explicitly *not* in `buildCommand`
 
-The comment says it plainly: **tests must not hit the production database.** Render's build step runs against the real, live `dg-erp-db` — there is no separate throwaway database for a build-time test run in this configuration. Running Vitest here would mean test fixtures, inserts, and teardown logic executing against production data. All test execution happens in CI (`pr-check.yml`, `build.yml`, `release.yml`), each spinning up its own **ephemeral** `postgres:16` service container that's destroyed after the workflow run — see [CI/CD](./cicd.md).
+The comment says it plainly: **tests must not hit the production database.** Render's build/start uses your live `DATABASE_URL` (e.g. Neon) — there is no separate throwaway database for a build-time test run. Running Vitest here would mean test fixtures executing against production data. All test execution happens in CI (`pr-check.yml`, `build.yml`, `release.yml`), each spinning up its own **ephemeral** `postgres:16` service container — see [CI/CD](./cicd.md).
 
 ## The `envVars` block, decoded
 
 | Key | Mechanism | Why |
 |---|---|---|
-| `DATABASE_URL` | `fromDatabase` — Render auto-injects the managed Postgres connection string | Never hand-typed, never drifts from the actual provisioned database |
+| `DATABASE_URL` | `sync: false` — paste Neon / any Postgres URI in the dashboard | Provider-agnostic; do not use a deleted Render `dpg-*` host |
 | `JWT_SECRET` | `generateValue: true` — Render generates a cryptographically random value once, at first deploy | Satisfies `assertCriticalEnv()`'s ≥32-char production requirement automatically, and nobody ever has to choose/type a secret manually |
 | `NODE_ENV` | Static `production` | Drives every environment-conditional branch across `server/app.ts`, `server/pg-db.ts`, `server/utils/env.ts` |
 | `HUSKY: "0"` | Static | Skips git-hook installation during the Render build — `husky` is a local-dev-only tool (pre-commit lint hooks); installing it in a CI/PaaS build environment with no git hooks to run is pointless overhead, and can even fail outright in some sandboxed build environments |

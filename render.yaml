@@ -1,14 +1,10 @@
-databases:
-  # Launch: upgrade off free before paid GST tenants (backups / PITR are plan-dependent).
-  - name: dg-erp-db
-    plan: free
-    databaseName: dg_erp
-    user: dg_erp_user
+# Web on Render; database is external (Neon recommended — or any Postgres via DATABASE_URL).
+# Do NOT provision Render Postgres here — stale dpg-* hosts cause ENOTFOUND at boot.
 
 services:
   - type: web
     name: dg-erp
-    # Launch: upgrade off free for production SLA (sleep + limited resources on free).
+    # Launch: upgrade off free for production SLA (sleep on free).
     plan: free
     runtime: node
     # Do NOT run `npm test` here: tests must not hit the production DB (CI runs them).
@@ -18,10 +14,9 @@ services:
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
+      # Paste Neon (or any Postgres) URI in Render Dashboard — not fromDatabase
       - key: DATABASE_URL
-        fromDatabase:
-          name: dg-erp-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: NODE_ENV
@@ -33,6 +28,9 @@ services:
         value: 3001
       - key: DATABASE_SSL
         value: "true"
+      # Neon / managed PaaS TLS — Node often needs this; safe for Neon/Render/Supabase hosts only
+      - key: DATABASE_SSL_REJECT_UNAUTHORIZED
+        value: "false"
       # Set these in Render Dashboard → Environment (sync: false = not auto-filled):
       - key: SUPER_ADMIN_EMAIL
         sync: false
@@ -41,6 +39,8 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false
       - key: LOGTAIL_TOKEN
+        sync: false
+      - key: SECRETS_ENCRYPTION_KEY
         sync: false
       # Canonical product domain later: https://dhandho.app (DNS not live yet)
       - key: PUBLIC_APP_URL
