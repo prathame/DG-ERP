@@ -18,6 +18,12 @@ import { LoadingSpinner, useToast } from '../../components/ui';
 import { cn } from '../../lib/utils';
 import { session } from '../../lib/session';
 import { TAB_PRESETS, type NamedBusinessType } from '../../../shared/tabPresets';
+import {
+  MOBILE_FEATURE_KEYS,
+  MOBILE_FEATURE_LABELS,
+  defaultMobileFeatures,
+  type MobileFeatures,
+} from '../../../shared/mobileFeatures';
 
 interface Tenant {
   id: string;
@@ -463,6 +469,14 @@ function CreateTenantModal({
     subscriptionStart: new Date().toISOString().split('T')[0],
     subscriptionEnd: '',
     businessType: 'manufacturer' as BusinessType,
+    needMobile: false,
+    mobileFeatures: {
+      stock: true,
+      sales: true,
+      quotations: true,
+      collections: true,
+      reports: true,
+    },
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -522,6 +536,8 @@ function CreateTenantModal({
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           ...form,
+          needMobile: form.needMobile,
+          mobileFeatures: form.needMobile ? form.mobileFeatures : undefined,
           tabConfig: form.businessType !== 'custom' ? BUSINESS_TYPE_CONFIGS[form.businessType].tabConfig : undefined,
         }),
       });
@@ -772,7 +788,14 @@ function CreateTenantModal({
                     <button
                       key={bt.id}
                       type="button"
-                      onClick={() => setForm({ ...form, businessType: bt.id })}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          businessType: bt.id,
+                          needMobile: bt.id === 'service' ? true : form.needMobile,
+                          mobileFeatures: defaultMobileFeatures(bt.id) as MobileFeatures,
+                        })
+                      }
                       className={cn(
                         'p-3 rounded-xl border-2 text-left transition-all',
                         form.businessType === bt.id
@@ -791,6 +814,63 @@ function CreateTenantModal({
                 })}
               </div>
             </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Need mobile app?</label>
+              <div className="flex gap-2">
+                {([true, false] as const).map(yes => (
+                  <button
+                    key={String(yes)}
+                    type="button"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        needMobile: yes,
+                        mobileFeatures: yes
+                          ? (defaultMobileFeatures(form.businessType) as MobileFeatures)
+                          : form.mobileFeatures,
+                      })
+                    }
+                    className={cn(
+                      'flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors',
+                      form.needMobile === yes
+                        ? 'bg-brand text-white border-brand'
+                        : 'border-gray-200 text-gray-600 hover:border-brand',
+                    )}
+                  >
+                    {yes ? 'Yes — Cap Online' : 'No — desktop only'}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                Same phone APK (Online mode + company slug). Offline phone licenses stay under Offline Mobile.
+              </p>
+            </div>
+            {form.needMobile && form.businessType !== 'service' && (
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Mobile features</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {MOBILE_FEATURE_KEYS.map(key => (
+                    <label
+                      key={key}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm cursor-pointer hover:border-gray-300"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.mobileFeatures[key]}
+                        onChange={e =>
+                          setForm({
+                            ...form,
+                            mobileFeatures: { ...form.mobileFeatures, [key]: e.target.checked },
+                          })
+                        }
+                        className="rounded border-gray-300 text-brand focus:ring-brand"
+                      />
+                      {MOBILE_FEATURE_LABELS[key]}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             {form.plan !== 'TRIAL' && (
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Billing Cycle</label>

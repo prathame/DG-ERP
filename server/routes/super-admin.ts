@@ -18,6 +18,7 @@ import {
   DEFAULT_DESKTOP_APP_URL,
 } from '../download-defaults';
 import { getTabPreset, isBusinessTypeWithCustom, isNamedBusinessType } from '../../shared/tabPresets';
+import { defaultMobileFeatures, normalizeMobileFeatures } from '../../shared/mobileFeatures';
 
 const router = Router();
 
@@ -26,8 +27,20 @@ router.get('/api/tenant/by-slug/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     const tenant = (
-      await pool.query('SELECT id, company_name, slug, status FROM tenants WHERE slug = $1', [slug.toLowerCase()])
-    ).rows[0] as { id: string; company_name: string; slug: string; status: string } | undefined;
+      await pool.query(
+        'SELECT id, company_name, slug, status, business_type, client_access_mode FROM tenants WHERE slug = $1',
+        [slug.toLowerCase()],
+      )
+    ).rows[0] as
+      | {
+          id: string;
+          company_name: string;
+          slug: string;
+          status: string;
+          business_type: string | null;
+          client_access_mode: string | null;
+        }
+      | undefined;
     if (!tenant || (tenant.status !== 'active' && tenant.status !== 'trial')) {
       return res.status(404).json({ error: 'Company not found' });
     }
@@ -40,6 +53,8 @@ router.get('/api/tenant/by-slug/:slug', async (req, res) => {
       tenantId: tenant.id,
       companyName: tenant.company_name,
       slug: tenant.slug,
+      businessType: tenant.business_type || 'manufacturer',
+      clientAccessMode: tenant.client_access_mode || null,
       logoBase64: billSettings?.logo_base64 ?? null,
       primaryColor: billSettings?.primary_color ?? '#F27D26',
       tagline: billSettings?.tagline ?? null,
@@ -246,11 +261,41 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
 
     // Business-type presets — shared/tabPresets.ts is the source of truth
     const tabConfig = getTabPreset(bType);
-    await pool.query('UPDATE tenants SET tab_config = $1, business_type = $2 WHERE id = $3', [
-      JSON.stringify(tabConfig),
-      bType,
-      result.tenantId,
-    ]);
+    // Need mobile? service defaults yes; others from body (default no)
+    const needMobile = typeof req.body.needMobile === 'boolean' ? req.body.needMobile : bType === 'service';
+    const accessMode = needMobile ? 'both' : 'desktop';
+    const mobileFeatures = needMobile
+      ? normalizeMobileFeatures(req.body.mobileFeatures, bType)
+      : defaultMobileFeatures(bType);
+    await pool.query(
+      `UPDATE tenants SET tab_config = $1, business_type = $2, client_access_mode = $3, mobile_features = $4::jsonb
+       WHERE id = $5`,
+      [JSON.stringify(tabConfig), bType, accessMode, JSON.stringify(mobileFeatures), result.tenantId],
+    );
+    // Cap Online seats: seed 1 mobile (+ 1 desktop for service) on admin when mobile enabled
+    if (needMobile) {
+      const adminRow = (
+        await pool.query(`SELECT id FROM users WHERE tenant_id=$1 AND LOWER(email)=LOWER($2) LIMIT 1`, [
+          result.tenantId,
+          adminEmail,
+        ])
+      ).rows[0] as { id: string } | undefined;
+      if (adminRow?.id) {
+        const desktopSlots = bType === 'service' ? 1 : 0;
+        await pool.query(
+          `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
+           VALUES ($1,$2,$3,'mobile')`,
+          [uid('SCS'), result.tenantId, adminRow.id],
+        );
+        if (desktopSlots) {
+          await pool.query(
+            `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
+             VALUES ($1,$2,$3,'desktop')`,
+            [uid('SCS'), result.tenantId, adminRow.id],
+          );
+        }
+      }
+    }
     await logAudit(
       pool,
       result.tenantId,
@@ -268,6 +313,9 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
       companyName,
       tempPassword: result.credentials.password,
       businessType: bType,
+      needMobile,
+      clientAccessMode: accessMode,
+      mobileFeatures,
     });
   } catch (err) {
     const e = err as Error & { code?: string };

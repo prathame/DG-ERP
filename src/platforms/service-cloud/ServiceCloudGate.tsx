@@ -6,14 +6,15 @@ const HEARTBEAT_MS = 60_000;
 const RETRY_BUSY_MS = 15_000;
 
 type Props = {
-  /** Only enforce for service business_type tenants */
+  /** Seat claim + (service-only) company session lock + offline freeze */
   enabled: boolean;
   children: React.ReactNode;
 };
 
 /**
- * Company-wide session lock + offline freeze for service cloud clients
- * (Electron cloud / online Capacitor). Browser web skips this gate.
+ * Device seats for Cap Online / Electron cloud. Service tenants also get
+ * company-wide Netflix session lock. Non-service: claim only (multi-user).
+ * Browser web skips this gate.
  */
 export function ServiceCloudGate({ enabled, children }: Props) {
   const applicable = enabled && isServiceCloudClient();
@@ -110,8 +111,8 @@ export function ServiceCloudGate({ enabled, children }: Props) {
               <>
                 <p className="text-lg font-bold text-gray-900">No internet</p>
                 <p className="text-sm text-gray-600 mt-2">
-                  Service Cloud is online-only. The app is frozen until you are back online — there is no offline mode
-                  or Sync.
+                  Cloud Online is internet-only. The app is frozen until you are back online — there is no offline mode
+                  or Sync on this path.
                 </p>
               </>
             )}

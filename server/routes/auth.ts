@@ -7,6 +7,7 @@ import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { logger } from '../utils/logger';
 import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth';
 import { clearUserSession, replaceUserSession, SESSION_REPLACED_BODY, touchUserSession } from '../utils/userSessions';
+import { normalizeMobileFeatures } from '../../shared/mobileFeatures';
 
 const router = Router();
 
@@ -64,7 +65,7 @@ router.post('/api/auth/login', async (req, res) => {
              t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status,
              t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
              t.trial_ends_at, t.subscription_ends_at, t.tab_config, t.business_type,
-             t.client_access_mode, t.plan_id
+             t.client_access_mode, t.mobile_features, t.plan_id
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
       WHERE LOWER(u.email) = LOWER($1) ${slugClause} LIMIT 1
@@ -218,6 +219,18 @@ router.post('/api/auth/login', async (req, res) => {
       })(),
       businessType: (row.business_type as string) || 'manufacturer',
       clientAccessMode: (row.client_access_mode as string) || null,
+      mobileFeatures: normalizeMobileFeatures(
+        typeof row.mobile_features === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(row.mobile_features as string);
+              } catch {
+                return null;
+              }
+            })()
+          : row.mobile_features,
+        (row.business_type as string) || 'manufacturer',
+      ),
       subscriptionEndsAt: row.subscription_ends_at ?? null,
       trialEndsAt: row.trial_ends_at ?? null,
       tabConfig: (() => {

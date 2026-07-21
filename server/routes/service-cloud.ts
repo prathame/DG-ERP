@@ -1,6 +1,7 @@
 /**
- * Service cloud seats — online-only access for business_type=service tenants.
- * Device slots (mobile/desktop per user) + single company-wide session lock.
+ * Cloud Cap seats — device slots for Online Cap / Electron cloud.
+ * Company-wide Netflix session lock applies only when business_type=service.
+ * Other types: multi-user (claim device + access mode; no company freeze).
  * Separate from offline Service Mobile (DG-SM / service-mobile.ts).
  */
 import { Router } from 'express';
@@ -12,6 +13,7 @@ import { handleApiError } from '../utils/http-error';
 import { logger } from '../utils/logger';
 import { authMiddleware, superAdminMiddleware } from '../middleware/auth';
 import { normalizePermissions } from '../middleware/permissions';
+import { normalizeMobileFeatures } from '../../shared/mobileFeatures';
 
 const router = Router();
 
@@ -26,12 +28,15 @@ const publicLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-async function assertServiceTenant(tenantId: string): Promise<Record<string, unknown> | null> {
+/** Any cloud tenant (seats are no longer service-only). */
+async function assertCloudTenant(tenantId: string): Promise<Record<string, unknown> | null> {
   const row = (await pool.query(`SELECT * FROM tenants WHERE id = $1`, [tenantId])).rows[0] as
     Record<string, unknown> | undefined;
-  if (!row) return null;
-  if ((row.business_type as string) !== 'service') return null;
-  return row;
+  return row || null;
+}
+
+function usesCompanySessionLock(tenant: Record<string, unknown>): boolean {
+  return (tenant.business_type as string) === 'service';
 }
 
 async function syncSlots(tenantId: string, userId: string, mobileCount: number, desktopCount: number): Promise<void> {
@@ -81,8 +86,9 @@ function mapSlot(r: Record<string, unknown>) {
 }
 
 async function getSeatsPayload(tenantId: string) {
-  const tenant = await assertServiceTenant(tenantId);
+  const tenant = await assertCloudTenant(tenantId);
   if (!tenant) return null;
+  const businessType = (tenant.business_type as string) || 'manufacturer';
   const users = (
     await pool.query(`SELECT id, email, name, role, created_at FROM users WHERE tenant_id=$1 ORDER BY created_at`, [
       tenantId,
@@ -91,13 +97,16 @@ async function getSeatsPayload(tenantId: string) {
   const slots = (
     await pool.query(`SELECT * FROM service_cloud_device_slots WHERE tenant_id=$1 ORDER BY created_at`, [tenantId])
   ).rows as Record<string, unknown>[];
-  const session = (
-    await pool.query(`SELECT * FROM service_cloud_sessions WHERE tenant_id=$1 AND expires_at > NOW()`, [tenantId])
-  ).rows[0] as Record<string, unknown> | undefined;
+  const session = usesCompanySessionLock(tenant)
+    ? ((await pool.query(`SELECT * FROM service_cloud_sessions WHERE tenant_id=$1 AND expires_at > NOW()`, [tenantId]))
+        .rows[0] as Record<string, unknown> | undefined)
+    : undefined;
 
   return {
     clientAccessMode: (tenant.client_access_mode as string) || null,
-    businessType: 'service',
+    businessType,
+    companySessionLock: usesCompanySessionLock(tenant),
+    mobileFeatures: normalizeMobileFeatures(tenant.mobile_features, businessType),
     activeSession: session
       ? {
           userId: session.user_id,
@@ -129,7 +138,7 @@ async function getSeatsPayload(tenantId: string) {
 router.get('/api/super-admin/tenants/:id/service-cloud', superAdminMiddleware, async (req, res) => {
   try {
     const payload = await getSeatsPayload(req.params.id);
-    if (!payload) return res.status(404).json({ error: 'Service tenant not found' });
+    if (!payload) return res.status(404).json({ error: 'Tenant not found' });
     res.json(payload);
   } catch (err) {
     return handleApiError(req, res, err);
@@ -138,15 +147,32 @@ router.get('/api/super-admin/tenants/:id/service-cloud', superAdminMiddleware, a
 
 router.put('/api/super-admin/tenants/:id/service-cloud/access-mode', superAdminMiddleware, async (req, res) => {
   try {
-    const tenant = await assertServiceTenant(req.params.id);
-    if (!tenant) return res.status(404).json({ error: 'Service tenant not found' });
+    const tenant = await assertCloudTenant(req.params.id);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
     const mode = String(req.body?.clientAccessMode || '');
     if (!MODES.has(mode)) {
       return res.status(400).json({ error: 'clientAccessMode must be mobile, desktop, or both' });
     }
     await pool.query(`UPDATE tenants SET client_access_mode=$1 WHERE id=$2`, [mode, req.params.id]);
-    logger.info('SA set service cloud access mode', { tenantId: req.params.id, mode });
+    logger.info('SA set cloud access mode', { tenantId: req.params.id, mode });
     res.json({ ok: true, clientAccessMode: mode });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.put('/api/super-admin/tenants/:id/service-cloud/mobile-features', superAdminMiddleware, async (req, res) => {
+  try {
+    const tenant = await assertCloudTenant(req.params.id);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    const businessType = (tenant.business_type as string) || 'manufacturer';
+    const features = normalizeMobileFeatures(req.body?.mobileFeatures ?? req.body, businessType);
+    await pool.query(`UPDATE tenants SET mobile_features=$1::jsonb WHERE id=$2`, [
+      JSON.stringify(features),
+      req.params.id,
+    ]);
+    logger.info('SA set mobile features', { tenantId: req.params.id, features });
+    res.json({ ok: true, mobileFeatures: features });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -156,8 +182,8 @@ router.put('/api/super-admin/tenants/:id/service-cloud/access-mode', superAdminM
 router.post('/api/super-admin/tenants/:id/service-cloud/users', superAdminMiddleware, async (req, res) => {
   try {
     const tenantId = req.params.id;
-    const tenant = await assertServiceTenant(tenantId);
-    if (!tenant) return res.status(404).json({ error: 'Service tenant not found' });
+    const tenant = await assertCloudTenant(tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
     const {
       name,
@@ -205,8 +231,8 @@ router.post('/api/super-admin/tenants/:id/service-cloud/users', superAdminMiddle
 router.put('/api/super-admin/tenants/:id/service-cloud/users/:userId', superAdminMiddleware, async (req, res) => {
   try {
     const { id: tenantId, userId } = req.params;
-    const tenant = await assertServiceTenant(tenantId);
-    if (!tenant) return res.status(404).json({ error: 'Service tenant not found' });
+    const tenant = await assertCloudTenant(tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
     const user = (await pool.query(`SELECT id FROM users WHERE id=$1 AND tenant_id=$2`, [userId, tenantId])).rows[0];
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -260,8 +286,8 @@ router.post(
   async (req, res) => {
     try {
       const { id: tenantId, slotId } = req.params;
-      if (!(await assertServiceTenant(tenantId))) {
-        return res.status(404).json({ error: 'Service tenant not found' });
+      if (!(await assertCloudTenant(tenantId))) {
+        return res.status(404).json({ error: 'Tenant not found' });
       }
       const updated = await pool.query(
         `UPDATE service_cloud_device_slots
@@ -313,8 +339,8 @@ router.post('/api/service-cloud/claim-device', authMiddleware, publicLimiter, as
   try {
     const user = (req as { user?: { userId?: string; tenantId?: string; name?: string } }).user;
     if (!user?.userId || !user.tenantId) return res.status(401).json({ error: 'Unauthorized' });
-    const tenant = await assertServiceTenant(user.tenantId);
-    if (!tenant) return res.status(403).json({ error: 'Service cloud seats only for service tenants' });
+    const tenant = await assertCloudTenant(user.tenantId);
+    if (!tenant) return res.status(403).json({ error: 'Tenant not found' });
 
     const { machineId, label } = req.body as { machineId?: string; label?: string };
     if (!machineId || !/^[a-f0-9]{32}$/i.test(machineId)) {
@@ -377,15 +403,13 @@ router.post('/api/service-cloud/session/acquire', authMiddleware, publicLimiter,
   try {
     const user = (req as { user?: { userId?: string; tenantId?: string; name?: string } }).user;
     if (!user?.userId || !user.tenantId) return res.status(401).json({ error: 'Unauthorized' });
-    const tenant = await assertServiceTenant(user.tenantId);
-    if (!tenant) return res.status(403).json({ error: 'Not a service tenant' });
+    const tenant = await assertCloudTenant(user.tenantId);
+    if (!tenant) return res.status(403).json({ error: 'Tenant not found' });
 
     const { machineId } = req.body as { machineId?: string };
     if (!machineId) return res.status(400).json({ error: 'machineId required' });
     const client = clientKind(req);
     if (client === 'web') {
-      // Web not in seat model — allow for SA testing? Plan said not browser-first.
-      // Block web from session lock product for v1.
       return res.status(403).json({ error: 'Use the mobile or desktop app for this tenant' });
     }
     const mode = (tenant.client_access_mode as string) || null;
@@ -402,7 +426,14 @@ router.post('/api/service-cloud/session/acquire', authMiddleware, publicLimiter,
     ).rows[0];
     if (!slot) return res.status(403).json({ error: 'Device not claimed — call claim-device first' });
 
-    // Expire stale, then claim lock atomically: only upsert when free or same machine.
+    await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1`, [slot.id]);
+
+    // Non-service: multi-user ERP — no company-wide session freeze
+    if (!usesCompanySessionLock(tenant)) {
+      return res.json({ ok: true, busy: false, companySessionLock: false, expiresAt: null });
+    }
+
+    // Service: expire stale, then claim company lock atomically (same machine renews).
     await pool.query(`DELETE FROM service_cloud_sessions WHERE tenant_id=$1 AND expires_at <= NOW()`, [user.tenantId]);
 
     const expires = new Date(Date.now() + IDLE_MS);
@@ -427,6 +458,7 @@ router.post('/api/service-cloud/session/acquire', authMiddleware, publicLimiter,
       return res.status(409).json({
         ok: false,
         busy: true,
+        companySessionLock: true,
         holder: current
           ? {
               userId: current.user_id,
@@ -438,8 +470,12 @@ router.post('/api/service-cloud/session/acquire', authMiddleware, publicLimiter,
       });
     }
 
-    await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1`, [slot.id]);
-    res.json({ ok: true, busy: false, expiresAt: claimed.rows[0].expires_at });
+    res.json({
+      ok: true,
+      busy: false,
+      companySessionLock: true,
+      expiresAt: claimed.rows[0].expires_at,
+    });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -452,17 +488,35 @@ router.post('/api/service-cloud/session/heartbeat', authMiddleware, publicLimite
     const { machineId } = req.body as { machineId?: string };
     if (!machineId) return res.status(400).json({ error: 'machineId required' });
 
+    const tenant = await assertCloudTenant(user.tenantId);
+    if (!tenant) return res.status(403).json({ error: 'Tenant not found' });
+
+    // Non-service: no company session to heartbeat
+    if (!usesCompanySessionLock(tenant)) {
+      const slot = (
+        await pool.query(
+          `SELECT id FROM service_cloud_device_slots
+           WHERE tenant_id=$1 AND user_id=$2 AND machine_id=$3`,
+          [user.tenantId, user.userId, machineId],
+        )
+      ).rows[0];
+      if (!slot) return res.status(403).json({ error: 'Device not claimed' });
+      await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1`, [slot.id]);
+      return res.json({ ok: true, busy: false, companySessionLock: false, expiresAt: null });
+    }
+
     await pool.query(`DELETE FROM service_cloud_sessions WHERE tenant_id=$1 AND expires_at <= NOW()`, [user.tenantId]);
     const current = (await pool.query(`SELECT * FROM service_cloud_sessions WHERE tenant_id=$1`, [user.tenantId]))
       .rows[0] as Record<string, unknown> | undefined;
 
     if (!current) {
-      return res.status(409).json({ ok: false, busy: false, needAcquire: true });
+      return res.status(409).json({ ok: false, busy: false, needAcquire: true, companySessionLock: true });
     }
     if (current.machine_id !== machineId || current.user_id !== user.userId) {
       return res.status(409).json({
         ok: false,
         busy: true,
+        companySessionLock: true,
         holder: {
           userId: current.user_id,
           userName: current.user_name,
@@ -477,7 +531,7 @@ router.post('/api/service-cloud/session/heartbeat', authMiddleware, publicLimite
        WHERE tenant_id=$2 AND user_id=$3 AND machine_id=$4`,
       [expires.toISOString(), user.tenantId, user.userId, machineId],
     );
-    res.json({ ok: true, busy: false, expiresAt: expires.toISOString() });
+    res.json({ ok: true, busy: false, companySessionLock: true, expiresAt: expires.toISOString() });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -509,14 +563,20 @@ router.get('/api/service-cloud/session/status', authMiddleware, publicLimiter, a
   try {
     const user = (req as { user?: { tenantId?: string } }).user;
     if (!user?.tenantId) return res.status(401).json({ error: 'Unauthorized' });
-    const tenant = await assertServiceTenant(user.tenantId);
+    const tenant = await assertCloudTenant(user.tenantId);
     if (!tenant) return res.json({ applicable: false });
-    await pool.query(`DELETE FROM service_cloud_sessions WHERE expires_at <= NOW()`);
-    const current = (await pool.query(`SELECT * FROM service_cloud_sessions WHERE tenant_id=$1`, [user.tenantId]))
-      .rows[0] as Record<string, unknown> | undefined;
+    const companyLock = usesCompanySessionLock(tenant);
+    let current: Record<string, unknown> | undefined;
+    if (companyLock) {
+      await pool.query(`DELETE FROM service_cloud_sessions WHERE expires_at <= NOW()`);
+      current = (await pool.query(`SELECT * FROM service_cloud_sessions WHERE tenant_id=$1`, [user.tenantId]))
+        .rows[0] as Record<string, unknown> | undefined;
+    }
     res.json({
       applicable: true,
       clientAccessMode: tenant.client_access_mode || null,
+      companySessionLock: companyLock,
+      businessType: (tenant.business_type as string) || 'manufacturer',
       busy: Boolean(current),
       holder: current
         ? {

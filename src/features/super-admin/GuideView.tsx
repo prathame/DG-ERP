@@ -143,7 +143,7 @@ export function GuideView() {
           <Step n={1} title="Create the tenant">
             <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
               <p>
-                Super Admin → <strong>Tenants</strong> → Create Tenant
+                Super Admin → <strong>Cloud</strong> → Create Tenant
               </p>
               <p>Fill: Company name, Admin email, Phone, Plan, Business type</p>
               <p>
@@ -180,7 +180,7 @@ export function GuideView() {
           <Step n={4} title="Configure for their business">
             <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
               <p>
-                Tenants → Click tenant → <strong>Tab Customization</strong>
+                Cloud → Click tenant → <strong>Tab Customization</strong>
               </p>
               <p>• Rename tabs (e.g. "Distribution" → "Sales")</p>
               <p>• Toggle features on/off (Warranty, Rewards, etc.)</p>
@@ -302,7 +302,7 @@ export function GuideView() {
           <Step n={1} title="Issue a Service Mobile key">
             <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
               <p>
-                Super Admin → Tenants → <strong>Service Mobile</strong> → Issue license
+                Super Admin → <strong>Offline Mobile</strong> → Issue license
               </p>
               <p>• Company name · optional admin email · optional expiry</p>
               <p>
@@ -354,21 +354,22 @@ export function GuideView() {
       </Section>
 
       {/* Service cloud seats (online) */}
-      <Section title="Onboard Service Cloud Seats (online)" icon={Users} color="bg-sky-600">
+      <Section title="Onboard Cloud App Seats (online)" icon={Users} color="bg-sky-600">
         <p className="text-sm text-gray-600">
-          Online-only seats on the same cloud tenant for <strong>service</strong> businesses. Capacitor phone and/or
-          Cloud Electron desktop. One live session company-wide; idle releases after 5 minutes. Separate from offline
-          Service Mobile (DG-SM).
+          Online Cap + cloud desktop seats for any cloud business type. Same phone APK (Online + company slug).{' '}
+          <strong>Service</strong> keeps one live session company-wide; other types are multi-user. Separate from
+          Offline Mobile (DG-SM).
         </p>
 
         <div className="space-y-4">
           <Step n={1} title="Open the cloud service tenant">
             <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5 text-gray-700">
               <p>
-                Super Admin → Tenants → open a <strong>service</strong> cloud tenant
+                Super Admin → <strong>Cloud</strong> → open tenant → <strong>Cloud app seats</strong>
               </p>
               <p>
-                Use the <strong>Service cloud seats</strong> panel (not Service Mobile licenses)
+                Cap Online for any business type (Need mobile + seats). Service keeps company session lock; others are
+                multi-user. Not Offline Mobile licenses
               </p>
             </div>
           </Step>
@@ -382,7 +383,7 @@ export function GuideView() {
                 Per user card: credentials, <strong>Mobile</strong> + <strong>Laptop/Desktop</strong> slots, Share reset
                 link, Notify (that user only), Unbind
               </p>
-              <p>One live session company-wide — not one session per user</p>
+              <p>Service only: one live session company-wide. Other types: multi-user (no company freeze).</p>
             </div>
           </Step>
 

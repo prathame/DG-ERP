@@ -40,10 +40,12 @@ import { getAccountsTabVisiblePref } from './platforms/service-mobile/tabPrefs';
 import {
   ServiceCloudGate,
   ServiceCloudLiveBadge,
+  isServiceCloudClient,
   isServiceCloudDesktop,
   isServiceCloudMobile,
   isServicePhoneUx,
 } from './platforms/service-cloud';
+import { mobileFeatureAllowsTab, normalizeMobileFeatures } from '../shared/mobileFeatures';
 import {
   getPhoneMode,
   hydratePhoneMode,
@@ -221,7 +223,24 @@ function CompanySlugEntry() {
     void (async () => {
       try {
         // Preflight against cloud API so Online Cap failures stay on this screen (logged)
-        await api.tenantBySlug(checked.slug);
+        const tenant = await api.tenantBySlug(checked.slug);
+        // Cap Online: reject desktop-only companies early
+        if (
+          isServiceCloudMobile() &&
+          tenant.clientAccessMode &&
+          tenant.clientAccessMode !== 'mobile' &&
+          tenant.clientAccessMode !== 'both'
+        ) {
+          const ui = 'This company has desktop-only access. Use the desktop app, or ask Super Admin to enable mobile.';
+          void reportSlugOnboardingFailure({
+            action: 'slug.entry',
+            kind: 'unknown',
+            reason: ui,
+            ...slugEntryApiContext(checked.slug),
+          });
+          setSlugError(ui);
+          return;
+        }
         window.location.href = `/${checked.slug}`;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -803,7 +822,15 @@ export default function App() {
       setActiveTabRaw(fallback);
     }
   }, [activeTab, user]);
-  const visibleNavItems = navItems.filter(item => canAccess(item.id));
+  const companionFeatures =
+    isServiceCloudMobile() && (userConfig?.businessType as string) !== 'service'
+      ? normalizeMobileFeatures(userConfig?.mobileFeatures, userConfig?.businessType as string | undefined)
+      : null;
+  const visibleNavItems = navItems.filter(item => {
+    if (!canAccess(item.id)) return false;
+    if (companionFeatures && !mobileFeatureAllowsTab(item.id, companionFeatures)) return false;
+    return true;
+  });
 
   // C9 fix: all hooks must come before any conditional return.
   // Moved slug/branding state and effects up here, before the /privacy & /terms early returns.
@@ -1133,7 +1160,13 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <ServiceCloudGate enabled={(userConfig?.businessType as string) === 'service'}>
+      <ServiceCloudGate
+        enabled={
+          // Service: Netflix company lock on Cap + Electron cloud
+          // Non-service Cap Online: device claim + offline freeze (no company lock)
+          ((userConfig?.businessType as string) === 'service' && isServiceCloudClient()) || isServiceCloudMobile()
+        }
+      >
         {appShutter && (
           <Suspense fallback={null}>
             <AppShutterIntro companyName={appShutter} onDone={() => setAppShutter(null)} />

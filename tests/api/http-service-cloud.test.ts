@@ -282,18 +282,73 @@ describe('HTTP: service-cloud seats', () => {
       .send({ clientAccessMode: 'both' });
   });
 
-  it('rejects manufacturer tenants', async () => {
+  it('allows manufacturer seats without company session lock', async () => {
     const mid = 'T-SC-MFG';
+    const uid = 'U-SC-MFG';
+    const m1 = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+    const m2 = 'ffffffffffffffffffffffffffffffff';
     await cleanupTestData(mid);
+    const hash = bcrypt.hashSync('password12', 4);
     await pool.query(
-      `INSERT INTO tenants (id, company_name, slug, status, business_type, admin_email, admin_name)
-       VALUES ($1, 'Mfg', 'mfg-sc', 'active', 'manufacturer', 'm@t.com', 'M')`,
+      `INSERT INTO tenants (id, company_name, slug, status, business_type, admin_email, admin_name, client_access_mode)
+       VALUES ($1, 'Mfg', 'mfg-sc', 'active', 'manufacturer', 'm@t.com', 'M', 'both')`,
       [mid],
     );
-    const res = await api()
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
+       VALUES ($1,$2,'m@t.com',$3,'M','Admin')
+       ON CONFLICT (id, tenant_id) DO NOTHING`,
+      [uid, mid, hash],
+    );
+    const seats = await api()
       .get(`/api/super-admin/tenants/${mid}/service-cloud`)
       .set({ Authorization: `Bearer ${saToken()}` });
-    expect(res.status).toBe(404);
+    expect(seats.status).toBe(200);
+    expect(seats.body.businessType).toBe('manufacturer');
+    expect(seats.body.companySessionLock).toBe(false);
+
+    await api()
+      .put(`/api/super-admin/tenants/${mid}/service-cloud/users/${uid}`)
+      .set({ Authorization: `Bearer ${saToken()}` })
+      .send({ mobileSlots: 2, desktopSlots: 0 });
+
+    const tokenM = () =>
+      createTestToken({
+        userId: uid,
+        tenantId: mid,
+        email: 'm@t.com',
+        role: 'Admin',
+        name: 'M',
+      });
+
+    const claim1 = await api()
+      .post('/api/service-cloud/claim-device')
+      .set({ Authorization: `Bearer ${tokenM()}`, 'X-DG-Client': 'capacitor-cloud' })
+      .send({ machineId: m1 });
+    expect(claim1.status).toBe(200);
+
+    // Second device / second acquire must not get company busy (multi-user)
+    const claim2 = await api()
+      .post('/api/service-cloud/claim-device')
+      .set({ Authorization: `Bearer ${tokenM()}`, 'X-DG-Client': 'capacitor-cloud' })
+      .send({ machineId: m2 });
+    expect(claim2.status).toBe(200);
+
+    const acq1 = await api()
+      .post('/api/service-cloud/session/acquire')
+      .set({ Authorization: `Bearer ${tokenM()}`, 'X-DG-Client': 'capacitor-cloud' })
+      .send({ machineId: m1 });
+    expect(acq1.status).toBe(200);
+    expect(acq1.body.companySessionLock).toBe(false);
+    expect(acq1.body.busy).toBe(false);
+
+    const acq2 = await api()
+      .post('/api/service-cloud/session/acquire')
+      .set({ Authorization: `Bearer ${tokenM()}`, 'X-DG-Client': 'capacitor-cloud' })
+      .send({ machineId: m2 });
+    expect(acq2.status).toBe(200);
+    expect(acq2.body.busy).toBe(false);
+
     await cleanupTestData(mid);
   });
 });
