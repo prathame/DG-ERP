@@ -265,7 +265,12 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
 
     const row = (
       await pool.query(
-        'SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number, t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled, t.tab_config, t.business_type FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1 AND u.tenant_id = $2',
+        `SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.permissions, u.vendor_id,
+                u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number,
+                t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
+                t.tab_config, t.business_type, t.client_access_mode, t.mobile_features
+         FROM users u JOIN tenants t ON u.tenant_id = t.id
+         WHERE u.id = $1 AND u.tenant_id = $2`,
         [userId, tenantId],
       )
     ).rows[0] as Record<string, unknown> | undefined;
@@ -305,6 +310,19 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
       defaultGstRate: Number(row.default_gst_rate) || 18,
       gstNumber: row.gst_number ?? null,
       businessType: (row.business_type as string) || 'manufacturer',
+      clientAccessMode: (row.client_access_mode as string) || null,
+      mobileFeatures: normalizeMobileFeatures(
+        typeof row.mobile_features === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(row.mobile_features as string);
+              } catch {
+                return null;
+              }
+            })()
+          : row.mobile_features,
+        (row.business_type as string) || 'manufacturer',
+      ),
       vendorPortalEnabled: row.vendor_portal_enabled !== false,
       barcodeSystemEnabled: row.barcode_system_enabled !== false,
       multiLanguageEnabled: row.multi_language_enabled !== false,

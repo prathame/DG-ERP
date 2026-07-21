@@ -1301,10 +1301,17 @@ export default function App() {
                   <OnlineStatus collapsed={!isSidebarOpen} adapter={serviceMobile ? smOnlineAdapter : undefined} />
                 </div>
               )}
-              {/* Online Cap only — Live chip (no Sync); desktop Electron UI untouched */}
-              {isServiceCloudMobile() && (userConfig?.businessType as string) === 'service' && (
+              {/* Online Cap — Live + Refresh config (mobile_features / access mode); not data sync */}
+              {isServiceCloudMobile() && user && (
                 <div className="px-2.5 lg:px-3 pt-2">
-                  <ServiceCloudLiveBadge collapsed={!isSidebarOpen} />
+                  <ServiceCloudLiveBadge
+                    collapsed={!isSidebarOpen}
+                    userId={user.id}
+                    companySessionLock={(userConfig?.businessType as string) === 'service'}
+                    onConfigRefreshed={merged => {
+                      setUser(merged as typeof user);
+                    }}
+                  />
                 </div>
               )}
               {canAccess('settings') && (
