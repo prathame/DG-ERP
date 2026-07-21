@@ -333,19 +333,35 @@ router.get('/api/products/:id/barcodes', async (req: AuthRequest, res) => {
     const rows = jwtVendorId
       ? ((
           await pool.query(
-            'SELECT barcode, status FROM product_distribution WHERE product_id = $1 AND vendor_id = $2 AND tenant_id = $3 ORDER BY barcode',
+            `SELECT pd.barcode, pd.status,
+                    pi.gross_weight, pi.net_weight, pi.purity, pi.fine_weight, pi.huid, pi.making_amount, pi.metal_rate
+             FROM product_distribution pd
+             LEFT JOIN product_inventory pi ON pi.barcode = pd.barcode AND pi.tenant_id = pd.tenant_id
+             WHERE pd.product_id = $1 AND pd.vendor_id = $2 AND pd.tenant_id = $3
+             ORDER BY pd.barcode`,
             [id, jwtVendorId, tenantId],
           )
-        ).rows as { barcode: string; status: string }[])
+        ).rows as Record<string, unknown>[])
       : ((
           await pool.query(
-            'SELECT barcode, status FROM product_inventory WHERE product_id = $1 AND tenant_id = $2 ORDER BY barcode',
+            `SELECT barcode, status, gross_weight, net_weight, purity, fine_weight, huid, making_amount, metal_rate
+             FROM product_inventory WHERE product_id = $1 AND tenant_id = $2 ORDER BY barcode`,
             [id, tenantId],
           )
-        ).rows as { barcode: string; status: string }[]);
+        ).rows as Record<string, unknown>[]);
     res.json({
       product: { id: product.id, name: product.name, price: product.price },
-      barcodes: rows.map(r => ({ barcode: r.barcode, status: r.status })),
+      barcodes: rows.map(r => ({
+        barcode: r.barcode as string,
+        status: r.status as string,
+        grossWeight: r.gross_weight != null ? Number(r.gross_weight) : null,
+        netWeight: r.net_weight != null ? Number(r.net_weight) : null,
+        purity: r.purity != null ? Number(r.purity) : null,
+        fineWeight: r.fine_weight != null ? Number(r.fine_weight) : null,
+        huid: (r.huid as string) || null,
+        makingAmount: r.making_amount != null ? Number(r.making_amount) : null,
+        metalRate: r.metal_rate != null ? Number(r.metal_rate) : null,
+      })),
     });
   } catch (err) {
     return handleApiError(req, res, err);

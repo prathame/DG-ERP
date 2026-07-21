@@ -17,6 +17,8 @@ The goods spine of Dhandho: **inventory barcodes → distribution to vendors and
 | GET | `/api/sales` | List (tenant + vendor scoped) |
 | GET | `/api/sales/:id/bill` | Bill payload for print/share |
 
+**Silver Casting:** validate returns `metalPricing`, weights, and a suggested `price` (`net × metalRate + making`). Sale create auto-fills that price when omitted and **does not** create warranty or reward rows. See [Metal / Silver Casting API](/api/metal-silver-casting).
+
 **AuthZ notes:** Vendors see only their scope via `vendorScopeId` / asserts. Mutations need module `sales` = `full`.
 
 ## Distribution (`server/routes/distribution.ts`)

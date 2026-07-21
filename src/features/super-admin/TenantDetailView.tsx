@@ -33,6 +33,7 @@ import { cn, bizTypeLabel } from '../../lib/utils';
 import { LoadingSpinner, useToast } from '../../components/ui';
 import { session } from '../../lib/session';
 import { ServiceCloudSeatsPanel } from './ServiceCloudSeatsPanel';
+import { TAB_PRESETS, getTabPreset } from '../../../shared/tabPresets';
 interface TenantDetail {
   id: string;
   companyName: string;
@@ -1029,84 +1030,10 @@ export function TenantDetailView({ tenantId, onBack }: TenantDetailViewProps) {
   );
 }
 
-const TAB_PRESETS: Record<string, Record<string, { label: string; visible: boolean }>> = {
-  manufacturer: {
-    analytics: { label: 'Analytics', visible: true },
-    masters: { label: 'Masters', visible: true },
-    inventory: { label: 'Inventory', visible: true },
-    distribution: { label: 'Dispatch', visible: true },
-    sales: { label: 'Warranty Registration', visible: true },
-    purchases: { label: 'Purchases', visible: true },
-    verification: { label: 'Search / Verify', visible: true },
-    quotations: { label: 'Quotes & Orders', visible: true },
-    invoices: { label: 'Invoices', visible: true },
-    finance: { label: 'Vendor Payments', visible: true },
-    accounts: { label: 'Accounts', visible: true },
-    warranty: { label: 'Warranty', visible: true },
-    replacements: { label: 'Replacements', visible: true },
-    rewards: { label: 'Rewards', visible: true },
-    chatbot: { label: 'Chatbot', visible: true },
-    settings: { label: 'Settings', visible: true },
-  },
-  dealer: {
-    analytics: { label: 'Analytics', visible: true },
-    masters: { label: 'Masters', visible: true },
-    inventory: { label: 'Inventory', visible: true },
-    distribution: { label: 'Sales', visible: true },
-    sales: { label: 'Sales Entry', visible: false },
-    purchases: { label: 'Purchases', visible: true },
-    verification: { label: 'Search / Verify', visible: true },
-    quotations: { label: 'Quotes & Orders', visible: true },
-    invoices: { label: 'Invoices', visible: true },
-    finance: { label: 'Dealer Payments', visible: true },
-    accounts: { label: 'Accounts', visible: true },
-    warranty: { label: 'Warranty', visible: false },
-    replacements: { label: 'Replacements', visible: false },
-    rewards: { label: 'Rewards', visible: false },
-    chatbot: { label: 'Chatbot', visible: true },
-    settings: { label: 'Settings', visible: true },
-  },
-  retail: {
-    analytics: { label: 'Analytics', visible: true },
-    masters: { label: 'Masters', visible: true },
-    inventory: { label: 'Stock', visible: true },
-    distribution: { label: 'Purchase', visible: true },
-    sales: { label: 'Sales Entry', visible: false },
-    purchases: { label: 'Purchases', visible: true },
-    verification: { label: 'Search / Verify', visible: true },
-    quotations: { label: 'Quotes & Orders', visible: true },
-    invoices: { label: 'Invoices', visible: true },
-    finance: { label: 'Supplier Payments', visible: true },
-    accounts: { label: 'Accounts', visible: true },
-    warranty: { label: 'Warranty', visible: false },
-    replacements: { label: 'Replacements', visible: false },
-    rewards: { label: 'Rewards', visible: false },
-    chatbot: { label: 'Chatbot', visible: true },
-    settings: { label: 'Settings', visible: true },
-  },
-  service: {
-    analytics: { label: 'Analytics', visible: true },
-    masters: { label: 'Masters', visible: true },
-    inventory: { label: 'Inventory', visible: false },
-    distribution: { label: 'Distribution', visible: false },
-    sales: { label: 'Sales Entry', visible: false },
-    purchases: { label: 'Expenses', visible: true },
-    verification: { label: 'Search / Verify', visible: false },
-    quotations: { label: 'Quotes & Orders', visible: true },
-    invoices: { label: 'Invoices', visible: true },
-    finance: { label: 'Invoice Finance', visible: true },
-    accounts: { label: 'Accounts', visible: true },
-    warranty: { label: 'Warranty', visible: false },
-    replacements: { label: 'Replacements', visible: false },
-    rewards: { label: 'Rewards', visible: false },
-    chatbot: { label: 'Chatbot', visible: true },
-    settings: { label: 'Settings', visible: true },
-  },
-};
 const DEFAULT_TAB_CONFIG = TAB_PRESETS.manufacturer;
 
 function getDefaultTabConfig(businessType?: string): Record<string, { label: string; visible: boolean }> {
-  return TAB_PRESETS[businessType || 'manufacturer'] || TAB_PRESETS.manufacturer;
+  return getTabPreset(businessType);
 }
 
 const TAB_KEYS = [

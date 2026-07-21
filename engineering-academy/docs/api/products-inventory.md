@@ -21,6 +21,8 @@ description: Categories, products, barcodes, stock add, CSV batch — inventory 
 
 Barcode generation modes on create: prefix / auto / range (see route implementation).
 
+For **silver casting** weigh → piece barcode, see [Metal / Silver Casting API](/api/metal-silver-casting) (`POST /api/metal/intake`). `GET /api/products/:id/barcodes` may include metal fields (`netWeight`, `purity`, `fineWeight`, `huid`, …) when rows were created via intake.
+
 ## Invariants
 
 - `(tenant_id, barcode)` unique on `product_inventory`  

@@ -316,7 +316,7 @@ export function DistributionView({
   const canPrint = accessLevel === 'print' || accessLevel === 'full';
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
   const isVendorUser = !!vendorId;
-  const isDirectSell = businessType === 'dealer' || businessType === 'retail';
+  const isDirectSell = businessType === 'dealer' || businessType === 'retail' || businessType === 'silver_casting';
   const [distributions, setDistributions] = useState<DistributionRecord[]>([]);
   const [batches, setBatches] = useState<DistributionBatch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);

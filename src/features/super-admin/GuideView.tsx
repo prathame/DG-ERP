@@ -213,7 +213,7 @@ export function GuideView() {
                 • <strong>Company name</strong> — Shah Seeds Pvt Ltd
               </p>
               <p>
-                • <strong>Business type</strong> — manufacturer / dealer / retail / service
+                • <strong>Business type</strong> — manufacturer / dealer / retail / service / silver casting
               </p>
               <p>
                 • <strong>Admin email</strong> — optional, for password reset

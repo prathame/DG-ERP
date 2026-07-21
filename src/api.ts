@@ -376,7 +376,17 @@ export const api = {
     getBarcodes: (id: string) =>
       fetchApi<{
         product: { id: string; name: string; price: number };
-        barcodes: { barcode: string; status: string }[];
+        barcodes: {
+          barcode: string;
+          status: string;
+          grossWeight?: number | null;
+          netWeight?: number | null;
+          purity?: number | null;
+          fineWeight?: number | null;
+          huid?: string | null;
+          makingAmount?: number | null;
+          metalRate?: number | null;
+        }[];
       }>(`/products/${id}/barcodes`),
     verify: (barcode: string) => fetchApi<Record<string, unknown>>(`/products/verify/${encodeURIComponent(barcode)}`),
     create: (
@@ -407,6 +417,51 @@ export const api = {
     update: (id: string, data: Partial<import('./types').Product>) =>
       fetchApi<import('./types').Product>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => fetchApi<void>(`/products/${id}`, { method: 'DELETE' }),
+  },
+  metal: {
+    intake: (data: {
+      productId: string;
+      grossWeight?: number;
+      netWeight: number;
+      purity: number;
+      makingRate?: number;
+      makingAmount?: number;
+      huid?: string;
+      metalRate?: number;
+      barcodePrefix?: string;
+      barcode?: string;
+    }) =>
+      fetchApi<{
+        id: string;
+        productId: string;
+        productName: string;
+        barcode: string;
+        batchId: string;
+        status: string;
+        grossWeight: number;
+        netWeight: number;
+        purity: number;
+        fineWeight: number;
+        makingRate: number | null;
+        makingAmount: number;
+        huid: string | null;
+        metalRate: number | null;
+        suggestedPrice: number;
+      }>('/metal/intake', { method: 'POST', body: JSON.stringify(data) }),
+    fineLedger: (params?: { from?: string; to?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.from) q.set('from', params.from);
+      if (params?.to) q.set('to', params.to);
+      const query = q.toString();
+      return fetchApi<{
+        from: string | null;
+        to: string | null;
+        intake: { purity: number; pieces: number; netWeight: number; fineWeight: number }[];
+        sold: { purity: number; pieces: number; netWeight: number; fineWeight: number }[];
+        inStock: { purity: number; pieces: number; netWeight: number; fineWeight: number }[];
+        totals: { fineIn: number; fineOut: number; fineOnHand: number };
+      }>(`/metal/fine-ledger${query ? `?${query}` : ''}`);
+    },
   },
   warranties: {
     list: (params?: {

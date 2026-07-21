@@ -82,7 +82,7 @@ export function MastersView({
     return map[id] || '';
   };
   const isVendor = user?.role === 'Vendor' && user?.vendorId;
-  const isDirectSell = cfg.type === 'dealer' || cfg.type === 'retail';
+  const isDirectSell = cfg.type === 'dealer' || cfg.type === 'retail' || cfg.type === 'silver_casting';
   const tabConfig = (user?.tabConfig ?? {}) as Record<string, { label?: string; visible?: boolean }>;
   const tv = (key: string) => tabConfig[key]?.visible !== false;
   const hasCustomerTracking = tv('sales') && cfg.features.customerTracking;

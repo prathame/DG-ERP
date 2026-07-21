@@ -1,31 +1,34 @@
 import { session } from './session';
 
-export type BusinessType = 'manufacturer' | 'dealer' | 'retail' | 'service';
+export type BusinessType = 'manufacturer' | 'dealer' | 'retail' | 'service' | 'silver_casting';
 
 export interface BusinessConfig {
   type: BusinessType;
 
   // Labels
   labels: {
-    vendors: string;        // 'Vendors' | 'Customers' | 'Clients'
-    distribution: string;   // 'Dispatch' | 'Sales' | 'Purchase'
-    finance: string;        // 'Vendor Payments' | 'Dealer Payments' | 'Invoice Finance'
-    purchaseCost: string;   // 'Purchase Cost' | 'Material / Purchase Cost'
+    vendors: string; // 'Vendors' | 'Customers' | 'Clients' | 'Parties'
+    distribution: string; // 'Dispatch' | 'Sales' | 'Purchase'
+    finance: string; // 'Vendor Payments' | 'Dealer Payments' | 'Invoice Finance' | 'Party Payments'
+    purchaseCost: string; // 'Purchase Cost' | 'Material / Purchase Cost'
     distributionRevenue: string; // 'Distribution Revenue' | 'Sales Revenue'
   };
 
   // Feature flags — what this type uses
   features: {
     inventory: boolean;
-    distribution: boolean;    // product dispatch to vendors
+    distribution: boolean; // product dispatch to vendors
     barcodes: boolean;
     warranty: boolean;
     rewards: boolean;
     customerTracking: boolean; // separate customer master
     eWayBill: boolean;
     gstSplit: boolean;
-    vendorFinance: boolean;    // distribution-based payment tracking
-    invoiceFinance: boolean;   // invoice-based payment tracking
+    vendorFinance: boolean; // distribution-based payment tracking
+    invoiceFinance: boolean; // invoice-based payment tracking
+    metalInventory: boolean; // weight / purity / fine on pieces
+    weighScale: boolean; // scale capture on intake
+    jewelleryTags: boolean; // jewellery tag print fields
   };
 
   // Finance tab variant
@@ -42,7 +45,7 @@ export interface BusinessConfig {
 
   // Accounts reports to hide
   accounts: {
-    hideTabs: string[];  // tab keys to hide
+    hideTabs: string[]; // tab keys to hide
     distributionRegisterLabel: string;
   };
 }
@@ -58,9 +61,19 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       distributionRevenue: 'Distribution Revenue',
     },
     features: {
-      inventory: true, distribution: true, barcodes: true,
-      warranty: true, rewards: true, customerTracking: true,
-      eWayBill: true, gstSplit: true, vendorFinance: true, invoiceFinance: false,
+      inventory: true,
+      distribution: true,
+      barcodes: true,
+      warranty: true,
+      rewards: true,
+      customerTracking: true,
+      eWayBill: true,
+      gstSplit: true,
+      vendorFinance: true,
+      invoiceFinance: false,
+      metalInventory: false,
+      weighScale: false,
+      jewelleryTags: false,
     },
     financeView: 'vendor',
     analytics: {
@@ -86,9 +99,19 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       distributionRevenue: 'Sales Revenue',
     },
     features: {
-      inventory: true, distribution: true, barcodes: true,
-      warranty: false, rewards: false, customerTracking: false,
-      eWayBill: true, gstSplit: true, vendorFinance: true, invoiceFinance: false,
+      inventory: true,
+      distribution: true,
+      barcodes: true,
+      warranty: false,
+      rewards: false,
+      customerTracking: false,
+      eWayBill: true,
+      gstSplit: true,
+      vendorFinance: true,
+      invoiceFinance: false,
+      metalInventory: false,
+      weighScale: false,
+      jewelleryTags: false,
     },
     financeView: 'vendor',
     analytics: {
@@ -114,9 +137,19 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       distributionRevenue: 'Sales Revenue',
     },
     features: {
-      inventory: true, distribution: true, barcodes: true,
-      warranty: false, rewards: false, customerTracking: false,
-      eWayBill: false, gstSplit: true, vendorFinance: true, invoiceFinance: false,
+      inventory: true,
+      distribution: true,
+      barcodes: true,
+      warranty: false,
+      rewards: false,
+      customerTracking: false,
+      eWayBill: false,
+      gstSplit: true,
+      vendorFinance: true,
+      invoiceFinance: false,
+      metalInventory: false,
+      weighScale: false,
+      jewelleryTags: false,
     },
     financeView: 'vendor',
     analytics: {
@@ -142,9 +175,19 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
       distributionRevenue: 'Invoice Revenue',
     },
     features: {
-      inventory: false, distribution: false, barcodes: false,
-      warranty: false, rewards: false, customerTracking: true,
-      eWayBill: false, gstSplit: true, vendorFinance: false, invoiceFinance: true,
+      inventory: false,
+      distribution: false,
+      barcodes: false,
+      warranty: false,
+      rewards: false,
+      customerTracking: true,
+      eWayBill: false,
+      gstSplit: true,
+      vendorFinance: false,
+      invoiceFinance: true,
+      metalInventory: false,
+      weighScale: false,
+      jewelleryTags: false,
     },
     financeView: 'invoice',
     analytics: {
@@ -157,6 +200,44 @@ const CONFIGS: Record<BusinessType, BusinessConfig> = {
     accounts: {
       hideTabs: ['sales', 'distribution', 'stock'],
       distributionRegisterLabel: 'Distribution Register',
+    },
+  },
+
+  silver_casting: {
+    type: 'silver_casting',
+    labels: {
+      vendors: 'Parties',
+      distribution: 'Sales',
+      finance: 'Party Payments',
+      purchaseCost: 'Metal / Purchase Cost',
+      distributionRevenue: 'Sales Revenue',
+    },
+    features: {
+      inventory: true,
+      distribution: true,
+      barcodes: true,
+      warranty: false,
+      rewards: false,
+      customerTracking: true,
+      eWayBill: false,
+      gstSplit: true,
+      vendorFinance: true,
+      invoiceFinance: false,
+      metalInventory: true,
+      weighScale: true,
+      jewelleryTags: true,
+    },
+    financeView: 'vendor',
+    analytics: {
+      showDispatched: true,
+      outstandingLabel: 'Outstanding',
+      outstandingKey: 'outstanding',
+      collectionsLabel: 'Collected',
+      revenueLabel: 'Sales',
+    },
+    accounts: {
+      hideTabs: [],
+      distributionRegisterLabel: 'Sales Register',
     },
   },
 };

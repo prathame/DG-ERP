@@ -44,7 +44,7 @@ Several queries filter it out explicitly (`WHERE id != 'OWNER'` in vendor lists 
 | Table | Purpose | Notable columns |
 |---|---|---|
 | `products` | SKU master | `hsn_code`, `gst_rate`, `price`, `pack_size`, `pack_name`, `price_includes_gst`, `warranty_months`, `warranty_applicable` |
-| `product_inventory` | One row per **physical barcoded unit** | `barcode` (unique per tenant), `batch_id`, `status` (`InStock`/`Sold`), `unit_type` (`piece`/`box`) |
+| `product_inventory` | One row per **physical barcoded unit** | `barcode` (unique per tenant), `batch_id`, `status` (`InStock`/`Sold`), `unit_type` (`piece`/`box`); silver casting also uses `gross_weight`, `net_weight`, `purity`, `fine_weight`, `making_rate`, `making_amount`, `huid`, `metal_rate` |
 | `price_lists` | Vendor/quantity-slab pricing overrides (also used on standalone invoice catalog lines) | `min_qty`, `max_qty`, `vendor_id` nullable (null = general / all vendors), `is_active` |
 
 `products` is the catalog-level definition (name, default price, GST rate); `product_inventory` is one row *per barcode* — if you stock 500 units of a product, you have 500 `product_inventory` rows, not one row with a `quantity` counter. This is deliberate: barcodes are individually scannable and individually traceable through the [physical-goods chain](/database/schema-overview#the-physical-goods-table-chain), so counting stock is `COUNT(*) WHERE status = 'InStock'`, not reading a mutable counter that could drift from reality.

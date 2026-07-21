@@ -688,6 +688,16 @@ export async function initSchema() {
     // Track whether each barcode represents a box or a piece
     await client.query("ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS unit_type TEXT DEFAULT 'piece'");
 
+    // Silver casting / metal piece attributes (grams; purity as parts-per-thousand e.g. 925)
+    await client.query('ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS gross_weight NUMERIC(12,3)');
+    await client.query('ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS net_weight NUMERIC(12,3)');
+    await client.query('ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS purity NUMERIC(8,3)');
+    await client.query('ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS fine_weight NUMERIC(12,3)');
+    await client.query('ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS making_rate NUMERIC(12,2)');
+    await client.query('ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS making_amount NUMERIC(12,2)');
+    await client.query('ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS huid TEXT');
+    await client.query('ALTER TABLE product_inventory ADD COLUMN IF NOT EXISTS metal_rate NUMERIC(12,2)');
+
     // Dispatch tracking on distributions
     await client.query(
       "ALTER TABLE product_distribution ADD COLUMN IF NOT EXISTS dispatch_status TEXT DEFAULT 'pending'",

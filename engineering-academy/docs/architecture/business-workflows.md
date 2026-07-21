@@ -1,12 +1,12 @@
 ---
 sidebar_label: Business Workflows
 title: Business Workflows — Following the Data
-description: End-to-end workflows traced through the actual code — purchase/sale/quote/IRN for goods, plus party-linked service invoices and price-list resolve.
+description: End-to-end workflows traced through the actual code — purchase/sale/quote/IRN for goods, silver-casting metal intake, plus party-linked service invoices and price-list resolve.
 ---
 
 # Business Workflows
 
-Architecture diagrams tell you the shape of the system. This page tells you what actually happens, table by table and endpoint by endpoint, for the workflows that matter most. Workflows 1–4 are the physical-goods path (Manufacturer/Dealer/Retail). Workflows 5–6 cover **standalone invoices / Invoice Finance** and **price lists** (service tenants and any type that uses those tabs).
+Architecture diagrams tell you the shape of the system. This page tells you what actually happens, table by table and endpoint by endpoint, for the workflows that matter most. Workflows 1–4 are the physical-goods path (Manufacturer/Dealer/Retail). Workflow 1b is **Silver Casting** weigh → barcode. Workflows 5–6 cover **standalone invoices / Invoice Finance** and **price lists** (service tenants and any type that uses those tabs).
 
 :::info Ground truth
 Every step below is read from the actual route handlers, not inferred. Table and column names are exact.
@@ -37,6 +37,29 @@ sequenceDiagram
 :::tip Analogy
 Think of `product_purchases` as the **delivery receipt** and `product_inventory` as **individually tagging every box that came off the truck**. The receipt tells you what you paid and from whom; the tags are what actually gets scanned at every later step (distribution, sale, warranty, replacement).
 :::
+
+## Workflow 1b: Metal intake → jewellery tag (Silver Casting)
+
+Only when `tenants.business_type = 'silver_casting'`. Reuses the same `product_inventory` barcode spine; adds metal attributes on the piece row.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant UI as MetalIntakeModal
+    participant API as POST /api/metal/intake
+    participant PG as PostgreSQL
+
+    User->>UI: Weight from scale / wedge / manual + purity
+    UI->>API: productId, netWeight, purity, metalRate, makingRate
+    API->>API: Gate business_type + checkPlanLimit barcodes
+    API->>API: fine = net * purity / 1000
+    API->>PG: INSERT product_inventory ... weights, fine, huid, metal_rate
+    API-->>UI: barcode + suggestedPrice
+    UI->>User: Open jewellery tag print
+```
+
+- Sale validate/create then prices as `net × metalRate + making` and **skips** warranty/rewards inserts.
+- Fine reconciliation: `GET /api/metal/fine-ledger` (see [Metal API](/api/metal-silver-casting)).
 
 ## Workflow 2: Sale → automatic warranty creation
 

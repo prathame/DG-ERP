@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 DG ERP — Business Type E2E Test Suite
-Creates one tenant per type (manufacturer, dealer, retail, service),
+Creates one tenant per type (manufacturer, dealer, retail, service, silver_casting),
 runs type-specific tests, reports failures per type.
 
 Usage: python3 tests/e2e_by_type.py [--base http://localhost:3001]
@@ -544,6 +544,57 @@ def test_retail(tok, tid, ids):
     ok("Warranty API accessible (UI hidden)", req("GET","/api/warranties",headers=D)[0] == 200)
     ok("Rewards API accessible (UI hidden)", req("GET","/api/rewards/balance",headers=D)[0] == 200)
 
+# ── Silver Casting-specific tests ─────────────────────────────────────────────
+def test_silver_casting(tok, tid, ids, email=""):
+    D = h(tok, tid)
+    sec("Metal Intake")
+    if ids.get("product"):
+        s, piece = req("POST", "/api/metal/intake", {
+            "productId": ids["product"],
+            "grossWeight": 12.5,
+            "netWeight": 12.4,
+            "purity": 925,
+            "makingRate": 40,
+            "metalRate": 80,
+            "barcodePrefix": "AG",
+        }, D)
+        ok("Metal intake → 201", s in (200, 201), piece.get("error", ""))
+        ok("Barcode returned", bool(piece.get("barcode")), str(piece))
+        ok("Fine weight ~11.47", abs(float(piece.get("fineWeight", 0)) - 11.47) < 0.02, str(piece.get("fineWeight")))
+        bc = piece.get("barcode", "")
+        if bc:
+            s, v = req("GET", f"/api/sales/validate/{bc}", headers=D)
+            ok("Validate metal piece → valid", s == 200 and v.get("valid") is True, str(v))
+            ok("Metal pricing suggested", v.get("metalPricing") is True and float(v.get("price") or 0) > 0, str(v))
+            s, sale = req("POST", "/api/sales", {
+                "barcode": bc,
+                "customerName": "Silver Buyer",
+                "customerPhone": "9000000001",
+                "purchaseDate": "2026-07-15",
+            }, D)
+            ok("Counter sale metal piece → 201", s in (200, 201), sale.get("error", ""))
+            ok("Sale price set from weight×rate", float(sale.get("salePrice") or 0) > 0, str(sale.get("salePrice")))
+    else:
+        ok("Metal intake", False, "no product from scaffold")
+
+    sec("Fine Ledger")
+    s, led = req("GET", "/api/metal/fine-ledger", headers=D)
+    ok("Fine ledger → 200", s == 200, str(led)[:120] if isinstance(led, dict) else str(s))
+    if s == 200 and isinstance(led, dict):
+        ok("Fine ledger totals present", "totals" in led and "fineIn" in led.get("totals", {}))
+
+    sec("Tabs / warranties off")
+    if email:
+        s, login = req("POST", "/api/auth/login",
+                       {"email": email, "password": "Test@123"}, {"x-tenant-id": tid})
+        tc = login.get("tabConfig") or {}
+        ok("Login returns tabConfig", s == 200 and bool(tc), str(list(tc.keys())[:5]) if tc else str(s))
+        ok("Metal Stock inventory tab", (tc.get("inventory") or {}).get("label") == "Metal Stock",
+           str(tc.get("inventory")))
+        ok("Warranty tab hidden", (tc.get("warranty") or {}).get("visible") is False, str(tc.get("warranty")))
+    s, wars = req("GET", "/api/warranties", headers=D)
+    ok("Warranties list still reachable", s == 200)
+
 # ── Service-specific tests ────────────────────────────────────────────────────
 def test_service(tok, tid, ids):
     D = h(tok, tid)
@@ -1028,10 +1079,11 @@ if __name__ == "__main__":
 
     tenant_ids = {}
     TYPES = [
-        ("manufacturer", f"m{ts}",  f"admin@m{ts}.com"),
-        ("dealer",       f"d{ts}",  f"admin@d{ts}.com"),
-        ("retail",       f"r{ts}",  f"admin@r{ts}.com"),
-        ("service",      f"s{ts}",  f"admin@s{ts}.com"),
+        ("manufacturer",   f"m{ts}",  f"admin@m{ts}.com"),
+        ("dealer",         f"d{ts}",  f"admin@d{ts}.com"),
+        ("retail",         f"r{ts}",  f"admin@r{ts}.com"),
+        ("service",        f"s{ts}",  f"admin@s{ts}.com"),
+        ("silver_casting", f"ag{ts}", f"admin@ag{ts}.com"),
     ]
 
     print("\n⚙  Creating tenants...")
@@ -1071,6 +1123,7 @@ if __name__ == "__main__":
         elif btype == "dealer":     test_dealer(tok, tid, ids)
         elif btype == "retail":     test_retail(tok, tid, ids)
         elif btype == "service":    test_service(tok, tid, ids)
+        elif btype == "silver_casting": test_silver_casting(tok, tid, ids, email)
 
     # ── On-Prem API tests (super admin scope, no Electron needed)
     test_onprem(sa_h)
@@ -1084,7 +1137,7 @@ if __name__ == "__main__":
     print(f"{'═'*60}")
 
     grand_pass = grand_fail = 0
-    for btype in ["manufacturer","dealer","retail","service","on-prem","gst-api"]:
+    for btype in ["manufacturer","dealer","retail","service","silver_casting","on-prem","gst-api"]:
         r = RESULTS.get(btype, {"pass":[],"fail":[],"skip":[]})
         p,f,sk = len(r["pass"]),len(r["fail"]),len(r["skip"])
         grand_pass += p; grand_fail += f

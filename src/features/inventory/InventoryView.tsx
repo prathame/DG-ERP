@@ -11,6 +11,7 @@ import {
   Download,
   Upload,
   Printer,
+  Scale,
 } from 'lucide-react';
 import { cn, exportToCsv, formatDate, getTabLabel } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
@@ -24,12 +25,17 @@ import { session } from '../../lib/session';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { useColumnPicker, ColumnPickerButton } from '../../components/ui/ColumnPicker';
 import { useConfirm } from '../../hooks/useConfirm';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { MetalIntakeModal } from './MetalIntakeModal';
 
 export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const canEdit = accessLevel === 'full';
   const canPrint = accessLevel === 'print' || accessLevel === 'full';
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
+  const bizCfg = useBusinessConfig();
+  const metalMode = bizCfg.features.metalInventory;
+  const [metalIntakeOpen, setMetalIntakeOpen] = useState(false);
   const barcodeSystemEnabled = (() => {
     try {
       const u = session.getUser() || {};
@@ -235,6 +241,15 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
               className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"
             >
               <Upload size={18} /> Import CSV
+            </button>
+          )}
+          {canEdit && metalMode && (
+            <button
+              type="button"
+              onClick={() => setMetalIntakeOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-brand text-brand rounded-xl text-sm font-bold hover:bg-orange-50"
+            >
+              <Scale size={18} /> Metal Intake
             </button>
           )}
           {canEdit && (
@@ -1213,10 +1228,26 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           </div>
         )}
       </AnimatePresence>
+      {metalIntakeOpen && (
+        <MetalIntakeModal
+          products={products}
+          onClose={() => setMetalIntakeOpen(false)}
+          onCreated={result => {
+            setMetalIntakeOpen(false);
+            api.products
+              .list()
+              .then(setProducts)
+              .catch(() => undefined);
+            setLabelPrinterId(result.productId);
+            setLabelBarcodeRange({ first: result.barcode, last: result.barcode });
+          }}
+        />
+      )}
       {labelPrinterId && (
         <BarcodeLabelPrinter
           productId={labelPrinterId}
           barcodeRange={labelBarcodeRange}
+          jewelleryMode={metalMode}
           onClose={() => {
             setLabelPrinterId(null);
             setLabelBarcodeRange(undefined);

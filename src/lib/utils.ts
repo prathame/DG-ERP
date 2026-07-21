@@ -47,6 +47,7 @@ const BIZ_LABELS: Record<string, string> = {
   dealer: 'Dealer / Wholesaler',
   retail: 'Retail Shop',
   service: 'Service / Consulting',
+  silver_casting: 'Silver Casting',
 };
 
 /** Display label for a business type — custom shows "Custom (CompanyName)" */

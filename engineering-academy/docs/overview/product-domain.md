@@ -1,7 +1,7 @@
 ---
 sidebar_label: Product Domain
 title: Product Domain — Business Types & Modules
-description: The five business-type presets, the feature matrix behind them, and every module in Dhandho explained with its data model and purpose.
+description: The business-type presets (including Silver Casting), the feature matrix behind them, and every module in Dhandho explained with its data model and purpose.
 ---
 
 # Product Domain
@@ -9,15 +9,15 @@ description: The five business-type presets, the feature matrix behind them, and
 If [Business Goals](./business-goals.md) told you *why* Dhandho exists, this page tells you *what it actually does* — module by module, with the real tables and routes behind each one. Bookmark this page; it's the map you'll come back to when you're dropped into an unfamiliar feature folder.
 
 :::info Ground truth
-Everything below is read directly from `src/lib/businessTypeConfig.ts`, `server/routes/super-admin.ts` (`PRESETS`), and `server/pg-db.ts` (`initSchema`). If this page ever disagrees with the code, the code wins — file an update.
+Everything below is read directly from `src/lib/businessTypeConfig.ts`, `shared/tabPresets.ts`, and `server/pg-db.ts` (`initSchema`). If this page ever disagrees with the code, the code wins — file an update.
 :::
 
-## The five business types
+## The business types
 
 Every tenant is provisioned with exactly one `business_type` (column on `tenants`, default `'manufacturer'`). The type drives two independent things:
 
-1. **Tab visibility & labels** — `tenants.tab_config` (JSONB), set at creation time from the `PRESETS` map in `server/routes/super-admin.ts`, editable per-tenant afterwards by Super Admin.
-2. **Frontend copy & feature flags** — `src/lib/businessTypeConfig.ts` exports a `getBusinessConfig()` that reads `businessType` off the cached session user and returns labels like "Vendors" vs "Customers" vs "Clients."
+1. **Tab visibility & labels** — `tenants.tab_config` (JSONB), set at creation time from `shared/tabPresets.ts` (used by Super Admin cloud + on-prem), editable per-tenant afterwards by Super Admin.
+2. **Frontend copy & feature flags** — `src/lib/businessTypeConfig.ts` exports a `getBusinessConfig()` that reads `businessType` off the cached session user and returns labels like "Vendors" vs "Customers" vs "Clients" vs "Parties."
 
 ```mermaid
 flowchart TB
@@ -82,9 +82,26 @@ The odd one out — **no physical inventory at all**. `features.inventory = fals
 
 **Example customer**: a repair shop, an agency, a consultant — anyone billing for labor/service rather than shipping barcoded goods.
 
-### 5. Custom
+### 5. Silver Casting
 
-Not a `BusinessConfig` preset at all — it's the escape hatch. Super Admin builds a bespoke `tab_config` per tenant (`customPreset` in `server/routes/super-admin.ts`) and the tenant is displayed as **`Custom (CompanyName)`** via `bizTypeLabel(type, companyName)` in `src/lib/utils.ts`. Multiple Custom tenants each render their own company name — there is no single generic "Custom" label.
+Jewellery / silver casting vertical on the same piece-barcode spine. Products are designs; each physical piece is weighed, tagged with its own barcode, and sold at **rate × weight + making**.
+
+| Aspect | Value |
+|---|---|
+| Vendor label | "Parties" |
+| Inventory label | "Metal Stock" |
+| Distribution label | "Sales" |
+| Sales label | "Counter Sale" |
+| Finance label | "Party Payments" |
+| Feature flags | inventory ✅, barcodes ✅, metalInventory ✅, weighScale ✅, jewelleryTags ✅; warranty ❌, rewards ❌, eWayBill ❌ |
+
+**MVP flow**: Metal Intake (scale or manual) → `product_inventory` row with `gross_weight` / `net_weight` / `purity` / `fine_weight` → jewellery tag print → counter sale with suggested price → Fine Metal Ledger report.
+
+**Phase 2+ (not yet built):** casting/melting jobs, bullion, sauda / bhav-cut / havala, thermal ZPL printers.
+
+### 6. Custom
+
+Not a `BusinessConfig` preset at all — it's the escape hatch. Super Admin builds a bespoke `tab_config` per tenant (`CUSTOM_TAB_PRESET` in `shared/tabPresets.ts`) and the tenant is displayed as **`Custom (CompanyName)`** via `bizTypeLabel(type, companyName)` in `src/lib/utils.ts`. Multiple Custom tenants each render their own company name — there is no single generic "Custom" label. Frontend `BusinessConfig` falls back to **manufacturer** for Custom unless a named type is used.
 
 :::tip Analogy
 Business types are like **trim levels on a car** (Base / Sport / Luxury) built on one chassis (the Express + Postgres core). Custom is the "special order from the factory" — same chassis, but the options list was hand-picked rather than chosen from a catalog.
@@ -97,6 +114,7 @@ Every module below is a `src/features/<name>/` folder on the frontend and one or
 | Module | Feature folder | Route file(s) | Core tables | What it does |
 |---|---|---|---|---|
 | **Inventory** | `features/inventory` | `products.ts` | `products`, `product_inventory`, `categories` | Product master, auto-barcode generation, box/piece pack tracking, CSV import/export, HSN auto-suggest, per-product GST inclusive/exclusive |
+| **Metal Intake** | `features/inventory` (`MetalIntakeModal`) | `metal.ts` | `product_inventory` (+ weight/purity/fine columns) | Silver Casting only: weigh → piece barcode → jewellery tag; fine ledger at `GET /api/metal/fine-ledger` |
 | **Purchases** | `features/purchases` | `purchases.ts` | `suppliers`, `product_purchases`, `supplier_payments` | Supplier master, purchase batches that create barcoded stock, cost tracking, GSTR-2B invoice-number matching |
 | **Distribution** | `features/distribution` | `distribution.ts` | `product_distribution` | Dispatch stock to vendors, batch-level payment tracking, custom pricing, E-Invoice/E-Way Bill JSON, CSV import |
 | **Sales** | `features/sales` | `sales.ts` | `product_sales`, `warranties` | POS-style sale entry by barcode scan, auto-creates a `warranties` row from `product.warranty_months` |
