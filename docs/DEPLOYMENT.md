@@ -13,7 +13,7 @@ The web service runs on Render. **Postgres is external** — use Neon (or Supaba
    - `DATABASE_SSL=true`
    - `DATABASE_SSL_REJECT_UNAUTHORIZED=false` (Neon / most managed PaaS)
    - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` (≥12 chars)
-   - `ALLOWED_ORIGINS` — e.g. `https://dhandho.onrender.com` (add `https://dhandho.app` only after DNS is live; keep `https://dg-erp.onrender.com` until that service is retired)
+   - `ALLOWED_ORIGINS` — Blueprint defaults to `https://dhandho.onrender.com` (add `https://dhandho.app` only after DNS is live; keep `https://dg-erp.onrender.com` until that service is retired)
    - `PUBLIC_APP_URL=https://dhandho.onrender.com`
    - Optional: `LOGTAIL_TOKEN`, `SECRETS_ENCRYPTION_KEY`
 4. Remove any stale `DATABASE_URL` that still points at `dpg-…` (causes `ENOTFOUND` at boot).
