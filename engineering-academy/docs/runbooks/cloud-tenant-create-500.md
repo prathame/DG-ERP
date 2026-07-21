@@ -29,7 +29,7 @@ Self-serve `/api/auth/signup` is disabled (`410`); cloud companies are created o
 
 ## Manual recovery on Render (if old deploy)
 
-1. Open Render → service **dg-erp** → Logs; search `Tenant create failed` / `42501` / `row-level security` / `23503` / `tenants_plan_id_fkey`.
+1. Open Render → your live web service (`dhandho`, or legacy `dg-erp` until hostname cutover) → Logs; search `Tenant create failed` / `42501` / `row-level security` / `23503` / `tenants_plan_id_fkey`.
 2. Redeploy a build that includes SA `setTenantContext` + plans ensure (or restart so boot seed / `NO FORCE` cleanup runs).
 3. Confirm plans: Super Admin → Plans should list Trial / Basic / Standard / Professional.
 4. Retry Create Cloud Tenant with a unique admin email.
