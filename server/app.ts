@@ -217,7 +217,11 @@ export function createApp(): express.Application {
     }
     // Never reflect * — unlisted origins get no Allow-Origin header
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Tenant-ID, X-Correlation-ID');
+    // Cap / Electron send X-DG-Client — must be listed or WebView preflight fails with Failed to fetch
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, X-Tenant-ID, X-Correlation-ID, X-DG-Client',
+    );
     res.header('Access-Control-Allow-Credentials', 'true');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
