@@ -3,7 +3,10 @@
 
 services:
   - type: web
-    # Subdomain → https://dhandho.onrender.com (rename existing service in Render Dashboard if needed)
+    # Subdomain is fixed at create time → https://dhandho.onrender.com
+    # Render cannot rename *.onrender.com after create. Live service is still dg-erp.onrender.com;
+    # create a new Blueprint/service named `dhandho` (copy env from dg-erp), then retire dg-erp.
+    # See engineering-academy/docs/deployment/render.md → "Hostname cutover".
     name: dhandho
     # Launch: upgrade off free for production SLA (sleep on free).
     plan: free

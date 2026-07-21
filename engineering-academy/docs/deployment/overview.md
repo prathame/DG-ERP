@@ -35,31 +35,33 @@ flowchart TB
 ## 2. Cloud: `render.yaml`, annotated
 
 ```yaml
-databases:
-  - name: dg-erp-db
-    plan: free
-    databaseName: dg_erp
+# Postgres is external (Neon). Do not provision Render Postgres here.
 services:
   - type: web
-    name: dg-erp
+    name: dhandho   # → https://dhandho.onrender.com (fixed at create; not renamable)
+    plan: free
     buildCommand: npm ci --include=dev && npm run build:prod
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
-        fromDatabase: { name: dg-erp-db, property: connectionString }
+        sync: false   # paste Neon URI in Dashboard
       - key: JWT_SECRET
         generateValue: true
       - key: HUSKY
         value: "0"       # skip git hooks install on the build server
       - key: DATABASE_SSL
         value: "true"
+      - key: PUBLIC_APP_URL
+        value: https://dhandho.onrender.com
 ```
 
 Two details worth knowing cold:
 
 1. **`--include=dev` in the build command.** Because `NODE_ENV=production` during `npm ci` would otherwise omit dev dependencies — but Vite's build needs `@tailwindcss/vite`, `typescript`, and friends, which are (correctly) `devDependencies`. Without this flag, the production build would simply fail.
 2. **`healthCheckPath: /api/health`.** Render polls this to decide if a deploy is healthy before routing traffic to it and to detect a crashed process for auto-restart. The handler itself does a real `SELECT 1` against Postgres — a genuinely meaningful health check, not just "the process is alive."
+
+If production still answers on `dg-erp.onrender.com` while `dhandho.onrender.com` returns Render `no-server`, see [Hostname cutover](./render.md#hostname-cutover-dg-erp--dhandho) — the repo cannot create that hostname; you need a Dashboard service named `dhandho`.
 
 ## 3. Environment variables — the fail-fast gate
 

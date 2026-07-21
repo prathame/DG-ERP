@@ -119,7 +119,39 @@ fi
 
 - Push to `main` → Render's auto-deploy (assuming it's watching that branch) picks it up, runs the build filter, then the build/start commands.
 - Watch the Render dashboard's deploy logs for the `npm ci --include=dev` step specifically if a build fails right after a dependency change — it's the first thing to check.
-- After deploy, hit `https://dhandho.app/api/health` to confirm `{"ok":true,"db":"up"}` before considering the deploy verified.
+- After deploy, hit `https://dhandho.onrender.com/api/health` (or the service URL shown in the Dashboard) to confirm `{"ok":true,"db":"up"}`. Do not use `dhandho.app` until that DNS is live.
+
+## Hostname cutover (`dg-erp` → `dhandho`)
+
+**How Render hostnames work:** the web service **name** chosen at create time becomes `https://<name>.onrender.com`. That subdomain is **not** renamable later ([Render feedback](https://feedback.render.com/features/p/ability-to-change-onrendercom-sub-domain)) — changing the display name in the Dashboard does not move the URL. Code and `render.yaml` already target `dhandho`; ops must create a service whose name is literally `dhandho`.
+
+**Probe (expected before cutover):**
+
+| URL | Expected |
+|---|---|
+| `https://dg-erp.onrender.com/api/health` | `200` + `{"ok":true,"db":"up"}` (current live app) |
+| `https://dhandho.onrender.com/` | `404` with `x-render-routing: no-server` (no service with that name yet) |
+
+**Dashboard checklist (preferred path — new service, same Neon DB):**
+
+1. In Render → **Blueprint** (or **New → Web Service**), deploy from this repo with service **name** `dhandho` so the URL becomes `https://dhandho.onrender.com`. Do **not** expect renaming `dg-erp` to free that hostname.
+2. Copy Environment from the existing `dg-erp` service into `dhandho`:
+   - `DATABASE_URL` — same Neon URI (`…neon.tech…?sslmode=require`); do not point at a deleted `dpg-*` host
+   - `DATABASE_SSL=true`, `DATABASE_SSL_REJECT_UNAUTHORIZED=false`
+   - `JWT_SECRET` — **same value** as `dg-erp` if you want existing sessions/tokens to keep working across the cutover
+   - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`
+   - `ALLOWED_ORIGINS` — include `https://dhandho.onrender.com` (and keep `https://dg-erp.onrender.com` until you delete the old service; add `https://dhandho.app` only after DNS is live)
+   - `PUBLIC_APP_URL=https://dhandho.onrender.com`
+   - Optional: `LOGTAIL_TOKEN`, `SECRETS_ENCRYPTION_KEY`
+3. Confirm Build Command is `npm ci --include=dev && npm run build:prod` and health check path is `/api/health`.
+4. Wait for the first deploy to go live, then verify:
+   - `curl -sI https://dhandho.onrender.com/` → `200`
+   - `curl -s https://dhandho.onrender.com/api/health` → `{"ok":true,"db":"up",…}`
+5. Point humans and Cap/Electron builds at `https://dhandho.onrender.com` (repo defaults already do this).
+6. After `dhandho` is healthy for a day or two: suspend or delete the `dg-erp` service so you are not paying/sleeping two free web services. Client code remaps legacy `dg-erp.onrender.com` API origins to `dhandho.onrender.com` (`CLOUD_ORIGIN_FALLBACK` in `src/platforms/shared/apiBase.ts`).
+7. Later: attach custom domain `dhandho.app` on the `dhandho` service when DNS is ready; then switch `PUBLIC_APP_URL` / `ALLOWED_ORIGINS` to that host.
+
+**Do not** create an empty `dhandho` service without wiring the same Neon `DATABASE_URL` and secrets — that yields a blank or failing host while `dg-erp` still holds production data.
 
 ## Related pages
 
