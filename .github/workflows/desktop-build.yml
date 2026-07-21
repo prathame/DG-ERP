@@ -1,9 +1,9 @@
 # Unified Dhandho Desktop — one Mac + Windows installer.
 # First launch: Online (cloud) or Offline (on-prem) picker (one-time).
 #
-# Labels (merge → evergreen; label on open PR → preview):
-#   desktop → Mac + Windows
-#   windows / mac → that platform only (optional)
+# Labels (merge → evergreen; label on open PR → preview from *all* PR labels):
+#   desktop → Mac + Windows (wins over bare windows/mac when combined)
+#   windows alone → Windows only; mac alone → Mac only
 #
 # Comment preview (does NOT overwrite evergreen):
 #   desktop build | /desktop-build
@@ -229,6 +229,10 @@ jobs:
               return;
             }
 
+            // Label on open PR: preview from full PR label set (not just the
+            // newly added one). Stacking labels cancels prior runs; evaluating
+            // only the new label made the last label win (e.g. windows alone
+            // skipped Mac even when `desktop` was already present).
             if (event === 'pull_request' && context.payload.action === 'labeled') {
               const label = String(context.payload.label?.name || '').toLowerCase();
               const pr = context.payload.pull_request;
@@ -236,7 +240,9 @@ jobs:
                 set({ mac: false, win: false });
                 return;
               }
-              const { mac, win } = platformsFromLabels([label]);
+              const names = labelNames(pr);
+              if (label && !names.includes(label)) names.push(label);
+              const { mac, win } = platformsFromLabels(names);
               if (!mac && !win) {
                 set({ mac: false, win: false });
                 return;
