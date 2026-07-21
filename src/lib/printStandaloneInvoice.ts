@@ -7,6 +7,7 @@ import { isServicePhoneUx } from '../platforms/service-cloud/mode';
 import { session } from './session';
 import { loadFreshCapBillPdfCache } from './capBillPdfCache';
 import { isNativeCapacitor } from './dhandhoFiles';
+import { isElectronAppShell } from './mobileAppShell';
 import { buildStandaloneInvoicePdfBlob } from './standaloneInvoicePdf';
 import {
   closePrintOverlay,
@@ -326,8 +327,11 @@ async function shareCapInvoicePdfWithFallback(
  * Cap: prefer Save-baked PDF under Dhandho/invoices when fresh; else shared
  * `buildStandaloneInvoicePdfBlob` (billSettings template + invoice fields; no html2canvas)
  * with hard timeout → Dhandho/Cache file-only Share; on fail → text + toast.
- * Web: HTML → html2pdf file share / wa.me + download.
+ * Electron desktop: separate helper (jsPDF → download + wa.me) — never Cap Share / html2pdf.
+ * Web browser: HTML → html2pdf file share / wa.me + download.
  * Print path stays full Tax Invoice HTML + system Print.
+ *
+ * Branch order is intentional: Cap first (unchanged), then Electron-only, then web.
  */
 export async function shareStandaloneInvoiceWhatsApp(
   inv: PrintableStandaloneInvoice,
@@ -343,8 +347,16 @@ export async function shareStandaloneInvoiceWhatsApp(
     native: isNativeCapacitor(),
   };
 
+  // Cap / phone — unchanged path (Filesystem + Share / Cap timeout fallback).
   if (isNativeCapacitor()) {
     return shareCapInvoicePdfWithFallback(inv, message, options);
+  }
+
+  // Electron Cloud / Offline desktop only — dynamic import keeps Cap helpers untouched.
+  if (isElectronAppShell()) {
+    const { shareElectronInvoiceWhatsApp } = await import('./electronWhatsAppInvoiceShare');
+    const electronResult = await shareElectronInvoiceWhatsApp(inv, message, options);
+    if (electronResult) return electronResult;
   }
 
   waLog('info', 'WhatsApp invoice share start', { ...ctx, path: 'pdf' });
