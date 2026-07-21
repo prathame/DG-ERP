@@ -3,6 +3,7 @@ build/
 dist/
 dist-service-mobile/
 dist-service-cloud/
+dist-service-phone/
 dist-electron/
 dist-apk/
 .android-sdk/
@@ -13,10 +14,15 @@ ios/App/Pods/
 ios/DerivedData/
 coverage/
 data/
-.claude/
 .DS_Store
 *.log
 *.bak
+
+# IDE / AI agent (local only — never upload)
+.cursor/
+.claude/
+.vscode/
+.idea/
 
 # Compiled Electron + Server JS (generated — do not commit)
 electron/**/*.js
