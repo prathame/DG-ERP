@@ -31,7 +31,7 @@ describe('bug report', () => {
       note: 'Login failed after update',
       lastError: 'Invalid credentials',
     });
-    expect(text).toContain('Dhando bug report');
+    expect(text).toContain('Dhandho bug report');
     expect(text).toContain('Invalid credentials');
     expect(text).toContain('Login failed after update');
     expect(text).toContain('Recent client logs');

@@ -91,7 +91,7 @@ export function DownloadPage() {
           className="text-center mb-10 sm:mb-14"
         >
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-brand/30 bg-brand/10 text-brand text-xs font-bold mb-6">
-            <Download size={12} /> Download Dhando
+            <Download size={12} /> Download Dhandho
           </div>
           <h1 className="text-3xl sm:text-5xl font-bold mb-4 leading-tight">Get the App</h1>
           <p className="text-white/50 text-base sm:text-lg px-1">
@@ -115,7 +115,7 @@ export function DownloadPage() {
               <div className="px-4 sm:px-6 py-5 border-b border-white/10">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <Smartphone size={18} className="text-emerald-400 shrink-0" />
-                  <span className="font-bold text-base sm:text-lg">Dhando Service</span>
+                  <span className="font-bold text-base sm:text-lg">Dhandho Service</span>
                   <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
                     PHONE
                   </span>
