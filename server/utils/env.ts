@@ -3,6 +3,8 @@
  * Call before opening DB pools or listening.
  */
 
+import { isManagedPostgresHost } from './databaseUrl';
+
 const WEAK_DB_PASSWORD = /:(postgres|password|admin|root|123456|secret|changeme|pass)@/i;
 
 export function assertCriticalEnv(env: NodeJS.ProcessEnv = process.env): void {
@@ -36,10 +38,12 @@ export function assertCriticalEnv(env: NodeJS.ProcessEnv = process.env): void {
     if (env.DATABASE_SSL === 'false') {
       fatal('DATABASE_SSL=false is not allowed in production — TLS is required');
     }
-    // Managed hosts (Render/Neon) need rejectUnauthorized=false; still forbid it elsewhere.
-    const managedDb = env.RENDER === 'true' || /render\.com|neon\.tech/i.test(env.DATABASE_URL ?? '');
+    // Loosening TLS verify is only allowed for known managed hosts (Neon, Render PG, …)
+    const managedDb = isManagedPostgresHost(env.DATABASE_URL!);
     if (env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'false' && !managedDb) {
-      fatal('DATABASE_SSL_REJECT_UNAUTHORIZED=false is not allowed in production');
+      fatal(
+        'DATABASE_SSL_REJECT_UNAUTHORIZED=false is only allowed for managed Postgres hosts (Neon, Render, Supabase, …)',
+      );
     }
     if (!env.SUPER_ADMIN_EMAIL?.trim() || !env.SUPER_ADMIN_PASSWORD?.trim()) {
       fatal('SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD are required in production');

@@ -58,13 +58,13 @@ describe('assertCriticalEnv', () => {
     expect(exit).not.toHaveBeenCalled();
   });
 
-  it('allows rejectUnauthorized=false on Render managed Postgres', async () => {
+  it('allows rejectUnauthorized=false on Neon managed Postgres', async () => {
     const exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
     const { assertCriticalEnv } = await import('../../server/utils/env');
     assertCriticalEnv({
       NODE_ENV: 'production',
       RENDER: 'true',
-      DATABASE_URL: 'postgresql://u:StrongPass99@dpg-xxx.render.com/app',
+      DATABASE_URL: 'postgresql://u:StrongPass99@ep-x.us-east-2.aws.neon.tech/neondb?sslmode=require',
       JWT_SECRET: 'x'.repeat(32),
       ALLOWED_ORIGINS: 'https://dhandho.app',
       SUPER_ADMIN_EMAIL: 'a@b.com',
@@ -72,5 +72,21 @@ describe('assertCriticalEnv', () => {
       DATABASE_SSL_REJECT_UNAUTHORIZED: 'false',
     } as NodeJS.ProcessEnv);
     expect(exit).not.toHaveBeenCalled();
+  });
+
+  it('rejects rejectUnauthorized=false on non-managed hosts', async () => {
+    const exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { assertCriticalEnv } = await import('../../server/utils/env');
+    assertCriticalEnv({
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://u:StrongPass99@db.example.com/app',
+      JWT_SECRET: 'x'.repeat(32),
+      ALLOWED_ORIGINS: 'https://dhandho.app',
+      SUPER_ADMIN_EMAIL: 'a@b.com',
+      SUPER_ADMIN_PASSWORD: 'longpassword1',
+      DATABASE_SSL_REJECT_UNAUTHORIZED: 'false',
+    } as NodeJS.ProcessEnv);
+    expect(exit).toHaveBeenCalledWith(1);
   });
 });
