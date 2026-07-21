@@ -27,3 +27,14 @@ On create: **Need mobile app?** → `client_access_mode` `both` or `desktop`, pl
 ## Cap Online companion features
 
 Stored in `tenants.mobile_features` (`stock`, `sales`, `quotations`, `collections`, `reports`). Service phone UX stays Emergent IA; manufacturer/silver use this pack to hide tabs.
+
+## Refresh config (not data sync)
+
+Cloud Online already loads invoices/stock from the API when you open a screen — no timer sync.
+
+Cap Online sidebar has **Refresh config** (manual). It reloads from `GET /api/settings/profile`:
+
+- `mobileFeatures` / `clientAccessMode` (SA toggles, e.g. hide Quotations)
+- `tabConfig`, permissions, business type flags
+
+Use after Super Admin changes mobile features. Full **Settings** stays desktop; phone is companion only.

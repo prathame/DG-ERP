@@ -1284,6 +1284,20 @@ export const api = {
         vendorId?: string | null;
         gstNumber?: string | null;
         defaultGstRate?: number;
+        businessType?: string;
+        clientAccessMode?: string | null;
+        mobileFeatures?: {
+          stock: boolean;
+          sales: boolean;
+          quotations: boolean;
+          collections: boolean;
+          reports: boolean;
+        };
+        tabConfig?: Record<string, { label?: string; visible?: boolean }> | null;
+        vendorPortalEnabled?: boolean;
+        barcodeSystemEnabled?: boolean;
+        multiLanguageEnabled?: boolean;
+        inventoryTrackingEnabled?: boolean;
       }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),
     changePassword: (userId: string, currentPassword: string, newPassword: string) =>
       fetchApi<{ ok: boolean }>('/settings/change-password', {
