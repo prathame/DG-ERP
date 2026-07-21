@@ -8,6 +8,30 @@ import { isInterstateSupply, splitGstTax } from '../utils/gst-place';
 
 const router = Router();
 
+function invoiceFy(now = new Date()): string {
+  return now.getMonth() >= 3
+    ? `${now.getFullYear()}-${(now.getFullYear() + 1).toString().slice(2)}`
+    : `${now.getFullYear() - 1}-${now.getFullYear().toString().slice(2)}`;
+}
+
+/** Next INV/FY/#### under a tenant advisory lock (safe under concurrency). */
+async function allocateNextInvoiceNumber(client: { query: typeof pool.query }, tenantId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1 || ':standalone_invoice_seq'))`, [tenantId]);
+  const fy = invoiceFy();
+  const prefix = `INV/${fy}/`;
+  const { rows } = await client.query(
+    `SELECT invoice_number FROM standalone_invoices
+     WHERE tenant_id = $1 AND invoice_number LIKE $2
+     ORDER BY invoice_number DESC
+     LIMIT 1`,
+    [tenantId, `${prefix}%`],
+  );
+  const last = String(rows[0]?.invoice_number || '');
+  const m = last.match(/\/(\d+)$/);
+  const next = (m ? Number(m[1]) : 0) + 1;
+  return `${prefix}${String(next).padStart(4, '0')}`;
+}
+
 function mapStandaloneInvoice(r: Record<string, unknown>) {
   let items = r.items;
   if (typeof items === 'string') {
@@ -73,7 +97,7 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
   }
 });
 
-// Get next invoice number
+// Get next invoice number (preview — create still allocates under lock)
 router.get('/api/invoices/next-number', async (req: AuthRequest, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
@@ -81,14 +105,22 @@ router.get('/api/invoices/next-number', async (req: AuthRequest, res) => {
     if (vendorScopeId(req) || req.user?.role === 'Vendor') {
       return res.status(403).json({ error: 'Access denied.' });
     }
-    const { rows } = await pool.query('SELECT COUNT(*) as c FROM standalone_invoices WHERE tenant_id = $1', [tenantId]);
-    const count = Number(rows[0]?.c ?? 0) + 1;
-    const now = new Date();
-    const fy =
-      now.getMonth() >= 3
-        ? `${now.getFullYear()}-${(now.getFullYear() + 1).toString().slice(2)}`
-        : `${now.getFullYear() - 1}-${now.getFullYear().toString().slice(2)}`;
-    res.json({ number: `INV/${fy}/${String(count).padStart(4, '0')}` });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const number = await allocateNextInvoiceNumber(client, tenantId);
+      await client.query('ROLLBACK'); // preview only — do not consume the number
+      res.json({ number });
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -265,35 +297,63 @@ router.post('/api/invoices', blockVendors, async (req: AuthRequest, res) => {
     const { taxCgst, taxSgst, taxIgst } = splitGstTax(taxTotal, interstate);
 
     const id = uid('INV');
-    await pool.query(
-      `INSERT INTO standalone_invoices (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address, customer_phone, party_type, party_id, items, subtotal, tax_total, grand_total, notes, terms, status, invoice_date, due_date, tax_cgst, tax_sgst, tax_igst, is_interstate, gst_enabled)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
-      [
-        id,
-        tenantId,
-        invoiceNumber || `INV-${Date.now()}`,
-        customerName,
-        customerGstin || null,
-        customerAddress || null,
-        customerPhone || null,
-        resolvedPartyType,
-        resolvedPartyId,
-        JSON.stringify(lineItems),
-        subtotal,
-        taxTotal,
-        grandTotal,
-        notes || null,
-        terms || null,
-        createStatus,
-        invoiceDate || new Date().toISOString().slice(0, 10),
-        dueDate || null,
-        taxCgst,
-        taxSgst,
-        taxIgst,
-        interstate,
-        gstEnabled,
-      ],
-    );
+    const client = await pool.connect();
+    let finalNumber: string;
+    try {
+      await client.query('BEGIN');
+      finalNumber =
+        typeof invoiceNumber === 'string' && invoiceNumber.trim()
+          ? invoiceNumber.trim()
+          : await allocateNextInvoiceNumber(client, tenantId);
+      try {
+        await client.query(
+          `INSERT INTO standalone_invoices (id, tenant_id, invoice_number, customer_name, customer_gstin, customer_address, customer_phone, party_type, party_id, items, subtotal, tax_total, grand_total, notes, terms, status, invoice_date, due_date, tax_cgst, tax_sgst, tax_igst, is_interstate, gst_enabled)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+          [
+            id,
+            tenantId,
+            finalNumber,
+            customerName,
+            customerGstin || null,
+            customerAddress || null,
+            customerPhone || null,
+            resolvedPartyType,
+            resolvedPartyId,
+            JSON.stringify(lineItems),
+            subtotal,
+            taxTotal,
+            grandTotal,
+            notes || null,
+            terms || null,
+            createStatus,
+            invoiceDate || new Date().toISOString().slice(0, 10),
+            dueDate || null,
+            taxCgst,
+            taxSgst,
+            taxIgst,
+            interstate,
+            gstEnabled,
+          ],
+        );
+      } catch (insErr) {
+        const code = (insErr as { code?: string }).code;
+        if (code === '23505') {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'Invoice number already exists. Refresh and try again.' });
+        }
+        throw insErr;
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
     await logAudit(
       pool,
       tenantId,

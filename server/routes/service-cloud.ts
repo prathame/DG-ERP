@@ -387,12 +387,19 @@ router.post('/api/service-cloud/claim-device', authMiddleware, publicLimiter, as
         error: `No free ${kind} device slots for this user. Contact Super Admin.`,
       });
     }
-    await pool.query(
+    // Conditional update prevents two concurrent claims from binding the same free slot
+    const claimed = await pool.query(
       `UPDATE service_cloud_device_slots
        SET machine_id=$1, bound_at=NOW(), last_seen=NOW(), label=$2
-       WHERE id=$3`,
-      [machineId, label ? String(label).slice(0, 120) : null, free.id],
+       WHERE id=$3 AND tenant_id=$4 AND user_id=$5 AND machine_id IS NULL
+       RETURNING id`,
+      [machineId, label ? String(label).slice(0, 120) : null, free.id, user.tenantId, user.userId],
     );
+    if (!claimed.rows[0]) {
+      return res.status(409).json({
+        error: 'Device slot was claimed by another request. Retry or free a slot.',
+      });
+    }
     res.json({ ok: true, slotId: free.id, deviceKind: kind, alreadyBound: false });
   } catch (err) {
     return handleApiError(req, res, err);

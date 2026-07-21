@@ -1,21 +1,56 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import type { Server } from 'http';
 import { assertCriticalEnv } from './utils/env';
 assertCriticalEnv();
 
-import { initDatabase } from './pg-db';
+import { initDatabase, pool } from './pg-db';
 import { createApp } from './app';
 import { logger } from './utils/logger';
 
 const app = createApp();
 const PORT = process.env.PORT || 3001;
 
+let server: Server | undefined;
+let shuttingDown = false;
+
 function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   logger.info('Shutting down', { signal });
-  Promise.resolve(logger.flush())
-    .catch(() => undefined)
-    .finally(() => process.exit(0));
+
+  const forceTimer = setTimeout(() => {
+    logger.error('Graceful shutdown timed out — forcing exit');
+    process.exit(1);
+  }, 25_000);
+  forceTimer.unref?.();
+
+  const finish = async () => {
+    try {
+      await pool.end();
+    } catch {
+      /* pool may already be closed */
+    }
+    try {
+      await logger.flush();
+    } catch {
+      /* ignore flush errors on exit */
+    }
+    clearTimeout(forceTimer);
+    process.exit(0);
+  };
+
+  if (!server) {
+    void finish();
+    return;
+  }
+  server.close(err => {
+    if (err) {
+      logger.error('HTTP server close error', { error: err.message });
+    }
+    void finish();
+  });
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
@@ -38,7 +73,7 @@ process.on('uncaughtException', err => {
 
 initDatabase()
   .then(() => {
-    app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       const env = process.env.NODE_ENV || 'development';
       logger.info('API server started', {
         port: Number(PORT),

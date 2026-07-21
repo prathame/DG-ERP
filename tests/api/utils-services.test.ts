@@ -124,7 +124,7 @@ describe('utils/secret-crypto', () => {
     delete process.env.JWT_SECRET;
     vi.resetModules();
     const mod = await import('../../server/utils/secret-crypto');
-    expect(() => mod.encryptSecret('x')).toThrow(/JWT_SECRET required/);
+    expect(() => mod.encryptSecret('x')).toThrow(/JWT_SECRET or SECRETS_ENCRYPTION_KEY required/);
     process.env.JWT_SECRET = prev;
     vi.resetModules();
   });

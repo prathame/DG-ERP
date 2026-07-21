@@ -6,6 +6,7 @@ import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { checkPlanLimit } from '../utils/planLimits';
 import { clearUserSession } from '../utils/userSessions';
+import { invalidateAuthCache } from '../utils/authCache';
 
 const router = Router();
 
@@ -258,6 +259,8 @@ router.put('/api/admin/users/:id', async (req, res) => {
       `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIndex++} AND tenant_id = $${paramIndex}`,
       params,
     );
+    // Drop stale JWT role/permissions cache immediately on demotion / permission edits
+    invalidateAuthCache(id, tenantId);
 
     const row = (
       await pool.query(

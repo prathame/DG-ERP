@@ -1,4 +1,5 @@
 databases:
+  # Launch: upgrade off free before paid GST tenants (backups / PITR are plan-dependent).
   - name: dg-erp-db
     plan: free
     databaseName: dg_erp
@@ -7,6 +8,7 @@ databases:
 services:
   - type: web
     name: dg-erp
+    # Launch: upgrade off free for production SLA (sleep + limited resources on free).
     plan: free
     runtime: node
     # Do NOT run `npm test` here: tests must not hit the production DB (CI runs them).
