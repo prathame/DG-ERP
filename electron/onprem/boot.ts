@@ -29,7 +29,8 @@ let lastAppliedSettingsHash: string | null = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getIcon() {
-  return nativeImage.createFromPath(path.join(__dirname, '../../public/icons/icon-192.svg'));
+  // PNG required — Electron nativeImage often fails silently on SVG
+  return nativeImage.createFromPath(path.join(__dirname, '../../public/icons/icon-512.png'));
 }
 
 async function startExpressServer(dbUrl: string): Promise<void> {

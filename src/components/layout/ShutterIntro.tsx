@@ -120,7 +120,7 @@ function SplitFlapWord({ word, trigger }: { word: string; trigger: number }) {
   // trigger=1 is the initial English reveal — skip noise, just flip cleanly
   const instant = trigger === 1;
   return (
-    <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: '0.12em', alignItems: 'center' }}>
       {chars.map((char, i) =>
         char === ' ' ? (
           <div key={i} style={{ width: '0.35em' }} />
@@ -363,11 +363,12 @@ export function ShutterIntro({ onDone }: { onDone: () => void }) {
                 objectFit: 'contain',
                 borderRadius: '22%',
                 filter: 'drop-shadow(0 0 32px rgba(242,125,38,0.4))',
+                marginBottom: 'clamp(1.25rem, 3.5vw, 2.25rem)',
               }}
             />
 
             {/* Split-flap wordmark */}
-            <div style={{ fontSize: 'clamp(2.8rem, 10vw, 7rem)' }}>
+            <div style={{ fontSize: 'clamp(2.8rem, 10vw, 7rem)', marginTop: '0.15em' }}>
               <SplitFlapWord word={WORDS[wordLang]} trigger={flipTrigger} />
             </div>
 
