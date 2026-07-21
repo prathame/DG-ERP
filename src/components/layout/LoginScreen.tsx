@@ -66,7 +66,18 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => {
+    try {
+      const msg = sessionStorage.getItem('dg_session_replaced_msg');
+      if (msg) {
+        sessionStorage.removeItem('dg_session_replaced_msg');
+        return msg;
+      }
+    } catch {
+      /* ignore */
+    }
+    return '';
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const accentColor = tenant?.primaryColor || '#F27D26';

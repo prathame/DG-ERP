@@ -20,10 +20,13 @@ export function SuperAdminLogin({ onLogin }: { onLogin: (user: SuperAdminUser) =
     setError('');
     setSubmitting(true);
     try {
+      const { detectClientPlatform, getOrCreateDeviceId } = await import('../../lib/deviceId');
+      const deviceId = await getOrCreateDeviceId();
+      const platform = detectClientPlatform();
       const res = await fetch('/api/super-admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, password: form.password }),
+        body: JSON.stringify({ email: form.email, password: form.password, deviceId, platform }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

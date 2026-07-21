@@ -12,6 +12,8 @@ export type CachedAuthRow = {
   status: string;
   subscription_ends_at: string | null;
   trial_ends_at: string | null;
+  /** Current single-device session; null when none (legacy / test tokens). */
+  active_session_id: string | null;
 };
 
 const TTL_MS = 30_000;

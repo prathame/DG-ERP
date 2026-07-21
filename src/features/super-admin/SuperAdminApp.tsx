@@ -65,6 +65,14 @@ export function SuperAdminApp({ user, onLogout }: SuperAdminAppProps) {
   };
 
   const handleLogout = () => {
+    const token = session.getToken();
+    if (token) {
+      void fetch('/api/super-admin/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: '{}',
+      }).catch(() => {});
+    }
     session.removeToken();
     onLogout();
   };

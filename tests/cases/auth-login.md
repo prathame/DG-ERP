@@ -12,8 +12,9 @@ Covers branded and generic login flows, credential validation, rate limiting, ve
 | 6 | Rate limiting after failed attempts | Enter wrong password 5 times in a row | Account is temporarily locked; message "Too many attempts, try again later" |
 | 7 | Vendor login when Vendor Portal ON | Navigate to vendor login URL with Vendor Portal enabled | Vendor login page loads; vendor can log in with credentials |
 | 8 | Vendor login when Vendor Portal OFF | Navigate to vendor login URL with Vendor Portal disabled | Access denied or login page not found |
-| 9 | Session is scoped per tab | Log in as User A in Tab 1; log in as User B in Tab 2 | Each tab maintains its own session independently |
-| 10 | Logout clears session | Click Logout from user menu | Session token is removed; user is redirected to login page |
+| 9 | Single-device: second login kicks first | Log in as Raju on Desktop A; log in as Raju on Desktop/Mobile B | B works; A gets `SESSION_REPLACED` alert (“signed in on another device”) and returns to login within ~45s (or on next API call) |
+| 9b | Same user re-login on same machine | Log out or re-login on the same desktop/mobile install | New session replaces the old one; login succeeds |
+| 10 | Logout clears session | Click Logout from user menu | Server session row cleared; local token removed; user redirected to login |
 | 11 | Token expiry forces re-login | Wait for JWT token to expire (or manually expire it) | User is redirected to login page with "Session expired" message |
 | 12 | Forgot password sends reset email | Click "Forgot Password"; enter registered email; submit | Success message "Reset link sent"; email is received |
 | 13 | Reset password with valid token | Click reset link from email; enter new password; submit | Password is updated; user can log in with new password |

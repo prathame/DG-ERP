@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../pg-db';
 import { logAuthEvent } from '../utils/http-error';
 import { logger } from '../utils/logger';
+import { getSuperAdminSessionId, SESSION_REPLACED_BODY } from '../utils/userSessions';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -18,6 +19,8 @@ export interface JwtPayload {
   name: string;
   vendorId?: string | null;
   permissions?: Record<string, string>;
+  /** Single-device session id — must match user_sessions / super_admin_sessions */
+  sessionId?: string;
   /** Present on short-lived super-admin impersonation tokens */
   impersonatedBy?: string;
   iat?: number;
@@ -189,7 +192,21 @@ export function assertVendorAccess(req: AuthRequest, vendorId: string): string |
   return null;
 }
 
-export function superAdminMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+export async function superAdminMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+  // Global auth may already have attached a verified SA user
+  if (
+    req.user?.userId &&
+    (req.user.role === 'super_admin' || req.user.role === 'owner' || req.user.role === 'support')
+  ) {
+    if (!(req.user as JwtPayload).impersonatedBy) {
+      const active = await getSuperAdminSessionId(req.user.userId);
+      if (req.user.sessionId ? req.user.sessionId !== active : !!active) {
+        return res.status(401).json(SESSION_REPLACED_BODY);
+      }
+    }
+    return next();
+  }
+
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Authentication required' });
 
@@ -199,10 +216,15 @@ export function superAdminMiddleware(req: AuthRequest, res: Response, next: Next
       email: string;
       name: string;
       role: string;
+      sessionId?: string;
     };
     if (decoded.role !== 'super_admin' && decoded.role !== 'owner' && decoded.role !== 'support') {
       logAuthEvent('Permission denied', req, { reason: 'super_admin_required', role: decoded.role }, 'warn');
       return res.status(403).json({ error: 'Super admin access required' });
+    }
+    const active = await getSuperAdminSessionId(decoded.userId);
+    if (decoded.sessionId ? decoded.sessionId !== active : !!active) {
+      return res.status(401).json(SESSION_REPLACED_BODY);
     }
     req.user = decoded as JwtPayload;
     next();

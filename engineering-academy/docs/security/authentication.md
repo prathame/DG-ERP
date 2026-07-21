@@ -1,6 +1,6 @@
 ---
 title: Authentication
-description: Login, bcrypt password hashing, JWT (HS256, 24h), forgot/reset password, and 15-minute super-admin impersonation.
+description: Login, bcrypt password hashing, JWT (HS256, 24h), single-device sessions, forgot/reset password, and 15-minute super-admin impersonation.
 ---
 
 # Authentication
@@ -50,7 +50,23 @@ export function generateToken(payload: object, expiresIn: string | number = '24h
 | Algorithm | HS256 (HMAC-SHA256, symmetric) |
 | Secret | `JWT_SECRET` env var — required at boot, process exits if missing (`server/middleware/auth.ts` lines 5-9) |
 | Default expiry | `24h` |
-| Payload | `userId`, `email`, `role`, `name`, `tenantId`, `vendorId` (nullable) |
+| Payload | `userId`, `email`, `role`, `name`, `tenantId`, `vendorId` (nullable), `sessionId` (single-device session) |
+
+## Single-device sessions (one user → one machine)
+
+Desktop and mobile cloud apps enforce **one active login per user**. A new login replaces the previous session immediately.
+
+| Piece | Behavior |
+|---|---|
+| Table | `user_sessions` (tenant users) / `super_admin_sessions` (platform admins) — one row per user |
+| Login | `POST /api/auth/login` creates a new `sessionId`, upserts the row, embeds `sessionId` in the JWT |
+| API gate | Global auth in `server/app.ts` rejects tokens whose `sessionId` ≠ current row (`401` + `code: SESSION_REPLACED`) |
+| Heartbeat | Client calls `POST /api/auth/session/heartbeat` every ~45s (and on focus) so idle devices notice the kick |
+| Logout | `POST /api/auth/logout` deletes the matching session row |
+| Impersonation | Super-admin impersonation JWTs (`impersonatedBy`) skip the session check and do not kick the real user |
+| Offline Mobile | Local PGlite auth is unchanged — cloud single-device applies when using online/cloud login |
+
+Old device UX: alert **“Your account was signed in on another device”** and return to login.
 
 > [!WARNING]
 > **A live footgun worth knowing about:** `.env.example` documents `# JWT_EXPIRES_IN=7d` as an optional override — but **no code in this repository actually reads `process.env.JWT_EXPIRES_IN`**. `generateToken`'s default parameter is a hardcoded `'24h'`, and no call site passes a different value for regular logins. Setting `JWT_EXPIRES_IN=7d` in a deployed `.env` file would have **zero effect** — tokens would still expire after 24 hours. This is a documentation/implementation drift, not a security bug (the actual behavior is the safer, shorter one), but it's exactly the kind of thing that wastes an afternoon of an engineer's time debugging "why didn't my env var take effect."

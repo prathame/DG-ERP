@@ -60,6 +60,8 @@ describe('HTTP Auth', () => {
   });
 
   it('authenticated routes accept valid JWT', async () => {
+    // Clear any session left by prior login tests so bare test tokens still work
+    await pool.query(`DELETE FROM user_sessions WHERE user_id = $1 AND tenant_id = $2`, ['U-HTTP-AUTH-1', TEST_TENANT]);
     const token = createTestToken({
       userId: 'U-HTTP-AUTH-1',
       tenantId: TEST_TENANT,

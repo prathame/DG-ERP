@@ -6,6 +6,7 @@ import { uid, logAudit } from '../utils/helpers';
 import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { logger } from '../utils/logger';
 import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth';
+import { clearUserSession, replaceUserSession, SESSION_REPLACED_BODY, touchUserSession } from '../utils/userSessions';
 
 const router = Router();
 
@@ -124,7 +125,15 @@ router.post('/api/auth/login', async (req, res) => {
         .json({ error: 'Vendor portal is not enabled for this company. Contact your administrator.' });
     }
 
-    // Generate JWT token
+    // Single-device session — new login replaces any prior device
+    const sessionId = await replaceUserSession({
+      userId: row.id as string,
+      tenantId: row.tenant_id as string,
+      deviceId: typeof req.body?.deviceId === 'string' ? req.body.deviceId : null,
+      platform: req.body?.platform,
+      userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : null,
+    });
+
     const token = generateToken({
       userId: row.id as string,
       email: row.email as string,
@@ -132,6 +141,7 @@ router.post('/api/auth/login', async (req, res) => {
       name: row.name as string,
       tenantId: row.tenant_id as string,
       vendorId: (row.vendor_id as string | null) ?? null, // needed for server-side vendor scoping
+      sessionId,
     });
 
     await logAudit(
@@ -372,6 +382,7 @@ router.put('/api/settings/change-password', authMiddleware, async (req: AuthRequ
       'UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2 AND tenant_id = $3',
       [newHash, userId, tenantId],
     );
+    await clearUserSession(userId, tenantId);
     await logAudit(
       pool,
       tenantId!,
@@ -383,6 +394,45 @@ router.put('/api/settings/change-password', authMiddleware, async (req: AuthRequ
       req.user?.name,
     );
     res.json({ ok: true, message: 'Password changed. Please log in again.' });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Best-effort logout — clears this device's single-device session when it still matches. */
+router.post('/api/auth/logout', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const tenantId = req.tenantId;
+    if (userId && tenantId) {
+      await clearUserSession(userId, tenantId, req.user?.sessionId);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+/** Keep session alive; returns SESSION_REPLACED when another device took over. */
+router.post('/api/auth/session/heartbeat', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const tenantId = req.tenantId;
+    if (!userId || !tenantId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    // Impersonation JWTs have no sessionId — do not force-logout the SA
+    if (req.user?.impersonatedBy) {
+      return res.json({ ok: true, impersonation: true });
+    }
+    const sessionId = req.user?.sessionId;
+    if (!sessionId) {
+      // Legacy / test tokens without single-device session — no-op
+      return res.json({ ok: true, legacy: true });
+    }
+    const ok = await touchUserSession(userId, tenantId, sessionId);
+    if (!ok) return res.status(401).json(SESSION_REPLACED_BODY);
+    res.json({ ok: true });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -455,10 +505,13 @@ router.post('/api/auth/reset-password', async (req, res) => {
     if (!resetToken) return res.status(400).json({ error: 'Invalid or expired reset token' });
 
     const newHash = bcrypt.hashSync(newPassword, 12);
-    await pool.query(
-      'UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE LOWER(email) = LOWER($2) AND tenant_id = $3',
-      [newHash, resetToken.email, resetToken.tenant_id],
-    );
+    const resetUser = (
+      await pool.query(
+        'UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE LOWER(email) = LOWER($2) AND tenant_id = $3 RETURNING id',
+        [newHash, resetToken.email, resetToken.tenant_id],
+      )
+    ).rows[0] as { id: string } | undefined;
+    if (resetUser) await clearUserSession(resetUser.id, resetToken.tenant_id as string);
     await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
     await pool.query('DELETE FROM password_reset_tokens WHERE used = true OR expires_at < NOW()');
 
@@ -494,6 +547,7 @@ router.put('/api/admin/reset-user-password', authMiddleware, async (req: AuthReq
       'UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2 AND tenant_id = $3',
       [newHash, userId, tenantId],
     );
+    await clearUserSession(userId, tenantId);
 
     await logAudit(
       pool,
@@ -557,6 +611,7 @@ router.delete('/api/auth/me', authMiddleware, async (req: AuthRequest, res) => {
        WHERE id = $3 AND tenant_id = $4`,
       [anonEmail, bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12), userId, tenantId],
     );
+    await clearUserSession(userId, tenantId);
     await logAudit(pool, tenantId, 'DELETE', 'user', userId, 'User self-deleted / anonymized', userId, 'Deleted User');
     res.json({ ok: true, message: 'Account deleted' });
   } catch (err) {

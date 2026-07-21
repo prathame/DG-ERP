@@ -59,6 +59,7 @@ import notificationsRouter from './routes/notifications';
 import { logger, requestContext, type RequestLogContext } from './utils/logger';
 import { logAuthEvent } from './utils/http-error';
 import { getCachedAuth, setCachedAuth } from './utils/authCache';
+import { SESSION_REPLACED_BODY } from './utils/userSessions';
 
 const SLOW_API_MS = Number(process.env.SLOW_API_MS || 500);
 
@@ -316,6 +317,8 @@ export function createApp(): express.Application {
         userId?: string;
         role?: string;
         vendorId?: string | null;
+        sessionId?: string;
+        impersonatedBy?: string;
         iat?: number;
       };
       if (decoded.tenantId && decoded.userId) {
@@ -324,13 +327,18 @@ export function createApp(): express.Application {
         let row = getCachedAuth(decoded.userId, decoded.tenantId, decoded.iat);
         if (!row) {
           const userRow = await pool.query(
-            `SELECT u.password_changed_at, u.role, u.vendor_id, u.permissions, t.status, t.subscription_ends_at, t.trial_ends_at
+            `SELECT u.password_changed_at, u.role, u.vendor_id, u.permissions, t.status, t.subscription_ends_at, t.trial_ends_at,
+                    s.session_id AS active_session_id
              FROM users u JOIN tenants t ON t.id = u.tenant_id
+             LEFT JOIN user_sessions s ON s.user_id = u.id AND s.tenant_id = u.tenant_id
              WHERE u.id = $1 AND u.tenant_id = $2`,
             [decoded.userId, decoded.tenantId],
           );
           row = userRow.rows[0] as typeof row;
-          if (row) setCachedAuth(decoded.userId, decoded.tenantId, decoded.iat, row);
+          if (row) {
+            row.active_session_id = (row.active_session_id as string | null) ?? null;
+            setCachedAuth(decoded.userId, decoded.tenantId, decoded.iat, row);
+          }
         }
 
         if (!row) return res.status(401).json({ error: 'User no longer exists. Please log in again.' });
@@ -350,6 +358,18 @@ export function createApp(): express.Application {
 
         if (row.password_changed_at && decoded.iat && row.password_changed_at.getTime() / 1000 > decoded.iat) {
           return res.status(401).json({ error: 'Session expired after password change. Please log in again.' });
+        }
+
+        // Single-device: JWT sessionId must match the sole active session (impersonation skips)
+        if (!decoded.impersonatedBy) {
+          if (row.active_session_id) {
+            if (decoded.sessionId !== row.active_session_id) {
+              return res.status(401).json(SESSION_REPLACED_BODY);
+            }
+          } else if (decoded.sessionId) {
+            // Session cleared (logout / password change) — reject this token
+            return res.status(401).json(SESSION_REPLACED_BODY);
+          }
         }
       } else if (decoded.tenantId) {
         req.headers['x-tenant-id'] = decoded.tenantId;

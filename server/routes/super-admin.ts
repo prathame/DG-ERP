@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError, logAuthEvent } from '../utils/http-error';
 import { superAdminMiddleware, generateSuperAdminToken, AuthRequest } from '../middleware/auth';
+import { clearSuperAdminSession, clearUserSession, replaceSuperAdminSession } from '../utils/userSessions';
 import { provisionTenant, deleteTenant, getTenantStats } from '../utils/tenant';
 import {
   DEFAULT_SERVICE_CLOUD_APP_URL,
@@ -68,14 +69,31 @@ router.post('/api/super-admin/login', async (req, res) => {
       logAuthEvent('Super-admin login failed', req, { reason: 'bad_password', userId: admin.id }, 'warn');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    const sessionId = await replaceSuperAdminSession({
+      userId: admin.id,
+      deviceId: typeof req.body?.deviceId === 'string' ? req.body.deviceId : null,
+      platform: req.body?.platform,
+      userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : null,
+    });
     const token = generateSuperAdminToken({
       userId: admin.id,
       email: admin.email,
       name: admin.name,
       role: 'super_admin',
+      sessionId,
     });
     logger.info('Super-admin login success', { userId: admin.id, role: admin.role });
     res.json({ token, user: { id: admin.id, email: admin.email, name: admin.name, role: 'super_admin' } });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.post('/api/super-admin/logout', superAdminMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (userId) await clearSuperAdminSession(userId, req.user?.sessionId);
+    res.json({ ok: true });
   } catch (err) {
     return handleApiError(req, res, err);
   }
@@ -1511,6 +1529,7 @@ router.post('/api/super-admin/users/:userId/reset-password', superAdminMiddlewar
       'UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2 AND tenant_id = $3',
       [hash, userId, user.tenant_id],
     );
+    await clearUserSession(userId, user.tenant_id);
     res.json({ ok: true, message: `Password reset for ${user.email}` });
   } catch (err) {
     return handleApiError(req, res, err);

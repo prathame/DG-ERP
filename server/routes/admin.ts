@@ -5,6 +5,7 @@ import { pool } from '../pg-db';
 import { uid, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { checkPlanLimit } from '../utils/planLimits';
+import { clearUserSession } from '../utils/userSessions';
 
 const router = Router();
 
@@ -330,6 +331,7 @@ router.delete('/api/admin/users/:id', async (req, res) => {
        WHERE id = $3 AND tenant_id = $4`,
       [anonEmail, bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12), id, tenantId],
     );
+    await clearUserSession(id, tenantId);
     await logAudit(pool, tenantId, 'DELETE', 'user', id, 'Admin anonymized user', jwtUser.userId, jwtUser.name);
     res.json({ ok: true, message: 'User deleted' });
   } catch (err) {

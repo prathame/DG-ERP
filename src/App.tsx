@@ -28,6 +28,7 @@ import { BrandMark } from './components/ui/BrandMark';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { useTranslation } from './i18n';
 import { session } from './lib/session';
+import { startSessionHeartbeat, stopSessionHeartbeat } from './lib/singleSession';
 import { resolveTabAccess, type AccessLevel } from './lib/tabAccess';
 import type { GlobalSearchNavigate } from './lib/globalSearch';
 import type { MasterType } from './features/masters/MastersView';
@@ -662,6 +663,8 @@ export default function App() {
   }, isSidebarOpen);
 
   const handleLogout = () => {
+    stopSessionHeartbeat();
+    void api.auth.logout().catch(() => {});
     const slug = session.getSlug();
     session.clearAll();
     setUser(null);
@@ -686,7 +689,14 @@ export default function App() {
     setUser(u);
     if (u.companyName) document.title = `${u.companyName} — Dhandho`;
     if (u.companyName) setAppShutter(u.companyName);
+    startSessionHeartbeat();
   };
+
+  useEffect(() => {
+    if (user && session.getToken()) startSessionHeartbeat();
+    else stopSessionHeartbeat();
+    return () => stopSessionHeartbeat();
+  }, [user]);
 
   const { t } = useTranslation();
 

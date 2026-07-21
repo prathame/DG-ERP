@@ -12,6 +12,7 @@ describe('authCache', () => {
     status: 'active',
     subscription_ends_at: null,
     trial_ends_at: null,
+    active_session_id: null,
   };
 
   it('stores and retrieves by user/tenant/iat', () => {
