@@ -1,10 +1,10 @@
 # Architecture — Dhandho (DG-ERP)
 
-**Updated:** 2026-07-17  
+**Updated:** 2026-07-21  
 **Repo:** https://github.com/prathame/DG-ERP  
 **Live:** [dhandho.app](https://dhandho.app)
 
-Related: [ARCHITECTURE_REPORT.md](./ARCHITECTURE_REPORT.md) · [PRODUCTION_AUDIT_REPORT.md](./PRODUCTION_AUDIT_REPORT.md) · [ENTERPRISE_HARDENING_REPORT.md](./ENTERPRISE_HARDENING_REPORT.md)
+Related: [ARCHITECTURE_REPORT.md](./ARCHITECTURE_REPORT.md) · [PRODUCTION_AUDIT_REPORT.md](./PRODUCTION_AUDIT_REPORT.md) · [ENTERPRISE_HARDENING_REPORT.md](./ENTERPRISE_HARDENING_REPORT.md) · [CLEANUP_AUDIT_REPORT.md](./CLEANUP_AUDIT_REPORT.md)
 
 ---
 
@@ -43,8 +43,9 @@ Hosting: Render (`render.yaml`). Optional self-host via `Dockerfile` / `docker-c
 flowchart TB
   subgraph clients [Clients]
     Web[Web SPA]
-    ElecC[Electron Cloud]
-    ElecO[Electron On-Prem]
+    ElecC[Electron Desktop Online]
+    ElecO[Electron Desktop Offline]
+    Cap[Cap Phone Online/Offline]
   end
 
   subgraph cloud [Cloud - Render / Docker]
@@ -57,7 +58,7 @@ flowchart TB
   Cap -->|HTTPS JWT| Express
   ElecC -->|HTTPS| Express
 
-  subgraph onprem [On-Prem]
+  subgraph onprem [On-Prem / Offline]
     LocalAPI[Local Express]
     EmbPG[(Embedded PG)]
     LocalAPI --> EmbPG
@@ -93,17 +94,23 @@ sequenceDiagram
 src/
   App.tsx                 SPA shell, path + tab routing, impersonation consume
   api.ts                  Typed API client
-  features/               ERP modules (lazy-loaded)
+  features/               ERP modules (lazy-loaded domain views)
   components/{layout,ui}/ Marketing + shared UI (ErrorBoundary, dialogs)
-  platforms/              shared + desktop (Electron)
-  lib/                    session, bills, utils
+  platforms/              desktop + service-cloud + service-mobile + service-phone
+  hooks/                  Shared React hooks
+  lib/                    session, bills, utils, businessTypeConfig
   i18n/                   en eager; hi/gu/mr lazy
+shared/                   Cross-surface TS (e.g. mobileFeatures)
 server/
   app.ts / index.ts       Express factory + listen
   pg-db.ts                Pool + schema
   middleware/             auth, permissions
   routes/                 Domain routers
+  services/               Server-side domain services
   utils/                  env, pagination, barcode, pii, authCache
+electron/                 desktop (unified) + cloud/onprem boot packages
+public/                   Runtime static (icons, branding, SW)
+assets/branding/          Brand masters for generate-brand-icons.py
 ```
 
 ---
