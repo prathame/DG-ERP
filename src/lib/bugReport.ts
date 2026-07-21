@@ -45,7 +45,7 @@ async function isNativeCapacitor(): Promise<boolean> {
 }
 
 export async function buildBugReportText(extras: BugReportExtras = {}): Promise<string> {
-  const lines: string[] = ['Dhando bug report', '=================', ''];
+  const lines: string[] = ['Dhandho bug report', '=================', ''];
 
   const mode = (import.meta.env.VITE_DEPLOYMENT_MODE as string | undefined) || 'web';
   const appVersion = (import.meta.env.VITE_APP_VERSION as string | undefined) || 'unknown';
@@ -199,7 +199,7 @@ export async function persistBugReport(
 /** Save to Dhandho/bug-reports on Cap; else Share sheet / clipboard / download .txt */
 export async function shareBugReport(extras: BugReportExtras = {}): Promise<BugReportShareResult> {
   const text = await buildBugReportText(extras);
-  const title = 'Dhando bug report';
+  const title = 'Dhandho bug report';
   const filename = `dhandho-bug-report-${new Date().toISOString().slice(0, 10)}.txt`;
 
   if (await isNativeCapacitor()) {

@@ -107,7 +107,12 @@ export async function buildLocalBackupEnvelope(): Promise<{ envelope: LocalBacku
   const lic = loadLicense();
   if (!lic) throw new Error('Activate license before exporting a backup');
   const dump = await dumpLocalDb();
-  const enc = await encryptBackup(dump, String(lic.licenseKey || '').trim().toUpperCase());
+  const enc = await encryptBackup(
+    dump,
+    String(lic.licenseKey || '')
+      .trim()
+      .toUpperCase(),
+  );
   const exportedAt = new Date().toISOString();
   const envelope: LocalBackupEnvelope = {
     format: FORMAT,
@@ -141,7 +146,7 @@ export function openBackupMailto(email: string, filename: string, companyName: s
   const body = encodeURIComponent(
     `Your Offline Mobile App backup file was saved on this phone as:\n\n${where}\n\n` +
       `Open My Files / Files → Documents → Dhandho → backups to attach it in Gmail.\n\n` +
-      `Dhando does not store your business data — keep this file safe.`,
+      `Dhandho does not store your business data — keep this file safe.`,
   );
   window.location.href = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
 }

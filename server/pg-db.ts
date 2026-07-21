@@ -2,6 +2,7 @@ import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import { logger } from './utils/logger';
+import { databaseHostname, formatDbConnectError, resolvePoolSsl } from './utils/databaseUrl';
 
 dotenv.config();
 
@@ -55,21 +56,8 @@ export async function withTenantClient<T>(
   }
 }
 
-// Cloud production always TLS; on-prem embedded Postgres stays local (no TLS)
-const dbUrl = process.env.DATABASE_URL ?? '';
-const isManagedCloudDb = process.env.RENDER === 'true' || /render\.com|neon\.tech/i.test(dbUrl);
-
-const useSsl =
-  (process.env.NODE_ENV === 'production' && process.env.DEPLOYMENT_MODE !== 'onprem') ||
-  process.env.DATABASE_SSL === 'true' ||
-  isManagedCloudDb;
-
-// Render/Neon terminate TLS with certs Node does not trust by default →
-// "Error: self-signed certificate" unless rejectUnauthorized is false.
-// Strict verification remains the default for other production hosts.
-const rejectUnauthorized = isManagedCloudDb
-  ? process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'true'
-  : process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false';
+// Provider-agnostic: Neon, Render PG, Supabase, RDS, self-hosted — driven by DATABASE_URL
+const { useSsl, rejectUnauthorized } = resolvePoolSsl();
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -1333,7 +1321,19 @@ export async function seedPlatformData() {
 }
 
 export async function initDatabase() {
-  await initSchema();
-  await seedPlatformData();
-  logger.info('Database ready');
+  try {
+    await initSchema();
+    await seedPlatformData();
+    logger.info('Database ready', {
+      host: databaseHostname(process.env.DATABASE_URL || '') || undefined,
+    });
+  } catch (err) {
+    const hint = formatDbConnectError(err);
+    logger.fatal('Failed to initialize database', {
+      error: hint,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    // Single-arg Error — electron tsc targets ES2020 (no `{ cause }` options bag)
+    throw new Error(hint);
+  }
 }

@@ -1850,7 +1850,7 @@ export function SettingsView({
                     {serviceMobile ? (
                       <>
                         Backups stay on <strong className="text-gray-700">your phone</strong> (and your Gmail if you
-                        send them). Dhando does not store your business data in the cloud.{' '}
+                        send them). Dhandho does not store your business data in the cloud.{' '}
                       </>
                     ) : null}
                     Files are saved under <strong className="text-gray-700">Documents/Dhandho</strong> on this phone

@@ -105,14 +105,14 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target:
             process.env.DG_DEV_API_PROXY ||
-            (serviceMobile || servicePhone ? 'https://dg-erp.onrender.com' : 'http://localhost:3001'),
+            (serviceMobile || servicePhone ? 'https://dhandho.onrender.com' : 'http://localhost:3001'),
           changeOrigin: true,
           secure: true,
         },
         '/manifest.json': {
           target:
             process.env.DG_DEV_API_PROXY ||
-            (serviceMobile || servicePhone ? 'https://dg-erp.onrender.com' : 'http://localhost:3001'),
+            (serviceMobile || servicePhone ? 'https://dhandho.onrender.com' : 'http://localhost:3001'),
           changeOrigin: true,
           secure: true,
         },
