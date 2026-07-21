@@ -898,45 +898,66 @@ export function LandingPage() {
             </p>
           </div>
 
-          <motion.div {...vi(0.05, 16)} className="flex justify-center">
+          {/* Equation art + captions aligned under D · Growth · Focus · Mark */}
+          <motion.div {...vi(0.05, 16)} className="mx-auto w-full max-w-3xl">
             <img
-              src="/branding/logo-meaning-labeled.png"
-              alt="Dhandho logo meaning: Letter D brand identity, plus Growth progress, plus Focus on business, equals the Dhandho mark"
-              className="w-full max-w-3xl h-auto"
+              src="/branding/logo-meaning-equation.png"
+              alt=""
+              aria-hidden="true"
+              className="w-full h-auto select-none"
               width={780}
               height={228}
             />
+            <div
+              className="mt-4 sm:mt-5 grid gap-y-1 text-center"
+              style={{
+                gridTemplateColumns: '1.15fr 0.4fr 1.25fr 0.4fr 0.95fr 0.4fr 1.7fr',
+              }}
+            >
+              {(
+                [
+                  {
+                    title: L('Letter D', 'Letter D', 'Letter D', 'Letter D'),
+                    sub: L('Brand identity', 'ब्रांड पहचान', 'બ્રાન્ડ ઓળખ', 'ब्रँड ओळख'),
+                  },
+                  null,
+                  {
+                    title: L('Growth', 'वृद्धि', 'વૃદ્ધિ', 'वाढ'),
+                    sub: L('Progress', 'प्रगति', 'પ્રગતિ', 'प्रगती'),
+                  },
+                  null,
+                  {
+                    title: L('Focus', 'फोकस', 'ફોકસ', 'फोकस'),
+                    sub: L('On business', 'बिज़नेस पर', 'બિઝનેસ પર', 'व्यवसायावर'),
+                  },
+                  null,
+                  {
+                    title: L('Dhandho mark', 'Dhandho निशान', 'Dhandho નિશાની', 'Dhandho चिन्ह'),
+                    sub: L('Combined', 'मिलाकर', 'મળીને', 'एकत्र'),
+                  },
+                ] as ({ title: string; sub: string } | null)[]
+              ).map((item, i) =>
+                item ? (
+                  <div key={item.title} className="min-w-0 px-0.5">
+                    <p className="font-bold tracking-wide uppercase text-[10px] sm:text-xs leading-tight">
+                      {item.title}
+                    </p>
+                    <p className={`mt-0.5 text-[10px] sm:text-sm leading-snug ${muted}`}>{item.sub}</p>
+                  </div>
+                ) : (
+                  <div key={`op-${i}`} aria-hidden="true" />
+                ),
+              )}
+            </div>
+            <p className="sr-only">
+              {L(
+                'Dhandho logo meaning: Letter D brand identity, plus Growth progress, plus Focus on business, equals the Dhandho mark.',
+                'Dhandho logo: Letter D ब्रांड पहचान + वृद्धि + बिज़नेस पर फोकस = Dhandho निशान।',
+                'Dhandho logo: Letter D બ્રાન્ડ ઓળખ + વૃદ્ધિ + બિઝનેસ પર ફોકસ = Dhandho નિશાની.',
+                'Dhandho logo: Letter D ब्रँड ओळख + वाढ + व्यवसायावर फोकस = Dhandho चिन्ह.',
+              )}
+            </p>
           </motion.div>
-
-          <ul className="mt-10 sm:mt-12 grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-6 text-center">
-            {[
-              {
-                title: L('Letter D', 'Letter D', 'Letter D', 'Letter D'),
-                sub: L('Brand identity', 'ब्रांड पहचान', 'બ્રાન્ડ ઓળખ', 'ब्रँड ओळख'),
-              },
-              {
-                title: L('Growth', 'वृद्धि', 'વૃદ્ધિ', 'वाढ'),
-                sub: L('Progress', 'प्रगति', 'પ્રગતિ', 'प्रगती'),
-              },
-              {
-                title: L('Focus', 'फोकस', 'ફોકસ', 'फोकस'),
-                sub: L('On business', 'बिज़नेस पर', 'બિઝનેસ પર', 'व्यवसायावर'),
-              },
-            ].map((item, i) => (
-              <motion.li key={item.title} {...vi(0.08 + i * 0.06, 12)} className="list-none">
-                <p className="font-bold tracking-wide uppercase text-sm">{item.title}</p>
-                <p className={`mt-1 text-sm ${muted}`}>{item.sub}</p>
-              </motion.li>
-            ))}
-          </ul>
-          <motion.p {...vi(0.28, 10)} className={`mt-8 text-center text-sm sm:text-base font-medium ${text}`}>
-            {L(
-              'Combined = the Dhandho mark',
-              'मिलाकर = Dhandho का निशान',
-              'મળીને = Dhandho ની નિશાની',
-              'एकत्र = Dhandho चे चिन्ह',
-            )}
-          </motion.p>
         </div>
       </section>
 
