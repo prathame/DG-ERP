@@ -57,7 +57,7 @@ import {
 } from './platforms/mobileMode';
 import { PhoneModePicker } from './platforms/PhoneModePicker';
 import { bugReportFeedbackMessage, shareBugReport } from './lib/bugReport';
-import { isMobileAppShell } from './lib/mobileAppShell';
+import { isMobileAppShell, offersBugReportShare } from './lib/mobileAppShell';
 import { useEscapeKey } from './lib/useEscapeKey';
 import { normalizeCompanySlug, validateCompanySlug } from './lib/companySlug';
 import { reportSlugOnboardingFailure } from './lib/reportActionFailure';
@@ -143,11 +143,11 @@ function slugFailureKindFromValidationError(error: string): 'reserved' | 'invali
   return /reserved/i.test(error) ? 'reserved' : 'invalid';
 }
 
-/** Cap-only share control for slug onboarding / not-found screens (before full app shell). */
+/** Cap + Cloud Electron share control for slug onboarding / not-found screens (before full app shell). */
 function CapSlugOnboardingShare({ lastError, note }: { lastError?: string; note: string }) {
   const [sharingReport, setSharingReport] = React.useState(false);
   const [reportHint, setReportHint] = React.useState('');
-  if (!isMobileAppShell()) return null;
+  if (!offersBugReportShare()) return null;
   return (
     <div className="mt-4 w-full max-w-sm mx-auto">
       {reportHint ? <p className="mb-2 text-center text-xs text-emerald-400/90">{reportHint}</p> : null}
@@ -317,9 +317,7 @@ function CompanySlugEntry() {
             {checking ? 'Checking…' : 'Continue →'}
           </button>
         </form>
-        {!checking && (
-          <CapSlugOnboardingShare lastError={slugError || undefined} note="Online Cap company slug entry" />
-        )}
+        {!checking && <CapSlugOnboardingShare lastError={slugError || undefined} note="Company slug entry" />}
       </div>
     </div>
   );
@@ -1084,7 +1082,7 @@ export default function App() {
             >
               {isServiceCloudDesktop() || isServiceCloudMobile() ? 'Choose company' : 'Go to Dhandho Home'}
             </a>
-            <CapSlugOnboardingShare lastError={lookupError} note="Online Cap company slug lookup" />
+            <CapSlugOnboardingShare lastError={lookupError} note="Company slug lookup" />
           </div>
         </div>
       );

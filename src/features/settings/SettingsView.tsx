@@ -35,7 +35,7 @@ import { isGstBillingEnabled, isServicePhoneBillUx } from '../../lib/billSetting
 import { bugReportFeedbackMessage, shareBugReport } from '../../lib/bugReport';
 import { reportActionBlocked, reportActionFailed } from '../../lib/reportActionFailure';
 import { isNativeCapacitor, saveDhandhoFile } from '../../lib/dhandhoFiles';
-import { isMobileAppShell } from '../../lib/mobileAppShell';
+import { isMobileAppShell, offersBugReportShare } from '../../lib/mobileAppShell';
 import {
   exportLocalBackupNow,
   restoreFromLocalBackupFile,
@@ -48,6 +48,7 @@ import {
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
 const serviceMobile = isServiceMobileMode();
 const mobileApp = isMobileAppShell();
+const showBugReport = offersBugReportShare();
 
 function billDefaults(): BillSettings {
   const phoneBill = isServicePhoneBillUx();
@@ -1801,7 +1802,7 @@ export function SettingsView({
             </div>
           </div>
 
-          {mobileApp && (
+          {showBugReport && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
                 <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">

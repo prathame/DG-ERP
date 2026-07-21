@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { clientLogger, getRecentClientLogs, pushClientBreadcrumb } from '../../src/lib/logger';
 import { buildBugReportText } from '../../src/lib/bugReport';
-import { isMobileAppShell } from '../../src/lib/mobileAppShell';
+import { isElectronAppShell, isMobileAppShell, offersBugReportShare } from '../../src/lib/mobileAppShell';
 import { reportSlugOnboardingFailure, _resetActionFailureDedupeForTests } from '../../src/lib/reportActionFailure';
 
 vi.mock('../../src/lib/bugReport', async importOriginal => {
@@ -14,6 +14,7 @@ vi.mock('../../src/lib/bugReport', async importOriginal => {
 
 describe('bug report', () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     _resetActionFailureDedupeForTests();
     // ring buffer is module-level; push a known line
     clientLogger.warn('bug-report-test-line', { password: 'secret', ok: true });
@@ -58,7 +59,7 @@ describe('bug report', () => {
       pageOrigin: 'https://localhost',
     });
     const text = await buildBugReportText({
-      note: 'Online Cap company slug entry',
+      note: 'Company slug entry',
       lastError: '"admin" is reserved for the app. Try another company slug.',
     });
     expect(text).toContain('Last error:');
@@ -72,5 +73,16 @@ describe('bug report', () => {
 
   it('isMobileAppShell is false in plain vitest (no Capacitor / offline mode)', () => {
     expect(isMobileAppShell()).toBe(false);
+    expect(isElectronAppShell()).toBe(false);
+    expect(offersBugReportShare()).toBe(false);
+  });
+
+  it('offersBugReportShare is true when Electron bridge is present', () => {
+    vi.stubGlobal('window', {
+      location: { search: '', href: 'http://localhost/' },
+      electronAPI: { isElectron: true, deploymentMode: 'cloud' },
+    });
+    expect(isElectronAppShell()).toBe(true);
+    expect(offersBugReportShare()).toBe(true);
   });
 });
