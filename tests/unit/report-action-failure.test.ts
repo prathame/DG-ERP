@@ -70,7 +70,7 @@ describe('reportActionFailure', () => {
       kind: 'network',
       reason: 'Failed to fetch',
       slug: 'acme',
-      apiOrigin: 'https://dhandho.onrender.com',
+      apiOrigin: 'https://dhandho-2kdx.onrender.com',
       pageOrigin: 'https://localhost',
     });
     const crumbs = getClientBreadcrumbs(10).join('\n');

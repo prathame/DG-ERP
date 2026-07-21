@@ -1303,17 +1303,24 @@ export async function seedPlatformData() {
   if (!superAdminEmail || !superAdminPassword) {
     logger.warn('SUPER_ADMIN_EMAIL + SUPER_ADMIN_PASSWORD not set — skipping admin seed');
   } else {
-    const existing = await pool.query('SELECT id FROM super_admins WHERE email = $1', [superAdminEmail]);
+    // Idempotent: prior deploys may already own fixed id SA1 and/or this email
+    // (Neon shared across dg-erp → dhandho-2kdx). Email-only checks miss SA1
+    // with a different email and crash boot on super_admins_pkey.
+    const existing = await pool.query('SELECT id FROM super_admins WHERE id = $1 OR email = $2 LIMIT 1', [
+      'SA1',
+      superAdminEmail,
+    ]);
     if (existing.rows.length === 0) {
       const hash = await bcrypt.hash(superAdminPassword, 12);
-      await pool.query('INSERT INTO super_admins (id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, $5)', [
-        'SA1',
-        superAdminEmail,
-        hash,
-        'Platform Owner',
-        'owner',
-      ]);
+      await pool.query(
+        `INSERT INTO super_admins (id, email, password_hash, name, role)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT DO NOTHING`,
+        ['SA1', superAdminEmail, hash, 'Platform Owner', 'owner'],
+      );
       logger.info('Super admin created');
+    } else {
+      logger.info('Super admin already present — seed skipped');
     }
   }
 

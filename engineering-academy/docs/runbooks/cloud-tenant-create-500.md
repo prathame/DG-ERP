@@ -36,7 +36,7 @@ Self-serve `/api/auth/signup` is disabled (`410`); cloud companies are created o
 
 ## Retry checklist
 
-1. Log in at `https://dhandho.onrender.com/super-admin` (or your `PUBLIC_APP_URL`).
+1. Log in at `https://dhandho-2kdx.onrender.com/super-admin` (or your `PUBLIC_APP_URL`).
 2. Cloud tab → Create Cloud Tenant.
 3. Fill company, admin name/email, pick a plan, business type → submit.
 4. Share the returned login URL `/{slug}` plus temp password with the customer.
