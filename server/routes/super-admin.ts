@@ -16,6 +16,7 @@ import {
   DEFAULT_DESKTOP_WIN_URL,
   DEFAULT_DESKTOP_APP_URL,
 } from '../download-defaults';
+import { getTabPreset, isBusinessTypeWithCustom, isNamedBusinessType } from '../../shared/tabPresets';
 
 const router = Router();
 
@@ -223,105 +224,10 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
         result.tenantId,
       ]);
     }
-    const bType = ['manufacturer', 'dealer', 'retail', 'service', 'custom'].includes(req.body.businessType)
-      ? (req.body.businessType as string)
-      : 'manufacturer';
+    const bType = isBusinessTypeWithCustom(req.body.businessType) ? (req.body.businessType as string) : 'manufacturer';
 
-    // Business-type presets — source of truth on backend, not dependent on frontend sending correct tabConfig
-    const PRESETS: Record<string, Record<string, { label: string; visible: boolean }>> = {
-      manufacturer: {
-        analytics: { label: 'Analytics', visible: true },
-        masters: { label: 'Masters', visible: true },
-        inventory: { label: 'Inventory', visible: true },
-        distribution: { label: 'Dispatch', visible: true },
-        sales: { label: 'Warranty Registration', visible: true },
-        purchases: { label: 'Purchases', visible: true },
-        verification: { label: 'Search / Verify', visible: true },
-        quotations: { label: 'Quotes & Orders', visible: true },
-        invoices: { label: 'Invoices', visible: true },
-        finance: { label: 'Vendor Payments', visible: true },
-        accounts: { label: 'Accounts', visible: true },
-        warranty: { label: 'Warranty', visible: true },
-        replacements: { label: 'Replacements', visible: true },
-        rewards: { label: 'Rewards', visible: true },
-        chatbot: { label: 'Chatbot', visible: true },
-        settings: { label: 'Settings', visible: true },
-      },
-      dealer: {
-        analytics: { label: 'Analytics', visible: true },
-        masters: { label: 'Masters', visible: true },
-        inventory: { label: 'Inventory', visible: true },
-        distribution: { label: 'Sales', visible: true },
-        sales: { label: 'Sales Entry', visible: false },
-        purchases: { label: 'Purchases', visible: true },
-        verification: { label: 'Search / Verify', visible: true },
-        quotations: { label: 'Quotes & Orders', visible: true },
-        invoices: { label: 'Invoices', visible: true },
-        finance: { label: 'Dealer Payments', visible: true },
-        accounts: { label: 'Accounts', visible: true },
-        warranty: { label: 'Warranty', visible: false },
-        replacements: { label: 'Replacements', visible: false },
-        rewards: { label: 'Rewards', visible: false },
-        chatbot: { label: 'Chatbot', visible: true },
-        settings: { label: 'Settings', visible: true },
-      },
-      retail: {
-        analytics: { label: 'Analytics', visible: true },
-        masters: { label: 'Masters', visible: true },
-        inventory: { label: 'Stock', visible: true },
-        distribution: { label: 'Purchase', visible: true },
-        sales: { label: 'Sales Entry', visible: false },
-        purchases: { label: 'Purchases', visible: true },
-        verification: { label: 'Search / Verify', visible: true },
-        quotations: { label: 'Quotes & Orders', visible: true },
-        invoices: { label: 'Invoices', visible: true },
-        finance: { label: 'Supplier Payments', visible: true },
-        accounts: { label: 'Accounts', visible: true },
-        warranty: { label: 'Warranty', visible: false },
-        replacements: { label: 'Replacements', visible: false },
-        rewards: { label: 'Rewards', visible: false },
-        chatbot: { label: 'Chatbot', visible: true },
-        settings: { label: 'Settings', visible: true },
-      },
-      service: {
-        analytics: { label: 'Analytics', visible: true },
-        masters: { label: 'Masters', visible: true },
-        inventory: { label: 'Inventory', visible: false },
-        distribution: { label: 'Distribution', visible: false },
-        sales: { label: 'Sales Entry', visible: false },
-        purchases: { label: 'Expenses', visible: true },
-        verification: { label: 'Search / Verify', visible: false },
-        quotations: { label: 'Quotes & Orders', visible: true },
-        invoices: { label: 'Invoices', visible: true },
-        finance: { label: 'Invoice Finance', visible: true },
-        accounts: { label: 'Accounts', visible: true },
-        warranty: { label: 'Warranty', visible: false },
-        replacements: { label: 'Replacements', visible: false },
-        rewards: { label: 'Rewards', visible: false },
-        chatbot: { label: 'Chatbot', visible: true },
-        settings: { label: 'Settings', visible: true },
-      },
-    };
-    // Custom: all tabs visible — super admin configures manually via Tab Customization
-    const customPreset = {
-      analytics: { label: 'Analytics', visible: true },
-      masters: { label: 'Masters', visible: true },
-      inventory: { label: 'Inventory', visible: true },
-      distribution: { label: 'Distribution', visible: true },
-      sales: { label: 'Sales Entry', visible: true },
-      purchases: { label: 'Purchases', visible: true },
-      verification: { label: 'Search / Verify', visible: true },
-      quotations: { label: 'Quotes & Orders', visible: true },
-      invoices: { label: 'Invoices', visible: true },
-      finance: { label: 'Finance', visible: true },
-      accounts: { label: 'Accounts', visible: true },
-      warranty: { label: 'Warranty', visible: true },
-      replacements: { label: 'Replacements', visible: true },
-      rewards: { label: 'Rewards', visible: true },
-      chatbot: { label: 'Chatbot', visible: true },
-      settings: { label: 'Settings', visible: true },
-    };
-    const tabConfig = bType === 'custom' ? customPreset : PRESETS[bType] || PRESETS.manufacturer;
+    // Business-type presets — shared/tabPresets.ts is the source of truth
+    const tabConfig = getTabPreset(bType);
     await pool.query('UPDATE tenants SET tab_config = $1, business_type = $2 WHERE id = $3', [
       JSON.stringify(tabConfig),
       bType,
@@ -505,10 +411,7 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
       params.push(!!requestBody.chatbotEnabled);
       idx++;
     }
-    if (
-      requestBody.businessType !== undefined &&
-      ['manufacturer', 'dealer', 'retail', 'service'].includes(requestBody.businessType)
-    ) {
+    if (requestBody.businessType !== undefined && isNamedBusinessType(requestBody.businessType)) {
       updates.push(`business_type = $${idx}`);
       params.push(requestBody.businessType);
       idx++;

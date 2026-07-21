@@ -4,24 +4,55 @@ import { AuthRequest } from './auth';
 export type AccessLevel = 'hidden' | 'view' | 'print' | 'full';
 
 const ALL_MODULES = [
-  'dashboard', 'sales', 'distribution', 'inventory', 'purchases', 'quotations',
-  'orders', 'finance', 'accounts', 'warranty', 'replacements', 'rewards', 'settings',
+  'dashboard',
+  'sales',
+  'distribution',
+  'inventory',
+  'purchases',
+  'quotations',
+  'orders',
+  'finance',
+  'accounts',
+  'warranty',
+  'replacements',
+  'rewards',
+  'settings',
 ] as const;
 
 const ROLE_PRESETS: Record<string, Record<string, AccessLevel>> = {
-  Admin: Object.fromEntries(ALL_MODULES.map((m) => [m, 'full'])),
-  'Super Admin': Object.fromEntries(ALL_MODULES.map((m) => [m, 'full'])),
-  Manager: Object.fromEntries(ALL_MODULES.map((m) => [m, m === 'settings' ? 'view' : 'full'])),
-  Staff: Object.fromEntries(ALL_MODULES.map((m) => [m, 'view'])),
+  Admin: Object.fromEntries(ALL_MODULES.map(m => [m, 'full'])),
+  'Super Admin': Object.fromEntries(ALL_MODULES.map(m => [m, 'full'])),
+  Manager: Object.fromEntries(ALL_MODULES.map(m => [m, m === 'settings' ? 'view' : 'full'])),
+  Staff: Object.fromEntries(ALL_MODULES.map(m => [m, 'view'])),
   Warehouse: {
-    dashboard: 'view', sales: 'hidden', distribution: 'print', inventory: 'view',
-    purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'hidden',
-    accounts: 'hidden', warranty: 'hidden', replacements: 'hidden', rewards: 'hidden', settings: 'hidden',
+    dashboard: 'view',
+    sales: 'hidden',
+    distribution: 'print',
+    inventory: 'view',
+    purchases: 'hidden',
+    quotations: 'hidden',
+    orders: 'hidden',
+    finance: 'hidden',
+    accounts: 'hidden',
+    warranty: 'hidden',
+    replacements: 'hidden',
+    rewards: 'hidden',
+    settings: 'hidden',
   },
   Vendor: {
-    dashboard: 'view', sales: 'hidden', distribution: 'view', inventory: 'hidden',
-    purchases: 'hidden', quotations: 'hidden', orders: 'hidden', finance: 'view',
-    accounts: 'hidden', warranty: 'hidden', replacements: 'hidden', rewards: 'hidden', settings: 'hidden',
+    dashboard: 'view',
+    sales: 'hidden',
+    distribution: 'view',
+    inventory: 'hidden',
+    purchases: 'hidden',
+    quotations: 'hidden',
+    orders: 'hidden',
+    finance: 'view',
+    accounts: 'hidden',
+    warranty: 'hidden',
+    replacements: 'hidden',
+    rewards: 'hidden',
+    settings: 'hidden',
   },
 };
 
@@ -47,6 +78,7 @@ const PATH_MODULE: [string, string][] = [
   ['/distribution', 'distribution'],
   ['/products', 'inventory'],
   ['/categories', 'inventory'],
+  ['/metal', 'inventory'],
   ['/purchases', 'purchases'],
   ['/suppliers', 'purchases'],
   ['/supplier-finance', 'purchases'],
@@ -75,9 +107,7 @@ export function normalizePermissions(perms: unknown, role?: string): Record<stri
     return perms as Record<string, AccessLevel>;
   }
   if (Array.isArray(perms)) {
-    return Object.fromEntries(
-      ALL_MODULES.map((m) => [m, (perms as string[]).includes(m) ? 'full' : 'hidden'])
-    );
+    return Object.fromEntries(ALL_MODULES.map(m => [m, (perms as string[]).includes(m) ? 'full' : 'hidden']));
   }
   return ROLE_PRESETS[role || 'Staff'] || ROLE_PRESETS.Staff;
 }
@@ -88,9 +118,8 @@ export function getAccessLevel(
   module: string,
 ): AccessLevel {
   if (role && ['Admin', 'Super Admin', 'super_admin'].includes(role)) return 'full';
-  const perms = permissions && Object.keys(permissions).length
-    ? permissions
-    : (ROLE_PRESETS[role || ''] || ROLE_PRESETS.Staff);
+  const perms =
+    permissions && Object.keys(permissions).length ? permissions : ROLE_PRESETS[role || ''] || ROLE_PRESETS.Staff;
   const level = perms[module];
   if (level === 'full' || level === 'print' || level === 'view' || level === 'hidden') return level;
   // Missing key: fall back to role preset, then hidden

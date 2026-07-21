@@ -428,7 +428,7 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
         // Auto-mark as sold for dealer/retail tenants
         const tenantType = (await client.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]
           ?.business_type;
-        const autoSold = tenantType === 'dealer' || tenantType === 'retail';
+        const autoSold = tenantType === 'dealer' || tenantType === 'retail' || tenantType === 'silver_casting';
         if (autoSold) {
           await client.query("UPDATE product_distribution SET status = 'Sold' WHERE batch_id = $1 AND tenant_id = $2", [
             batchId,
@@ -454,7 +454,7 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
         // Auto-mark as sold for dealer/retail tenants
         const tenantType = (await client.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]
           ?.business_type;
-        const autoSold = tenantType === 'dealer' || tenantType === 'retail';
+        const autoSold = tenantType === 'dealer' || tenantType === 'retail' || tenantType === 'silver_casting';
         if (autoSold) {
           await client.query("UPDATE product_distribution SET status = 'Sold' WHERE batch_id = $1 AND tenant_id = $2", [
             batchId,
@@ -476,7 +476,7 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
 
     const tenantType = (await pool.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0]
       ?.business_type;
-    const autoSold = tenantType === 'dealer' || tenantType === 'retail';
+    const autoSold = tenantType === 'dealer' || tenantType === 'retail' || tenantType === 'silver_casting';
 
     await logAudit(
       pool,

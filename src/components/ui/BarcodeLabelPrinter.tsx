@@ -6,10 +6,24 @@ import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../
 import { session } from '../../lib/session';
 import { esc } from '../../lib/billTemplates';
 
+type LabelBarcode = {
+  barcode: string;
+  status: string;
+  grossWeight?: number | null;
+  netWeight?: number | null;
+  purity?: number | null;
+  fineWeight?: number | null;
+  huid?: string | null;
+  makingAmount?: number | null;
+  metalRate?: number | null;
+};
+
 interface BarcodeLabelPrinterProps {
   productId: string;
   onClose: () => void;
   barcodeRange?: { first: string; last: string };
+  /** Silver casting / jewellery tags — show weight, purity, HUID */
+  jewelleryMode?: boolean;
 }
 
 type LabelFormat = 'a4-24' | 'a4-40' | 'single';
@@ -65,14 +79,19 @@ function generateQrDataUrl(text: string, size: number = 100): string {
   return canvas.toDataURL('image/png');
 }
 
-export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: BarcodeLabelPrinterProps) {
+export function BarcodeLabelPrinter({
+  productId,
+  onClose,
+  barcodeRange,
+  jewelleryMode = false,
+}: BarcodeLabelPrinterProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [product, setProduct] = useState<{ name: string; price: number } | null>(null);
-  const [barcodes, setBarcodes] = useState<{ barcode: string; status: string }[]>([]);
-  const [format, setFormat] = useState<LabelFormat>('a4-24');
+  const [barcodes, setBarcodes] = useState<LabelBarcode[]>([]);
+  const [format, setFormat] = useState<LabelFormat>(jewelleryMode ? 'single' : 'a4-24');
   const [codeType, setCodeType] = useState<CodeType>('barcode');
-  const [showPrice, setShowPrice] = useState(true);
+  const [showPrice, setShowPrice] = useState(!jewelleryMode);
   const [selectedBarcodes, setSelectedBarcodes] = useState<Set<string>>(new Set());
   const [previewSrc, setPreviewSrc] = useState('');
   const companyName = (() => {
@@ -88,10 +107,15 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
       .getBarcodes(productId)
       .then(data => {
         setProduct(data.product);
-        const allBarcodes = data.barcodes;
+        const allBarcodes = data.barcodes as LabelBarcode[];
         setBarcodes(allBarcodes);
         if (barcodeRange) {
-          const inRange = allBarcodes.filter(b => b.barcode >= barcodeRange.first && b.barcode <= barcodeRange.last);
+          const inRange = allBarcodes.filter(
+            b =>
+              b.barcode === barcodeRange.first ||
+              b.barcode === barcodeRange.last ||
+              (b.barcode >= barcodeRange.first && b.barcode <= barcodeRange.last),
+          );
           setSelectedBarcodes(new Set(inRange.map(b => b.barcode)));
         } else {
           setSelectedBarcodes(new Set(allBarcodes.map(b => b.barcode)));
@@ -143,11 +167,20 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
       selected.map(async b => {
         const codeImg = codeType === 'barcode' ? await generateBarcodeDataUrl(b.barcode) : generateQrDataUrl(b.barcode);
         const safeSrc = codeImg.startsWith('data:image/') ? codeImg : '';
+        const metalLines =
+          jewelleryMode && (b.netWeight != null || b.purity != null)
+            ? `<div class="metal">${b.netWeight != null ? `${esc(String(b.netWeight))}g` : ''}${
+                b.purity != null ? ` · ${esc(String(b.purity))}‰` : ''
+              }${b.fineWeight != null ? ` · F ${esc(String(b.fineWeight))}g` : ''}</div>${
+                b.huid ? `<div class="huid">HUID ${esc(b.huid)}</div>` : ''
+              }`
+            : '';
         return `<div class="label">
         ${companyName ? `<div class="company">${esc(companyName)}</div>` : ''}
         <div class="product">${esc(product.name)}</div>
         ${safeSrc ? `<img src="${safeSrc}" class="code-img" alt="${esc(b.barcode)}" />` : ''}
         <div class="barcode-text">${esc(b.barcode)}</div>
+        ${metalLines}
         ${showPrice ? `<div class="price">₹${esc(Number(product.price).toLocaleString())}</div>` : ''}
       </div>`;
       }),
@@ -165,6 +198,8 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
   .product{font-size:${fontSize};font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
   .code-img{height:${imgHeight};max-width:95%;object-fit:contain;}
   .barcode-text{font-size:8px;font-family:monospace;letter-spacing:1px;margin-top:1px;}
+  .metal{font-size:8px;font-weight:600;margin-top:1px;}
+  .huid{font-size:7px;font-family:monospace;color:#444;margin-top:1px;}
   .price{font-size:10px;font-weight:700;margin-top:1px;}
   @media print{.label{border:0.3px solid #eee;}}
 </style></head><body>
@@ -195,9 +230,9 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
       <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h3 className="font-bold text-lg">Print Barcode Labels</h3>
+            <h3 className="font-bold text-lg">{jewelleryMode ? 'Print Jewellery Tags' : 'Print Barcode Labels'}</h3>
             <p className="text-sm text-gray-500">
-              {product?.name} — {barcodes.length} barcodes
+              {product?.name} — {barcodes.length} {jewelleryMode ? 'pieces' : 'barcodes'}
             </p>
           </div>
           <button type="button" onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
@@ -343,6 +378,15 @@ export function BarcodeLabelPrinter({ productId, onClose, barcodeRange }: Barcod
                   />
                 )}
                 <p style={{ fontSize: '8px', fontFamily: 'monospace', letterSpacing: '1px' }}>{barcodes[0]?.barcode}</p>
+                {jewelleryMode && barcodes[0]?.netWeight != null && (
+                  <p style={{ fontSize: '8px', fontWeight: 600 }}>
+                    {barcodes[0].netWeight}g{barcodes[0].purity != null ? ` · ${barcodes[0].purity}‰` : ''}
+                    {barcodes[0].fineWeight != null ? ` · F ${barcodes[0].fineWeight}g` : ''}
+                  </p>
+                )}
+                {jewelleryMode && barcodes[0]?.huid && (
+                  <p style={{ fontSize: '7px', fontFamily: 'monospace' }}>HUID {barcodes[0].huid}</p>
+                )}
                 {showPrice && (
                   <p style={{ fontSize: '10px', fontWeight: 700 }}>₹{Number(product?.price || 0).toLocaleString()}</p>
                 )}

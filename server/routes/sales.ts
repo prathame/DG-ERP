@@ -10,8 +10,15 @@ import {
 import { pool } from '../pg-db';
 import { uid, parsePagination, applyDateFilter, logAudit } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
+import { computeMetalSalePrice } from '../../shared/metal';
 
 const router = Router();
+
+async function tenantBusinessType(tenantId: string): Promise<string> {
+  const row = (await pool.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+    { business_type: string } | undefined;
+  return row?.business_type || 'manufacturer';
+}
 
 // ============ SALES ENTRY (validate barcode: distributed to vendor OR in inventory = Owner sale) ============
 router.get('/api/sales/validate/:barcode', async (req: AuthRequest, res) => {
@@ -65,15 +72,24 @@ router.get('/api/sales/validate/:barcode', async (req: AuthRequest, res) => {
     const inv = (
       await pool.query(
         `
-      SELECT pi.product_id, p.name as product_name, p.reward_points_value, p.price
+      SELECT pi.product_id, p.name as product_name, p.reward_points_value, p.price,
+             pi.net_weight, pi.gross_weight, pi.purity, pi.fine_weight, pi.making_amount, pi.metal_rate, pi.huid
       FROM product_inventory pi
       JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
       WHERE pi.barcode = $1 AND pi.status = 'InStock' AND pi.tenant_id = $2
     `,
         [barcode, tenantId],
       )
-    ).rows[0] as { product_id: string; product_name: string; reward_points_value: number; price: number } | undefined;
+    ).rows[0] as Record<string, unknown> | undefined;
     if (inv) {
+      const bizType = await tenantBusinessType(tenantId);
+      const netWeight = inv.net_weight != null ? Number(inv.net_weight) : null;
+      const metalRate = inv.metal_rate != null ? Number(inv.metal_rate) : Number(inv.price) || 0;
+      const makingAmount = inv.making_amount != null ? Number(inv.making_amount) : 0;
+      const suggestedPrice =
+        bizType === 'silver_casting' && netWeight != null && netWeight > 0
+          ? computeMetalSalePrice(netWeight, metalRate, makingAmount)
+          : Number(inv.price) || 0;
       return res.json({
         valid: true,
         productId: inv.product_id,
@@ -81,8 +97,16 @@ router.get('/api/sales/validate/:barcode', async (req: AuthRequest, res) => {
         vendorId: 'OWNER',
         vendorName: 'Owner',
         barcode,
-        rewardPointsValue: inv.reward_points_value ?? 0,
-        price: inv.price ?? 0,
+        rewardPointsValue: bizType === 'silver_casting' ? 0 : (inv.reward_points_value ?? 0),
+        price: suggestedPrice,
+        netWeight,
+        grossWeight: inv.gross_weight != null ? Number(inv.gross_weight) : null,
+        purity: inv.purity != null ? Number(inv.purity) : null,
+        fineWeight: inv.fine_weight != null ? Number(inv.fine_weight) : null,
+        makingAmount,
+        metalRate,
+        huid: (inv.huid as string) || null,
+        metalPricing: bizType === 'silver_casting',
       });
     }
     // 4. Barcode not found in inventory at all
@@ -179,7 +203,8 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
         ? ((
             await client.query(
               `
-        SELECT pi.id as inv_id, pi.product_id, p.reward_points_value, p.warranty_months
+        SELECT pi.id as inv_id, pi.product_id, p.reward_points_value, p.warranty_months, p.price,
+               pi.net_weight, pi.making_amount, pi.metal_rate
         FROM product_inventory pi
         JOIN products p ON pi.product_id = p.id AND p.tenant_id = $2
         WHERE pi.barcode = $1 AND pi.status = 'InStock' AND pi.tenant_id = $2
@@ -187,23 +212,33 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
       `,
               [barcode, tenantId],
             )
-          ).rows[0] as
-            { inv_id: string; product_id: string; reward_points_value: number; warranty_months: number } | undefined)
+          ).rows[0] as Record<string, unknown> | undefined)
         : null;
+
+      const bizType = await tenantBusinessType(tenantId);
+      const isMetal = bizType === 'silver_casting';
 
       const saleDataTxn = dist
         ? {
-            productId: dist.product_id,
-            vendorId: dist.vendor_id,
-            points: dist.reward_points_value ?? 0,
-            warrantyMonths: dist.warranty_months ?? 12,
+            productId: dist.product_id as string,
+            vendorId: dist.vendor_id as string,
+            points: isMetal ? 0 : Number(dist.reward_points_value ?? 0),
+            warrantyMonths: Number(dist.warranty_months ?? 12),
+            netWeight: null as number | null,
+            makingAmount: 0,
+            metalRate: 0,
+            productPrice: 0,
           }
         : inv
           ? {
-              productId: inv.product_id,
+              productId: inv.product_id as string,
               vendorId: 'OWNER',
-              points: inv.reward_points_value ?? 0,
-              warrantyMonths: inv.warranty_months ?? 12,
+              points: isMetal ? 0 : Number(inv.reward_points_value ?? 0),
+              warrantyMonths: Number(inv.warranty_months ?? 12),
+              netWeight: inv.net_weight != null ? Number(inv.net_weight) : null,
+              makingAmount: inv.making_amount != null ? Number(inv.making_amount) : 0,
+              metalRate: inv.metal_rate != null ? Number(inv.metal_rate) : Number(inv.price) || 0,
+              productPrice: Number(inv.price) || 0,
             }
           : null;
 
@@ -238,7 +273,19 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
           [customerId, tenantId, customerName, customerPhone, customerEmail || null, null, vendorId],
         );
       }
-      const priceVal = salePrice !== undefined && salePrice !== '' ? parseFloat(String(salePrice)) : null;
+      let priceVal = salePrice !== undefined && salePrice !== '' ? parseFloat(String(salePrice)) : null;
+      if (
+        (priceVal == null || Number.isNaN(priceVal)) &&
+        isMetal &&
+        saleDataTxn.netWeight != null &&
+        saleDataTxn.netWeight > 0
+      ) {
+        priceVal = computeMetalSalePrice(
+          saleDataTxn.netWeight,
+          saleDataTxn.metalRate || saleDataTxn.productPrice,
+          saleDataTxn.makingAmount,
+        );
+      }
       await client.query(
         `
         INSERT INTO product_sales (id, tenant_id, barcode, product_id, vendor_id, customer_id, customer_name, customer_phone, customer_email, purchase_date, reward_points_earned, sale_price)
@@ -272,34 +319,36 @@ router.post('/api/sales', blockVendors, async (req: AuthRequest, res) => {
         'UPDATE vendors SET total_sales = total_sales + 1, total_reward_points = total_reward_points + $1 WHERE id = $2 AND tenant_id = $3',
         [points, vendorId, tenantId],
       );
-      const productName = (
-        await client.query('SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])
-      ).rows[0] as { name: string } | undefined;
-      const rewardId = uid('R');
-      await client.query(
-        `
-        INSERT INTO rewards (id, tenant_id, user_id, points, type, description, date, vendor_id, sale_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      `,
-        [rewardId, tenantId, 'D1', points, 'Earned', `${productName?.name ?? 'Product'} sold`, date, vendorId, id],
-      );
-      // Auto-create warranty based on product warranty_months
-      const activationDate = date;
-      const actDate = new Date(activationDate);
-      const expiryDateObj = new Date(
-        actDate.getFullYear(),
-        actDate.getMonth() + warrantyMonths,
-        Math.min(actDate.getDate(), 28),
-      );
-      const expiryDate = expiryDateObj.toISOString().slice(0, 10);
-      const warrantyId = uid('W');
-      await client.query(
-        `
-        INSERT INTO warranties (id, tenant_id, product_id, barcode, customer_name, customer_phone, activation_date, expiry_date, status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active')
-      `,
-        [warrantyId, tenantId, productId, barcode, customerName, customerPhone, activationDate, expiryDate],
-      );
+      if (!isMetal) {
+        const productName = (
+          await client.query('SELECT name FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])
+        ).rows[0] as { name: string } | undefined;
+        const rewardId = uid('R');
+        await client.query(
+          `
+          INSERT INTO rewards (id, tenant_id, user_id, points, type, description, date, vendor_id, sale_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `,
+          [rewardId, tenantId, 'D1', points, 'Earned', `${productName?.name ?? 'Product'} sold`, date, vendorId, id],
+        );
+        // Auto-create warranty based on product warranty_months
+        const activationDate = date;
+        const actDate = new Date(activationDate);
+        const expiryDateObj = new Date(
+          actDate.getFullYear(),
+          actDate.getMonth() + warrantyMonths,
+          Math.min(actDate.getDate(), 28),
+        );
+        const expiryDate = expiryDateObj.toISOString().slice(0, 10);
+        const warrantyId = uid('W');
+        await client.query(
+          `
+          INSERT INTO warranties (id, tenant_id, product_id, barcode, customer_name, customer_phone, activation_date, expiry_date, status)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active')
+        `,
+          [warrantyId, tenantId, productId, barcode, customerName, customerPhone, activationDate, expiryDate],
+        );
+      }
 
       await client.query('COMMIT');
     } catch (e) {

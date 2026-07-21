@@ -15,81 +15,11 @@ import {
   Zap,
   Bell,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, bizTypeLabel } from '../../lib/utils';
 import { useToast } from '../../components/ui';
+import { NAMED_BUSINESS_TYPES, getTabPreset } from '../../../shared/tabPresets';
 
-const BUSINESS_TYPES = ['manufacturer', 'dealer', 'retail', 'service'] as const;
-
-const TAB_PRESETS: Record<string, Record<string, { label: string; visible: boolean }>> = {
-  manufacturer: {
-    analytics: { label: 'Analytics', visible: true },
-    masters: { label: 'Masters', visible: true },
-    inventory: { label: 'Inventory', visible: true },
-    distribution: { label: 'Dispatch', visible: true },
-    sales: { label: 'Warranty Registration', visible: true },
-    purchases: { label: 'Purchases', visible: true },
-    verification: { label: 'Search / Verify', visible: true },
-    quotations: { label: 'Quotes & Orders', visible: true },
-    invoices: { label: 'Invoices', visible: true },
-    finance: { label: 'Vendor Payments', visible: true },
-    accounts: { label: 'Accounts', visible: true },
-    warranty: { label: 'Warranty', visible: true },
-    replacements: { label: 'Replacements', visible: true },
-    rewards: { label: 'Rewards', visible: true },
-    chatbot: { label: 'Chatbot', visible: true },
-  },
-  dealer: {
-    analytics: { label: 'Analytics', visible: true },
-    masters: { label: 'Masters', visible: true },
-    inventory: { label: 'Inventory', visible: true },
-    distribution: { label: 'Sales', visible: true },
-    sales: { label: 'Sales Entry', visible: false },
-    purchases: { label: 'Purchases', visible: true },
-    verification: { label: 'Search / Verify', visible: true },
-    quotations: { label: 'Quotes & Orders', visible: true },
-    invoices: { label: 'Invoices', visible: true },
-    finance: { label: 'Dealer Payments', visible: true },
-    accounts: { label: 'Accounts', visible: true },
-    warranty: { label: 'Warranty', visible: false },
-    replacements: { label: 'Replacements', visible: false },
-    rewards: { label: 'Rewards', visible: false },
-    chatbot: { label: 'Chatbot', visible: true },
-  },
-  retail: {
-    analytics: { label: 'Analytics', visible: true },
-    masters: { label: 'Masters', visible: true },
-    inventory: { label: 'Stock', visible: true },
-    distribution: { label: 'Purchase', visible: true },
-    sales: { label: 'Sales Entry', visible: false },
-    purchases: { label: 'Purchases', visible: true },
-    verification: { label: 'Search / Verify', visible: true },
-    quotations: { label: 'Quotes & Orders', visible: true },
-    invoices: { label: 'Invoices', visible: true },
-    finance: { label: 'Supplier Payments', visible: true },
-    accounts: { label: 'Accounts', visible: true },
-    warranty: { label: 'Warranty', visible: false },
-    replacements: { label: 'Replacements', visible: false },
-    rewards: { label: 'Rewards', visible: false },
-    chatbot: { label: 'Chatbot', visible: true },
-  },
-  service: {
-    analytics: { label: 'Analytics', visible: true },
-    masters: { label: 'Masters', visible: true },
-    inventory: { label: 'Inventory', visible: false },
-    distribution: { label: 'Distribution', visible: false },
-    sales: { label: 'Sales Entry', visible: false },
-    purchases: { label: 'Expenses', visible: true },
-    verification: { label: 'Search / Verify', visible: false },
-    quotations: { label: 'Quotes & Orders', visible: true },
-    invoices: { label: 'Invoices', visible: true },
-    finance: { label: 'Invoice Finance', visible: true },
-    accounts: { label: 'Accounts', visible: true },
-    warranty: { label: 'Warranty', visible: false },
-    replacements: { label: 'Replacements', visible: false },
-    rewards: { label: 'Rewards', visible: false },
-    chatbot: { label: 'Chatbot', visible: true },
-  },
-};
+const BUSINESS_TYPES = NAMED_BUSINESS_TYPES;
 
 interface License {
   id: string;
@@ -323,7 +253,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
     const delta = { ...localSettings };
     const merged = { ...base, ...delta };
     // Heal partial tabConfig left by older buggy saves — fill from business-type presets
-    const presets = TAB_PRESETS[selected?.businessType || 'manufacturer'] || {};
+    const presets = getTabPreset(selected?.businessType || 'manufacturer');
     merged.tabConfig = {
       ...presets,
       ...((base.tabConfig as Record<string, unknown>) || {}),
@@ -505,7 +435,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
                 'chatbot',
               ].map(tab => {
                 const businessType = (selected?.businessType as string) || 'manufacturer';
-                const presetCfg = TAB_PRESETS[businessType]?.[tab] || { label: tab, visible: true };
+                const presetCfg = getTabPreset(businessType)[tab] || { label: tab, visible: true };
                 const baseTc = {
                   ...((selected?.settings?.tabConfig as Record<string, { label: string; visible: boolean }>) || {}),
                   ...((localSettings.tabConfig as Record<string, { label: string; visible: boolean }>) || {}),
@@ -1198,7 +1128,7 @@ export function OnPremView({ saToken }: { saToken: string }) {
                 >
                   {BUSINESS_TYPES.map(t => (
                     <option key={t} value={t}>
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                      {bizTypeLabel(t)}
                     </option>
                   ))}
                 </select>

@@ -28,6 +28,7 @@ flowchart TB
 |---|---|---|---|
 | `super-admin.ts` | `/api/super-admin/*`, `/api/tenant/by-slug/:slug` | *(platform — SA middleware)* | Tenant CRUD, plans, billing, impersonate, analytics |
 | `products.ts` | `/api/products`, `/api/categories` | `inventory` | Barcodes, batch CSV, stock add |
+| `metal.ts` | `/api/metal/*` | `inventory` | Silver casting intake + fine ledger (`business_type` gated) |
 | `sales.ts` | `/api/sales` | `sales` | Barcode POS, bill fetch |
 | `distribution.ts` | `/api/distribution` | `distribution` | Batches, dispatch, EWB fields, billing |
 | `warranties.ts` | `/api/warranties` | `warranty` | Serial warranty lifecycle |

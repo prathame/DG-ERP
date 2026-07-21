@@ -23,6 +23,7 @@ Every endpoint is `/api/{resource}` (or a nested variant), JSON in and out, auth
 | On-prem licensing | `/api/onprem/*` | `onprem.ts` |
 | Mobile device lifecycle | `/api/mobile/*` | `mobile.ts` |
 | Catalog | `/api/products`, `/api/categories`, `/api/price-lists` | `products.ts`, `price-lists.ts` |
+| Metal / Silver Casting | `/api/metal/*` | `metal.ts` (business type `silver_casting` only) |
 | Masters / config | `/api/masters/*`, `/api/mapping/*`, `/api/admin/*` | `masters.ts`, `mapping.ts`, `admin.ts` |
 | Distribution | `/api/distribution/*`, `/api/vendors/*` | `distribution.ts`, `vendors.ts` |
 | Sales | `/api/sales/*`, `/api/customers/*`, `/api/invoices/*` | `sales.ts`, `customers.ts`, `invoices.ts` |

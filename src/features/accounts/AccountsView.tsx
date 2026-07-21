@@ -29,7 +29,7 @@ import {
 } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { useToast, LoadingSpinner, MobilePillTabs, dateControlClass } from '../../components/ui';
-import { fetchApi } from '../../api';
+import { api, fetchApi } from '../../api';
 import { esc } from '../../lib/billTemplates';
 
 type AccountTab =
@@ -44,6 +44,7 @@ type AccountTab =
   | 'outstanding'
   | 'payments'
   | 'stock'
+  | 'fineledger'
   | 'gst'
   | 'gstr2b'
   | 'gstr3b';
@@ -55,7 +56,7 @@ function fmtCurrency(n: number) {
 export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const { toast } = useToast();
   const cfg = useBusinessConfig();
-  const ds = cfg.type === 'dealer' || cfg.type === 'retail';
+  const ds = cfg.type === 'dealer' || cfg.type === 'retail' || cfg.type === 'silver_casting';
   const partySingular = cfg.labels.vendors.replace(/s$/, ''); // Vendor | Customer | Client
   const businessType = cfg.type;
   const [tab, setTab] = useState<AccountTab>('pnl');
@@ -85,6 +86,7 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
       else if (tab === 'outstanding') setData(await fetchApi('/reports/outstanding'));
       else if (tab === 'payments') setData(await fetchApi(`/reports/payment-register?${qs}`));
       else if (tab === 'stock') setData(await fetchApi('/reports/stock-summary'));
+      else if (tab === 'fineledger') setData(await api.metal.fineLedger({ from, to }));
       else if (tab === 'gst') setData(await fetchApi(`/reports/gst-summary?month=${gstMonth}&year=${gstYear}`));
       else if (tab === 'gstr3b') setData(await fetchApi(`/gstr3b/compute?month=${gstMonth}&year=${gstYear}`));
     } catch {
@@ -109,6 +111,7 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
       outstanding: 'Outstanding Report',
       payments: 'Payment Register',
       stock: 'Stock Summary',
+      fineledger: 'Fine Metal Ledger',
       gst: 'GST Summary',
     };
     const win = openPrintWindow();
@@ -180,6 +183,14 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
       icon: Package,
       group: 'reports',
       hide: cfg.accounts.hideTabs.includes('stock'),
+    },
+    {
+      key: 'fineledger',
+      label: 'Fine Metal Ledger',
+      shortLabel: 'Fine',
+      icon: Scale,
+      group: 'reports',
+      hide: !cfg.features.metalInventory,
     },
     { key: 'gst', label: 'GST Summary', shortLabel: 'GST', icon: Receipt, group: 'reports' },
     { key: 'gstr2b', label: 'GSTR-2B Reconciliation', shortLabel: '2B', icon: FileCheck, group: 'reports' },
@@ -407,6 +418,7 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
           {['sales', 'distribution', 'outstanding', 'payments', 'stock', 'gst'].includes(tab) && (
             <ReportTable tab={tab} data={data} ds={ds} partySingular={partySingular} />
           )}
+          {tab === 'fineledger' && <FineMetalLedger data={data} />}
         </div>
       )}
 
@@ -429,6 +441,70 @@ function StatCard({ label, value, color, sub }: { label: string; value: string; 
       <p className="text-xs font-bold text-gray-400 uppercase">{label}</p>
       <p className={cn('text-xl font-bold mt-1', color)}>{value}</p>
       {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+type FineRow = { purity: number; pieces: number; netWeight: number; fineWeight: number };
+
+function FineMetalLedger({ data }: { data: Record<string, unknown> }) {
+  const totals = (data.totals || {}) as { fineIn?: number; fineOut?: number; fineOnHand?: number };
+  const intake = (data.intake || []) as FineRow[];
+  const sold = (data.sold || []) as FineRow[];
+  const inStock = (data.inStock || []) as FineRow[];
+
+  const Section = ({ title, rows }: { title: string; rows: FineRow[] }) => (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+        <span className="text-sm font-bold text-gray-700">{title}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-3 py-2 text-left text-xs font-bold text-gray-400 uppercase">Purity ‰</th>
+              <th className="px-3 py-2 text-right text-xs font-bold text-gray-400 uppercase">Pieces</th>
+              <th className="px-3 py-2 text-right text-xs font-bold text-gray-400 uppercase">Net (g)</th>
+              <th className="px-3 py-2 text-right text-xs font-bold text-gray-400 uppercase">Fine (g)</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-3 py-6 text-center text-gray-400">
+                  No rows
+                </td>
+              </tr>
+            ) : (
+              rows.map(r => (
+                <tr key={`${title}-${r.purity}`} className="hover:bg-gray-50/50">
+                  <td className="px-3 py-2 font-mono">{r.purity}</td>
+                  <td className="px-3 py-2 text-right">{r.pieces}</td>
+                  <td className="px-3 py-2 text-right">{Number(r.netWeight).toFixed(3)}</td>
+                  <td className="px-3 py-2 text-right font-bold">{Number(r.fineWeight).toFixed(3)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <StatCard
+          label="Fine In (intake)"
+          value={`${Number(totals.fineIn || 0).toFixed(3)} g`}
+          color="text-emerald-600"
+        />
+        <StatCard label="Fine Out (sold)" value={`${Number(totals.fineOut || 0).toFixed(3)} g`} color="text-rose-600" />
+        <StatCard label="Fine On Hand" value={`${Number(totals.fineOnHand || 0).toFixed(3)} g`} color="text-brand" />
+      </div>
+      <Section title="Intake by purity (period)" rows={intake} />
+      <Section title="Sold by purity (period)" rows={sold} />
+      <Section title="In stock by purity (current)" rows={inStock} />
     </div>
   );
 }

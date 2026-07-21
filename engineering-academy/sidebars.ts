@@ -95,6 +95,7 @@ const sidebars: SidebarsConfig = {
         'api/overview',
         'api/auth',
         'api/products-inventory',
+        'api/metal-silver-casting',
         'api/sales-distribution',
         'api/finance-accounts',
         'api/gst',

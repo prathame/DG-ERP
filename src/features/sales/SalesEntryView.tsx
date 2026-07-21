@@ -21,6 +21,7 @@ import { useToast, DateRangeFilter, PaginationControls } from '../../components/
 import { generateSalesInvoiceHtml } from '../../lib/billTemplates';
 import { BarcodeScanner } from '../../components/ui/BarcodeScanner';
 import { session } from '../../lib/session';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
 
 export function SalesEntryView({
   user,
@@ -28,6 +29,8 @@ export function SalesEntryView({
   user: { id: string; role?: string; vendorId?: string; autoWhatsapp?: boolean } | null;
 }) {
   const { toast } = useToast();
+  const bizCfg = useBusinessConfig();
+  const metalMode = bizCfg.features.metalInventory;
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
   const barcodeSystemEnabled = (() => {
     try {
@@ -47,6 +50,12 @@ export function SalesEntryView({
     rewardPointsValue?: number;
     price?: number;
     error?: string;
+    netWeight?: number | null;
+    purity?: number | null;
+    fineWeight?: number | null;
+    makingAmount?: number | null;
+    metalRate?: number | null;
+    metalPricing?: boolean;
   } | null>(null);
   const [form, setForm] = useState({
     customerName: '',
@@ -102,18 +111,33 @@ export function SalesEntryView({
     api.sales
       .validate(code, vendorId)
       .then(r => {
+        const meta = r as {
+          price?: number;
+          error?: string;
+          netWeight?: number | null;
+          purity?: number | null;
+          fineWeight?: number | null;
+          makingAmount?: number | null;
+          metalRate?: number | null;
+          metalPricing?: boolean;
+        };
         setValidation({
           valid: r.valid,
           productName: r.productName,
           vendorName: r.vendorName,
           rewardPointsValue: r.rewardPointsValue,
-          price: (r as { price?: number }).price,
-          error: (r as { error?: string }).error,
+          price: meta.price,
+          error: meta.error,
+          netWeight: meta.netWeight,
+          purity: meta.purity,
+          fineWeight: meta.fineWeight,
+          makingAmount: meta.makingAmount,
+          metalRate: meta.metalRate,
+          metalPricing: meta.metalPricing,
         });
         if (r.valid) {
           toast(`Found: ${r.productName}`, 'success');
-          if ((r as { price?: number }).price != null)
-            setForm(f => ({ ...f, salePrice: String((r as { price?: number }).price ?? '') }));
+          if (meta.price != null) setForm(f => ({ ...f, salePrice: String(meta.price ?? '') }));
         } else {
           toast((r as { error?: string }).error || 'Invalid barcode', 'error');
         }
@@ -232,11 +256,22 @@ export function SalesEntryView({
                     <p>
                       <span className="font-medium text-gray-600">Vendor:</span> {validation.vendorName}
                     </p>
+                    {(metalMode || validation.metalPricing) && validation.netWeight != null && (
+                      <p>
+                        <span className="font-medium text-gray-600">Metal:</span> {validation.netWeight}g
+                        {validation.purity != null ? ` · ${validation.purity}‰` : ''}
+                        {validation.fineWeight != null ? ` · fine ${validation.fineWeight}g` : ''}
+                        {validation.metalRate != null ? ` · ₹${validation.metalRate}/g` : ''}
+                        {validation.makingAmount ? ` + making ₹${validation.makingAmount}` : ''}
+                      </p>
+                    )}
                     <p>
-                      <span className="font-medium text-gray-600">Price:</span> ₹
-                      {(validation.price ?? 0).toLocaleString()}
+                      <span className="font-medium text-gray-600">
+                        {validation.metalPricing ? 'Suggested price' : 'Price'}:
+                      </span>{' '}
+                      ₹{(validation.price ?? 0).toLocaleString()}
                     </p>
-                    <p>{validation.rewardPointsValue ?? 0} reward pts</p>
+                    {!metalMode && !validation.metalPricing && <p>{validation.rewardPointsValue ?? 0} reward pts</p>}
                   </div>
                 </>
               ) : (

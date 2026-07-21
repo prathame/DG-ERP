@@ -8,7 +8,7 @@ description: A tour of every features/* View in the frontend, and the business p
 `src/features/` holds 18 top-level business modules. Each is a folder with one primary `*View.tsx` (lazy-loaded from `App.tsx` — see [app-shell.md](./app-shell.md)) and usually several sub-components for detail screens, modals, and forms. This document is organized around one question per module: **what business problem does this solve, for whom, and why does it look the way it does?**
 
 > [!NOTE]
-> **The `businessType` thread runs through nearly every module.** Dhandho supports four business archetypes — `manufacturer`, `dealer`, `retail`, `service` — configured per tenant and read via `useBusinessConfig()` (`src/lib/businessTypeConfig.ts`). The same `DistributionView` component, for instance, is labeled "Dispatch" for a manufacturer and effectively becomes the sales flow for a dealer. Rather than forking the UI per business type, one component adapts its **labels and visible features** based on this config object. Keep this in mind as you read below — many modules described as one thing are really "the same screen wearing a different business type's vocabulary."
+> **The `businessType` thread runs through nearly every module.** Dhandho supports named archetypes — `manufacturer`, `dealer`, `retail`, `service`, `silver_casting` (+ `custom`) — configured per tenant and read via `useBusinessConfig()` (`src/lib/businessTypeConfig.ts`). Tab presets live in `shared/tabPresets.ts`. The same `DistributionView` component, for instance, is labeled "Dispatch" for a manufacturer and effectively becomes the sales flow for a dealer or silver casting party sale. Rather than forking the UI per business type, one component adapts its **labels and visible features** based on this config object. Keep this in mind as you read below — many modules described as one thing are really "the same screen wearing a different business type's vocabulary."
 
 ```mermaid
 graph TD
@@ -68,7 +68,9 @@ The "reference data" hub — customers, vendors, banks, staff, reward rules, and
 
 Product catalog + stock tracking, keyed by **barcode**, not just SKU. Products can be added with a range of barcodes (`rangeStart`/`rangeEnd`), a prefix pattern, or auto-generated, and stock is added in batches (`api.products.addStock`). Every unit — not just every SKU — is individually trackable through `product_inventory` rows, which is what makes per-unit warranty and replacement tracking possible downstream. `accessLevel` (`hidden`/`view`/`print`/`full`) is passed in from `App.tsx`'s permission derivation and used to hide mutating controls for roles that can only view or print.
 
-**Business value:** counterfeit and warranty-fraud prevention in Indian consumer-goods distribution relies on being able to say "this exact barcode was manufactured on this date, dispatched to this vendor, and sold to this customer" — that chain starts here.
+For **`silver_casting`** tenants, Inventory also exposes **Metal Intake** (`MetalIntakeModal`): weigh (Web Serial / wedge / manual) → create one `product_inventory` row with weight/purity/fine → open jewellery tag print. Piece columns live on `product_inventory` (`gross_weight`, `net_weight`, `purity`, `fine_weight`, `making_*`, `huid`, `metal_rate`). Accounts gains a **Fine Metal Ledger** report (`GET /api/metal/fine-ledger`).
+
+**Business value:** counterfeit and warranty-fraud prevention in Indian consumer-goods distribution relies on being able to say "this exact barcode was manufactured on this date, dispatched to this vendor, and sold to this customer" — that chain starts here. For silver casting, the same spine tracks per-piece metal weight and fine.
 
 ## Distribution
 

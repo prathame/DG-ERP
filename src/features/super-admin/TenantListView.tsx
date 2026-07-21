@@ -17,6 +17,7 @@ import {
 import { LoadingSpinner, useToast } from '../../components/ui';
 import { cn } from '../../lib/utils';
 import { session } from '../../lib/session';
+import { TAB_PRESETS, type NamedBusinessType } from '../../../shared/tabPresets';
 
 interface Tenant {
   id: string;
@@ -396,101 +397,43 @@ export function TenantListView({ onSelectTenant }: TenantListViewProps) {
   );
 }
 
-type BusinessType = 'manufacturer' | 'dealer' | 'retail' | 'service' | 'custom';
+type BusinessType = NamedBusinessType | 'custom';
 
-const BUSINESS_TYPE_CONFIGS: Record<
-  Exclude<BusinessType, 'custom'>,
-  { label: string; desc: string; tabConfig: Record<string, { label: string; visible: boolean }> }
-> = {
+const BUSINESS_TYPE_META: Record<NamedBusinessType, { label: string; desc: string }> = {
   manufacturer: {
     label: 'Manufacturer',
     desc: 'Full supply chain — dispatch to vendors, warranty, customer tracking',
-    tabConfig: {
-      analytics: { label: 'Analytics', visible: true },
-      masters: { label: 'Masters', visible: true },
-      inventory: { label: 'Inventory', visible: true },
-      distribution: { label: 'Dispatch', visible: true },
-      sales: { label: 'Warranty Registration', visible: true },
-      purchases: { label: 'Purchases', visible: true },
-      verification: { label: 'Search / Verify', visible: true },
-      quotations: { label: 'Quotes & Orders', visible: true },
-      invoices: { label: 'Invoices', visible: true },
-      finance: { label: 'Vendor Payments', visible: true },
-      accounts: { label: 'Accounts', visible: true },
-      warranty: { label: 'Warranty', visible: true },
-      replacements: { label: 'Replacements', visible: true },
-      rewards: { label: 'Rewards', visible: true },
-      chatbot: { label: 'Chatbot', visible: true },
-      settings: { label: 'Settings', visible: true },
-    },
   },
   dealer: {
     label: 'Dealer / Wholesaler',
     desc: 'Sell to dealers/vendors — no customer tracking, no warranty',
-    tabConfig: {
-      analytics: { label: 'Analytics', visible: true },
-      masters: { label: 'Masters', visible: true },
-      inventory: { label: 'Inventory', visible: true },
-      distribution: { label: 'Sales', visible: true },
-      sales: { label: 'Sales Entry', visible: false },
-      purchases: { label: 'Purchases', visible: true },
-      verification: { label: 'Search / Verify', visible: true },
-      quotations: { label: 'Quotes & Orders', visible: true },
-      invoices: { label: 'Invoices', visible: true },
-      finance: { label: 'Dealer Payments', visible: true },
-      accounts: { label: 'Accounts', visible: true },
-      warranty: { label: 'Warranty', visible: false },
-      replacements: { label: 'Replacements', visible: false },
-      rewards: { label: 'Rewards', visible: false },
-      chatbot: { label: 'Chatbot', visible: true },
-      settings: { label: 'Settings', visible: true },
-    },
   },
   retail: {
     label: 'Retail Shop',
     desc: 'Buy stock, sell to walk-in customers — no distribution chain',
-    tabConfig: {
-      analytics: { label: 'Analytics', visible: true },
-      masters: { label: 'Masters', visible: true },
-      inventory: { label: 'Stock', visible: true },
-      distribution: { label: 'Purchase', visible: true },
-      sales: { label: 'Sales Entry', visible: false },
-      purchases: { label: 'Purchases', visible: true },
-      verification: { label: 'Search / Verify', visible: true },
-      quotations: { label: 'Quotes & Orders', visible: true },
-      invoices: { label: 'Invoices', visible: true },
-      finance: { label: 'Supplier Payments', visible: true },
-      accounts: { label: 'Accounts', visible: true },
-      warranty: { label: 'Warranty', visible: false },
-      replacements: { label: 'Replacements', visible: false },
-      rewards: { label: 'Rewards', visible: false },
-      chatbot: { label: 'Chatbot', visible: true },
-      settings: { label: 'Settings', visible: true },
-    },
   },
   service: {
     label: 'Service / Consulting',
     desc: 'No inventory — invoicing, quotes, expenses and accounts for service businesses',
-    tabConfig: {
-      analytics: { label: 'Analytics', visible: true },
-      masters: { label: 'Masters', visible: true },
-      inventory: { label: 'Inventory', visible: false },
-      distribution: { label: 'Distribution', visible: false },
-      sales: { label: 'Sales Entry', visible: false },
-      purchases: { label: 'Expenses', visible: true },
-      verification: { label: 'Search / Verify', visible: false },
-      quotations: { label: 'Quotes & Orders', visible: true },
-      invoices: { label: 'Invoices', visible: true },
-      finance: { label: 'Payments', visible: true },
-      accounts: { label: 'Accounts', visible: true },
-      warranty: { label: 'Warranty', visible: false },
-      replacements: { label: 'Replacements', visible: false },
-      rewards: { label: 'Rewards', visible: false },
-      chatbot: { label: 'Chatbot', visible: true },
-      settings: { label: 'Settings', visible: true },
-    },
+  },
+  silver_casting: {
+    label: 'Silver Casting',
+    desc: 'Weigh → piece barcode → jewellery tag → counter sale with fine metal tracking',
   },
 };
+
+const BUSINESS_TYPE_CONFIGS: Record<
+  NamedBusinessType,
+  { label: string; desc: string; tabConfig: Record<string, { label: string; visible: boolean }> }
+> = Object.fromEntries(
+  (Object.keys(TAB_PRESETS) as NamedBusinessType[]).map(id => [
+    id,
+    { ...BUSINESS_TYPE_META[id], tabConfig: TAB_PRESETS[id] },
+  ]),
+) as Record<
+  NamedBusinessType,
+  { label: string; desc: string; tabConfig: Record<string, { label: string; visible: boolean }> }
+>;
 
 function CreateTenantModal({
   onClose,
@@ -820,6 +763,7 @@ function CreateTenantModal({
                     { id: 'dealer' as const, icon: '🤝' },
                     { id: 'retail' as const, icon: '🏪' },
                     { id: 'service' as const, icon: '🔧' },
+                    { id: 'silver_casting' as const, icon: '🥈' },
                     { id: 'custom' as const, icon: '⚙️' },
                   ] as const
                 ).map(bt => {
