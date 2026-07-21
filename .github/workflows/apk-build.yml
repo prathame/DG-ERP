@@ -1,7 +1,7 @@
 # Unified Dhandho Service phone — one Android APK + one iOS .app.zip.
 # First launch: Online (cloud) or Offline (on-device) picker (one-time).
 #
-# Labels (merge → evergreen; label on open PR → preview):
+# Labels (merge → evergreen; label on open PR → preview from *all* PR labels):
 #   mobile → Android + iOS
 #
 # Comment preview (does NOT overwrite evergreen):
@@ -291,7 +291,10 @@ jobs:
               return;
             }
 
-            // ── Label added on open PR: preview for that product ───────────
+            // ── Label added on open PR: preview from full PR label set ─────
+            // Use all current labels (not just the newly added one). Stacking
+            // labels cancels prior runs via concurrency; evaluating only the
+            // new label made the last label win and skipped broader builds.
             if (event === 'pull_request' && context.payload.action === 'labeled') {
               const label = String(context.payload.label?.name || '').toLowerCase();
               const pr = context.payload.pull_request;
@@ -299,7 +302,9 @@ jobs:
                 set({ offline: false, online: false });
                 return;
               }
-              const { offline, online } = productsFromLabels([label]);
+              const names = labelNames(pr);
+              if (label && !names.includes(label)) names.push(label);
+              const { offline, online } = productsFromLabels(names);
               if (!offline && !online) {
                 set({ offline: false, online: false });
                 return;
