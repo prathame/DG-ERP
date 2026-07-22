@@ -10,7 +10,7 @@ import {
 import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
-import { hasExplicitUnitPrice, resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
+import { hasExplicitUnitPrice, resolveGstRate, resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
 
 const router = Router();
 
@@ -255,7 +255,15 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
     if (!vendorId) return res.status(400).json({ error: 'Vendor is required' });
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Add at least one product' });
 
-    const gstRate = Number(reqGstRate) || 18;
+    const companyDefaultGst = Number(
+      (
+        await pool.query(
+          "SELECT default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') AND tenant_id = $1 ORDER BY id LIMIT 1",
+          [tenantId],
+        )
+      ).rows[0]?.default_gst_rate,
+    );
+    const fallbackGstRate = Number(reqGstRate) || resolveGstRate(null, companyDefaultGst);
     const date = distributionDate || new Date().toISOString().slice(0, 10);
     const batchId = uid('D');
     const paidAmount = typeof amountPaid === 'number' && amountPaid > 0 ? amountPaid : null;
@@ -297,7 +305,7 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
             pack_size: number;
             stock: number;
             price_includes_gst: boolean;
-            gst_rate: number;
+            gst_rate: number | null;
           }
         | undefined;
       if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
@@ -306,6 +314,7 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
         : (await resolvePrice(tenantId, item.productId, vendorId, qty)).price;
       const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
       const gstApplied = item.withGst !== false ? 1 : 0;
+      const gstRate = resolveGstRate(product.gst_rate, fallbackGstRate);
       const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
         basePrice,
         discountPercent: disc,
@@ -529,21 +538,31 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
     if (!productId || !vendorId) return res.status(400).json({ error: 'Product and vendor are required' });
     const qty = Math.max(1, parseInt(String(quantity), 10) || 1);
     const product = (
-      await pool.query('SELECT id, price FROM products WHERE id = $1 AND tenant_id = $2', [productId, tenantId])
-    ).rows[0] as { id: string; price: number } | undefined;
+      await pool.query(
+        'SELECT id, price, price_includes_gst, gst_rate FROM products WHERE id = $1 AND tenant_id = $2',
+        [productId, tenantId],
+      )
+    ).rows[0] as { id: string; price: number; price_includes_gst: boolean; gst_rate: number | null } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
     const basePrice = hasExplicitUnitPrice(customPrice)
       ? Number(customPrice)
       : (await resolvePrice(tenantId, productId, vendorId, qty)).price;
     const disc = Math.min(100, Math.max(0, Number(discountPercent) || 0));
     const gstApplied = withGst !== false;
-    const gstRate = Number(reqGstRate) || 18;
-    // Legacy single-row create: prices are exclusive-base (no price_includes_gst on this path)
+    const companyDefaultGst = Number(
+      (
+        await pool.query(
+          "SELECT default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') AND tenant_id = $1 ORDER BY id LIMIT 1",
+          [tenantId],
+        )
+      ).rows[0]?.default_gst_rate,
+    );
+    const gstRate = resolveGstRate(product.gst_rate, Number(reqGstRate) || companyDefaultGst);
     const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
       basePrice,
       discountPercent: disc,
       withGst: gstApplied,
-      priceIncludesGst: false,
+      priceIncludesGst: !!product.price_includes_gst,
       gstRate,
     });
     const grossValue = basePrice * qty;
@@ -708,13 +727,22 @@ router.put('/api/distribution/apply-billing', blockVendors, async (req: AuthRequ
 
     const { vendorId, batchId, gstUnits, nonGstUnits, gstRate } = req.body;
     if (!vendorId && !batchId) return res.status(400).json({ error: 'vendorId or batchId required' });
-    const rate = Number(gstRate) || 18;
+    const companyDefaultGst = Number(
+      (
+        await pool.query(
+          "SELECT default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') AND tenant_id = $1 ORDER BY id LIMIT 1",
+          [tenantId],
+        )
+      ).rows[0]?.default_gst_rate,
+    );
+    const fallbackRate = Number(gstRate) || resolveGstRate(null, companyDefaultGst);
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       let sql = `
-        SELECT pd.id, COALESCE(pd.net_price, p.price) as unit_price
+        SELECT pd.id, pd.discount_percent, pd.net_price, pd.irn,
+               p.price as product_price, p.price_includes_gst, p.gst_rate as product_gst_rate
         FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
         WHERE pd.tenant_id = $1
       `;
@@ -729,37 +757,77 @@ router.put('/api/distribution/apply-billing', blockVendors, async (req: AuthRequ
         sql += ` AND pd.vendor_id = $${paramIdx} AND pd.billed_price IS NULL`;
         params.push(vendorId as string);
       }
+      // Must match getBill ORDER BY so slider index ↔ unit identity stays stable
       sql += ' ORDER BY pd.id FOR UPDATE OF pd';
-      const units = (await client.query(sql, params)).rows as { id: string; unit_price: number }[];
+      const units = (await client.query(sql, params)).rows as {
+        id: string;
+        discount_percent: number;
+        net_price: number | null;
+        irn: string | null;
+        product_price: number;
+        price_includes_gst: boolean;
+        product_gst_rate: number | null;
+      }[];
+
+      if (units.some(u => u.irn)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: 'This batch already has an IRN. Cancel the e-invoice before changing GST / non-GST billing.',
+        });
+      }
+
       const totalUnits = units.length;
       const gstCount = Math.min(gstUnits ?? 0, totalUnits);
       const nonGstCount = Math.min(nonGstUnits ?? 0, totalUnits - gstCount);
-      // ponytail: bulk UPDATE instead of N individual round-trips
       const gstSlice = units.slice(0, gstCount);
       const nonGstSlice = units.slice(gstCount, gstCount + nonGstCount);
 
+      const priceFor = (u: (typeof units)[0], withGst: boolean) => {
+        const rate = resolveGstRate(u.product_gst_rate, fallbackRate);
+        const storedNet = Number(u.net_price);
+        const productPrice = Number(u.product_price) || 0;
+        const disc = Math.min(100, Math.max(0, Number(u.discount_percent) || 0));
+        const includes = !!u.price_includes_gst;
+        // Custom / price-list negotiated nets: recompute exclusive from stored net.
+        // Inclusive list-price rows: recompute from product.price + discount.
+        const exclusiveFromProduct = unitPricesAfterDiscount({
+          basePrice: productPrice,
+          discountPercent: disc,
+          withGst: false,
+          priceIncludesGst: false,
+          gstRate: rate,
+        }).netPricePerUnit;
+        const useInclusivePath =
+          includes && Number.isFinite(storedNet) && Math.abs(storedNet - exclusiveFromProduct) <= 0.5;
+        return unitPricesAfterDiscount({
+          basePrice: useInclusivePath ? productPrice : Number.isFinite(storedNet) ? storedNet : productPrice,
+          discountPercent: useInclusivePath ? disc : 0,
+          withGst,
+          priceIncludesGst: useInclusivePath,
+          gstRate: rate,
+        });
+      };
+
       if (gstSlice.length > 0) {
-        const ids = gstSlice.map(u => u.id);
-        const prices = gstSlice.map(u => Math.round((u.unit_price * (100 + rate)) / 100));
+        const priced = gstSlice.map(u => ({ id: u.id, ...priceFor(u, true) }));
         await client.query(
           `
-          UPDATE product_distribution SET gst_applied = true, billed_price = v.price
-          FROM (SELECT unnest($1::text[]) AS id, unnest($2::int[]) AS price) AS v
-          WHERE product_distribution.id = v.id AND product_distribution.tenant_id = $3
+          UPDATE product_distribution SET gst_applied = true, net_price = v.net, billed_price = v.price
+          FROM (SELECT unnest($1::text[]) AS id, unnest($2::numeric[]) AS net, unnest($3::numeric[]) AS price) AS v
+          WHERE product_distribution.id = v.id AND product_distribution.tenant_id = $4
         `,
-          [ids, prices, tenantId],
+          [priced.map(p => p.id), priced.map(p => p.netPricePerUnit), priced.map(p => p.billedPricePerUnit), tenantId],
         );
       }
       if (nonGstSlice.length > 0) {
-        const ids = nonGstSlice.map(u => u.id);
-        const prices = nonGstSlice.map(u => u.unit_price);
+        const priced = nonGstSlice.map(u => ({ id: u.id, ...priceFor(u, false) }));
         await client.query(
           `
-          UPDATE product_distribution SET gst_applied = false, billed_price = v.price
-          FROM (SELECT unnest($1::text[]) AS id, unnest($2::int[]) AS price) AS v
-          WHERE product_distribution.id = v.id AND product_distribution.tenant_id = $3
+          UPDATE product_distribution SET gst_applied = false, net_price = v.net, billed_price = v.price
+          FROM (SELECT unnest($1::text[]) AS id, unnest($2::numeric[]) AS net, unnest($3::numeric[]) AS price) AS v
+          WHERE product_distribution.id = v.id AND product_distribution.tenant_id = $4
         `,
-          [ids, prices, tenantId],
+          [priced.map(p => p.id), priced.map(p => p.netPricePerUnit), priced.map(p => p.billedPricePerUnit), tenantId],
         );
       }
       await client.query('COMMIT');
@@ -839,7 +907,8 @@ router.get('/api/distribution/bill', async (req: AuthRequest, res) => {
       sql += ` AND pd.distribution_date = $${paramIdx}`;
       params.push(distributionDate);
     }
-    sql += ' ORDER BY pd.distribution_date DESC, pd.id';
+    // Align with apply-billing so unit order (and GST flag identity) is stable
+    sql += ' ORDER BY pd.id';
     const rows = (await pool.query(sql, params)).rows as Record<string, unknown>[];
     if (rows.length === 0) return res.status(404).json({ error: 'No distribution records found' });
     const first = rows[0];
@@ -867,10 +936,15 @@ router.get('/api/distribution/bill', async (req: AuthRequest, res) => {
       0,
     );
     const totalDiscount = grossValue - netTotal;
+    const savedGstUnits = rows.filter(r => r.gst_applied === true).length;
+    const challanId = batchId
+      ? `CH-${String(batchId).replace(/^D/, '').slice(0, 10)}`
+      : `CH-${((first.vendor_name as string) || 'V').substring(0, 3).toUpperCase()}-${((first.distribution_date as string) || '').replace(/-/g, '')}`;
+    const isDualDocs = savedGstUnits > 0 && savedGstUnits < rows.length;
+    // IRN is stamped only on GST-applied units — surface from any GST row, not first row
+    const irnRow = rows.find(r => r.gst_applied === true && r.irn) || rows.find(r => r.irn) || first;
     res.json({
-      challanId: batchId
-        ? `CH-${String(batchId).replace(/^D/, '').slice(0, 10)}`
-        : `CH-${((first.vendor_name as string) || 'V').substring(0, 3).toUpperCase()}-${((first.distribution_date as string) || '').replace(/-/g, '')}`,
+      challanId,
       batchId: (first.batch_id as string) ?? (batchId as string) ?? null,
       distributionDate: first.distribution_date,
       vendor: {
@@ -882,10 +956,10 @@ router.get('/api/distribution/bill', async (req: AuthRequest, res) => {
         gstNumber: first.vendor_gst_number ?? null,
       },
       ewbNumber: first.ewb_number ?? null,
-      irn: first.irn ?? null,
-      irnQr: first.irn_qr ?? null,
-      irnAckNo: first.irn_ack_no ?? null,
-      irnAckDt: first.irn_ack_dt ?? null,
+      irn: irnRow.irn ?? null,
+      irnQr: irnRow.irn_qr ?? null,
+      irnAckNo: irnRow.irn_ack_no ?? null,
+      irnAckDt: irnRow.irn_ack_dt ?? null,
       company: {
         name: company?.company_name ?? 'DG ERP',
         contactName: company?.name ?? null,
@@ -894,6 +968,15 @@ router.get('/api/distribution/bill', async (req: AuthRequest, res) => {
         gstNumber: company?.gst_number ?? null,
       },
       gstRate: Number(company?.default_gst_rate) || 18,
+      // Phase 2 Direction A: linked Delivery Set — one batch, two logical docs when mixed
+      deliverySet: {
+        isDualDocs,
+        outstandingScope: 'batch' as const,
+        gstDocNo: isDualDocs || savedGstUnits > 0 ? `${challanId}-GST` : null,
+        nonGstDocNo: isDualDocs || savedGstUnits < rows.length ? `${challanId}-BOS` : null,
+        gstDocKind: 'tax_invoice' as const,
+        nonGstDocKind: 'bill_of_supply' as const,
+      },
       items: rows.map((r, i) => ({
         sno: i + 1,
         barcode: r.barcode,
@@ -904,6 +987,8 @@ router.get('/api/distribution/bill', async (req: AuthRequest, res) => {
         discountPercent: r.discount_percent ?? 0,
         price: Number(r.net_price) || Number(r.price) || 0,
         status: r.status,
+        gstApplied: r.gst_applied === true,
+        billedPrice: Number(r.billed_price) || Number(r.net_price) || Number(r.price) || 0,
       })),
       groupedItems: (() => {
         const groups: Record<
@@ -954,7 +1039,7 @@ router.get('/api/distribution/bill', async (req: AuthRequest, res) => {
         });
       })(),
       totalQuantity: rows.length,
-      savedGstUnits: rows.filter(r => r.gst_applied === true).length,
+      savedGstUnits,
       grossValue,
       totalDiscount,
       totalValue: netTotal,
@@ -1036,14 +1121,22 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
       items?: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean }[];
       gstRate?: number;
     };
-    const gstRate = Number(reqGstRate) || 18;
+    const companyDefaultGst = Number(
+      (
+        await pool.query(
+          "SELECT default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') AND tenant_id = $1 ORDER BY id LIMIT 1",
+          [tenantId],
+        )
+      ).rows[0]?.default_gst_rate,
+    );
+    const fallbackGstRate = Number(reqGstRate) || resolveGstRate(null, companyDefaultGst);
     const date = typeof distributionDate === 'string' && distributionDate ? distributionDate : null;
 
     const allRows = (
       await pool.query(
         `
-      SELECT pd.id, pd.product_id, pd.barcode, pd.status, pd.gst_applied, pd.discount_percent,
-             p.price, p.name as product_name
+      SELECT pd.id, pd.product_id, pd.barcode, pd.status, pd.gst_applied, pd.discount_percent, pd.irn,
+             p.price, p.name as product_name, p.price_includes_gst, p.gst_rate as product_gst_rate
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
       WHERE pd.batch_id = $2 AND pd.tenant_id = $1
@@ -1058,10 +1151,18 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
       status: string;
       gst_applied: number;
       discount_percent: number;
+      irn: string | null;
       price: number;
       product_name: string;
+      price_includes_gst: boolean;
+      product_gst_rate: number | null;
     }[];
     if (allRows.length === 0) return res.status(404).json({ error: 'Distribution batch not found' });
+    if (allRows.some(r => r.irn)) {
+      return res.status(400).json({
+        error: 'This batch already has an IRN. Cancel the e-invoice before editing billing or quantities.',
+      });
+    }
 
     const vendorRow = (
       await pool.query(
@@ -1087,13 +1188,25 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
     try {
       await client.query('BEGIN');
 
-      const applyPricing = async (rowId: string, price: number, disc: number, withGst: boolean) => {
-        const netPrice = Math.round(((price * (100 - disc)) / 100) * 100) / 100;
-        const gstOn = !!withGst;
-        const billed = withGst ? Math.round((netPrice * (100 + gstRate)) / 100) : netPrice;
+      const applyPricing = async (
+        rowId: string,
+        price: number,
+        disc: number,
+        withGst: boolean,
+        priceIncludesGst: boolean,
+        productGstRate: number | null,
+      ) => {
+        const rate = resolveGstRate(productGstRate, fallbackGstRate);
+        const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
+          basePrice: price,
+          discountPercent: disc,
+          withGst: !!withGst,
+          priceIncludesGst: !!priceIncludesGst,
+          gstRate: rate,
+        });
         await client.query(
           'UPDATE product_distribution SET discount_percent = $1, net_price = $2, gst_applied = $3, billed_price = $4 WHERE id = $5 AND tenant_id = $6',
-          [disc, netPrice, gstOn, billed, rowId, tenantId],
+          [disc, netPricePerUnit, !!withGst, billedPricePerUnit, rowId, tenantId],
         );
       };
 
@@ -1112,18 +1225,25 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
 
         const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
         const withGst = item.withGst !== false;
-        const price =
-          productRows[0]?.price ??
-          Number(
-            (
-              (
-                await client.query('SELECT price FROM products WHERE id = $1 AND tenant_id = $2', [
-                  item.productId,
-                  tenantId,
-                ])
-              ).rows[0] as { price: number } | undefined
-            )?.price ?? 0,
-          );
+        const productMeta =
+          productRows[0] ??
+          ((
+            await client.query(
+              'SELECT price, price_includes_gst, gst_rate as product_gst_rate, name as product_name FROM products WHERE id = $1 AND tenant_id = $2',
+              [item.productId, tenantId],
+            )
+          ).rows[0] as
+            | {
+                price: number;
+                price_includes_gst: boolean;
+                product_gst_rate: number | null;
+                product_name: string;
+              }
+            | undefined);
+        const price = Number(productMeta?.price) || 0;
+        const priceIncludesGst = !!productMeta?.price_includes_gst;
+        const productGstRate = productMeta?.product_gst_rate ?? null;
+        const rate = resolveGstRate(productGstRate, fallbackGstRate);
 
         if (newQty > productRows.length) {
           const toAdd = newQty - productRows.length;
@@ -1137,9 +1257,14 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
             const name = productRows[0]?.product_name ?? item.productId;
             throw new Error(`Insufficient stock for ${name}. Available: ${invRows.length}, need ${toAdd} more`);
           }
-          const netPrice = Math.round(((price * (100 - disc)) / 100) * 100) / 100;
+          const { netPricePerUnit: netPrice, billedPricePerUnit: billed } = unitPricesAfterDiscount({
+            basePrice: price,
+            discountPercent: disc,
+            withGst,
+            priceIncludesGst,
+            gstRate: rate,
+          });
           const gstOn = !!withGst;
-          const billed = withGst ? Math.round((netPrice * (100 + gstRate)) / 100) : netPrice;
           let seq = Number(
             (
               await client.query(
@@ -1200,7 +1325,7 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
           )
         ).rows as { id: string; price: number }[];
         for (const row of remaining) {
-          await applyPricing(row.id, row.price, disc, withGst);
+          await applyPricing(row.id, row.price, disc, withGst, priceIncludesGst, productGstRate);
         }
         if (date) {
           await client.query(
@@ -1674,11 +1799,13 @@ router.get('/api/distribution/einvoice', async (req: AuthRequest, res) => {
       }
     > = {};
     for (const row of items) {
+      // E-invoice JSON is the GST Tax Invoice half only
+      if (!row.gst_applied) continue;
       const key = `${row.product_id}-${row.discount_percent}`;
       const netPrice = Number(row.net_price) || Number(row.product_price) || 0;
       const billedPrice = Number(row.billed_price) || netPrice;
       const gstRate = Number(row.product_gst_rate) || 18;
-      const gstAmount = row.gst_applied ? billedPrice - netPrice : 0;
+      const gstAmount = billedPrice - netPrice;
       if (!grouped[key]) {
         grouped[key] = {
           name: row.product_name as string,
@@ -1698,6 +1825,9 @@ router.get('/api/distribution/einvoice', async (req: AuthRequest, res) => {
       grouped[key].cgst += Math.round(gstAmount / 2);
       grouped[key].sgst += Math.round(gstAmount / 2);
       grouped[key].total += billedPrice;
+    }
+    if (Object.keys(grouped).length === 0) {
+      return res.status(400).json({ error: 'No GST-applied units — e-invoice applies only to the Tax Invoice half' });
     }
 
     const itemList = Object.values(grouped).map((g, i) => ({
@@ -1742,7 +1872,7 @@ router.get('/api/distribution/einvoice', async (req: AuthRequest, res) => {
     const eInvoice = {
       Version: '1.1',
       TranDtls: { TaxSch: 'GST', SupTyp: isB2B ? 'B2B' : 'B2C', RegRev: 'N', IgstOnIntra: isInterState ? 'Y' : 'N' },
-      DocDtls: { Typ: 'INV', No: `INV-${batchId}`, Dt: invoiceDate },
+      DocDtls: { Typ: 'INV', No: `INV-${batchId}-GST`, Dt: invoiceDate },
       SellerDtls: {
         Gstin: sellerGstin,
         LglNm: tenant.company_name as string,

@@ -157,6 +157,15 @@ export interface DistributionBillData {
   irnQr?: string | null;
   irnAckNo?: string | null;
   irnAckDt?: string | null;
+  /** Linked Delivery Set metadata (non-service dual-doc Direction A) */
+  deliverySet?: {
+    isDualDocs: boolean;
+    outstandingScope: 'batch';
+    gstDocNo: string | null;
+    nonGstDocNo: string | null;
+    gstDocKind: 'tax_invoice';
+    nonGstDocKind: 'bill_of_supply';
+  };
   items: {
     sno: number;
     barcode: string;
@@ -166,6 +175,9 @@ export interface DistributionBillData {
     discountPercent: number;
     price: number;
     status: string;
+    /** Per-unit source of truth for GST vs non-GST print/share */
+    gstApplied?: boolean;
+    billedPrice?: number;
   }[];
   groupedItems: {
     sno: number;
