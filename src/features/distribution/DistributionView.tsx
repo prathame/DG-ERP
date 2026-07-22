@@ -338,6 +338,8 @@ export function DistributionView({
   const isDirectSell = businessType === 'dealer' || businessType === 'retail' || businessType === 'silver_casting';
   /** Service keeps modal/panel UX; all other business types use in-place replace navigation. */
   const isServiceBiz = businessType === 'service';
+  // Dual-doc / Split Bill foundation is for goods (non-service) only — service uses standalone invoices
+  const canUseSplitBill = !isServiceBiz;
   const [distributions, setDistributions] = useState<DistributionRecord[]>([]);
   const [batches, setBatches] = useState<DistributionBatch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -897,26 +899,28 @@ export function DistributionView({
                               <>
                                 <div className="fixed inset-0 z-[50]" onClick={() => setBatchActionsOpen(false)} />
                                 <div className="absolute right-0 top-full mt-1 z-[51] bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[180px]">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setBatchActionsOpen(false);
-                                      api.distribution
-                                        .getBill(billParams(selectedBatch.batchId))
-                                        .then(bill => {
-                                          setSplitBillModal({ bill });
-                                          setSplitGstQty(
-                                            bill.savedGstUnits > 0
-                                              ? bill.savedGstUnits
-                                              : Math.ceil(bill.totalQuantity / 2),
-                                          );
-                                        })
-                                        .catch(err => toast(err.message, 'error'));
-                                    }}
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-purple-600"
-                                  >
-                                    <Package size={14} /> Split Bill
-                                  </button>
+                                  {canUseSplitBill && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setBatchActionsOpen(false);
+                                        api.distribution
+                                          .getBill(billParams(selectedBatch.batchId))
+                                          .then(bill => {
+                                            setSplitBillModal({ bill });
+                                            setSplitGstQty(
+                                              bill.savedGstUnits > 0
+                                                ? bill.savedGstUnits
+                                                : Math.ceil(bill.totalQuantity / 2),
+                                            );
+                                          })
+                                          .catch(err => toast(err.message, 'error'));
+                                      }}
+                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-purple-600"
+                                    >
+                                      <Package size={14} /> Split Bill
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -1524,15 +1528,22 @@ export function DistributionView({
       {/* Split Bill Modal */}
       <AnimatePresence>
         {splitBillModal &&
+          canUseSplitBill &&
           (() => {
             const { bill } = splitBillModal;
             const totalQty = bill.totalQuantity;
             const gstQty = Math.min(Math.max(0, splitGstQty), totalQty);
             const nonGstQty = totalQty - gstQty;
-            const gstItems = bill.items.slice(0, gstQty);
-            const nonGstItems = bill.items.slice(gstQty);
-            const gstSubtotal = gstItems.reduce((s, i) => s + i.price, 0);
-            const nonGstSubtotal = nonGstItems.reduce((s, i) => s + i.price, 0);
+            // Preview from slider (propose → Save); print/share always uses saved gstApplied flags
+            const previewGstItems = bill.items.slice(0, gstQty);
+            const previewNonGstItems = bill.items.slice(gstQty);
+            const savedGstItems = bill.items.filter(i => i.gstApplied === true);
+            const savedNonGstItems = bill.items.filter(i => i.gstApplied !== true);
+            const hasSavedFlags = bill.items.some(i => typeof i.gstApplied === 'boolean');
+            const gstItemsForPrint = hasSavedFlags ? savedGstItems : previewGstItems;
+            const nonGstItemsForPrint = hasSavedFlags ? savedNonGstItems : previewNonGstItems;
+            const gstSubtotal = previewGstItems.reduce((s, i) => s + i.price, 0);
+            const nonGstSubtotal = previewNonGstItems.reduce((s, i) => s + i.price, 0);
             const gstRate = bill.gstRate || 18;
             const gstTax = gstQty > 0 ? Math.round((gstSubtotal * gstRate) / 100) : 0;
             const halfGst = Math.round(gstTax / 2);
@@ -1541,9 +1552,19 @@ export function DistributionView({
             const combinedBillTotal = gstGrandTotal + nonGstAmount;
             const savedTotal = bill.totalBilled ?? null;
             const hasUnsavedChanges = savedTotal != null && Math.abs(savedTotal - combinedBillTotal) > 0.5;
+            const dualDocs =
+              bill.deliverySet?.isDualDocs || (bill.savedGstUnits > 0 && bill.savedGstUnits < bill.totalQuantity);
+            const gstDocNo = bill.deliverySet?.gstDocNo || `${bill.challanId}-GST`;
+            const bosDocNo = bill.deliverySet?.nonGstDocNo || `${bill.challanId}-BOS`;
 
-            const makeSplitBill = (items: typeof bill.items, amount: number) =>
-              buildDistributionBillSlice(bill, items, amount);
+            const makeSplitBill = (items: typeof bill.items, amount: number, docNo: string, stripIrn: boolean) => {
+              const slice = buildDistributionBillSlice(bill, items, amount);
+              return {
+                ...slice,
+                challanId: docNo,
+                ...(stripIrn ? { irn: null, irnQr: null, irnAckNo: null, irnAckDt: null } : {}),
+              };
+            };
 
             return (
               <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -1553,10 +1574,17 @@ export function DistributionView({
                   animate={{ opacity: 1, scale: 1 }}
                   className="relative bg-white w-full max-w-lg rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
                 >
-                  <h3 className="text-lg font-bold mb-1">Split Bill — GST + Non-GST</h3>
-                  <p className="text-sm text-gray-500 mb-4">
-                    Choose how many units go on the GST bill. The rest will be on a separate non-GST bill.
+                  <h3 className="text-lg font-bold mb-1">Split Bill — Delivery Set</h3>
+                  <p className="text-sm text-gray-500 mb-2">
+                    Choose how many units go on the GST Tax Invoice. The rest go on a Bill of Supply (non-GST). One
+                    payment outstanding applies to the whole batch.
                   </p>
+                  {dualDocs && (
+                    <p className="text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 mb-4">
+                      Linked dual docs: <strong>{gstDocNo}</strong> (Tax Invoice) + <strong>{bosDocNo}</strong> (Bill of
+                      Supply)
+                    </p>
+                  )}
 
                   <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
                     <div className="flex justify-between text-sm mb-3">
@@ -1686,8 +1714,13 @@ export function DistributionView({
                   >
                     {splitSaving ? 'Saving...' : `Save Amount — ₹${combinedBillTotal.toLocaleString()}`}
                   </button>
+                  {hasUnsavedChanges && (
+                    <p className="text-xs text-amber-700 mb-2">
+                      Save Amount first so print uses saved GST flags (not the slider preview).
+                    </p>
+                  )}
                   <div className="flex gap-2 mb-2">
-                    {gstQty > 0 && (
+                    {gstItemsForPrint.length > 0 && (
                       <button
                         type="button"
                         onClick={async () => {
@@ -1703,8 +1736,11 @@ export function DistributionView({
                                     vendorId: selectedVendorId,
                                   })
                                 : splitBillModal.bill;
+                            const printGst = fresh.items.filter(i => i.gstApplied === true);
+                            const printSub = printGst.reduce((s, i) => s + i.price, 0);
+                            const docNo = fresh.deliverySet?.gstDocNo || `${fresh.challanId}-GST`;
                             const slice = {
-                              ...makeSplitBill(gstItems, gstSubtotal),
+                              ...makeSplitBill(printGst, printSub, docNo, false),
                               irn: fresh.irn,
                               irnQr: fresh.irnQr,
                               irnAckNo: fresh.irnAckNo,
@@ -1713,7 +1749,7 @@ export function DistributionView({
                             };
                             const { billForPrint, opts } = await buildGstPrintOptions(slice, true, paidOpts.fullyPaid);
                             writePrintHtml(w, generateDistributionChallanHtml(billForPrint, opts), {
-                              filename: `GST-Bill-${fresh.challanId}`,
+                              filename: `Tax-Invoice-${docNo}`,
                             });
                           } catch (err) {
                             try {
@@ -1726,10 +1762,10 @@ export function DistributionView({
                         }}
                         className="flex-1 py-2.5 border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-xl font-bold text-sm hover:bg-emerald-100"
                       >
-                        Print GST Bill
+                        Print Tax Invoice
                       </button>
                     )}
-                    {nonGstQty > 0 && (
+                    {nonGstItemsForPrint.length > 0 && (
                       <button
                         type="button"
                         onClick={async () => {
@@ -1745,17 +1781,17 @@ export function DistributionView({
                                     vendorId: selectedVendorId,
                                   })
                                 : splitBillModal.bill;
+                            const printNon = fresh.items.filter(i => i.gstApplied !== true);
+                            const printSub = printNon.reduce((s, i) => s + i.price, 0);
+                            const docNo = fresh.deliverySet?.nonGstDocNo || `${fresh.challanId}-BOS`;
+                            // Never attach IRN / e-invoice narrative to Bill of Supply half
                             const slice = {
-                              ...makeSplitBill(nonGstItems, nonGstSubtotal),
-                              irn: fresh.irn,
-                              irnQr: fresh.irnQr,
-                              irnAckNo: fresh.irnAckNo,
-                              irnAckDt: fresh.irnAckDt,
+                              ...makeSplitBill(printNon, printSub, docNo, true),
                               ewbNumber: fresh.ewbNumber,
                             };
                             const { billForPrint, opts } = await buildGstPrintOptions(slice, false, paidOpts.fullyPaid);
                             writePrintHtml(w, generateDistributionChallanHtml(billForPrint, opts), {
-                              filename: `Challan-${fresh.challanId}`,
+                              filename: `Bill-of-Supply-${docNo}`,
                             });
                           } catch (err) {
                             try {
@@ -1768,10 +1804,54 @@ export function DistributionView({
                         }}
                         className="flex-1 py-2.5 border border-amber-300 text-amber-700 bg-amber-50 rounded-xl font-bold text-sm hover:bg-amber-100"
                       >
-                        Print Non-GST Bill
+                        Print Bill of Supply
                       </button>
                     )}
                   </div>
+                  {dualDocs && selectedVendorId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const phone = bill.vendor.phone;
+                        if (!phone) {
+                          toast('No vendor phone number on record', 'error');
+                          return;
+                        }
+                        const gstHalf = makeSplitBill(
+                          gstItemsForPrint,
+                          gstItemsForPrint.reduce((s, i) => s + i.price, 0),
+                          gstDocNo,
+                          false,
+                        );
+                        const bosHalf = makeSplitBill(
+                          nonGstItemsForPrint,
+                          nonGstItemsForPrint.reduce((s, i) => s + i.price, 0),
+                          bosDocNo,
+                          true,
+                        );
+                        const text = [
+                          formatDistributionChallanText({
+                            ...gstHalf,
+                            irn: bill.irn,
+                            irnAckNo: bill.irnAckNo,
+                          }),
+                          '',
+                          '———',
+                          '',
+                          formatDistributionChallanText(bosHalf).replace(
+                            'DISTRIBUTION CHALLAN',
+                            'BILL OF SUPPLY (non-GST)',
+                          ),
+                          '',
+                          `Batch outstanding (combined): ₹${(bill.totalBilled ?? combinedBillTotal).toLocaleString()}`,
+                        ].join('\n');
+                        shareViaWhatsApp(phone, text);
+                      }}
+                      className="w-full py-2.5 mb-2 border border-gray-200 rounded-xl font-medium text-sm hover:bg-gray-50"
+                    >
+                      WhatsApp both docs
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setSplitBillModal(null)}

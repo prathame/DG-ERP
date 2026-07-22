@@ -297,8 +297,9 @@ export function CreateDistributionModal({
                                 updateDistRow(idx, 'customPrice', String(selPr.price));
                                 updateDistRow(
                                   idx,
+                                  // Default GST on; do not force from priceIncludesGst (|| true was always true)
                                   'withGst',
-                                  !!(selPr as Record<string, unknown>).priceIncludesGst || true,
+                                  true,
                                 );
                               }
                               if (pid && distVendorId) {

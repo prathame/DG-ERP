@@ -9,6 +9,7 @@ import { splitGst, isValidGstin } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
 import { logger } from '../utils/logger';
 import { encryptSecret } from '../utils/secret-crypto';
+import { resolveGstRate } from '../utils/price-resolve';
 import {
   NicApiClient,
   buildIrnPayload,
@@ -192,16 +193,30 @@ router.post('/api/gst/irn/generate', requireAdmin, blockVendors, async (req: Aut
         .json({ error: 'Batch already has an IRN. Cancel it before regenerating.', irn: existingIrn.irn });
     }
 
-    const [tenant, bs, products] = await Promise.all([
+    // IRN covers GST-applied distribution units only (non-GST BoS half is out of e-invoice scope)
+    const gstUnits = locked.filter(r => r.gst_applied === true || r.gst_applied === 1);
+    if (gstUnits.length === 0) {
+      await db.query('ROLLBACK');
+      return res.status(400).json({
+        error: 'No GST-applied units in this batch. Generate IRN only for the Tax Invoice (GST) half.',
+      });
+    }
+
+    const [tenant, bs, products, companyGst] = await Promise.all([
       db.query('SELECT company_name, phone, address, gst_number FROM tenants WHERE id = $1', [tenantId]),
       db.query('SELECT gst_api_gstin, gst_api_seller_pin FROM bill_settings WHERE tenant_id = $1', [tenantId]),
       db.query(
         `SELECT p.id, p.name as product_name, p.hsn_code, p.gst_rate as product_gst_rate, p.price as product_price
          FROM products p WHERE p.tenant_id = $1 AND p.id = ANY($2::text[])`,
-        [tenantId, locked.map(r => r.product_id as string)],
+        [tenantId, gstUnits.map(r => r.product_id as string)],
+      ),
+      db.query(
+        "SELECT default_gst_rate FROM users WHERE role IN ('Super Admin', 'Admin') AND tenant_id = $1 ORDER BY id LIMIT 1",
+        [tenantId],
       ),
     ]);
     const prodMap = new Map(products.rows.map((p: Record<string, unknown>) => [p.id, p]));
+    const companyDefaultGst = Number(companyGst.rows[0]?.default_gst_rate);
 
     const vendorId = locked[0].vendor_id as string;
     const vendor = (
@@ -244,11 +259,11 @@ router.post('/api/gst/irn/generate', requireAdmin, blockVendors, async (req: Aut
       totalCgst = 0,
       totalSgst = 0,
       totalIgst = 0;
-    const lineItems = locked.map(pd => {
+    const lineItems = gstUnits.map(pd => {
       const p = prodMap.get(pd.product_id as string) as Record<string, unknown> | undefined;
       const taxable = Number(pd.net_price || p?.product_price) || 0;
-      const rate = Number(p?.product_gst_rate) || 18;
-      const taxAmt = pd.gst_applied ? Math.round(((taxable * rate) / 100) * 100) / 100 : 0;
+      const rate = resolveGstRate(p?.product_gst_rate != null ? Number(p.product_gst_rate) : null, companyDefaultGst);
+      const taxAmt = Math.round(((taxable * rate) / 100) * 100) / 100;
       const { cgst, sgst, igst } = splitGst(taxAmt, sellerGstin, buyerGstin);
       totalTaxable += taxable;
       totalCgst += cgst;
@@ -270,7 +285,8 @@ router.post('/api/gst/irn/generate', requireAdmin, blockVendors, async (req: Aut
 
     const grandTotal = totalTaxable + totalCgst + totalSgst + totalIgst;
     const distDate = String(locked[0].distribution_date).slice(0, 10);
-    const invoiceNo = `CH/${batchId.replace('D', '')}`;
+    // Dual-doc: IRN invoice number matches GST Tax Invoice half
+    const invoiceNo = `CH/${batchId.replace('D', '')}-GST`;
 
     const payload = buildIrnPayload({
       sellerGstin,
@@ -295,8 +311,10 @@ router.post('/api/gst/irn/generate', requireAdmin, blockVendors, async (req: Aut
     const client = new NicApiClient(creds);
     const result = await client.generateIrn(payload);
 
+    // Stamp IRN only on GST-applied units — non-GST BoS print must not present as e-invoice
     await db.query(
-      'UPDATE product_distribution SET irn=$1, irn_ack_no=$2, irn_ack_dt=$3, irn_qr=$4 WHERE batch_id=$5 AND tenant_id=$6',
+      `UPDATE product_distribution SET irn=$1, irn_ack_no=$2, irn_ack_dt=$3, irn_qr=$4
+       WHERE batch_id=$5 AND tenant_id=$6 AND COALESCE(gst_applied, false) = true`,
       [result.irn, result.ackNo, result.ackDt, result.signedQrCode || result.qrCode, batchId, tenantId],
     );
     await db.query('COMMIT');
