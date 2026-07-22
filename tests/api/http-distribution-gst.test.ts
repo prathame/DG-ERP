@@ -247,14 +247,36 @@ describe('HTTP: createBatch mixed withGst → dual docs', () => {
     expect(bill.body.items.filter((i: { gstApplied: boolean }) => !i.gstApplied)).toHaveLength(1);
   });
 
-  it('inclusive MRP + withGst false strips to exclusive billed', async () => {
+  it('inclusive MRP + withGst false: UI-stripped customPrice bills exclusive (no double-strip)', async () => {
     const res = await api()
       .post('/api/distribution/batch')
       .set(authHeaders(token2, TENANT2))
       .send({
         vendorId: VENDOR2,
         gstRate: 18,
-        items: [{ productId: PRODUCT_IN, quantity: 1, withGst: false, customPrice: 1180 }],
+        // Client already stripped 1180 → 1000 when GST unchecked
+        items: [{ productId: PRODUCT_IN, quantity: 1, withGst: false, customPrice: 1000 }],
+      });
+    expect(res.status).toBe(201);
+    const { rows } = await pool.query(
+      `SELECT net_price, billed_price, gst_applied FROM product_distribution
+       WHERE batch_id = $1 AND tenant_id = $2`,
+      [res.body.batchId, TENANT2],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].gst_applied).toBe(false);
+    expect(Number(rows[0].net_price)).toBe(1000);
+    expect(Number(rows[0].billed_price)).toBe(1000);
+  });
+
+  it('inclusive MRP + withGst false without customPrice: server strips catalog', async () => {
+    const res = await api()
+      .post('/api/distribution/batch')
+      .set(authHeaders(token2, TENANT2))
+      .send({
+        vendorId: VENDOR2,
+        gstRate: 18,
+        items: [{ productId: PRODUCT_IN, quantity: 1, withGst: false }],
       });
     expect(res.status).toBe(201);
     const { rows } = await pool.query(

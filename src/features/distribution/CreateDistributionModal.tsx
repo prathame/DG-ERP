@@ -9,7 +9,11 @@ import { session } from '../../lib/session';
 import { SearchSelect } from '../../components/ui/SearchSelect';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
-import { linePricesAfterDiscount } from '../../lib/gstInclusivePrice';
+import {
+  adjustUnitPriceForGstToggle,
+  displayUnitPriceForGst,
+  linePricesAfterDiscount,
+} from '../../lib/gstInclusivePrice';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
 import type { DistributionBillData, DistributionBatch } from '../../api';
 
@@ -102,7 +106,27 @@ export function CreateDistributionModal({
   const updateDistRow = (idx: number, field: string, value: string | number | boolean) =>
     setDistRows(prev => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
 
-  const setAllWithGst = (on: boolean) => setDistRows(prev => prev.map(r => ({ ...r, withGst: on })));
+  const rowGstRate = (p?: Product) => p?.gstRate ?? defaultGstRate;
+
+  const setAllWithGst = (on: boolean) =>
+    setDistRows(prev =>
+      prev.map(r => {
+        const p = products.find(x => x.id === r.productId);
+        const rate = rowGstRate(p);
+        const current = r.customPrice ? parseFloat(r.customPrice) : (p?.price ?? 0);
+        const nextPrice = adjustUnitPriceForGstToggle(current || 0, {
+          prevWithGst: r.withGst,
+          nextWithGst: on,
+          priceIncludesGst: !!p?.priceIncludesGst,
+          gstRate: rate,
+        });
+        return {
+          ...r,
+          withGst: on,
+          customPrice: r.productId || r.customPrice ? String(nextPrice || '') : r.customPrice,
+        };
+      }),
+    );
 
   /** Ignore stale resolve responses when vendor/product/qty changes quickly. */
   const resolveTokenRef = useRef<Record<number, number>>({});
@@ -126,7 +150,13 @@ export function CreateDistributionModal({
         setDistRows(prev => {
           const row = prev[idx];
           if (!row || row.productId !== productId || (row.quantity || 0) !== quantity) return prev;
-          return prev.map((r, i) => (i === idx ? { ...r, customPrice: String(d.price) } : r));
+          const p = products.find(x => x.id === productId);
+          const shown = displayUnitPriceForGst(d.price, {
+            withGst: row.withGst,
+            priceIncludesGst: !!p?.priceIncludesGst,
+            gstRate: rowGstRate(p),
+          });
+          return prev.map((r, i) => (i === idx ? { ...r, customPrice: String(shown) } : r));
         });
       })
       .catch(() => {});
@@ -134,14 +164,22 @@ export function CreateDistributionModal({
 
   const rowMoney = (r: DistRow) => {
     const p = products.find(x => x.id === r.productId);
-    const unit = r.customPrice ? parseFloat(r.customPrice) : (p?.price ?? 0);
+    const rate = rowGstRate(p);
+    const unit = r.customPrice
+      ? parseFloat(r.customPrice)
+      : displayUnitPriceForGst(p?.price ?? 0, {
+          withGst: r.withGst,
+          priceIncludesGst: !!p?.priceIncludesGst,
+          gstRate: rate,
+        });
     return linePricesAfterDiscount({
       unitPrice: unit || 0,
       quantity: r.quantity || 0,
       discountPercent: r.discount || 0,
       withGst: r.withGst,
-      priceIncludesGst: !!p?.priceIncludesGst,
-      gstRate: (p?.gstRate as number | undefined) ?? defaultGstRate,
+      // Field already stripped when GST off on inclusive products
+      priceIncludesGst: !!p?.priceIncludesGst && r.withGst,
+      gstRate: rate,
     });
   };
 
@@ -403,11 +441,23 @@ export function CreateDistributionModal({
                                   })}
                                 onChange={pid => {
                                   const selPr = products.find(x => x.id === pid);
-                                  updateDistRow(idx, 'productId', pid);
-                                  if (selPr) {
-                                    updateDistRow(idx, 'customPrice', String(selPr.price));
-                                    updateDistRow(idx, 'withGst', defaultWithGst);
-                                  }
+                                  setDistRows(prev =>
+                                    prev.map((r, i) => {
+                                      if (i !== idx) return r;
+                                      if (!selPr) return { ...r, productId: pid };
+                                      const shown = displayUnitPriceForGst(selPr.price, {
+                                        withGst: defaultWithGst,
+                                        priceIncludesGst: !!selPr.priceIncludesGst,
+                                        gstRate: rowGstRate(selPr),
+                                      });
+                                      return {
+                                        ...r,
+                                        productId: pid,
+                                        withGst: defaultWithGst,
+                                        customPrice: String(shown),
+                                      };
+                                    }),
+                                  );
                                   if (pid && distVendorId) {
                                     resolveDistRowPrice(idx, pid, distVendorId, row.quantity || 1);
                                   }
@@ -476,7 +526,27 @@ export function CreateDistributionModal({
                               <input
                                 type="checkbox"
                                 checked={row.withGst}
-                                onChange={e => updateDistRow(idx, 'withGst', e.target.checked)}
+                                onChange={e => {
+                                  const next = e.target.checked;
+                                  setDistRows(prev =>
+                                    prev.map((r, i) => {
+                                      if (i !== idx) return r;
+                                      const prod = products.find(x => x.id === r.productId);
+                                      const current = parseFloat(String(r.customPrice)) || Number(prod?.price) || 0;
+                                      const nextPrice = adjustUnitPriceForGstToggle(current, {
+                                        prevWithGst: r.withGst,
+                                        nextWithGst: next,
+                                        priceIncludesGst: !!prod?.priceIncludesGst,
+                                        gstRate: rowGstRate(prod),
+                                      });
+                                      return {
+                                        ...r,
+                                        withGst: next,
+                                        customPrice: String(nextPrice),
+                                      };
+                                    }),
+                                  );
+                                }}
                                 className="rounded text-brand"
                                 aria-label={`GST for row ${idx + 1}`}
                               />
@@ -575,10 +645,16 @@ export function CreateDistributionModal({
                                 errors.push(`Row ${i + 1}: "${pName}" — discount must be 0-100%`);
                                 continue;
                               }
+                              const catalog = price ? Number(price) : match.price;
+                              const shown = displayUnitPriceForGst(catalog, {
+                                withGst,
+                                priceIncludesGst: !!match.priceIncludesGst,
+                                gstRate: rowGstRate(match),
+                              });
                               newRows.push({
                                 productId: match.id,
                                 quantity: qty,
-                                customPrice: price || String(match.price),
+                                customPrice: String(shown),
                                 withGst,
                                 discount: disc,
                               });

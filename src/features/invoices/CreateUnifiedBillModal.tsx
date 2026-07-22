@@ -19,7 +19,11 @@ import { suggestHsnRate } from '../../lib/hsnRates';
 import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { scheduleBakeCapBillPdfCache, type CapBillPdfCacheDoc } from '../../lib/capBillPdfCache';
 import { printStandaloneInvoice } from '../../lib/printStandaloneInvoice';
-import { linePricesAfterDiscount } from '../../lib/gstInclusivePrice';
+import {
+  adjustUnitPriceForGstToggle,
+  displayUnitPriceForGst,
+  linePricesAfterDiscount,
+} from '../../lib/gstInclusivePrice';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
 import { reportActionFailed } from '../../lib/reportActionFailure';
 import { session } from '../../lib/session';
@@ -232,17 +236,28 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         setRows(prev => {
           const row = prev[idx];
           if (!row || row.productId !== productId || (row.qty || 0) !== quantity) return prev;
-          return prev.map((r, i) => (i === idx ? { ...r, rate: d.price } : r));
+          const p = products.find(x => x.id === productId);
+          const shown = displayUnitPriceForGst(d.price, {
+            withGst: row.withGst,
+            priceIncludesGst: !!p?.priceIncludesGst,
+            gstRate: row.gstPercent || p?.gstRate || defaultGstRate,
+          });
+          return prev.map((r, i) => (i === idx ? { ...r, rate: shown } : r));
         });
       })
       .catch(() => {
         const p = products.find(x => x.id === productId);
         if (!p) return;
-        const rate = resolveCatalogPrice(p, priceRules, nextVendorId, quantity);
         setRows(prev => {
           const row = prev[idx];
           if (!row || row.productId !== productId) return prev;
-          return prev.map((r, i) => (i === idx ? { ...r, rate } : r));
+          const catalog = resolveCatalogPrice(p, priceRules, nextVendorId, quantity);
+          const shown = displayUnitPriceForGst(catalog, {
+            withGst: row.withGst,
+            priceIncludesGst: !!p.priceIncludesGst,
+            gstRate: row.gstPercent || p.gstRate || defaultGstRate,
+          });
+          return prev.map((r, i) => (i === idx ? { ...r, rate: shown } : r));
         });
       });
   };
@@ -268,11 +283,18 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     setRows(prev =>
       prev.map(r => {
         const p = r.productId ? products.find(x => x.id === r.productId) : undefined;
-        const rate = on ? r.gstPercent || p?.gstRate || defaultGstRate || 18 : 0;
+        const gstRate = r.gstPercent || p?.gstRate || defaultGstRate || 18;
+        const nextRate = adjustUnitPriceForGstToggle(r.rate || 0, {
+          prevWithGst: r.withGst,
+          nextWithGst: on,
+          priceIncludesGst: !!p?.priceIncludesGst,
+          gstRate,
+        });
         return {
           ...r,
           withGst: on,
-          gstPercent: rate,
+          rate: p ? nextRate : r.rate,
+          gstPercent: on ? gstRate : 0,
           hsnSac: on ? r.hsnSac || p?.hsnCode || '' : r.hsnSac,
         };
       }),
@@ -289,9 +311,15 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     const p = products.find(x => x.id === productId);
     if (!p) return;
     const qty = rows[idx]?.qty || 1;
-    const rate = resolveCatalogPrice(p, priceRules, vendorId || null, qty);
+    const catalog = resolveCatalogPrice(p, priceRules, vendorId || null, qty);
     const hint = p.hsnCode ? suggestHsnRate(p.hsnCode) : null;
     const withGst = gstBilling;
+    const gstPercent = withGst ? (p.gstRate ?? hint?.rate ?? 18) : 0;
+    const rate = displayUnitPriceForGst(catalog, {
+      withGst,
+      priceIncludesGst: !!p.priceIncludesGst,
+      gstRate: p.gstRate || defaultGstRate,
+    });
     setRows(prev =>
       prev.map((r, i) =>
         i === idx
@@ -303,7 +331,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
               qty,
               rate,
               withGst,
-              gstPercent: withGst ? (p.gstRate ?? hint?.rate ?? r.gstPercent ?? 18) : 0,
+              gstPercent,
             }
           : r,
       ),
@@ -318,7 +346,14 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         const next = { ...r, qty };
         if (r.productId) {
           const p = products.find(x => x.id === r.productId);
-          if (p) next.rate = resolveCatalogPrice(p, priceRules, vendorId || null, qty);
+          if (p) {
+            const catalog = resolveCatalogPrice(p, priceRules, vendorId || null, qty);
+            next.rate = displayUnitPriceForGst(catalog, {
+              withGst: r.withGst,
+              priceIncludesGst: !!p.priceIncludesGst,
+              gstRate: r.gstPercent || p.gstRate || defaultGstRate,
+            });
+          }
         }
         return next;
       }),
@@ -335,7 +370,8 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         quantity: r.qty || 0,
         discountPercent: r.discountPercent || 0,
         withGst: r.withGst,
-        priceIncludesGst: !!p.priceIncludesGst,
+        // Rate field already stripped when GST off on inclusive products
+        priceIncludesGst: !!p.priceIncludesGst && r.withGst,
         gstRate: r.gstPercent || p.gstRate || defaultGstRate,
       });
     }
@@ -381,24 +417,12 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         gstEnabled: anyGst,
         items: customRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId, withGst }) => {
           const p = productId ? products.find(x => x.id === productId) : undefined;
-          let sendRate = rate;
-          // Inclusive MRP + GST off → send exclusive (server invoice path also strips when product linked)
-          if (!withGst && p?.priceIncludesGst) {
-            const m = linePricesAfterDiscount({
-              unitPrice: rate,
-              quantity: 1,
-              discountPercent: 0,
-              withGst: false,
-              priceIncludesGst: true,
-              gstRate: gstPercent || p.gstRate || defaultGstRate,
-            });
-            sendRate = m.net;
-          }
+          // Rate already stripped in the field when inclusive + GST off
           return {
             description: description.trim() || p?.name || 'Item',
             hsnSac: withGst ? hsnSac : '',
             qty,
-            rate: sendRate,
+            rate,
             gstPercent: withGst ? gstPercent : 0,
             discountPercent: discountPercent || 0,
             ...(productId ? { productId } : {}),
@@ -884,18 +908,25 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                                 checked={row.withGst}
                                 onChange={e => {
                                   const on = e.target.checked;
-                                  const prod = row.productId ? products.find(x => x.id === row.productId) : undefined;
                                   setRows(prev =>
-                                    prev.map((r, i) =>
-                                      i === idx
-                                        ? {
-                                            ...r,
-                                            withGst: on,
-                                            gstPercent: on ? r.gstPercent || prod?.gstRate || defaultGstRate || 18 : 0,
-                                            hsnSac: on ? r.hsnSac || prod?.hsnCode || '' : r.hsnSac,
-                                          }
-                                        : r,
-                                    ),
+                                    prev.map((r, i) => {
+                                      if (i !== idx) return r;
+                                      const prod = r.productId ? products.find(x => x.id === r.productId) : undefined;
+                                      const gstRate = r.gstPercent || prod?.gstRate || defaultGstRate || 18;
+                                      const nextRate = adjustUnitPriceForGstToggle(r.rate || 0, {
+                                        prevWithGst: r.withGst,
+                                        nextWithGst: on,
+                                        priceIncludesGst: !!prod?.priceIncludesGst,
+                                        gstRate,
+                                      });
+                                      return {
+                                        ...r,
+                                        withGst: on,
+                                        rate: prod ? nextRate : r.rate,
+                                        gstPercent: on ? gstRate : 0,
+                                        hsnSac: on ? r.hsnSac || prod?.hsnCode || '' : r.hsnSac,
+                                      };
+                                    }),
                                   );
                                 }}
                                 className="rounded text-brand"

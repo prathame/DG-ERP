@@ -309,17 +309,25 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
           }
         | undefined;
       if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
-      const basePrice = hasExplicitUnitPrice(item.customPrice)
+      const explicit = hasExplicitUnitPrice(item.customPrice);
+      let basePrice = explicit
         ? Number(item.customPrice)
         : (await resolvePrice(tenantId, item.productId, vendorId, qty)).price;
       const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
       const gstApplied = item.withGst !== false ? 1 : 0;
       const gstRate = resolveGstRate(product.gst_rate, fallbackGstRate);
+      const includes = !!product.price_includes_gst;
+      // Inclusive catalog + GST off + no client price: strip here. Explicit customPrice is
+      // already exclusive when the UI unchecked GST on an inclusive product.
+      if (gstApplied === 0 && includes && !explicit) {
+        basePrice = Math.round((basePrice / (1 + gstRate / 100)) * 100) / 100;
+      }
       const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
         basePrice,
         discountPercent: disc,
         withGst: gstApplied === 1,
-        priceIncludesGst: !!product.price_includes_gst,
+        // Only treat as inclusive MRP while GST is on (avoids double-strip of UI-stripped prices)
+        priceIncludesGst: gstApplied === 1 && includes,
         gstRate,
       });
       itemsPrepped.push({ product, qty, disc, netPricePerUnit, gstApplied, billedPricePerUnit });
@@ -544,9 +552,8 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
       )
     ).rows[0] as { id: string; price: number; price_includes_gst: boolean; gst_rate: number | null } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
-    const basePrice = hasExplicitUnitPrice(customPrice)
-      ? Number(customPrice)
-      : (await resolvePrice(tenantId, productId, vendorId, qty)).price;
+    const explicit = hasExplicitUnitPrice(customPrice);
+    let basePrice = explicit ? Number(customPrice) : (await resolvePrice(tenantId, productId, vendorId, qty)).price;
     const disc = Math.min(100, Math.max(0, Number(discountPercent) || 0));
     const gstApplied = withGst !== false;
     const companyDefaultGst = Number(
@@ -558,11 +565,15 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
       ).rows[0]?.default_gst_rate,
     );
     const gstRate = resolveGstRate(product.gst_rate, Number(reqGstRate) || companyDefaultGst);
+    const includes = !!product.price_includes_gst;
+    if (!gstApplied && includes && !explicit) {
+      basePrice = Math.round((basePrice / (1 + gstRate / 100)) * 100) / 100;
+    }
     const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
       basePrice,
       discountPercent: disc,
       withGst: gstApplied,
-      priceIncludesGst: !!product.price_includes_gst,
+      priceIncludesGst: gstApplied && includes,
       gstRate,
     });
     const grossValue = basePrice * qty;
