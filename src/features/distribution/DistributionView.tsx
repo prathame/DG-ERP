@@ -45,20 +45,45 @@ import { CreateDistributionModal } from './CreateDistributionModal';
 function DeliveryDocBadge({
   batch,
   size = 'sm',
+  /** Detail half-tabs: show only the active half (omit when that half has 0 units — no fake BoS). */
+  activeHalf,
 }: {
   batch: Pick<DistributionBatch, 'batchId' | 'gstUnits' | 'nonGstUnits' | 'gstApplied' | 'total' | 'deliverySet'>;
   size?: 'sm' | 'md';
+  activeHalf?: 'gst' | 'bos';
 }) {
   const gstUnits = typeof batch.gstUnits === 'number' ? batch.gstUnits : batch.gstApplied ? batch.total : 0;
   const nonGstUnits = typeof batch.nonGstUnits === 'number' ? batch.nonGstUnits : batch.gstApplied ? 0 : batch.total;
-  const kind = deliveryDocKind(gstUnits, nonGstUnits);
-  if (kind === 'unknown') return null;
-  const label = deliveryDocLabel(kind);
   const nos =
     batch.deliverySet?.gstDocNo || batch.deliverySet?.nonGstDocNo
       ? { gstDocNo: batch.deliverySet.gstDocNo, nonGstDocNo: batch.deliverySet.nonGstDocNo }
       : deliveryDocNos(batch.batchId, gstUnits, nonGstUnits);
   const pad = size === 'md' ? 'px-2 py-0.5 text-[11px]' : 'px-1.5 py-0.5 text-[10px]';
+
+  if (activeHalf) {
+    const count = activeHalf === 'gst' ? gstUnits : nonGstUnits;
+    if (count <= 0) return null;
+    const label = deliveryDocLabel(activeHalf);
+    const docNo = activeHalf === 'gst' ? nos.gstDocNo : nos.nonGstDocNo;
+    if (!label) return null;
+    return (
+      <span
+        className={cn(
+          pad,
+          'rounded-full font-bold inline-flex items-center gap-1',
+          activeHalf === 'gst' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700',
+        )}
+        title={docNo || label}
+      >
+        {label}
+        {size === 'md' && docNo && <span className="font-mono opacity-80">{docNo}</span>}
+      </span>
+    );
+  }
+
+  const kind = deliveryDocKind(gstUnits, nonGstUnits);
+  if (kind === 'unknown') return null;
+  const label = deliveryDocLabel(kind);
   const title = [nos.gstDocNo, nos.nonGstDocNo].filter(Boolean).join(' · ') || label;
   if (kind === 'mixed') {
     return (
@@ -721,10 +746,9 @@ export function DistributionView({
                 (s, d) => s + (Number(d.billedPrice) || Number(d.netPrice) || 0),
                 0,
               );
-              const halfDocNo =
-                deliveryHalf === 'gst'
-                  ? selectedBatch.deliverySet?.gstDocNo || deliveryDocNos(selectedBatch.batchId, 1, 0).gstDocNo
-                  : selectedBatch.deliverySet?.nonGstDocNo || deliveryDocNos(selectedBatch.batchId, 0, 1).nonGstDocNo;
+              const halfSold = halfItems.filter(u => u.status === 'Sold').length;
+              const halfHasLines = halfItems.length > 0;
+              const halfTotalLabel = deliveryHalf === 'gst' ? 'Tax Invoice total' : 'Bill of Supply total';
 
               const byProduct = halfItems.reduce(
                 (acc, d) => {
@@ -772,7 +796,9 @@ export function DistributionView({
                             Distribution — {formatDate(selectedBatch.distributionDate)}
                           </span>
                         )}
-                        {!selectedBatchProductId && inPlaceNav && <DeliveryDocBadge batch={selectedBatch} size="md" />}
+                        {!selectedBatchProductId && inPlaceNav && (
+                          <DeliveryDocBadge batch={selectedBatch} size="md" activeHalf={deliveryHalf} />
+                        )}
                         {!selectedBatchProductId &&
                           (() => {
                             const ds =
@@ -951,7 +977,9 @@ export function DistributionView({
                                   {canPrint && useHalfTabs && (
                                     <button
                                       type="button"
+                                      disabled={!halfHasLines}
                                       onClick={() => {
+                                        if (!halfHasLines) return;
                                         setBatchActionsOpen(false);
                                         const kind = deliveryHalf === 'gst' ? 'gst' : 'bos';
                                         api.distribution
@@ -972,12 +1000,23 @@ export function DistributionView({
                                           .catch(err => toast(err.message, 'error'));
                                       }}
                                       className={cn(
-                                        'w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2',
+                                        'w-full px-4 py-2 text-left text-sm flex items-center gap-2',
+                                        halfHasLines ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed',
                                         deliveryHalf === 'gst' ? 'text-emerald-700' : 'text-amber-700',
                                       )}
+                                      title={
+                                        halfHasLines
+                                          ? undefined
+                                          : deliveryHalf === 'gst'
+                                            ? 'No Tax Invoice lines to print'
+                                            : 'No Bill of Supply lines to print'
+                                      }
                                     >
                                       <Printer size={14} />{' '}
                                       {deliveryHalf === 'gst' ? 'Print Tax Invoice' : 'Print Bill of Supply'}
+                                      {!halfHasLines && (
+                                        <span className="ml-auto text-[10px] font-normal text-gray-400">none</span>
+                                      )}
                                     </button>
                                   )}
                                   {canPrint && !useHalfTabs && (
@@ -1186,107 +1225,84 @@ export function DistributionView({
                           </div>
                         )}
                       </div>
-                      <div className={cn('text-right', inPlaceNav && 'shrink-0')}>
-                        {selectedProduct ? (
-                          <span className="text-sm text-gray-600">
-                            <span className="font-medium">{selectedProduct.units.length}</span> units •{' '}
-                            <span className="text-emerald-600 font-medium">
-                              {selectedProduct.units.filter(u => u.status === 'Sold').length}
-                            </span>{' '}
-                            sold
-                            {selectedProduct.units.filter(u => u.status === 'Replaced').length > 0 && (
-                              <>
-                                {' '}
-                                •{' '}
-                                <span className="text-amber-600 font-medium">
-                                  {selectedProduct.units.filter(u => u.status === 'Replaced').length}
-                                </span>{' '}
-                                replaced
-                              </>
-                            )}
-                            {selectedProduct.units.filter(u => u.status === 'Damaged').length > 0 && (
-                              <>
-                                {' '}
-                                •{' '}
-                                <span className="text-rose-600 font-medium">
-                                  {selectedProduct.units.filter(u => u.status === 'Damaged').length}
-                                </span>{' '}
-                                damaged
-                              </>
-                            )}
-                            {' • '}
-                            <span className="text-blue-600 font-medium">
-                              {selectedProduct.units.filter(u => u.status === 'Distributed').length}
-                            </span>{' '}
-                            with vendor
-                          </span>
-                        ) : (
-                          <>
-                            <span className="text-sm text-gray-600 block">
-                              {useHalfTabs ? (
+                      {/* Half-tab status lives under the tabs (title → tabs → one status line → products). */}
+                      {(!useHalfTabs || selectedProduct) && (
+                        <div className={cn('text-right', inPlaceNav && 'shrink-0')}>
+                          {selectedProduct ? (
+                            <span className="text-sm text-gray-600">
+                              <span className="font-medium">{selectedProduct.units.length}</span> unit
+                              {selectedProduct.units.length !== 1 ? 's' : ''} •{' '}
+                              <span className="text-emerald-600 font-medium">
+                                {selectedProduct.units.filter(u => u.status === 'Sold').length}
+                              </span>{' '}
+                              sold
+                              {selectedProduct.units.filter(u => u.status === 'Replaced').length > 0 && (
                                 <>
-                                  <span className="font-medium">{halfItems.length}</span>{' '}
-                                  {deliveryHalf === 'gst' ? 'GST' : 'non-GST'} unit
-                                  {halfItems.length !== 1 ? 's' : ''}
-                                  {halfDocNo && <span className="font-mono text-xs text-gray-500"> · {halfDocNo}</span>}
-                                  {' · '}
-                                  <span className="text-emerald-600 font-medium">
-                                    {halfItems.filter(u => u.status === 'Sold').length}
+                                  {' '}
+                                  •{' '}
+                                  <span className="text-amber-600 font-medium">
+                                    {selectedProduct.units.filter(u => u.status === 'Replaced').length}
                                   </span>{' '}
-                                  sold
-                                </>
-                              ) : (
-                                <>
-                                  <span className="font-medium">{selectedBatch.total}</span> distributed •{' '}
-                                  <span className="text-emerald-600 font-medium">{selectedBatch.sold}</span> sold
-                                  {selectedBatch.replaced > 0 && (
-                                    <>
-                                      {' '}
-                                      • <span className="text-amber-600 font-medium">
-                                        {selectedBatch.replaced}
-                                      </span>{' '}
-                                      replaced
-                                    </>
-                                  )}
-                                  {selectedBatch.damaged > 0 && (
-                                    <>
-                                      {' '}
-                                      • <span className="text-rose-600 font-medium">{selectedBatch.damaged}</span>{' '}
-                                      damaged
-                                    </>
-                                  )}
-                                  {' • '}
-                                  <span className="text-blue-600 font-medium">
-                                    {selectedBatch.availableWithVendor}
-                                  </span>{' '}
-                                  with vendor
+                                  replaced
                                 </>
                               )}
+                              {selectedProduct.units.filter(u => u.status === 'Damaged').length > 0 && (
+                                <>
+                                  {' '}
+                                  •{' '}
+                                  <span className="text-rose-600 font-medium">
+                                    {selectedProduct.units.filter(u => u.status === 'Damaged').length}
+                                  </span>{' '}
+                                  damaged
+                                </>
+                              )}
+                              {' • '}
+                              <span className="text-blue-600 font-medium">
+                                {selectedProduct.units.filter(u => u.status === 'Distributed').length}
+                              </span>{' '}
+                              with vendor
                             </span>
-                            <span className="text-sm font-bold text-brand">
-                              {useHalfTabs ? 'Half' : 'Bill'}: ₹
-                              {(useHalfTabs ? halfBillValue : selectedBatch.billValue).toLocaleString()}
-                            </span>
-                            {!useHalfTabs && selectedBatch.amountPaid > 0 && (
-                              <span className="text-sm text-emerald-600 font-medium ml-2">
-                                Paid: ₹{selectedBatch.amountPaid.toLocaleString()}
+                          ) : (
+                            <>
+                              <span className="text-sm text-gray-600 block">
+                                <span className="font-medium">{selectedBatch.total}</span> distributed •{' '}
+                                <span className="text-emerald-600 font-medium">{selectedBatch.sold}</span> sold
+                                {selectedBatch.replaced > 0 && (
+                                  <>
+                                    {' '}
+                                    • <span className="text-amber-600 font-medium">{selectedBatch.replaced}</span>{' '}
+                                    replaced
+                                  </>
+                                )}
+                                {selectedBatch.damaged > 0 && (
+                                  <>
+                                    {' '}
+                                    • <span className="text-rose-600 font-medium">{selectedBatch.damaged}</span> damaged
+                                  </>
+                                )}
+                                {' • '}
+                                <span className="text-blue-600 font-medium">
+                                  {selectedBatch.availableWithVendor}
+                                </span>{' '}
+                                with vendor
                               </span>
-                            )}
-                            {!useHalfTabs && selectedBatch.balanceRemaining > 0 && (
-                              <span className="text-sm text-rose-500 font-medium ml-2">
-                                Due: ₹{selectedBatch.balanceRemaining.toLocaleString()}
+                              <span className="text-sm font-bold text-brand">
+                                Bill: ₹{selectedBatch.billValue.toLocaleString()}
                               </span>
-                            )}
-                            {useHalfTabs && (
-                              <span className="text-xs text-gray-500 ml-2">
-                                Delivery total ₹{selectedBatch.billValue.toLocaleString()}
-                                {selectedBatch.balanceRemaining > 0 &&
-                                  ` · ₹${selectedBatch.balanceRemaining.toLocaleString()} due`}
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </div>
+                              {selectedBatch.amountPaid > 0 && (
+                                <span className="text-sm text-emerald-600 font-medium ml-2">
+                                  Paid: ₹{selectedBatch.amountPaid.toLocaleString()}
+                                </span>
+                              )}
+                              {selectedBatch.balanceRemaining > 0 && (
+                                <span className="text-sm text-rose-500 font-medium ml-2">
+                                  Due: ₹{selectedBatch.balanceRemaining.toLocaleString()}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {inPlaceNav && !selectedBatchProductId && (
                       <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-gray-200/70">
@@ -1371,7 +1387,7 @@ export function DistributionView({
                     )}
                   </div>
                   {useHalfTabs && !selectedBatchProductId && (
-                    <div className="px-6 pt-4 pb-2 border-b border-gray-100">
+                    <div className="px-6 pt-3 pb-3 border-b border-gray-100 space-y-2.5">
                       <div
                         className="inline-flex p-0.5 rounded-lg bg-gray-100 border border-gray-200"
                         role="tablist"
@@ -1414,11 +1430,29 @@ export function DistributionView({
                           <span className="ml-1 font-medium opacity-70">({batchNonGstUnits})</span>
                         </button>
                       </div>
-                      {halfDocNo && <p className="mt-2 text-[11px] text-gray-500 font-mono">{halfDocNo}</p>}
+                      {halfHasLines && (
+                        <p className="text-sm text-gray-600 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span>
+                            <span className="font-medium">{halfItems.length}</span>{' '}
+                            {deliveryHalf === 'gst' ? 'GST' : 'non-GST'} unit
+                            {halfItems.length !== 1 ? 's' : ''}
+                            {' · '}
+                            <span className="text-emerald-600 font-medium">{halfSold}</span> sold
+                          </span>
+                          <span className="font-bold text-brand">
+                            {halfTotalLabel}: ₹{halfBillValue.toLocaleString()}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            Delivery total ₹{selectedBatch.billValue.toLocaleString()}
+                            {selectedBatch.balanceRemaining > 0 &&
+                              ` · ₹${selectedBatch.balanceRemaining.toLocaleString()} due`}
+                          </span>
+                        </p>
+                      )}
                     </div>
                   )}
                   {!selectedBatchProductId ? (
-                    halfItems.length === 0 && useHalfTabs ? (
+                    !halfHasLines && useHalfTabs ? (
                       <div className="px-6 py-12 text-center text-sm text-gray-500">
                         {deliveryHalf === 'gst'
                           ? 'No Tax Invoice (GST) lines on this delivery'
@@ -1442,8 +1476,8 @@ export function DistributionView({
                           >
                             <span className="font-medium">{p.productName}</span>
                             <span className="text-sm text-gray-600">
-                              <span className="font-medium">{p.total}</span> units •{' '}
-                              <span className="text-emerald-600">{p.sold} sold</span>
+                              <span className="font-medium">{p.total}</span> unit
+                              {p.total !== 1 ? 's' : ''} • <span className="text-emerald-600">{p.sold} sold</span>
                               {p.replaced > 0 && <span className="text-amber-600"> • {p.replaced} replaced</span>}
                               {p.damaged > 0 && <span className="text-rose-600"> • {p.damaged} damaged</span>}
                               <span className="text-blue-600"> • {p.withVendor} with vendor</span>
