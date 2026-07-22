@@ -19,9 +19,12 @@ import { suggestHsnRate } from '../../lib/hsnRates';
 import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { scheduleBakeCapBillPdfCache, type CapBillPdfCacheDoc } from '../../lib/capBillPdfCache';
 import { printStandaloneInvoice } from '../../lib/printStandaloneInvoice';
+import { linePricesAfterDiscount } from '../../lib/gstInclusivePrice';
+import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
 import { reportActionFailed } from '../../lib/reportActionFailure';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import type { DistributionBillData, DistributionBatch } from '../../api';
 
 type Invoice = {
   id: string;
@@ -65,6 +68,8 @@ type BillLine = {
   rate: number;
   gstPercent: number;
   discountPercent: number;
+  /** Per-line GST for createBatch / dual docs (non-service). */
+  withGst: boolean;
 };
 
 type PriceRule = {
@@ -93,6 +98,7 @@ const emptyRow = (gstOn = true): BillLine => ({
   rate: 0,
   gstPercent: gstOn ? 18 : 0,
   discountPercent: 0,
+  withGst: gstOn,
 });
 
 function lineTaxable(qty: number, rate: number, discountPercent: number): number {
@@ -159,7 +165,19 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   const [priceRules, setPriceRules] = useState<PriceRule[]>([]);
   const [mixDialog, setMixDialog] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<'draft' | 'sent'>('sent');
+  const [createdSale, setCreatedSale] = useState<{
+    batch: DistributionBatch;
+    bill: DistributionBillData;
+  } | null>(null);
+  const [printing, setPrinting] = useState(false);
   const resolveTokenRef = useRef<Record<number, number>>({});
+  const headerGstRef = useRef<HTMLInputElement>(null);
+
+  const allGst = rows.length > 0 && rows.every(r => r.withGst);
+  const someGst = rows.some(r => r.withGst);
+  useEffect(() => {
+    if (headerGstRef.current) headerGstRef.current.indeterminate = someGst && !allGst;
+  }, [someGst, allGst]);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,11 +193,16 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         const on = isGstBillingEnabled(s);
         setGstBilling(on);
         setRows(prev =>
-          prev.map(r => ({
-            ...r,
-            gstPercent: on ? r.gstPercent || 18 : 0,
-            hsnSac: on ? r.hsnSac : '',
-          })),
+          prev.map(r =>
+            r.productId || r.description.trim()
+              ? r
+              : {
+                  ...r,
+                  withGst: on,
+                  gstPercent: on ? r.gstPercent || 18 : 0,
+                  hsnSac: on ? r.hsnSac : '',
+                },
+          ),
         );
       })
       .catch(() => {});
@@ -241,6 +264,21 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     });
   };
 
+  const setAllWithGst = (on: boolean) => {
+    setRows(prev =>
+      prev.map(r => {
+        const p = r.productId ? products.find(x => x.id === r.productId) : undefined;
+        const rate = on ? r.gstPercent || p?.gstRate || defaultGstRate || 18 : 0;
+        return {
+          ...r,
+          withGst: on,
+          gstPercent: rate,
+          hsnSac: on ? r.hsnSac || p?.hsnCode || '' : r.hsnSac,
+        };
+      }),
+    );
+  };
+
   const applyCatalogItem = (idx: number, productId: string) => {
     if (!productId) {
       setRows(prev =>
@@ -253,6 +291,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     const qty = rows[idx]?.qty || 1;
     const rate = resolveCatalogPrice(p, priceRules, vendorId || null, qty);
     const hint = p.hsnCode ? suggestHsnRate(p.hsnCode) : null;
+    const withGst = gstBilling;
     setRows(prev =>
       prev.map((r, i) =>
         i === idx
@@ -260,10 +299,11 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
               ...r,
               productId: p.id,
               description: p.name,
-              hsnSac: gstBilling ? p.hsnCode || r.hsnSac || '' : '',
+              hsnSac: withGst ? p.hsnCode || r.hsnSac || '' : '',
               qty,
               rate,
-              gstPercent: gstBilling ? (p.gstRate ?? hint?.rate ?? r.gstPercent ?? 18) : 0,
+              withGst,
+              gstPercent: withGst ? (p.gstRate ?? hint?.rate ?? r.gstPercent ?? 18) : 0,
             }
           : r,
       ),
@@ -287,18 +327,34 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     if (row?.productId && qty > 0) resolveRowPrice(idx, row.productId, vendorId || null, qty);
   };
 
+  const rowLineMoney = (r: BillLine) => {
+    const p = r.productId ? products.find(x => x.id === r.productId) : undefined;
+    if (p) {
+      return linePricesAfterDiscount({
+        unitPrice: r.rate || 0,
+        quantity: r.qty || 0,
+        discountPercent: r.discountPercent || 0,
+        withGst: r.withGst,
+        priceIncludesGst: !!p.priceIncludesGst,
+        gstRate: r.gstPercent || p.gstRate || defaultGstRate,
+      });
+    }
+    const taxable = lineTaxable(r.qty, r.rate, r.discountPercent);
+    const tax = r.withGst ? Math.round(((taxable * (r.gstPercent || 0)) / 100) * 100) / 100 : 0;
+    return { net: taxable, gst: tax, billed: taxable + tax, gross: taxable, discount: 0 };
+  };
+
   const totals = rows.reduce(
     (acc, r) => {
-      const taxable = lineTaxable(r.qty, r.rate, r.discountPercent);
-      const tax = Math.round(((taxable * (r.gstPercent || 0)) / 100) * 100) / 100;
-      return { subtotal: acc.subtotal + taxable, tax: acc.tax + tax, grand: acc.grand + taxable + tax };
+      const m = rowLineMoney(r);
+      return { subtotal: acc.subtotal + m.net, tax: acc.tax + m.gst, grand: acc.grand + m.billed };
     },
     { subtotal: 0, tax: 0, grand: 0 },
   );
 
   const createSale = async (inventory: BillLine[]) => {
     const paid = parseFloat(amountPaid) || 0;
-    await api.distribution.createBatch({
+    const batch = await api.distribution.createBatch({
       vendorId,
       distributionDate: form.invoiceDate,
       amountPaid: paid > 0 ? paid : undefined,
@@ -307,28 +363,47 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         productId: row.productId,
         quantity: row.qty,
         discountPercent: row.discountPercent > 0 ? row.discountPercent : undefined,
-        withGst: gstBilling && (row.gstPercent || 0) > 0,
+        withGst: row.withGst,
         customPrice: row.rate > 0 ? row.rate : undefined,
       })),
     });
+    const bill = await api.distribution.getBill({ batchId: batch.batchId, vendorId });
+    return { batch, bill };
   };
 
   const createStandaloneInvoice = async (customRows: BillLine[], status: 'draft' | 'sent') => {
+    const anyGst = customRows.some(r => r.withGst);
     const created = await fetchApi<Invoice>('/invoices', {
       method: 'POST',
       body: JSON.stringify({
         ...form,
         invoiceNumber,
-        gstEnabled: gstBilling,
-        items: customRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId }) => ({
-          description: description.trim() || products.find(p => p.id === productId)?.name || 'Item',
-          hsnSac: gstBilling ? hsnSac : '',
-          qty,
-          rate,
-          gstPercent: gstBilling ? gstPercent : 0,
-          discountPercent: discountPercent || 0,
-          ...(productId ? { productId } : {}),
-        })),
+        gstEnabled: anyGst,
+        items: customRows.map(({ description, hsnSac, qty, rate, gstPercent, discountPercent, productId, withGst }) => {
+          const p = productId ? products.find(x => x.id === productId) : undefined;
+          let sendRate = rate;
+          // Inclusive MRP + GST off → send exclusive (server invoice path also strips when product linked)
+          if (!withGst && p?.priceIncludesGst) {
+            const m = linePricesAfterDiscount({
+              unitPrice: rate,
+              quantity: 1,
+              discountPercent: 0,
+              withGst: false,
+              priceIncludesGst: true,
+              gstRate: gstPercent || p.gstRate || defaultGstRate,
+            });
+            sendRate = m.net;
+          }
+          return {
+            description: description.trim() || p?.name || 'Item',
+            hsnSac: withGst ? hsnSac : '',
+            qty,
+            rate: sendRate,
+            gstPercent: withGst ? gstPercent : 0,
+            discountPercent: discountPercent || 0,
+            ...(productId ? { productId } : {}),
+          };
+        }),
         status,
         partyType: vendorId ? 'vendor' : null,
         partyId: vendorId || null,
@@ -340,6 +415,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
 
   const finishCreated = () => {
     setCreatedInvoice(null);
+    setCreatedSale(null);
     onCreated();
   };
 
@@ -374,11 +450,20 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     setMixDialog(false);
     try {
       if (wantSale) {
-        await createSale(inventory);
+        const sale = await createSale(inventory);
+        const hasGst = inventory.some(r => r.withGst);
+        const hasNon = inventory.some(r => !r.withGst);
         toast(
-          `${isDirectSell ? 'Sale' : 'Distribution'} saved — ${inventory.length} inventory line(s). See Sales for this ${partyLabel.toLowerCase()}.`,
+          hasGst && hasNon
+            ? `${isDirectSell ? 'Sale' : 'Distribution'} saved as Tax Invoice + Bill of Supply — ${inventory.length} line(s).`
+            : `${isDirectSell ? 'Sale' : 'Distribution'} saved — ${inventory.length} inventory line(s). See Sales for this ${partyLabel.toLowerCase()}.`,
           'success',
         );
+        if (!invoiceRows.length) {
+          setCreatedSale(sale);
+          setSubmitting(false);
+          return;
+        }
       }
 
       if (invoiceRows.length) {
@@ -430,6 +515,20 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     }
   };
 
+  const printSaleDoc = async (kind: 'gst' | 'bos' | 'both') => {
+    if (!createdSale) return;
+    setPrinting(true);
+    try {
+      await printDistributionDocs(createdSale.bill, kind, false);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Print failed', 'error');
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const salePrintAvail = createdSale ? deliveryPrintAvailability(createdSale.bill) : null;
+
   const productOptions = (qty: number) =>
     products
       .slice()
@@ -444,28 +543,46 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         };
       });
 
-  const footer = createdInvoice ? (
-    <ModalActions>
-      <ModalActionButton variant="ghost" onClick={finishCreated}>
-        Done
-      </ModalActionButton>
-      <ModalActionButton variant="primary" onClick={() => void printCreated()}>
-        Print / PDF
-      </ModalActionButton>
-    </ModalActions>
-  ) : (
-    <ModalActions>
-      <ModalActionButton variant="ghost" onClick={onClose}>
-        Cancel
-      </ModalActionButton>
-      <ModalActionButton variant="secondary" disabled={submitting} onClick={() => handleSubmit('draft')}>
-        {submitting ? 'Saving…' : 'Save as Draft'}
-      </ModalActionButton>
-      <ModalActionButton variant="primary" disabled={submitting} onClick={() => handleSubmit('sent')}>
-        {submitting ? 'Saving…' : 'Create & Send'}
-      </ModalActionButton>
-    </ModalActions>
-  );
+  const footer =
+    createdInvoice || createdSale ? (
+      <ModalActions>
+        <ModalActionButton variant="ghost" onClick={finishCreated}>
+          Done
+        </ModalActionButton>
+        {createdInvoice && (
+          <ModalActionButton variant="primary" onClick={() => void printCreated()}>
+            Print / PDF
+          </ModalActionButton>
+        )}
+        {createdSale && salePrintAvail?.hasGst && (
+          <ModalActionButton variant="secondary" disabled={printing} onClick={() => void printSaleDoc('gst')}>
+            Tax Invoice
+          </ModalActionButton>
+        )}
+        {createdSale && salePrintAvail?.hasBos && (
+          <ModalActionButton variant="secondary" disabled={printing} onClick={() => void printSaleDoc('bos')}>
+            Bill of Supply
+          </ModalActionButton>
+        )}
+        {createdSale && salePrintAvail?.isDual && (
+          <ModalActionButton variant="primary" disabled={printing} onClick={() => void printSaleDoc('both')}>
+            Print Both
+          </ModalActionButton>
+        )}
+      </ModalActions>
+    ) : (
+      <ModalActions>
+        <ModalActionButton variant="ghost" onClick={onClose}>
+          Cancel
+        </ModalActionButton>
+        <ModalActionButton variant="secondary" disabled={submitting} onClick={() => handleSubmit('draft')}>
+          {submitting ? 'Saving…' : 'Save as Draft'}
+        </ModalActionButton>
+        <ModalActionButton variant="primary" disabled={submitting} onClick={() => handleSubmit('sent')}>
+          {submitting ? 'Saving…' : 'Create & Send'}
+        </ModalActionButton>
+      </ModalActions>
+    );
 
   const routeHint = (() => {
     const { inventory, custom } = classifyLines(rows);
@@ -487,15 +604,23 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
   return (
     <>
       <AppModal
-        title={createdInvoice ? 'Invoice created' : 'New Invoice'}
+        title={
+          createdInvoice
+            ? 'Invoice created'
+            : createdSale
+              ? `${isDirectSell ? 'Sale' : 'Distribution'} saved`
+              : 'New Invoice'
+        }
         subtitle={
           createdInvoice ? (
             <span className="font-mono">{createdInvoice.invoiceNumber}</span>
+          ) : createdSale ? (
+            <span className="font-mono">{createdSale.batch.batchId}</span>
           ) : (
             <span>One flow for {saleLabel}s and standalone invoices</span>
           )
         }
-        onClose={createdInvoice ? finishCreated : onClose}
+        onClose={createdInvoice || createdSale ? finishCreated : onClose}
         footer={footer}
         size="2xl"
         zIndex={100}
@@ -511,6 +636,21 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
               <p className="text-sm text-gray-500">
                 {createdInvoice.customerName} · ₹{Number(createdInvoice.grandTotal || 0).toLocaleString('en-IN')}
               </p>
+            </div>
+          ) : createdSale && salePrintAvail ? (
+            <div className="text-center py-8 space-y-3">
+              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <Check size={24} />
+              </div>
+              <p className="font-bold text-lg">
+                {createdSale.batch.vendorName} · ₹{Number(createdSale.batch.billValue || 0).toLocaleString('en-IN')}
+              </p>
+              {salePrintAvail.isDual && (
+                <p className="text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 inline-block">
+                  Dual docs: Tax Invoice + Bill of Supply (one delivery)
+                </p>
+              )}
+              <p className="text-sm text-gray-500">Use the buttons below to print, or open Sales anytime.</p>
             </div>
           ) : (
             <>
@@ -602,23 +742,37 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                 description="Type to match inventory, or keep as a custom line (no stock)"
               >
                 <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-1">
-                  <table className="w-full text-left min-w-[880px]">
+                  <table className="w-full text-left min-w-[920px]">
                     <thead>
                       <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
                         <th className="px-2 py-3 text-left min-w-[240px]">Item</th>
-                        {gstBilling && <th className="px-2 py-3 w-28">HSN/SAC</th>}
+                        <th className="px-2 py-3 w-28">HSN/SAC</th>
                         <th className="px-2 py-3 w-24">Qty</th>
                         <th className="px-2 py-3 w-32">Rate</th>
                         <th className="px-2 py-3 w-20">Disc%</th>
-                        {gstBilling && <th className="px-2 py-3 w-20">GST%</th>}
+                        <th className="px-2 py-3 w-16 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <span>GST</span>
+                            <input
+                              ref={headerGstRef}
+                              type="checkbox"
+                              checked={allGst}
+                              onChange={e => setAllWithGst(e.target.checked)}
+                              className="rounded text-brand"
+                              title={allGst ? 'All GST — uncheck for all non-GST' : 'Check for all GST'}
+                              aria-label="All GST / All non-GST"
+                            />
+                          </div>
+                        </th>
+                        <th className="px-2 py-3 w-20">GST%</th>
                         <th className="px-2 py-3 w-36 text-right">Total</th>
                         <th className="px-2 py-3 w-8" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {rows.map((row, idx) => {
-                        const taxable = lineTaxable(row.qty, row.rate, row.discountPercent);
-                        const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
+                        const m = rowLineMoney(row);
+                        const p = row.productId ? products.find(x => x.id === row.productId) : undefined;
                         return (
                           <tr key={idx}>
                             <td className="px-2 py-2">
@@ -649,30 +803,29 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                                     : '—'}
                               </p>
                             </td>
-                            {gstBilling && (
-                              <td className="px-2 py-2">
-                                <input
-                                  value={row.hsnSac}
-                                  onChange={e => {
-                                    const v = e.target.value;
-                                    const hint = suggestHsnRate(v);
-                                    setRows(prev =>
-                                      prev.map((r, i) =>
-                                        i === idx
-                                          ? {
-                                              ...r,
-                                              hsnSac: v,
-                                              ...(hint && r.gstPercent === 18 ? { gstPercent: hint.rate } : {}),
-                                            }
-                                          : r,
-                                      ),
-                                    );
-                                  }}
-                                  className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm font-mono"
-                                  placeholder="9983"
-                                />
-                              </td>
-                            )}
+                            <td className="px-2 py-2">
+                              <input
+                                value={row.hsnSac}
+                                disabled={!row.withGst}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  const hint = suggestHsnRate(v);
+                                  setRows(prev =>
+                                    prev.map((r, i) =>
+                                      i === idx
+                                        ? {
+                                            ...r,
+                                            hsnSac: v,
+                                            ...(hint && r.gstPercent === 18 ? { gstPercent: hint.rate } : {}),
+                                          }
+                                        : r,
+                                    ),
+                                  );
+                                }}
+                                className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm font-mono disabled:bg-gray-50 disabled:text-gray-400"
+                                placeholder="9983"
+                              />
+                            </td>
                             <td className="px-2 py-2">
                               <input
                                 type="number"
@@ -696,6 +849,9 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                                 }
                                 className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
                               />
+                              {!row.withGst && !!p?.priceIncludesGst && (
+                                <p className="text-[10px] text-amber-600 mt-0.5">excl. GST billed</p>
+                              )}
                             </td>
                             <td className="px-2 py-2">
                               <input
@@ -722,26 +878,49 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                                 placeholder="0"
                               />
                             </td>
-                            {gstBilling && (
-                              <td className="px-2 py-2">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={28}
-                                  value={row.gstPercent}
-                                  onChange={e =>
-                                    setRows(prev =>
-                                      prev.map((r, i) =>
-                                        i === idx ? { ...r, gstPercent: parseInt(e.target.value) || 0 } : r,
-                                      ),
-                                    )
-                                  }
-                                  className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
-                                />
-                              </td>
-                            )}
+                            <td className="px-2 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={row.withGst}
+                                onChange={e => {
+                                  const on = e.target.checked;
+                                  const prod = row.productId ? products.find(x => x.id === row.productId) : undefined;
+                                  setRows(prev =>
+                                    prev.map((r, i) =>
+                                      i === idx
+                                        ? {
+                                            ...r,
+                                            withGst: on,
+                                            gstPercent: on ? r.gstPercent || prod?.gstRate || defaultGstRate || 18 : 0,
+                                            hsnSac: on ? r.hsnSac || prod?.hsnCode || '' : r.hsnSac,
+                                          }
+                                        : r,
+                                    ),
+                                  );
+                                }}
+                                className="rounded text-brand"
+                                aria-label={`GST for line ${idx + 1}`}
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                min={0}
+                                max={28}
+                                disabled={!row.withGst}
+                                value={row.withGst ? row.gstPercent : 0}
+                                onChange={e =>
+                                  setRows(prev =>
+                                    prev.map((r, i) =>
+                                      i === idx ? { ...r, gstPercent: parseInt(e.target.value) || 0 } : r,
+                                    ),
+                                  )
+                                }
+                                className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center disabled:bg-gray-50 disabled:text-gray-400"
+                              />
+                            </td>
                             <td className="px-2 py-2 text-right text-sm font-medium tabular-nums">
-                              {taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString()}` : '—'}
+                              {m.billed > 0 ? `₹${m.billed.toLocaleString()}` : '—'}
                             </td>
                             <td className="px-1 py-2">
                               {rows.length > 1 && (
@@ -775,7 +954,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                     <span className="text-gray-500">Subtotal</span>
                     <span className="font-medium">₹{totals.subtotal.toLocaleString()}</span>
                   </div>
-                  {gstBilling && (
+                  {totals.tax > 0 && (
                     <div className="flex justify-between">
                       <span className="text-gray-500">Tax</span>
                       <span className="font-medium">₹{totals.tax.toLocaleString()}</span>

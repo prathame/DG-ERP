@@ -84,5 +84,10 @@ export function unitPricesAfterDiscount(opts: {
       billedPricePerUnit: Math.round((priceAfterDisc * (100 + opts.gstRate)) / 100),
     };
   }
+  // GST off + inclusive MRP → bill exclusive (create-time non-GST / BoS lines)
+  if (opts.priceIncludesGst) {
+    const exclusive = Math.round((priceAfterDisc / (1 + opts.gstRate / 100)) * 100) / 100;
+    return { netPricePerUnit: exclusive, billedPricePerUnit: exclusive };
+  }
   return { netPricePerUnit: priceAfterDisc, billedPricePerUnit: priceAfterDisc };
 }

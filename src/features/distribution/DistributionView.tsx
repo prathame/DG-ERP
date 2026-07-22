@@ -27,45 +27,18 @@ import {
   formatDistributionChallanText,
   formatDate,
   getTabLabel,
-  fetchImageAsDataUrl,
   resolveIrnQrPayload,
 } from '../../lib/utils';
 import { api, fetchApi, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
 import type { Product } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
+import { buildGstPrintOptions } from '../../lib/buildGstPrintOptions';
+import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateDistributionModal } from './CreateDistributionModal';
-
-async function buildGstPrintOptions(
-  bill: import('../../api').DistributionBillData,
-  showGst: boolean,
-  fullyPaid: boolean,
-) {
-  const bs = (bill as unknown as Record<string, unknown>).billSettings as Record<string, unknown> | undefined;
-  const irnPayload = resolveIrnQrPayload({ irnQr: bill.irnQr, qrCode: bill.irnQr });
-  const billForPrint = irnPayload && bill.irnQr !== irnPayload ? { ...bill, irnQr: irnPayload } : bill;
-  // Time-bounded — never block print if QR CDN is slow/offline
-  const [upiRes, irnRes] = await Promise.all([
-    bs?.bankUpiId
-      ? fetchImageAsDataUrl(
-          `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=${bs.bankUpiId}&pn=${bs.bankAccountName || 'Business'}&cu=INR`)}`,
-          3000,
-        )
-      : Promise.resolve(undefined),
-    irnPayload
-      ? fetchImageAsDataUrl(
-          `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(irnPayload)}`,
-          3000,
-        )
-      : Promise.resolve(undefined),
-  ]);
-  const qrDataUrl = typeof upiRes === 'string' && upiRes.startsWith('data:image/') ? upiRes : undefined;
-  const irnQrDataUrl = typeof irnRes === 'string' && irnRes.startsWith('data:image/') ? irnRes : undefined;
-  return { billForPrint, opts: { showGst, fullyPaid, qrDataUrl, irnQrDataUrl } };
-}
 
 // ── E-Invoice + E-Way Bill buttons (per distribution batch) ──────────────────
 function EInvoiceButtons({
@@ -899,6 +872,77 @@ export function DistributionView({
                               <>
                                 <div className="fixed inset-0 z-[50]" onClick={() => setBatchActionsOpen(false)} />
                                 <div className="absolute right-0 top-full mt-1 z-[51] bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[180px]">
+                                  {canPrint && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setBatchActionsOpen(false);
+                                        api.distribution
+                                          .getBill(billParams(selectedBatch.batchId))
+                                          .then(async bill => {
+                                            const avail = deliveryPrintAvailability(bill);
+                                            const paid = challanOptions(selectedVendorId!).fullyPaid;
+                                            if (avail.isDual) {
+                                              await printDistributionDocs(bill, 'both', paid);
+                                            } else if (avail.hasGst) {
+                                              await printDistributionDocs(bill, 'gst', paid);
+                                            } else {
+                                              await printDistributionDocs(bill, 'bos', paid);
+                                            }
+                                          })
+                                          .catch(err => toast(err.message, 'error'));
+                                      }}
+                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-brand"
+                                    >
+                                      <Printer size={14} /> Print invoice(s)
+                                    </button>
+                                  )}
+                                  {canPrint && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setBatchActionsOpen(false);
+                                        api.distribution
+                                          .getBill(billParams(selectedBatch.batchId))
+                                          .then(bill => {
+                                            const avail = deliveryPrintAvailability(bill);
+                                            const paid = challanOptions(selectedVendorId!).fullyPaid;
+                                            if (!avail.hasGst) {
+                                              toast('No Tax Invoice lines on this delivery', 'info');
+                                              return;
+                                            }
+                                            return printDistributionDocs(bill, 'gst', paid);
+                                          })
+                                          .catch(err => toast(err.message, 'error'));
+                                      }}
+                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-emerald-700"
+                                    >
+                                      <Printer size={14} /> Print Tax Invoice
+                                    </button>
+                                  )}
+                                  {canPrint && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setBatchActionsOpen(false);
+                                        api.distribution
+                                          .getBill(billParams(selectedBatch.batchId))
+                                          .then(bill => {
+                                            const avail = deliveryPrintAvailability(bill);
+                                            const paid = challanOptions(selectedVendorId!).fullyPaid;
+                                            if (!avail.hasBos) {
+                                              toast('No Bill of Supply lines on this delivery', 'info');
+                                              return;
+                                            }
+                                            return printDistributionDocs(bill, 'bos', paid);
+                                          })
+                                          .catch(err => toast(err.message, 'error'));
+                                      }}
+                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-amber-700"
+                                    >
+                                      <Printer size={14} /> Print Bill of Supply
+                                    </button>
+                                  )}
                                   {canUseSplitBill && (
                                     <button
                                       type="button"
@@ -918,7 +962,7 @@ export function DistributionView({
                                       }}
                                       className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-purple-600"
                                     >
-                                      <Package size={14} /> Split Bill
+                                      <Package size={14} /> Adjust GST split
                                     </button>
                                   )}
                                   <button
@@ -1574,10 +1618,11 @@ export function DistributionView({
                   animate={{ opacity: 1, scale: 1 }}
                   className="relative bg-white w-full max-w-lg rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
                 >
-                  <h3 className="text-lg font-bold mb-1">Split Bill — Delivery Set</h3>
+                  <h3 className="text-lg font-bold mb-1">Adjust GST split</h3>
                   <p className="text-sm text-gray-500 mb-2">
-                    Choose how many units go on the GST Tax Invoice. The rest go on a Bill of Supply (non-GST). One
-                    payment outstanding applies to the whole batch.
+                    Prefer setting GST per line when creating a sale. Use this to rebalance an existing delivery: how
+                    many units go on the Tax Invoice vs Bill of Supply. One payment outstanding applies to the whole
+                    batch.
                   </p>
                   {dualDocs && (
                     <p className="text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 mb-4">
