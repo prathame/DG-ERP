@@ -442,9 +442,11 @@ router.get('/api/reports/gst-summary', async (req, res) => {
     > = {};
 
     for (const r of distRows) {
+      // Align with accounts GSTR-3B: only gst_applied distribution is taxable outward
+      if (!r.gst_applied) continue;
       const net = Number(r.net_price ?? 0);
       const billed = Number(r.billed_price ?? net);
-      const gstAmt = r.gst_applied ? billed - net : 0;
+      const gstAmt = billed - net;
       const halfGst = Math.round(gstAmt / 2);
       const gstin = (r.vendor_gstin as string) || '';
       const hsn = (r.hsn_code as string) || 'N/A';
@@ -675,16 +677,18 @@ router.get('/api/reports/gstr1', async (req, res) => {
     > = {};
 
     for (const r of distRows) {
+      // Align with accounts: non-gst_applied distribution is not taxable outward supply
+      if (!r.gst_applied) continue;
       const net = Number(r.net_price) || Number(r.product_price) || 0;
       const billed = Number(r.billed_price) || net;
-      const gstAmt = r.gst_applied ? billed - net : 0;
+      const gstAmt = billed - net;
       const halfGst = Math.round(gstAmt / 2);
       const gstin = (r.vendor_gstin as string) || '';
       const hsn = (r.hsn_code as string) || '';
       const gstRate = Number(r.gst_rate) || 18;
       const batchId = r.batch_id as string;
 
-      // HSN summary (all invoices)
+      // HSN summary (GST-applied distribution only)
       if (hsn) {
         if (!hsnMap[hsn])
           hsnMap[hsn] = {

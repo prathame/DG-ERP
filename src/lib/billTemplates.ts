@@ -936,7 +936,8 @@ export function generateDistributionChallanHtml(
     );
   };
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${showGst ? 'Tax Invoice' : 'Challan'} - ${esc(chPrefix)}${esc(bill.challanId)}</title>
+  const docTitle = showGst ? 'Tax Invoice' : 'Bill of Supply';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docTitle} - ${esc(chPrefix)}${esc(bill.challanId)}</title>
 <style>${billDocCss(color)}
   .summary-row td{padding:4px 8px;font-size:11px;vertical-align:top;}
   .sig-section{margin-top:0;}
@@ -944,7 +945,7 @@ export function generateDistributionChallanHtml(
 </style></head><body>
 <div style="position:relative;">
 ${fullyPaid ? '<div class="paid-stamp">PAID</div>' : ''}
-<div class="doc-title">${showGst ? 'Tax Invoice' : 'Challan'}</div>
+<div class="doc-title">${docTitle}</div>
 <table class="outer">
   <tr class="hdr">
     <td colspan="2" style="width:65%;">

@@ -93,7 +93,7 @@ export function MastersView({
   /** When opening Staff manage from a hub row, jump into that person’s payments. */
   const [focusStaffId, setFocusStaffId] = useState<string | null>(null);
   const [focusStaffName, setFocusStaffName] = useState<string | null>(null);
-  /** When opening Clients manage from a hub row, jump into that client’s invoice hub. */
+  /** When opening Clients manage from a hub row (service only), jump into that client’s invoice hub. */
   const [focusVendorId, setFocusVendorId] = useState<string | null>(null);
   /** Phone hub selected pill. */
   const [hubTab, setHubTab] = useState<MasterType | null>(null);
@@ -524,7 +524,7 @@ export function MastersView({
                         : undefined
                     }
                     meta={typeof v.totalSales === 'number' && v.totalSales > 0 ? 'Sales' : undefined}
-                    onClick={() => openFull('vendor', { vendorId: v.id })}
+                    onClick={() => openFull('vendor', cfg.type === 'service' ? { vendorId: v.id } : undefined)}
                   />
                 </Fragment>
               ))}

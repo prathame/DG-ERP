@@ -45,6 +45,23 @@ export function hasExplicitUnitPrice(value: unknown): boolean {
   return value !== null && value !== undefined && value !== '';
 }
 
+/**
+ * Product gst_rate when set (including 0), else company default_gst_rate, else 18.
+ * Treats null/undefined/NaN as unset — not as a zero rate.
+ */
+export function resolveGstRate(
+  productGstRate: number | null | undefined,
+  companyDefault?: number | null | undefined,
+): number {
+  if (productGstRate != null && Number.isFinite(Number(productGstRate))) {
+    return Number(productGstRate);
+  }
+  if (companyDefault != null && Number.isFinite(Number(companyDefault))) {
+    return Number(companyDefault);
+  }
+  return 18;
+}
+
 /** Net / billed per unit after discount — matches distribution createBatch GST rules. */
 export function unitPricesAfterDiscount(opts: {
   basePrice: number;

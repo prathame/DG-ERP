@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Package,
   Plus,
   Download,
-  Upload,
   Printer,
   MessageCircle,
   Mail,
@@ -32,13 +31,13 @@ import {
   resolveIrnQrPayload,
 } from '../../lib/utils';
 import { api, fetchApi, DistributionRecord, DistributionBatch, DistributionBatchDetail } from '../../api';
-import type { Product, Vendor } from '../../types';
+import type { Product } from '../../types';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
-import { SearchSelect } from '../../components/ui/SearchSelect';
 import { useConfirm } from '../../hooks/useConfirm';
+import { CreateDistributionModal } from './CreateDistributionModal';
 
 async function buildGstPrintOptions(
   bill: import('../../api').DistributionBillData,
@@ -74,11 +73,14 @@ function EInvoiceButtons({
   initialIrn,
   initialQr,
   initialEwb,
+  quiet = false,
 }: {
   batchId: string;
   initialIrn?: string | null;
   initialQr?: string | null;
   initialEwb?: string | null;
+  /** Muted chip styling for non-service in-flow detail toolbar */
+  quiet?: boolean;
 }) {
   const { toast } = useToast();
   const [irn, setIrn] = useState(initialIrn || '');
@@ -144,7 +146,11 @@ function EInvoiceButtons({
         type="button"
         onClick={generateIrn}
         disabled={generating === 'irn'}
-        className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors disabled:opacity-50"
+        className={
+          quiet
+            ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 bg-transparent hover:bg-gray-100 border border-gray-200 rounded-md transition-colors disabled:opacity-50'
+            : 'flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors disabled:opacity-50'
+        }
         title="Generate E-Invoice IRN"
       >
         <FileCheck size={13} /> {generating === 'irn' ? 'Generating…' : irn ? 'Re-IRN' : 'E-Invoice'}
@@ -155,7 +161,11 @@ function EInvoiceButtons({
         type="button"
         onClick={() => setShowEwbModal(true)}
         disabled={generating === 'ewb'}
-        className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-teal-600 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors disabled:opacity-50"
+        className={
+          quiet
+            ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 bg-transparent hover:bg-gray-100 border border-gray-200 rounded-md transition-colors disabled:opacity-50'
+            : 'flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-teal-600 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors disabled:opacity-50'
+        }
         title="Generate E-Way Bill"
       >
         <Truck size={13} /> {ewbNo ? `EWB ${ewbNo.slice(-4)}` : 'E-Way Bill'}
@@ -163,16 +173,25 @@ function EInvoiceButtons({
 
       {/* IRN result panel */}
       {irn && (
-        <div className="flex items-center gap-2 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
-          <QrCode size={13} className="text-indigo-600 shrink-0" />
-          <span className="font-mono text-indigo-700 truncate max-w-[120px]" title={irn}>
+        <div
+          className={
+            quiet
+              ? 'flex items-center gap-2 px-2 py-1 bg-gray-50 border border-gray-200 rounded-md text-[11px]'
+              : 'flex items-center gap-2 px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg text-xs'
+          }
+        >
+          <QrCode size={13} className={quiet ? 'text-gray-500 shrink-0' : 'text-indigo-600 shrink-0'} />
+          <span
+            className={cn('font-mono truncate max-w-[120px]', quiet ? 'text-gray-600' : 'text-indigo-700')}
+            title={irn}
+          >
             IRN: {irn.slice(0, 12)}…
           </span>
           {qr && (
             <button
               type="button"
               onClick={() => setShowQrModal(true)}
-              className="text-indigo-600 hover:underline text-[10px] shrink-0"
+              className={cn('hover:underline text-[10px] shrink-0', quiet ? 'text-gray-600' : 'text-indigo-600')}
             >
               View QR
             </button>
@@ -317,10 +336,13 @@ export function DistributionView({
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
   const isVendorUser = !!vendorId;
   const isDirectSell = businessType === 'dealer' || businessType === 'retail' || businessType === 'silver_casting';
+  /** Service keeps modal/panel UX; all other business types use in-place replace navigation. */
+  const isServiceBiz = businessType === 'service';
+  // Dual-doc / Split Bill foundation is for goods (non-service) only — service uses standalone invoices
+  const canUseSplitBill = !isServiceBiz;
   const [distributions, setDistributions] = useState<DistributionRecord[]>([]);
   const [batches, setBatches] = useState<DistributionBatch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [summary, setSummary] = useState<{
     totalBeforeDistribution: number;
     availableInInventory: number;
@@ -337,13 +359,6 @@ export function DistributionView({
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [distVendorId, setDistVendorId] = useState('');
-  const [distDate, setDistDate] = useState(new Date().toISOString().slice(0, 10));
-  const [distRows, setDistRows] = useState<
-    { productId: string; quantity: number; discount: number; withGst: boolean; customPrice: string }[]
-  >([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
-  const [distAmountPaid, setDistAmountPaid] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [includeGst, setIncludeGst] = useState(true);
   const [splitBillModal, setSplitBillModal] = useState<{ bill: import('../../api').DistributionBillData } | null>(null);
   const [splitGstQty, setSplitGstQty] = useState(0);
@@ -427,6 +442,11 @@ export function DistributionView({
       setSelectedBatchId(null);
       return true;
     }
+    // Non-service in-place nav: Escape returns to vendor tiles (service modal uses backdrop).
+    if (!isServiceBiz && selectedVendorId && !vendorId) {
+      setSelectedVendorId(null);
+      return true;
+    }
     return false;
   });
 
@@ -444,14 +464,12 @@ export function DistributionView({
       api.distribution.batches(vendorId),
       api.distribution.summary(),
       vendorId ? Promise.resolve([]) : api.products.list(),
-      vendorId ? Promise.resolve([]) : api.vendors.list(),
     ])
-      .then(([d, b, s, p, v]) => {
+      .then(([d, b, s, p]) => {
         setDistributions(d);
         setBatches(b);
         setSummary(s);
         setProducts(p);
-        setVendors(v);
         if (vendorId) setSelectedVendorId(vendorId);
       })
       .then(() => {
@@ -494,119 +512,7 @@ export function DistributionView({
     load();
   }, [vendorId]);
 
-  const addDistRow = () =>
-    setDistRows([...distRows, { productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
-  const removeDistRow = (idx: number) => setDistRows(distRows.filter((_, i) => i !== idx));
-  const updateDistRow = (idx: number, field: string, value: string | number | boolean) =>
-    setDistRows(prev => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
-
-  /** Ignore stale resolve responses when vendor/product/qty changes quickly. */
-  const resolveTokenRef = useRef<Record<number, number>>({});
-
-  /** Apply price-list resolve into a dist row (vendor slab → generic → product). */
-  const resolveDistRowPrice = (idx: number, productId: string, vendor: string, quantity: number) => {
-    if (!productId || !vendor || quantity <= 0) return;
-    const token = (resolveTokenRef.current[idx] = (resolveTokenRef.current[idx] || 0) + 1);
-    fetch(
-      `/api/price-lists/resolve?productId=${encodeURIComponent(productId)}&vendorId=${encodeURIComponent(vendor)}&quantity=${quantity}`,
-      {
-        headers: {
-          Authorization: `Bearer ${session.getToken()}`,
-          'X-Tenant-ID': session.getTenantId() || '',
-        },
-      },
-    )
-      .then(r => r.json())
-      .then(d => {
-        if (resolveTokenRef.current[idx] !== token) return;
-        if (!d || typeof d.price !== 'number') return;
-        setDistRows(prev => {
-          const row = prev[idx];
-          if (!row || row.productId !== productId || (row.quantity || 0) !== quantity) return prev;
-          return prev.map((r, i) => (i === idx ? { ...r, customPrice: String(d.price) } : r));
-        });
-      })
-      .catch(() => {});
-  };
-
   const defaultGstRate = ((user as Record<string, unknown>)?.defaultGstRate as number) ?? 18;
-  const distTotals = distRows.reduce(
-    (acc, r) => {
-      const p = products.find(x => x.id === r.productId);
-      const inclGst = !!(p as Record<string, unknown> | undefined)?.priceIncludesGst;
-      const basePrice = r.customPrice ? parseFloat(r.customPrice) : (p?.price ?? 0);
-      const gross = basePrice * (r.quantity || 0);
-      const disc = Math.round((gross * (r.discount || 0)) / 100);
-      const priceAfterDisc = gross - disc;
-      let net: number, gst: number, billed: number;
-      if (r.withGst && inclGst) {
-        // Price includes GST — back-calculate base
-        billed = priceAfterDisc;
-        net = Math.round(priceAfterDisc / (1 + defaultGstRate / 100));
-        gst = billed - net;
-      } else if (r.withGst) {
-        // Price is base — add GST on top
-        net = priceAfterDisc;
-        gst = Math.round((net * defaultGstRate) / 100);
-        billed = net + gst;
-      } else {
-        net = priceAfterDisc;
-        gst = 0;
-        billed = priceAfterDisc;
-      }
-      acc.gross += gross;
-      acc.discount += disc;
-      acc.net += net;
-      acc.gst += gst;
-      acc.billed += billed;
-      acc.items += r.quantity || 0;
-      return acc;
-    },
-    { gross: 0, discount: 0, net: 0, gst: 0, billed: 0, items: 0 },
-  );
-
-  const handleDistributeAll = async () => {
-    if (!distVendorId) {
-      toast('Select a vendor', 'error');
-      return;
-    }
-    const validRows = distRows.filter(r => r.productId && r.quantity > 0);
-    if (validRows.length === 0) {
-      toast('Add at least one product', 'error');
-      return;
-    }
-    const paid = parseFloat(distAmountPaid) || 0;
-    if (paid > distTotals.billed) {
-      toast(`Amount paid (₹${paid}) exceeds billed amount (₹${distTotals.billed})`, 'error');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await api.distribution.createBatch({
-        vendorId: distVendorId,
-        distributionDate: distDate,
-        amountPaid: paid > 0 ? paid : undefined,
-        gstRate: defaultGstRate,
-        items: validRows.map(row => ({
-          productId: row.productId,
-          quantity: row.quantity,
-          discountPercent: row.discount > 0 ? row.discount : undefined,
-          withGst: row.withGst,
-          customPrice: row.customPrice ? parseFloat(row.customPrice) : undefined,
-        })),
-      });
-      setModalOpen(false);
-      setDistRows([{ productId: '', quantity: 1, discount: 0, withGst: true, customPrice: '' }]);
-      setDistVendorId('');
-      setDistAmountPaid('');
-      load();
-      toast(`Distribution saved — ${validRows.length} product line(s), ${distTotals.items} items`, 'success');
-    } catch (err) {
-      toast((err as Error).message, 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const confirmDeleteBatch = (batchId: string) => setDeleteBatchConfirm(batchId);
   const handleDeleteBatch = async (batchId: string) => {
@@ -733,10 +639,10 @@ export function DistributionView({
         </div>
       </div>
 
-      {/* Vendor cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {summary?.vendorStats
-          ?.filter(v => {
+      {/* Vendor cards — service: modal overlay; non-service: replace whole view in-place */}
+      {(() => {
+        const filteredVendorStats =
+          summary?.vendorStats?.filter(v => {
             if (v.distributed === 0) return false;
             if (vendorId && v.vendorId !== vendorId) return false;
             const f = financeMap[v.vendorId];
@@ -747,331 +653,253 @@ export function DistributionView({
               return v.vendorName.toLowerCase().includes(q);
             }
             return true;
-          })
-          .map(v => (
-            <button
-              key={v.vendorId}
-              type="button"
-              onClick={() => {
-                setSelectedVendorId(selectedVendorId === v.vendorId ? null : v.vendorId);
-                setSelectedBatchId(null);
-                setSelectedBatchProductId(null);
-              }}
-              className={cn(
-                'relative bg-white p-4 rounded-xl border shadow-sm text-left transition-all cursor-pointer hover:shadow-md overflow-hidden',
-                selectedVendorId === v.vendorId ? 'border-brand ring-2 ring-brand/30' : 'border-gray-100',
-              )}
-            >
-              {financeMap[v.vendorId] &&
-                isBillFullyPaid(financeMap[v.vendorId].totalDistributedValue, financeMap[v.vendorId].balance) && (
-                  <div className="absolute top-2 right-2 z-10">
-                    <PaidStamp className="text-[11px] px-2 py-1 scale-90" />
-                  </div>
-                )}
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pr-16">{v.vendorName}</p>
-              <div className="mt-2 flex gap-4 text-sm flex-wrap">
-                <span>
-                  <strong>{v.distributed}</strong> {isDirectSell ? 'sold' : 'distributed'}
-                </span>
-                {!isDirectSell && (
-                  <span className="text-emerald-600">
-                    <strong>{v.sold}</strong> sold
-                  </span>
-                )}
-                {(v.replaced ?? 0) > 0 && (
-                  <span className="text-amber-600">
-                    <strong>{v.replaced}</strong> replacement{(v.replaced ?? 0) !== 1 ? 's' : ''}
-                  </span>
-                )}
-                {(v.damaged ?? 0) > 0 && (
-                  <span className="text-rose-600">
-                    <strong>{v.damaged}</strong> damaged
-                  </span>
-                )}
-                {!isDirectSell && (
-                  <span className="text-blue-600">
-                    <strong>{v.availableWithVendor}</strong> with vendor
-                  </span>
-                )}
-              </div>
-              {financeMap[v.vendorId] &&
-                (() => {
-                  const f = financeMap[v.vendorId];
-                  return (
-                    <div className="mt-2 pt-2 border-t border-gray-100 flex gap-3 text-xs flex-wrap items-center">
-                      <span className="text-gray-500">
-                        Bill: <strong className="text-gray-700">₹{f.totalDistributedValue.toLocaleString()}</strong>
-                      </span>
-                      <span className="text-gray-500">
-                        Paid: <strong className="text-emerald-600">₹{f.totalPaid.toLocaleString()}</strong>
-                      </span>
-                      {isBillFullyPaid(f.totalDistributedValue, f.balance) ? (
-                        <PaidBadge size="sm" />
-                      ) : (
-                        <span className="text-gray-500">
-                          Due: <strong className="text-rose-600">₹{f.balance.toLocaleString()}</strong>
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()}
-              <p className="text-xs text-gray-500 mt-1">Click to view distributions</p>
-            </button>
-          ))}
-      </div>
+          }) ?? [];
 
-      {/* Product details - only when vendor tile is clicked */}
-      <div className="space-y-6">
-        {loading && (
-          <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
-            <LoadingSpinner />
-          </div>
-        )}
-        {!loading && loadError && (
-          <div className="bg-white rounded-xl border border-rose-200 p-12 text-center">
-            <p className="text-rose-600 font-medium mb-2">Failed to load distribution data</p>
-            <p className="text-sm text-gray-500 mb-4">{loadError}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setLoading(true);
-                setLoadError(null);
-                load();
-              }}
-              className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-        {!loading && !selectedVendorId && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-            <p className="text-gray-500 mb-2">Click on a vendor tile above to see their distributions</p>
-            <p className="text-sm text-gray-400">
-              Each distribution event is listed separately with its own bill and actions
-            </p>
-          </div>
-        )}
-        {!loading && selectedVendorId && (
-          <div className="fixed inset-0 z-[80]">
-            <div
-              className="absolute inset-0 bg-black/40"
-              onClick={() => {
-                setSelectedVendorId(null);
-                setSelectedBatchId(null);
-              }}
-            />
-            <div className="absolute top-[max(1rem,env(safe-area-inset-top,0px))] bottom-[max(1rem,env(safe-area-inset-bottom,0px))] left-4 right-4 lg:inset-6 lg:left-[calc(16rem+1.5rem)] bg-white overflow-y-auto rounded-2xl shadow-2xl">
-              {(() => {
-                const vendorBatches = batches.filter(b => b.vendorId === selectedVendorId);
-                const vendorName =
-                  vendorBatches[0]?.vendorName ??
-                  distributions.find(d => d.vendorId === selectedVendorId)?.vendorName ??
-                  'Vendor';
-                const stats = summary?.vendorStats?.find(v => v.vendorId === selectedVendorId);
-                const selectedBatch = selectedBatchId ? vendorBatches.find(b => b.batchId === selectedBatchId) : null;
-                const batchItems = selectedBatchId
-                  ? distributions.filter(d => (d.batchId ?? d.id) === selectedBatchId)
-                  : [];
+        /** Non-service: quiet in-flow toolbar + full-view replace (not modal / not expand-under-tile). */
+        const inPlaceNav = !isServiceBiz;
 
-                const billParams = (batchId: string) => ({ batchId, vendorId: selectedVendorId! });
-                const batchCanDelete = selectedBatch
-                  ? selectedBatch.sold + selectedBatch.replaced + selectedBatch.damaged === 0
-                  : false;
+        const selectedVendorContent =
+          selectedVendorId &&
+          (() => {
+            const vendorBatches = batches.filter(b => b.vendorId === selectedVendorId);
+            const vendorName =
+              vendorBatches[0]?.vendorName ??
+              distributions.find(d => d.vendorId === selectedVendorId)?.vendorName ??
+              'Vendor';
+            const stats = summary?.vendorStats?.find(v => v.vendorId === selectedVendorId);
+            const selectedBatch = selectedBatchId ? vendorBatches.find(b => b.batchId === selectedBatchId) : null;
+            const batchItems = selectedBatchId
+              ? distributions.filter(d => (d.batchId ?? d.id) === selectedBatchId)
+              : [];
 
-                if (selectedBatch) {
-                  const byProduct = batchItems.reduce(
-                    (acc, d) => {
-                      const key = d.productId;
-                      if (!acc[key])
-                        acc[key] = { productId: key, productName: d.productName, units: [] as typeof batchItems };
-                      acc[key].units.push(d);
-                      return acc;
-                    },
-                    {} as Record<string, { productId: string; productName: string; units: typeof batchItems }>,
-                  );
-                  type ByProductVal = { productId: string; productName: string; units: typeof batchItems };
-                  const productList = (Object.values(byProduct) as ByProductVal[]).map(p => ({
-                    ...p,
-                    total: p.units.length,
-                    sold: p.units.filter(u => u.status === 'Sold').length,
-                    replaced: p.units.filter(u => u.status === 'Replaced').length,
-                    damaged: p.units.filter(u => u.status === 'Damaged').length,
-                    withVendor: p.units.filter(u => u.status === 'Distributed').length,
-                  }));
-                  const selectedProduct = selectedBatchProductId ? byProduct[selectedBatchProductId] : null;
+            const billParams = (batchId: string) => ({ batchId, vendorId: selectedVendorId! });
+            const batchCanDelete = selectedBatch
+              ? selectedBatch.sold + selectedBatch.replaced + selectedBatch.damaged === 0
+              : false;
 
-                  return (
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                      <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
-                        <div className="flex items-center gap-3 flex-wrap">
+            if (selectedBatch) {
+              const byProduct = batchItems.reduce(
+                (acc, d) => {
+                  const key = d.productId;
+                  if (!acc[key])
+                    acc[key] = { productId: key, productName: d.productName, units: [] as typeof batchItems };
+                  acc[key].units.push(d);
+                  return acc;
+                },
+                {} as Record<string, { productId: string; productName: string; units: typeof batchItems }>,
+              );
+              type ByProductVal = { productId: string; productName: string; units: typeof batchItems };
+              const productList = (Object.values(byProduct) as ByProductVal[]).map(p => ({
+                ...p,
+                total: p.units.length,
+                sold: p.units.filter(u => u.status === 'Sold').length,
+                replaced: p.units.filter(u => u.status === 'Replaced').length,
+                damaged: p.units.filter(u => u.status === 'Damaged').length,
+                withVendor: p.units.filter(u => u.status === 'Distributed').length,
+              }));
+              const selectedProduct = selectedBatchProductId ? byProduct[selectedBatchProductId] : null;
+
+              return (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                      <div className="flex items-center gap-3 flex-wrap min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedBatchProductId) setSelectedBatchProductId(null);
+                            else setSelectedBatchId(null);
+                          }}
+                          className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                        >
+                          <ArrowLeft size={20} className="text-gray-600" />
+                        </button>
+                        <h3 className="font-bold text-lg">
+                          {selectedProduct ? selectedProduct.productName : selectedBatch.vendorName}
+                        </h3>
+                        {!selectedBatchProductId &&
+                          isBillFullyPaid(selectedBatch.billValue, selectedBatch.balanceRemaining) && <PaidBadge />}
+                        {!selectedBatchProductId && (
+                          <span className="text-xs text-gray-500">
+                            Distribution — {formatDate(selectedBatch.distributionDate)}
+                          </span>
+                        )}
+                        {!selectedBatchProductId &&
+                          (() => {
+                            const ds =
+                              ((selectedBatch as Record<string, unknown>).dispatchStatus as string) || 'pending';
+                            const badge = (
+                              <span
+                                className={cn(
+                                  'px-2 py-0.5 rounded-full text-[10px] font-bold',
+                                  ds === 'dispatched'
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : ds === 'delivered'
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : 'bg-amber-100 text-amber-700',
+                                )}
+                              >
+                                {ds === 'dispatched'
+                                  ? 'Dispatched'
+                                  : ds === 'delivered'
+                                    ? 'Delivered'
+                                    : 'Pending Dispatch'}
+                              </span>
+                            );
+                            const secondary = (
+                              <>
+                                {canPrint && ds === 'pending' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, {
+                                        method: 'PUT',
+                                        body: JSON.stringify({ status: 'dispatched' }),
+                                      })
+                                        .then((d: Record<string, unknown>) => {
+                                          if (d.ok) {
+                                            toast('Marked as dispatched', 'success');
+                                            load();
+                                          } else toast(String(d.error), 'error');
+                                        })
+                                        .catch(err => toast(err.message, 'error'));
+                                    }}
+                                    className={
+                                      inPlaceNav
+                                        ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-100 rounded-md'
+                                        : 'flex items-center gap-1 px-2 py-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg'
+                                    }
+                                  >
+                                    <Truck size={12} /> Mark Dispatched
+                                  </button>
+                                )}
+                                {canPrint && ds === 'dispatched' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, {
+                                        method: 'PUT',
+                                        body: JSON.stringify({ status: 'delivered' }),
+                                      })
+                                        .then((d: Record<string, unknown>) => {
+                                          if (d.ok) {
+                                            toast('Marked as delivered', 'success');
+                                            load();
+                                          } else toast(String(d.error), 'error');
+                                        })
+                                        .catch(err => toast(err.message, 'error'));
+                                    }}
+                                    className={
+                                      inPlaceNav
+                                        ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-100 rounded-md'
+                                        : 'flex items-center gap-1 px-2 py-1 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg'
+                                    }
+                                  >
+                                    <Package size={12} /> Mark Delivered
+                                  </button>
+                                )}
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="text"
+                                    placeholder="EWB Number"
+                                    defaultValue={
+                                      ((selectedBatch as Record<string, unknown>).ewbNumber as string) || ''
+                                    }
+                                    onBlur={e => {
+                                      const val = e.target.value.trim();
+                                      fetchApi(`/distribution/batch/${selectedBatch.batchId}/ewb`, {
+                                        method: 'PUT',
+                                        body: JSON.stringify({ ewbNumber: val || null }),
+                                      })
+                                        .then(() => {
+                                          if (val) toast('EWB number saved', 'success');
+                                        })
+                                        .catch(() => {});
+                                    }}
+                                    className={
+                                      inPlaceNav
+                                        ? 'w-32 px-2 py-1 text-[11px] border border-gray-200 rounded-md font-mono focus:ring-2 focus:ring-brand'
+                                        : 'w-36 px-2 py-1 text-xs border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-brand'
+                                    }
+                                    maxLength={15}
+                                  />
+                                </div>
+                                <EInvoiceButtons
+                                  batchId={selectedBatch.batchId}
+                                  initialIrn={selectedBatch.irn}
+                                  initialQr={selectedBatch.irnQr}
+                                  initialEwb={selectedBatch.ewbNumber}
+                                  quiet={inPlaceNav}
+                                />
+                              </>
+                            );
+                            return inPlaceNav ? (
+                              badge
+                            ) : (
+                              <>
+                                {badge}
+                                {secondary}
+                              </>
+                            );
+                          })()}
+                        {/* Primary actions stay in the title row */}
+                        {!isVendorUser && canEdit && !selectedBatchProductId && selectedBatch.balanceRemaining > 0 && (
                           <button
                             type="button"
                             onClick={() => {
-                              if (selectedBatchProductId) setSelectedBatchProductId(null);
-                              else setSelectedBatchId(null);
+                              setBatchPaymentModal({
+                                batchId: selectedBatch.batchId,
+                                vendorId: selectedBatch.vendorId,
+                                billValue: selectedBatch.billValue,
+                                balanceRemaining: selectedBatch.balanceRemaining,
+                              });
+                              setBatchPaymentForm({
+                                amount: String(selectedBatch.balanceRemaining),
+                                paymentDate: new Date().toISOString().slice(0, 10),
+                                paymentMethod: 'Cash',
+                                referenceNumber: '',
+                                notes: '',
+                              });
                             }}
-                            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                            className={
+                              inPlaceNav
+                                ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-md transition-colors'
+                                : 'flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors'
+                            }
+                            title="Record payment for this batch"
                           >
-                            <ArrowLeft size={20} className="text-gray-600" />
+                            <IndianRupee size={inPlaceNav ? 14 : 16} /> Record Payment
                           </button>
-                          <h3 className="font-bold text-lg">
-                            {selectedProduct ? selectedProduct.productName : selectedBatch.vendorName}
-                          </h3>
-                          {!selectedBatchProductId &&
-                            isBillFullyPaid(selectedBatch.billValue, selectedBatch.balanceRemaining) && <PaidBadge />}
-                          {!selectedBatchProductId && (
-                            <span className="text-xs text-gray-500">
-                              Distribution — {formatDate(selectedBatch.distributionDate)}
-                            </span>
-                          )}
-                          {!selectedBatchProductId &&
-                            (() => {
-                              const ds =
-                                ((selectedBatch as Record<string, unknown>).dispatchStatus as string) || 'pending';
-                              return (
-                                <>
-                                  <span
-                                    className={cn(
-                                      'px-2 py-0.5 rounded-full text-[10px] font-bold',
-                                      ds === 'dispatched'
-                                        ? 'bg-blue-100 text-blue-700'
-                                        : ds === 'delivered'
-                                          ? 'bg-emerald-100 text-emerald-700'
-                                          : 'bg-amber-100 text-amber-700',
-                                    )}
-                                  >
-                                    {ds === 'dispatched'
-                                      ? 'Dispatched'
-                                      : ds === 'delivered'
-                                        ? 'Delivered'
-                                        : 'Pending Dispatch'}
-                                  </span>
-                                  {canPrint && ds === 'pending' && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, {
-                                          method: 'PUT',
-                                          body: JSON.stringify({ status: 'dispatched' }),
-                                        })
-                                          .then((d: Record<string, unknown>) => {
-                                            if (d.ok) {
-                                              toast('Marked as dispatched', 'success');
-                                              load();
-                                            } else toast(String(d.error), 'error');
-                                          })
-                                          .catch(err => toast(err.message, 'error'));
-                                      }}
-                                      className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"
-                                    >
-                                      <Truck size={12} /> Mark Dispatched
-                                    </button>
-                                  )}
-                                  {canPrint && ds === 'dispatched' && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, {
-                                          method: 'PUT',
-                                          body: JSON.stringify({ status: 'delivered' }),
-                                        })
-                                          .then((d: Record<string, unknown>) => {
-                                            if (d.ok) {
-                                              toast('Marked as delivered', 'success');
-                                              load();
-                                            } else toast(String(d.error), 'error');
-                                          })
-                                          .catch(err => toast(err.message, 'error'));
-                                      }}
-                                      className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg"
-                                    >
-                                      <Package size={12} /> Mark Delivered
-                                    </button>
-                                  )}
-                                  <div className="flex items-center gap-1">
-                                    <input
-                                      type="text"
-                                      placeholder="EWB Number"
-                                      defaultValue={
-                                        ((selectedBatch as Record<string, unknown>).ewbNumber as string) || ''
-                                      }
-                                      onBlur={e => {
-                                        const val = e.target.value.trim();
-                                        fetchApi(`/distribution/batch/${selectedBatch.batchId}/ewb`, {
-                                          method: 'PUT',
-                                          body: JSON.stringify({ ewbNumber: val || null }),
-                                        })
-                                          .then(() => {
-                                            if (val) toast('EWB number saved', 'success');
-                                          })
-                                          .catch(() => {});
-                                      }}
-                                      className="w-36 px-2 py-1 text-xs border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-brand"
-                                      maxLength={15}
-                                    />
-                                  </div>
-                                  {/* E-Invoice + E-Way Bill generation */}
-                                  <EInvoiceButtons
-                                    batchId={selectedBatch.batchId}
-                                    initialIrn={selectedBatch.irn}
-                                    initialQr={selectedBatch.irnQr}
-                                    initialEwb={selectedBatch.ewbNumber}
-                                  />
-                                </>
-                              );
-                            })()}
-                          {!isVendorUser &&
-                            canEdit &&
-                            !selectedBatchProductId &&
-                            selectedBatch.balanceRemaining > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setBatchPaymentModal({
-                                    batchId: selectedBatch.batchId,
-                                    vendorId: selectedBatch.vendorId,
-                                    billValue: selectedBatch.billValue,
-                                    balanceRemaining: selectedBatch.balanceRemaining,
-                                  });
-                                  setBatchPaymentForm({
-                                    amount: String(selectedBatch.balanceRemaining),
-                                    paymentDate: new Date().toISOString().slice(0, 10),
-                                    paymentMethod: 'Cash',
-                                    referenceNumber: '',
-                                    notes: '',
-                                  });
-                                }}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
-                                title="Record payment for this batch"
-                              >
-                                <IndianRupee size={16} /> Record Payment
-                              </button>
-                            )}
-                          {!isVendorUser && canEdit && (
+                        )}
+                        {!isVendorUser && canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => openEdit(selectedBatch)}
+                            className={
+                              inPlaceNav
+                                ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 bg-transparent border border-gray-200 hover:bg-gray-100 rounded-md transition-colors'
+                                : 'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors'
+                            }
+                            title="Edit distribution"
+                          >
+                            <Pencil size={inPlaceNav ? 14 : 16} /> Edit
+                          </button>
+                        )}
+                        {!isVendorUser && !selectedBatchProductId && (
+                          <div className="relative">
                             <button
                               type="button"
-                              onClick={() => openEdit(selectedBatch)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors"
-                              title="Edit distribution"
+                              onClick={() => setBatchActionsOpen(!batchActionsOpen)}
+                              className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                              title="More actions"
                             >
-                              <Pencil size={16} /> Edit
+                              <MoreVertical size={18} className="text-gray-600" />
                             </button>
-                          )}
-                          {!isVendorUser && !selectedBatchProductId && (
-                            <div className="relative">
-                              <button
-                                type="button"
-                                onClick={() => setBatchActionsOpen(!batchActionsOpen)}
-                                className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                                title="More actions"
-                              >
-                                <MoreVertical size={18} className="text-gray-600" />
-                              </button>
-                              {batchActionsOpen && (
-                                <>
-                                  <div className="fixed inset-0 z-[50]" onClick={() => setBatchActionsOpen(false)} />
-                                  <div className="absolute right-0 top-full mt-1 z-[51] bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[180px]">
+                            {batchActionsOpen && (
+                              <>
+                                <div className="fixed inset-0 z-[50]" onClick={() => setBatchActionsOpen(false)} />
+                                <div className="absolute right-0 top-full mt-1 z-[51] bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[180px]">
+                                  {canUseSplitBill && (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -1092,786 +920,630 @@ export function DistributionView({
                                     >
                                       <Package size={14} /> Split Bill
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBatchActionsOpen(false);
-                                        api.distribution
-                                          .getBill(billParams(selectedBatch.batchId))
-                                          .then(bill => {
-                                            const phone = bill.vendor.phone;
-                                            if (!phone) {
-                                              toast('No vendor phone number on record', 'error');
-                                              return;
-                                            }
-                                            shareViaWhatsApp(phone, formatDistributionChallanText(bill));
-                                          })
-                                          .catch(err => toast(err.message, 'error'));
-                                      }}
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-green-600"
-                                    >
-                                      <MessageCircle size={14} /> WhatsApp Challan
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBatchActionsOpen(false);
-                                        api.distribution
-                                          .getBill(billParams(selectedBatch.batchId))
-                                          .then(bill => {
-                                            const email = bill.vendor.email || '';
-                                            if (!email) {
-                                              toast('No vendor email on record — enter email manually', 'info');
-                                            }
-                                            shareViaEmail(
-                                              email,
-                                              `Distribution Challan ${bill.challanId} — ${bill.company.name}`,
-                                              formatDistributionChallanText(bill),
-                                            );
-                                          })
-                                          .catch(err => toast(err.message, 'error'));
-                                      }}
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-blue-600"
-                                    >
-                                      <Mail size={14} /> Email Challan
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBatchActionsOpen(false);
-                                        fetch(`/api/distribution/einvoice?batchId=${selectedBatch.batchId}`, {
-                                          headers: {
-                                            Authorization: `Bearer ${session.getToken()}`,
-                                            'X-Tenant-ID': session.getTenantId() || '',
-                                          },
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setBatchActionsOpen(false);
+                                      api.distribution
+                                        .getBill(billParams(selectedBatch.batchId))
+                                        .then(bill => {
+                                          const phone = bill.vendor.phone;
+                                          if (!phone) {
+                                            toast('No vendor phone number on record', 'error');
+                                            return;
+                                          }
+                                          shareViaWhatsApp(phone, formatDistributionChallanText(bill));
                                         })
-                                          .then(r => r.json())
-                                          .then(data => {
-                                            const blob = new Blob([JSON.stringify(data, null, 2)], {
-                                              type: 'application/json',
-                                            });
-                                            const url = URL.createObjectURL(blob);
-                                            const a = document.createElement('a');
-                                            a.href = url;
-                                            a.download = `E-Invoice-${selectedBatch.batchId}.json`;
-                                            a.click();
-                                            URL.revokeObjectURL(url);
-                                            toast('E-Invoice JSON downloaded', 'success');
-                                          })
-                                          .catch(err => toast(err.message, 'error'));
-                                      }}
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-indigo-600"
-                                    >
-                                      <Download size={14} /> E-Invoice JSON
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBatchActionsOpen(false);
-                                        setEWayBillModal(selectedBatch.batchId);
-                                        setEWayForm({
-                                          vehicleNo: '',
-                                          transportMode: 'Road',
-                                          distance: '',
-                                          transporterName: '',
-                                          transporterId: '',
-                                        });
-                                      }}
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-teal-600"
-                                    >
-                                      <Truck size={14} /> E-Way Bill
-                                    </button>
-                                    {canEdit && batchCanDelete && (
-                                      <>
-                                        <div className="border-t border-gray-100 my-1" />
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setBatchActionsOpen(false);
-                                            confirmDeleteBatch(selectedBatch.batchId);
-                                          }}
-                                          disabled={deleteSubmitting}
-                                          className="w-full px-4 py-2 text-left text-sm hover:bg-rose-50 flex items-center gap-2 text-rose-600"
-                                        >
-                                          <Trash2 size={14} /> Delete
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          {selectedProduct ? (
-                            <span className="text-sm text-gray-600">
-                              <span className="font-medium">{selectedProduct.units.length}</span> units •{' '}
-                              <span className="text-emerald-600 font-medium">
-                                {selectedProduct.units.filter(u => u.status === 'Sold').length}
-                              </span>{' '}
-                              sold
-                              {selectedProduct.units.filter(u => u.status === 'Replaced').length > 0 && (
+                                        .catch(err => toast(err.message, 'error'));
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-green-600"
+                                  >
+                                    <MessageCircle size={14} /> WhatsApp Challan
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setBatchActionsOpen(false);
+                                      api.distribution
+                                        .getBill(billParams(selectedBatch.batchId))
+                                        .then(bill => {
+                                          const email = bill.vendor.email || '';
+                                          if (!email) {
+                                            toast('No vendor email on record — enter email manually', 'info');
+                                          }
+                                          shareViaEmail(
+                                            email,
+                                            `Distribution Challan ${bill.challanId} — ${bill.company.name}`,
+                                            formatDistributionChallanText(bill),
+                                          );
+                                        })
+                                        .catch(err => toast(err.message, 'error'));
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-blue-600"
+                                  >
+                                    <Mail size={14} /> Email Challan
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setBatchActionsOpen(false);
+                                      fetch(`/api/distribution/einvoice?batchId=${selectedBatch.batchId}`, {
+                                        headers: {
+                                          Authorization: `Bearer ${session.getToken()}`,
+                                          'X-Tenant-ID': session.getTenantId() || '',
+                                        },
+                                      })
+                                        .then(r => r.json())
+                                        .then(data => {
+                                          const blob = new Blob([JSON.stringify(data, null, 2)], {
+                                            type: 'application/json',
+                                          });
+                                          const url = URL.createObjectURL(blob);
+                                          const a = document.createElement('a');
+                                          a.href = url;
+                                          a.download = `E-Invoice-${selectedBatch.batchId}.json`;
+                                          a.click();
+                                          URL.revokeObjectURL(url);
+                                          toast('E-Invoice JSON downloaded', 'success');
+                                        })
+                                        .catch(err => toast(err.message, 'error'));
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-indigo-600"
+                                  >
+                                    <Download size={14} /> E-Invoice JSON
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setBatchActionsOpen(false);
+                                      setEWayBillModal(selectedBatch.batchId);
+                                      setEWayForm({
+                                        vehicleNo: '',
+                                        transportMode: 'Road',
+                                        distance: '',
+                                        transporterName: '',
+                                        transporterId: '',
+                                      });
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-teal-600"
+                                  >
+                                    <Truck size={14} /> E-Way Bill
+                                  </button>
+                                  {canEdit && batchCanDelete && (
+                                    <>
+                                      <div className="border-t border-gray-100 my-1" />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setBatchActionsOpen(false);
+                                          confirmDeleteBatch(selectedBatch.batchId);
+                                        }}
+                                        disabled={deleteSubmitting}
+                                        className="w-full px-4 py-2 text-left text-sm hover:bg-rose-50 flex items-center gap-2 text-rose-600"
+                                      >
+                                        <Trash2 size={14} /> Delete
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className={cn('text-right', inPlaceNav && 'shrink-0')}>
+                        {selectedProduct ? (
+                          <span className="text-sm text-gray-600">
+                            <span className="font-medium">{selectedProduct.units.length}</span> units •{' '}
+                            <span className="text-emerald-600 font-medium">
+                              {selectedProduct.units.filter(u => u.status === 'Sold').length}
+                            </span>{' '}
+                            sold
+                            {selectedProduct.units.filter(u => u.status === 'Replaced').length > 0 && (
+                              <>
+                                {' '}
+                                •{' '}
+                                <span className="text-amber-600 font-medium">
+                                  {selectedProduct.units.filter(u => u.status === 'Replaced').length}
+                                </span>{' '}
+                                replaced
+                              </>
+                            )}
+                            {selectedProduct.units.filter(u => u.status === 'Damaged').length > 0 && (
+                              <>
+                                {' '}
+                                •{' '}
+                                <span className="text-rose-600 font-medium">
+                                  {selectedProduct.units.filter(u => u.status === 'Damaged').length}
+                                </span>{' '}
+                                damaged
+                              </>
+                            )}
+                            {' • '}
+                            <span className="text-blue-600 font-medium">
+                              {selectedProduct.units.filter(u => u.status === 'Distributed').length}
+                            </span>{' '}
+                            with vendor
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-sm text-gray-600 block">
+                              <span className="font-medium">{selectedBatch.total}</span> distributed •{' '}
+                              <span className="text-emerald-600 font-medium">{selectedBatch.sold}</span> sold
+                              {selectedBatch.replaced > 0 && (
                                 <>
                                   {' '}
-                                  •{' '}
-                                  <span className="text-amber-600 font-medium">
-                                    {selectedProduct.units.filter(u => u.status === 'Replaced').length}
-                                  </span>{' '}
+                                  • <span className="text-amber-600 font-medium">{selectedBatch.replaced}</span>{' '}
                                   replaced
                                 </>
                               )}
-                              {selectedProduct.units.filter(u => u.status === 'Damaged').length > 0 && (
+                              {selectedBatch.damaged > 0 && (
                                 <>
                                   {' '}
-                                  •{' '}
-                                  <span className="text-rose-600 font-medium">
-                                    {selectedProduct.units.filter(u => u.status === 'Damaged').length}
-                                  </span>{' '}
-                                  damaged
+                                  • <span className="text-rose-600 font-medium">{selectedBatch.damaged}</span> damaged
                                 </>
                               )}
                               {' • '}
                               <span className="text-blue-600 font-medium">
-                                {selectedProduct.units.filter(u => u.status === 'Distributed').length}
+                                {selectedBatch.availableWithVendor}
                               </span>{' '}
                               with vendor
                             </span>
-                          ) : (
-                            <>
-                              <span className="text-sm text-gray-600 block">
-                                <span className="font-medium">{selectedBatch.total}</span> distributed •{' '}
-                                <span className="text-emerald-600 font-medium">{selectedBatch.sold}</span> sold
-                                {selectedBatch.replaced > 0 && (
-                                  <>
-                                    {' '}
-                                    • <span className="text-amber-600 font-medium">{selectedBatch.replaced}</span>{' '}
-                                    replaced
-                                  </>
-                                )}
-                                {selectedBatch.damaged > 0 && (
-                                  <>
-                                    {' '}
-                                    • <span className="text-rose-600 font-medium">{selectedBatch.damaged}</span> damaged
-                                  </>
-                                )}
-                                {' • '}
-                                <span className="text-blue-600 font-medium">
-                                  {selectedBatch.availableWithVendor}
-                                </span>{' '}
-                                with vendor
+                            <span className="text-sm font-bold text-brand">
+                              Bill: ₹{selectedBatch.billValue.toLocaleString()}
+                            </span>
+                            {selectedBatch.amountPaid > 0 && (
+                              <span className="text-sm text-emerald-600 font-medium ml-2">
+                                Paid: ₹{selectedBatch.amountPaid.toLocaleString()}
                               </span>
-                              <span className="text-sm font-bold text-brand">
-                                Bill: ₹{selectedBatch.billValue.toLocaleString()}
+                            )}
+                            {selectedBatch.balanceRemaining > 0 && (
+                              <span className="text-sm text-rose-500 font-medium ml-2">
+                                Due: ₹{selectedBatch.balanceRemaining.toLocaleString()}
                               </span>
-                              {selectedBatch.amountPaid > 0 && (
-                                <span className="text-sm text-emerald-600 font-medium ml-2">
-                                  Paid: ₹{selectedBatch.amountPaid.toLocaleString()}
-                                </span>
-                              )}
-                              {selectedBatch.balanceRemaining > 0 && (
-                                <span className="text-sm text-rose-500 font-medium ml-2">
-                                  Due: ₹{selectedBatch.balanceRemaining.toLocaleString()}
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </div>
+                            )}
+                          </>
+                        )}
                       </div>
-                      {!selectedBatchProductId ? (
-                        <div className="divide-y divide-gray-100">
-                          <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Products</div>
-                          {productList.map(p => (
-                            <button
-                              key={p.productId}
-                              type="button"
-                              onClick={() => setSelectedBatchProductId(p.productId)}
-                              className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between transition-colors"
-                            >
-                              <span className="font-medium">{p.productName}</span>
-                              <span className="text-sm text-gray-600">
-                                <span className="font-medium">{p.total}</span> units •{' '}
-                                <span className="text-emerald-600">{p.sold} sold</span>
-                                {p.replaced > 0 && <span className="text-amber-600"> • {p.replaced} replaced</span>}
-                                {p.damaged > 0 && <span className="text-rose-600"> • {p.damaged} damaged</span>}
-                                <span className="text-blue-600"> • {p.withVendor} with vendor</span>
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      ) : selectedProduct ? (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left">
-                            <thead>
-                              <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50">
-                                <th className="px-6 py-4">#</th>
-                                <th className="px-6 py-4">Barcode</th>
-                                <th className="px-6 py-4">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {selectedProduct.units.map((d, idx) => (
-                                <tr key={d.id} className="hover:bg-gray-50">
-                                  <td className="px-6 py-4 text-sm text-gray-500">{idx + 1}</td>
-                                  <td className="px-6 py-4 font-mono text-sm">{d.barcode}</td>
-                                  <td className="px-6 py-4">
-                                    <span
-                                      className={cn(
-                                        'text-xs font-bold px-2 py-0.5 rounded-full',
-                                        d.status === 'Sold'
-                                          ? 'bg-emerald-100 text-emerald-700'
-                                          : d.status === 'Distributed'
-                                            ? 'bg-blue-100 text-blue-700'
-                                            : d.status === 'Replaced'
-                                              ? 'bg-amber-100 text-amber-700'
-                                              : d.status === 'Damaged'
-                                                ? 'bg-rose-100 text-rose-700'
-                                                : 'bg-gray-100 text-gray-700',
-                                      )}
-                                    >
-                                      {d.status}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : null}
                     </div>
-                  );
-                }
-
-                return (
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
-                      <div className="flex items-center gap-3">
+                    {inPlaceNav && !selectedBatchProductId && (
+                      <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-gray-200/70">
+                        {(() => {
+                          const ds = ((selectedBatch as Record<string, unknown>).dispatchStatus as string) || 'pending';
+                          return (
+                            <>
+                              {canPrint && ds === 'pending' && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, {
+                                      method: 'PUT',
+                                      body: JSON.stringify({ status: 'dispatched' }),
+                                    })
+                                      .then((d: Record<string, unknown>) => {
+                                        if (d.ok) {
+                                          toast('Marked as dispatched', 'success');
+                                          load();
+                                        } else toast(String(d.error), 'error');
+                                      })
+                                      .catch(err => toast(err.message, 'error'));
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-100 rounded-md"
+                                >
+                                  <Truck size={12} /> Mark Dispatched
+                                </button>
+                              )}
+                              {canPrint && ds === 'dispatched' && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, {
+                                      method: 'PUT',
+                                      body: JSON.stringify({ status: 'delivered' }),
+                                    })
+                                      .then((d: Record<string, unknown>) => {
+                                        if (d.ok) {
+                                          toast('Marked as delivered', 'success');
+                                          load();
+                                        } else toast(String(d.error), 'error');
+                                      })
+                                      .catch(err => toast(err.message, 'error'));
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-100 rounded-md"
+                                >
+                                  <Package size={12} /> Mark Delivered
+                                </button>
+                              )}
+                              <input
+                                type="text"
+                                placeholder="EWB Number"
+                                defaultValue={((selectedBatch as Record<string, unknown>).ewbNumber as string) || ''}
+                                onBlur={e => {
+                                  const val = e.target.value.trim();
+                                  fetchApi(`/distribution/batch/${selectedBatch.batchId}/ewb`, {
+                                    method: 'PUT',
+                                    body: JSON.stringify({ ewbNumber: val || null }),
+                                  })
+                                    .then(() => {
+                                      if (val) toast('EWB number saved', 'success');
+                                    })
+                                    .catch(() => {});
+                                }}
+                                className="w-32 px-2 py-1 text-[11px] border border-gray-200 rounded-md font-mono focus:ring-2 focus:ring-brand"
+                                maxLength={15}
+                              />
+                              <EInvoiceButtons
+                                batchId={selectedBatch.batchId}
+                                initialIrn={selectedBatch.irn}
+                                initialQr={selectedBatch.irnQr}
+                                initialEwb={selectedBatch.ewbNumber}
+                                quiet
+                              />
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                  {!selectedBatchProductId ? (
+                    <div className="divide-y divide-gray-100">
+                      <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Products</div>
+                      {productList.map(p => (
                         <button
+                          key={p.productId}
+                          type="button"
+                          onClick={() => setSelectedBatchProductId(p.productId)}
+                          className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between transition-colors"
+                        >
+                          <span className="font-medium">{p.productName}</span>
+                          <span className="text-sm text-gray-600">
+                            <span className="font-medium">{p.total}</span> units •{' '}
+                            <span className="text-emerald-600">{p.sold} sold</span>
+                            {p.replaced > 0 && <span className="text-amber-600"> • {p.replaced} replaced</span>}
+                            {p.damaged > 0 && <span className="text-rose-600"> • {p.damaged} damaged</span>}
+                            <span className="text-blue-600"> • {p.withVendor} with vendor</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : selectedProduct ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50">
+                            <th className="px-6 py-4">#</th>
+                            <th className="px-6 py-4">Barcode</th>
+                            <th className="px-6 py-4">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {selectedProduct.units.map((d, idx) => (
+                            <tr key={d.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 text-sm text-gray-500">{idx + 1}</td>
+                              <td className="px-6 py-4 font-mono text-sm">{d.barcode}</td>
+                              <td className="px-6 py-4">
+                                <span
+                                  className={cn(
+                                    'text-xs font-bold px-2 py-0.5 rounded-full',
+                                    d.status === 'Sold'
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : d.status === 'Distributed'
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : d.status === 'Replaced'
+                                          ? 'bg-amber-100 text-amber-700'
+                                          : d.status === 'Damaged'
+                                            ? 'bg-rose-100 text-rose-700'
+                                            : 'bg-gray-100 text-gray-700',
+                                  )}
+                                >
+                                  {d.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            }
+
+            return (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between flex-wrap gap-3 px-6 py-4 bg-gray-50 border-b border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedVendorId(null);
+                        setSelectedBatchId(null);
+                        setSelectedBatchProductId(null);
+                      }}
+                      className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                      title="Back to vendors"
+                    >
+                      <ArrowLeft size={20} className="text-gray-600" />
+                    </button>
+                    <h3 className="font-bold text-lg">{vendorName}</h3>
+                  </div>
+                  {stats && (
+                    <span className="text-sm text-gray-600">
+                      <span className="font-medium">{stats.distributed}</span> distributed •{' '}
+                      <span className="text-emerald-600 font-medium">{stats.sold}</span> sold
+                      {(stats.replaced ?? 0) > 0 && (
+                        <>
+                          {' '}
+                          • <span className="text-amber-600 font-medium">{stats.replaced}</span> replacement
+                          {(stats.replaced ?? 0) !== 1 ? 's' : ''}
+                        </>
+                      )}
+                      {(stats.damaged ?? 0) > 0 && (
+                        <>
+                          {' '}
+                          • <span className="text-rose-600 font-medium">{stats.damaged}</span> damaged
+                        </>
+                      )}
+                      {' • '}
+                      <span className="text-blue-600 font-medium">{stats.availableWithVendor}</span> with vendor
+                    </span>
+                  )}
+                </div>
+                <div className={inPlaceNav ? 'p-4' : 'divide-y divide-gray-100'}>
+                  <div
+                    className={cn('text-xs font-bold text-gray-400 uppercase', inPlaceNav ? 'px-1 pb-3' : 'px-6 py-3')}
+                  >
+                    Distributions ({vendorBatches.length})
+                  </div>
+                  {vendorBatches.length === 0 ? (
+                    <div className={cn('text-center text-gray-500', inPlaceNav ? 'py-6' : 'px-6 py-8')}>
+                      No distributions for this vendor
+                    </div>
+                  ) : inPlaceNav ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {vendorBatches.map(batch => (
+                        <button
+                          key={batch.batchId}
                           type="button"
                           onClick={() => {
-                            setSelectedVendorId(null);
-                            setSelectedBatchId(null);
+                            setSelectedBatchId(batch.batchId);
                             setSelectedBatchProductId(null);
                           }}
-                          className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                          className={cn(
+                            'relative bg-white p-3 rounded-xl border text-left transition-all hover:shadow-md',
+                            selectedBatchId === batch.batchId
+                              ? 'border-brand ring-2 ring-brand/20'
+                              : 'border-gray-200 hover:border-gray-300',
+                            isBillFullyPaid(batch.billValue, batch.balanceRemaining) && 'opacity-70',
+                          )}
                         >
-                          <ArrowLeft size={20} className="text-gray-600" />
-                        </button>
-                        <h3 className="font-bold text-lg">{vendorName}</h3>
-                      </div>
-                      {stats && (
-                        <span className="text-sm text-gray-600">
-                          <span className="font-medium">{stats.distributed}</span> distributed •{' '}
-                          <span className="text-emerald-600 font-medium">{stats.sold}</span> sold
-                          {(stats.replaced ?? 0) > 0 && (
-                            <>
-                              {' '}
-                              • <span className="text-amber-600 font-medium">{stats.replaced}</span> replacement
-                              {(stats.replaced ?? 0) !== 1 ? 's' : ''}
-                            </>
-                          )}
-                          {(stats.damaged ?? 0) > 0 && (
-                            <>
-                              {' '}
-                              • <span className="text-rose-600 font-medium">{stats.damaged}</span> damaged
-                            </>
-                          )}
-                          {' • '}
-                          <span className="text-blue-600 font-medium">{stats.availableWithVendor}</span> with vendor
-                        </span>
-                      )}
-                    </div>
-                    <div className="divide-y divide-gray-100">
-                      <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">
-                        Distributions ({vendorBatches.length})
-                      </div>
-                      {vendorBatches.length === 0 ? (
-                        <div className="px-6 py-8 text-center text-gray-500">No distributions for this vendor</div>
-                      ) : (
-                        vendorBatches.map(batch => (
-                          <button
-                            key={batch.batchId}
-                            type="button"
-                            onClick={() => {
-                              setSelectedBatchId(batch.batchId);
-                              setSelectedBatchProductId(null);
-                            }}
-                            className={cn(
-                              'w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors',
-                              isBillFullyPaid(batch.billValue, batch.balanceRemaining) && 'opacity-60',
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium text-sm">Distribution — {formatDate(batch.distributionDate)}</p>
+                            {isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <PaidBadge size="sm" />}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-2">
+                            <span className="text-emerald-600">{batch.sold} sold</span>
+                            {batch.balanceRemaining > 0 && (
+                              <span className="text-rose-500"> · ₹{batch.balanceRemaining.toLocaleString()} due</span>
                             )}
-                          >
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-medium">Distribution — {formatDate(batch.distributionDate)}</p>
-                                {isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <PaidBadge size="sm" />}
-                              </div>
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}
-                                {batch.amountPaid > 0 && !isBillFullyPaid(batch.billValue, batch.balanceRemaining) && (
-                                  <span className="text-emerald-600"> • ₹{batch.amountPaid.toLocaleString()} paid</span>
-                                )}
-                                {batch.balanceRemaining > 0 && (
-                                  <span className="text-rose-500">
-                                    {' '}
-                                    • ₹{batch.balanceRemaining.toLocaleString()} due
-                                  </span>
-                                )}
-                              </p>
-                            </div>
-                            <span className="text-sm text-gray-600 shrink-0">
-                              <span className="text-emerald-600">{batch.sold} sold</span>
-                              {batch.replaced > 0 && (
-                                <span className="text-amber-600"> • {batch.replaced} replaced</span>
-                              )}
-                              {batch.damaged > 0 && <span className="text-rose-600"> • {batch.damaged} damaged</span>}
-                              {batch.availableWithVendor > 0 && (
-                                <span className="text-blue-600"> • {batch.availableWithVendor} with vendor</span>
-                              )}
-                            </span>
-                          </button>
-                        ))
-                      )}
+                          </p>
+                        </button>
+                      ))}
                     </div>
+                  ) : (
+                    vendorBatches.map(batch => (
+                      <button
+                        key={batch.batchId}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBatchId(batch.batchId);
+                          setSelectedBatchProductId(null);
+                        }}
+                        className={cn(
+                          'w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors',
+                          isBillFullyPaid(batch.billValue, batch.balanceRemaining) && 'opacity-60',
+                        )}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium">Distribution — {formatDate(batch.distributionDate)}</p>
+                            {isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <PaidBadge size="sm" />}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}
+                            {batch.amountPaid > 0 && !isBillFullyPaid(batch.billValue, batch.balanceRemaining) && (
+                              <span className="text-emerald-600"> • ₹{batch.amountPaid.toLocaleString()} paid</span>
+                            )}
+                            {batch.balanceRemaining > 0 && (
+                              <span className="text-rose-500"> • ₹{batch.balanceRemaining.toLocaleString()} due</span>
+                            )}
+                          </p>
+                        </div>
+                        <span className="text-sm text-gray-600 shrink-0">
+                          <span className="text-emerald-600">{batch.sold} sold</span>
+                          {batch.replaced > 0 && <span className="text-amber-600"> • {batch.replaced} replaced</span>}
+                          {batch.damaged > 0 && <span className="text-rose-600"> • {batch.damaged} damaged</span>}
+                          {batch.availableWithVendor > 0 && (
+                            <span className="text-blue-600"> • {batch.availableWithVendor} with vendor</span>
+                          )}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })();
+
+        // Non-service: tile click replaces the whole list with that vendor's distributions (Back restores tiles).
+        if (inPlaceNav && !loading && selectedVendorId && selectedVendorContent) {
+          return selectedVendorContent;
+        }
+
+        return (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredVendorStats.map(v => (
+                <button
+                  key={v.vendorId}
+                  type="button"
+                  onClick={() => {
+                    setSelectedVendorId(v.vendorId);
+                    setSelectedBatchId(null);
+                    setSelectedBatchProductId(null);
+                  }}
+                  className={cn(
+                    'relative bg-white p-4 rounded-xl border shadow-sm text-left transition-all cursor-pointer hover:shadow-md overflow-hidden',
+                    isServiceBiz && selectedVendorId === v.vendorId
+                      ? 'border-brand ring-2 ring-brand/30'
+                      : 'border-gray-100',
+                  )}
+                >
+                  {financeMap[v.vendorId] &&
+                    isBillFullyPaid(financeMap[v.vendorId].totalDistributedValue, financeMap[v.vendorId].balance) && (
+                      <div className="absolute top-2 right-2 z-10">
+                        <PaidStamp className="text-[11px] px-2 py-1 scale-90" />
+                      </div>
+                    )}
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pr-16">{v.vendorName}</p>
+                  <div className="mt-2 flex gap-4 text-sm flex-wrap">
+                    <span>
+                      <strong>{v.distributed}</strong> {isDirectSell ? 'sold' : 'distributed'}
+                    </span>
+                    {!isDirectSell && (
+                      <span className="text-emerald-600">
+                        <strong>{v.sold}</strong> sold
+                      </span>
+                    )}
+                    {(v.replaced ?? 0) > 0 && (
+                      <span className="text-amber-600">
+                        <strong>{v.replaced}</strong> replacement{(v.replaced ?? 0) !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {(v.damaged ?? 0) > 0 && (
+                      <span className="text-rose-600">
+                        <strong>{v.damaged}</strong> damaged
+                      </span>
+                    )}
+                    {!isDirectSell && (
+                      <span className="text-blue-600">
+                        <strong>{v.availableWithVendor}</strong> with vendor
+                      </span>
+                    )}
                   </div>
-                );
-              })()}
+                  {financeMap[v.vendorId] &&
+                    (() => {
+                      const f = financeMap[v.vendorId];
+                      return (
+                        <div className="mt-2 pt-2 border-t border-gray-100 flex gap-3 text-xs flex-wrap items-center">
+                          <span className="text-gray-500">
+                            Bill: <strong className="text-gray-700">₹{f.totalDistributedValue.toLocaleString()}</strong>
+                          </span>
+                          <span className="text-gray-500">
+                            Paid: <strong className="text-emerald-600">₹{f.totalPaid.toLocaleString()}</strong>
+                          </span>
+                          {isBillFullyPaid(f.totalDistributedValue, f.balance) ? (
+                            <PaidBadge size="sm" />
+                          ) : (
+                            <span className="text-gray-500">
+                              Due: <strong className="text-rose-600">₹{f.balance.toLocaleString()}</strong>
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  <p className="text-xs text-gray-500 mt-1">Click to view distributions</p>
+                </button>
+              ))}
             </div>
-          </div>
-        )}
-      </div>
+
+            <div className="space-y-6">
+              {loading && (
+                <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
+                  <LoadingSpinner />
+                </div>
+              )}
+              {!loading && loadError && (
+                <div className="bg-white rounded-xl border border-rose-200 p-12 text-center">
+                  <p className="text-rose-600 font-medium mb-2">Failed to load distribution data</p>
+                  <p className="text-sm text-gray-500 mb-4">{loadError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoading(true);
+                      setLoadError(null);
+                      load();
+                    }}
+                    className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              {isServiceBiz && !loading && !selectedVendorId && (
+                <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+                  <p className="text-gray-500 mb-2">Click on a vendor tile above to see their distributions</p>
+                  <p className="text-sm text-gray-400">
+                    Each distribution event is listed separately with its own bill and actions
+                  </p>
+                </div>
+              )}
+              {isServiceBiz && !loading && selectedVendorId && selectedVendorContent && (
+                <div className="fixed inset-0 z-[80]">
+                  <div
+                    className="absolute inset-0 bg-black/40"
+                    onClick={() => {
+                      setSelectedVendorId(null);
+                      setSelectedBatchId(null);
+                    }}
+                  />
+                  <div className="absolute top-[max(1rem,env(safe-area-inset-top,0px))] bottom-[max(1rem,env(safe-area-inset-bottom,0px))] left-4 right-4 lg:inset-6 lg:left-[calc(16rem+1.5rem)] bg-white overflow-y-auto rounded-2xl shadow-2xl">
+                    {selectedVendorContent}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        );
+      })()}
 
       <AnimatePresence>
         {modalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="relative bg-white w-full max-w-6xl rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
-            >
-              <h3 className="text-lg font-bold mb-1">
-                {isDirectSell ? 'Record Sale' : 'Distribute Products to Vendor'}
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Add multiple products, set quantity and discount for each. Save all at once.
-              </p>
-
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">
-                    {isDirectSell ? 'Customer' : 'Vendor'}
-                  </label>
-                  <select
-                    value={distVendorId}
-                    onChange={e => {
-                      const nextVendor = e.target.value;
-                      setDistVendorId(nextVendor);
-                      // Re-price catalog lines for the new dealer (real-world price list switch)
-                      distRows.forEach((row, idx) => {
-                        if (row.productId && nextVendor && (row.quantity || 0) > 0) {
-                          resolveDistRowPrice(idx, row.productId, nextVendor, row.quantity || 1);
-                        }
-                      });
-                    }}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  >
-                    <option value="">{isDirectSell ? 'Select customer' : 'Select vendor'}</option>
-                    {vendors.map(v => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Date</label>
-                  <input
-                    type="date"
-                    value={distDate}
-                    onChange={e => setDistDate(e.target.value)}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
-                </div>
-              </div>
-
-              <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
-                      <th className="px-2 py-3 w-8">#</th>
-                      <th className="px-2 py-3 min-w-[200px]">Product</th>
-                      <th className="px-2 py-3 w-24">Qty</th>
-                      <th className="px-2 py-3 w-32">Price (₹)</th>
-                      <th className="px-2 py-3 w-20">Disc%</th>
-                      <th className="px-2 py-3 w-12 text-center">GST</th>
-                      <th className="px-2 py-3 w-36 text-right">Billed (₹)</th>
-                      <th className="px-2 py-3 w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {distRows.map((row, idx) => {
-                      const p = products.find(x => x.id === row.productId);
-                      const packSz = p?.packSize || 1;
-                      const isBox = packSz > 1;
-                      const basePrice = row.customPrice ? parseFloat(row.customPrice) || 0 : (p?.price ?? 0);
-                      const inclGst = !!(p as Record<string, unknown> | undefined)?.priceIncludesGst;
-                      const gross = basePrice * (row.quantity || 0);
-                      const disc = Math.round((gross * (row.discount || 0)) / 100);
-                      const priceAfterDisc = gross - disc;
-                      let net: number, gstOnRow: number, billed: number;
-                      if (row.withGst && inclGst) {
-                        billed = priceAfterDisc;
-                        net = Math.round(priceAfterDisc / (1 + defaultGstRate / 100));
-                        gstOnRow = billed - net;
-                      } else if (row.withGst) {
-                        net = priceAfterDisc;
-                        gstOnRow = Math.round((net * defaultGstRate) / 100);
-                        billed = net + gstOnRow;
-                      } else {
-                        net = priceAfterDisc;
-                        gstOnRow = 0;
-                        billed = priceAfterDisc;
-                      }
-                      return (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
-                          <td className="px-3 py-2">
-                            <SearchSelect
-                              value={row.productId}
-                              placeholder="Select product"
-                              options={products
-                                .filter(pr => (pr.stock ?? 0) > 0)
-                                .sort((a, b) => a.name.localeCompare(b.name))
-                                .map(pr => {
-                                  const ps = pr.packSize || 1;
-                                  const isBoxPr = ps > 1;
-                                  const rawCount = pr.remainingInventory ?? pr.stock ?? 0;
-                                  return {
-                                    value: pr.id,
-                                    label: `${pr.name} — ₹${pr.price.toLocaleString()}${isBoxPr ? `/${pr.packName || 'Box'}` : ''}`,
-                                    sublabel: isBoxPr ? `${rawCount} ${pr.packName || 'Box'}s` : `${rawCount} pcs`,
-                                  };
-                                })}
-                              onChange={pid => {
-                                const selPr = products.find(x => x.id === pid);
-                                updateDistRow(idx, 'productId', pid);
-                                if (selPr) {
-                                  updateDistRow(idx, 'customPrice', String(selPr.price));
-                                  updateDistRow(
-                                    idx,
-                                    'withGst',
-                                    !!(selPr as Record<string, unknown>).priceIncludesGst || true,
-                                  );
-                                }
-                                if (pid && distVendorId) {
-                                  resolveDistRowPrice(idx, pid, distVendorId, row.quantity || 1);
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="px-2 py-2">
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                pattern="[0-9]*"
-                                value={row.quantity || ''}
-                                onChange={e => {
-                                  const v = e.target.value.replace(/[^0-9]/g, '');
-                                  const newQty = v === '' ? 0 : parseInt(v, 10);
-                                  updateDistRow(idx, 'quantity', newQty);
-                                  if (row.productId && distVendorId && newQty > 0) {
-                                    resolveDistRowPrice(idx, row.productId, distVendorId, newQty);
-                                  }
-                                }}
-                                className="w-16 min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
-                              />
-                              {isBox && (
-                                <span className="px-1.5 py-1.5 bg-gray-100 rounded-lg text-[10px] font-bold text-gray-500">
-                                  {p?.packName || 'Box'}
-                                </span>
-                              )}
-                            </div>
-                            {isBox && (row.quantity || 0) > 0 && (
-                              <span className="text-[10px] text-gray-400">= {(row.quantity || 0) * packSz} pcs</span>
-                            )}
-                          </td>
-                          <td className="px-2 py-2">
-                            <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">₹</span>
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={row.customPrice}
-                                onChange={e => {
-                                  const v = e.target.value.replace(/[^0-9.]/g, '');
-                                  updateDistRow(idx, 'customPrice', v);
-                                }}
-                                placeholder={p ? String(p.price) : '—'}
-                                className="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-                              />
-                            </div>
-                          </td>
-                          <td className="px-2 py-2">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={row.discount || ''}
-                              onChange={e => {
-                                const v = e.target.value.replace(/[^0-9.]/g, '');
-                                updateDistRow(idx, 'discount', v === '' ? 0 : parseFloat(v));
-                              }}
-                              placeholder="0"
-                              className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
-                            />
-                          </td>
-                          <td className="px-2 py-2 text-center">
-                            <input
-                              type="checkbox"
-                              checked={row.withGst}
-                              onChange={e => {
-                                const checked = e.target.checked;
-                                updateDistRow(idx, 'withGst', checked);
-                                // Adjust from current line price (may be price-list), not master inventory
-                                if (inclGst && p) {
-                                  const current = parseFloat(String(row.customPrice)) || Number(p.price) || 0;
-                                  if (!checked) {
-                                    updateDistRow(
-                                      idx,
-                                      'customPrice',
-                                      String(Math.round((current / (1 + defaultGstRate / 100)) * 100) / 100),
-                                    );
-                                  } else {
-                                    updateDistRow(
-                                      idx,
-                                      'customPrice',
-                                      String(Math.round(current * (1 + defaultGstRate / 100) * 100) / 100),
-                                    );
-                                  }
-                                }
-                              }}
-                              className="rounded text-brand"
-                            />
-                          </td>
-                          <td className="px-2 py-2 text-right font-bold whitespace-nowrap">
-                            {billed > 0 ? (
-                              <span>
-                                {row.withGst && (
-                                  <span className="text-[10px] text-gray-400 block">₹{net.toLocaleString()} +GST</span>
-                                )}
-                                <span className="text-base">₹{billed.toLocaleString()}</span>
-                              </span>
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                          <td className="px-1 py-2">
-                            {distRows.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => removeDistRow(idx)}
-                                className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded"
-                              >
-                                ×
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div className="flex border-t border-gray-200">
-                  <button
-                    type="button"
-                    onClick={addDistRow}
-                    className="flex-1 py-2 text-sm font-medium text-brand hover:bg-orange-50 transition-colors"
-                  >
-                    + Add Product Row
-                  </button>
-                  <label className="flex-1 py-2 text-sm font-medium text-center text-gray-500 hover:bg-gray-50 cursor-pointer border-l border-gray-200 transition-colors flex items-center justify-center gap-1.5">
-                    <Upload size={14} /> Import CSV
-                    <input
-                      type="file"
-                      accept=".csv"
-                      className="hidden"
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          const lines = (reader.result as string).split(/\r?\n/).filter(l => l.trim());
-                          if (lines.length < 2) {
-                            toast('CSV must have header + data rows', 'error');
-                            return;
-                          }
-                          const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
-                          const nameIdx = headers.findIndex(h => h.includes('product') || h === 'name');
-                          const qtyIdx = headers.findIndex(h => h.includes('qty') || h.includes('quantity'));
-                          const priceIdx = headers.findIndex(h => h.includes('price') || h.includes('rate'));
-                          const gstIdx = headers.findIndex(h => h.includes('gst') || h.includes('withgst'));
-                          const discIdx = headers.findIndex(h => h.includes('disc') || h.includes('discount'));
-                          if (nameIdx < 0) {
-                            toast('CSV must have a "productName" or "name" column', 'error');
-                            return;
-                          }
-                          const newRows: typeof distRows = [];
-                          const errors: string[] = [];
-                          for (let i = 1; i < lines.length; i++) {
-                            const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-                            const pName = vals[nameIdx];
-                            if (!pName) continue;
-                            const match = products.find(p => p.name.toLowerCase() === pName.toLowerCase());
-                            if (!match) {
-                              errors.push(`Row ${i + 1}: "${pName}" not found in inventory`);
-                              continue;
-                            }
-                            const qty = qtyIdx >= 0 ? parseInt(vals[qtyIdx]) || 0 : 1;
-                            if (qty <= 0) {
-                              errors.push(`Row ${i + 1}: "${pName}" — quantity must be greater than 0`);
-                              continue;
-                            }
-                            const price = priceIdx >= 0 ? vals[priceIdx] : '';
-                            if (price && isNaN(Number(price))) {
-                              errors.push(`Row ${i + 1}: "${pName}" — invalid price "${price}"`);
-                              continue;
-                            }
-                            const withGst = gstIdx >= 0 ? vals[gstIdx]?.toUpperCase() !== 'N' : true;
-                            const disc = discIdx >= 0 ? parseInt(vals[discIdx]) || 0 : 0;
-                            if (disc < 0 || disc > 100) {
-                              errors.push(`Row ${i + 1}: "${pName}" — discount must be 0-100%`);
-                              continue;
-                            }
-                            const isInclGst = !!(match as Record<string, unknown>).priceIncludesGst;
-                            let finalPrice = price || String(match.price);
-                            if (isInclGst && !withGst && !price)
-                              finalPrice = String(Math.round(match.price / (1 + defaultGstRate / 100)));
-                            newRows.push({
-                              productId: match.id,
-                              quantity: qty,
-                              customPrice: finalPrice,
-                              withGst,
-                              discount: disc,
-                            });
-                          }
-                          if (errors.length) {
-                            toast(`Import failed — fix these errors:\n${errors.join('\n')}`, 'error');
-                            return;
-                          }
-                          if (!newRows.length) {
-                            toast('No valid rows found in CSV', 'error');
-                            return;
-                          }
-                          setDistRows(newRows);
-                          toast(`${newRows.length} products loaded from CSV — review and click Distribute`, 'success');
-                        };
-                        reader.readAsText(file);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2 mb-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Total Items</span>
-                  <span className="font-bold">{distTotals.items}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Gross Value</span>
-                  <span className="font-bold">₹{distTotals.gross.toLocaleString()}</span>
-                </div>
-                {distTotals.discount > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Discount</span>
-                    <span className="font-bold text-emerald-600">-₹{distTotals.discount.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Subtotal (base)</span>
-                  <span className="font-bold">₹{distTotals.net.toLocaleString()}</span>
-                </div>
-                {distTotals.gst > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">GST ({defaultGstRate}%)</span>
-                    <span className="font-bold">₹{distTotals.gst.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
-                  <span className="text-gray-700 font-medium">Total Billed Amount</span>
-                  <span className="font-bold text-lg text-brand">₹{distTotals.billed.toLocaleString()}</span>
-                </div>
-                <div className="pt-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Amount Paid</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={distTotals.billed}
-                    step={0.01}
-                    value={distAmountPaid}
-                    onChange={e => setDistAmountPaid(e.target.value)}
-                    className={cn(
-                      'w-full mt-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-brand',
-                      (parseFloat(distAmountPaid) || 0) > distTotals.billed
-                        ? 'border-rose-400 bg-rose-50'
-                        : 'border-gray-200',
-                    )}
-                    placeholder="0.00"
-                  />
-                </div>
-                {distTotals.billed > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Balance</span>
-                    <span
-                      className={cn(
-                        'font-bold',
-                        distTotals.billed - (parseFloat(distAmountPaid) || 0) > 0
-                          ? 'text-rose-600'
-                          : 'text-emerald-600',
-                      )}
-                    >
-                      ₹{Math.max(0, distTotals.billed - (parseFloat(distAmountPaid) || 0)).toLocaleString()}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="flex-1 py-2.5 border border-gray-200 rounded-xl font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDistributeAll}
-                  disabled={submitting}
-                  className="flex-1 py-2.5 bg-brand text-white rounded-xl font-bold disabled:opacity-60"
-                >
-                  {submitting ? 'Saving...' : `Distribute ${distTotals.items} Items`}
-                </button>
-              </div>
-            </motion.div>
-          </div>
+          <CreateDistributionModal
+            businessType={businessType}
+            defaultGstRate={defaultGstRate}
+            onClose={() => setModalOpen(false)}
+            onCreated={() => {
+              setModalOpen(false);
+              load();
+            }}
+          />
         )}
       </AnimatePresence>
 
       {/* Split Bill Modal */}
       <AnimatePresence>
         {splitBillModal &&
+          canUseSplitBill &&
           (() => {
             const { bill } = splitBillModal;
             const totalQty = bill.totalQuantity;
             const gstQty = Math.min(Math.max(0, splitGstQty), totalQty);
             const nonGstQty = totalQty - gstQty;
-            const gstItems = bill.items.slice(0, gstQty);
-            const nonGstItems = bill.items.slice(gstQty);
-            const gstSubtotal = gstItems.reduce((s, i) => s + i.price, 0);
-            const nonGstSubtotal = nonGstItems.reduce((s, i) => s + i.price, 0);
+            // Preview from slider (propose → Save); print/share always uses saved gstApplied flags
+            const previewGstItems = bill.items.slice(0, gstQty);
+            const previewNonGstItems = bill.items.slice(gstQty);
+            const savedGstItems = bill.items.filter(i => i.gstApplied === true);
+            const savedNonGstItems = bill.items.filter(i => i.gstApplied !== true);
+            const hasSavedFlags = bill.items.some(i => typeof i.gstApplied === 'boolean');
+            const gstItemsForPrint = hasSavedFlags ? savedGstItems : previewGstItems;
+            const nonGstItemsForPrint = hasSavedFlags ? savedNonGstItems : previewNonGstItems;
+            const gstSubtotal = previewGstItems.reduce((s, i) => s + i.price, 0);
+            const nonGstSubtotal = previewNonGstItems.reduce((s, i) => s + i.price, 0);
             const gstRate = bill.gstRate || 18;
             const gstTax = gstQty > 0 ? Math.round((gstSubtotal * gstRate) / 100) : 0;
             const halfGst = Math.round(gstTax / 2);
@@ -1880,9 +1552,19 @@ export function DistributionView({
             const combinedBillTotal = gstGrandTotal + nonGstAmount;
             const savedTotal = bill.totalBilled ?? null;
             const hasUnsavedChanges = savedTotal != null && Math.abs(savedTotal - combinedBillTotal) > 0.5;
+            const dualDocs =
+              bill.deliverySet?.isDualDocs || (bill.savedGstUnits > 0 && bill.savedGstUnits < bill.totalQuantity);
+            const gstDocNo = bill.deliverySet?.gstDocNo || `${bill.challanId}-GST`;
+            const bosDocNo = bill.deliverySet?.nonGstDocNo || `${bill.challanId}-BOS`;
 
-            const makeSplitBill = (items: typeof bill.items, amount: number) =>
-              buildDistributionBillSlice(bill, items, amount);
+            const makeSplitBill = (items: typeof bill.items, amount: number, docNo: string, stripIrn: boolean) => {
+              const slice = buildDistributionBillSlice(bill, items, amount);
+              return {
+                ...slice,
+                challanId: docNo,
+                ...(stripIrn ? { irn: null, irnQr: null, irnAckNo: null, irnAckDt: null } : {}),
+              };
+            };
 
             return (
               <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -1892,10 +1574,17 @@ export function DistributionView({
                   animate={{ opacity: 1, scale: 1 }}
                   className="relative bg-white w-full max-w-lg rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
                 >
-                  <h3 className="text-lg font-bold mb-1">Split Bill — GST + Non-GST</h3>
-                  <p className="text-sm text-gray-500 mb-4">
-                    Choose how many units go on the GST bill. The rest will be on a separate non-GST bill.
+                  <h3 className="text-lg font-bold mb-1">Split Bill — Delivery Set</h3>
+                  <p className="text-sm text-gray-500 mb-2">
+                    Choose how many units go on the GST Tax Invoice. The rest go on a Bill of Supply (non-GST). One
+                    payment outstanding applies to the whole batch.
                   </p>
+                  {dualDocs && (
+                    <p className="text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 mb-4">
+                      Linked dual docs: <strong>{gstDocNo}</strong> (Tax Invoice) + <strong>{bosDocNo}</strong> (Bill of
+                      Supply)
+                    </p>
+                  )}
 
                   <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
                     <div className="flex justify-between text-sm mb-3">
@@ -2025,8 +1714,13 @@ export function DistributionView({
                   >
                     {splitSaving ? 'Saving...' : `Save Amount — ₹${combinedBillTotal.toLocaleString()}`}
                   </button>
+                  {hasUnsavedChanges && (
+                    <p className="text-xs text-amber-700 mb-2">
+                      Save Amount first so print uses saved GST flags (not the slider preview).
+                    </p>
+                  )}
                   <div className="flex gap-2 mb-2">
-                    {gstQty > 0 && (
+                    {gstItemsForPrint.length > 0 && (
                       <button
                         type="button"
                         onClick={async () => {
@@ -2042,8 +1736,11 @@ export function DistributionView({
                                     vendorId: selectedVendorId,
                                   })
                                 : splitBillModal.bill;
+                            const printGst = fresh.items.filter(i => i.gstApplied === true);
+                            const printSub = printGst.reduce((s, i) => s + i.price, 0);
+                            const docNo = fresh.deliverySet?.gstDocNo || `${fresh.challanId}-GST`;
                             const slice = {
-                              ...makeSplitBill(gstItems, gstSubtotal),
+                              ...makeSplitBill(printGst, printSub, docNo, false),
                               irn: fresh.irn,
                               irnQr: fresh.irnQr,
                               irnAckNo: fresh.irnAckNo,
@@ -2052,7 +1749,7 @@ export function DistributionView({
                             };
                             const { billForPrint, opts } = await buildGstPrintOptions(slice, true, paidOpts.fullyPaid);
                             writePrintHtml(w, generateDistributionChallanHtml(billForPrint, opts), {
-                              filename: `GST-Bill-${fresh.challanId}`,
+                              filename: `Tax-Invoice-${docNo}`,
                             });
                           } catch (err) {
                             try {
@@ -2065,10 +1762,10 @@ export function DistributionView({
                         }}
                         className="flex-1 py-2.5 border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-xl font-bold text-sm hover:bg-emerald-100"
                       >
-                        Print GST Bill
+                        Print Tax Invoice
                       </button>
                     )}
-                    {nonGstQty > 0 && (
+                    {nonGstItemsForPrint.length > 0 && (
                       <button
                         type="button"
                         onClick={async () => {
@@ -2084,17 +1781,17 @@ export function DistributionView({
                                     vendorId: selectedVendorId,
                                   })
                                 : splitBillModal.bill;
+                            const printNon = fresh.items.filter(i => i.gstApplied !== true);
+                            const printSub = printNon.reduce((s, i) => s + i.price, 0);
+                            const docNo = fresh.deliverySet?.nonGstDocNo || `${fresh.challanId}-BOS`;
+                            // Never attach IRN / e-invoice narrative to Bill of Supply half
                             const slice = {
-                              ...makeSplitBill(nonGstItems, nonGstSubtotal),
-                              irn: fresh.irn,
-                              irnQr: fresh.irnQr,
-                              irnAckNo: fresh.irnAckNo,
-                              irnAckDt: fresh.irnAckDt,
+                              ...makeSplitBill(printNon, printSub, docNo, true),
                               ewbNumber: fresh.ewbNumber,
                             };
                             const { billForPrint, opts } = await buildGstPrintOptions(slice, false, paidOpts.fullyPaid);
                             writePrintHtml(w, generateDistributionChallanHtml(billForPrint, opts), {
-                              filename: `Challan-${fresh.challanId}`,
+                              filename: `Bill-of-Supply-${docNo}`,
                             });
                           } catch (err) {
                             try {
@@ -2107,10 +1804,54 @@ export function DistributionView({
                         }}
                         className="flex-1 py-2.5 border border-amber-300 text-amber-700 bg-amber-50 rounded-xl font-bold text-sm hover:bg-amber-100"
                       >
-                        Print Non-GST Bill
+                        Print Bill of Supply
                       </button>
                     )}
                   </div>
+                  {dualDocs && selectedVendorId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const phone = bill.vendor.phone;
+                        if (!phone) {
+                          toast('No vendor phone number on record', 'error');
+                          return;
+                        }
+                        const gstHalf = makeSplitBill(
+                          gstItemsForPrint,
+                          gstItemsForPrint.reduce((s, i) => s + i.price, 0),
+                          gstDocNo,
+                          false,
+                        );
+                        const bosHalf = makeSplitBill(
+                          nonGstItemsForPrint,
+                          nonGstItemsForPrint.reduce((s, i) => s + i.price, 0),
+                          bosDocNo,
+                          true,
+                        );
+                        const text = [
+                          formatDistributionChallanText({
+                            ...gstHalf,
+                            irn: bill.irn,
+                            irnAckNo: bill.irnAckNo,
+                          }),
+                          '',
+                          '———',
+                          '',
+                          formatDistributionChallanText(bosHalf).replace(
+                            'DISTRIBUTION CHALLAN',
+                            'BILL OF SUPPLY (non-GST)',
+                          ),
+                          '',
+                          `Batch outstanding (combined): ₹${(bill.totalBilled ?? combinedBillTotal).toLocaleString()}`,
+                        ].join('\n');
+                        shareViaWhatsApp(phone, text);
+                      }}
+                      className="w-full py-2.5 mb-2 border border-gray-200 rounded-xl font-medium text-sm hover:bg-gray-50"
+                    >
+                      WhatsApp both docs
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setSplitBillModal(null)}

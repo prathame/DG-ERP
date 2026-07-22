@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { hasExplicitUnitPrice, unitPricesAfterDiscount } from '../../server/utils/price-resolve';
+import { hasExplicitUnitPrice, resolveGstRate, unitPricesAfterDiscount } from '../../server/utils/price-resolve';
+
+describe('resolveGstRate', () => {
+  it('uses product rate including 0', () => {
+    expect(resolveGstRate(5, 18)).toBe(5);
+    expect(resolveGstRate(0, 18)).toBe(0);
+  });
+  it('falls back to company default then 18', () => {
+    expect(resolveGstRate(null, 12)).toBe(12);
+    expect(resolveGstRate(undefined, undefined)).toBe(18);
+    expect(resolveGstRate(NaN, 12)).toBe(12);
+  });
+});
 
 describe('hasExplicitUnitPrice', () => {
   it('treats 0 as explicit', () => {

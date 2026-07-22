@@ -86,6 +86,8 @@ export function VendorMasterView({
   const [createPrefill, setCreatePrefill] = useState<InvoicePartyPrefill | null>(null);
   const [payModal, setPayModal] = useState<PayModal | null>(null);
   const offlineAdvance = isServiceMobileMode();
+  /** Vendor-tile New Invoice is service business type only (all shells). */
+  const isServiceBusiness = cfg.type === 'service';
   const [payForm, setPayForm] = useState({
     amount: '',
     paymentDate: new Date().toISOString().slice(0, 10),
@@ -142,15 +144,15 @@ export function VendorMasterView({
     loadDetail(v);
   };
 
-  // Masters hub → Client row: jump straight into that client’s invoice hub
+  // Masters hub → Client row: jump straight into that client’s invoice hub (service only)
   useEffect(() => {
-    if (focusedInitial || !initialVendorId || loading) return;
+    if (!isServiceBusiness || focusedInitial || !initialVendorId || loading) return;
     const v = list.find(x => x.id === initialVendorId);
     if (v) {
       selectClient(v);
       setFocusedInitial(true);
     }
-  }, [initialVendorId, list, loading, focusedInitial]);
+  }, [isServiceBusiness, initialVendorId, list, loading, focusedInitial]);
 
   const backFromDetail = () => {
     setSelected(null);
@@ -376,8 +378,8 @@ export function VendorMasterView({
       .catch(err => toast(err.message, 'error'));
   };
 
-  // Hub deep-link: wait until the named client is selected (avoid list flash)
-  if (initialVendorId && !focusedInitial && !selected) {
+  // Hub deep-link: wait until the named client is selected (avoid list flash) — service only
+  if (isServiceBusiness && initialVendorId && !focusedInitial && !selected) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-16 text-center">
         <LoadingSpinner />
@@ -421,13 +423,15 @@ export function VendorMasterView({
             >
               <IndianRupee size={16} /> Record Payment
             </button>
-            <button
-              type="button"
-              onClick={openNewInvoice}
-              className="flex items-center gap-1.5 px-4 py-2 min-h-[44px] bg-brand text-white rounded-xl text-sm font-bold"
-            >
-              <Plus size={16} /> New Invoice
-            </button>
+            {isServiceBusiness && (
+              <button
+                type="button"
+                onClick={openNewInvoice}
+                className="flex items-center gap-1.5 px-4 py-2 min-h-[44px] bg-brand text-white rounded-xl text-sm font-bold"
+              >
+                <Plus size={16} /> New Invoice
+              </button>
+            )}
           </div>
         </div>
 
@@ -481,7 +485,9 @@ export function VendorMasterView({
                 <div className="py-12 text-center text-gray-400 rounded-2xl border border-dashed border-gray-200">
                   <FileText size={32} className="mx-auto mb-2 opacity-30" />
                   <p className="font-medium text-sm">No invoices yet</p>
-                  <p className="text-xs mt-1">Tap “New Invoice” to bill this {label.toLowerCase()}</p>
+                  {isServiceBusiness && (
+                    <p className="text-xs mt-1">Tap “New Invoice” to bill this {label.toLowerCase()}</p>
+                  )}
                 </div>
               ) : (
                 <ul className="space-y-2">
@@ -595,7 +601,7 @@ export function VendorMasterView({
           </>
         )}
 
-        {createOpen && (
+        {isServiceBusiness && createOpen && (
           <CreateInvoiceModal
             initialParty={createPrefill}
             onClose={() => {
@@ -721,7 +727,11 @@ export function VendorMasterView({
         </button>
         <div className="flex-1">
           <h2 className="text-xl font-bold">{label} Master</h2>
-          <p className="text-sm text-gray-500">Tap a {label.toLowerCase()} for invoices & payments</p>
+          <p className="text-sm text-gray-500">
+            {isServiceBusiness
+              ? `Tap a ${label.toLowerCase()} for invoices & payments`
+              : `Manage ${label.toLowerCase()} records`}
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -790,92 +800,188 @@ export function VendorMasterView({
         </div>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-        <input
-          type="text"
-          placeholder={`Search ${label.toLowerCase()}s...`}
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-        />
-      </div>
+      {isServiceBusiness ? (
+        <>
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              placeholder={`Search ${label.toLowerCase()}s...`}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+            />
+          </div>
 
-      {loading && (
-        <div className="py-16 text-center">
-          <LoadingSpinner />
-        </div>
-      )}
-
-      {/* Client cards — tap opens invoice hub (Edit/Delete do not) */}
-      {!loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {list.map(v => (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => selectClient(v)}
-              className="text-left p-4 rounded-2xl border border-gray-200 bg-white hover:shadow-md transition-all"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-bold text-gray-800 truncate">{v.name}</span>
-                <div className="flex gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={e => {
-                      e.stopPropagation();
-                      openEdit(v);
-                    }}
-                    className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-blue-600"
-                    aria-label={`Edit ${v.name}`}
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={e => {
-                      e.stopPropagation();
-                      setDeleteTarget(v);
-                    }}
-                    className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
-                    aria-label={`Delete ${v.name}`}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-              {v.contactPerson && <p className="text-xs text-gray-500">{v.contactPerson}</p>}
-              {v.phone && <p className="text-xs text-gray-400 mt-0.5">{v.phone}</p>}
-              {v.gstNumber && <p className="text-[10px] font-mono text-gray-400 mt-1">GSTIN: {v.gstNumber}</p>}
-              {label === 'Vendor' && (v.totalSales || v.totalRewardPoints) ? (
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
-                  {typeof v.totalSales === 'number' && v.totalSales > 0 && (
-                    <span>
-                      Sales: <b>₹{v.totalSales.toLocaleString()}</b>
-                    </span>
-                  )}
-                  {typeof v.totalRewardPoints === 'number' && v.totalRewardPoints > 0 && (
-                    <span>
-                      Pts: <b className="text-emerald-600">{v.totalRewardPoints}</b>
-                    </span>
-                  )}
-                </div>
-              ) : null}
-              <p className="text-[10px] text-brand font-medium mt-2">Tap to view invoices</p>
-            </button>
-          ))}
-          {list.length === 0 && !search && (
-            <div className="col-span-full py-16 text-center text-gray-400">
-              <FileText size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No {label.toLowerCase()}s yet</p>
-              <p className="text-sm mt-1">Click “Add {label}” to get started</p>
+          {loading && (
+            <div className="py-16 text-center">
+              <LoadingSpinner />
             </div>
           )}
-          {list.length === 0 && search && (
-            <div className="col-span-full py-12 text-center text-gray-400 text-sm">
-              No matching {label.toLowerCase()}s
+
+          {/* Client cards — tap opens invoice hub (Edit/Delete do not) */}
+          {!loading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {list.map(v => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => selectClient(v)}
+                  className="text-left p-4 rounded-2xl border border-gray-200 bg-white hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-bold text-gray-800 truncate">{v.name}</span>
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          openEdit(v);
+                        }}
+                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-blue-600"
+                        aria-label={`Edit ${v.name}`}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          setDeleteTarget(v);
+                        }}
+                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600"
+                        aria-label={`Delete ${v.name}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  {v.contactPerson && <p className="text-xs text-gray-500">{v.contactPerson}</p>}
+                  {v.phone && <p className="text-xs text-gray-400 mt-0.5">{v.phone}</p>}
+                  {v.gstNumber && <p className="text-[10px] font-mono text-gray-400 mt-1">GSTIN: {v.gstNumber}</p>}
+                  {label === 'Vendor' && (v.totalSales || v.totalRewardPoints) ? (
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                      {typeof v.totalSales === 'number' && v.totalSales > 0 && (
+                        <span>
+                          Sales: <b>₹{v.totalSales.toLocaleString()}</b>
+                        </span>
+                      )}
+                      {typeof v.totalRewardPoints === 'number' && v.totalRewardPoints > 0 && (
+                        <span>
+                          Pts: <b className="text-emerald-600">{v.totalRewardPoints}</b>
+                        </span>
+                      )}
+                    </div>
+                  ) : null}
+                  <p className="text-[10px] text-brand font-medium mt-2">Tap to view invoices</p>
+                </button>
+              ))}
+              {list.length === 0 && !search && (
+                <div className="col-span-full py-16 text-center text-gray-400">
+                  <FileText size={40} className="mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No {label.toLowerCase()}s yet</p>
+                  <p className="text-sm mt-1">Click “Add {label}” to get started</p>
+                </div>
+              )}
+              {list.length === 0 && search && (
+                <div className="col-span-full py-12 text-center text-gray-400 text-sm">
+                  No matching {label.toLowerCase()}s
+                </div>
+              )}
             </div>
           )}
+        </>
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-50 flex items-center gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="text"
+                placeholder={`Search ${label.toLowerCase()}s...`}
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+              />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50">
+                  <th className="px-3 py-3 sm:px-6 sm:py-4">Name</th>
+                  <th className="px-3 py-3 sm:px-6 sm:py-4">Contact</th>
+                  <th className="px-3 py-3 sm:px-6 sm:py-4">Phone</th>
+                  <th className="px-3 py-3 sm:px-6 sm:py-4">GSTIN</th>
+                  {label === 'Vendor' && (
+                    <>
+                      <th className="px-3 py-3 sm:px-6 sm:py-4">Sales</th>
+                      <th className="px-3 py-3 sm:px-6 sm:py-4">Reward Pts</th>
+                    </>
+                  )}
+                  <th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {loading ? (
+                  <tr>
+                    <td colSpan={label === 'Vendor' ? 7 : 5} className="px-6 py-12 text-center">
+                      <LoadingSpinner />
+                    </td>
+                  </tr>
+                ) : list.length === 0 ? (
+                  <tr>
+                    <td colSpan={label === 'Vendor' ? 7 : 5} className="px-6 py-12 text-center text-gray-400 text-sm">
+                      {search
+                        ? `No matching ${label.toLowerCase()}s`
+                        : `No ${label.toLowerCase()}s yet — click “Add ${label}” to get started`}
+                    </td>
+                  </tr>
+                ) : (
+                  list.map(v => (
+                    <tr key={v.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-3 sm:px-6 sm:py-4 font-medium">{v.name}</td>
+                      <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.contactPerson || '-'}</td>
+                      <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.phone || '-'}</td>
+                      <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600 font-mono">
+                        {v.gstNumber || '-'}
+                      </td>
+                      {label === 'Vendor' && (
+                        <>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-medium">
+                            {typeof v.totalSales === 'number' && v.totalSales > 0
+                              ? `₹${v.totalSales.toLocaleString()}`
+                              : (v.totalSales ?? 0)}
+                          </td>
+                          <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-emerald-600">
+                            {v.totalRewardPoints ?? 0}
+                          </td>
+                        </>
+                      )}
+                      <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(v)}
+                          className="p-2 text-brand hover:bg-orange-50 rounded-lg"
+                          aria-label={`Edit ${v.name}`}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(v)}
+                          className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"
+                          aria-label={`Delete ${v.name}`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

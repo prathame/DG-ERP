@@ -25,7 +25,7 @@ export function AppModal({
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   className?: string;
   bodyClassName?: string;
   zIndex?: number;
@@ -47,7 +47,15 @@ export function AppModal({
     };
   }, []);
 
-  const maxW = size === 'sm' ? 'max-w-sm' : size === 'md' ? 'max-w-lg' : size === 'xl' ? 'max-w-4xl' : 'max-w-3xl';
+  const maxW = (
+    {
+      sm: 'max-w-sm',
+      md: 'max-w-lg',
+      lg: 'max-w-3xl',
+      xl: 'max-w-4xl',
+      '2xl': 'max-w-6xl',
+    } as const
+  )[size];
 
   return (
     <motion.div
