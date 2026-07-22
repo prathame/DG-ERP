@@ -17,7 +17,7 @@ import {
 import { SearchSelect } from '../../components/ui/SearchSelect';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
-import { scheduleBakeCapBillPdfCache } from '../../lib/capBillPdfCache';
+import { scheduleBakeCapBillPdfCache, type CapBillPdfCacheDoc } from '../../lib/capBillPdfCache';
 import { printStandaloneInvoice } from '../../lib/printStandaloneInvoice';
 import { reportActionFailed } from '../../lib/reportActionFailure';
 import { session } from '../../lib/session';
@@ -27,8 +27,34 @@ type Invoice = {
   id: string;
   invoiceNumber: string;
   customerName: string;
-  items: unknown[];
+  customerGstin?: string;
+  customerAddress?: string;
+  customerPhone?: string;
+  items: Array<{
+    description: string;
+    hsnSac?: string;
+    qty: number;
+    rate: number;
+    gstPercent: number;
+    discountPercent?: number;
+    productId?: string;
+    taxable?: number;
+    tax?: number;
+    total?: number;
+  }>;
+  subtotal: number;
+  taxTotal: number;
+  taxCgst?: number;
+  taxSgst?: number;
+  taxIgst?: number;
+  isInterstate?: boolean;
+  gstEnabled?: boolean;
   grandTotal: number;
+  notes?: string;
+  terms?: string;
+  status: string;
+  invoiceDate: string;
+  dueDate?: string;
 };
 
 type BillLine = {
@@ -308,7 +334,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         partyId: vendorId || null,
       }),
     });
-    if (created?.id) scheduleBakeCapBillPdfCache(created);
+    if (created?.id) scheduleBakeCapBillPdfCache(created as CapBillPdfCacheDoc);
     return created;
   };
 
