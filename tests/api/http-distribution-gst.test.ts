@@ -124,6 +124,16 @@ describe('HTTP: distribution GST dual-doc foundation', () => {
     expect(bill.body.savedGstUnits).toBe(2);
     expect(bill.body.deliverySet.isDualDocs).toBe(true);
     expect(bill.body.items.filter((i: { gstApplied: boolean }) => i.gstApplied)).toHaveLength(2);
+
+    const batches = await api().get(`/api/distribution/batches?vendorId=${VENDOR}`).set(authHeaders(token, TENANT));
+    expect(batches.status).toBe(200);
+    const row = batches.body.find((b: { batchId: string }) => b.batchId === BATCH);
+    expect(row).toBeTruthy();
+    expect(row.gstUnits).toBe(2);
+    expect(row.nonGstUnits).toBe(2);
+    expect(row.deliverySet.isDualDocs).toBe(true);
+    expect(String(row.deliverySet.gstDocNo)).toMatch(/-GST$/);
+    expect(String(row.deliverySet.nonGstDocNo)).toMatch(/-BOS$/);
   });
 
   it('apply-billing blocked when IRN exists on batch', async () => {

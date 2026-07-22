@@ -156,6 +156,8 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
         STRING_AGG(DISTINCT p.name, ',') as product_names,
         MAX(pd.discount_percent) as discount_percent,
         MAX(pd.gst_applied::int) as gst_applied,
+        SUM(CASE WHEN COALESCE(pd.gst_applied, false) THEN 1 ELSE 0 END) as gst_units,
+        SUM(CASE WHEN COALESCE(pd.gst_applied, false) THEN 0 ELSE 1 END) as non_gst_units,
         COALESCE(MAX(pd.dispatch_status), 'pending') as dispatch_status,
         MAX(pd.dispatched_by) as dispatched_by,
         MAX(pd.dispatched_at) as dispatched_at,
@@ -197,8 +199,14 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
     res.json(
       rows.map(r => {
         const paid = paymentMap[r.batch_id as string] ?? 0;
+        const batchId = r.batch_id as string;
+        const gstUnits = Number(r.gst_units) || 0;
+        const nonGstUnits = Number(r.non_gst_units) || 0;
+        const isDualDocs = gstUnits > 0 && nonGstUnits > 0;
+        // Match getBill challanId / deliverySet -GST / -BOS suffixes (#144)
+        const challanBase = `CH-${String(batchId).replace(/^D/, '').slice(0, 10)}`;
         return {
-          batchId: r.batch_id as string,
+          batchId,
           vendorId: r.vendor_id as string,
           vendorName: r.vendor_name as string,
           distributionDate: r.distribution_date as string,
@@ -210,7 +218,17 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
           availableWithVendor: Number(r.available_with_vendor),
           billValue: Number(r.bill_value),
           discountPercent: Number(r.discount_percent) || 0,
-          gstApplied: !!Number(r.gst_applied),
+          gstApplied: gstUnits > 0,
+          gstUnits,
+          nonGstUnits,
+          deliverySet: {
+            isDualDocs,
+            outstandingScope: 'batch' as const,
+            gstDocNo: gstUnits > 0 ? `${challanBase}-GST` : null,
+            nonGstDocNo: nonGstUnits > 0 ? `${challanBase}-BOS` : null,
+            gstDocKind: 'tax_invoice' as const,
+            nonGstDocKind: 'bill_of_supply' as const,
+          },
           amountPaid: paid,
           balanceRemaining: Number(r.bill_value) - paid,
           dispatchStatus: (r.dispatch_status as string) || 'pending',

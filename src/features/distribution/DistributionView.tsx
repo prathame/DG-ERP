@@ -35,10 +35,62 @@ import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from 
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
 import { buildGstPrintOptions } from '../../lib/buildGstPrintOptions';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
+import { deliveryDocKind, deliveryDocLabel, deliveryDocNos } from '../../lib/deliveryDocKind';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateDistributionModal } from './CreateDistributionModal';
+
+/** Non-service list/detail badge: Tax Invoice / Bill of Supply / Mixed (+ doc nos when dual). */
+function DeliveryDocBadge({
+  batch,
+  size = 'sm',
+}: {
+  batch: Pick<DistributionBatch, 'batchId' | 'gstUnits' | 'nonGstUnits' | 'gstApplied' | 'total' | 'deliverySet'>;
+  size?: 'sm' | 'md';
+}) {
+  const gstUnits = typeof batch.gstUnits === 'number' ? batch.gstUnits : batch.gstApplied ? batch.total : 0;
+  const nonGstUnits = typeof batch.nonGstUnits === 'number' ? batch.nonGstUnits : batch.gstApplied ? 0 : batch.total;
+  const kind = deliveryDocKind(gstUnits, nonGstUnits);
+  if (kind === 'unknown') return null;
+  const label = deliveryDocLabel(kind);
+  const nos =
+    batch.deliverySet?.gstDocNo || batch.deliverySet?.nonGstDocNo
+      ? { gstDocNo: batch.deliverySet.gstDocNo, nonGstDocNo: batch.deliverySet.nonGstDocNo }
+      : deliveryDocNos(batch.batchId, gstUnits, nonGstUnits);
+  const pad = size === 'md' ? 'px-2 py-0.5 text-[11px]' : 'px-1.5 py-0.5 text-[10px]';
+  const title = [nos.gstDocNo, nos.nonGstDocNo].filter(Boolean).join(' · ') || label;
+  if (kind === 'mixed') {
+    return (
+      <span className="inline-flex items-center gap-1 flex-wrap" title={title}>
+        <span className={cn(pad, 'rounded-full font-bold bg-violet-100 text-violet-800')}>{label}</span>
+        <span className={cn(pad, 'rounded-full font-bold bg-emerald-50 text-emerald-700')}>GST</span>
+        <span className={cn(pad, 'rounded-full font-bold bg-slate-100 text-slate-700')}>BoS</span>
+        {size === 'md' && (nos.gstDocNo || nos.nonGstDocNo) && (
+          <span className="text-[10px] text-gray-500 font-mono">
+            {[nos.gstDocNo, nos.nonGstDocNo].filter(Boolean).join(' · ')}
+          </span>
+        )}
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        pad,
+        'rounded-full font-bold inline-flex items-center gap-1',
+        kind === 'gst' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700',
+      )}
+      title={title}
+    >
+      {label}
+      {size === 'md' && kind === 'gst' && nos.gstDocNo && <span className="font-mono opacity-80">{nos.gstDocNo}</span>}
+      {size === 'md' && kind === 'bos' && nos.nonGstDocNo && (
+        <span className="font-mono opacity-80">{nos.nonGstDocNo}</span>
+      )}
+    </span>
+  );
+}
 
 // ── E-Invoice + E-Way Bill buttons (per distribution batch) ──────────────────
 function EInvoiceButtons({
@@ -339,6 +391,8 @@ export function DistributionView({
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(vendorId ?? null);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [selectedBatchProductId, setSelectedBatchProductId] = useState<string | null>(null);
+  /** Non-service detail: which delivery-set half is shown (Tax Invoice vs Bill of Supply). */
+  const [deliveryHalf, setDeliveryHalf] = useState<'gst' | 'bos'>('gst');
   const [editBatchModal, setEditBatchModal] = useState<DistributionBatchDetail | null>(null);
   const [editDate, setEditDate] = useState('');
   const [editRows, setEditRows] = useState<
@@ -651,7 +705,28 @@ export function DistributionView({
               : false;
 
             if (selectedBatch) {
-              const byProduct = batchItems.reduce(
+              const batchGstUnits =
+                typeof selectedBatch.gstUnits === 'number'
+                  ? selectedBatch.gstUnits
+                  : batchItems.filter(d => d.gstApplied === true).length;
+              const batchNonGstUnits =
+                typeof selectedBatch.nonGstUnits === 'number'
+                  ? selectedBatch.nonGstUnits
+                  : batchItems.filter(d => d.gstApplied !== true).length;
+              const useHalfTabs = inPlaceNav;
+              const halfItems = useHalfTabs
+                ? batchItems.filter(d => (deliveryHalf === 'gst' ? d.gstApplied === true : d.gstApplied !== true))
+                : batchItems;
+              const halfBillValue = halfItems.reduce(
+                (s, d) => s + (Number(d.billedPrice) || Number(d.netPrice) || 0),
+                0,
+              );
+              const halfDocNo =
+                deliveryHalf === 'gst'
+                  ? selectedBatch.deliverySet?.gstDocNo || deliveryDocNos(selectedBatch.batchId, 1, 0).gstDocNo
+                  : selectedBatch.deliverySet?.nonGstDocNo || deliveryDocNos(selectedBatch.batchId, 0, 1).nonGstDocNo;
+
+              const byProduct = halfItems.reduce(
                 (acc, d) => {
                   const key = d.productId;
                   if (!acc[key])
@@ -697,6 +772,7 @@ export function DistributionView({
                             Distribution — {formatDate(selectedBatch.distributionDate)}
                           </span>
                         )}
+                        {!selectedBatchProductId && inPlaceNav && <DeliveryDocBadge batch={selectedBatch} size="md" />}
                         {!selectedBatchProductId &&
                           (() => {
                             const ds =
@@ -872,7 +948,39 @@ export function DistributionView({
                               <>
                                 <div className="fixed inset-0 z-[50]" onClick={() => setBatchActionsOpen(false)} />
                                 <div className="absolute right-0 top-full mt-1 z-[51] bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[180px]">
-                                  {canPrint && (
+                                  {canPrint && useHalfTabs && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setBatchActionsOpen(false);
+                                        const kind = deliveryHalf === 'gst' ? 'gst' : 'bos';
+                                        api.distribution
+                                          .getBill(billParams(selectedBatch.batchId))
+                                          .then(bill => {
+                                            const avail = deliveryPrintAvailability(bill);
+                                            const paid = challanOptions(selectedVendorId!).fullyPaid;
+                                            if (kind === 'gst' && !avail.hasGst) {
+                                              toast('No Tax Invoice lines on this delivery', 'info');
+                                              return;
+                                            }
+                                            if (kind === 'bos' && !avail.hasBos) {
+                                              toast('No Bill of Supply lines on this delivery', 'info');
+                                              return;
+                                            }
+                                            return printDistributionDocs(bill, kind, paid);
+                                          })
+                                          .catch(err => toast(err.message, 'error'));
+                                      }}
+                                      className={cn(
+                                        'w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2',
+                                        deliveryHalf === 'gst' ? 'text-emerald-700' : 'text-amber-700',
+                                      )}
+                                    >
+                                      <Printer size={14} />{' '}
+                                      {deliveryHalf === 'gst' ? 'Print Tax Invoice' : 'Print Bill of Supply'}
+                                    </button>
+                                  )}
+                                  {canPrint && !useHalfTabs && (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -897,7 +1005,7 @@ export function DistributionView({
                                       <Printer size={14} /> Print invoice(s)
                                     </button>
                                   )}
-                                  {canPrint && (
+                                  {canPrint && !useHalfTabs && (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -920,7 +1028,7 @@ export function DistributionView({
                                       <Printer size={14} /> Print Tax Invoice
                                     </button>
                                   )}
-                                  {canPrint && (
+                                  {canPrint && !useHalfTabs && (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -1008,35 +1116,37 @@ export function DistributionView({
                                   >
                                     <Mail size={14} /> Email Challan
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setBatchActionsOpen(false);
-                                      fetch(`/api/distribution/einvoice?batchId=${selectedBatch.batchId}`, {
-                                        headers: {
-                                          Authorization: `Bearer ${session.getToken()}`,
-                                          'X-Tenant-ID': session.getTenantId() || '',
-                                        },
-                                      })
-                                        .then(r => r.json())
-                                        .then(data => {
-                                          const blob = new Blob([JSON.stringify(data, null, 2)], {
-                                            type: 'application/json',
-                                          });
-                                          const url = URL.createObjectURL(blob);
-                                          const a = document.createElement('a');
-                                          a.href = url;
-                                          a.download = `E-Invoice-${selectedBatch.batchId}.json`;
-                                          a.click();
-                                          URL.revokeObjectURL(url);
-                                          toast('E-Invoice JSON downloaded', 'success');
+                                  {(!useHalfTabs || deliveryHalf === 'gst') && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setBatchActionsOpen(false);
+                                        fetch(`/api/distribution/einvoice?batchId=${selectedBatch.batchId}`, {
+                                          headers: {
+                                            Authorization: `Bearer ${session.getToken()}`,
+                                            'X-Tenant-ID': session.getTenantId() || '',
+                                          },
                                         })
-                                        .catch(err => toast(err.message, 'error'));
-                                    }}
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-indigo-600"
-                                  >
-                                    <Download size={14} /> E-Invoice JSON
-                                  </button>
+                                          .then(r => r.json())
+                                          .then(data => {
+                                            const blob = new Blob([JSON.stringify(data, null, 2)], {
+                                              type: 'application/json',
+                                            });
+                                            const url = URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = `E-Invoice-${selectedBatch.batchId}.json`;
+                                            a.click();
+                                            URL.revokeObjectURL(url);
+                                            toast('E-Invoice JSON downloaded', 'success');
+                                          })
+                                          .catch(err => toast(err.message, 'error'));
+                                      }}
+                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-indigo-600"
+                                    >
+                                      <Download size={14} /> E-Invoice JSON
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -1113,38 +1223,65 @@ export function DistributionView({
                         ) : (
                           <>
                             <span className="text-sm text-gray-600 block">
-                              <span className="font-medium">{selectedBatch.total}</span> distributed •{' '}
-                              <span className="text-emerald-600 font-medium">{selectedBatch.sold}</span> sold
-                              {selectedBatch.replaced > 0 && (
+                              {useHalfTabs ? (
                                 <>
-                                  {' '}
-                                  • <span className="text-amber-600 font-medium">{selectedBatch.replaced}</span>{' '}
-                                  replaced
+                                  <span className="font-medium">{halfItems.length}</span>{' '}
+                                  {deliveryHalf === 'gst' ? 'GST' : 'non-GST'} unit
+                                  {halfItems.length !== 1 ? 's' : ''}
+                                  {halfDocNo && <span className="font-mono text-xs text-gray-500"> · {halfDocNo}</span>}
+                                  {' · '}
+                                  <span className="text-emerald-600 font-medium">
+                                    {halfItems.filter(u => u.status === 'Sold').length}
+                                  </span>{' '}
+                                  sold
+                                </>
+                              ) : (
+                                <>
+                                  <span className="font-medium">{selectedBatch.total}</span> distributed •{' '}
+                                  <span className="text-emerald-600 font-medium">{selectedBatch.sold}</span> sold
+                                  {selectedBatch.replaced > 0 && (
+                                    <>
+                                      {' '}
+                                      • <span className="text-amber-600 font-medium">
+                                        {selectedBatch.replaced}
+                                      </span>{' '}
+                                      replaced
+                                    </>
+                                  )}
+                                  {selectedBatch.damaged > 0 && (
+                                    <>
+                                      {' '}
+                                      • <span className="text-rose-600 font-medium">{selectedBatch.damaged}</span>{' '}
+                                      damaged
+                                    </>
+                                  )}
+                                  {' • '}
+                                  <span className="text-blue-600 font-medium">
+                                    {selectedBatch.availableWithVendor}
+                                  </span>{' '}
+                                  with vendor
                                 </>
                               )}
-                              {selectedBatch.damaged > 0 && (
-                                <>
-                                  {' '}
-                                  • <span className="text-rose-600 font-medium">{selectedBatch.damaged}</span> damaged
-                                </>
-                              )}
-                              {' • '}
-                              <span className="text-blue-600 font-medium">
-                                {selectedBatch.availableWithVendor}
-                              </span>{' '}
-                              with vendor
                             </span>
                             <span className="text-sm font-bold text-brand">
-                              Bill: ₹{selectedBatch.billValue.toLocaleString()}
+                              {useHalfTabs ? 'Half' : 'Bill'}: ₹
+                              {(useHalfTabs ? halfBillValue : selectedBatch.billValue).toLocaleString()}
                             </span>
-                            {selectedBatch.amountPaid > 0 && (
+                            {!useHalfTabs && selectedBatch.amountPaid > 0 && (
                               <span className="text-sm text-emerald-600 font-medium ml-2">
                                 Paid: ₹{selectedBatch.amountPaid.toLocaleString()}
                               </span>
                             )}
-                            {selectedBatch.balanceRemaining > 0 && (
+                            {!useHalfTabs && selectedBatch.balanceRemaining > 0 && (
                               <span className="text-sm text-rose-500 font-medium ml-2">
                                 Due: ₹{selectedBatch.balanceRemaining.toLocaleString()}
+                              </span>
+                            )}
+                            {useHalfTabs && (
+                              <span className="text-xs text-gray-500 ml-2">
+                                Delivery total ₹{selectedBatch.billValue.toLocaleString()}
+                                {selectedBatch.balanceRemaining > 0 &&
+                                  ` · ₹${selectedBatch.balanceRemaining.toLocaleString()} due`}
                               </span>
                             )}
                           </>
@@ -1217,40 +1354,104 @@ export function DistributionView({
                                 className="w-32 px-2 py-1 text-[11px] border border-gray-200 rounded-md font-mono focus:ring-2 focus:ring-brand"
                                 maxLength={15}
                               />
-                              <EInvoiceButtons
-                                batchId={selectedBatch.batchId}
-                                initialIrn={selectedBatch.irn}
-                                initialQr={selectedBatch.irnQr}
-                                initialEwb={selectedBatch.ewbNumber}
-                                quiet
-                              />
+                              {/* IRN / e-invoice only on Tax Invoice (GST) half */}
+                              {deliveryHalf === 'gst' && (
+                                <EInvoiceButtons
+                                  batchId={selectedBatch.batchId}
+                                  initialIrn={selectedBatch.irn}
+                                  initialQr={selectedBatch.irnQr}
+                                  initialEwb={selectedBatch.ewbNumber}
+                                  quiet
+                                />
+                              )}
                             </>
                           );
                         })()}
                       </div>
                     )}
                   </div>
-                  {!selectedBatchProductId ? (
-                    <div className="divide-y divide-gray-100">
-                      <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">Products</div>
-                      {productList.map(p => (
+                  {useHalfTabs && !selectedBatchProductId && (
+                    <div className="px-6 pt-4 pb-2 border-b border-gray-100">
+                      <div
+                        className="inline-flex p-0.5 rounded-lg bg-gray-100 border border-gray-200"
+                        role="tablist"
+                        aria-label="Delivery document half"
+                      >
                         <button
-                          key={p.productId}
                           type="button"
-                          onClick={() => setSelectedBatchProductId(p.productId)}
-                          className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between transition-colors"
+                          role="tab"
+                          aria-selected={deliveryHalf === 'gst'}
+                          onClick={() => {
+                            setDeliveryHalf('gst');
+                            setSelectedBatchProductId(null);
+                          }}
+                          className={cn(
+                            'px-3 py-1.5 text-xs font-bold rounded-md transition-colors',
+                            deliveryHalf === 'gst'
+                              ? 'bg-white text-emerald-800 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-800',
+                          )}
                         >
-                          <span className="font-medium">{p.productName}</span>
-                          <span className="text-sm text-gray-600">
-                            <span className="font-medium">{p.total}</span> units •{' '}
-                            <span className="text-emerald-600">{p.sold} sold</span>
-                            {p.replaced > 0 && <span className="text-amber-600"> • {p.replaced} replaced</span>}
-                            {p.damaged > 0 && <span className="text-rose-600"> • {p.damaged} damaged</span>}
-                            <span className="text-blue-600"> • {p.withVendor} with vendor</span>
-                          </span>
+                          GST (Tax Invoice)
+                          <span className="ml-1 font-medium opacity-70">({batchGstUnits})</span>
                         </button>
-                      ))}
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={deliveryHalf === 'bos'}
+                          onClick={() => {
+                            setDeliveryHalf('bos');
+                            setSelectedBatchProductId(null);
+                          }}
+                          className={cn(
+                            'px-3 py-1.5 text-xs font-bold rounded-md transition-colors',
+                            deliveryHalf === 'bos'
+                              ? 'bg-white text-slate-800 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-800',
+                          )}
+                        >
+                          Non-GST (Bill of Supply)
+                          <span className="ml-1 font-medium opacity-70">({batchNonGstUnits})</span>
+                        </button>
+                      </div>
+                      {halfDocNo && <p className="mt-2 text-[11px] text-gray-500 font-mono">{halfDocNo}</p>}
                     </div>
+                  )}
+                  {!selectedBatchProductId ? (
+                    halfItems.length === 0 && useHalfTabs ? (
+                      <div className="px-6 py-12 text-center text-sm text-gray-500">
+                        {deliveryHalf === 'gst'
+                          ? 'No Tax Invoice (GST) lines on this delivery'
+                          : 'No Bill of Supply (non-GST) lines on this delivery'}
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-100">
+                        <div className="px-6 py-3 text-xs font-bold text-gray-400 uppercase">
+                          {useHalfTabs
+                            ? deliveryHalf === 'gst'
+                              ? 'Tax Invoice products'
+                              : 'Bill of Supply products'
+                            : 'Products'}
+                        </div>
+                        {productList.map(p => (
+                          <button
+                            key={p.productId}
+                            type="button"
+                            onClick={() => setSelectedBatchProductId(p.productId)}
+                            className="w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between transition-colors"
+                          >
+                            <span className="font-medium">{p.productName}</span>
+                            <span className="text-sm text-gray-600">
+                              <span className="font-medium">{p.total}</span> units •{' '}
+                              <span className="text-emerald-600">{p.sold} sold</span>
+                              {p.replaced > 0 && <span className="text-amber-600"> • {p.replaced} replaced</span>}
+                              {p.damaged > 0 && <span className="text-rose-600"> • {p.damaged} damaged</span>}
+                              <span className="text-blue-600"> • {p.withVendor} with vendor</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )
                   ) : selectedProduct ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left">
@@ -1351,8 +1552,11 @@ export function DistributionView({
                           key={batch.batchId}
                           type="button"
                           onClick={() => {
+                            const gu =
+                              typeof batch.gstUnits === 'number' ? batch.gstUnits : batch.gstApplied ? batch.total : 0;
                             setSelectedBatchId(batch.batchId);
                             setSelectedBatchProductId(null);
+                            setDeliveryHalf(gu > 0 ? 'gst' : 'bos');
                           }}
                           className={cn(
                             'relative bg-white p-3 rounded-xl border text-left transition-all hover:shadow-md',
@@ -1365,6 +1569,9 @@ export function DistributionView({
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-medium text-sm">Distribution — {formatDate(batch.distributionDate)}</p>
                             {isBillFullyPaid(batch.billValue, batch.balanceRemaining) && <PaidBadge size="sm" />}
+                          </div>
+                          <div className="mt-1.5">
+                            <DeliveryDocBadge batch={batch} size="sm" />
                           </div>
                           <p className="text-xs text-gray-500 mt-1">
                             {batch.total} item{batch.total !== 1 ? 's' : ''} • ₹{batch.billValue.toLocaleString()}
@@ -1384,8 +1591,11 @@ export function DistributionView({
                         key={batch.batchId}
                         type="button"
                         onClick={() => {
+                          const gu =
+                            typeof batch.gstUnits === 'number' ? batch.gstUnits : batch.gstApplied ? batch.total : 0;
                           setSelectedBatchId(batch.batchId);
                           setSelectedBatchProductId(null);
+                          setDeliveryHalf(gu > 0 ? 'gst' : 'bos');
                         }}
                         className={cn(
                           'w-full px-6 py-4 text-left hover:bg-gray-50 flex items-center justify-between gap-4 transition-colors',
