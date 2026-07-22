@@ -4,6 +4,7 @@
 import { app, BrowserWindow, shell, Menu, nativeImage } from 'electron';
 import path from 'path';
 import { CLOUD_API as CLOUD_URL } from '../shared/constants';
+import { registerWhatsAppPdfShareIpc } from '../shared/whatsapp-pdf-share';
 
 let win: BrowserWindow | null = null;
 
@@ -85,6 +86,7 @@ function createWindow() {
 
 /** Start Online (cloud) desktop. Call after app.whenReady(). */
 export function bootOnline(): void {
+  registerWhatsAppPdfShareIpc();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

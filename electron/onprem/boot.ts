@@ -12,6 +12,7 @@ import { startPostgres, stopPostgres } from './pg-manager';
 import { loadLicense, saveLicense, clearLicense, getMachineId, LicenseData } from './license-store';
 import { CLOUD_API, HEARTBEAT_INTERVAL_MS } from '../shared/constants';
 import { findFreePort } from '../shared/find-port';
+import { registerWhatsAppPdfShareIpc } from '../shared/whatsapp-pdf-share';
 
 let LOCAL_API_PORT = 3001;
 let LOCAL_API_URL = 'http://localhost:3001';
@@ -406,6 +407,7 @@ ipcMain.handle('sync-now', async () => {
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 /** Start Offline (on-prem) desktop. Call after app.whenReady(). */
 export async function bootOffline(): Promise<void> {
+  registerWhatsAppPdfShareIpc();
   try {
     const dbUrl = await startPostgres();
 
