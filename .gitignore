@@ -37,3 +37,4 @@ server/**/*.js.map
 !.env.service-mobile.example
 !.env.service-cloud.example
 !.env.service-phone.example
+shared/*.js
