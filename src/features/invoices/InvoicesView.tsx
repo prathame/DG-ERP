@@ -37,6 +37,7 @@ import { api } from '../../api';
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
 import { SearchSelect } from '../../components/ui/SearchSelect';
+import { CreateUnifiedBillModal } from './CreateUnifiedBillModal';
 
 /** Normalize list API payloads (array or { data: [] }) so party dropdowns never go empty on shape mismatch. */
 function asApiList<T>(value: unknown): T[] {
@@ -149,6 +150,8 @@ export function InvoicesView() {
   const invoicesLabel = getTabLabel('invoices', t('invoices.title'));
   const cfg = useBusinessConfig();
   const servicePhoneUx = isServicePhoneUx(cfg.type);
+  /** Non-service only: unified create (sale vs standalone). Service paths stay frozen. */
+  const useUnifiedCreate = cfg.type !== 'service';
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -545,17 +548,26 @@ export function InvoicesView() {
 
       {invoices.length > 0 && <MobileFab label="Invoice" onClick={() => setCreateOpen(true)} />}
 
-      {/* Create modal */}
+      {/* Create modal — non-service: unified sale/invoice; service: unchanged CreateInvoiceModal */}
       <AnimatePresence>
-        {createOpen && (
-          <CreateInvoiceModal
-            onClose={() => setCreateOpen(false)}
-            onCreated={() => {
-              setCreateOpen(false);
-              load();
-            }}
-          />
-        )}
+        {createOpen &&
+          (useUnifiedCreate ? (
+            <CreateUnifiedBillModal
+              onClose={() => setCreateOpen(false)}
+              onCreated={() => {
+                setCreateOpen(false);
+                load();
+              }}
+            />
+          ) : (
+            <CreateInvoiceModal
+              onClose={() => setCreateOpen(false)}
+              onCreated={() => {
+                setCreateOpen(false);
+                load();
+              }}
+            />
+          ))}
       </AnimatePresence>
 
       {/* Detail modal */}
