@@ -37,6 +37,7 @@ import { api } from '../../api';
 import { useTranslation } from '../../i18n';
 import type { Product, Vendor, Customer } from '../../types';
 import { SearchSelect } from '../../components/ui/SearchSelect';
+import { CreateDistributionModal } from '../distribution/CreateDistributionModal';
 
 /** Normalize list API payloads (array or { data: [] }) so party dropdowns never go empty on shape mismatch. */
 function asApiList<T>(value: unknown): T[] {
@@ -149,9 +150,13 @@ export function InvoicesView() {
   const invoicesLabel = getTabLabel('invoices', t('invoices.title'));
   const cfg = useBusinessConfig();
   const servicePhoneUx = isServicePhoneUx(cfg.type);
+  /** Non-service only: same Record Sale / distribution create as Sales tab. Service paths stay frozen. */
+  const canAddDistribution = cfg.type !== 'service';
+  const isDirectSell = cfg.type === 'dealer' || cfg.type === 'retail' || cfg.type === 'silver_casting';
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [distModalOpen, setDistModalOpen] = useState(false);
   const [billSettings, setBillSettings] = useState<Record<string, unknown>>({});
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
@@ -163,6 +168,10 @@ export function InvoicesView() {
     }
     if (selectedInvoice) {
       setSelectedInvoice(null);
+      return true;
+    }
+    if (distModalOpen) {
+      setDistModalOpen(false);
       return true;
     }
     if (createOpen) {
@@ -314,6 +323,15 @@ export function InvoicesView() {
               <option value="classic">Classic (Tally)</option>
               <option value="minimal">Minimal</option>
             </select>
+          )}
+          {canAddDistribution && (
+            <button
+              type="button"
+              onClick={() => setDistModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 bg-white border border-gray-200 text-gray-800 rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold hover:bg-gray-50"
+            >
+              <Plus size={16} /> {isDirectSell ? 'Record Sale' : 'Add Distribution'}
+            </button>
           )}
           <button
             type="button"
@@ -554,6 +572,17 @@ export function InvoicesView() {
               setCreateOpen(false);
               load();
             }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Non-service: same distribution create as Sales — appears under vendor in Sales/Distribution */}
+      <AnimatePresence>
+        {canAddDistribution && distModalOpen && (
+          <CreateDistributionModal
+            businessType={cfg.type}
+            onClose={() => setDistModalOpen(false)}
+            onCreated={() => setDistModalOpen(false)}
           />
         )}
       </AnimatePresence>
