@@ -337,7 +337,7 @@ export function DistributionView({
   const vendorId = user?.role === 'Vendor' ? user?.vendorId : undefined;
   const isVendorUser = !!vendorId;
   const isDirectSell = businessType === 'dealer' || businessType === 'retail' || businessType === 'silver_casting';
-  /** Service keeps modal/panel UX; all other business types use expand-under-tile. */
+  /** Service keeps modal/panel UX; all other business types use in-place replace navigation. */
   const isServiceBiz = businessType === 'service';
   const [distributions, setDistributions] = useState<DistributionRecord[]>([]);
   const [batches, setBatches] = useState<DistributionBatch[]>([]);
@@ -447,6 +447,11 @@ export function DistributionView({
     }
     if (selectedBatchId) {
       setSelectedBatchId(null);
+      return true;
+    }
+    // Non-service in-place nav: Escape returns to vendor tiles (service modal uses backdrop).
+    if (!isServiceBiz && selectedVendorId && !vendorId) {
+      setSelectedVendorId(null);
       return true;
     }
     return false;
@@ -755,7 +760,7 @@ export function DistributionView({
         </div>
       </div>
 
-      {/* Vendor cards — service: modal overlay; non-service: expand under selected tile */}
+      {/* Vendor cards — service: modal overlay; non-service: replace whole view in-place */}
       {(() => {
         const filteredVendorStats =
           summary?.vendorStats?.filter(v => {
@@ -771,7 +776,8 @@ export function DistributionView({
             return true;
           }) ?? [];
 
-        const inlineExpand = !isServiceBiz;
+        /** Non-service: quiet in-flow toolbar + full-view replace (not modal / not expand-under-tile). */
+        const inPlaceNav = !isServiceBiz;
 
         const selectedVendorContent =
           selectedVendorId &&
@@ -880,7 +886,7 @@ export function DistributionView({
                                         .catch(err => toast(err.message, 'error'));
                                     }}
                                     className={
-                                      inlineExpand
+                                      inPlaceNav
                                         ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-100 rounded-md'
                                         : 'flex items-center gap-1 px-2 py-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg'
                                     }
@@ -905,7 +911,7 @@ export function DistributionView({
                                         .catch(err => toast(err.message, 'error'));
                                     }}
                                     className={
-                                      inlineExpand
+                                      inPlaceNav
                                         ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-100 rounded-md'
                                         : 'flex items-center gap-1 px-2 py-1 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg'
                                     }
@@ -932,7 +938,7 @@ export function DistributionView({
                                         .catch(() => {});
                                     }}
                                     className={
-                                      inlineExpand
+                                      inPlaceNav
                                         ? 'w-32 px-2 py-1 text-[11px] border border-gray-200 rounded-md font-mono focus:ring-2 focus:ring-brand'
                                         : 'w-36 px-2 py-1 text-xs border border-gray-200 rounded-lg font-mono focus:ring-2 focus:ring-brand'
                                     }
@@ -944,11 +950,11 @@ export function DistributionView({
                                   initialIrn={selectedBatch.irn}
                                   initialQr={selectedBatch.irnQr}
                                   initialEwb={selectedBatch.ewbNumber}
-                                  quiet={inlineExpand}
+                                  quiet={inPlaceNav}
                                 />
                               </>
                             );
-                            return inlineExpand ? (
+                            return inPlaceNav ? (
                               badge
                             ) : (
                               <>
@@ -977,13 +983,13 @@ export function DistributionView({
                               });
                             }}
                             className={
-                              inlineExpand
+                              inPlaceNav
                                 ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-md transition-colors'
                                 : 'flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors'
                             }
                             title="Record payment for this batch"
                           >
-                            <IndianRupee size={inlineExpand ? 14 : 16} /> Record Payment
+                            <IndianRupee size={inPlaceNav ? 14 : 16} /> Record Payment
                           </button>
                         )}
                         {!isVendorUser && canEdit && (
@@ -991,13 +997,13 @@ export function DistributionView({
                             type="button"
                             onClick={() => openEdit(selectedBatch)}
                             className={
-                              inlineExpand
+                              inPlaceNav
                                 ? 'flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-gray-600 bg-transparent border border-gray-200 hover:bg-gray-100 rounded-md transition-colors'
                                 : 'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors'
                             }
                             title="Edit distribution"
                           >
-                            <Pencil size={inlineExpand ? 14 : 16} /> Edit
+                            <Pencil size={inPlaceNav ? 14 : 16} /> Edit
                           </button>
                         )}
                         {!isVendorUser && !selectedBatchProductId && (
@@ -1145,7 +1151,7 @@ export function DistributionView({
                           </div>
                         )}
                       </div>
-                      <div className={cn('text-right', inlineExpand && 'shrink-0')}>
+                      <div className={cn('text-right', inPlaceNav && 'shrink-0')}>
                         {selectedProduct ? (
                           <span className="text-sm text-gray-600">
                             <span className="font-medium">{selectedProduct.units.length}</span> units •{' '}
@@ -1220,7 +1226,7 @@ export function DistributionView({
                         )}
                       </div>
                     </div>
-                    {inlineExpand && !selectedBatchProductId && (
+                    {inPlaceNav && !selectedBatchProductId && (
                       <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-gray-200/70">
                         {(() => {
                           const ds = ((selectedBatch as Record<string, unknown>).dispatchStatus as string) || 'pending';
@@ -1364,35 +1370,22 @@ export function DistributionView({
             }
 
             return (
-              <div
-                className={cn(
-                  'bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden',
-                  inlineExpand && 'border-brand/20 bg-gray-50/40',
-                )}
-              >
-                <div
-                  className={cn(
-                    'flex items-center justify-between flex-wrap gap-3',
-                    inlineExpand ? 'px-4 py-3' : 'px-6 py-4 bg-gray-50 border-b border-gray-100',
-                  )}
-                >
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between flex-wrap gap-3 px-6 py-4 bg-gray-50 border-b border-gray-100">
                   <div className="flex items-center gap-3">
-                    {!inlineExpand && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedVendorId(null);
-                          setSelectedBatchId(null);
-                          setSelectedBatchProductId(null);
-                        }}
-                        className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                      >
-                        <ArrowLeft size={20} className="text-gray-600" />
-                      </button>
-                    )}
-                    <h3 className={cn('font-bold', inlineExpand ? 'text-sm text-gray-600' : 'text-lg')}>
-                      {inlineExpand ? `${vendorName} · distributions` : vendorName}
-                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedVendorId(null);
+                        setSelectedBatchId(null);
+                        setSelectedBatchProductId(null);
+                      }}
+                      className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                      title="Back to vendors"
+                    >
+                      <ArrowLeft size={20} className="text-gray-600" />
+                    </button>
+                    <h3 className="font-bold text-lg">{vendorName}</h3>
                   </div>
                   {stats && (
                     <span className="text-sm text-gray-600">
@@ -1416,20 +1409,17 @@ export function DistributionView({
                     </span>
                   )}
                 </div>
-                <div className={inlineExpand ? 'p-4' : 'divide-y divide-gray-100'}>
+                <div className={inPlaceNav ? 'p-4' : 'divide-y divide-gray-100'}>
                   <div
-                    className={cn(
-                      'text-xs font-bold text-gray-400 uppercase',
-                      inlineExpand ? 'px-1 pb-3' : 'px-6 py-3',
-                    )}
+                    className={cn('text-xs font-bold text-gray-400 uppercase', inPlaceNav ? 'px-1 pb-3' : 'px-6 py-3')}
                   >
                     Distributions ({vendorBatches.length})
                   </div>
                   {vendorBatches.length === 0 ? (
-                    <div className={cn('text-center text-gray-500', inlineExpand ? 'py-6' : 'px-6 py-8')}>
+                    <div className={cn('text-center text-gray-500', inPlaceNav ? 'py-6' : 'px-6 py-8')}>
                       No distributions for this vendor
                     </div>
-                  ) : inlineExpand ? (
+                  ) : inPlaceNav ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {vendorBatches.map(batch => (
                         <button
@@ -1508,89 +1498,85 @@ export function DistributionView({
             );
           })();
 
+        // Non-service: tile click replaces the whole list with that vendor's distributions (Back restores tiles).
+        if (inPlaceNav && !loading && selectedVendorId && selectedVendorContent) {
+          return selectedVendorContent;
+        }
+
         return (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredVendorStats.map(v => (
-                <React.Fragment key={v.vendorId}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedVendorId(selectedVendorId === v.vendorId ? null : v.vendorId);
-                      setSelectedBatchId(null);
-                      setSelectedBatchProductId(null);
-                    }}
-                    className={cn(
-                      'relative bg-white p-4 rounded-xl border shadow-sm text-left transition-all cursor-pointer hover:shadow-md overflow-hidden',
-                      selectedVendorId === v.vendorId ? 'border-brand ring-2 ring-brand/30' : 'border-gray-100',
-                    )}
-                  >
-                    {financeMap[v.vendorId] &&
-                      isBillFullyPaid(financeMap[v.vendorId].totalDistributedValue, financeMap[v.vendorId].balance) && (
-                        <div className="absolute top-2 right-2 z-10">
-                          <PaidStamp className="text-[11px] px-2 py-1 scale-90" />
-                        </div>
-                      )}
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pr-16">{v.vendorName}</p>
-                    <div className="mt-2 flex gap-4 text-sm flex-wrap">
-                      <span>
-                        <strong>{v.distributed}</strong> {isDirectSell ? 'sold' : 'distributed'}
-                      </span>
-                      {!isDirectSell && (
-                        <span className="text-emerald-600">
-                          <strong>{v.sold}</strong> sold
-                        </span>
-                      )}
-                      {(v.replaced ?? 0) > 0 && (
-                        <span className="text-amber-600">
-                          <strong>{v.replaced}</strong> replacement{(v.replaced ?? 0) !== 1 ? 's' : ''}
-                        </span>
-                      )}
-                      {(v.damaged ?? 0) > 0 && (
-                        <span className="text-rose-600">
-                          <strong>{v.damaged}</strong> damaged
-                        </span>
-                      )}
-                      {!isDirectSell && (
-                        <span className="text-blue-600">
-                          <strong>{v.availableWithVendor}</strong> with vendor
-                        </span>
-                      )}
-                    </div>
-                    {financeMap[v.vendorId] &&
-                      (() => {
-                        const f = financeMap[v.vendorId];
-                        return (
-                          <div className="mt-2 pt-2 border-t border-gray-100 flex gap-3 text-xs flex-wrap items-center">
-                            <span className="text-gray-500">
-                              Bill:{' '}
-                              <strong className="text-gray-700">₹{f.totalDistributedValue.toLocaleString()}</strong>
-                            </span>
-                            <span className="text-gray-500">
-                              Paid: <strong className="text-emerald-600">₹{f.totalPaid.toLocaleString()}</strong>
-                            </span>
-                            {isBillFullyPaid(f.totalDistributedValue, f.balance) ? (
-                              <PaidBadge size="sm" />
-                            ) : (
-                              <span className="text-gray-500">
-                                Due: <strong className="text-rose-600">₹{f.balance.toLocaleString()}</strong>
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    <p className="text-xs text-gray-500 mt-1">
-                      {inlineExpand
-                        ? selectedVendorId === v.vendorId
-                          ? 'Click again to collapse'
-                          : 'Click to view distributions'
-                        : 'Click to view distributions'}
-                    </p>
-                  </button>
-                  {inlineExpand && selectedVendorId === v.vendorId && selectedVendorContent && (
-                    <div className="col-span-full">{selectedVendorContent}</div>
+                <button
+                  key={v.vendorId}
+                  type="button"
+                  onClick={() => {
+                    setSelectedVendorId(v.vendorId);
+                    setSelectedBatchId(null);
+                    setSelectedBatchProductId(null);
+                  }}
+                  className={cn(
+                    'relative bg-white p-4 rounded-xl border shadow-sm text-left transition-all cursor-pointer hover:shadow-md overflow-hidden',
+                    isServiceBiz && selectedVendorId === v.vendorId
+                      ? 'border-brand ring-2 ring-brand/30'
+                      : 'border-gray-100',
                   )}
-                </React.Fragment>
+                >
+                  {financeMap[v.vendorId] &&
+                    isBillFullyPaid(financeMap[v.vendorId].totalDistributedValue, financeMap[v.vendorId].balance) && (
+                      <div className="absolute top-2 right-2 z-10">
+                        <PaidStamp className="text-[11px] px-2 py-1 scale-90" />
+                      </div>
+                    )}
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pr-16">{v.vendorName}</p>
+                  <div className="mt-2 flex gap-4 text-sm flex-wrap">
+                    <span>
+                      <strong>{v.distributed}</strong> {isDirectSell ? 'sold' : 'distributed'}
+                    </span>
+                    {!isDirectSell && (
+                      <span className="text-emerald-600">
+                        <strong>{v.sold}</strong> sold
+                      </span>
+                    )}
+                    {(v.replaced ?? 0) > 0 && (
+                      <span className="text-amber-600">
+                        <strong>{v.replaced}</strong> replacement{(v.replaced ?? 0) !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {(v.damaged ?? 0) > 0 && (
+                      <span className="text-rose-600">
+                        <strong>{v.damaged}</strong> damaged
+                      </span>
+                    )}
+                    {!isDirectSell && (
+                      <span className="text-blue-600">
+                        <strong>{v.availableWithVendor}</strong> with vendor
+                      </span>
+                    )}
+                  </div>
+                  {financeMap[v.vendorId] &&
+                    (() => {
+                      const f = financeMap[v.vendorId];
+                      return (
+                        <div className="mt-2 pt-2 border-t border-gray-100 flex gap-3 text-xs flex-wrap items-center">
+                          <span className="text-gray-500">
+                            Bill: <strong className="text-gray-700">₹{f.totalDistributedValue.toLocaleString()}</strong>
+                          </span>
+                          <span className="text-gray-500">
+                            Paid: <strong className="text-emerald-600">₹{f.totalPaid.toLocaleString()}</strong>
+                          </span>
+                          {isBillFullyPaid(f.totalDistributedValue, f.balance) ? (
+                            <PaidBadge size="sm" />
+                          ) : (
+                            <span className="text-gray-500">
+                              Due: <strong className="text-rose-600">₹{f.balance.toLocaleString()}</strong>
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  <p className="text-xs text-gray-500 mt-1">Click to view distributions</p>
+                </button>
               ))}
             </div>
 
