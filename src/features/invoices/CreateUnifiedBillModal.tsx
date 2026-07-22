@@ -497,8 +497,9 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
         }
         onClose={createdInvoice ? finishCreated : onClose}
         footer={footer}
-        size="lg"
+        size="2xl"
         zIndex={100}
+        bodyClassName="min-h-[min(60vh,32rem)]"
       >
         <div className="space-y-4">
           {createdInvoice ? (
@@ -600,18 +601,18 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                 title="Line Items"
                 description="Type to match inventory, or keep as a custom line (no stock)"
               >
-                <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
-                  <table className="w-full text-sm min-w-[720px]">
-                    <thead className="bg-gray-50">
-                      <tr className="text-xs font-bold text-gray-400 uppercase">
-                        <th className="px-3 py-2 text-left min-w-[220px]">Item</th>
-                        {gstBilling && <th className="px-3 py-2 w-24">HSN/SAC</th>}
-                        <th className="px-3 py-2 w-16">Qty</th>
-                        <th className="px-3 py-2 w-24">Rate</th>
-                        <th className="px-3 py-2 w-16">Disc%</th>
-                        {gstBilling && <th className="px-3 py-2 w-16">GST%</th>}
-                        <th className="px-3 py-2 w-24 text-right">Total</th>
-                        <th className="px-3 py-2 w-8" />
+                <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-1">
+                  <table className="w-full text-left min-w-[880px]">
+                    <thead>
+                      <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
+                        <th className="px-2 py-3 text-left min-w-[240px]">Item</th>
+                        {gstBilling && <th className="px-2 py-3 w-28">HSN/SAC</th>}
+                        <th className="px-2 py-3 w-24">Qty</th>
+                        <th className="px-2 py-3 w-32">Rate</th>
+                        <th className="px-2 py-3 w-20">Disc%</th>
+                        {gstBilling && <th className="px-2 py-3 w-20">GST%</th>}
+                        <th className="px-2 py-3 w-36 text-right">Total</th>
+                        <th className="px-2 py-3 w-8" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -620,7 +621,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                         const tax = Math.round(((taxable * (row.gstPercent || 0)) / 100) * 100) / 100;
                         return (
                           <tr key={idx}>
-                            <td className="px-3 py-2">
+                            <td className="px-2 py-2">
                               <SearchSelect
                                 allowCustom
                                 value={row.productId}
@@ -649,7 +650,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                               </p>
                             </td>
                             {gstBilling && (
-                              <td className="px-3 py-2">
+                              <td className="px-2 py-2">
                                 <input
                                   value={row.hsnSac}
                                   onChange={e => {
@@ -667,21 +668,21 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                                       ),
                                     );
                                   }}
-                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-mono"
+                                  className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm font-mono"
                                   placeholder="9983"
                                 />
                               </td>
                             )}
-                            <td className="px-3 py-2">
+                            <td className="px-2 py-2">
                               <input
                                 type="number"
                                 min={1}
                                 value={row.qty || ''}
                                 onChange={e => updateRowQty(idx, parseInt(e.target.value) || 0)}
-                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                                className="w-full min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
                               />
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-2 py-2">
                               <input
                                 type="number"
                                 min={0}
@@ -693,10 +694,10 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                                     ),
                                   )
                                 }
-                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                                className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
                               />
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-2 py-2">
                               <input
                                 type="number"
                                 min={0}
@@ -717,12 +718,12 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                                     ),
                                   )
                                 }
-                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                                className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
                                 placeholder="0"
                               />
                             </td>
                             {gstBilling && (
-                              <td className="px-3 py-2">
+                              <td className="px-2 py-2">
                                 <input
                                   type="number"
                                   min={0}
@@ -735,19 +736,19 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                                       ),
                                     )
                                   }
-                                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center"
+                                  className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center"
                                 />
                               </td>
                             )}
-                            <td className="px-3 py-2 text-right text-sm font-medium">
+                            <td className="px-2 py-2 text-right text-sm font-medium tabular-nums">
                               {taxable + tax > 0 ? `₹${(taxable + tax).toLocaleString()}` : '—'}
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-1 py-2">
                               {rows.length > 1 && (
                                 <button
                                   type="button"
                                   onClick={() => setRows(prev => prev.filter((_, i) => i !== idx))}
-                                  className="text-rose-400 hover:text-rose-600 min-h-9 min-w-9"
+                                  className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded min-h-9 min-w-9"
                                   aria-label="Remove line"
                                 >
                                   ×
@@ -759,15 +760,17 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                       })}
                     </tbody>
                   </table>
+                  <div className="flex border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => setRows(prev => [...prev, emptyRow(gstBilling)])}
+                      className="flex-1 py-2 text-sm font-medium text-brand hover:bg-orange-50 transition-colors min-h-11"
+                    >
+                      + Add Line
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setRows(prev => [...prev, emptyRow(gstBilling)])}
-                  className="mt-2 text-sm font-bold text-brand min-h-11 inline-flex items-center"
-                >
-                  + Add Line
-                </button>
-                <div className="mt-3 bg-gray-50 rounded-xl p-3 border border-gray-100 space-y-1 text-sm">
+                <div className="mt-4 bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Subtotal</span>
                     <span className="font-medium">₹{totals.subtotal.toLocaleString()}</span>
@@ -778,9 +781,9 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
                       <span className="font-medium">₹{totals.tax.toLocaleString()}</span>
                     </div>
                   )}
-                  <div className="flex justify-between border-t border-gray-200 pt-1">
+                  <div className="flex justify-between border-t border-gray-200 pt-2">
                     <span className="font-medium text-gray-700">Total</span>
-                    <span className="font-bold text-brand">₹{totals.grand.toLocaleString()}</span>
+                    <span className="font-bold text-brand text-base">₹{totals.grand.toLocaleString()}</span>
                   </div>
                 </div>
               </FormSection>
