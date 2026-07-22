@@ -816,13 +816,8 @@ export function DistributionView({
 
               return (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                  <div
-                    className={cn(
-                      'px-6 py-4 bg-gray-50 border-b border-gray-100',
-                      inlineExpand ? 'space-y-2' : 'flex items-center justify-between flex-wrap gap-3',
-                    )}
-                  >
-                    <div className={cn(inlineExpand && 'flex items-center justify-between flex-wrap gap-3 w-full')}>
+                  <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
                       <div className="flex items-center gap-3 flex-wrap min-w-0">
                         <button
                           type="button"
@@ -953,15 +948,9 @@ export function DistributionView({
                                 />
                               </>
                             );
-                            if (inlineExpand) {
-                              return (
-                                <>
-                                  {badge}
-                                  <span className="hidden" data-secondary-slot />
-                                </>
-                              );
-                            }
-                            return (
+                            return inlineExpand ? (
+                              badge
+                            ) : (
                               <>
                                 {badge}
                                 {secondary}
