@@ -688,7 +688,7 @@ html.dark .dg-desktop-glass {
 html.dark .dg-desktop-glass::before {
   background:
     radial-gradient(circle at 50% 40%, var(--dg-bg-mesh) 0%, transparent 50%),
-    linear-gradient(125deg, #0f1113 0%, #1a1c1e 50%, #251912 100%);
+    linear-gradient(125deg, #0f1113 0%, #1a1c1e 50%, #181a1d 100%);
 }
 
 .dg-desktop-glass .dg-glass-card {
@@ -718,7 +718,8 @@ html.dark .dg-desktop-glass::before {
 .dg-glass-scope .dg-error { color: var(--dg-error) !important; }
 .dg-desktop-glass .dg-warning,
 .dg-glass-scope .dg-warning { color: var(--dg-warning) !important; }
-.dg-desktop-glass .dg-bg-primary {
+.dg-desktop-glass .dg-bg-primary,
+.dg-glass-scope .dg-bg-primary {
   background: var(--dg-primary) !important;
   color: #fff !important;
 }

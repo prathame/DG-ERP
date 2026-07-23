@@ -80,7 +80,7 @@ export function DesktopAccountsPanel({
     'w-full bg-[var(--dg-bg)] border border-[var(--dg-card-border)] rounded-lg py-2.5 px-3 text-sm dg-ink focus:ring-2 focus:ring-[var(--dg-primary)] focus:border-transparent';
 
   return (
-    <div className="space-y-8 max-w-[1400px] mx-auto">
+    <div className="space-y-8 w-full max-w-none">
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div className="flex items-start gap-3 min-w-0">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] text-[var(--dg-primary)]">

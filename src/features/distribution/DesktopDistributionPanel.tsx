@@ -2,8 +2,8 @@
  * Desktop-only glass Distribution / Sales list. Cap / phone UX untouched.
  * CRUD + detail navigation stay in DistributionView.
  */
-import React from 'react';
-import { Download, MessageCircle, Package, Plus, Search } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ArrowUpDown, Download, LayoutGrid, List, MessageCircle, Package, Plus, Search } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { LoadingSpinner, PaidBadge, isBillFullyPaid } from '../../components/ui';
 
@@ -42,6 +42,9 @@ type Props = {
   onSelectVendor: (vendorId: string) => void;
 };
 
+type SortKey = 'vendorName' | 'distributed' | 'withVendor' | 'billAmount' | 'paidAmount' | 'balance' | 'status';
+type ViewMode = 'table' | 'cards';
+
 const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
 function initials(name: string): string {
@@ -49,6 +52,10 @@ function initials(name: string): string {
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function isPaidOff(v: DesktopVendorCard): boolean {
+  return isBillFullyPaid(v.billAmount, v.balance) && v.billAmount > 0;
 }
 
 export function DesktopDistributionPanel({
@@ -72,11 +79,81 @@ export function DesktopDistributionPanel({
   vendors,
   onSelectVendor,
 }: Props) {
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [sortBy, setSortBy] = useState<SortKey>('balance');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
   const fieldInput =
     'w-full pl-10 pr-4 py-2.5 bg-[var(--dg-bg)] border border-[var(--dg-card-border)] rounded-lg text-sm dg-ink focus:ring-2 focus:ring-[var(--dg-primary)] focus:border-transparent';
 
+  const toggleSort = (key: SortKey) => {
+    if (sortBy === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortBy(key);
+      setSortDir(key === 'vendorName' || key === 'status' ? 'asc' : 'desc');
+    }
+  };
+
+  const sorted = useMemo(() => {
+    const rows = [...vendors];
+    const dir = sortDir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      let cmp = 0;
+      switch (sortBy) {
+        case 'vendorName':
+          cmp = a.vendorName.localeCompare(b.vendorName);
+          break;
+        case 'distributed':
+          cmp = a.distributed - b.distributed;
+          break;
+        case 'withVendor':
+          cmp = a.availableWithVendor - b.availableWithVendor;
+          break;
+        case 'billAmount':
+          cmp = a.billAmount - b.billAmount;
+          break;
+        case 'paidAmount':
+          cmp = a.paidAmount - b.paidAmount;
+          break;
+        case 'balance':
+          cmp = a.balance - b.balance;
+          break;
+        case 'status':
+          cmp = Number(isPaidOff(a)) - Number(isPaidOff(b));
+          break;
+      }
+      return cmp * dir;
+    });
+    return rows;
+  }, [vendors, sortBy, sortDir]);
+
+  const SortTh = ({
+    label,
+    sortKey,
+    align = 'left',
+  }: {
+    label: string;
+    sortKey: SortKey;
+    align?: 'left' | 'right';
+  }) => (
+    <th className={cn('px-4 py-3 whitespace-nowrap', align === 'right' && 'text-right')}>
+      <button
+        type="button"
+        onClick={() => toggleSort(sortKey)}
+        className={cn(
+          'inline-flex items-center gap-1 font-bold uppercase tracking-wider hover:opacity-80',
+          sortBy === sortKey ? 'dg-primary' : 'dg-faint',
+          align === 'right' && 'flex-row-reverse',
+        )}
+      >
+        {label}
+        <ArrowUpDown size={12} className={cn(sortBy === sortKey && sortDir === 'desc' && 'rotate-180')} />
+      </button>
+    </th>
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-none">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div className="min-w-0">
           <div className="flex items-center gap-2 dg-muted mb-1">
@@ -134,6 +211,30 @@ export function DesktopDistributionPanel({
             className={fieldInput}
           />
         </div>
+        <div className="flex p-1 rounded-xl border border-[var(--dg-card-border)] dg-glass-card gap-0.5">
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={cn(
+              'px-3 py-1.5 text-xs font-bold rounded-lg transition-all inline-flex items-center gap-1.5',
+              viewMode === 'table' ? 'dg-bg-primary shadow-sm' : 'dg-muted hover:opacity-80',
+            )}
+            aria-pressed={viewMode === 'table'}
+          >
+            <List size={14} /> Table
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('cards')}
+            className={cn(
+              'px-3 py-1.5 text-xs font-bold rounded-lg transition-all inline-flex items-center gap-1.5',
+              viewMode === 'cards' ? 'dg-bg-primary shadow-sm' : 'dg-muted hover:opacity-80',
+            )}
+            aria-pressed={viewMode === 'cards'}
+          >
+            <LayoutGrid size={14} /> Cards
+          </button>
+        </div>
         {onRemindAll && remindAllCount > 0 && (
           <button
             type="button"
@@ -174,10 +275,84 @@ export function DesktopDistributionPanel({
         </div>
       )}
 
-      {!loading && !loadError && vendors.length > 0 && (
+      {!loading && !loadError && sorted.length > 0 && viewMode === 'table' && (
+        <div className="dg-glass-card rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="text-[10px] font-bold border-b border-[var(--dg-card-border)] bg-[var(--dg-input)]">
+                  <SortTh label="Vendor" sortKey="vendorName" />
+                  <SortTh label="Distributed" sortKey="distributed" align="right" />
+                  {!isDirectSell && <SortTh label="With vendor" sortKey="withVendor" align="right" />}
+                  <SortTh label="Bill" sortKey="billAmount" align="right" />
+                  <SortTh label="Paid" sortKey="paidAmount" align="right" />
+                  <SortTh label="Balance" sortKey="balance" align="right" />
+                  <SortTh label="Status" sortKey="status" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--dg-card-border)]">
+                {sorted.map(v => {
+                  const paidOff = isPaidOff(v);
+                  return (
+                    <tr
+                      key={v.vendorId}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onSelectVendor(v.vendorId)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onSelectVendor(v.vendorId);
+                        }
+                      }}
+                      className="hover:bg-[color-mix(in_srgb,var(--dg-primary)_5%,transparent)] transition-colors cursor-pointer"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-xs font-bold bg-[color-mix(in_srgb,var(--dg-primary)_14%,transparent)] text-[var(--dg-primary)]">
+                            {initials(v.vendorName)}
+                          </div>
+                          <span className="font-semibold dg-ink truncate">{v.vendorName}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums dg-ink font-medium">{v.distributed}</td>
+                      {!isDirectSell && (
+                        <td className="px-4 py-3 text-right tabular-nums dg-ink font-medium">
+                          {v.availableWithVendor}
+                        </td>
+                      )}
+                      <td className="px-4 py-3 text-right tabular-nums dg-ink font-medium">{fmt(v.billAmount)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums dg-success font-medium">{fmt(v.paidAmount)}</td>
+                      <td
+                        className={cn(
+                          'px-4 py-3 text-right tabular-nums font-bold',
+                          paidOff || v.balance <= 0 ? 'dg-success' : 'dg-error',
+                        )}
+                      >
+                        {fmt(Math.max(0, v.balance))}
+                      </td>
+                      <td className="px-4 py-3">
+                        {paidOff ? (
+                          <PaidBadge size="sm" />
+                        ) : (
+                          <span className="inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-[color-mix(in_srgb,var(--dg-error)_12%,transparent)] dg-error">
+                            Pending
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!loading && !loadError && sorted.length > 0 && viewMode === 'cards' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {vendors.map(v => {
-            const paidOff = isBillFullyPaid(v.billAmount, v.balance) && v.billAmount > 0;
+          {sorted.map(v => {
+            const paidOff = isPaidOff(v);
             const qtyValue = isDirectSell ? v.distributed : v.sold;
             return (
               <button

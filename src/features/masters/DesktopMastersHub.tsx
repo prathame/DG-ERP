@@ -3,7 +3,6 @@
  */
 import React from 'react';
 import { Plus, type LucideIcon } from 'lucide-react';
-import { cn } from '../../lib/utils';
 import type { MasterType } from './MastersView';
 
 export type DesktopMasterCard = {
@@ -14,26 +13,27 @@ export type DesktopMasterCard = {
 };
 
 const DESCRIPTIONS: Partial<Record<MasterType, string>> = {
-  item: 'Manage SKUs, variants, and item-wise configurations for global inventory tracking.',
-  customer: 'Centralize customer profiles, contact history, and personalized credit terms.',
-  vendor: 'Partner profiles, credit terms, and distribution relationships in one place.',
-  bank: 'Link corporate bank accounts, manage IFSC mappings and reconciliation rules.',
-  staff: 'Manage employee directories, role-based access, and payroll identifiers.',
-  expenses: 'Vendor master data and purchase category mapping for automated ledger entries.',
-  priceList: 'Set up multi-tier pricing, seasonal discounts, and regional currency overrides.',
-  rewardRules: 'Configure loyalty points, redemption thresholds, and reward campaigns.',
-  mapping: 'Link vendors to customers so sales and distribution stay consistent.',
+  item: 'Products, SKUs, and item configuration for inventory.',
+  customer: 'Customer profiles, contacts, and credit terms.',
+  vendor: 'Partner profiles, credit terms, and distribution relationships.',
+  bank: 'Bank accounts, IFSC, and reconciliation setup.',
+  staff: 'Employee directory, roles, and payroll identifiers.',
+  expenses: 'Expense categories and purchase ledger mapping.',
+  priceList: 'Multi-tier pricing and discount rules.',
+  rewardRules: 'Loyalty points, thresholds, and reward campaigns.',
+  mapping: 'Link vendors to customers for sales and distribution.',
 };
 
+/** Text CTA = open list (truthful labels per MasterType). */
 const CTA: Partial<Record<MasterType, string>> = {
-  item: 'Manage Products',
-  customer: 'View Mapping',
-  vendor: 'Manage Partners',
-  bank: 'Bank Registry',
-  staff: 'Staff Directory',
-  expenses: 'Manage Vendors',
-  priceList: 'Global Pricing',
-  rewardRules: 'Reward Rules',
+  item: 'Open Products',
+  customer: 'Open Customers',
+  vendor: 'Open Vendors',
+  bank: 'Open Banks',
+  staff: 'Open Staff',
+  expenses: 'Open Expenses',
+  priceList: 'Open Price List',
+  rewardRules: 'Open Reward Rules',
   mapping: 'Open Mapping',
 };
 
@@ -47,12 +47,11 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
   const total = totalRecords ?? masters.reduce((s, m) => s + (typeof m.count === 'number' ? m.count : 0), 0);
 
   return (
-    <div className="space-y-10 max-w-[1400px] mx-auto">
+    <div className="space-y-10 w-full max-w-none">
       <div>
-        <h3 className="text-3xl font-bold dg-ink tracking-tight">Data Management Central</h3>
+        <h3 className="text-3xl font-bold dg-ink tracking-tight">Masters</h3>
         <p className="text-sm dg-muted mt-2 max-w-2xl leading-relaxed">
-          Configure your core business entities. Mapping master records ensures consistency across your entire
-          procurement and sales lifecycle.
+          Configure core business entities used across sales, purchases, and compliance.
         </p>
       </div>
 
@@ -81,11 +80,13 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
                 >
                   {cta}
                 </button>
+                {/* Create-from-hub is not wired; + opens the same list with a truthful label. */}
                 <button
                   type="button"
                   onClick={() => onOpen(m.id)}
                   className="w-10 h-10 dg-bg-primary rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
-                  aria-label={`Add ${m.name}`}
+                  aria-label={`Open ${m.name}`}
+                  title={`Open ${m.name}`}
                 >
                   <Plus size={18} />
                 </button>
@@ -104,18 +105,11 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
           <span className="text-[10px] font-bold dg-faint uppercase tracking-widest">Categories</span>
           <span className="text-2xl font-bold dg-ink tabular-nums mt-1">{masters.length}</span>
         </div>
-        <div className="flex flex-col">
-          <span className="text-[10px] font-bold dg-faint uppercase tracking-widest">Sync Status</span>
-          <span className="text-2xl font-bold dg-ink mt-1">Live</span>
-        </div>
         <div className="ml-auto">
           <button
             type="button"
             onClick={() => masters[0] && onOpen(masters[0].id)}
-            className={cn(
-              'px-6 py-2.5 dg-bg-primary font-bold rounded-lg text-sm flex items-center gap-2',
-              'hover:opacity-90 active:scale-95 transition-all',
-            )}
+            className="px-6 py-2.5 dg-bg-primary font-bold rounded-lg text-sm flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all"
           >
             Open Masters
           </button>

@@ -198,7 +198,7 @@ export function DesktopSearchVerifyPanel({
   const showSearchHits = Boolean(searchResults && !result && !notFound && !partyDetail && !staffDetail);
 
   return (
-    <div className="space-y-8 max-w-[1400px] mx-auto">
+    <div className="space-y-8 w-full max-w-none">
       {/* Search */}
       <section className="dg-glass-card rounded-2xl p-6">
         <h2 className="text-2xl font-bold dg-ink tracking-tight mb-1">Search</h2>
@@ -543,9 +543,9 @@ export function DesktopSearchVerifyPanel({
                 )}
               </p>
             </div>
-            <div className="rounded-xl p-3 bg-amber-50/80 border border-amber-100">
+            <div className="rounded-xl p-3 bg-[color-mix(in_srgb,var(--dg-warning)_18%,transparent)] border border-[color-mix(in_srgb,var(--dg-warning)_35%,transparent)]">
               <p className="text-[9px] font-bold dg-faint uppercase">Advance Due</p>
-              <p className="text-lg font-bold text-amber-700">
+              <p className="text-lg font-bold dg-warning">
                 {fmt(
                   Math.max(
                     0,
@@ -741,8 +741,8 @@ export function DesktopSearchVerifyPanel({
                     )}
                     {result.features.rewards && result.sale.rewardPointsEarned ? (
                       <div className="flex items-center gap-1 mt-1">
-                        <Gift size={12} className="text-amber-500" />
-                        <span className="text-xs font-medium text-amber-600">
+                        <Gift size={12} className="dg-primary" />
+                        <span className="text-xs font-medium dg-primary">
                           +{result.sale.rewardPointsEarned} reward points
                         </span>
                       </div>

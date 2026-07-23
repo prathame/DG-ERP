@@ -1212,7 +1212,12 @@ export default function App() {
             >
               {isSidebarOpen && (
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="lg:hidden w-9 h-9 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white text-xs font-bold shrink-0">
+                  <div
+                    className={cn(
+                      'lg:hidden w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0',
+                      desktopGlass ? 'dg-bg-primary' : 'bg-gradient-to-tr from-brand to-[#FFB347]',
+                    )}
+                  >
                     {user?.name?.charAt(0) ?? '?'}
                   </div>
                   <BrandMark
@@ -1398,7 +1403,9 @@ export default function App() {
                       ? 'bg-rose-600 text-white'
                       : days <= 7
                         ? 'bg-rose-50 text-rose-700'
-                        : 'bg-amber-50 text-amber-700',
+                        : desktopGlass
+                          ? 'bg-[color-mix(in_srgb,var(--dg-warning)_18%,transparent)] dg-warning'
+                          : 'bg-amber-50 text-amber-700',
                   )}
                 >
                   {days <= 0
@@ -1465,9 +1472,26 @@ export default function App() {
                     ⌘K
                   </kbd>
                 </button>
-                <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full">
-                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
-                  <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">
+                <div
+                  className={cn(
+                    'hidden lg:flex items-center gap-2 px-3 py-1 rounded-full border',
+                    desktopGlass
+                      ? 'bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] border-[color-mix(in_srgb,var(--dg-primary)_28%,transparent)]'
+                      : 'bg-amber-50 border-amber-100',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'w-2 h-2 rounded-full animate-pulse',
+                      desktopGlass ? 'bg-[var(--dg-primary)]' : 'bg-amber-400',
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      'text-[10px] font-bold uppercase tracking-wider',
+                      desktopGlass ? 'dg-primary' : 'text-amber-700',
+                    )}
+                  >
                     {(userConfig?.planName as string) || 'Standard'} Plan
                   </span>
                 </div>
@@ -1491,7 +1515,14 @@ export default function App() {
                       <p className="text-sm font-semibold">{user?.name ?? 'Guest'}</p>
                       <p className="text-xs text-gray-500">{user?.role ?? 'Not signed in'}</p>
                     </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] border-2 border-white shadow-sm flex items-center justify-center text-white font-bold text-xs sm:text-sm">
+                    <div
+                      className={cn(
+                        'w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 shadow-sm flex items-center justify-center text-white font-bold text-xs sm:text-sm',
+                        desktopGlass
+                          ? 'dg-bg-primary border-[var(--dg-card-border)]'
+                          : 'bg-gradient-to-tr from-brand to-[#FFB347] border-white',
+                      )}
+                    >
                       {user?.name?.charAt(0) ?? '?'}
                     </div>
                   </button>

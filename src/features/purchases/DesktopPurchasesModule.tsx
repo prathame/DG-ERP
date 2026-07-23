@@ -101,7 +101,7 @@ export function DesktopPurchasesModule({
     'w-full pl-10 pr-4 py-2.5 bg-[var(--dg-bg)] border border-[var(--dg-card-border)] rounded-lg text-sm dg-ink focus:ring-2 focus:ring-[var(--dg-primary)] focus:border-transparent';
 
   return (
-    <div className="space-y-8 max-w-[1400px] mx-auto">
+    <div className="space-y-8 w-full max-w-none">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div className="min-w-0">
           <div className="flex items-center gap-2 dg-muted mb-1">

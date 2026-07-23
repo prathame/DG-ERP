@@ -287,7 +287,7 @@ export function DesktopVendorFinance({
 
   if (isVendor) {
     return (
-      <div className="space-y-6 max-w-[1400px] mx-auto">
+      <div className="space-y-6 w-full max-w-none">
         <div>
           <h2 className="text-3xl font-bold dg-ink tracking-tight">My Finance</h2>
           <p className="text-sm dg-muted mt-1.5">Your distributions, payments, and balance</p>
@@ -304,7 +304,7 @@ export function DesktopVendorFinance({
   }
 
   return (
-    <div className="space-y-8 max-w-[1600px] mx-auto">
+    <div className="space-y-8 w-full max-w-none">
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-3xl font-bold dg-ink tracking-tight">Vendor Finance</h2>

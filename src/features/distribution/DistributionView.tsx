@@ -969,7 +969,7 @@ export function DistributionView({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={cn(desktopGlass ? 'space-y-8 max-w-[1400px] mx-auto' : 'space-y-6')}
+      className={cn(desktopGlass ? 'space-y-8 w-full max-w-none' : 'space-y-6')}
     >
       {showDesktopList ? (
         <DesktopDistributionPanel

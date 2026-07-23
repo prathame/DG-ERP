@@ -99,7 +99,7 @@ export function DesktopAnalyticsDashboard({
   const year = new Date().getFullYear();
 
   return (
-    <div className="space-y-8 max-w-[1600px] mx-auto">
+    <div className="space-y-8 w-full max-w-none">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-3xl font-bold dg-ink mb-2 tracking-tight">

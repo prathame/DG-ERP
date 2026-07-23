@@ -115,7 +115,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
     }
   };
 
-  const accent = desktopGlass ? '#ff7a00' : '#F27D26';
+  const accent = desktopGlass ? 'var(--dg-primary)' : '#F27D26';
 
   const formatText = (text: string) => {
     return text.split('\n').map((line, i) => {
@@ -169,8 +169,8 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
           !pos && 'right-5 bottom-6 max-lg:bottom-[calc(4.75rem+var(--safe-bottom,0px))]',
           desktopGlass
             ? cn(
-                'shadow-[0_10px_28px_rgba(255,122,0,0.35)]',
-                open ? 'bg-[#3d4450] hover:bg-[#323842]' : 'bg-[#ff7a00] hover:bg-[#e86e00]',
+                'shadow-[0_10px_28px_color-mix(in_srgb,var(--dg-primary)_35%,transparent)]',
+                open ? 'bg-[#3d4450] hover:bg-[#323842]' : 'dg-bg-primary hover:opacity-90',
               )
             : cn('shadow-2xl', open ? 'bg-gray-700' : 'bg-brand'),
         )}
@@ -263,7 +263,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                 <div
                   className={cn(
                     'w-10 h-10 rounded-xl flex items-center justify-center',
-                    desktopGlass ? 'bg-[#ff7a00] text-white' : 'bg-brand text-xl',
+                    desktopGlass ? 'dg-bg-primary text-white' : 'bg-brand text-xl',
                   )}
                 >
                   {desktopGlass ? <MessageCircle size={20} strokeWidth={2.25} className="text-white" /> : '🤖'}
@@ -315,7 +315,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                     className={cn(
                       'max-w-[85%] px-4 py-2.5 rounded-2xl',
                       msg.sender === 'user'
-                        ? cn('text-white rounded-br-md', desktopGlass ? 'bg-[#ff7a00]' : 'bg-brand')
+                        ? cn('text-white rounded-br-md', desktopGlass ? 'dg-bg-primary' : 'bg-brand')
                         : desktopGlass
                           ? 'bg-[var(--dg-chat-surface)] border border-[var(--dg-card-border)] dg-ink rounded-bl-md shadow-sm'
                           : 'bg-white border border-gray-200 text-gray-700 rounded-bl-md shadow-sm',
@@ -435,7 +435,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                 className={cn(
                   'flex-1 min-w-0 px-4 py-2.5 border-none rounded-xl text-sm focus:outline-none',
                   desktopGlass
-                    ? 'bg-[var(--dg-chat-messages)] dg-ink focus:ring-2 focus:ring-[#ff7a00]/40'
+                    ? 'bg-[var(--dg-chat-messages)] dg-ink focus:ring-2 focus:ring-[var(--dg-primary)]/40'
                     : 'bg-gray-100 focus:ring-2 focus:ring-brand',
                 )}
                 disabled={loading}
@@ -446,7 +446,7 @@ export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean })
                 disabled={!input.trim() || loading}
                 className={cn(
                   'p-2.5 text-white rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
-                  desktopGlass ? 'bg-[#ff7a00] hover:bg-[#e86e00]' : 'bg-brand hover:bg-brand-dark',
+                  desktopGlass ? 'dg-bg-primary hover:opacity-90' : 'bg-brand hover:bg-brand-dark',
                 )}
               >
                 <Send size={18} />

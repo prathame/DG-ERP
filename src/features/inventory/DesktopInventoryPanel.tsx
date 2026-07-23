@@ -164,7 +164,7 @@ export function DesktopInventoryPanel({
   ];
 
   return (
-    <div className="space-y-8 max-w-[1400px] mx-auto">
+    <div className="space-y-8 w-full max-w-none">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div className="min-w-0">
           <div className="flex items-center gap-2 dg-muted mb-1">
