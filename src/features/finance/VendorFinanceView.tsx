@@ -17,6 +17,8 @@ import {
 import {
   cn,
   shareViaWhatsApp,
+  formatVendorPaymentReminderText,
+  sessionCompanyName,
   formatDate,
   openPrintWindow,
   printBillInWindow,
@@ -24,7 +26,6 @@ import {
 } from '../../lib/utils';
 import { api, fetchApi } from '../../api';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
-import { session } from '../../lib/session';
 import { useConfirm } from '../../hooks/useConfirm';
 
 function esc(t: unknown): string {
@@ -266,15 +267,12 @@ export function VendorFinanceView({
   };
 
   const handleSendReminder = (v: { vendorId: string; vendorName: string; vendorPhone: string; balance: number }) => {
-    const companyName = (() => {
-      try {
-        const u = session.getUser() || {};
-        return u.companyName || 'Our Company';
-      } catch {
-        return 'Our Company';
-      }
-    })();
-    const msg = `🔔 *Payment Reminder*\n━━━━━━━━━━━━━━━━━\nDear ${v.vendorName},\n\nThis is a reminder that you have an outstanding balance of *₹${v.balance.toLocaleString()}*.\n\nPlease arrange the payment at your earliest convenience.\n\nThank you,\n${companyName}`;
+    if (!(v.balance > 0) || !v.vendorPhone) return;
+    const msg = formatVendorPaymentReminderText({
+      vendorName: v.vendorName,
+      balance: v.balance,
+      companyName: sessionCompanyName(),
+    });
     shareViaWhatsApp(v.vendorPhone, msg);
     api.vendorFinance
       .markReminderSent(v.vendorId)
@@ -314,16 +312,26 @@ export function VendorFinanceView({
               <PaidStamp className="hidden sm:flex text-xs opacity-80" />
             )}
           </div>
+          {detail.balance > 0 && detail.vendor.phone && (
+            <button
+              type="button"
+              onClick={() =>
+                handleSendReminder({
+                  vendorId: detail.vendor.id,
+                  vendorName: detail.vendor.name,
+                  vendorPhone: detail.vendor.phone!,
+                  balance: detail.balance,
+                })
+              }
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700"
+            >
+              <MessageCircle size={16} /> Remind payment
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
-              const companyName = (() => {
-                try {
-                  return (session.getUser() || ({} as Record<string, unknown>)).companyName || 'Dhandho';
-                } catch {
-                  return 'Dhandho';
-                }
-              })();
+              const companyName = sessionCompanyName('Dhandho');
               const w = openPrintWindow();
               if (!w) {
                 toast(PRINT_POPUP_BLOCKED, 'error');
@@ -710,15 +718,14 @@ export function VendorFinanceView({
                     }))
                   )
                     return;
-                  const companyName = (() => {
-                    try {
-                      return (session.getUser() || ({} as Record<string, unknown>)).companyName || 'Our Company';
-                    } catch {
-                      return 'Our Company';
-                    }
-                  })();
+                  const companyName = sessionCompanyName();
                   for (const v of withOutstanding) {
-                    const msg = `🔔 *Payment Reminder*\n━━━━━━━━━━━━━━━━━\nDear ${v.vendorName},\n\nThis is a reminder that you have an outstanding balance of *₹${v.balance.toLocaleString()}*.\n\nPlease arrange the payment at your earliest convenience.\n\nThank you,\n${companyName}`;
+                    if (!(v.balance > 0) || !v.vendorPhone) continue;
+                    const msg = formatVendorPaymentReminderText({
+                      vendorName: v.vendorName,
+                      balance: v.balance,
+                      companyName,
+                    });
                     shareViaWhatsApp(v.vendorPhone, msg);
                     api.vendorFinance.markReminderSent(v.vendorId).catch(() => {});
                   }
@@ -727,7 +734,7 @@ export function VendorFinanceView({
                 }}
                 className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700"
               >
-                <MessageCircle size={18} /> Send All Reminders ({withOutstanding.length})
+                <MessageCircle size={18} /> Remind all ({withOutstanding.length})
               </button>
             );
           })()}
@@ -933,7 +940,7 @@ export function VendorFinanceView({
                               onClick={() => handleSendReminder(v)}
                               className="text-sm font-bold text-green-600 hover:underline flex items-center gap-1"
                             >
-                              <MessageCircle size={14} /> Remind
+                              <MessageCircle size={14} /> Remind payment
                             </button>
                           )}
                         </td>

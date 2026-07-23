@@ -25,6 +25,8 @@ import {
   shareViaWhatsApp,
   shareViaEmail,
   formatDistributionChallanText,
+  formatVendorPaymentReminderText,
+  sessionCompanyName,
   formatDate,
   getTabLabel,
   resolveIrnQrPayload,
@@ -439,7 +441,16 @@ export function DistributionView({
   const [distSearch, setDistSearch] = useState('');
   const [deleteBatchConfirm, setDeleteBatchConfirm] = useState<string | null>(null);
   const [financeMap, setFinanceMap] = useState<
-    Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }>
+    Record<
+      string,
+      {
+        totalDistributedValue: number;
+        totalPaid: number;
+        balance: number;
+        vendorPhone?: string;
+        vendorName?: string;
+      }
+    >
   >({});
   const [batchActionsOpen, setBatchActionsOpen] = useState(false);
   const [batchPaymentModal, setBatchPaymentModal] = useState<{
@@ -510,6 +521,61 @@ export function DistributionView({
     };
   };
 
+  const sendVendorPaymentReminder = (v: {
+    vendorId: string;
+    vendorName: string;
+    vendorPhone: string;
+    balance: number;
+  }) => {
+    if (!(v.balance > 0) || !v.vendorPhone) return;
+    shareViaWhatsApp(
+      v.vendorPhone,
+      formatVendorPaymentReminderText({
+        vendorName: v.vendorName,
+        balance: v.balance,
+        companyName: sessionCompanyName(),
+      }),
+    );
+    api.vendorFinance.markReminderSent(v.vendorId).catch(() => {});
+  };
+
+  const remindAllOutstandingVendors = async () => {
+    const withOutstanding = Object.entries(financeMap)
+      .filter(([, f]) => f.balance > 0 && !!f.vendorPhone)
+      .map(([id, f]) => ({
+        vendorId: id,
+        vendorName: f.vendorName || 'Vendor',
+        vendorPhone: f.vendorPhone!,
+        balance: f.balance,
+      }));
+    if (!withOutstanding.length) {
+      toast('No vendors with outstanding balance and phone number', 'info');
+      return;
+    }
+    if (
+      !(await confirm({
+        title: 'Remind all',
+        message: `Send WhatsApp payment reminders to ${withOutstanding.length} vendor${withOutstanding.length > 1 ? 's' : ''} with outstanding balance?`,
+        confirmLabel: `Remind ${withOutstanding.length}`,
+        variant: 'info',
+      }))
+    )
+      return;
+    const companyName = sessionCompanyName();
+    for (const v of withOutstanding) {
+      shareViaWhatsApp(
+        v.vendorPhone,
+        formatVendorPaymentReminderText({
+          vendorName: v.vendorName,
+          balance: v.balance,
+          companyName,
+        }),
+      );
+      api.vendorFinance.markReminderSent(v.vendorId).catch(() => {});
+    }
+    toast(`Opened WhatsApp for ${withOutstanding.length} vendors`, 'success');
+  };
+
   const load = () => {
     Promise.all([
       api.distribution.list(vendorId),
@@ -529,12 +595,23 @@ export function DistributionView({
           api.vendorFinance
             .summary()
             .then(fs => {
-              const map: Record<string, { totalDistributedValue: number; totalPaid: number; balance: number }> = {};
+              const map: Record<
+                string,
+                {
+                  totalDistributedValue: number;
+                  totalPaid: number;
+                  balance: number;
+                  vendorPhone?: string;
+                  vendorName?: string;
+                }
+              > = {};
               for (const f of fs)
                 map[f.vendorId] = {
                   totalDistributedValue: f.totalDistributedValue,
                   totalPaid: f.totalPaid,
                   balance: f.balance,
+                  vendorPhone: f.vendorPhone || undefined,
+                  vendorName: f.vendorName,
                 };
               setFinanceMap(map);
             })
@@ -548,6 +625,8 @@ export function DistributionView({
                   totalDistributedValue: d.totalDistributedValue,
                   totalPaid: d.totalPaid,
                   balance: d.balance,
+                  vendorPhone: d.vendor.phone || undefined,
+                  vendorName: d.vendor.name,
                 },
               });
             })
@@ -689,6 +768,22 @@ export function DistributionView({
             className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
           />
         </div>
+        {!isVendorUser &&
+          !isServiceBiz &&
+          paymentFilter === 'unpaid' &&
+          (() => {
+            const remindCount = Object.values(financeMap).filter(f => f.balance > 0 && f.vendorPhone).length;
+            if (!remindCount) return null;
+            return (
+              <button
+                type="button"
+                onClick={() => void remindAllOutstandingVendors()}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700"
+              >
+                <MessageCircle size={16} /> Remind all ({remindCount})
+              </button>
+            );
+          })()}
       </div>
 
       {/* Vendor cards — service: modal overlay; non-service: replace whole view in-place */}
@@ -1529,6 +1624,14 @@ export function DistributionView({
               );
             }
 
+            const vendorFinance = financeMap[selectedVendorId!];
+            const canRemindVendor =
+              !isVendorUser &&
+              !isServiceBiz &&
+              !!vendorFinance &&
+              vendorFinance.balance > 0 &&
+              !!vendorFinance.vendorPhone;
+
             return (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between flex-wrap gap-3 px-6 py-4 bg-gray-50 border-b border-gray-100">
@@ -1547,27 +1650,48 @@ export function DistributionView({
                     </button>
                     <h3 className="font-bold text-lg">{vendorName}</h3>
                   </div>
-                  {stats && (
-                    <span className="text-sm text-gray-600">
-                      <span className="font-medium">{stats.distributed}</span> distributed •{' '}
-                      <span className="text-emerald-600 font-medium">{stats.sold}</span> sold
-                      {(stats.replaced ?? 0) > 0 && (
-                        <>
-                          {' '}
-                          • <span className="text-amber-600 font-medium">{stats.replaced}</span> replacement
-                          {(stats.replaced ?? 0) !== 1 ? 's' : ''}
-                        </>
-                      )}
-                      {(stats.damaged ?? 0) > 0 && (
-                        <>
-                          {' '}
-                          • <span className="text-rose-600 font-medium">{stats.damaged}</span> damaged
-                        </>
-                      )}
-                      {' • '}
-                      <span className="text-blue-600 font-medium">{stats.availableWithVendor}</span> with vendor
-                    </span>
-                  )}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {stats && (
+                      <span className="text-sm text-gray-600">
+                        <span className="font-medium">{stats.distributed}</span> distributed •{' '}
+                        <span className="text-emerald-600 font-medium">{stats.sold}</span> sold
+                        {(stats.replaced ?? 0) > 0 && (
+                          <>
+                            {' '}
+                            • <span className="text-amber-600 font-medium">{stats.replaced}</span> replacement
+                            {(stats.replaced ?? 0) !== 1 ? 's' : ''}
+                          </>
+                        )}
+                        {(stats.damaged ?? 0) > 0 && (
+                          <>
+                            {' '}
+                            • <span className="text-rose-600 font-medium">{stats.damaged}</span> damaged
+                          </>
+                        )}
+                        {' • '}
+                        <span className="text-blue-600 font-medium">{stats.availableWithVendor}</span> with vendor
+                      </span>
+                    )}
+                    {canRemindVendor && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          sendVendorPaymentReminder({
+                            vendorId: selectedVendorId!,
+                            vendorName: vendorFinance.vendorName || vendorName,
+                            vendorPhone: vendorFinance.vendorPhone!,
+                            balance: vendorFinance.balance,
+                          })
+                        }
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700"
+                      >
+                        <MessageCircle size={14} /> Remind payment
+                        {vendorFinance.balance > 0 && (
+                          <span className="opacity-90">· ₹{vendorFinance.balance.toLocaleString()}</span>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className={inPlaceNav ? 'p-4' : 'divide-y divide-gray-100'}>
                   <div
