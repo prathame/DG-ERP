@@ -78,4 +78,16 @@ describe('unitPricesAfterDiscount', () => {
     expect(lineNet).toBe(2000);
     expect(Math.round((lineTotal - lineNet) * 100) / 100).toBe(360);
   });
+
+  it('GST off treats base as exclusive (UI/createBatch already stripped inclusive MRP)', () => {
+    const r = unitPricesAfterDiscount({
+      basePrice: 1000,
+      discountPercent: 0,
+      withGst: false,
+      priceIncludesGst: false,
+      gstRate: 18,
+    });
+    expect(r.netPricePerUnit).toBe(1000);
+    expect(r.billedPricePerUnit).toBe(1000);
+  });
 });

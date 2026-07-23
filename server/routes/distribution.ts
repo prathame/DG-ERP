@@ -156,6 +156,8 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
         STRING_AGG(DISTINCT p.name, ',') as product_names,
         MAX(pd.discount_percent) as discount_percent,
         MAX(pd.gst_applied::int) as gst_applied,
+        SUM(CASE WHEN COALESCE(pd.gst_applied, false) THEN 1 ELSE 0 END) as gst_units,
+        SUM(CASE WHEN COALESCE(pd.gst_applied, false) THEN 0 ELSE 1 END) as non_gst_units,
         COALESCE(MAX(pd.dispatch_status), 'pending') as dispatch_status,
         MAX(pd.dispatched_by) as dispatched_by,
         MAX(pd.dispatched_at) as dispatched_at,
@@ -197,8 +199,14 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
     res.json(
       rows.map(r => {
         const paid = paymentMap[r.batch_id as string] ?? 0;
+        const batchId = r.batch_id as string;
+        const gstUnits = Number(r.gst_units) || 0;
+        const nonGstUnits = Number(r.non_gst_units) || 0;
+        const isDualDocs = gstUnits > 0 && nonGstUnits > 0;
+        // Match getBill challanId / deliverySet -GST / -BOS suffixes (#144)
+        const challanBase = `CH-${String(batchId).replace(/^D/, '').slice(0, 10)}`;
         return {
-          batchId: r.batch_id as string,
+          batchId,
           vendorId: r.vendor_id as string,
           vendorName: r.vendor_name as string,
           distributionDate: r.distribution_date as string,
@@ -210,7 +218,17 @@ router.get('/api/distribution/batches', async (req: AuthRequest, res) => {
           availableWithVendor: Number(r.available_with_vendor),
           billValue: Number(r.bill_value),
           discountPercent: Number(r.discount_percent) || 0,
-          gstApplied: !!Number(r.gst_applied),
+          gstApplied: gstUnits > 0,
+          gstUnits,
+          nonGstUnits,
+          deliverySet: {
+            isDualDocs,
+            outstandingScope: 'batch' as const,
+            gstDocNo: gstUnits > 0 ? `${challanBase}-GST` : null,
+            nonGstDocNo: nonGstUnits > 0 ? `${challanBase}-BOS` : null,
+            gstDocKind: 'tax_invoice' as const,
+            nonGstDocKind: 'bill_of_supply' as const,
+          },
           amountPaid: paid,
           balanceRemaining: Number(r.bill_value) - paid,
           dispatchStatus: (r.dispatch_status as string) || 'pending',
@@ -309,17 +327,25 @@ router.post('/api/distribution/batch', blockVendors, async (req: AuthRequest, re
           }
         | undefined;
       if (!product) return res.status(404).json({ error: `Product not found: ${item.productId}` });
-      const basePrice = hasExplicitUnitPrice(item.customPrice)
+      const explicit = hasExplicitUnitPrice(item.customPrice);
+      let basePrice = explicit
         ? Number(item.customPrice)
         : (await resolvePrice(tenantId, item.productId, vendorId, qty)).price;
       const disc = Math.min(100, Math.max(0, Number(item.discountPercent) || 0));
       const gstApplied = item.withGst !== false ? 1 : 0;
       const gstRate = resolveGstRate(product.gst_rate, fallbackGstRate);
+      const includes = !!product.price_includes_gst;
+      // Inclusive catalog + GST off + no client price: strip here. Explicit customPrice is
+      // already exclusive when the UI unchecked GST on an inclusive product.
+      if (gstApplied === 0 && includes && !explicit) {
+        basePrice = Math.round((basePrice / (1 + gstRate / 100)) * 100) / 100;
+      }
       const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
         basePrice,
         discountPercent: disc,
         withGst: gstApplied === 1,
-        priceIncludesGst: !!product.price_includes_gst,
+        // Only treat as inclusive MRP while GST is on (avoids double-strip of UI-stripped prices)
+        priceIncludesGst: gstApplied === 1 && includes,
         gstRate,
       });
       itemsPrepped.push({ product, qty, disc, netPricePerUnit, gstApplied, billedPricePerUnit });
@@ -544,9 +570,8 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
       )
     ).rows[0] as { id: string; price: number; price_includes_gst: boolean; gst_rate: number | null } | undefined;
     if (!product) return res.status(404).json({ error: 'Product not found' });
-    const basePrice = hasExplicitUnitPrice(customPrice)
-      ? Number(customPrice)
-      : (await resolvePrice(tenantId, productId, vendorId, qty)).price;
+    const explicit = hasExplicitUnitPrice(customPrice);
+    let basePrice = explicit ? Number(customPrice) : (await resolvePrice(tenantId, productId, vendorId, qty)).price;
     const disc = Math.min(100, Math.max(0, Number(discountPercent) || 0));
     const gstApplied = withGst !== false;
     const companyDefaultGst = Number(
@@ -558,11 +583,15 @@ router.post('/api/distribution', blockVendors, async (req: AuthRequest, res) => 
       ).rows[0]?.default_gst_rate,
     );
     const gstRate = resolveGstRate(product.gst_rate, Number(reqGstRate) || companyDefaultGst);
+    const includes = !!product.price_includes_gst;
+    if (!gstApplied && includes && !explicit) {
+      basePrice = Math.round((basePrice / (1 + gstRate / 100)) * 100) / 100;
+    }
     const { netPricePerUnit, billedPricePerUnit } = unitPricesAfterDiscount({
       basePrice,
       discountPercent: disc,
       withGst: gstApplied,
-      priceIncludesGst: !!product.price_includes_gst,
+      priceIncludesGst: gstApplied && includes,
       gstRate,
     });
     const grossValue = basePrice * qty;

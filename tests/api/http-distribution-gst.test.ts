@@ -124,6 +124,16 @@ describe('HTTP: distribution GST dual-doc foundation', () => {
     expect(bill.body.savedGstUnits).toBe(2);
     expect(bill.body.deliverySet.isDualDocs).toBe(true);
     expect(bill.body.items.filter((i: { gstApplied: boolean }) => i.gstApplied)).toHaveLength(2);
+
+    const batches = await api().get(`/api/distribution/batches?vendorId=${VENDOR}`).set(authHeaders(token, TENANT));
+    expect(batches.status).toBe(200);
+    const row = batches.body.find((b: { batchId: string }) => b.batchId === BATCH);
+    expect(row).toBeTruthy();
+    expect(row.gstUnits).toBe(2);
+    expect(row.nonGstUnits).toBe(2);
+    expect(row.deliverySet.isDualDocs).toBe(true);
+    expect(String(row.deliverySet.gstDocNo)).toMatch(/-GST$/);
+    expect(String(row.deliverySet.nonGstDocNo)).toMatch(/-BOS$/);
   });
 
   it('apply-billing blocked when IRN exists on batch', async () => {
@@ -153,5 +163,140 @@ describe('HTTP: distribution GST dual-doc foundation', () => {
     expect(Number(res.body.totalTaxable)).toBe(2000);
     // tax at 12%: 240 total
     expect(Number(res.body.totalTax)).toBe(240);
+  });
+});
+
+describe('HTTP: createBatch mixed withGst → dual docs', () => {
+  const TENANT2 = 'T-TEST-HTTP-DIST-CREATE';
+  const USER2 = 'U-HTTP-DIST-CREATE';
+  const VENDOR2 = 'V-HTTP-DIST-CREATE';
+  const PRODUCT_EX = 'P-HTTP-DIST-EX';
+  const PRODUCT_IN = 'P-HTTP-DIST-IN';
+  let token2 = '';
+
+  beforeAll(async () => {
+    await cleanupTestData(TENANT2);
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, admin_email, admin_name, status, business_type)
+       VALUES ($1, 'Dist Create Co', 'test-http-dist-create', 'dist-create@test.com', 'Admin', 'active', 'manufacturer')
+       ON CONFLICT (id) DO NOTHING`,
+      [TENANT2],
+    );
+    const hash = bcrypt.hashSync('password123', 12);
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, role, default_gst_rate)
+       VALUES ($1, $2, 'dist-create@test.com', $3, 'Admin', 'Admin', 18)
+       ON CONFLICT DO NOTHING`,
+      [USER2, TENANT2, hash],
+    );
+    await pool.query(
+      `INSERT INTO vendors (id, tenant_id, name, gst_number)
+       VALUES ($1, $2, 'Create Vendor', '24BBBBB0000B1Z5') ON CONFLICT DO NOTHING`,
+      [VENDOR2, TENANT2],
+    );
+    await pool.query(
+      `INSERT INTO products (id, tenant_id, name, price, gst_rate, price_includes_gst, hsn_code)
+       VALUES ($1, $2, 'Exclusive Widget', 1000, 18, false, '8517') ON CONFLICT DO NOTHING`,
+      [PRODUCT_EX, TENANT2],
+    );
+    await pool.query(
+      `INSERT INTO products (id, tenant_id, name, price, gst_rate, price_includes_gst, hsn_code)
+       VALUES ($1, $2, 'Inclusive Widget', 1180, 18, true, '8517') ON CONFLICT DO NOTHING`,
+      [PRODUCT_IN, TENANT2],
+    );
+    for (let i = 1; i <= 2; i++) {
+      await pool.query(
+        `INSERT INTO product_inventory (id, tenant_id, product_id, barcode, status)
+         VALUES ($1, $2, $3, $4, 'InStock') ON CONFLICT DO NOTHING`,
+        [`I-CREATE-EX-${i}`, TENANT2, PRODUCT_EX, `CREATEEX000${i}`],
+      );
+    }
+    for (let i = 1; i <= 2; i++) {
+      await pool.query(
+        `INSERT INTO product_inventory (id, tenant_id, product_id, barcode, status)
+         VALUES ($1, $2, $3, $4, 'InStock') ON CONFLICT DO NOTHING`,
+        [`I-CREATE-IN-${i}`, TENANT2, PRODUCT_IN, `CREATEIN000${i}`],
+      );
+    }
+    token2 = createTestToken({
+      userId: USER2,
+      tenantId: TENANT2,
+      email: 'dist-create@test.com',
+      role: 'Admin',
+      name: 'Admin',
+    });
+  });
+
+  afterAll(async () => {
+    await cleanupTestData(TENANT2);
+  });
+
+  it('mixed withGst lines create dual-doc deliverySet without apply-billing', async () => {
+    const res = await api()
+      .post('/api/distribution/batch')
+      .set(authHeaders(token2, TENANT2))
+      .send({
+        vendorId: VENDOR2,
+        gstRate: 18,
+        items: [
+          { productId: PRODUCT_EX, quantity: 1, withGst: true, customPrice: 1000 },
+          { productId: PRODUCT_EX, quantity: 1, withGst: false, customPrice: 1000 },
+        ],
+      });
+    expect(res.status).toBe(201);
+    const batchId = res.body.batchId as string;
+    expect(batchId).toBeTruthy();
+
+    const bill = await api()
+      .get(`/api/distribution/bill?batchId=${batchId}&vendorId=${VENDOR2}`)
+      .set(authHeaders(token2, TENANT2));
+    expect(bill.status).toBe(200);
+    expect(bill.body.deliverySet.isDualDocs).toBe(true);
+    expect(bill.body.savedGstUnits).toBe(1);
+    expect(bill.body.items.filter((i: { gstApplied: boolean }) => i.gstApplied)).toHaveLength(1);
+    expect(bill.body.items.filter((i: { gstApplied: boolean }) => !i.gstApplied)).toHaveLength(1);
+  });
+
+  it('inclusive MRP + withGst false: UI-stripped customPrice bills exclusive (no double-strip)', async () => {
+    const res = await api()
+      .post('/api/distribution/batch')
+      .set(authHeaders(token2, TENANT2))
+      .send({
+        vendorId: VENDOR2,
+        gstRate: 18,
+        // Client already stripped 1180 → 1000 when GST unchecked
+        items: [{ productId: PRODUCT_IN, quantity: 1, withGst: false, customPrice: 1000 }],
+      });
+    expect(res.status).toBe(201);
+    const { rows } = await pool.query(
+      `SELECT net_price, billed_price, gst_applied FROM product_distribution
+       WHERE batch_id = $1 AND tenant_id = $2`,
+      [res.body.batchId, TENANT2],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].gst_applied).toBe(false);
+    expect(Number(rows[0].net_price)).toBe(1000);
+    expect(Number(rows[0].billed_price)).toBe(1000);
+  });
+
+  it('inclusive MRP + withGst false without customPrice: server strips catalog', async () => {
+    const res = await api()
+      .post('/api/distribution/batch')
+      .set(authHeaders(token2, TENANT2))
+      .send({
+        vendorId: VENDOR2,
+        gstRate: 18,
+        items: [{ productId: PRODUCT_IN, quantity: 1, withGst: false }],
+      });
+    expect(res.status).toBe(201);
+    const { rows } = await pool.query(
+      `SELECT net_price, billed_price, gst_applied FROM product_distribution
+       WHERE batch_id = $1 AND tenant_id = $2`,
+      [res.body.batchId, TENANT2],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].gst_applied).toBe(false);
+    expect(Number(rows[0].net_price)).toBe(1000);
+    expect(Number(rows[0].billed_price)).toBe(1000);
   });
 });

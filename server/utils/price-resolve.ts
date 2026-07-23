@@ -84,5 +84,7 @@ export function unitPricesAfterDiscount(opts: {
       billedPricePerUnit: Math.round((priceAfterDisc * (100 + opts.gstRate)) / 100),
     };
   }
+  // GST off: basePrice is exclusive (UI strips inclusive MRP before send; catalog resolve
+  // path in createBatch strips when no explicit customPrice — see distribution routes).
   return { netPricePerUnit: priceAfterDisc, billedPricePerUnit: priceAfterDisc };
 }

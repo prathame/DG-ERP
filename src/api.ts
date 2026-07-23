@@ -34,7 +34,19 @@ export interface DistributionBatch {
   availableWithVendor: number;
   billValue: number;
   discountPercent: number;
+  /** True if any unit has gst_applied (legacy). Prefer gstUnits / deliverySet. */
   gstApplied: boolean;
+  /** Unit counts for Tax Invoice vs Bill of Supply (#144 delivery set). */
+  gstUnits?: number;
+  nonGstUnits?: number;
+  deliverySet?: {
+    isDualDocs: boolean;
+    outstandingScope: 'batch';
+    gstDocNo: string | null;
+    nonGstDocNo: string | null;
+    gstDocKind: 'tax_invoice';
+    nonGstDocKind: 'bill_of_supply';
+  };
   amountPaid: number;
   balanceRemaining: number;
   ewbNumber?: string | null;
