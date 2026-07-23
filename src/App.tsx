@@ -58,6 +58,8 @@ import {
 import { PhoneModePicker } from './platforms/PhoneModePicker';
 import { bugReportFeedbackMessage, shareBugReport } from './lib/bugReport';
 import { isMobileAppShell, offersBugReportShare } from './lib/mobileAppShell';
+import { isDesktopGlassUi } from './lib/desktopGlass';
+import { applyDesktopFontPrefs } from './lib/desktopFontPrefs';
 import { useEscapeKey } from './lib/useEscapeKey';
 import { normalizeCompanySlug, validateCompanySlug } from './lib/companySlug';
 import { reportSlugOnboardingFailure } from './lib/reportActionFailure';
@@ -430,10 +432,11 @@ function consumeImpersonationToken(): boolean {
 // Run before first React paint so session is ready for initial useState
 consumeImpersonationToken();
 
-// Apply saved theme on load
+// Apply saved theme + desktop glass typography on load (font CSS scoped to .dg-desktop-glass)
 if (typeof window !== 'undefined') {
   const savedTheme = localStorage.getItem('dhandho_theme');
   if (savedTheme === 'dark') document.documentElement.classList.add('dark');
+  applyDesktopFontPrefs();
 }
 
 export default function App() {
@@ -1140,6 +1143,7 @@ export default function App() {
 
   /** Emergent phone IA: Offline Mobile + online Service Cloud Capacitor (not manufacturer cloud). */
   const servicePhoneUx = isServicePhoneUx(userConfig?.businessType as string | undefined);
+  const desktopGlass = isDesktopGlassUi(userConfig?.businessType as string | undefined);
   const mobileNavIds = servicePhoneUx
     ? user?.role === 'Vendor'
       ? ['analytics', 'distribution', 'finance', 'inventory']
@@ -1176,7 +1180,12 @@ export default function App() {
             <AppShutterIntro companyName={appShutter} onDone={() => setAppShutter(null)} />
           </Suspense>
         )}
-        <div className="app-shell flex h-[100dvh] max-h-[100dvh] bg-[#F8F9FA] text-[#1A1A1A] font-sans overflow-hidden">
+        <div
+          className={cn(
+            'app-shell flex h-[100dvh] max-h-[100dvh] font-sans overflow-hidden',
+            desktopGlass ? 'dg-desktop-glass' : 'bg-[#F8F9FA] text-[#1A1A1A]',
+          )}
+        >
           {/* Mobile sidebar backdrop */}
           {isSidebarOpen && (
             <div
@@ -1188,16 +1197,29 @@ export default function App() {
           {/* Sidebar — full-height drawer on phone, rail on desktop */}
           <aside
             className={cn(
-              'bg-white border-r border-gray-200 transition-transform duration-300 flex flex-col z-50 shadow-xl lg:shadow-none',
+              'transition-transform duration-300 flex flex-col z-50',
+              desktopGlass
+                ? 'dg-glass-sidebar shadow-none'
+                : 'bg-white border-r border-gray-200 shadow-xl lg:shadow-none',
               'fixed lg:relative inset-y-0 left-0 h-[100dvh] max-h-[100dvh]',
-              isSidebarOpen ? 'w-[min(70vw,15rem)] translate-x-0 lg:w-60' : 'w-16 -translate-x-full lg:translate-x-0',
+              isSidebarOpen ? 'w-[min(70vw,15rem)] translate-x-0 lg:w-64' : 'w-16 -translate-x-full lg:translate-x-0',
             )}
           >
             {/* Sticky brand / profile */}
-            <div className="shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 border-b border-gray-100 pt-[max(0.5rem,var(--safe-top))] pb-2 lg:h-16 lg:pt-0 lg:pb-0">
+            <div
+              className={cn(
+                'shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 pt-[max(0.5rem,var(--safe-top))] pb-2 lg:h-16 lg:pt-0 lg:pb-0',
+                desktopGlass ? 'border-b border-[var(--dg-card-border)]' : 'border-b border-gray-100',
+              )}
+            >
               {isSidebarOpen && (
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="lg:hidden w-9 h-9 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white text-xs font-bold shrink-0">
+                  <div
+                    className={cn(
+                      'lg:hidden w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0',
+                      desktopGlass ? 'dg-bg-primary' : 'bg-gradient-to-tr from-brand to-[#FFB347]',
+                    )}
+                  >
                     {user?.name?.charAt(0) ?? '?'}
                   </div>
                   <BrandMark
@@ -1269,8 +1291,12 @@ export default function App() {
                             className={cn(
                               'w-full flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px] group relative',
                               activeTab === item.id
-                                ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
-                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                                ? desktopGlass
+                                  ? 'dg-nav-active font-semibold pl-[7px]'
+                                  : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
+                                : desktopGlass
+                                  ? 'dg-muted hover:opacity-100'
+                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                             )}
                           >
                             <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} className="shrink-0" />
@@ -1290,16 +1316,22 @@ export default function App() {
             </nav>
 
             {/* Pinned footer: chatbot (cloud), settings, status */}
-            <div className="shrink-0 border-t border-gray-100 bg-white pb-[max(0.5rem,var(--safe-bottom))] lg:pb-2">
+            <div
+              className={cn(
+                'shrink-0 pb-[max(0.5rem,var(--safe-bottom))] lg:pb-2',
+                desktopGlass
+                  ? 'border-t border-[var(--dg-card-border)] bg-transparent'
+                  : 'border-t border-gray-100 bg-white',
+              )}
+            >
               {!serviceMobile &&
                 tv('chatbot') &&
                 // Cap Online companion: SA mobile_features.chatbot; desktop / service Cap use tab_config only
+                // ChatWidget portals FAB + panel to document.body (avoids sidebar stacking / empty footer gap)
                 (!companionFeatures || companionFeatures.chatbot) && (
-                  <div className="px-3 pt-2">
-                    <Suspense fallback={null}>
-                      <ChatWidget />
-                    </Suspense>
-                  </div>
+                  <Suspense fallback={null}>
+                    <ChatWidget desktopGlass={desktopGlass} />
+                  </Suspense>
                 )}
               {/* Sync: on-prem desktop + Offline Mobile only — never Cloud Electron chrome changes */}
               {(serviceMobile ||
@@ -1333,8 +1365,12 @@ export default function App() {
                     className={cn(
                       'w-full flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px]',
                       activeTab === 'settings'
-                        ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                        ? desktopGlass
+                          ? 'dg-nav-active font-semibold pl-[7px]'
+                          : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
+                        : desktopGlass
+                          ? 'dg-muted hover:opacity-100'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                     )}
                   >
                     <Settings size={18} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
@@ -1344,7 +1380,9 @@ export default function App() {
               )}
               {isSidebarOpen && (
                 <div className="px-3 pt-2 pb-1 text-center">
-                  <p className="text-[10px] text-gray-400">{t('common.poweredBy')}</p>
+                  <p className={cn('text-[10px]', desktopGlass ? 'dg-faint' : 'text-gray-400')}>
+                    {t('common.poweredBy')}
+                  </p>
                 </div>
               )}
             </div>
@@ -1367,7 +1405,9 @@ export default function App() {
                       ? 'bg-rose-600 text-white'
                       : days <= 7
                         ? 'bg-rose-50 text-rose-700'
-                        : 'bg-amber-50 text-amber-700',
+                        : desktopGlass
+                          ? 'bg-[color-mix(in_srgb,var(--dg-warning)_18%,transparent)] dg-warning'
+                          : 'bg-amber-50 text-amber-700',
                   )}
                 >
                   {days <= 0
@@ -1376,7 +1416,12 @@ export default function App() {
                 </div>
               );
             })()}
-            <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100 px-3 sm:px-8 pb-2.5 sm:pb-4 flex items-center justify-between gap-2 app-header-safe">
+            <header
+              className={cn(
+                'sticky top-0 z-30 px-3 sm:px-8 pb-2.5 sm:pb-4 flex items-center justify-between gap-2 app-header-safe',
+                desktopGlass ? 'dg-glass-header' : 'bg-white/90 backdrop-blur-md border-b border-gray-100',
+              )}
+            >
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   type="button"
@@ -1407,17 +1452,48 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setCmdOpen(true)}
-                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm text-gray-500"
+                  className={cn(
+                    'hidden sm:flex items-center gap-2 px-3 py-1.5 transition-colors text-sm',
+                    desktopGlass
+                      ? 'rounded-full border border-[var(--dg-card-border)] bg-[var(--dg-input)] dg-muted min-w-[16rem] lg:min-w-[22rem]'
+                      : 'bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500',
+                  )}
                 >
                   <Search size={15} />
-                  <span>Search...</span>
-                  <kbd className="text-[10px] font-mono bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-400">
+                  <span className={desktopGlass ? 'flex-1 text-left' : undefined}>
+                    {desktopGlass ? 'Search across business entities...' : 'Search...'}
+                  </span>
+                  <kbd
+                    className={cn(
+                      'text-[10px] font-mono px-1.5 py-0.5 rounded border',
+                      desktopGlass
+                        ? 'border-[var(--dg-card-border)] dg-faint'
+                        : 'bg-white border-gray-200 text-gray-400',
+                    )}
+                  >
                     ⌘K
                   </kbd>
                 </button>
-                <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full">
-                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
-                  <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">
+                <div
+                  className={cn(
+                    'hidden lg:flex items-center gap-2 px-3 py-1 rounded-full border',
+                    desktopGlass
+                      ? 'bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)] border-[color-mix(in_srgb,var(--dg-primary)_28%,transparent)]'
+                      : 'bg-amber-50 border-amber-100',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'w-2 h-2 rounded-full animate-pulse',
+                      desktopGlass ? 'bg-[var(--dg-primary)]' : 'bg-amber-400',
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      'text-[10px] font-bold uppercase tracking-wider',
+                      desktopGlass ? 'dg-primary' : 'text-amber-700',
+                    )}
+                  >
                     {(userConfig?.planName as string) || 'Standard'} Plan
                   </span>
                 </div>
@@ -1441,7 +1517,14 @@ export default function App() {
                       <p className="text-sm font-semibold">{user?.name ?? 'Guest'}</p>
                       <p className="text-xs text-gray-500">{user?.role ?? 'Not signed in'}</p>
                     </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] border-2 border-white shadow-sm flex items-center justify-center text-white font-bold text-xs sm:text-sm">
+                    <div
+                      className={cn(
+                        'w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 shadow-sm flex items-center justify-center text-white font-bold text-xs sm:text-sm',
+                        desktopGlass
+                          ? 'dg-bg-primary border-[var(--dg-card-border)]'
+                          : 'bg-gradient-to-tr from-brand to-[#FFB347] border-white',
+                      )}
+                    >
                       {user?.name?.charAt(0) ?? '?'}
                     </div>
                   </button>
@@ -1460,11 +1543,25 @@ export default function App() {
                       key="user-menu"
                       role="menu"
                       aria-labelledby="account-menu-button"
-                      className="dg-menu-enter absolute right-0 top-full mt-2 z-50 w-52 bg-white rounded-xl border border-gray-100 shadow-xl py-1 overflow-hidden"
+                      className={cn(
+                        'dg-menu-enter absolute right-0 top-full mt-2 z-50 w-52 rounded-xl shadow-xl py-1 overflow-hidden',
+                        desktopGlass
+                          ? 'dg-glass-card border border-[var(--dg-card-border)]'
+                          : 'bg-white border border-gray-100',
+                      )}
                     >
-                      <div className="px-4 py-3 border-b border-gray-100">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{user?.name}</p>
-                        <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                      <div
+                        className={cn(
+                          'px-4 py-3 border-b',
+                          desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
+                        )}
+                      >
+                        <p className={cn('text-sm font-semibold truncate', desktopGlass ? 'dg-ink' : 'text-gray-900')}>
+                          {user?.name}
+                        </p>
+                        <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-500')}>
+                          {user?.email}
+                        </p>
                       </div>
                       <div className="py-1">
                         {canAccess('settings') && (
@@ -1474,14 +1571,22 @@ export default function App() {
                               setActiveTab('settings');
                               setUserMenuOpen(false);
                             }}
-                            className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                            className={cn(
+                              'w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm',
+                              desktopGlass ? 'dg-ink hover:bg-[var(--dg-input)]' : 'text-gray-700 hover:bg-gray-50',
+                            )}
                           >
-                            <Settings size={15} className="text-gray-400" />
+                            <Settings size={15} className={desktopGlass ? 'dg-faint' : 'text-gray-400'} />
                             {t('nav.settings')}
                           </button>
                         )}
                       </div>
-                      <div className="border-t border-gray-100 py-1">
+                      <div
+                        className={cn(
+                          'border-t py-1',
+                          desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
+                        )}
+                      >
                         <button
                           type="button"
                           onClick={handleLogout}
@@ -1545,7 +1650,9 @@ export default function App() {
                       ) : (
                         <VendorFinanceView user={user} accessLevel={getAccess('finance')} />
                       ))}
-                    {canAccess(activeTab) && activeTab === 'analytics' && <AnalyticsView setActiveTab={setActiveTab} />}
+                    {canAccess(activeTab) && activeTab === 'analytics' && (
+                      <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
+                    )}
                     {canAccess(activeTab) && tv('accounts') && activeTab === 'accounts' && (
                       <AccountsView accessLevel={getAccess('accounts')} />
                     )}

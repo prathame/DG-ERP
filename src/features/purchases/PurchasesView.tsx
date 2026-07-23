@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShoppingBag, Plus, ArrowLeft, Search, IndianRupee, Trash2, Receipt } from 'lucide-react';
 import { cn, formatDate, exportToCsv, getTabLabel } from '../../lib/utils';
+import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { api, fetchApi } from '../../api';
 import type { Product } from '../../types';
 import {
@@ -20,6 +22,7 @@ import {
 } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { useConfirm } from '../../hooks/useConfirm';
+import { DesktopPurchasesModule } from './DesktopPurchasesModule';
 
 interface Supplier {
   id: string;
@@ -45,6 +48,8 @@ interface PurchaseBatch {
 export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const canEdit = accessLevel === 'full';
   const { toast } = useToast();
+  const cfg = useBusinessConfig();
+  const desktopGlass = isDesktopGlassUi(cfg.type);
   const purchasesLabel = getTabLabel('purchases', 'Purchases & Expenses');
   const { confirm, ConfirmRenderer } = useConfirm();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -74,7 +79,7 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
     { productId: string; quantity: number; packs: number; loosePieces: number; costPrice: string; withGst: boolean }[]
   >([{ productId: '', quantity: 1, packs: 0, loosePieces: 0, costPrice: '', withGst: true }]);
   const [submitting, setSubmitting] = useState(false);
-  const [paymentFilter, setPaymentFilter] = useState<'unpaid' | 'paid'>('unpaid');
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'unpaid' | 'paid'>('unpaid');
   const [searchText, setSearchText] = useState('');
   const [section, setSection] = useState<'purchases' | 'expenses'>('purchases');
   const [expenses, setExpenses] = useState<
@@ -314,21 +319,53 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
     .map(s => {
       const f = financeMap[s.id];
       const sBatches = batches.filter(b => b.supplierId === s.id);
+      const lastOrderDate = sBatches.reduce<string | null>((latest, b) => {
+        if (!latest || b.purchaseDate > latest) return b.purchaseDate;
+        return latest;
+      }, null);
       return {
         ...s,
         totalPurchased: f?.totalPurchasedValue ?? 0,
         totalPaid: f?.totalPaid ?? 0,
         balance: f?.balance ?? 0,
         batchCount: sBatches.length,
+        lastOrderDate,
       };
     })
     .filter(s => {
       const isPaid = s.balance <= 0 && s.totalPurchased > 0;
-      if (paymentFilter === 'paid' ? !isPaid : s.totalPurchased > 0 && isPaid) return false;
-      if (paymentFilter === 'unpaid' && s.totalPurchased === 0 && s.batchCount === 0) return false;
+      if (paymentFilter === 'paid') {
+        if (!isPaid) return false;
+      } else if (paymentFilter === 'unpaid') {
+        if (s.totalPurchased > 0 && isPaid) return false;
+        if (s.totalPurchased === 0 && s.batchCount === 0) return false;
+      }
       if (searchText && !s.name.toLowerCase().includes(searchText.toLowerCase())) return false;
       return true;
     });
+
+  const openExpenseModal = () => {
+    setExpenseForm({
+      category: '',
+      description: '',
+      amount: '',
+      expenseDate: new Date().toISOString().slice(0, 10),
+      paymentMethod: 'Cash',
+      notes: '',
+    });
+    setExpenseModal(true);
+  };
+
+  const deleteExpense = async (id: string) => {
+    if (!(await confirm({ message: 'Delete this expense? This cannot be undone.' }))) return;
+    try {
+      await api.expenses.delete(id);
+      toast('Deleted', 'success');
+      api.expenses.list().then(setExpenses);
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  };
 
   // Selected supplier view
   if (selectedSupplierId) {
@@ -589,222 +626,231 @@ export function PurchasesView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   }
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <ShoppingBag size={22} /> {purchasesLabel}
-          </h2>
-          <p className="text-sm text-gray-500">Track purchases from suppliers + business expenses</p>
-        </div>
-        <div className="flex gap-2">
-          {section === 'purchases' && canEdit && (
-            <>
-              <button
-                type="button"
-                onClick={() => setSupplierModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50"
-              >
-                <Plus size={16} /> Add Supplier
-              </button>
-              <button
-                type="button"
-                onClick={() => setModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
-              >
-                <ShoppingBag size={16} /> New Purchase
-              </button>
-            </>
-          )}
-          {section === 'expenses' && canEdit && (
-            <button
-              type="button"
-              onClick={() => {
-                setExpenseForm({
-                  category: '',
-                  description: '',
-                  amount: '',
-                  expenseDate: new Date().toISOString().slice(0, 10),
-                  paymentMethod: 'Cash',
-                  notes: '',
-                });
-                setExpenseModal(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
-            >
-              <Plus size={16} /> Add Expense
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="flex gap-2 mb-2">
-        <button
-          type="button"
-          onClick={() => setSection('purchases')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold ${section === 'purchases' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600'}`}
-        >
-          Purchases
-        </button>
-        <button
-          type="button"
-          onClick={() => setSection('expenses')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold ${section === 'expenses' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600'}`}
-        >
-          Expenses
-        </button>
-      </div>
-
-      {section === 'expenses' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {expenses.length === 0 ? (
-            <div className="py-16 text-center text-gray-400">
-              <Receipt size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No expenses recorded</p>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b">
-                      <th className="px-4 py-3">Category</th>
-                      <th className="px-4 py-3">Description</th>
-                      <th className="px-4 py-3 text-right">Amount</th>
-                      <th className="px-4 py-3">Date</th>
-                      <th className="px-4 py-3">Method</th>
-                      <th className="px-4 py-3">Notes</th>
-                      {canEdit && <th className="px-4 py-3 w-10"></th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {expenses.map(e => (
-                      <tr key={e.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3">
-                          <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">
-                            {e.category}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 text-sm">{e.description || '—'}</td>
-                        <td className="px-4 py-3 text-right font-bold">₹{e.amount.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-gray-500 text-sm">{formatDate(e.expenseDate)}</td>
-                        <td className="px-4 py-3">
-                          <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{e.paymentMethod}</span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-400 text-xs">{e.notes || '—'}</td>
-                        {canEdit && (
-                          <td className="px-4 py-3">
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!(await confirm({ message: 'Delete this expense? This cannot be undone.' })))
-                                  return;
-                                try {
-                                  await api.expenses.delete(e.id);
-                                  toast('Deleted', 'success');
-                                  api.expenses.list().then(setExpenses);
-                                } catch (err) {
-                                  toast((err as Error).message, 'error');
-                                }
-                              }}
-                              className="p-1 text-rose-400 hover:text-rose-600"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="px-4 py-3 bg-gray-50 border-t text-right font-bold text-sm">
-                Total: ₹{expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {section === 'purchases' && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className={cn('space-y-6', desktopGlass && 'space-y-0')}
+    >
+      {desktopGlass ? (
+        <DesktopPurchasesModule
+          section={section}
+          onSectionChange={setSection}
+          expenseCount={expenses.length}
+          expenses={expenses}
+          canEdit={canEdit}
+          onAddExpense={openExpenseModal}
+          onDeleteExpense={deleteExpense}
+          paymentFilter={paymentFilter}
+          onPaymentFilter={f => {
+            setPaymentFilter(f);
+            setSelectedSupplierId(null);
+          }}
+          searchText={searchText}
+          onSearchText={setSearchText}
+          suppliers={supplierStats}
+          onSelectSupplier={setSelectedSupplierId}
+          onAddSupplier={() => setSupplierModal(true)}
+          onNewPurchase={() => setModalOpen(true)}
+        />
+      ) : (
         <>
-          <div className="flex items-center gap-3 flex-wrap">
-            {(['unpaid', 'paid'] as const).map(tab => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => {
-                  setPaymentFilter(tab);
-                  setSelectedSupplierId(null);
-                }}
-                className={cn(
-                  'px-4 py-2 rounded-xl text-sm font-bold transition-all',
-                  paymentFilter === tab
-                    ? tab === 'unpaid'
-                      ? 'bg-rose-500 text-white'
-                      : 'bg-emerald-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                )}
-              >
-                {tab === 'unpaid' ? 'Unpaid' : 'Paid'}
-              </button>
-            ))}
-            <div className="relative flex-1 min-w-[150px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input
-                type="text"
-                placeholder="Search supplier..."
-                value={searchText}
-                onChange={e => setSearchText(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm"
-              />
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <ShoppingBag size={22} /> {purchasesLabel}
+              </h2>
+              <p className="text-sm text-gray-500">Track purchases from suppliers + business expenses</p>
+            </div>
+            <div className="flex gap-2">
+              {section === 'purchases' && canEdit && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setSupplierModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50"
+                  >
+                    <Plus size={16} /> Add Supplier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+                  >
+                    <ShoppingBag size={16} /> New Purchase
+                  </button>
+                </>
+              )}
+              {section === 'expenses' && canEdit && (
+                <button
+                  type="button"
+                  onClick={openExpenseModal}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+                >
+                  <Plus size={16} /> Add Expense
+                </button>
+              )}
             </div>
           </div>
 
-          {suppliers.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
-              <ShoppingBag size={48} className="mx-auto mb-3 opacity-30" />
-              <p className="font-medium mb-2">No suppliers yet</p>
-              <p className="text-sm mb-4">Add your first supplier to start recording purchases</p>
-              <button
-                type="button"
-                onClick={() => setSupplierModal(true)}
-                className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark transition-colors"
-              >
-                + Add Supplier
-              </button>
+          <div className="flex gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => setSection('purchases')}
+              className={`px-4 py-2 rounded-xl text-sm font-bold ${section === 'purchases' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600'}`}
+            >
+              Purchases
+            </button>
+            <button
+              type="button"
+              onClick={() => setSection('expenses')}
+              className={`px-4 py-2 rounded-xl text-sm font-bold ${section === 'expenses' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600'}`}
+            >
+              Expenses
+            </button>
+          </div>
+
+          {section === 'expenses' && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              {expenses.length === 0 ? (
+                <div className="py-16 text-center text-gray-400">
+                  <Receipt size={40} className="mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No expenses recorded</p>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b">
+                          <th className="px-4 py-3">Category</th>
+                          <th className="px-4 py-3">Description</th>
+                          <th className="px-4 py-3 text-right">Amount</th>
+                          <th className="px-4 py-3">Date</th>
+                          <th className="px-4 py-3">Method</th>
+                          <th className="px-4 py-3">Notes</th>
+                          {canEdit && <th className="px-4 py-3 w-10"></th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {expenses.map(e => (
+                          <tr key={e.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">
+                                {e.category}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 text-sm">{e.description || '—'}</td>
+                            <td className="px-4 py-3 text-right font-bold">₹{e.amount.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-gray-500 text-sm">{formatDate(e.expenseDate)}</td>
+                            <td className="px-4 py-3">
+                              <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{e.paymentMethod}</span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-400 text-xs">{e.notes || '—'}</td>
+                            {canEdit && (
+                              <td className="px-4 py-3">
+                                <button
+                                  type="button"
+                                  onClick={() => deleteExpense(e.id)}
+                                  className="p-1 text-rose-400 hover:text-rose-600"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="px-4 py-3 bg-gray-50 border-t text-right font-bold text-sm">
+                    Total: ₹{expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}
+                  </div>
+                </>
+              )}
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {supplierStats.map(s => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setSelectedSupplierId(s.id)}
-                  className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 text-left hover:shadow-md transition-all"
-                >
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{s.name}</p>
-                  {s.totalPurchased > 0 && (
-                    <div className="mt-2 flex gap-4 text-sm flex-wrap">
-                      <span className="text-blue-600">
-                        <strong>₹{s.totalPurchased.toLocaleString()}</strong> purchased
-                      </span>
-                      <span className="text-emerald-600">
-                        <strong>₹{s.totalPaid.toLocaleString()}</strong> paid
-                      </span>
-                      {s.balance > 0 ? (
-                        <span className="text-rose-600">
-                          <strong>₹{s.balance.toLocaleString()}</strong> due
-                        </span>
-                      ) : (
-                        s.totalPurchased > 0 && <PaidBadge size="sm" />
+          )}
+
+          {section === 'purchases' && (
+            <>
+              <div className="flex items-center gap-3 flex-wrap">
+                {(['unpaid', 'paid'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => {
+                      setPaymentFilter(tab);
+                      setSelectedSupplierId(null);
+                    }}
+                    className={cn(
+                      'px-4 py-2 rounded-xl text-sm font-bold transition-all',
+                      paymentFilter === tab
+                        ? tab === 'unpaid'
+                          ? 'bg-rose-500 text-white'
+                          : 'bg-emerald-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                    )}
+                  >
+                    {tab === 'unpaid' ? 'Unpaid' : 'Paid'}
+                  </button>
+                ))}
+                <div className="relative flex-1 min-w-[150px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search supplier..."
+                    value={searchText}
+                    onChange={e => setSearchText(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm"
+                  />
+                </div>
+              </div>
+
+              {suppliers.length === 0 ? (
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center text-gray-400">
+                  <ShoppingBag size={48} className="mx-auto mb-3 opacity-30" />
+                  <p className="font-medium mb-2">No suppliers yet</p>
+                  <p className="text-sm mb-4">Add your first supplier to start recording purchases</p>
+                  <button
+                    type="button"
+                    onClick={() => setSupplierModal(true)}
+                    className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:bg-brand-dark transition-colors"
+                  >
+                    + Add Supplier
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {supplierStats.map(s => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setSelectedSupplierId(s.id)}
+                      className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 text-left hover:shadow-md transition-all"
+                    >
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{s.name}</p>
+                      {s.totalPurchased > 0 && (
+                        <div className="mt-2 flex gap-4 text-sm flex-wrap">
+                          <span className="text-blue-600">
+                            <strong>₹{s.totalPurchased.toLocaleString()}</strong> purchased
+                          </span>
+                          <span className="text-emerald-600">
+                            <strong>₹{s.totalPaid.toLocaleString()}</strong> paid
+                          </span>
+                          {s.balance > 0 ? (
+                            <span className="text-rose-600">
+                              <strong>₹{s.balance.toLocaleString()}</strong> due
+                            </span>
+                          ) : (
+                            s.totalPurchased > 0 && <PaidBadge size="sm" />
+                          )}
+                        </div>
                       )}
-                    </div>
-                  )}
-                  {s.batchCount === 0 && <p className="mt-2 text-xs text-gray-400">No purchases yet</p>}
-                </button>
-              ))}
-            </div>
+                      {s.batchCount === 0 && <p className="mt-2 text-xs text-gray-400">No purchases yet</p>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}

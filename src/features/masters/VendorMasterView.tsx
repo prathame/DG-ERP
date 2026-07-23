@@ -12,6 +12,7 @@ import {
   Mail,
   Download,
   Upload,
+  X,
   FileText,
   IndianRupee,
   Clock,
@@ -33,6 +34,7 @@ import {
   whatsAppInvoiceShareToast,
 } from '../../lib/printStandaloneInvoice';
 import { isServiceMobileMode } from '../../platforms/service-mobile/mode';
+import { isDesktopGlassUi } from '../../lib/desktopGlass';
 
 type ClientDetail = Awaited<ReturnType<typeof api.invoiceFinance.client>>;
 type PayModal = {
@@ -88,6 +90,7 @@ export function VendorMasterView({
   const offlineAdvance = isServiceMobileMode();
   /** Vendor-tile New Invoice is service business type only (all shells). */
   const isServiceBusiness = cfg.type === 'service';
+  const desktopGlass = isDesktopGlassUi(cfg.type);
   const [payForm, setPayForm] = useState({
     amount: '',
     paymentDate: new Date().toISOString().slice(0, 10),
@@ -719,18 +722,49 @@ export function VendorMasterView({
     );
   }
 
+  const btnGhost = desktopGlass
+    ? 'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-[var(--dg-card-border)] dg-ink hover:bg-[var(--dg-input)] transition-colors disabled:opacity-50'
+    : 'flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  const btnDanger = desktopGlass
+    ? 'hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-[color-mix(in_srgb,var(--dg-error)_35%,transparent)] dg-error hover:bg-[color-mix(in_srgb,var(--dg-error)_8%,transparent)]'
+    : 'hidden sm:flex items-center gap-2 px-4 py-2 border border-rose-200 text-rose-600 rounded-xl text-sm font-medium hover:bg-rose-50';
+  const btnPrimary = desktopGlass
+    ? 'flex items-center gap-2 px-5 py-2 dg-bg-primary rounded-lg text-sm font-bold shadow-sm hover:opacity-90 active:scale-95 transition-all'
+    : 'flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold';
+  const fieldLabel = desktopGlass
+    ? 'block text-xs font-bold dg-muted uppercase tracking-wider mb-1'
+    : 'text-xs font-bold text-gray-400 uppercase';
+  const fieldInput = desktopGlass
+    ? 'w-full bg-[var(--dg-bg)] border border-[var(--dg-card-border)] rounded-lg py-2.5 px-4 text-sm dg-ink focus:ring-2 focus:ring-brand focus:border-transparent'
+    : 'w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand';
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className={cn('space-y-6', desktopGlass && 'max-w-7xl mx-auto')}
+    >
       <div className="flex items-center gap-4 flex-wrap">
-        <button type="button" onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg">
+        <button
+          type="button"
+          onClick={onBack}
+          className={cn(
+            'p-2 rounded-full transition-colors',
+            desktopGlass
+              ? 'border border-[var(--dg-card-border)] dg-muted hover:bg-[var(--dg-input)]'
+              : 'hover:bg-gray-100',
+          )}
+        >
           <ArrowLeft size={20} />
         </button>
-        <div className="flex-1">
-          <h2 className="text-xl font-bold">{label} Master</h2>
-          <p className="text-sm text-gray-500">
+        <div className="flex-1 min-w-0">
+          <h2 className={cn(desktopGlass ? 'text-2xl font-bold dg-ink tracking-tight' : 'text-xl font-bold')}>
+            {label} Master
+          </h2>
+          <p className={cn('text-sm', desktopGlass ? 'dg-muted opacity-80' : 'text-gray-500')}>
             {isServiceBusiness
               ? `Tap a ${label.toLowerCase()} for invoices & payments`
-              : `Manage ${label.toLowerCase()} records`}
+              : `Manage your business ${label.toLowerCase()} records and GST details`}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -753,7 +787,7 @@ export function VendorMasterView({
               )
             }
             disabled={!list.length}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className={btnGhost}
           >
             <Download size={18} /> Export CSV
           </button>
@@ -778,23 +812,15 @@ export function VendorMasterView({
                   toast((err as Error).message, 'error');
                 }
               }}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 border border-rose-200 text-rose-600 rounded-xl text-sm font-medium hover:bg-rose-50"
+              className={btnDanger}
             >
               <Trash2 size={16} /> Delete All
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setCsvImportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"
-          >
+          <button type="button" onClick={() => setCsvImportOpen(true)} className={btnGhost}>
             <Upload size={18} /> Import CSV
           </button>
-          <button
-            type="button"
-            onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
-          >
+          <button type="button" onClick={openAdd} className={btnPrimary}>
             <Plus size={18} /> Add {label}
           </button>
         </div>
@@ -892,25 +918,54 @@ export function VendorMasterView({
           )}
         </>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-gray-50 flex items-center gap-4">
+        <div
+          className={cn(
+            'overflow-hidden',
+            desktopGlass
+              ? 'dg-glass-card rounded-xl border border-[var(--dg-card-border)] shadow-sm'
+              : 'bg-white rounded-2xl border border-gray-100 shadow-sm',
+          )}
+        >
+          <div
+            className={cn(
+              'p-4 flex items-center gap-4',
+              desktopGlass
+                ? 'border-b border-[var(--dg-card-border)] bg-[color-mix(in_srgb,var(--dg-input)_50%,transparent)]'
+                : 'border-b border-gray-50',
+            )}
+          >
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <Search
+                className={cn('absolute left-3 top-1/2 -translate-y-1/2', desktopGlass ? 'dg-muted' : 'text-gray-400')}
+                size={16}
+              />
               <input
                 type="text"
                 placeholder={`Search ${label.toLowerCase()}s...`}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+                className={cn(
+                  'w-full pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-brand transition-all',
+                  desktopGlass
+                    ? 'bg-[var(--dg-bg)] border border-[var(--dg-card-border)] rounded-lg dg-ink'
+                    : 'bg-white border border-gray-200 rounded-xl',
+                )}
               />
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50">
+                <tr
+                  className={cn(
+                    'text-xs font-bold uppercase tracking-wider border-b',
+                    desktopGlass
+                      ? 'dg-muted border-[var(--dg-card-border)] bg-[color-mix(in_srgb,var(--dg-bg)_70%,transparent)]'
+                      : 'text-gray-400 border-gray-50',
+                  )}
+                >
                   <th className="px-3 py-3 sm:px-6 sm:py-4">Name</th>
-                  <th className="px-3 py-3 sm:px-6 sm:py-4">Contact</th>
+                  <th className="px-3 py-3 sm:px-6 sm:py-4">{desktopGlass ? 'Contact Person' : 'Contact'}</th>
                   <th className="px-3 py-3 sm:px-6 sm:py-4">Phone</th>
                   <th className="px-3 py-3 sm:px-6 sm:py-4">GSTIN</th>
                   {label === 'Vendor' && (
@@ -919,10 +974,10 @@ export function VendorMasterView({
                       <th className="px-3 py-3 sm:px-6 sm:py-4">Reward Pts</th>
                     </>
                   )}
-                  <th className="px-3 py-3 sm:px-6 sm:py-4">Actions</th>
+                  <th className={cn('px-3 py-3 sm:px-6 sm:py-4', desktopGlass && 'text-right')}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className={cn('divide-y', desktopGlass ? 'divide-[var(--dg-card-border)]' : 'divide-gray-100')}>
                 {loading ? (
                   <tr>
                     <td colSpan={label === 'Vendor' ? 7 : 5} className="px-6 py-12 text-center">
@@ -931,7 +986,10 @@ export function VendorMasterView({
                   </tr>
                 ) : list.length === 0 ? (
                   <tr>
-                    <td colSpan={label === 'Vendor' ? 7 : 5} className="px-6 py-12 text-center text-gray-400 text-sm">
+                    <td
+                      colSpan={label === 'Vendor' ? 7 : 5}
+                      className={cn('px-6 py-12 text-center text-sm', desktopGlass ? 'dg-muted' : 'text-gray-400')}
+                    >
                       {search
                         ? `No matching ${label.toLowerCase()}s`
                         : `No ${label.toLowerCase()}s yet — click “Add ${label}” to get started`}
@@ -939,11 +997,39 @@ export function VendorMasterView({
                   </tr>
                 ) : (
                   list.map(v => (
-                    <tr key={v.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-3 sm:px-6 sm:py-4 font-medium">{v.name}</td>
-                      <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.contactPerson || '-'}</td>
-                      <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600">{v.phone || '-'}</td>
-                      <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-600 font-mono">
+                    <tr
+                      key={v.id}
+                      className={cn(
+                        'group transition-colors',
+                        desktopGlass
+                          ? 'hover:bg-[color-mix(in_srgb,var(--dg-primary)_6%,transparent)]'
+                          : 'hover:bg-gray-50',
+                      )}
+                    >
+                      <td
+                        className={cn('px-3 py-3 sm:px-6 sm:py-4 font-semibold', desktopGlass && 'dg-ink text-[15px]')}
+                      >
+                        {v.name}
+                      </td>
+                      <td
+                        className={cn('px-3 py-3 sm:px-6 sm:py-4 text-sm', desktopGlass ? 'dg-muted' : 'text-gray-600')}
+                      >
+                        {v.contactPerson || '-'}
+                      </td>
+                      <td
+                        className={cn(
+                          'px-3 py-3 sm:px-6 sm:py-4 text-sm font-mono',
+                          desktopGlass ? 'dg-muted' : 'text-gray-600',
+                        )}
+                      >
+                        {v.phone || '-'}
+                      </td>
+                      <td
+                        className={cn(
+                          'px-3 py-3 sm:px-6 sm:py-4 text-sm font-mono',
+                          desktopGlass ? (v.gstNumber ? 'dg-muted' : 'dg-muted opacity-40') : 'text-gray-600',
+                        )}
+                      >
                         {v.gstNumber || '-'}
                       </td>
                       {label === 'Vendor' && (
@@ -958,23 +1044,40 @@ export function VendorMasterView({
                           </td>
                         </>
                       )}
-                      <td className="px-3 py-3 sm:px-6 sm:py-4 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(v)}
-                          className="p-2 text-brand hover:bg-orange-50 rounded-lg"
-                          aria-label={`Edit ${v.name}`}
+                      <td className="px-3 py-3 sm:px-6 sm:py-4">
+                        <div
+                          className={cn(
+                            'flex gap-2',
+                            desktopGlass ? 'justify-end opacity-0 group-hover:opacity-100 transition-opacity' : '',
+                          )}
                         >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(v)}
-                          className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg"
-                          aria-label={`Delete ${v.name}`}
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(v)}
+                            className={cn(
+                              'rounded-full',
+                              desktopGlass
+                                ? 'w-8 h-8 flex items-center justify-center text-[var(--dg-primary)] hover:bg-[color-mix(in_srgb,var(--dg-primary)_12%,transparent)]'
+                                : 'p-2 text-brand hover:bg-orange-50 rounded-lg',
+                            )}
+                            aria-label={`Edit ${v.name}`}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(v)}
+                            className={cn(
+                              'rounded-full',
+                              desktopGlass
+                                ? 'w-8 h-8 flex items-center justify-center dg-error hover:bg-[color-mix(in_srgb,var(--dg-error)_10%,transparent)]'
+                                : 'p-2 text-rose-600 hover:bg-rose-50 rounded-lg',
+                            )}
+                            aria-label={`Delete ${v.name}`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -982,92 +1085,166 @@ export function VendorMasterView({
               </tbody>
             </table>
           </div>
+          {desktopGlass && !loading && list.length > 0 && (
+            <div className="px-6 py-4 border-t border-[var(--dg-card-border)] bg-[color-mix(in_srgb,var(--dg-input)_35%,transparent)] flex items-center justify-between">
+              <p className="text-xs font-semibold dg-muted">
+                Showing {list.length} {label.toLowerCase()}
+                {list.length === 1 ? '' : 's'}
+                {search ? ' (filtered)' : ''}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
       <AnimatePresence>
         {modalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
+            <div
+              className={cn('absolute inset-0', desktopGlass ? 'bg-black/40 backdrop-blur-sm' : 'bg-black/40')}
+              onClick={() => setModalOpen(false)}
+            />
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="relative bg-white w-full max-w-md rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
+              className={cn(
+                'relative w-full max-h-[90vh] overflow-y-auto',
+                desktopGlass
+                  ? 'dg-glass-card max-w-lg rounded-2xl shadow-2xl overflow-hidden'
+                  : 'bg-white max-w-md rounded-2xl shadow-xl p-4 sm:p-6',
+              )}
             >
-              <h3 className="text-lg font-bold mb-4">{editing ? `Edit ${label}` : `Add ${label}`}</h3>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              {desktopGlass ? (
+                <div className="p-6 border-b border-[var(--dg-card-border)] flex items-center justify-between bg-[color-mix(in_srgb,var(--dg-input)_50%,transparent)]">
+                  <h3 className="text-xl font-bold dg-ink">{editing ? `Edit ${label}` : `Add ${label}`}</h3>
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(false)}
+                    className="w-8 h-8 rounded-full dg-muted hover:bg-[var(--dg-input)] flex items-center justify-center"
+                    aria-label="Close"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              ) : (
+                <h3 className="text-lg font-bold mb-4">{editing ? `Edit ${label}` : `Add ${label}`}</h3>
+              )}
+              <form onSubmit={handleSubmit} className={cn('space-y-4', desktopGlass && 'p-6')}>
                 <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Name</label>
+                  <label className={fieldLabel}>Name</label>
                   <input
                     required
                     value={form.name}
                     onChange={e => setForm({ ...form, name: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    className={fieldInput}
+                    placeholder={desktopGlass ? `Enter ${label.toLowerCase()} name` : undefined}
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Contact Person</label>
+                  <label className={fieldLabel}>Contact Person</label>
                   <input
                     value={form.contactPerson}
                     onChange={e => setForm({ ...form, contactPerson: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                    className={fieldInput}
+                    placeholder={desktopGlass ? 'Enter contact person name' : undefined}
                   />
                 </div>
-                <div
-                  className={
-                    !editing && label === 'Vendor' ? 'bg-blue-50 border border-blue-100 rounded-xl p-3 -mx-1' : ''
-                  }
-                >
-                  <label className="text-xs font-bold text-gray-400 uppercase">
-                    Email{' '}
-                    {label === 'Vendor' ? (
-                      <span className="text-brand normal-case font-normal">(optional — vendor login ID)</span>
-                    ) : (
-                      <span className="text-gray-400 normal-case font-normal">(optional)</span>
-                    )}
-                  </label>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={e => setForm({ ...form, email: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    placeholder={label === 'Vendor' ? 'vendor@example.com' : 'email@example.com'}
-                  />
-                  {!editing && label === 'Vendor' && form.email.trim() && (
-                    <p className="text-xs text-blue-600 mt-2">
-                      Login will be auto-created. Password:{' '}
-                      <span className="font-mono font-bold">
-                        {form.name ? `${form.name.replace(/\s+/g, '').toLowerCase()}@123` : 'vendorname@123'}
-                      </span>
-                    </p>
+                {desktopGlass ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={fieldLabel}>
+                        Email <span className="normal-case font-normal dg-muted">(optional)</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={e => setForm({ ...form, email: e.target.value })}
+                        className={fieldInput}
+                        placeholder="email@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className={fieldLabel}>
+                        Phone * <span className="normal-case font-normal dg-muted">(for WhatsApp)</span>
+                      </label>
+                      <input
+                        required
+                        value={form.phone}
+                        onChange={e => setForm({ ...form, phone: e.target.value })}
+                        className={fieldInput}
+                        placeholder="+91 98765 43210"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      className={
+                        !editing && label === 'Vendor' ? 'bg-blue-50 border border-blue-100 rounded-xl p-3 -mx-1' : ''
+                      }
+                    >
+                      <label className={fieldLabel}>
+                        Email{' '}
+                        {label === 'Vendor' ? (
+                          <span className="text-brand normal-case font-normal">(optional — vendor login ID)</span>
+                        ) : (
+                          <span className="text-gray-400 normal-case font-normal">(optional)</span>
+                        )}
+                      </label>
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={e => setForm({ ...form, email: e.target.value })}
+                        className={fieldInput}
+                        placeholder={label === 'Vendor' ? 'vendor@example.com' : 'email@example.com'}
+                      />
+                      {!editing && label === 'Vendor' && form.email.trim() && (
+                        <p className="text-xs text-blue-600 mt-2">
+                          Login will be auto-created. Password:{' '}
+                          <span className="font-mono font-bold">
+                            {form.name ? `${form.name.replace(/\s+/g, '').toLowerCase()}@123` : 'vendorname@123'}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className={fieldLabel}>
+                        Phone * <span className="text-gray-400 normal-case font-normal">(for WhatsApp)</span>
+                      </label>
+                      <input
+                        required
+                        value={form.phone}
+                        onChange={e => setForm({ ...form, phone: e.target.value })}
+                        className={fieldInput}
+                        placeholder="+91 98765 43210"
+                      />
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label className={fieldLabel}>Address</label>
+                  {desktopGlass ? (
+                    <textarea
+                      value={form.address}
+                      onChange={e => setForm({ ...form, address: e.target.value })}
+                      className={fieldInput}
+                      placeholder="Enter full business address"
+                      rows={3}
+                    />
+                  ) : (
+                    <input
+                      value={form.address}
+                      onChange={e => setForm({ ...form, address: e.target.value })}
+                      className={fieldInput}
+                    />
                   )}
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">
-                    Phone * <span className="text-gray-400 normal-case font-normal">(for WhatsApp)</span>
-                  </label>
-                  <input
-                    required
-                    value={form.phone}
-                    onChange={e => setForm({ ...form, phone: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    placeholder="+91 98765 43210"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Address</label>
-                  <input
-                    value={form.address}
-                    onChange={e => setForm({ ...form, address: e.target.value })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">GSTIN (optional)</label>
+                  <label className={fieldLabel}>GSTIN (optional)</label>
                   <input
                     value={form.gstNumber}
                     onChange={e => setForm({ ...form, gstNumber: e.target.value.toUpperCase() })}
-                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
+                    className={cn(fieldInput, 'font-mono')}
                     placeholder="e.g. 24AABCD1234F1Z5"
                     maxLength={15}
                   />
@@ -1077,18 +1254,35 @@ export function VendorMasterView({
                       <p className="text-[10px] text-rose-500 mt-0.5">Invalid GSTIN format</p>
                     )}
                 </div>
-                <div className="flex gap-2 pt-2">
+                <div
+                  className={cn(
+                    'flex gap-2',
+                    desktopGlass
+                      ? 'pt-2 -mx-6 -mb-6 px-6 py-6 mt-2 bg-[color-mix(in_srgb,var(--dg-input)_50%,transparent)] border-t border-[var(--dg-card-border)] gap-4'
+                      : 'pt-2',
+                  )}
+                >
                   <button
                     type="button"
                     onClick={() => setModalOpen(false)}
-                    className="flex-1 py-2 border border-gray-200 rounded-lg font-medium"
+                    className={cn(
+                      'flex-1 font-medium',
+                      desktopGlass
+                        ? 'px-4 py-3 border border-[var(--dg-card-border)] rounded-lg text-sm hover:bg-[var(--dg-input)]'
+                        : 'py-2 border border-gray-200 rounded-lg',
+                    )}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 py-2 bg-brand text-white rounded-lg font-bold"
+                    className={cn(
+                      'flex-1 font-bold',
+                      desktopGlass
+                        ? 'px-4 py-3 dg-bg-primary rounded-lg text-sm shadow-sm hover:opacity-90 active:scale-95 transition-all disabled:opacity-50'
+                        : 'py-2 bg-brand text-white rounded-lg',
+                    )}
                   >
                     {submitting ? 'Saving...' : 'Save'}
                   </button>

@@ -20,6 +20,18 @@ export default defineConfig(({ mode }) => {
     const { visualizer } = require('rollup-plugin-visualizer') as typeof import('rollup-plugin-visualizer');
     plugins.push(visualizer({ filename: 'dist/stats.html', gzipSize: true, open: false }));
   }
+  // tsc:electron can emit CJS shared/*.js (via server import graph). Prefer .ts so Vite/Electron
+  // never load CJS-as-ESM or SPA-fallback HTML for /shared/*.js → blank screen.
+  const sharedTsResolve: PluginOption = {
+    name: 'dg-shared-ts-resolve',
+    enforce: 'pre',
+    resolveId(source) {
+      const m = source.match(/(?:^|[/.])shared\/(mobileFeatures|tabPresets|metal)(?:\.js)?$/);
+      if (!m) return null;
+      return path.resolve(__dirname, `shared/${m[1]}.ts`);
+    },
+  };
+  plugins.unshift(sharedTsResolve);
   return {
     base: capacitorShell ? './' : '/',
     plugins,

@@ -16,9 +16,11 @@ import {
 import { cn, formatDate, getTabLabel } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
+import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
 import type { Tab } from '../../types';
+import type { GlobalSearchNavigate } from '../../lib/globalSearch';
 import {
   MobilePillTabs,
   MobileKpiCard,
@@ -26,6 +28,7 @@ import {
   MobileListRow,
   dateControlClass,
 } from '../../components/ui';
+import { DesktopAnalyticsDashboard } from './DesktopAnalyticsDashboard';
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString();
 
@@ -50,11 +53,19 @@ function relativeTime(dateStr: string, t: (key: string) => string) {
   return formatDate(dateStr);
 }
 
-export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => void }) {
+export function AnalyticsView({
+  setActiveTab,
+  onNavigateEntity,
+}: {
+  setActiveTab: (tab: Tab) => void;
+  /** Desktop glass deep-links (Manage Staff / count tiles). Cap path unused. */
+  onNavigateEntity?: (nav: GlobalSearchNavigate) => void;
+}) {
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
   /** Offline Mobile + online Cap service — same phone analytics chrome */
   const servicePhoneUx = isServicePhoneUx(cfg.type);
+  const desktopGlass = isDesktopGlassUi(cfg.type);
   const rangePresets = [
     { id: 'today' as const, label: t('common.today') },
     { id: 'week' as const, label: t('common.thisWeek') },
@@ -205,6 +216,73 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
         }[]
       ).filter(tile => tile.show)
     : [];
+
+  if (desktopGlass) {
+    const customSlot =
+      range === 'custom' ? (
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-end sm:gap-2">
+          <div className="min-w-0">
+            <label className="text-[10px] font-bold uppercase tracking-wide dg-muted block mb-1">
+              {t('common.from')}
+            </label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={e => setFromDate(e.target.value)}
+              className={dateControlClass}
+            />
+          </div>
+          <div className="min-w-0">
+            <label className="text-[10px] font-bold uppercase tracking-wide dg-muted block mb-1">
+              {t('common.to')}
+            </label>
+            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className={dateControlClass} />
+          </div>
+        </div>
+      ) : null;
+
+    return (
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+        <DesktopAnalyticsDashboard
+          range={range}
+          rangePresets={rangePresets}
+          onRange={id => setRange(id as RangeId)}
+          customSlot={customSlot}
+          moneyTiles={moneyTiles.map(tile => ({
+            ...tile,
+            hint:
+              tile.id === 'outstanding' && tile.value < 0
+                ? t('common.credit')
+                : tile.id === 'collections'
+                  ? 'Verified Credits'
+                  : tile.id === 'revenue'
+                    ? 'Direct Billing'
+                    : tile.id === 'dispatched'
+                      ? 'In-transit Value'
+                      : tile.id === 'expenses'
+                        ? 'Operating Costs'
+                        : tile.id === 'outstanding'
+                          ? 'To be collected'
+                          : tile.id === 'netIn'
+                            ? 'Current Position'
+                            : undefined,
+          }))}
+          moneyLoading={!money}
+          activity={activity}
+          relativeTime={d => relativeTime(d, t)}
+          activityLabel={type => t(ACTIVITY_META[type]?.labelKey ?? 'dashboard.sale')}
+          payroll={payroll}
+          counts={counts}
+          setActiveTab={setActiveTab}
+          onNavigateEntity={nav => {
+            if (onNavigateEntity) onNavigateEntity(nav);
+            else setActiveTab(nav.tab);
+          }}
+          revenueHighlight={money?.collections ?? money?.revenue ?? 0}
+        />
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-6">

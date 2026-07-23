@@ -17,11 +17,13 @@ import { cn } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
+import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { useTranslation } from '../../i18n';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
 import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
+import { DesktopMastersHub } from './DesktopMastersHub';
 
 const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
 const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
@@ -67,6 +69,7 @@ export function MastersView({
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
   const servicePhoneUx = isServicePhoneUx(businessType ?? cfg.type);
+  const desktopGlass = isDesktopGlassUi(businessType ?? cfg.type);
   /** Short pill labels for phone hub (Emergent-style). Vendor/Client uses `m.name` from cfg.labels.vendors. */
   const pillLabel = (id: MasterType): string => {
     const map: Partial<Record<MasterType, string>> = {
@@ -446,6 +449,14 @@ export function MastersView({
         />
       </Suspense>
     );
+
+  if (desktopGlass) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+        <DesktopMastersHub masters={masters} onOpen={handleMasterClick} />
+      </motion.div>
+    );
+  }
 
   const activeMeta = masters.find(m => m.id === active);
   const ActiveIcon = activeMeta?.icon;

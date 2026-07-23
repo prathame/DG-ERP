@@ -610,3 +610,249 @@ html.dg-mobile-dense aside nav button {
     background: white !important;
   }
 }
+
+/* ── Desktop glass shell (Electron / browser desktop only) ───────────────
+ * Light = cool gray surface; dark = charcoal glass (mock). Cap never gets this class.
+ */
+/* Token scope only — safe for portals (no position/z-index side effects). */
+.dg-glass-scope,
+.dg-desktop-glass {
+  --dg-primary: #ff7a00;
+  --dg-primary-bright: #ff7a00;
+  --dg-success: #00c853;
+  --dg-error: #d50000;
+  --dg-warning: #ffd600;
+  --dg-bg: #f7f9fb;
+  --dg-bg-mesh: rgba(25, 28, 30, 0.04);
+  --dg-card: rgba(255, 255, 255, 0.9);
+  --dg-card-hover: rgba(255, 255, 255, 0.96);
+  --dg-card-border: rgba(25, 28, 30, 0.08);
+  --dg-ink: #191c1e;
+  --dg-muted: #565e74;
+  --dg-faint: rgba(25, 28, 30, 0.22);
+  --dg-sidebar: #ffffff;
+  --dg-header: rgba(247, 249, 251, 0.85);
+  --dg-nav-idle: rgba(25, 28, 30, 0.5);
+  --dg-nav-hover: #191c1e;
+  --dg-input: #eceef0;
+  --dg-shadow: 0 8px 32px rgba(25, 28, 30, 0.08);
+  /* Opaque chat surfaces (portal UI — never see-through over app content) */
+  --dg-chat-panel: #f7f9fb;
+  --dg-chat-surface: #ffffff;
+  --dg-chat-messages: #eceef0;
+  /* Typography — Settings prefs set html[data-dg-font|data-dg-density]; Cap never gets this scope */
+  --dg-font-family: Geist, Inter, ui-sans-serif, system-ui, sans-serif;
+  --dg-font-size: 16px;
+  --dg-font-scale: 1;
+  --dg-text-xs: calc(0.75rem * var(--dg-font-scale));
+  --dg-text-sm: calc(0.875rem * var(--dg-font-scale));
+  --dg-text-base: calc(1rem * var(--dg-font-scale));
+  --dg-text-lg: calc(1.125rem * var(--dg-font-scale));
+  --dg-text-xl: calc(1.25rem * var(--dg-font-scale));
+  --dg-text-2xl: calc(1.5rem * var(--dg-font-scale));
+  --dg-text-3xl: calc(1.875rem * var(--dg-font-scale));
+  --dg-text-4xl: calc(2.25rem * var(--dg-font-scale));
+  font-family: var(--dg-font-family);
+  font-size: calc(var(--dg-font-size) * var(--dg-font-scale));
+}
+html[data-dg-font="inter"] .dg-glass-scope,
+html[data-dg-font="inter"] .dg-desktop-glass {
+  --dg-font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+html[data-dg-font="system"] .dg-glass-scope,
+html[data-dg-font="system"] .dg-desktop-glass {
+  --dg-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+html[data-dg-density="compact"] .dg-glass-scope,
+html[data-dg-density="compact"] .dg-desktop-glass {
+  --dg-font-scale: 0.9;
+}
+html[data-dg-density="comfortable"] .dg-glass-scope,
+html[data-dg-density="comfortable"] .dg-desktop-glass {
+  --dg-font-scale: 1.1;
+}
+/* Remap Tailwind type utilities so hierarchy stays proportional under density prefs */
+.dg-glass-scope .text-xs,
+.dg-desktop-glass .text-xs { font-size: var(--dg-text-xs) !important; }
+.dg-glass-scope .text-sm,
+.dg-desktop-glass .text-sm { font-size: var(--dg-text-sm) !important; }
+.dg-glass-scope .text-base,
+.dg-desktop-glass .text-base { font-size: var(--dg-text-base) !important; }
+.dg-glass-scope .text-lg,
+.dg-desktop-glass .text-lg { font-size: var(--dg-text-lg) !important; }
+.dg-glass-scope .text-xl,
+.dg-desktop-glass .text-xl { font-size: var(--dg-text-xl) !important; }
+.dg-glass-scope .text-2xl,
+.dg-desktop-glass .text-2xl { font-size: var(--dg-text-2xl) !important; }
+.dg-glass-scope .text-3xl,
+.dg-desktop-glass .text-3xl { font-size: var(--dg-text-3xl) !important; }
+.dg-glass-scope .text-4xl,
+.dg-desktop-glass .text-4xl { font-size: var(--dg-text-4xl) !important; }
+/* Common desktop glass arbitrary sizes (labels / KPI / mono) */
+.dg-glass-scope .text-\[9px\],
+.dg-desktop-glass .text-\[9px\] { font-size: calc(9px * var(--dg-font-scale)) !important; }
+.dg-glass-scope .text-\[10px\],
+.dg-desktop-glass .text-\[10px\] { font-size: calc(10px * var(--dg-font-scale)) !important; }
+.dg-glass-scope .text-\[11px\],
+.dg-desktop-glass .text-\[11px\] { font-size: calc(11px * var(--dg-font-scale)) !important; }
+.dg-glass-scope .text-\[13px\],
+.dg-desktop-glass .text-\[13px\] { font-size: calc(13px * var(--dg-font-scale)) !important; }
+.dg-glass-scope .text-\[15px\],
+.dg-desktop-glass .text-\[15px\] { font-size: calc(15px * var(--dg-font-scale)) !important; }
+.dg-glass-scope .text-\[32px\],
+.dg-desktop-glass .text-\[32px\] { font-size: calc(32px * var(--dg-font-scale)) !important; }
+.dg-desktop-glass {
+  background-color: var(--dg-bg) !important;
+  color: var(--dg-ink) !important;
+  position: relative;
+}
+.dg-desktop-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 20%, var(--dg-bg-mesh) 0%, transparent 45%),
+    linear-gradient(125deg, var(--dg-bg) 0%, #f2f4f6 50%, #e6e8ea 100%);
+  opacity: 0.95;
+}
+.dg-desktop-glass > * {
+  position: relative;
+  z-index: 1;
+}
+
+html.dark .dg-glass-scope,
+html.dark .dg-desktop-glass {
+  --dg-primary: #ff7a00;
+  --dg-primary-bright: #ff7a00;
+  --dg-bg: #0f1113;
+  --dg-bg-mesh: rgba(255, 122, 0, 0.08);
+  --dg-card: rgba(255, 255, 255, 0.03);
+  --dg-card-hover: rgba(255, 255, 255, 0.06);
+  --dg-card-border: rgba(255, 255, 255, 0.08);
+  --dg-ink: #fdfdfd;
+  --dg-muted: rgba(255, 255, 255, 0.4);
+  --dg-faint: rgba(255, 255, 255, 0.2);
+  --dg-sidebar: rgba(15, 17, 19, 0.75);
+  --dg-header: rgba(15, 17, 19, 0.45);
+  --dg-nav-idle: rgba(255, 255, 255, 0.5);
+  --dg-nav-hover: #ffffff;
+  --dg-input: rgba(255, 255, 255, 0.05);
+  --dg-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --dg-chat-panel: #0f1113;
+  --dg-chat-surface: #1a1c1e;
+  --dg-chat-messages: #141618;
+}
+html.dark .dg-desktop-glass::before {
+  background:
+    radial-gradient(circle at 50% 40%, var(--dg-bg-mesh) 0%, transparent 50%),
+    linear-gradient(125deg, #0f1113 0%, #1a1c1e 50%, #181a1d 100%);
+}
+
+.dg-desktop-glass .dg-glass-card {
+  background: var(--dg-card) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--dg-card-border) !important;
+  box-shadow: var(--dg-shadow);
+  color: var(--dg-ink) !important;
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
+}
+.dg-desktop-glass .dg-glass-card:hover {
+  border-color: color-mix(in srgb, var(--dg-primary) 35%, var(--dg-card-border)) !important;
+  background: var(--dg-card-hover) !important;
+}
+.dg-desktop-glass .dg-ink,
+.dg-glass-scope .dg-ink { color: var(--dg-ink) !important; }
+.dg-desktop-glass .dg-muted,
+.dg-glass-scope .dg-muted { color: var(--dg-muted) !important; }
+.dg-desktop-glass .dg-faint,
+.dg-glass-scope .dg-faint { color: var(--dg-faint) !important; }
+.dg-desktop-glass .dg-primary,
+.dg-glass-scope .dg-primary { color: var(--dg-primary) !important; }
+.dg-desktop-glass .dg-success,
+.dg-glass-scope .dg-success { color: var(--dg-success) !important; }
+.dg-desktop-glass .dg-error,
+.dg-glass-scope .dg-error { color: var(--dg-error) !important; }
+.dg-desktop-glass .dg-warning,
+.dg-glass-scope .dg-warning { color: var(--dg-warning) !important; }
+.dg-desktop-glass .dg-bg-primary,
+.dg-glass-scope .dg-bg-primary {
+  background: var(--dg-primary) !important;
+  color: #fff !important;
+}
+.dg-desktop-glass .dg-nav-active {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--dg-primary) 15%, transparent) 0%,
+    transparent 100%
+  ) !important;
+  border-left: 3px solid var(--dg-primary) !important;
+  color: var(--dg-ink) !important;
+}
+.dg-desktop-glass aside.dg-glass-sidebar {
+  background: var(--dg-sidebar) !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid var(--dg-card-border) !important;
+  box-shadow: none !important;
+}
+.dg-desktop-glass header.dg-glass-header,
+.dg-desktop-glass .dg-glass-header {
+  background: var(--dg-header) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--dg-card-border) !important;
+}
+
+/*
+ * Desktop glass: override global dark-mode slate/blue remaps (#1F2937, #1a2332, #111827)
+ * so shell chrome stays charcoal / cool gray via --dg-* tokens.
+ * Cap / service-phone never get .dg-desktop-glass.
+ */
+html.dark .dg-desktop-glass .bg-white,
+html.dark .dg-desktop-glass [class*="bg-white"] {
+  background-color: var(--dg-card) !important;
+}
+html.dark .dg-desktop-glass .bg-white\/90,
+html.dark .dg-desktop-glass .bg-white\/80,
+html.dark .dg-desktop-glass .bg-white\/95 {
+  background-color: var(--dg-header) !important;
+}
+html.dark .dg-desktop-glass .bg-gray-50,
+html.dark .dg-desktop-glass .bg-gray-50\/50,
+html.dark .dg-desktop-glass .bg-gray-50\/40,
+html.dark .dg-desktop-glass .bg-gray-100 {
+  background-color: var(--dg-input) !important;
+}
+html.dark .dg-desktop-glass .border-gray-100,
+html.dark .dg-desktop-glass .border-gray-200,
+html.dark .dg-desktop-glass .border-gray-50,
+html.dark .dg-desktop-glass [class*="border-gray"] {
+  border-color: var(--dg-card-border) !important;
+}
+html.dark .dg-desktop-glass .border-t {
+  border-color: var(--dg-card-border) !important;
+}
+html.dark .dg-desktop-glass .hover\:bg-gray-50:hover,
+html.dark .dg-desktop-glass .hover\:bg-gray-100:hover {
+  background-color: var(--dg-card-hover) !important;
+}
+/* Sidebar footer must blend with charcoal glass, not sit on a slate panel */
+html.dark .dg-desktop-glass aside.dg-glass-sidebar .bg-white,
+html.dark .dg-desktop-glass aside.dg-glass-sidebar [class*="bg-white"] {
+  background-color: transparent !important;
+}
+html.dark .dg-desktop-glass aside.dg-glass-sidebar .bg-gray-50,
+html.dark .dg-desktop-glass aside.dg-glass-sidebar .hover\:bg-gray-50:hover,
+html.dark .dg-desktop-glass aside.dg-glass-sidebar .hover\:bg-gray-100:hover {
+  background-color: var(--dg-card-hover) !important;
+}
+html.dark .dg-desktop-glass input,
+html.dark .dg-desktop-glass select,
+html.dark .dg-desktop-glass textarea {
+  background-color: var(--dg-input) !important;
+  color: var(--dg-ink) !important;
+  border-color: var(--dg-card-border) !important;
+}

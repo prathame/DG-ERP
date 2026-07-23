@@ -26,7 +26,9 @@ import { suggestHsnRate } from '../../lib/hsnRates';
 import { useColumnPicker, ColumnPickerButton } from '../../components/ui/ColumnPicker';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { MetalIntakeModal } from './MetalIntakeModal';
+import { DesktopInventoryPanel, type StockFilter } from './DesktopInventoryPanel';
 
 export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const canEdit = accessLevel === 'full';
@@ -34,7 +36,9 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const { toast } = useToast();
   const { confirm, ConfirmRenderer } = useConfirm();
   const bizCfg = useBusinessConfig();
+  const desktopGlass = isDesktopGlassUi(bizCfg.type);
   const metalMode = bizCfg.features.metalInventory;
+  const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [metalIntakeOpen, setMetalIntakeOpen] = useState(false);
   const barcodeSystemEnabled = (() => {
     try {
@@ -170,467 +174,520 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
     }
   };
 
+  const exportInventory = () => {
+    if (!sortedProducts.length) return;
+    exportToCsv(
+      sortedProducts.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        totalInventory: p.totalInventory ?? p.stock ?? 0,
+        remainingInventory: p.remainingInventory ?? p.stock ?? 0,
+        soldCount: p.soldCount ?? 0,
+      })),
+      'inventory',
+    );
+  };
+
+  const deleteAllInventory = async () => {
+    if (
+      !(await confirm({
+        title: 'Delete All Inventory',
+        message: `This will permanently delete all ${sortedProducts.length} products and their stock, barcodes, and distribution history. This cannot be undone.`,
+        confirmLabel: `Delete All ${sortedProducts.length} Products`,
+        variant: 'danger',
+      }))
+    )
+      return;
+    try {
+      await fetchApi('/products/all', { method: 'DELETE' });
+      setProducts([]);
+      toast('All inventory deleted', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  };
+
+  const toggleGstInclusive = (p: Product) => {
+    api.products
+      .update(p.id, { priceIncludesGst: !p.priceIncludesGst } as Partial<Product>)
+      .then(() => {
+        setProducts(prev => prev.map(x => (x.id === p.id ? { ...x, priceIncludesGst: !x.priceIncludesGst } : x)));
+        toast(`GST ${!p.priceIncludesGst ? 'inclusive' : 'exclusive'} for ${p.name}`, 'success');
+      })
+      .catch(e => toast(e.message, 'error'));
+  };
+
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-xl font-bold">{getTabLabel('inventory', 'Inventory')}</h2>
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() =>
-              sortedProducts.length &&
-              exportToCsv(
-                sortedProducts.map(p => ({
-                  id: p.id,
-                  name: p.name,
-                  price: p.price,
-                  totalInventory: p.totalInventory ?? p.stock ?? 0,
-                  remainingInventory: p.remainingInventory ?? p.stock ?? 0,
-                  soldCount: p.soldCount ?? 0,
-                })),
-                'inventory',
-              )
-            }
-            disabled={!sortedProducts.length}
-            className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download size={18} /> Export CSV
-          </button>
-          {canEdit && sortedProducts.length > 0 && (
-            <button
-              type="button"
-              onClick={async () => {
-                if (
-                  !(await confirm({
-                    title: 'Delete All Inventory',
-                    message: `This will permanently delete all ${sortedProducts.length} products and their stock, barcodes, and distribution history. This cannot be undone.`,
-                    confirmLabel: `Delete All ${sortedProducts.length} Products`,
-                    variant: 'danger',
-                  }))
-                )
-                  return;
-                try {
-                  await fetchApi('/products/all', { method: 'DELETE' });
-                  setProducts([]);
-                  toast('All inventory deleted', 'success');
-                } catch (err) {
-                  toast((err as Error).message, 'error');
-                }
-              }}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 border border-rose-200 text-rose-600 rounded-xl text-sm font-medium hover:bg-rose-50"
-            >
-              <Trash2 size={16} /> Delete All
-            </button>
-          )}
-          <ColumnPickerButton columns={invCols} visible={colVisible} onToggle={colToggle} />
-          <div className="relative flex-1 min-w-[150px] sm:min-w-[200px]">
-            <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="text"
-              placeholder="Scan or enter barcode..."
-              value={barcodeSearch}
-              onChange={e => setBarcodeSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-              autoComplete="off"
-            />
-          </div>
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => setCsvImportOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"
-            >
-              <Upload size={18} /> Import CSV
-            </button>
-          )}
-          {canEdit && metalMode && (
-            <button
-              type="button"
-              onClick={() => setMetalIntakeOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-brand text-brand rounded-xl text-sm font-bold hover:bg-orange-50"
-            >
-              <Scale size={18} /> Metal Intake
-            </button>
-          )}
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => setAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
-            >
-              <Plus size={18} /> Add Product
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Sorting Bar */}
-      <div className="bg-white p-3 sm:p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-2 sm:gap-4 overflow-x-auto">
-        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Sort By:</span>
-        <div className="flex items-center gap-2">
-          {[
-            { label: 'Name', key: 'name' },
-            { label: 'Price', key: 'price' },
-            { label: 'Stock', key: 'stock' },
-          ].map(item => (
-            <button
-              key={item.key}
-              onClick={() => toggleSort(item.key as keyof Product)}
-              className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap',
-                sortBy === item.key
-                  ? 'bg-brand text-white shadow-md shadow-brand/20'
-                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100',
-              )}
-            >
-              {item.label}
-              {sortBy === item.key && (
-                <ArrowUpDown size={14} className={cn('transition-transform', sortOrder === 'desc' && 'rotate-180')} />
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {loading ? (
-        <TableSkeleton rows={6} cols={5} />
-      ) : sortedProducts.length === 0 ? (
-        <div className="bg-white p-12 rounded-2xl border border-gray-100 text-center">
-          <Package className="mx-auto mb-3 text-gray-300" size={48} />
-          <p className="text-gray-500 font-medium text-lg">No products in inventory</p>
-          <p className="text-gray-400 text-sm mt-1">Add your first product to get started</p>
-          <button
-            type="button"
-            onClick={() => setAddModalOpen(true)}
-            className="mt-4 px-6 py-2 bg-brand text-white rounded-xl text-sm font-bold"
-          >
-            Add Product
-          </button>
-        </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={cn('space-y-6', desktopGlass && 'space-y-0')}
+    >
+      {desktopGlass ? (
+        <DesktopInventoryPanel
+          title={getTabLabel('inventory', 'Inventory Management')}
+          products={sortedProducts}
+          loading={loading}
+          canEdit={canEdit}
+          inventoryTrackingEnabled={inventoryTrackingEnabled}
+          metalMode={metalMode}
+          barcodeSearch={barcodeSearch}
+          onBarcodeSearch={setBarcodeSearch}
+          stockFilter={stockFilter}
+          onStockFilter={setStockFilter}
+          sortBy={sortBy === 'price' || sortBy === 'stock' ? sortBy : 'name'}
+          sortOrder={sortOrder}
+          onToggleSort={field => toggleSort(field)}
+          colVisible={colVisible}
+          colToggle={colToggle}
+          colShow={colShow}
+          invCols={invCols}
+          onExport={exportInventory}
+          onDeleteAll={deleteAllInventory}
+          onImportCsv={() => setCsvImportOpen(true)}
+          onMetalIntake={() => setMetalIntakeOpen(true)}
+          onAddProduct={() => setAddModalOpen(true)}
+          onBarcodeDetails={p =>
+            api.products
+              .barcodeDetails(p.id)
+              .then(batches => setBarcodeDetailsModal({ product: p, batches }))
+              .catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))
+          }
+          onAddStock={p => {
+            setAddStockModal(p);
+            setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
+          }}
+          onDelete={setProductToDelete}
+          onToggleGst={toggleGstInclusive}
+        />
       ) : (
         <>
-          {/* Desktop Table */}
-          <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-gray-50/80 border-b-2 border-gray-200">
-                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Product</th>
-                  {colShow('price') && (
-                    <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">
-                      Price
-                    </th>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <h2 className="text-xl font-bold">{getTabLabel('inventory', 'Inventory')}</h2>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={exportInventory}
+                disabled={!sortedProducts.length}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download size={18} /> Export CSV
+              </button>
+              {canEdit && sortedProducts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={deleteAllInventory}
+                  className="hidden sm:flex items-center gap-2 px-4 py-2 border border-rose-200 text-rose-600 rounded-xl text-sm font-medium hover:bg-rose-50"
+                >
+                  <Trash2 size={16} /> Delete All
+                </button>
+              )}
+              <ColumnPickerButton columns={invCols} visible={colVisible} onToggle={colToggle} />
+              <div className="relative flex-1 min-w-[150px] sm:min-w-[200px]">
+                <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Scan or enter barcode..."
+                  value={barcodeSearch}
+                  onChange={e => setBarcodeSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+                  autoComplete="off"
+                />
+              </div>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => setCsvImportOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50"
+                >
+                  <Upload size={18} /> Import CSV
+                </button>
+              )}
+              {canEdit && metalMode && (
+                <button
+                  type="button"
+                  onClick={() => setMetalIntakeOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 border border-brand text-brand rounded-xl text-sm font-bold hover:bg-orange-50"
+                >
+                  <Scale size={18} /> Metal Intake
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => setAddModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold shadow-lg shadow-brand/20"
+                >
+                  <Plus size={18} /> Add Product
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Sorting Bar */}
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-2 sm:gap-4 overflow-x-auto">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Sort By:</span>
+            <div className="flex items-center gap-2">
+              {[
+                { label: 'Name', key: 'name' },
+                { label: 'Price', key: 'price' },
+                { label: 'Stock', key: 'stock' },
+              ].map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => toggleSort(item.key as keyof Product)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap',
+                    sortBy === item.key
+                      ? 'bg-brand text-white shadow-md shadow-brand/20'
+                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100',
                   )}
-                  {inventoryTrackingEnabled && (
-                    <>
-                      {colShow('total') && (
-                        <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">
-                          Total
-                        </th>
-                      )}
-                      {colShow('admin') && (
-                        <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">
-                          Admin
-                        </th>
-                      )}
-                      {colShow('vendors') && (
-                        <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">
-                          Vendors
-                        </th>
-                      )}
-                      {colShow('sold') && (
-                        <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">
-                          Sold
-                        </th>
-                      )}
-                    </>
+                >
+                  {item.label}
+                  {sortBy === item.key && (
+                    <ArrowUpDown
+                      size={14}
+                      className={cn('transition-transform', sortOrder === 'desc' && 'rotate-180')}
+                    />
                   )}
-                  <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {loading ? (
+            <TableSkeleton rows={6} cols={5} />
+          ) : sortedProducts.length === 0 ? (
+            <div className="bg-white p-12 rounded-2xl border border-gray-100 text-center">
+              <Package className="mx-auto mb-3 text-gray-300" size={48} />
+              <p className="text-gray-500 font-medium text-lg">No products in inventory</p>
+              <p className="text-gray-400 text-sm mt-1">Add your first product to get started</p>
+              <button
+                type="button"
+                onClick={() => setAddModalOpen(true)}
+                className="mt-4 px-6 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+              >
+                Add Product
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Desktop Table */}
+              <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-gray-50/80 border-b-2 border-gray-200">
+                      <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Product</th>
+                      {colShow('price') && (
+                        <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">
+                          Price
+                        </th>
+                      )}
+                      {inventoryTrackingEnabled && (
+                        <>
+                          {colShow('total') && (
+                            <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">
+                              Total
+                            </th>
+                          )}
+                          {colShow('admin') && (
+                            <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">
+                              Admin
+                            </th>
+                          )}
+                          {colShow('vendors') && (
+                            <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">
+                              Vendors
+                            </th>
+                          )}
+                          {colShow('sold') && (
+                            <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">
+                              Sold
+                            </th>
+                          )}
+                        </>
+                      )}
+                      <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {sortedProducts.map(p => {
+                      const isLowStock = (p.remainingInventory ?? p.stock ?? 0) < 10;
+                      return (
+                        <tr
+                          key={p.id}
+                          className={cn(
+                            'hover:bg-gray-50 transition-colors',
+                            isLowStock ? 'bg-amber-50/40' : 'even:bg-gray-50/40',
+                          )}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm text-gray-900">{p.name}</span>
+                              {isLowStock && (
+                                <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                                  <AlertTriangle size={10} /> Low
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          {colShow('price') && (
+                            <td className="px-4 py-3 text-right">
+                              <span className="font-semibold text-sm text-emerald-600">
+                                ₹{p.price.toLocaleString()}
+                              </span>
+                              {(p.packSize || 1) > 1 && (
+                                <span className="block text-[10px] text-gray-400">per {p.packName || 'Box'}</span>
+                              )}
+                              <div className="mt-0.5">
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleGstInclusive(p)}
+                                    className={cn(
+                                      'text-[9px] font-bold px-1.5 py-0.5 rounded-full cursor-pointer',
+                                      p.priceIncludesGst
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : 'bg-gray-100 text-gray-500',
+                                    )}
+                                  >
+                                    {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
+                                  </button>
+                                ) : (
+                                  <span
+                                    className={cn(
+                                      'text-[9px] font-bold px-1.5 py-0.5 rounded-full',
+                                      p.priceIncludesGst
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : 'bg-gray-100 text-gray-500',
+                                    )}
+                                  >
+                                    {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                          {inventoryTrackingEnabled &&
+                            (() => {
+                              const rawStock = p.remainingInventory ?? p.stock ?? 0;
+                              const rawTotal = p.totalInventory ?? p.stock ?? 0;
+                              const ps = p.packSize || 1;
+                              const isBoxProduct = ps > 1;
+                              const isBoxBarcode = p.barcodeUnitType === 'box';
+                              const boxCount = isBoxBarcode ? rawStock : Math.floor(rawStock / ps);
+                              const totalBoxCount = isBoxBarcode ? rawTotal : Math.floor(rawTotal / ps);
+                              const pcsCount = isBoxBarcode ? rawStock * ps : rawStock;
+                              const loosePcs = isBoxBarcode ? 0 : rawStock % ps;
+                              return (
+                                <>
+                                  {colShow('total') && (
+                                    <td className="px-4 py-3 text-center">
+                                      {isBoxProduct ? (
+                                        <>
+                                          <span
+                                            className={cn(
+                                              'font-semibold text-sm',
+                                              isLowStock ? 'text-amber-700' : 'text-gray-900',
+                                            )}
+                                          >
+                                            {totalBoxCount}
+                                          </span>
+                                          <span className="block text-[10px] text-gray-500 font-bold">
+                                            {p.packName || 'Box'}es
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span
+                                            className={cn(
+                                              'font-semibold text-sm',
+                                              isLowStock ? 'text-amber-700' : 'text-gray-900',
+                                            )}
+                                          >
+                                            {rawTotal}
+                                          </span>
+                                          <span className="block text-[10px] text-gray-400">pcs</span>
+                                        </>
+                                      )}
+                                    </td>
+                                  )}
+                                  {colShow('admin') && (
+                                    <td className="px-4 py-3 text-center">
+                                      {isBoxProduct ? (
+                                        <>
+                                          <span className="font-semibold text-sm text-blue-700">{boxCount}</span>
+                                          <span className="block text-[10px] text-gray-500 font-bold">
+                                            {p.packName || 'Box'}es{loosePcs > 0 ? ` + ${loosePcs} pcs` : ''}
+                                          </span>
+                                          <span className="block text-[10px] text-emerald-500">({pcsCount} pcs)</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span className="font-semibold text-sm text-blue-700">{rawStock}</span>
+                                          <span className="block text-[10px] text-gray-400">pcs</span>
+                                        </>
+                                      )}
+                                    </td>
+                                  )}
+                                  {colShow('vendors') && (
+                                    <td className="px-4 py-3 text-center">
+                                      <span className="font-semibold text-sm text-purple-700">
+                                        {p.withVendors ?? 0}
+                                      </span>
+                                    </td>
+                                  )}
+                                  {colShow('sold') && (
+                                    <td className="px-4 py-3 text-center">
+                                      <span className="font-semibold text-sm text-emerald-700">{p.soldCount ?? 0}</span>
+                                    </td>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  api.products
+                                    .barcodeDetails(p.id)
+                                    .then(batches => setBarcodeDetailsModal({ product: p, batches }))
+                                    .catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))
+                                }
+                                className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
+                                title="Barcode Details"
+                              >
+                                <Barcode size={16} />
+                              </button>
+                              {canEdit && inventoryTrackingEnabled && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAddStockModal(p);
+                                    setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
+                                  }}
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                  title="Add Stock"
+                                >
+                                  <Plus size={16} />
+                                </button>
+                              )}
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => setProductToDelete(p)}
+                                  className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile List */}
+              <div className="sm:hidden space-y-2">
                 {sortedProducts.map(p => {
                   const isLowStock = (p.remainingInventory ?? p.stock ?? 0) < 10;
                   return (
-                    <tr
+                    <div
                       key={p.id}
                       className={cn(
-                        'hover:bg-gray-50 transition-colors',
-                        isLowStock ? 'bg-amber-50/40' : 'even:bg-gray-50/40',
+                        'bg-white rounded-xl border border-gray-100 p-3',
+                        isLowStock && 'border-amber-200 bg-amber-50/30',
                       )}
                     >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm text-gray-900">{p.name}</span>
-                          {isLowStock && (
-                            <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
-                              <AlertTriangle size={10} /> Low
-                            </span>
-                          )}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-semibold text-sm text-gray-900 truncate">{p.name}</span>
+                          {isLowStock && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
                         </div>
-                      </td>
-                      {colShow('price') && (
-                        <td className="px-4 py-3 text-right">
-                          <span className="font-semibold text-sm text-emerald-600">₹{p.price.toLocaleString()}</span>
-                          {(p.packSize || 1) > 1 && (
-                            <span className="block text-[10px] text-gray-400">per {p.packName || 'Box'}</span>
-                          )}
-                          <div className="mt-0.5">
-                            {canEdit ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  api.products
-                                    .update(p.id, { priceIncludesGst: !p.priceIncludesGst } as Partial<
-                                      import('../../types').Product
-                                    >)
-                                    .then(() => {
-                                      setProducts(prev =>
-                                        prev.map(x =>
-                                          x.id === p.id ? { ...x, priceIncludesGst: !x.priceIncludesGst } : x,
-                                        ),
-                                      );
-                                      toast(
-                                        `GST ${!p.priceIncludesGst ? 'inclusive' : 'exclusive'} for ${p.name}`,
-                                        'success',
-                                      );
-                                    })
-                                    .catch(e => toast(e.message, 'error'));
-                                }}
-                                className={cn(
-                                  'text-[9px] font-bold px-1.5 py-0.5 rounded-full cursor-pointer',
-                                  p.priceIncludesGst ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500',
-                                )}
-                              >
-                                {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
-                              </button>
-                            ) : (
-                              <span
-                                className={cn(
-                                  'text-[9px] font-bold px-1.5 py-0.5 rounded-full',
-                                  p.priceIncludesGst ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500',
-                                )}
-                              >
-                                {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
-                              </span>
+                        <div className="text-right shrink-0">
+                          <span className="font-semibold text-sm text-emerald-600">
+                            ₹{p.price.toLocaleString()}
+                            {(p.packSize || 1) > 1 ? `/${p.packName || 'Box'}` : ''}
+                          </span>
+                          <span
+                            className={cn(
+                              'block text-[9px] font-bold',
+                              p.priceIncludesGst ? 'text-emerald-600' : 'text-gray-400',
                             )}
-                          </div>
-                        </td>
+                          >
+                            {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
+                          </span>
+                        </div>
+                      </div>
+                      {inventoryTrackingEnabled && (
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span>
+                            Total:{' '}
+                            <strong className={isLowStock ? 'text-amber-700' : 'text-gray-900'}>
+                              {p.totalInventory ?? p.stock ?? 0}
+                            </strong>
+                          </span>
+                          <span>
+                            Admin: <strong className="text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</strong>
+                          </span>
+                          <span>
+                            Vendors: <strong className="text-purple-700">{p.withVendors ?? 0}</strong>
+                          </span>
+                          <span>
+                            Sold: <strong className="text-emerald-700">{p.soldCount ?? 0}</strong>
+                          </span>
+                        </div>
                       )}
-                      {inventoryTrackingEnabled &&
-                        (() => {
-                          const rawStock = p.remainingInventory ?? p.stock ?? 0;
-                          const rawTotal = p.totalInventory ?? p.stock ?? 0;
-                          const ps = p.packSize || 1;
-                          const isBoxProduct = ps > 1;
-                          const isBoxBarcode = p.barcodeUnitType === 'box';
-                          const boxCount = isBoxBarcode ? rawStock : Math.floor(rawStock / ps);
-                          const totalBoxCount = isBoxBarcode ? rawTotal : Math.floor(rawTotal / ps);
-                          const pcsCount = isBoxBarcode ? rawStock * ps : rawStock;
-                          const loosePcs = isBoxBarcode ? 0 : rawStock % ps;
-                          return (
-                            <>
-                              {colShow('total') && (
-                                <td className="px-4 py-3 text-center">
-                                  {isBoxProduct ? (
-                                    <>
-                                      <span
-                                        className={cn(
-                                          'font-semibold text-sm',
-                                          isLowStock ? 'text-amber-700' : 'text-gray-900',
-                                        )}
-                                      >
-                                        {totalBoxCount}
-                                      </span>
-                                      <span className="block text-[10px] text-gray-500 font-bold">
-                                        {p.packName || 'Box'}es
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span
-                                        className={cn(
-                                          'font-semibold text-sm',
-                                          isLowStock ? 'text-amber-700' : 'text-gray-900',
-                                        )}
-                                      >
-                                        {rawTotal}
-                                      </span>
-                                      <span className="block text-[10px] text-gray-400">pcs</span>
-                                    </>
-                                  )}
-                                </td>
-                              )}
-                              {colShow('admin') && (
-                                <td className="px-4 py-3 text-center">
-                                  {isBoxProduct ? (
-                                    <>
-                                      <span className="font-semibold text-sm text-blue-700">{boxCount}</span>
-                                      <span className="block text-[10px] text-gray-500 font-bold">
-                                        {p.packName || 'Box'}es{loosePcs > 0 ? ` + ${loosePcs} pcs` : ''}
-                                      </span>
-                                      <span className="block text-[10px] text-emerald-500">({pcsCount} pcs)</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className="font-semibold text-sm text-blue-700">{rawStock}</span>
-                                      <span className="block text-[10px] text-gray-400">pcs</span>
-                                    </>
-                                  )}
-                                </td>
-                              )}
-                              {colShow('vendors') && (
-                                <td className="px-4 py-3 text-center">
-                                  <span className="font-semibold text-sm text-purple-700">{p.withVendors ?? 0}</span>
-                                </td>
-                              )}
-                              {colShow('sold') && (
-                                <td className="px-4 py-3 text-center">
-                                  <span className="font-semibold text-sm text-emerald-700">{p.soldCount ?? 0}</span>
-                                </td>
-                              )}
-                            </>
-                          );
-                        })()}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-gray-100">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            api.products
+                              .barcodeDetails(p.id)
+                              .then(batches => setBarcodeDetailsModal({ product: p, batches }))
+                              .catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))
+                          }
+                          className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
+                          title="Barcode Details"
+                        >
+                          <Barcode size={16} />
+                        </button>
+                        {inventoryTrackingEnabled && (
                           <button
                             type="button"
-                            onClick={() =>
-                              api.products
-                                .barcodeDetails(p.id)
-                                .then(batches => setBarcodeDetailsModal({ product: p, batches }))
-                                .catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))
-                            }
-                            className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
-                            title="Barcode Details"
+                            onClick={() => {
+                              setAddStockModal(p);
+                              setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
+                            }}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                            title="Add Stock"
                           >
-                            <Barcode size={16} />
+                            <Plus size={16} />
                           </button>
-                          {canEdit && inventoryTrackingEnabled && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAddStockModal(p);
-                                setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
-                              }}
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
-                              title="Add Stock"
-                            >
-                              <Plus size={16} />
-                            </button>
-                          )}
-                          {canEdit && (
-                            <button
-                              type="button"
-                              onClick={() => setProductToDelete(p)}
-                              className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
-                              title="Delete"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setProductToDelete(p)}
+                          className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile List */}
-          <div className="sm:hidden space-y-2">
-            {sortedProducts.map(p => {
-              const isLowStock = (p.remainingInventory ?? p.stock ?? 0) < 10;
-              return (
-                <div
-                  key={p.id}
-                  className={cn(
-                    'bg-white rounded-xl border border-gray-100 p-3',
-                    isLowStock && 'border-amber-200 bg-amber-50/30',
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-semibold text-sm text-gray-900 truncate">{p.name}</span>
-                      {isLowStock && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="font-semibold text-sm text-emerald-600">
-                        ₹{p.price.toLocaleString()}
-                        {(p.packSize || 1) > 1 ? `/${p.packName || 'Box'}` : ''}
-                      </span>
-                      <span
-                        className={cn(
-                          'block text-[9px] font-bold',
-                          p.priceIncludesGst ? 'text-emerald-600' : 'text-gray-400',
-                        )}
-                      >
-                        {p.priceIncludesGst ? 'GST Incl' : 'GST Excl'}
-                      </span>
-                    </div>
-                  </div>
-                  {inventoryTrackingEnabled && (
-                    <div className="flex items-center gap-3 text-xs text-gray-500">
-                      <span>
-                        Total:{' '}
-                        <strong className={isLowStock ? 'text-amber-700' : 'text-gray-900'}>
-                          {p.totalInventory ?? p.stock ?? 0}
-                        </strong>
-                      </span>
-                      <span>
-                        Admin: <strong className="text-blue-700">{p.remainingInventory ?? p.stock ?? 0}</strong>
-                      </span>
-                      <span>
-                        Vendors: <strong className="text-purple-700">{p.withVendors ?? 0}</strong>
-                      </span>
-                      <span>
-                        Sold: <strong className="text-emerald-700">{p.soldCount ?? 0}</strong>
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-gray-100">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        api.products
-                          .barcodeDetails(p.id)
-                          .then(batches => setBarcodeDetailsModal({ product: p, batches }))
-                          .catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))
-                      }
-                      className="p-1.5 text-brand hover:bg-orange-50 rounded-lg"
-                      title="Barcode Details"
-                    >
-                      <Barcode size={16} />
-                    </button>
-                    {inventoryTrackingEnabled && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAddStockModal(p);
-                          setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
-                        }}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
-                        title="Add Stock"
-                      >
-                        <Plus size={16} />
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setProductToDelete(p)}
-                      className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
-                      title="Delete"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+              </div>
+            </>
+          )}
         </>
       )}
 
