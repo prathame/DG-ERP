@@ -15,6 +15,8 @@ import {
   linePricesAfterDiscount,
 } from '../../lib/gstInclusivePrice';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
+import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsApp';
+import { whatsAppInvoiceShareToast } from '../../lib/printStandaloneInvoice';
 import type { DistributionBillData, DistributionBatch } from '../../api';
 
 type DistRow = {
@@ -67,6 +69,7 @@ export function CreateDistributionModal({
     bill: DistributionBillData;
   } | null>(null);
   const [printing, setPrinting] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const headerGstRef = useRef<HTMLInputElement>(null);
 
   useEscapeKey(() => {
@@ -271,6 +274,21 @@ export function CreateDistributionModal({
     }
   };
 
+  const runWhatsApp = async (kind: 'gst' | 'bos' | 'both') => {
+    if (!created) return;
+    setSharing(true);
+    try {
+      toast('Preparing PDF…', 'info');
+      const { how, errorHint } = await shareDistributionDocsWhatsApp(created.bill, kind);
+      if (how === 'cancelled') return;
+      toast(whatsAppInvoiceShareToast(how, errorHint), how === 'pdf_fallback' ? 'info' : 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const printAvail = created ? deliveryPrintAvailability(created.bill) : null;
 
   return (
@@ -302,7 +320,7 @@ export function CreateDistributionModal({
               {printAvail.hasGst && (
                 <button
                   type="button"
-                  disabled={printing}
+                  disabled={printing || sharing}
                   onClick={() => void runPrint('gst')}
                   className="px-4 py-2.5 border border-emerald-300 text-emerald-700 bg-emerald-50 rounded-xl font-bold text-sm hover:bg-emerald-100 disabled:opacity-60"
                 >
@@ -312,7 +330,7 @@ export function CreateDistributionModal({
               {printAvail.hasBos && (
                 <button
                   type="button"
-                  disabled={printing}
+                  disabled={printing || sharing}
                   onClick={() => void runPrint('bos')}
                   className="px-4 py-2.5 border border-amber-300 text-amber-700 bg-amber-50 rounded-xl font-bold text-sm hover:bg-amber-100 disabled:opacity-60"
                 >
@@ -322,11 +340,43 @@ export function CreateDistributionModal({
               {printAvail.isDual && (
                 <button
                   type="button"
-                  disabled={printing}
+                  disabled={printing || sharing}
                   onClick={() => void runPrint('both')}
                   className="px-4 py-2.5 bg-brand text-white rounded-xl font-bold text-sm disabled:opacity-60"
                 >
                   Print Both
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {printAvail.hasGst && (
+                <button
+                  type="button"
+                  disabled={printing || sharing}
+                  onClick={() => void runWhatsApp('gst')}
+                  className="px-4 py-2.5 border border-green-300 text-green-700 bg-green-50 rounded-xl font-bold text-sm hover:bg-green-100 disabled:opacity-60"
+                >
+                  {sharing ? 'Preparing…' : 'WhatsApp Tax Invoice'}
+                </button>
+              )}
+              {printAvail.hasBos && (
+                <button
+                  type="button"
+                  disabled={printing || sharing}
+                  onClick={() => void runWhatsApp('bos')}
+                  className="px-4 py-2.5 border border-green-300 text-green-700 bg-green-50 rounded-xl font-bold text-sm hover:bg-green-100 disabled:opacity-60"
+                >
+                  {sharing ? 'Preparing…' : 'WhatsApp Bill of Supply'}
+                </button>
+              )}
+              {printAvail.isDual && (
+                <button
+                  type="button"
+                  disabled={printing || sharing}
+                  onClick={() => void runWhatsApp('both')}
+                  className="px-4 py-2.5 border border-green-400 text-green-800 bg-green-50 rounded-xl font-bold text-sm hover:bg-green-100 disabled:opacity-60"
+                >
+                  {sharing ? 'Preparing…' : 'WhatsApp Both PDFs'}
                 </button>
               )}
             </div>

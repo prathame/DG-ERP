@@ -19,16 +19,16 @@ Online-only seats on a **service** cloud tenant. Clients: Cloud Electron + onlin
 | 13 | Browser not enrolled | Login in normal browser (no Electron/Capacitor) | No seat gate; claim with web client rejected |
 | 14 | Manufacturer tenant | Open manufacturer tenant detail | Cloud app seats panel shown; multi-user (no company freeze); Cap Online features when mode is mobile/both |
 | 15 | Not Service Mobile | Compare with Service Mobile licenses | No `DG-SM-` key; uses cloud tenant users |
-| 16 | Download page split | Open `/download` | **Service Cloud ONLINE** and **Service Mobile OFFLINE** are separate cards; Android + iOS buttons each (4 evergreen links) |
-| 17 | Set download URL | SA → Analytics → paste Service Cloud URLs → Save → open `/download` | Buttons use those URLs |
-| 18 | Default Offline Mobile | Clear `service_mobile_app_url` / `service_mobile_ios_url` → `/download` | Offline uses GitHub evergreen APK + `.app.zip` without SA paste |
-| 23 | Default Online Cap | Clear `service_cloud_app_url` / `service_cloud_ios_url` → `/download` | Online uses `service-cloud` APK + `.app.zip` |
-| 24 | CI builds Online Cap only | Label PR `online` (or `service-cloud`), merge — or comment `apk build online` | Online APK + iOS jobs run; Offline skipped. Evergreen `service-cloud` updates on merge |
-| 25 | Online APK app id | After `npm run cap:sync:cloud`, open `android/app/build.gradle` | `applicationId "in.dhandho.servicecloud"` (not Offline `in.dhandho.service`) so both can install |
+| 16 | Download page one phone | Open `/download` | **One phone card** (Android + iOS); copy says Online/Offline chosen at first launch — not two separate Cap installers |
+| 17 | Set download URL | SA → Analytics → paste phone evergreen URLs → Save → open `/download` | Buttons use those URLs |
+| 18 | Default phone APK | Clear `service_mobile_app_url` / `service_mobile_ios_url` → `/download` | Unified phone uses GitHub evergreen APK + `.app.zip` without SA paste |
+| 23 | Manufacturer Cap Online | Cloud manufacturer + Need mobile=yes → Cap Online latch → slug → login | Device claim succeeds; companion nav from `mobile_features`; no company-wide freeze |
+| 24 | CI builds unified phone | Label PR `mobile` / `offline` / `online` (aliases), merge — or comment `apk build` | Unified `dhandho-mobile` APK + iOS jobs; former separate Online Cap job retired |
+| 25 | Unified APK app id | After `npm run cap:sync`, open `android/app/build.gradle` | `applicationId "in.dhandho.service"` (one APK; Online/Offline latch inside app) |
 | 19 | Share reset link | Seats user card → Share reset link → Copy | Modal shows link; user can reset on Cap or Electron |
 | 20 | Notify one user | Seats → Notify on user A; login as A and B | Only A sees the in-app message |
 | 21 | Live badge (Cap) | Online Cap + service tenant logged in | Sidebar shows Live · Online; no Sync control. Desktop Electron chrome unchanged |
 | 22 | Airplane Cap | Cap holder → airplane mode | Freeze “No internet”; app unresponsive |
 | 26 | Cap / Electron first open → company slug | Fresh Online Cap or Cloud Electron (no session) | **Not** marketing LandingPage. Enter company URL slug → Continue preflights cloud `by-slug` (API origin = `VITE_API_ORIGIN` or Render fallback on Cap localhost) → branded login at `/{slug}`. Failures (invalid / reserved / not-found / network) call `reportSlugOnboardingFailure` → write-through localStorage client logs + Cap `Dhandho/bug-reports` file (Electron: clipboard / download via **Share bug report**); **Share bug report** includes `Last error` and non-empty **Recent client logs**. Same control on login + Settings Help. Returning users with `dg_last_slug` skip to that company. Change company returns to slug entry. Reserved: `admin`/`privacy`/`terms`/`download` show clear error; `test` is allowed |
 
-**Automated:** `tests/api/http-service-cloud.test.ts` · `tests/api/http-notifications.test.ts` (per-user notify, invalid `userId`, read-all isolation) · `tests/unit/service-cloud-mode.test.ts` (Cap-only Live badge surface) · `tests/unit/service-phone-ux.test.ts` · `tests/unit/bill-settings-flags.test.ts` · `tests/unit/android-set-product.test.ts` (Online/Offline `applicationId`)
+**Automated:** `tests/api/http-service-cloud.test.ts` (incl. manufacturer Cap claim) · `tests/api/http-notifications.test.ts` (per-user notify, invalid `userId`, read-all isolation) · `tests/unit/service-cloud-mode.test.ts` (Cap-only Live badge surface) · `tests/unit/service-phone-ux.test.ts` · `tests/unit/bill-settings-flags.test.ts` · `tests/unit/android-set-product.test.ts` (legacy dual-id helper; shipping identity is Offline/`in.dhandho.service`)

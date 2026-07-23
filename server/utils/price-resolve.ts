@@ -88,3 +88,27 @@ export function unitPricesAfterDiscount(opts: {
   // path in createBatch strips when no explicit customPrice — see distribution routes).
   return { netPricePerUnit: priceAfterDisc, billedPricePerUnit: priceAfterDisc };
 }
+
+/**
+ * Reverse unitPricesAfterDiscount to recover the pre-discount unit price for edit UIs.
+ * Prefer billed for inclusive+GST / GST-off; prefer net for exclusive+GST.
+ */
+export function inferBaseUnitPrice(opts: {
+  billedPrice: number;
+  netPrice: number;
+  discountPercent: number;
+  withGst: boolean;
+  priceIncludesGst: boolean;
+}): number {
+  const disc = Math.min(100, Math.max(0, opts.discountPercent || 0));
+  const factor = (100 - disc) / 100;
+  const afterDisc =
+    opts.withGst && opts.priceIncludesGst
+      ? Number(opts.billedPrice) || 0
+      : opts.withGst
+        ? Number(opts.netPrice) || Number(opts.billedPrice) || 0
+        : Number(opts.billedPrice) || Number(opts.netPrice) || 0;
+  if (!(afterDisc > 0)) return 0;
+  if (factor <= 0) return afterDisc;
+  return Math.round((afterDisc / factor) * 100) / 100;
+}

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { hasExplicitUnitPrice, resolveGstRate, unitPricesAfterDiscount } from '../../server/utils/price-resolve';
+import {
+  hasExplicitUnitPrice,
+  inferBaseUnitPrice,
+  resolveGstRate,
+  unitPricesAfterDiscount,
+} from '../../server/utils/price-resolve';
 
 describe('resolveGstRate', () => {
   it('uses product rate including 0', () => {
@@ -89,5 +94,24 @@ describe('unitPricesAfterDiscount', () => {
     });
     expect(r.netPricePerUnit).toBe(1000);
     expect(r.billedPricePerUnit).toBe(1000);
+  });
+
+  it('inferBaseUnitPrice reverses exclusive GST + discount', () => {
+    const priced = unitPricesAfterDiscount({
+      basePrice: 1000,
+      discountPercent: 10,
+      withGst: true,
+      priceIncludesGst: false,
+      gstRate: 18,
+    });
+    expect(
+      inferBaseUnitPrice({
+        billedPrice: priced.billedPricePerUnit,
+        netPrice: priced.netPricePerUnit,
+        discountPercent: 10,
+        withGst: true,
+        priceIncludesGst: false,
+      }),
+    ).toBe(1000);
   });
 });

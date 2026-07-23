@@ -14,6 +14,7 @@ import { logger } from '../utils/logger';
 import { authMiddleware, superAdminMiddleware } from '../middleware/auth';
 import { normalizePermissions } from '../middleware/permissions';
 import { normalizeMobileFeatures } from '../../shared/mobileFeatures';
+import { encryptSecret } from '../utils/secret-crypto';
 
 const router = Router();
 
@@ -90,9 +91,11 @@ async function getSeatsPayload(tenantId: string) {
   if (!tenant) return null;
   const businessType = (tenant.business_type as string) || 'manufacturer';
   const users = (
-    await pool.query(`SELECT id, email, name, role, created_at FROM users WHERE tenant_id=$1 ORDER BY created_at`, [
-      tenantId,
-    ])
+    await pool.query(
+      `SELECT id, email, name, role, created_at, whatsapp_api_allowed, whatsapp_phone_number_id, whatsapp_access_token
+       FROM users WHERE tenant_id=$1 ORDER BY created_at`,
+      [tenantId],
+    )
   ).rows as Record<string, unknown>[];
   const slots = (
     await pool.query(`SELECT * FROM service_cloud_device_slots WHERE tenant_id=$1 ORDER BY created_at`, [tenantId])
@@ -107,6 +110,8 @@ async function getSeatsPayload(tenantId: string) {
     businessType,
     companySessionLock: usesCompanySessionLock(tenant),
     mobileFeatures: normalizeMobileFeatures(tenant.mobile_features, businessType),
+    whatsappBusinessEnabled: !!tenant.whatsapp_business_enabled,
+    whatsappSendMode: (tenant.whatsapp_send_mode as string) || null,
     activeSession: session
       ? {
           userId: session.user_id,
@@ -128,6 +133,10 @@ async function getSeatsPayload(tenantId: string) {
         mobileSlots: uslots.filter(s => s.device_kind === 'mobile').length,
         desktopSlots: uslots.filter(s => s.device_kind === 'desktop').length,
         devices: uslots.map(mapSlot),
+        whatsappApiAllowed: !!u.whatsapp_api_allowed,
+        whatsappPhoneNumberId: (u.whatsapp_phone_number_id as string) || '',
+        whatsappAccessTokenConfigured: !!(u.whatsapp_access_token as string),
+        whatsappAccessToken: u.whatsapp_access_token ? '••••••••' : '',
       };
     }),
   };
@@ -236,11 +245,22 @@ router.put('/api/super-admin/tenants/:id/service-cloud/users/:userId', superAdmi
     const user = (await pool.query(`SELECT id FROM users WHERE id=$1 AND tenant_id=$2`, [userId, tenantId])).rows[0];
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const { name, password, mobileSlots, desktopSlots } = req.body as {
+    const {
+      name,
+      password,
+      mobileSlots,
+      desktopSlots,
+      whatsappApiAllowed,
+      whatsappPhoneNumberId,
+      whatsappAccessToken,
+    } = req.body as {
       name?: string;
       password?: string;
       mobileSlots?: number;
       desktopSlots?: number;
+      whatsappApiAllowed?: boolean;
+      whatsappPhoneNumberId?: string;
+      whatsappAccessToken?: string;
     };
     if (name !== undefined) {
       await pool.query(`UPDATE users SET name=$1 WHERE id=$2 AND tenant_id=$3`, [name, userId, tenantId]);
@@ -254,6 +274,30 @@ router.put('/api/super-admin/tenants/:id/service-cloud/users/:userId', superAdmi
         userId,
         tenantId,
       ]);
+    }
+    if (whatsappApiAllowed !== undefined) {
+      await pool.query(`UPDATE users SET whatsapp_api_allowed=$1 WHERE id=$2 AND tenant_id=$3`, [
+        !!whatsappApiAllowed,
+        userId,
+        tenantId,
+      ]);
+    }
+    if (whatsappPhoneNumberId !== undefined) {
+      await pool.query(`UPDATE users SET whatsapp_phone_number_id=$1 WHERE id=$2 AND tenant_id=$3`, [
+        String(whatsappPhoneNumberId || '').trim() || null,
+        userId,
+        tenantId,
+      ]);
+    }
+    if (whatsappAccessToken !== undefined) {
+      const tok = String(whatsappAccessToken || '').trim();
+      if (tok && tok !== '••••••••' && !/^•+$/.test(tok)) {
+        await pool.query(`UPDATE users SET whatsapp_access_token=$1 WHERE id=$2 AND tenant_id=$3`, [
+          encryptSecret(tok),
+          userId,
+          tenantId,
+        ]);
+      }
     }
     if (mobileSlots !== undefined || desktopSlots !== undefined) {
       const counts = (
@@ -550,6 +594,14 @@ router.post('/api/service-cloud/session/release', authMiddleware, publicLimiter,
     if (!user?.userId || !user.tenantId) return res.status(401).json({ error: 'Unauthorized' });
     const { machineId } = req.body as { machineId?: string };
     if (!machineId) return res.status(400).json({ error: 'machineId required' });
+
+    const tenant = await assertCloudTenant(user.tenantId);
+    if (!tenant) return res.status(403).json({ error: 'Tenant not found' });
+    // Non-service: no company session row to clear
+    if (!usesCompanySessionLock(tenant)) {
+      return res.json({ ok: true, companySessionLock: false });
+    }
+
     // Only the holder can release — no takeover via foreign release
     const deleted = await pool.query(
       `DELETE FROM service_cloud_sessions

@@ -65,6 +65,12 @@ export interface DistributionBatchItem {
   damaged: number;
   discountPercent: number;
   withGst: boolean;
+  /** Pre-discount unit price shown/edited in Record Sale / Edit Distribution. */
+  unitPrice?: number;
+  billedPrice?: number;
+  netPrice?: number;
+  priceIncludesGst?: boolean;
+  gstRate?: number | null;
   availableStock: number;
 }
 
@@ -713,7 +719,13 @@ export const api = {
       data: {
         distributionDate?: string;
         gstRate?: number;
-        items?: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean }[];
+        items?: {
+          productId: string;
+          quantity: number;
+          discountPercent?: number;
+          withGst?: boolean;
+          customPrice?: number;
+        }[];
       },
     ) =>
       fetchApi<DistributionBatch & { deleted?: boolean }>(`/distribution/batch/${encodeURIComponent(batchId)}`, {
@@ -1133,6 +1145,10 @@ export const api = {
         billCustomizationEnabled?: boolean;
         multiLanguageEnabled?: boolean;
         vendorPortalEnabled?: boolean;
+        whatsappBusinessEnabled?: boolean;
+        whatsappSendMode?: string | null;
+        whatsappApiAllowed?: boolean;
+        whatsappDisplayPhone?: string | null;
       }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({
@@ -1342,6 +1358,10 @@ export const api = {
         barcodeSystemEnabled?: boolean;
         multiLanguageEnabled?: boolean;
         inventoryTrackingEnabled?: boolean;
+        whatsappBusinessEnabled?: boolean;
+        whatsappSendMode?: string | null;
+        whatsappApiAllowed?: boolean;
+        whatsappDisplayPhone?: string | null;
       }>(`/settings/profile?userId=${encodeURIComponent(userId)}`),
     changePassword: (userId: string, currentPassword: string, newPassword: string) =>
       fetchApi<{ ok: boolean }>('/settings/change-password', {

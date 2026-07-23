@@ -80,12 +80,19 @@ router.get('/api/invoices', async (req: AuthRequest, res) => {
     }
     const { parsePagination } = await import('../utils/pagination');
     const { page, limit, offset } = parsePagination(req.query as Record<string, unknown>);
+    // Soft-deleted invoices stay as status=cancelled for audit; never list them here.
     const total = Number(
-      (await pool.query('SELECT COUNT(*)::int AS c FROM standalone_invoices WHERE tenant_id = $1', [tenantId])).rows[0]
-        ?.c ?? 0,
+      (
+        await pool.query(
+          `SELECT COUNT(*)::int AS c FROM standalone_invoices WHERE tenant_id = $1 AND status != 'cancelled'`,
+          [tenantId],
+        )
+      ).rows[0]?.c ?? 0,
     );
     const { rows } = await pool.query(
-      'SELECT * FROM standalone_invoices WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+      `SELECT * FROM standalone_invoices
+       WHERE tenant_id = $1 AND status != 'cancelled'
+       ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
       [tenantId, limit, offset],
     );
     res.setHeader('X-Total-Count', String(total));

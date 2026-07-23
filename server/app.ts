@@ -56,6 +56,7 @@ import expensesRouter from './routes/expenses';
 import gstApiRouter from './routes/gst-api';
 import invoicesRouter from './routes/invoices';
 import notificationsRouter from './routes/notifications';
+import whatsappRouter from './routes/whatsapp';
 import { logger, requestContext, type RequestLogContext } from './utils/logger';
 import { logAuthEvent } from './utils/http-error';
 import { getCachedAuth, setCachedAuth } from './utils/authCache';
@@ -671,6 +672,7 @@ export function createApp(): express.Application {
   // Before reports/accounts — those routers use router.use(blockVendors) and would
   // intercept /api/notifications for Vendor users before this router runs.
   app.use(notificationsRouter);
+  app.use(whatsappRouter);
   app.use(reportsRouter);
   app.use(purchasesRouter);
   app.use(quotationsRouter);

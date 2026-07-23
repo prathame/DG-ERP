@@ -25,6 +25,10 @@ type SeatUser = {
   mobileSlots: number;
   desktopSlots: number;
   devices: DeviceSlot[];
+  whatsappApiAllowed?: boolean;
+  whatsappPhoneNumberId?: string;
+  whatsappAccessTokenConfigured?: boolean;
+  whatsappAccessToken?: string;
 };
 
 type SeatsPayload = {
@@ -32,6 +36,8 @@ type SeatsPayload = {
   businessType?: string;
   companySessionLock?: boolean;
   mobileFeatures?: MobileFeatures;
+  whatsappBusinessEnabled?: boolean;
+  whatsappSendMode?: string | null;
   activeSession: {
     userId: string;
     userName: string;
@@ -66,6 +72,9 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
     desktopSlots: 1,
   });
   const [editSlots, setEditSlots] = useState<Record<string, { mobile: number; desktop: number }>>({});
+  const [waEdit, setWaEdit] = useState<
+    Record<string, { allowed: boolean; phoneNumberId: string; accessToken: string }>
+  >({});
   const [resetModal, setResetModal] = useState<ResetModal | null>(null);
   const [copied, setCopied] = useState(false);
   const [notifyUser, setNotifyUser] = useState<SeatUser | null>(null);
@@ -85,10 +94,17 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
       .then((payload: SeatsPayload) => {
         setData(payload);
         const next: Record<string, { mobile: number; desktop: number }> = {};
+        const wa: Record<string, { allowed: boolean; phoneNumberId: string; accessToken: string }> = {};
         for (const u of payload.users) {
           next[u.id] = { mobile: u.mobileSlots, desktop: u.desktopSlots };
+          wa[u.id] = {
+            allowed: !!u.whatsappApiAllowed,
+            phoneNumberId: u.whatsappPhoneNumberId || '',
+            accessToken: u.whatsappAccessToken || '',
+          };
         }
         setEditSlots(next);
+        setWaEdit(wa);
       })
       .catch(err => toast((err as Error).message, 'error'))
       .finally(() => setLoading(false));
@@ -179,6 +195,36 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
       toast('Device slots updated', 'success');
+      load();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveWhatsAppUser = async (userId: string) => {
+    const wa = waEdit[userId];
+    if (!wa) return;
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        whatsappApiAllowed: wa.allowed,
+        whatsappPhoneNumberId: wa.phoneNumberId,
+      };
+      if (wa.accessToken && !/^•+$/.test(wa.accessToken)) {
+        body.whatsappAccessToken = wa.accessToken;
+      }
+      const res = await fetch(`/api/super-admin/tenants/${tenantId}/service-cloud/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token()}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      toast('WhatsApp settings saved', 'success');
       load();
     } catch (err) {
       toast((err as Error).message, 'error');
@@ -428,7 +474,18 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
           {(data?.users ?? []).map(u => {
             const slots = editSlots[u.id] || { mobile: u.mobileSlots, desktop: u.desktopSlots };
             const dirty = slots.mobile !== u.mobileSlots || slots.desktop !== u.desktopSlots;
+            const wa = waEdit[u.id] || {
+              allowed: !!u.whatsappApiAllowed,
+              phoneNumberId: u.whatsappPhoneNumberId || '',
+              accessToken: u.whatsappAccessToken || '',
+            };
+            const waDirty =
+              wa.allowed !== !!u.whatsappApiAllowed ||
+              wa.phoneNumberId !== (u.whatsappPhoneNumberId || '') ||
+              (!!wa.accessToken && !/^•+$/.test(wa.accessToken));
             const isLive = data?.activeSession?.userId === u.id;
+            const showWaSelected = !!data?.whatsappBusinessEnabled && data.whatsappSendMode === 'company_selected';
+            const showWaPerUser = !!data?.whatsappBusinessEnabled && data.whatsappSendMode === 'per_user';
             return (
               <div key={u.id} className="border border-gray-100 rounded-xl p-4 space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -516,6 +573,74 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
                     </button>
                   )}
                 </div>
+
+                {(showWaSelected || showWaPerUser) && (
+                  <div className="rounded-lg bg-emerald-50/60 border border-emerald-100 p-3 space-y-2">
+                    <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider">WhatsApp Business</p>
+                    {showWaSelected && (
+                      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={wa.allowed}
+                          onChange={e =>
+                            setWaEdit(s => ({
+                              ...s,
+                              [u.id]: { ...wa, allowed: e.target.checked },
+                            }))
+                          }
+                        />
+                        Use company WhatsApp
+                      </label>
+                    )}
+                    {showWaPerUser && (
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        <label className="text-xs text-gray-500">
+                          Phone number ID
+                          <input
+                            type="text"
+                            value={wa.phoneNumberId}
+                            onChange={e =>
+                              setWaEdit(s => ({
+                                ...s,
+                                [u.id]: { ...wa, phoneNumberId: e.target.value },
+                              }))
+                            }
+                            className="mt-1 w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm"
+                            placeholder="Meta phone_number_id"
+                          />
+                        </label>
+                        <label className="text-xs text-gray-500">
+                          Access token
+                          <input
+                            type="password"
+                            value={wa.accessToken}
+                            onChange={e =>
+                              setWaEdit(s => ({
+                                ...s,
+                                [u.id]: { ...wa, accessToken: e.target.value },
+                              }))
+                            }
+                            className="mt-1 w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm font-mono"
+                            placeholder={
+                              u.whatsappAccessTokenConfigured ? 'Configured — paste to replace' : 'Access token'
+                            }
+                            autoComplete="off"
+                          />
+                        </label>
+                      </div>
+                    )}
+                    {waDirty && (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void saveWhatsAppUser(u.id)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+                      >
+                        Save WhatsApp
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {u.devices.length === 0 ? (
                   <p className="text-xs text-gray-400">No device slots yet — set counts above and save.</p>

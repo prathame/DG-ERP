@@ -10,7 +10,13 @@ import {
 import { pool } from '../pg-db';
 import { uid, logAudit, DISTRIBUTION_BILL_UNIT_SQL } from '../utils/helpers';
 import { handleApiError } from '../utils/http-error';
-import { hasExplicitUnitPrice, resolveGstRate, resolvePrice, unitPricesAfterDiscount } from '../utils/price-resolve';
+import {
+  hasExplicitUnitPrice,
+  inferBaseUnitPrice,
+  resolveGstRate,
+  resolvePrice,
+  unitPricesAfterDiscount,
+} from '../utils/price-resolve';
 
 const router = Router();
 
@@ -1147,7 +1153,13 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
       gstRate: reqGstRate,
     } = req.body as {
       distributionDate?: string;
-      items?: { productId: string; quantity: number; discountPercent?: number; withGst?: boolean }[];
+      items?: {
+        productId: string;
+        quantity: number;
+        discountPercent?: number;
+        withGst?: boolean;
+        customPrice?: number;
+      }[];
       gstRate?: number;
     };
     const companyDefaultGst = Number(
@@ -1165,6 +1177,7 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
       await pool.query(
         `
       SELECT pd.id, pd.product_id, pd.barcode, pd.status, pd.gst_applied, pd.discount_percent, pd.irn,
+             pd.net_price, pd.billed_price,
              p.price, p.name as product_name, p.price_includes_gst, p.gst_rate as product_gst_rate
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
@@ -1181,6 +1194,8 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
       gst_applied: number;
       discount_percent: number;
       irn: string | null;
+      net_price: number | null;
+      billed_price: number | null;
       price: number;
       product_name: string;
       price_includes_gst: boolean;
@@ -1269,10 +1284,34 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
                 product_name: string;
               }
             | undefined);
-        const price = Number(productMeta?.price) || 0;
         const priceIncludesGst = !!productMeta?.price_includes_gst;
         const productGstRate = productMeta?.product_gst_rate ?? null;
         const rate = resolveGstRate(productGstRate, fallbackGstRate);
+        let explicit = hasExplicitUnitPrice(item.customPrice);
+        let basePrice = 0;
+        if (explicit) {
+          basePrice = Number(item.customPrice);
+        } else if (productRows[0]) {
+          // Keep previously billed custom price instead of resetting to catalog.
+          basePrice =
+            inferBaseUnitPrice({
+              billedPrice: Number(productRows[0].billed_price) || 0,
+              netPrice: Number(productRows[0].net_price) || 0,
+              discountPercent: Number(productRows[0].discount_percent) || 0,
+              withGst: !!productRows[0].gst_applied,
+              priceIncludesGst,
+            }) ||
+            Number(productMeta?.price) ||
+            0;
+          explicit = true;
+        } else {
+          basePrice = Number(productMeta?.price) || 0;
+        }
+        // Inclusive catalog + GST off + no client price: strip here (same as createBatch).
+        if (!withGst && priceIncludesGst && !explicit) {
+          basePrice = Math.round((basePrice / (1 + rate / 100)) * 100) / 100;
+        }
+        const effectiveIncludes = withGst && priceIncludesGst;
 
         if (newQty > productRows.length) {
           const toAdd = newQty - productRows.length;
@@ -1287,10 +1326,10 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
             throw new Error(`Insufficient stock for ${name}. Available: ${invRows.length}, need ${toAdd} more`);
           }
           const { netPricePerUnit: netPrice, billedPricePerUnit: billed } = unitPricesAfterDiscount({
-            basePrice: price,
+            basePrice,
             discountPercent: disc,
             withGst,
-            priceIncludesGst,
+            priceIncludesGst: effectiveIncludes,
             gstRate: rate,
           });
           const gstOn = !!withGst;
@@ -1347,14 +1386,14 @@ router.put('/api/distribution/batch/:batchId', blockVendors, async (req: AuthReq
         const remaining = (
           await client.query(
             `
-          SELECT pd.id, p.price FROM product_distribution pd JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
-          WHERE pd.batch_id = $2 AND pd.product_id = $3 AND pd.tenant_id = $1
+          SELECT pd.id FROM product_distribution pd
+          WHERE pd.batch_id = $1 AND pd.product_id = $2 AND pd.tenant_id = $3
         `,
-            [tenantId, batchId, item.productId],
+            [batchId, item.productId, tenantId],
           )
-        ).rows as { id: string; price: number }[];
+        ).rows as { id: string }[];
         for (const row of remaining) {
-          await applyPricing(row.id, row.price, disc, withGst, priceIncludesGst, productGstRate);
+          await applyPricing(row.id, basePrice, disc, withGst, effectiveIncludes, productGstRate);
         }
         if (date) {
           await client.query(
@@ -1504,7 +1543,9 @@ router.get('/api/distribution/batch/:batchId', async (req: AuthRequest, res) => 
       await pool.query(
         `
       SELECT pd.product_id, pd.status, pd.discount_percent, pd.gst_applied,
+             pd.net_price, pd.billed_price,
              p.name as product_name, p.price, p.pack_size, p.pack_name,
+             p.price_includes_gst, p.gst_rate as product_gst_rate,
              (SELECT COUNT(*) FROM product_inventory pi WHERE pi.product_id = p.id AND pi.status = 'InStock' AND pi.tenant_id = $1) as available_stock
       FROM product_distribution pd
       JOIN products p ON pd.product_id = p.id AND p.tenant_id = $1
@@ -1552,6 +1593,11 @@ router.get('/api/distribution/batch/:batchId', async (req: AuthRequest, res) => 
         damaged: number;
         discountPercent: number;
         withGst: boolean;
+        unitPrice: number;
+        billedPrice: number;
+        netPrice: number;
+        priceIncludesGst: boolean;
+        gstRate: number | null;
         availableStock: number;
         packSize: number;
         packName: string;
@@ -1560,6 +1606,21 @@ router.get('/api/distribution/batch/:batchId', async (req: AuthRequest, res) => 
     for (const r of rows) {
       const pid = r.product_id as string;
       if (!groups[pid]) {
+        const withGst = !!r.gst_applied;
+        const priceIncludesGst = !!r.price_includes_gst;
+        const discountPercent = Number(r.discount_percent) || 0;
+        const billedPrice = Number(r.billed_price) || Number(r.net_price) || Number(r.price) || 0;
+        const netPrice = Number(r.net_price) || billedPrice;
+        const unitPrice =
+          inferBaseUnitPrice({
+            billedPrice,
+            netPrice,
+            discountPercent,
+            withGst,
+            priceIncludesGst,
+          }) ||
+          Number(r.price) ||
+          0;
         groups[pid] = {
           productId: pid,
           productName: r.product_name as string,
@@ -1568,8 +1629,13 @@ router.get('/api/distribution/batch/:batchId', async (req: AuthRequest, res) => 
           sold: 0,
           replaced: 0,
           damaged: 0,
-          discountPercent: Number(r.discount_percent) || 0,
-          withGst: !!r.gst_applied,
+          discountPercent,
+          withGst,
+          unitPrice,
+          billedPrice,
+          netPrice,
+          priceIncludesGst,
+          gstRate: r.product_gst_rate != null ? Number(r.product_gst_rate) : null,
           availableStock: jwtVendorId ? 0 : Number(r.available_stock) || 0,
           packSize: Number(r.pack_size) || 1,
           packName: (r.pack_name as string) || 'Piece',

@@ -179,7 +179,7 @@ Same shape as GitHub `apk-build.yml` for Offline: debug artifacts, MR labels / p
 | `ios:offline-mobile` | macOS + Xcode (`macos` tag) | `offline-mobile-service-debug.app.zip` |
 | `publish:evergreen` | Linux | GitLab generic package `offline-mobile/latest/` |
 
-Service Cloud **Online** APK stays on GitHub only. Details: [Service Mobile](/deployment/service-mobile).
+Unified Cap phone (Online/Offline latch) evergreen APK stays on GitHub (`dhandho-mobile`). Details: [Service Mobile](/deployment/service-mobile).
 
 ## Related pages
 
