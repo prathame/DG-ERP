@@ -640,9 +640,68 @@ html.dg-mobile-dense aside nav button {
   --dg-chat-panel: #f7f9fb;
   --dg-chat-surface: #ffffff;
   --dg-chat-messages: #eceef0;
+  /* Typography — Settings prefs set html[data-dg-font|data-dg-density]; Cap never gets this scope */
+  --dg-font-family: Geist, Inter, ui-sans-serif, system-ui, sans-serif;
+  --dg-font-size: 16px;
+  --dg-font-scale: 1;
+  --dg-text-xs: calc(0.75rem * var(--dg-font-scale));
+  --dg-text-sm: calc(0.875rem * var(--dg-font-scale));
+  --dg-text-base: calc(1rem * var(--dg-font-scale));
+  --dg-text-lg: calc(1.125rem * var(--dg-font-scale));
+  --dg-text-xl: calc(1.25rem * var(--dg-font-scale));
+  --dg-text-2xl: calc(1.5rem * var(--dg-font-scale));
+  --dg-text-3xl: calc(1.875rem * var(--dg-font-scale));
+  --dg-text-4xl: calc(2.25rem * var(--dg-font-scale));
+  font-family: var(--dg-font-family);
+  font-size: calc(var(--dg-font-size) * var(--dg-font-scale));
 }
+html[data-dg-font="inter"] .dg-glass-scope,
+html[data-dg-font="inter"] .dg-desktop-glass {
+  --dg-font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+html[data-dg-font="system"] .dg-glass-scope,
+html[data-dg-font="system"] .dg-desktop-glass {
+  --dg-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+html[data-dg-density="compact"] .dg-glass-scope,
+html[data-dg-density="compact"] .dg-desktop-glass {
+  --dg-font-scale: 0.9;
+}
+html[data-dg-density="comfortable"] .dg-glass-scope,
+html[data-dg-density="comfortable"] .dg-desktop-glass {
+  --dg-font-scale: 1.1;
+}
+/* Remap Tailwind type utilities so hierarchy stays proportional under density prefs */
+.dg-glass-scope .text-xs,
+.dg-desktop-glass .text-xs { font-size: var(--dg-text-xs) !important; }
+.dg-glass-scope .text-sm,
+.dg-desktop-glass .text-sm { font-size: var(--dg-text-sm) !important; }
+.dg-glass-scope .text-base,
+.dg-desktop-glass .text-base { font-size: var(--dg-text-base) !important; }
+.dg-glass-scope .text-lg,
+.dg-desktop-glass .text-lg { font-size: var(--dg-text-lg) !important; }
+.dg-glass-scope .text-xl,
+.dg-desktop-glass .text-xl { font-size: var(--dg-text-xl) !important; }
+.dg-glass-scope .text-2xl,
+.dg-desktop-glass .text-2xl { font-size: var(--dg-text-2xl) !important; }
+.dg-glass-scope .text-3xl,
+.dg-desktop-glass .text-3xl { font-size: var(--dg-text-3xl) !important; }
+.dg-glass-scope .text-4xl,
+.dg-desktop-glass .text-4xl { font-size: var(--dg-text-4xl) !important; }
+/* Common desktop glass arbitrary sizes (labels / KPI / mono) */
+.dg-glass-scope .text-\[9px\],
+.dg-desktop-glass .text-\[9px\] { font-size: calc(9px * var(--dg-font-scale)) !important; }
+.dg-glass-scope .text-\[10px\],
+.dg-desktop-glass .text-\[10px\] { font-size: calc(10px * var(--dg-font-scale)) !important; }
+.dg-glass-scope .text-\[11px\],
+.dg-desktop-glass .text-\[11px\] { font-size: calc(11px * var(--dg-font-scale)) !important; }
+.dg-glass-scope .text-\[13px\],
+.dg-desktop-glass .text-\[13px\] { font-size: calc(13px * var(--dg-font-scale)) !important; }
+.dg-glass-scope .text-\[15px\],
+.dg-desktop-glass .text-\[15px\] { font-size: calc(15px * var(--dg-font-scale)) !important; }
+.dg-glass-scope .text-\[32px\],
+.dg-desktop-glass .text-\[32px\] { font-size: calc(32px * var(--dg-font-scale)) !important; }
 .dg-desktop-glass {
-  font-family: Geist, Inter, ui-sans-serif, system-ui, sans-serif;
   background-color: var(--dg-bg) !important;
   color: var(--dg-ink) !important;
   position: relative;

@@ -22,6 +22,7 @@ import {
   ChevronDown,
   Trash2,
   Bell,
+  Type,
 } from 'lucide-react';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api } from '../../api';
@@ -48,6 +49,16 @@ import {
 } from '../../platforms/service-mobile';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
+import {
+  DESKTOP_FONT_DENSITIES,
+  DESKTOP_FONT_FAMILIES,
+  getDesktopFontDensity,
+  getDesktopFontFamily,
+  setDesktopFontDensity,
+  setDesktopFontFamily,
+  type DesktopFontDensityId,
+  type DesktopFontFamilyId,
+} from '../../lib/desktopFontPrefs';
 import {
   DEFAULT_REMINDER_SETTINGS,
   cadenceSelectValue,
@@ -914,6 +925,10 @@ export function SettingsView({
   const { confirm, ConfirmRenderer } = useConfirm();
   const { t: st, lang, setLang } = useTranslation();
   const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+  const [desktopFontFamily, setDesktopFontFamilyState] = useState<DesktopFontFamilyId>(() => getDesktopFontFamily());
+  const [desktopFontDensity, setDesktopFontDensityState] = useState<DesktopFontDensityId>(() =>
+    getDesktopFontDensity(),
+  );
   const [notifSoundOn, setNotifSoundOn] = useState(() => {
     try {
       const scope = `${session.getTenantId() || 't'}:${session.getUser()?.id || 'u'}`;
@@ -1994,6 +2009,86 @@ export function SettingsView({
               {isAdmin && (
                 <div className={cn(!showTab('bill') && 'hidden')}>
                   <BillCustomizationSection />
+                </div>
+              )}
+
+              {/* Desktop glass typography — Cap / phone never see this block */}
+              {desktopGlass && (
+                <div className={cn(settingsPanel('mb-4'), !showTab('preferences') && 'hidden')}>
+                  <div className={settingsPanelHead('', true)}>
+                    <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                      <Type size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                      Typography
+                    </h3>
+                  </div>
+                  <div className="p-4 sm:p-6 space-y-5">
+                    <div className="space-y-2">
+                      <p className="font-semibold text-sm">Font family</p>
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        Sans faces with similar metrics so dense tables stay aligned.
+                      </p>
+                      <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1">
+                        {DESKTOP_FONT_FAMILIES.map(f => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            title={f.why}
+                            onClick={() => {
+                              setDesktopFontFamily(f.id);
+                              setDesktopFontFamilyState(f.id);
+                            }}
+                            className={cn(
+                              'dg-compact box-border h-8 min-h-8 max-h-8 px-2 inline-flex items-center justify-center',
+                              'rounded-lg text-[11px] font-bold leading-none transition-colors',
+                              desktopFontFamily === f.id
+                                ? 'bg-brand text-white shadow-sm'
+                                : 'bg-transparent text-gray-600 hover:text-gray-900',
+                            )}
+                            style={{ fontFamily: f.stack }}
+                          >
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="font-semibold text-sm">Font size</p>
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        Scales the whole desktop type system (0.9× / 1× / 1.1×). Hierarchy stays proportional.
+                      </p>
+                      <div className="grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1">
+                        {DESKTOP_FONT_DENSITIES.map(d => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            title={d.hint}
+                            onClick={() => {
+                              setDesktopFontDensity(d.id);
+                              setDesktopFontDensityState(d.id);
+                            }}
+                            className={cn(
+                              'dg-compact box-border h-8 min-h-8 max-h-8 px-2 inline-flex items-center justify-center',
+                              'rounded-lg text-[11px] font-bold leading-none transition-colors',
+                              desktopFontDensity === d.id
+                                ? 'bg-brand text-white shadow-sm'
+                                : 'bg-transparent text-gray-600 hover:text-gray-900',
+                            )}
+                          >
+                            {d.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div
+                      className="rounded-xl border border-[var(--dg-card-border)] bg-[var(--dg-input)]/40 px-4 py-3"
+                      aria-hidden
+                    >
+                      <p className="text-[10px] font-bold dg-faint uppercase tracking-wider mb-1">Preview</p>
+                      <p className="text-lg font-bold dg-ink leading-tight">Heading · Vendor ledger</p>
+                      <p className="text-sm dg-muted mt-0.5">Body copy stays readable in glass cards and sidebars.</p>
+                      <p className="text-xs dg-faint mt-1 font-mono">INV-1042 · ₹12,480.00</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
