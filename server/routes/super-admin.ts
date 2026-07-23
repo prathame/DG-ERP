@@ -274,8 +274,11 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
        WHERE id = $5`,
       [JSON.stringify(tabConfig), bType, accessMode, JSON.stringify(mobileFeatures), result.tenantId],
     );
-    // Cap Online seats: seed 1 mobile (+ 1 desktop for service) on admin when mobile enabled
-    if (needMobile) {
+    // Cap Online / Electron seats: seed unbound slots on admin to match access mode.
+    // Desktop-only tenants (needMobile=false → mode=desktop) must get 1 desktop slot —
+    // otherwise Cloud Electron claim-device fails with "No free desktop device slots".
+    // Cap companions (needMobile): 1 mobile; service also gets 1 desktop (mode=both).
+    {
       const adminRow = (
         await pool.query(`SELECT id FROM users WHERE tenant_id=$1 AND LOWER(email)=LOWER($2) LIMIT 1`, [
           result.tenantId,
@@ -283,13 +286,15 @@ router.post('/api/super-admin/tenants', superAdminMiddleware, async (req, res) =
         ])
       ).rows[0] as { id: string } | undefined;
       if (adminRow?.id) {
-        const desktopSlots = bType === 'service' ? 1 : 0;
-        await pool.query(
-          `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
-           VALUES ($1,$2,$3,'mobile')`,
-          [uid('SCS'), result.tenantId, adminRow.id],
-        );
-        if (desktopSlots) {
+        if (needMobile) {
+          await pool.query(
+            `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
+             VALUES ($1,$2,$3,'mobile')`,
+            [uid('SCS'), result.tenantId, adminRow.id],
+          );
+        }
+        const seedDesktop = accessMode === 'desktop' || (needMobile && bType === 'service');
+        if (seedDesktop) {
           await pool.query(
             `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
              VALUES ($1,$2,$3,'desktop')`,
