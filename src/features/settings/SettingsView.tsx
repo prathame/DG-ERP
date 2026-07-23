@@ -45,6 +45,7 @@ import {
   type RestoreProgress,
 } from '../../platforms/service-mobile';
 import { getBusinessConfig } from '../../lib/businessTypeConfig';
+import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import {
   DEFAULT_REMINDER_SETTINGS,
   cadenceSelectValue,
@@ -56,6 +57,39 @@ const ADMIN_ROLES = ['Admin', 'Super Admin'];
 const serviceMobile = isServiceMobileMode();
 const mobileApp = isMobileAppShell();
 const showBugReport = offersBugReportShare();
+
+function settingsGlass(): boolean {
+  return isDesktopGlassUi(getBusinessConfig().type);
+}
+
+function settingsPanel(extra = ''): string {
+  return cn(
+    settingsGlass()
+      ? 'dg-glass-card rounded-2xl overflow-hidden'
+      : 'bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden',
+    extra,
+  );
+}
+
+function settingsPanelHead(extra = '', compact = false): string {
+  const pad = compact ? 'px-4 py-3 sm:px-6 sm:py-4' : 'px-6 py-4';
+  return cn(
+    pad,
+    settingsGlass()
+      ? 'bg-[var(--dg-input)] border-b border-[var(--dg-card-border)]'
+      : 'bg-gray-50 border-b border-gray-100',
+    extra,
+  );
+}
+
+function settingsPrimaryBtn(extra = ''): string {
+  return cn(
+    settingsGlass()
+      ? 'px-6 py-2.5 dg-bg-primary rounded-xl font-bold hover:opacity-90 disabled:opacity-60 transition-colors'
+      : 'px-6 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold transition-colors disabled:opacity-60',
+    extra,
+  );
+}
 
 function billDefaults(): BillSettings {
   const phoneBill = isServicePhoneBillUx();
@@ -157,8 +191,8 @@ function GstApiSection() {
   if (loading) return null;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+    <div className={settingsPanel()}>
+      <div className={settingsPanelHead('flex items-center justify-between')}>
         <h3 className="font-bold text-lg flex items-center gap-2">
           <FileCheck size={20} /> GST API — E-Invoice &amp; E-Way Bill
         </h3>
@@ -283,12 +317,7 @@ function GstApiSection() {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="px-6 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold transition-colors disabled:opacity-60"
-        >
+        <button type="button" onClick={handleSave} disabled={saving} className={settingsPrimaryBtn()}>
           {saving ? 'Saving…' : 'Save GST API Settings'}
         </button>
       </div>
@@ -441,14 +470,14 @@ function BillCustomizationSection() {
 
   if (loading)
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+      <div className={cn(settingsPanel(), 'p-8 text-center')}>
         <LoadingSpinner />
       </div>
     );
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+    <div className={settingsPanel()}>
+      <div className={settingsPanelHead('flex items-center justify-between')}>
         <h3 className="font-bold text-lg flex items-center gap-2">
           <FileText size={20} /> Bill Customization
         </h3>
@@ -801,12 +830,7 @@ function BillCustomizationSection() {
           />
         </div>
 
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold hover:bg-brand-dark disabled:opacity-60"
-        >
+        <button type="button" onClick={handleSave} disabled={saving} className={settingsPrimaryBtn()}>
           {saving ? 'Saving...' : 'Save Bill Settings'}
         </button>
       </div>
@@ -1203,16 +1227,26 @@ export function SettingsView({
     }
   };
 
+  const desktopGlass = settingsGlass();
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className={cn('space-y-8', desktopGlass && 'max-w-[1200px] mx-auto')}
+    >
       <div>
-        <h2 className="text-xl font-bold">Settings</h2>
-        <p className="text-sm text-gray-500">Manage your account and preferences</p>
+        <h2 className={cn(desktopGlass ? 'text-3xl font-bold dg-ink tracking-tight' : 'text-xl font-bold')}>
+          Settings
+        </h2>
+        <p className={cn('text-sm', desktopGlass ? 'dg-muted mt-1' : 'text-gray-500')}>
+          Manage your account and preferences
+        </p>
       </div>
 
       {/* Auth Section */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
+      <div className={settingsPanel()}>
+        <div className={settingsPanelHead()}>
           <h3 className="font-bold text-lg flex items-center gap-2">
             <LogIn size={20} /> Login & Account
           </h3>
@@ -1336,8 +1370,8 @@ export function SettingsView({
       {/* Personal Info & Contact - only when logged in */}
       {user && (
         <>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
+          <div className={settingsPanel()}>
+            <div className={settingsPanelHead()}>
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <UserPlus size={20} /> {st('settings.personalInfo')}
               </h3>
@@ -1390,8 +1424,8 @@ export function SettingsView({
             </form>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
+          <div className={settingsPanel()}>
+            <div className={settingsPanelHead()}>
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <Phone size={20} /> Contact Details
               </h3>
@@ -1434,8 +1468,8 @@ export function SettingsView({
             </form>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
+          <div className={settingsPanel()}>
+            <div className={settingsPanelHead()}>
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <Building2 size={20} /> Company & Other
               </h3>
@@ -1514,8 +1548,8 @@ export function SettingsView({
           </div>
 
           {/* Appearance */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+          <div className={settingsPanel()}>
+            <div className={settingsPanelHead('', true)}>
               <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
                 <Settings size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
                 {st('settings.appearance')}
@@ -1621,8 +1655,8 @@ export function SettingsView({
           </div>
 
           {/* Change Password */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
+          <div className={settingsPanel()}>
+            <div className={settingsPanelHead()}>
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <Shield size={20} /> Change Password
               </h3>
@@ -1697,7 +1731,7 @@ export function SettingsView({
 
           {/* Delete my account — cloud only (offline uses SA device unbind) */}
           {!serviceMobile && (
-            <div className="bg-white rounded-2xl border border-rose-100 shadow-sm overflow-hidden">
+            <div className={cn(settingsPanel(), !settingsGlass() && 'border-rose-100')}>
               <div className="px-6 py-4 bg-rose-50 border-b border-rose-100">
                 <h3 className="font-bold text-lg flex items-center gap-2 text-rose-800">
                   <Trash2 size={20} /> Delete Account
@@ -1760,8 +1794,8 @@ export function SettingsView({
           {/* Bill Customization */}
           {isAdmin && <BillCustomizationSection />}
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
-            <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+          <div className={settingsPanel('mb-4')}>
+            <div className={settingsPanelHead('', true)}>
               <h3 className="font-bold text-base sm:text-lg">Notifications</h3>
             </div>
             <div className="p-4 sm:p-6">
@@ -1802,8 +1836,8 @@ export function SettingsView({
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+          <div className={settingsPanel()}>
+            <div className={settingsPanelHead('', true)}>
               <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
                 <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
                 WhatsApp Auto-Send
@@ -1857,8 +1891,8 @@ export function SettingsView({
           </div>
 
           {showBugReport && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+            <div className={settingsPanel()}>
+              <div className={settingsPanelHead('', true)}>
                 <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
                   <Bug size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
                   Help
@@ -1891,8 +1925,8 @@ export function SettingsView({
 
           {/* Data Management - Admin only */}
           {isAdmin && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+            <div className={settingsPanel()}>
+              <div className={settingsPanelHead('', true)}>
                 <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
                   <HardDrive size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
                   {st('settings.dataManagement')}
@@ -2262,8 +2296,8 @@ export function SettingsView({
 
           {/* Payment reminders — non-service Distribution / Vendor Finance only */}
           {isAdmin && showVendorReminders && reminderSettings && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+            <div className={settingsPanel()}>
+              <div className={settingsPanelHead('', true)}>
                 <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
                   <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
                   Payment Reminders
@@ -2377,8 +2411,8 @@ export function SettingsView({
 
           {/* User Management - Admin only (hidden on offline mobile) */}
           {isAdmin && !serviceMobile && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <div className={settingsPanel()}>
+              <div className={settingsPanelHead('flex items-center justify-between')}>
                 <h3 className="font-bold text-lg flex items-center gap-2">
                   <UserCog size={20} /> User Management
                 </h3>
