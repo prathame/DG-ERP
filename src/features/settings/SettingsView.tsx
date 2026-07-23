@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   LogIn,
   UserPlus,
+  User,
   Phone,
   MapPin,
   Building2,
@@ -20,6 +21,7 @@ import {
   FileCheck,
   ChevronDown,
   Trash2,
+  Bell,
 } from 'lucide-react';
 import { cn, openPrintWindow, printBillInWindow, PRINT_POPUP_BLOCKED } from '../../lib/utils';
 import { api } from '../../api';
@@ -52,6 +54,7 @@ import {
   resolveCadenceDays,
   type CompanyReminderSettings,
 } from '../../lib/paymentReminders';
+import { DesktopSettingsTabNav, type DesktopSettingsTab, type DesktopSettingsTabId } from './DesktopSettingsPanel';
 
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
 const serviceMobile = isServiceMobileMode();
@@ -65,7 +68,8 @@ function settingsGlass(): boolean {
 function settingsPanel(extra = ''): string {
   return cn(
     settingsGlass()
-      ? 'dg-glass-card rounded-2xl overflow-hidden'
+      ? // Inside the desktop tab sheet — flat blocks, not nested glass cards
+        'rounded-xl overflow-hidden border border-[var(--dg-card-border)]'
       : 'bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden',
     extra,
   );
@@ -76,7 +80,7 @@ function settingsPanelHead(extra = '', compact = false): string {
   return cn(
     pad,
     settingsGlass()
-      ? 'bg-[var(--dg-input)] border-b border-[var(--dg-card-border)]'
+      ? 'bg-[var(--dg-input)]/60 border-b border-[var(--dg-card-border)]'
       : 'bg-gray-50 border-b border-gray-100',
     extra,
   );
@@ -921,6 +925,7 @@ export function SettingsView({
   const [accountsTabVisible, setAccountsTabVisible] = useState(() =>
     serviceMobile ? getAccountsTabVisiblePref() : true,
   );
+  const [desktopTab, setDesktopTab] = useState<DesktopSettingsTabId>('personal');
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', name: '', confirmPassword: '' });
   const [authError, setAuthError] = useState('');
@@ -1229,1012 +1234,1249 @@ export function SettingsView({
 
   const desktopGlass = settingsGlass();
 
+  const showTab = (id: DesktopSettingsTabId | DesktopSettingsTabId[]) => {
+    if (!desktopGlass) return true;
+    const ids = Array.isArray(id) ? id : [id];
+    return ids.includes(desktopTab);
+  };
+
+  const desktopTabs: DesktopSettingsTab[] = [
+    { id: 'personal', label: 'Personal Info', icon: User },
+    { id: 'company', label: 'Company Details', icon: Building2, hidden: !user },
+    { id: 'gst', label: 'GST Settings', icon: FileCheck, hidden: !user },
+    { id: 'bill', label: 'Bill Customization', icon: FileText, hidden: !user || !isAdmin },
+    { id: 'data', label: 'Data Management', icon: HardDrive, hidden: !user || !isAdmin },
+    { id: 'preferences', label: 'Preferences', icon: Bell, hidden: !user },
+    { id: 'users', label: 'Users', icon: UserCog, hidden: !user || !isAdmin || serviceMobile },
+  ];
+
+  useEffect(() => {
+    if (!desktopGlass) return;
+    const visible = desktopTabs.filter(t => !t.hidden);
+    if (!visible.some(t => t.id === desktopTab)) {
+      setDesktopTab(visible[0]?.id ?? 'personal');
+    }
+  }, [desktopGlass, desktopTab, user, isAdmin]);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={cn('space-y-8', desktopGlass && 'max-w-[1200px] mx-auto')}
+      className={cn(!desktopGlass && 'space-y-8', desktopGlass && 'max-w-5xl mx-auto')}
     >
-      <div>
-        <h2 className={cn(desktopGlass ? 'text-3xl font-bold dg-ink tracking-tight' : 'text-xl font-bold')}>
-          Settings
-        </h2>
-        <p className={cn('text-sm', desktopGlass ? 'dg-muted mt-1' : 'text-gray-500')}>
-          Manage your account and preferences
-        </p>
-      </div>
-
-      {/* Auth Section */}
-      <div className={settingsPanel()}>
-        <div className={settingsPanelHead()}>
-          <h3 className="font-bold text-lg flex items-center gap-2">
-            <LogIn size={20} /> Login & Account
-          </h3>
+      {desktopGlass ? (
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold dg-ink tracking-tight">Global Settings</h2>
+          <p className="text-sm dg-muted mt-1.5 max-w-xl leading-relaxed">
+            Configure your workspace identity, tax compliance, and automated data workflows.
+          </p>
         </div>
-        <div className="p-6">
-          {user ? (
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white font-bold text-xl">
-                {user.name.charAt(0)}
-              </div>
-              <div>
-                <p className="font-bold text-lg">{user.name}</p>
-                <p className="text-sm text-gray-500">{user.email}</p>
-                <p className="text-xs text-amber-600 font-medium">{user.role ?? 'Admin'}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-md space-y-4">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode('login');
-                    setAuthError('');
-                  }}
-                  className={cn(
-                    'flex-1 py-2 rounded-lg font-medium transition-colors',
-                    authMode === 'login' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                  )}
-                >
-                  Login
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode('signup');
-                    setAuthError('');
-                  }}
-                  className={cn(
-                    'flex-1 py-2 rounded-lg font-medium transition-colors',
-                    authMode === 'signup' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                  )}
-                >
-                  Sign Up
-                </button>
-              </div>
-              <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
-                {authMode === 'signup' && (
-                  <div>
-                    <label htmlFor="settings-field-17" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                      Name
-                    </label>
-                    <input
-                      id="settings-field-17"
-                      required
-                      value={authForm.name}
-                      onChange={e => setAuthForm({ ...authForm, name: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                      placeholder="Full name"
-                    />
-                  </div>
-                )}
-                <div>
-                  <label htmlFor="settings-field-18" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    Email
-                  </label>
-                  <input
-                    id="settings-field-18"
-                    type="email"
-                    required
-                    value={authForm.email}
-                    onChange={e => setAuthForm({ ...authForm, email: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    placeholder="you@example.com"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="settings-field-19" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    Password
-                  </label>
-                  <input
-                    id="settings-field-19"
-                    type="password"
-                    required
-                    value={authForm.password}
-                    onChange={e => setAuthForm({ ...authForm, password: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    placeholder="••••••••"
-                  />
-                </div>
-                {authMode === 'signup' && (
-                  <div>
-                    <label htmlFor="settings-field-20" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                      Confirm Password
-                    </label>
-                    <input
-                      id="settings-field-20"
-                      type="password"
-                      required
-                      value={authForm.confirmPassword}
-                      onChange={e => setAuthForm({ ...authForm, confirmPassword: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                      placeholder="••••••••"
-                    />
-                  </div>
-                )}
-                {authError && <p className="text-sm text-rose-600">{authError}</p>}
-                <button
-                  type="submit"
-                  disabled={authSubmitting}
-                  className="w-full py-3 bg-brand text-white rounded-xl font-bold"
-                >
-                  {authSubmitting ? 'Please wait...' : authMode === 'login' ? 'Login' : 'Sign Up'}
-                </button>
-              </form>
-            </div>
+      ) : (
+        <div>
+          <h2 className="text-xl font-bold">Settings</h2>
+          <p className="text-sm text-gray-500">Manage your account and preferences</p>
+        </div>
+      )}
+
+      <div className={cn(desktopGlass ? 'flex gap-8 items-start' : 'contents')}>
+        {desktopGlass && (
+          <DesktopSettingsTabNav tabs={desktopTabs} activeTab={desktopTab} onTabChange={setDesktopTab} />
+        )}
+        <div
+          className={cn(
+            desktopGlass ? 'flex-1 min-w-0 min-h-[560px] dg-glass-card rounded-2xl p-6 sm:p-8 space-y-6' : 'contents',
           )}
-        </div>
-      </div>
-
-      {/* Personal Info & Contact - only when logged in */}
-      {user && (
-        <>
-          <div className={settingsPanel()}>
+        >
+          {/* Auth Section */}
+          <div className={cn(settingsPanel(), !showTab('personal') && 'hidden')}>
             <div className={settingsPanelHead()}>
               <h3 className="font-bold text-lg flex items-center gap-2">
-                <UserPlus size={20} /> {st('settings.personalInfo')}
+                <LogIn size={20} /> Login & Account
               </h3>
             </div>
-            <form onSubmit={handleProfileSave} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="settings-field-21" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    Full Name
-                  </label>
-                  <input
-                    id="settings-field-21"
-                    value={profileForm.name}
-                    onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="settings-field-22" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    Email
-                  </label>
-                  <input
-                    id="settings-field-22"
-                    type="email"
-                    value={user.email}
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="settings-field-23" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    Role
-                  </label>
-                  <input
-                    id="settings-field-23"
-                    type="text"
-                    value={profileForm.role}
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
-                  />
-                </div>
-              </div>
-              <button
-                type="submit"
-                disabled={profileSubmitting}
-                className="px-6 py-2 bg-brand text-white rounded-xl font-bold"
-              >
-                {profileSubmitting ? 'Saving...' : 'Save'}
-              </button>
-            </form>
-          </div>
-
-          <div className={settingsPanel()}>
-            <div className={settingsPanelHead()}>
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <Phone size={20} /> Contact Details
-              </h3>
-            </div>
-            <form onSubmit={handleProfileSave} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1">
-                    <Phone size={12} /> Phone
-                  </label>
-                  <input
-                    id="settings-field-24"
-                    type="tel"
-                    value={profileForm.phone}
-                    onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    placeholder="+91 98765 43210"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1">
-                    <MapPin size={12} /> Address
-                  </label>
-                  <input
-                    id="settings-field-25"
-                    value={profileForm.address}
-                    onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                    placeholder="Street, City, State"
-                  />
-                </div>
-              </div>
-              <button
-                type="submit"
-                disabled={profileSubmitting}
-                className="px-6 py-2 bg-brand text-white rounded-xl font-bold"
-              >
-                {profileSubmitting ? 'Saving...' : 'Save'}
-              </button>
-            </form>
-          </div>
-
-          <div className={settingsPanel()}>
-            <div className={settingsPanelHead()}>
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <Building2 size={20} /> Company & Other
-              </h3>
-            </div>
-            <form onSubmit={handleProfileSave} className="p-6 space-y-4">
-              <div>
-                <label htmlFor="settings-field-26" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                  Company / Business Name
-                </label>
-                <input
-                  id="settings-field-26"
-                  value={profileForm.companyName}
-                  onChange={e => setProfileForm({ ...profileForm, companyName: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  placeholder="Your Company Name"
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="settings-field-27" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    GST Number (GSTIN)
-                  </label>
-                  <input
-                    id="settings-field-27"
-                    value={profileForm.gstNumber ?? ''}
-                    onChange={e => setProfileForm({ ...profileForm, gstNumber: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
-                    placeholder="e.g. 27AABCU9603R1ZM"
-                    maxLength={15}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Default GST Rate (%)</label>
-                  <div className="flex gap-2 mt-1">
-                    {[3, 5, 12, 18, 28].map(rate => (
-                      <button
-                        key={rate}
-                        type="button"
-                        onClick={() => setProfileForm({ ...profileForm, defaultGstRate: rate })}
-                        className={cn(
-                          'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
-                          profileForm.defaultGstRate === rate
-                            ? 'bg-brand text-white border-brand'
-                            : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
-                        )}
-                      >
-                        {rate}%
-                      </button>
-                    ))}
-                    <input
-                      id="settings-field-28"
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={profileForm.defaultGstRate || ''}
-                      onChange={e =>
-                        setProfileForm({
-                          ...profileForm,
-                          defaultGstRate: e.target.value === '' ? 0 : Number(e.target.value),
-                        })
-                      }
-                      className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
-                    />
+            <div className="p-6">
+              {user ? (
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white font-bold text-xl">
+                    {user.name.charAt(0)}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">CGST + SGST will split equally (e.g. 18% = 9% + 9%)</p>
+                  <div>
+                    <p className="font-bold text-lg">{user.name}</p>
+                    <p className="text-sm text-gray-500">{user.email}</p>
+                    <p className="text-xs text-amber-600 font-medium">{user.role ?? 'Admin'}</p>
+                  </div>
                 </div>
-              </div>
-              <button
-                type="submit"
-                disabled={profileSubmitting}
-                className="px-6 py-2 bg-brand text-white rounded-xl font-bold"
-              >
-                {profileSubmitting ? 'Saving...' : 'Save'}
-              </button>
-            </form>
-          </div>
-
-          {/* Appearance */}
-          <div className={settingsPanel()}>
-            <div className={settingsPanelHead('', true)}>
-              <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
-                <Settings size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
-                {st('settings.appearance')}
-              </h3>
-            </div>
-            <div className="p-4 sm:p-6 space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-semibold text-sm">{st('settings.darkMode')}</p>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={isDarkMode}
-                  aria-label={st('settings.darkMode')}
-                  onClick={() => {
-                    const html = document.documentElement;
-                    const nowDark = html.classList.toggle('dark');
-                    localStorage.setItem('dhandho_theme', nowDark ? 'dark' : 'light');
-                    setIsDarkMode(nowDark);
-                  }}
-                  className={cn(
-                    'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors',
-                    isDarkMode ? 'bg-brand' : 'bg-gray-300',
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
-                      isDarkMode ? 'translate-x-5' : 'translate-x-0',
-                    )}
-                    style={{ backgroundColor: '#FFFFFF' }}
-                  />
-                </button>
-              </div>
-              <div className="space-y-2">
-                <p className="font-semibold text-sm">{st('settings.language')}</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl bg-gray-100 p-1">
-                  {LANGUAGES.map(l => (
+              ) : (
+                <div className="max-w-md space-y-4">
+                  <div className="flex gap-2">
                     <button
-                      key={l.code}
                       type="button"
-                      onClick={() => setLang(l.code)}
+                      onClick={() => {
+                        setAuthMode('login');
+                        setAuthError('');
+                      }}
                       className={cn(
-                        'dg-compact box-border h-8 min-h-8 max-h-8 px-2 inline-flex items-center justify-center',
-                        'rounded-lg text-[11px] font-bold leading-none transition-colors',
-                        lang === l.code
-                          ? 'bg-brand text-white shadow-sm'
-                          : 'bg-transparent text-gray-600 hover:text-gray-900',
+                        'flex-1 py-2 rounded-lg font-medium transition-colors',
+                        authMode === 'login' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
                       )}
                     >
-                      {l.nativeLabel}
+                      Login
                     </button>
-                  ))}
-                </div>
-              </div>
-              {serviceMobile && (
-                <div className="flex items-start justify-between gap-3 pt-1 border-t border-gray-100">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm">{st('settings.showAccounts')}</p>
-                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{st('settings.showAccountsDesc')}</p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={accountsTabVisible}
-                    aria-label={st('settings.showAccounts')}
-                    onClick={() => {
-                      if (!user) return;
-                      const next = !accountsTabVisible;
-                      setAccountsTabVisiblePref(next);
-                      setAccountsTabVisible(next);
-                      const prevTc =
-                        (user.tabConfig as Record<string, { label?: string; visible?: boolean }> | null) || {};
-                      const tabConfig = {
-                        ...prevTc,
-                        accounts: {
-                          label: prevTc.accounts?.label || 'Accounts',
-                          visible: next,
-                        },
-                      };
-                      const merged = { ...user, tabConfig };
-                      session.setUser(merged);
-                      onUserChange(merged);
-                      toast(next ? 'Accounts tab shown' : 'Accounts tab hidden', 'success');
-                    }}
-                    className={cn(
-                      'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
-                      accountsTabVisible ? 'bg-brand' : 'bg-gray-300',
-                    )}
-                  >
-                    <span
-                      aria-hidden
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('signup');
+                        setAuthError('');
+                      }}
                       className={cn(
-                        'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
-                        accountsTabVisible ? 'translate-x-5' : 'translate-x-0',
+                        'flex-1 py-2 rounded-lg font-medium transition-colors',
+                        authMode === 'signup' ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
                       )}
-                      style={{ backgroundColor: '#FFFFFF' }}
-                    />
-                  </button>
+                    >
+                      Sign Up
+                    </button>
+                  </div>
+                  <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
+                    {authMode === 'signup' && (
+                      <div>
+                        <label
+                          htmlFor="settings-field-17"
+                          className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                        >
+                          Name
+                        </label>
+                        <input
+                          id="settings-field-17"
+                          required
+                          value={authForm.name}
+                          onChange={e => setAuthForm({ ...authForm, name: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                          placeholder="Full name"
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <label
+                        htmlFor="settings-field-18"
+                        className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                      >
+                        Email
+                      </label>
+                      <input
+                        id="settings-field-18"
+                        type="email"
+                        required
+                        value={authForm.email}
+                        onChange={e => setAuthForm({ ...authForm, email: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                        placeholder="you@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="settings-field-19"
+                        className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                      >
+                        Password
+                      </label>
+                      <input
+                        id="settings-field-19"
+                        type="password"
+                        required
+                        value={authForm.password}
+                        onChange={e => setAuthForm({ ...authForm, password: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                        placeholder="••••••••"
+                      />
+                    </div>
+                    {authMode === 'signup' && (
+                      <div>
+                        <label
+                          htmlFor="settings-field-20"
+                          className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                        >
+                          Confirm Password
+                        </label>
+                        <input
+                          id="settings-field-20"
+                          type="password"
+                          required
+                          value={authForm.confirmPassword}
+                          onChange={e => setAuthForm({ ...authForm, confirmPassword: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                          placeholder="••••••••"
+                        />
+                      </div>
+                    )}
+                    {authError && <p className="text-sm text-rose-600">{authError}</p>}
+                    <button
+                      type="submit"
+                      disabled={authSubmitting}
+                      className="w-full py-3 bg-brand text-white rounded-xl font-bold"
+                    >
+                      {authSubmitting ? 'Please wait...' : authMode === 'login' ? 'Login' : 'Sign Up'}
+                    </button>
+                  </form>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Change Password */}
-          <div className={settingsPanel()}>
-            <div className={settingsPanelHead()}>
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <Shield size={20} /> Change Password
-              </h3>
-            </div>
-            <form
-              onSubmit={async e => {
-                e.preventDefault();
-                const form = e.target as HTMLFormElement;
-                const current = (form.elements.namedItem('currentPassword') as HTMLInputElement).value;
-                const newPw = (form.elements.namedItem('newPassword') as HTMLInputElement).value;
-                const confirm = (form.elements.namedItem('confirmPassword') as HTMLInputElement).value;
-                if (newPw !== confirm) {
-                  toast('New passwords do not match', 'error');
-                  return;
-                }
-                if (newPw.length < 8) {
-                  toast('Password must be at least 8 characters', 'error');
-                  return;
-                }
-                try {
-                  await api.settings.changePassword(user!.id, current, newPw);
-                  toast('Password changed successfully', 'success');
-                  form.reset();
-                } catch (err) {
-                  toast(err instanceof Error ? err.message : 'Failed', 'error');
-                }
-              }}
-              className="p-6 space-y-4"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label htmlFor="settings-field-29" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    Current Password
-                  </label>
-                  <PasswordInput
-                    id="settings-field-29"
-                    name="currentPassword"
-                    required
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
+          {/* Personal Info & Contact - only when logged in */}
+          {user && (
+            <>
+              <div className={cn(settingsPanel(), !showTab('personal') && 'hidden')}>
+                <div className={settingsPanelHead()}>
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <UserPlus size={20} /> {st('settings.personalInfo')}
+                  </h3>
                 </div>
-                <div>
-                  <label htmlFor="settings-field-30" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    New Password
-                  </label>
-                  <PasswordInput
-                    id="settings-field-30"
-                    name="newPassword"
-                    required
-                    minLength={8}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="settings-field-31" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    Confirm New Password
-                  </label>
-                  <PasswordInput
-                    id="settings-field-31"
-                    name="confirmPassword"
-                    required
-                    minLength={8}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                  />
-                </div>
-              </div>
-              <button type="submit" className="px-6 py-2 bg-brand text-white rounded-xl font-bold">
-                Update Password
-              </button>
-            </form>
-          </div>
-
-          {/* Delete my account — cloud only (offline uses SA device unbind) */}
-          {!serviceMobile && (
-            <div className={cn(settingsPanel(), !settingsGlass() && 'border-rose-100')}>
-              <div className="px-6 py-4 bg-rose-50 border-b border-rose-100">
-                <h3 className="font-bold text-lg flex items-center gap-2 text-rose-800">
-                  <Trash2 size={20} /> Delete Account
-                </h3>
-              </div>
-              <form
-                onSubmit={async e => {
-                  e.preventDefault();
-                  if (!user) return;
-                  const form = e.target as HTMLFormElement;
-                  const password = (form.elements.namedItem('deletePassword') as HTMLInputElement).value;
-                  if (
-                    !(await confirm({
-                      title: 'Delete your account?',
-                      message: 'Your personal data will be anonymized. This cannot be undone.',
-                      confirmLabel: 'Delete account',
-                      variant: 'danger',
-                    }))
-                  )
-                    return;
-                  try {
-                    await api.settings.deleteAccount(password);
-                    session.clearAll();
-                    onUserChange(null);
-                    toast('Account deleted', 'success');
-                  } catch (err) {
-                    toast(err instanceof Error ? err.message : 'Failed to delete account', 'error');
-                  }
-                }}
-                className="p-6 space-y-4"
-              >
-                <p className="text-sm text-gray-600">
-                  Permanently anonymizes your name, email, phone, and address. Sales history kept for business records
-                  is not tied to your login after this.
-                </p>
-                <div className="max-w-sm">
-                  <label htmlFor="settings-delete-pw" className="text-xs font-bold text-gray-400 uppercase block mb-1">
-                    Confirm with password
-                  </label>
-                  <PasswordInput
-                    id="settings-delete-pw"
-                    name="deletePassword"
-                    required
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-rose-400"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700"
-                >
-                  Delete my account
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* GST API — cloud only */}
-          {isAdmin && !serviceMobile && <GstApiSection />}
-
-          {/* Bill Customization */}
-          {isAdmin && <BillCustomizationSection />}
-
-          <div className={settingsPanel('mb-4')}>
-            <div className={settingsPanelHead('', true)}>
-              <h3 className="font-bold text-base sm:text-lg">Notifications</h3>
-            </div>
-            <div className="p-4 sm:p-6">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm">Notification sound</p>
-                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                    Soft chime for important alerts. You can also mute from the Bell menu.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={notifSoundOn}
-                  aria-label="Notification sound"
-                  onClick={() => {
-                    const scope = `${session.getTenantId() || 't'}:${user?.id || 'u'}`;
-                    const next = !notifSoundOn;
-                    localStorage.setItem(`dg_notif_mute:${scope}`, next ? '0' : '1');
-                    setNotifSoundOn(next);
-                    toast(next ? 'Notification sound on' : 'Notification sound muted', 'success');
-                  }}
-                  className={cn(
-                    'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
-                    notifSoundOn ? 'bg-brand' : 'bg-gray-300',
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
-                      notifSoundOn ? 'translate-x-5' : 'translate-x-0',
-                    )}
-                    style={{ backgroundColor: '#FFFFFF' }}
-                  />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className={settingsPanel()}>
-            <div className={settingsPanelHead('', true)}>
-              <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
-                <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
-                WhatsApp Auto-Send
-              </h3>
-            </div>
-            <div className="p-4 sm:p-6 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm">Auto-send bills</p>
-                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                    Opens WhatsApp with the bill after each sale, including a shareable link for the customer.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={Boolean(user?.autoWhatsapp)}
-                  aria-label="WhatsApp auto-send"
-                  onClick={() => {
-                    if (!user) return;
-                    const newVal = !user.autoWhatsapp;
-                    api.settings
-                      .updateProfile(user.id, { autoWhatsapp: newVal } as Record<string, unknown>)
-                      .then(u => {
-                        const updated = { ...user, ...u, autoWhatsapp: newVal };
-                        session.setUser(updated);
-                        onUserChange(updated);
-                        toast(newVal ? 'Auto WhatsApp enabled' : 'Auto WhatsApp disabled', 'success');
-                      })
-                      .catch(err => toast(err instanceof Error ? err.message : 'Failed', 'error'));
-                  }}
-                  className={cn(
-                    'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
-                    user?.autoWhatsapp ? 'bg-brand' : 'bg-gray-300',
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
-                      user?.autoWhatsapp ? 'translate-x-5' : 'translate-x-0',
-                    )}
-                    style={{ backgroundColor: '#FFFFFF' }}
-                  />
-                </button>
-              </div>
-              <p className="text-[11px] text-gray-400">
-                {user?.autoWhatsapp ? 'ON — bills open in WhatsApp automatically' : 'OFF — send manually'}
-              </p>
-            </div>
-          </div>
-
-          {showBugReport && (
-            <div className={settingsPanel()}>
-              <div className={settingsPanelHead('', true)}>
-                <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
-                  <Bug size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
-                  Help
-                </h3>
-              </div>
-              <div className="p-4 sm:p-6 space-y-3">
-                <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
-                  Share a bug report with support. Includes app version, device info, and recent errors — not your
-                  password
-                  {serviceMobile ? ' or full license key' : ''}.
-                </p>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const how = await shareBugReport();
-                      toast(bugReportFeedbackMessage(how), 'success');
-                    } catch (e) {
-                      toast((e as Error).message || 'Could not create bug report', 'error');
-                    }
-                  }}
-                  className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-gray-900 text-white hover:bg-gray-800"
-                >
-                  <Bug size={15} className="shrink-0" />
-                  Share bug report
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Data Management - Admin only */}
-          {isAdmin && (
-            <div className={settingsPanel()}>
-              <div className={settingsPanelHead('', true)}>
-                <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
-                  <HardDrive size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
-                  {st('settings.dataManagement')}
-                </h3>
-              </div>
-              <div className="p-4 sm:p-6 space-y-3">
-                {mobileApp && (
-                  <p className="text-xs sm:text-sm text-gray-500 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 leading-relaxed">
-                    {serviceMobile ? (
-                      <>
-                        Backups stay on <strong className="text-gray-700">your phone</strong> (and your Gmail if you
-                        send them). Dhandho does not store your business data in the cloud.{' '}
-                      </>
-                    ) : null}
-                    Files are saved under <strong className="text-gray-700">Documents/Dhandho</strong> on this phone
-                    (backups, invoices, bug reports).
-                  </p>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    disabled={backupBusy || restoreBusy}
-                    onClick={async () => {
-                      if (backupBusy || restoreBusy) return;
-                      setBackupBusy(true);
-                      toast('Backup started…', 'info');
-                      try {
-                        if (serviceMobile) {
-                          const { filename, path } = await exportLocalBackupNow({
-                            openMail: Boolean(backupSettings?.email),
-                          });
-                          const where = path || `Documents/Dhandho/backups/${filename}`;
-                          toast(`Backup done — saved to ${where}`, 'success');
-                          setBackupSettings(prev =>
-                            prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev,
-                          );
-                          return;
-                        }
-                        const r = await fetch('/api/backup', {
-                          headers: {
-                            Authorization: `Bearer ${session.getToken()}`,
-                            'X-Tenant-ID': session.getTenantId() || '',
-                          },
-                        });
-                        if (!r.ok) throw new Error('Backup failed');
-                        const blob = await r.blob();
-                        const filename = `backup-${new Date().toISOString().slice(0, 10)}.json`;
-                        if (isNativeCapacitor()) {
-                          const saved = await saveDhandhoFile({
-                            subdir: 'backups',
-                            filename,
-                            data: await blob.text(),
-                            encoding: 'utf8',
-                          });
-                          toast(`Backup done — saved to ${saved.relativePath}`, 'success');
-                        } else {
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = filename;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                          toast('Backup downloaded', 'success');
-                        }
-                        setBackupSettings(prev => (prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev));
-                      } catch (e) {
-                        toast((e as Error).message, 'error');
-                        void reportActionFailed('backup.export', e);
-                      } finally {
-                        setBackupBusy(false);
-                      }
-                    }}
-                    className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    {backupBusy ? (
-                      <span
-                        className="w-4 h-4 shrink-0 border-2 border-white border-t-transparent rounded-full animate-spin"
-                        aria-hidden
+                <form onSubmit={handleProfileSave} className="p-6 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label
+                        htmlFor="settings-field-21"
+                        className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                      >
+                        Full Name
+                      </label>
+                      <input
+                        id="settings-field-21"
+                        value={profileForm.name}
+                        onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
                       />
-                    ) : (
-                      <Download size={15} className="shrink-0" />
-                    )}
-                    {backupBusy
-                      ? 'Backing up…'
-                      : serviceMobile
-                        ? st('settings.saveBackupFile')
-                        : st('settings.downloadBackupNow')}
-                  </button>
-                  <label
-                    className={cn(
-                      'dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-amber-600 text-white hover:bg-amber-700 cursor-pointer',
-                      (restoreBusy || backupBusy) && 'opacity-60 pointer-events-none',
-                    )}
-                  >
-                    {restoreBusy ? (
-                      <span
-                        className="w-4 h-4 shrink-0 border-2 border-white border-t-transparent rounded-full animate-spin"
-                        aria-hidden
-                      />
-                    ) : (
-                      <Upload size={15} className="shrink-0" />
-                    )}
-                    {restoreBusy ? `Restoring… ${restorePct?.percent ?? 0}%` : st('settings.restoreBackup')}
-                    <input
-                      type="file"
-                      accept=".json"
-                      className="hidden"
-                      disabled={restoreBusy || backupBusy}
-                      onChange={async e => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        if (
-                          !(await confirm({
-                            title: 'Restore Backup',
-                            message: 'This will REPLACE all your current data with the backup. This cannot be undone.',
-                            confirmLabel: 'Restore',
-                            variant: 'danger',
-                          }))
-                        ) {
-                          e.target.value = '';
-                          return;
-                        }
-                        setRestoreBusy(true);
-                        setRestorePct(restoreProgress('reading', 0));
-                        toast('Restore started…', 'info');
-                        const report = (p: RestoreProgress) => setRestorePct(p);
-                        try {
-                          if (serviceMobile) {
-                            const r = await restoreFromLocalBackupFile(file, report);
-                            if (!r.ok) throw new Error(r.error || 'Restore failed');
-                            setRestorePct(restoreProgress('done', 100));
-                            toast('Backup restored — reloading…', 'success');
-                            setTimeout(() => window.location.reload(), 600);
-                            return;
-                          }
-                          // Online / Cap Cloud: stage-mapped % (server has no stream)
-                          report(restoreProgress('reading', 10));
-                          const text = await file.text();
-                          report(restoreProgress('validating', 25));
-                          const data = JSON.parse(text);
-                          if (!data?._meta) throw new Error('Invalid backup file — missing _meta header');
-                          report(restoreProgress('uploading', 40));
-                          const r = await fetch('/api/backup/restore', {
-                            method: 'POST',
-                            headers: {
-                              Authorization: `Bearer ${session.getToken()}`,
-                              'X-Tenant-ID': session.getTenantId() || '',
-                              'Content-Type': 'application/json',
-                            },
-                            body: text,
-                          });
-                          const result = await r.json();
-                          if (!r.ok) throw new Error(result.error || 'Restore failed');
-                          report(restoreProgress('done', 100));
-                          toast(
-                            `Restored ${result.restored} records from ${data._meta?.companyName || 'backup'}`,
-                            'success',
-                          );
-                        } catch (err) {
-                          toast((err as Error).message, 'error');
-                        } finally {
-                          setRestoreBusy(false);
-                          setRestorePct(null);
-                          e.target.value = '';
-                        }
-                      }}
-                    />
-                  </label>
-                </div>
-                {restorePct && (
-                  <PercentProgressBar
-                    percent={restorePct.percent}
-                    label={restorePct.label}
-                    barClassName="bg-amber-500"
-                  />
-                )}
-                {backupSettings?.lastBackupAt && (
-                  <p className="text-[11px] text-gray-400">
-                    Last backup: {new Date(backupSettings.lastBackupAt).toLocaleString('en-IN')}
-                  </p>
-                )}
-                <div className="border-t border-gray-100 pt-3 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className="text-sm font-bold">Auto Backup</span>
-                      {serviceMobile ? (
-                        <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-                          Saves a file on this phone (daily / weekly / monthly). Optional Gmail opens your mail app — we
-                          never upload your data.
-                        </p>
-                      ) : (
-                        <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-                          Preference only for now — the cloud server does not run a scheduled backup job yet. Use{' '}
-                          <strong className="font-semibold text-gray-500">Export now</strong> for a tenant JSON copy;
-                          database backups come from your host (Render Postgres) when you upgrade off the free plan.
-                        </p>
-                      )}
                     </div>
+                    <div>
+                      <label
+                        htmlFor="settings-field-22"
+                        className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                      >
+                        Email
+                      </label>
+                      <input
+                        id="settings-field-22"
+                        type="email"
+                        value={user.email}
+                        disabled
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="settings-field-23"
+                        className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                      >
+                        Role
+                      </label>
+                      <input
+                        id="settings-field-23"
+                        type="text"
+                        value={profileForm.role}
+                        disabled
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={profileSubmitting}
+                    className="px-6 py-2 bg-brand text-white rounded-xl font-bold"
+                  >
+                    {profileSubmitting ? 'Saving...' : 'Save'}
+                  </button>
+                </form>
+              </div>
+
+              <div className={cn(settingsPanel(), !showTab('personal') && 'hidden')}>
+                <div className={settingsPanelHead()}>
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Phone size={20} /> Contact Details
+                  </h3>
+                </div>
+                <form onSubmit={handleProfileSave} className="p-6 space-y-4">
+                  <div className={cn('grid grid-cols-1 gap-4', !desktopGlass && 'md:grid-cols-2')}>
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1">
+                        <Phone size={12} /> Phone
+                      </label>
+                      <input
+                        id="settings-field-24"
+                        type="tel"
+                        value={profileForm.phone}
+                        onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                        placeholder="+91 98765 43210"
+                      />
+                    </div>
+                    {/* Cap: address here. Desktop glass: address lives under Company Details. */}
+                    {!desktopGlass && (
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1">
+                          <MapPin size={12} /> Address
+                        </label>
+                        <input
+                          id="settings-field-25"
+                          value={profileForm.address}
+                          onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                          placeholder="Street, City, State"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={profileSubmitting}
+                    className={cn(
+                      'px-6 py-2 rounded-xl font-bold text-white',
+                      desktopGlass ? 'dg-bg-primary' : 'bg-brand',
+                    )}
+                  >
+                    {profileSubmitting ? 'Saving...' : 'Save'}
+                  </button>
+                </form>
+              </div>
+
+              {/* Company — Cap: full card. Desktop: company name + address (GST fields → GST tab). */}
+              <div className={cn(settingsPanel(), !showTab('company') && 'hidden')}>
+                <div className={settingsPanelHead()}>
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Building2 size={20} /> {desktopGlass ? 'Company Identity' : 'Company & Other'}
+                  </h3>
+                </div>
+                <form onSubmit={handleProfileSave} className="p-6 space-y-4">
+                  <div>
+                    <label htmlFor="settings-field-26" className="text-xs font-bold text-gray-400 uppercase block mb-1">
+                      Company / Business Name
+                    </label>
+                    <input
+                      id="settings-field-26"
+                      value={profileForm.companyName}
+                      onChange={e => setProfileForm({ ...profileForm, companyName: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      placeholder="Your Company Name"
+                    />
+                  </div>
+                  {desktopGlass && (
+                    <div>
+                      <label
+                        htmlFor="settings-field-25-desktop"
+                        className="text-xs font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"
+                      >
+                        <MapPin size={12} /> Registered Address
+                      </label>
+                      <textarea
+                        id="settings-field-25-desktop"
+                        rows={3}
+                        value={profileForm.address}
+                        onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                        placeholder="Street, City, State"
+                      />
+                    </div>
+                  )}
+                  {/* Cap / phone: GSTIN + rates stay on this card. Desktop: GST tab. */}
+                  {!desktopGlass && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label
+                          htmlFor="settings-field-27"
+                          className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                        >
+                          GST Number (GSTIN)
+                        </label>
+                        <input
+                          id="settings-field-27"
+                          value={profileForm.gstNumber ?? ''}
+                          onChange={e => setProfileForm({ ...profileForm, gstNumber: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
+                          placeholder="e.g. 27AABCU9603R1ZM"
+                          maxLength={15}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
+                          Default GST Rate (%)
+                        </label>
+                        <div className="flex gap-2 mt-1">
+                          {[3, 5, 12, 18, 28].map(rate => (
+                            <button
+                              key={rate}
+                              type="button"
+                              onClick={() => setProfileForm({ ...profileForm, defaultGstRate: rate })}
+                              className={cn(
+                                'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
+                                profileForm.defaultGstRate === rate
+                                  ? 'bg-brand text-white border-brand'
+                                  : 'bg-white border-gray-200 text-gray-600 hover:border-brand',
+                              )}
+                            >
+                              {rate}%
+                            </button>
+                          ))}
+                          <input
+                            id="settings-field-28"
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={profileForm.defaultGstRate || ''}
+                            onChange={e =>
+                              setProfileForm({
+                                ...profileForm,
+                                defaultGstRate: e.target.value === '' ? 0 : Number(e.target.value),
+                              })
+                            }
+                            className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          CGST + SGST will split equally (e.g. 18% = 9% + 9%)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={profileSubmitting}
+                    className={cn(
+                      'px-6 py-2 rounded-xl font-bold text-white',
+                      desktopGlass ? 'dg-bg-primary' : 'bg-brand',
+                    )}
+                  >
+                    {profileSubmitting ? 'Saving...' : 'Save'}
+                  </button>
+                </form>
+              </div>
+
+              {/* Desktop GST sheet — GSTIN + rates (same profile save). */}
+              {desktopGlass && (
+                <div className={cn(settingsPanel(), !showTab('gst') && 'hidden')}>
+                  <div className={settingsPanelHead()}>
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                      <FileCheck size={20} /> Tax Compliance (GST)
+                    </h3>
+                  </div>
+                  <form onSubmit={handleProfileSave} className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label
+                          htmlFor="settings-field-27-desktop"
+                          className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                        >
+                          GST Number (GSTIN)
+                        </label>
+                        <input
+                          id="settings-field-27-desktop"
+                          value={profileForm.gstNumber ?? ''}
+                          onChange={e => setProfileForm({ ...profileForm, gstNumber: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand font-mono"
+                          placeholder="e.g. 27AABCU9603R1ZM"
+                          maxLength={15}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">
+                          Default GST Rate (%)
+                        </label>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {[3, 5, 12, 18, 28].map(rate => (
+                            <button
+                              key={rate}
+                              type="button"
+                              onClick={() => setProfileForm({ ...profileForm, defaultGstRate: rate })}
+                              className={cn(
+                                'px-3 py-2 rounded-lg text-sm font-bold border transition-colors',
+                                profileForm.defaultGstRate === rate
+                                  ? 'dg-bg-primary border-transparent'
+                                  : 'bg-white border-gray-200 text-gray-600 hover:border-[var(--dg-primary)]',
+                              )}
+                            >
+                              {rate}%
+                            </button>
+                          ))}
+                          <input
+                            id="settings-field-28-desktop"
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={profileForm.defaultGstRate || ''}
+                            onChange={e =>
+                              setProfileForm({
+                                ...profileForm,
+                                defaultGstRate: e.target.value === '' ? 0 : Number(e.target.value),
+                              })
+                            }
+                            className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          CGST + SGST will split equally (e.g. 18% = 9% + 9%)
+                        </p>
+                      </div>
+                    </div>
+                    <button type="submit" disabled={profileSubmitting} className={settingsPrimaryBtn()}>
+                      {profileSubmitting ? 'Saving...' : 'Save'}
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {/* Appearance — Cap: own card. Desktop: Company Details tab (language). */}
+              <div className={cn(settingsPanel(), !showTab('company') && 'hidden')}>
+                <div className={settingsPanelHead('', true)}>
+                  <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                    <Settings size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                    {st('settings.appearance')}
+                  </h3>
+                </div>
+                <div className="p-4 sm:p-6 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-sm">{st('settings.darkMode')}</p>
                     <button
                       type="button"
                       role="switch"
-                      aria-checked={backupSettings?.enabled ?? false}
-                      aria-label="Auto Backup"
-                      onClick={async () => {
-                        const enabled = !(backupSettings?.enabled ?? false);
-                        const freq = backupSettings?.frequency || (serviceMobile ? 'daily' : 'weekly');
-                        try {
-                          const r = await api.backup.updateSettings({
-                            enabled,
-                            frequency: freq,
-                            intervalDays: backupSettings?.intervalDays,
-                            email: backupSettings?.email || undefined,
-                          });
-                          setBackupSettings(prev => ({
-                            enabled: r.enabled,
-                            frequency: r.frequency,
-                            intervalDays: r.intervalDays,
-                            email: r.email,
-                            lastBackupAt: prev?.lastBackupAt ?? null,
-                          }));
-                          toast(enabled ? 'Auto backup enabled' : 'Auto backup disabled', 'success');
-                        } catch (err) {
-                          toast((err as Error).message, 'error');
-                        }
+                      aria-checked={isDarkMode}
+                      aria-label={st('settings.darkMode')}
+                      onClick={() => {
+                        const html = document.documentElement;
+                        const nowDark = html.classList.toggle('dark');
+                        localStorage.setItem('dhandho_theme', nowDark ? 'dark' : 'light');
+                        setIsDarkMode(nowDark);
                       }}
                       className={cn(
                         'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors',
-                        backupSettings?.enabled ? 'bg-brand' : 'bg-gray-300',
+                        isDarkMode ? 'bg-brand' : 'bg-gray-300',
                       )}
                     >
                       <span
                         aria-hidden
                         className={cn(
                           'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
-                          backupSettings?.enabled ? 'translate-x-5' : 'translate-x-0',
+                          isDarkMode ? 'translate-x-5' : 'translate-x-0',
                         )}
                         style={{ backgroundColor: '#FFFFFF' }}
                       />
                     </button>
                   </div>
-                  {backupSettings?.enabled && (
-                    <div className="space-y-3 rounded-xl bg-gray-50 p-3 sm:p-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
-                            Frequency
-                          </label>
-                          <select
-                            value={
-                              serviceMobile && !['daily', 'weekly', 'monthly'].includes(backupSettings.frequency)
-                                ? 'daily'
-                                : backupSettings.frequency
+                  <div className="space-y-2">
+                    <p className="font-semibold text-sm">{st('settings.language')}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 rounded-xl bg-gray-100 p-1">
+                      {LANGUAGES.map(l => (
+                        <button
+                          key={l.code}
+                          type="button"
+                          onClick={() => setLang(l.code)}
+                          className={cn(
+                            'dg-compact box-border h-8 min-h-8 max-h-8 px-2 inline-flex items-center justify-center',
+                            'rounded-lg text-[11px] font-bold leading-none transition-colors',
+                            lang === l.code
+                              ? 'bg-brand text-white shadow-sm'
+                              : 'bg-transparent text-gray-600 hover:text-gray-900',
+                          )}
+                        >
+                          {l.nativeLabel}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {serviceMobile && (
+                    <div className="flex items-start justify-between gap-3 pt-1 border-t border-gray-100">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm">{st('settings.showAccounts')}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                          {st('settings.showAccountsDesc')}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={accountsTabVisible}
+                        aria-label={st('settings.showAccounts')}
+                        onClick={() => {
+                          if (!user) return;
+                          const next = !accountsTabVisible;
+                          setAccountsTabVisiblePref(next);
+                          setAccountsTabVisible(next);
+                          const prevTc =
+                            (user.tabConfig as Record<string, { label?: string; visible?: boolean }> | null) || {};
+                          const tabConfig = {
+                            ...prevTc,
+                            accounts: {
+                              label: prevTc.accounts?.label || 'Accounts',
+                              visible: next,
+                            },
+                          };
+                          const merged = { ...user, tabConfig };
+                          session.setUser(merged);
+                          onUserChange(merged);
+                          toast(next ? 'Accounts tab shown' : 'Accounts tab hidden', 'success');
+                        }}
+                        className={cn(
+                          'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
+                          accountsTabVisible ? 'bg-brand' : 'bg-gray-300',
+                        )}
+                      >
+                        <span
+                          aria-hidden
+                          className={cn(
+                            'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                            accountsTabVisible ? 'translate-x-5' : 'translate-x-0',
+                          )}
+                          style={{ backgroundColor: '#FFFFFF' }}
+                        />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Change Password */}
+              <div className={cn(settingsPanel(), !showTab('personal') && 'hidden')}>
+                <div className={settingsPanelHead()}>
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Shield size={20} /> Change Password
+                  </h3>
+                </div>
+                <form
+                  onSubmit={async e => {
+                    e.preventDefault();
+                    const form = e.target as HTMLFormElement;
+                    const current = (form.elements.namedItem('currentPassword') as HTMLInputElement).value;
+                    const newPw = (form.elements.namedItem('newPassword') as HTMLInputElement).value;
+                    const confirm = (form.elements.namedItem('confirmPassword') as HTMLInputElement).value;
+                    if (newPw !== confirm) {
+                      toast('New passwords do not match', 'error');
+                      return;
+                    }
+                    if (newPw.length < 8) {
+                      toast('Password must be at least 8 characters', 'error');
+                      return;
+                    }
+                    try {
+                      await api.settings.changePassword(user!.id, current, newPw);
+                      toast('Password changed successfully', 'success');
+                      form.reset();
+                    } catch (err) {
+                      toast(err instanceof Error ? err.message : 'Failed', 'error');
+                    }
+                  }}
+                  className="p-6 space-y-4"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label
+                        htmlFor="settings-field-29"
+                        className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                      >
+                        Current Password
+                      </label>
+                      <PasswordInput
+                        id="settings-field-29"
+                        name="currentPassword"
+                        required
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="settings-field-30"
+                        className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                      >
+                        New Password
+                      </label>
+                      <PasswordInput
+                        id="settings-field-30"
+                        name="newPassword"
+                        required
+                        minLength={8}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="settings-field-31"
+                        className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                      >
+                        Confirm New Password
+                      </label>
+                      <PasswordInput
+                        id="settings-field-31"
+                        name="confirmPassword"
+                        required
+                        minLength={8}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" className="px-6 py-2 bg-brand text-white rounded-xl font-bold">
+                    Update Password
+                  </button>
+                </form>
+              </div>
+
+              {/* Delete my account — cloud only (offline uses SA device unbind) */}
+              {!serviceMobile && (
+                <div
+                  className={cn(
+                    settingsPanel(),
+                    !settingsGlass() && 'border-rose-100',
+                    !showTab('personal') && 'hidden',
+                  )}
+                >
+                  <div className="px-6 py-4 bg-rose-50 border-b border-rose-100">
+                    <h3 className="font-bold text-lg flex items-center gap-2 text-rose-800">
+                      <Trash2 size={20} /> Delete Account
+                    </h3>
+                  </div>
+                  <form
+                    onSubmit={async e => {
+                      e.preventDefault();
+                      if (!user) return;
+                      const form = e.target as HTMLFormElement;
+                      const password = (form.elements.namedItem('deletePassword') as HTMLInputElement).value;
+                      if (
+                        !(await confirm({
+                          title: 'Delete your account?',
+                          message: 'Your personal data will be anonymized. This cannot be undone.',
+                          confirmLabel: 'Delete account',
+                          variant: 'danger',
+                        }))
+                      )
+                        return;
+                      try {
+                        await api.settings.deleteAccount(password);
+                        session.clearAll();
+                        onUserChange(null);
+                        toast('Account deleted', 'success');
+                      } catch (err) {
+                        toast(err instanceof Error ? err.message : 'Failed to delete account', 'error');
+                      }
+                    }}
+                    className="p-6 space-y-4"
+                  >
+                    <p className="text-sm text-gray-600">
+                      Permanently anonymizes your name, email, phone, and address. Sales history kept for business
+                      records is not tied to your login after this.
+                    </p>
+                    <div className="max-w-sm">
+                      <label
+                        htmlFor="settings-delete-pw"
+                        className="text-xs font-bold text-gray-400 uppercase block mb-1"
+                      >
+                        Confirm with password
+                      </label>
+                      <PasswordInput
+                        id="settings-delete-pw"
+                        name="deletePassword"
+                        required
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-rose-400"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="px-6 py-2 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700"
+                    >
+                      Delete my account
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {/* GST API — cloud only (desktop: GST Settings tab) */}
+              {isAdmin && !serviceMobile && (
+                <div className={cn(!showTab('gst') && 'hidden')}>
+                  <GstApiSection />
+                </div>
+              )}
+
+              {/* Bill Customization */}
+              {isAdmin && (
+                <div className={cn(!showTab('bill') && 'hidden')}>
+                  <BillCustomizationSection />
+                </div>
+              )}
+
+              <div className={cn(settingsPanel('mb-4'), !showTab('preferences') && 'hidden')}>
+                <div className={settingsPanelHead('', true)}>
+                  <h3 className="font-bold text-base sm:text-lg">Notifications</h3>
+                </div>
+                <div className="p-4 sm:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm">Notification sound</p>
+                      <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                        Soft chime for important alerts. You can also mute from the Bell menu.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={notifSoundOn}
+                      aria-label="Notification sound"
+                      onClick={() => {
+                        const scope = `${session.getTenantId() || 't'}:${user?.id || 'u'}`;
+                        const next = !notifSoundOn;
+                        localStorage.setItem(`dg_notif_mute:${scope}`, next ? '0' : '1');
+                        setNotifSoundOn(next);
+                        toast(next ? 'Notification sound on' : 'Notification sound muted', 'success');
+                      }}
+                      className={cn(
+                        'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
+                        notifSoundOn ? 'bg-brand' : 'bg-gray-300',
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                          notifSoundOn ? 'translate-x-5' : 'translate-x-0',
+                        )}
+                        style={{ backgroundColor: '#FFFFFF' }}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className={cn(settingsPanel(), !showTab('preferences') && 'hidden')}>
+                <div className={settingsPanelHead('', true)}>
+                  <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                    <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                    WhatsApp Auto-Send
+                  </h3>
+                </div>
+                <div className="p-4 sm:p-6 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm">Auto-send bills</p>
+                      <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                        Opens WhatsApp with the bill after each sale, including a shareable link for the customer.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={Boolean(user?.autoWhatsapp)}
+                      aria-label="WhatsApp auto-send"
+                      onClick={() => {
+                        if (!user) return;
+                        const newVal = !user.autoWhatsapp;
+                        api.settings
+                          .updateProfile(user.id, { autoWhatsapp: newVal } as Record<string, unknown>)
+                          .then(u => {
+                            const updated = { ...user, ...u, autoWhatsapp: newVal };
+                            session.setUser(updated);
+                            onUserChange(updated);
+                            toast(newVal ? 'Auto WhatsApp enabled' : 'Auto WhatsApp disabled', 'success');
+                          })
+                          .catch(err => toast(err instanceof Error ? err.message : 'Failed', 'error'));
+                      }}
+                      className={cn(
+                        'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors mt-0.5',
+                        user?.autoWhatsapp ? 'bg-brand' : 'bg-gray-300',
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                          user?.autoWhatsapp ? 'translate-x-5' : 'translate-x-0',
+                        )}
+                        style={{ backgroundColor: '#FFFFFF' }}
+                      />
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    {user?.autoWhatsapp ? 'ON — bills open in WhatsApp automatically' : 'OFF — send manually'}
+                  </p>
+                </div>
+              </div>
+
+              {showBugReport && (
+                <div className={cn(settingsPanel(), !showTab('preferences') && 'hidden')}>
+                  <div className={settingsPanelHead('', true)}>
+                    <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                      <Bug size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                      Help
+                    </h3>
+                  </div>
+                  <div className="p-4 sm:p-6 space-y-3">
+                    <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
+                      Share a bug report with support. Includes app version, device info, and recent errors — not your
+                      password
+                      {serviceMobile ? ' or full license key' : ''}.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const how = await shareBugReport();
+                          toast(bugReportFeedbackMessage(how), 'success');
+                        } catch (e) {
+                          toast((e as Error).message || 'Could not create bug report', 'error');
+                        }
+                      }}
+                      className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-gray-900 text-white hover:bg-gray-800"
+                    >
+                      <Bug size={15} className="shrink-0" />
+                      Share bug report
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Data Management - Admin only */}
+              {isAdmin && (
+                <div className={cn(settingsPanel(), !showTab('data') && 'hidden')}>
+                  <div className={settingsPanelHead('', true)}>
+                    <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                      <HardDrive size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                      {st('settings.dataManagement')}
+                    </h3>
+                  </div>
+                  <div className="p-4 sm:p-6 space-y-3">
+                    {mobileApp && (
+                      <p className="text-xs sm:text-sm text-gray-500 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 leading-relaxed">
+                        {serviceMobile ? (
+                          <>
+                            Backups stay on <strong className="text-gray-700">your phone</strong> (and your Gmail if you
+                            send them). Dhandho does not store your business data in the cloud.{' '}
+                          </>
+                        ) : null}
+                        Files are saved under <strong className="text-gray-700">Documents/Dhandho</strong> on this phone
+                        (backups, invoices, bug reports).
+                      </p>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={backupBusy || restoreBusy}
+                        onClick={async () => {
+                          if (backupBusy || restoreBusy) return;
+                          setBackupBusy(true);
+                          toast('Backup started…', 'info');
+                          try {
+                            if (serviceMobile) {
+                              const { filename, path } = await exportLocalBackupNow({
+                                openMail: Boolean(backupSettings?.email),
+                              });
+                              const where = path || `Documents/Dhandho/backups/${filename}`;
+                              toast(`Backup done — saved to ${where}`, 'success');
+                              setBackupSettings(prev =>
+                                prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev,
+                              );
+                              return;
                             }
-                            onChange={async e => {
-                              const freq = e.target.value;
-                              const days =
-                                freq === 'daily'
-                                  ? 1
-                                  : freq === 'weekly'
-                                    ? 7
-                                    : freq === 'monthly'
-                                      ? 30
-                                      : backupSettings.intervalDays;
-                              try {
-                                const r = await api.backup.updateSettings({
-                                  enabled: true,
-                                  frequency: freq,
-                                  intervalDays: days,
-                                  email: backupSettings.email || undefined,
-                                });
-                                setBackupSettings(prev => ({
-                                  enabled: r.enabled,
-                                  frequency: r.frequency,
-                                  intervalDays: r.intervalDays,
-                                  email: r.email,
-                                  lastBackupAt: prev?.lastBackupAt ?? null,
-                                }));
-                                toast('Backup frequency updated', 'success');
-                              } catch (err) {
-                                toast((err as Error).message, 'error');
+                            const r = await fetch('/api/backup', {
+                              headers: {
+                                Authorization: `Bearer ${session.getToken()}`,
+                                'X-Tenant-ID': session.getTenantId() || '',
+                              },
+                            });
+                            if (!r.ok) throw new Error('Backup failed');
+                            const blob = await r.blob();
+                            const filename = `backup-${new Date().toISOString().slice(0, 10)}.json`;
+                            if (isNativeCapacitor()) {
+                              const saved = await saveDhandhoFile({
+                                subdir: 'backups',
+                                filename,
+                                data: await blob.text(),
+                                encoding: 'utf8',
+                              });
+                              toast(`Backup done — saved to ${saved.relativePath}`, 'success');
+                            } else {
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = filename;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                              toast('Backup downloaded', 'success');
+                            }
+                            setBackupSettings(prev =>
+                              prev ? { ...prev, lastBackupAt: new Date().toISOString() } : prev,
+                            );
+                          } catch (e) {
+                            toast((e as Error).message, 'error');
+                            void reportActionFailed('backup.export', e);
+                          } finally {
+                            setBackupBusy(false);
+                          }
+                        }}
+                        className="dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                      >
+                        {backupBusy ? (
+                          <span
+                            className="w-4 h-4 shrink-0 border-2 border-white border-t-transparent rounded-full animate-spin"
+                            aria-hidden
+                          />
+                        ) : (
+                          <Download size={15} className="shrink-0" />
+                        )}
+                        {backupBusy
+                          ? 'Backing up…'
+                          : serviceMobile
+                            ? st('settings.saveBackupFile')
+                            : st('settings.downloadBackupNow')}
+                      </button>
+                      <label
+                        className={cn(
+                          'dg-compact w-full h-10 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl text-sm font-bold bg-amber-600 text-white hover:bg-amber-700 cursor-pointer',
+                          (restoreBusy || backupBusy) && 'opacity-60 pointer-events-none',
+                        )}
+                      >
+                        {restoreBusy ? (
+                          <span
+                            className="w-4 h-4 shrink-0 border-2 border-white border-t-transparent rounded-full animate-spin"
+                            aria-hidden
+                          />
+                        ) : (
+                          <Upload size={15} className="shrink-0" />
+                        )}
+                        {restoreBusy ? `Restoring… ${restorePct?.percent ?? 0}%` : st('settings.restoreBackup')}
+                        <input
+                          type="file"
+                          accept=".json"
+                          className="hidden"
+                          disabled={restoreBusy || backupBusy}
+                          onChange={async e => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (
+                              !(await confirm({
+                                title: 'Restore Backup',
+                                message:
+                                  'This will REPLACE all your current data with the backup. This cannot be undone.',
+                                confirmLabel: 'Restore',
+                                variant: 'danger',
+                              }))
+                            ) {
+                              e.target.value = '';
+                              return;
+                            }
+                            setRestoreBusy(true);
+                            setRestorePct(restoreProgress('reading', 0));
+                            toast('Restore started…', 'info');
+                            const report = (p: RestoreProgress) => setRestorePct(p);
+                            try {
+                              if (serviceMobile) {
+                                const r = await restoreFromLocalBackupFile(file, report);
+                                if (!r.ok) throw new Error(r.error || 'Restore failed');
+                                setRestorePct(restoreProgress('done', 100));
+                                toast('Backup restored — reloading…', 'success');
+                                setTimeout(() => window.location.reload(), 600);
+                                return;
                               }
-                            }}
-                            className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
-                          >
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly">Monthly</option>
-                            {!serviceMobile && <option value="custom">Custom</option>}
-                          </select>
+                              // Online / Cap Cloud: stage-mapped % (server has no stream)
+                              report(restoreProgress('reading', 10));
+                              const text = await file.text();
+                              report(restoreProgress('validating', 25));
+                              const data = JSON.parse(text);
+                              if (!data?._meta) throw new Error('Invalid backup file — missing _meta header');
+                              report(restoreProgress('uploading', 40));
+                              const r = await fetch('/api/backup/restore', {
+                                method: 'POST',
+                                headers: {
+                                  Authorization: `Bearer ${session.getToken()}`,
+                                  'X-Tenant-ID': session.getTenantId() || '',
+                                  'Content-Type': 'application/json',
+                                },
+                                body: text,
+                              });
+                              const result = await r.json();
+                              if (!r.ok) throw new Error(result.error || 'Restore failed');
+                              report(restoreProgress('done', 100));
+                              toast(
+                                `Restored ${result.restored} records from ${data._meta?.companyName || 'backup'}`,
+                                'success',
+                              );
+                            } catch (err) {
+                              toast((err as Error).message, 'error');
+                            } finally {
+                              setRestoreBusy(false);
+                              setRestorePct(null);
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                    {restorePct && (
+                      <PercentProgressBar
+                        percent={restorePct.percent}
+                        label={restorePct.label}
+                        barClassName="bg-amber-500"
+                      />
+                    )}
+                    {backupSettings?.lastBackupAt && (
+                      <p className="text-[11px] text-gray-400">
+                        Last backup: {new Date(backupSettings.lastBackupAt).toLocaleString('en-IN')}
+                      </p>
+                    )}
+                    <div className="border-t border-gray-100 pt-3 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <span className="text-sm font-bold">Auto Backup</span>
+                          {serviceMobile ? (
+                            <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                              Saves a file on this phone (daily / weekly / monthly). Optional Gmail opens your mail app
+                              — we never upload your data.
+                            </p>
+                          ) : (
+                            <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                              Preference only for now — the cloud server does not run a scheduled backup job yet. Use{' '}
+                              <strong className="font-semibold text-gray-500">Export now</strong> for a tenant JSON
+                              copy; database backups come from your host (Render Postgres) when you upgrade off the free
+                              plan.
+                            </p>
+                          )}
                         </div>
-                        {!serviceMobile && backupSettings.frequency === 'custom' && (
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={backupSettings?.enabled ?? false}
+                          aria-label="Auto Backup"
+                          onClick={async () => {
+                            const enabled = !(backupSettings?.enabled ?? false);
+                            const freq = backupSettings?.frequency || (serviceMobile ? 'daily' : 'weekly');
+                            try {
+                              const r = await api.backup.updateSettings({
+                                enabled,
+                                frequency: freq,
+                                intervalDays: backupSettings?.intervalDays,
+                                email: backupSettings?.email || undefined,
+                              });
+                              setBackupSettings(prev => ({
+                                enabled: r.enabled,
+                                frequency: r.frequency,
+                                intervalDays: r.intervalDays,
+                                email: r.email,
+                                lastBackupAt: prev?.lastBackupAt ?? null,
+                              }));
+                              toast(enabled ? 'Auto backup enabled' : 'Auto backup disabled', 'success');
+                            } catch (err) {
+                              toast((err as Error).message, 'error');
+                            }
+                          }}
+                          className={cn(
+                            'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors',
+                            backupSettings?.enabled ? 'bg-brand' : 'bg-gray-300',
+                          )}
+                        >
+                          <span
+                            aria-hidden
+                            className={cn(
+                              'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                              backupSettings?.enabled ? 'translate-x-5' : 'translate-x-0',
+                            )}
+                            style={{ backgroundColor: '#FFFFFF' }}
+                          />
+                        </button>
+                      </div>
+                      {backupSettings?.enabled && (
+                        <div className="space-y-3 rounded-xl bg-gray-50 p-3 sm:p-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                                Frequency
+                              </label>
+                              <select
+                                value={
+                                  serviceMobile && !['daily', 'weekly', 'monthly'].includes(backupSettings.frequency)
+                                    ? 'daily'
+                                    : backupSettings.frequency
+                                }
+                                onChange={async e => {
+                                  const freq = e.target.value;
+                                  const days =
+                                    freq === 'daily'
+                                      ? 1
+                                      : freq === 'weekly'
+                                        ? 7
+                                        : freq === 'monthly'
+                                          ? 30
+                                          : backupSettings.intervalDays;
+                                  try {
+                                    const r = await api.backup.updateSettings({
+                                      enabled: true,
+                                      frequency: freq,
+                                      intervalDays: days,
+                                      email: backupSettings.email || undefined,
+                                    });
+                                    setBackupSettings(prev => ({
+                                      enabled: r.enabled,
+                                      frequency: r.frequency,
+                                      intervalDays: r.intervalDays,
+                                      email: r.email,
+                                      lastBackupAt: prev?.lastBackupAt ?? null,
+                                    }));
+                                    toast('Backup frequency updated', 'success');
+                                  } catch (err) {
+                                    toast((err as Error).message, 'error');
+                                  }
+                                }}
+                                className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
+                              >
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                {!serviceMobile && <option value="custom">Custom</option>}
+                              </select>
+                            </div>
+                            {!serviceMobile && backupSettings.frequency === 'custom' && (
+                              <div>
+                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                                  Every N days
+                                </label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={365}
+                                  value={backupSettings.intervalDays}
+                                  onBlur={async e => {
+                                    const days = Math.max(1, parseInt(e.target.value) || 7);
+                                    try {
+                                      const r = await api.backup.updateSettings({
+                                        enabled: true,
+                                        frequency: 'custom',
+                                        intervalDays: days,
+                                        email: backupSettings.email || undefined,
+                                      });
+                                      setBackupSettings(prev => ({
+                                        enabled: r.enabled,
+                                        frequency: r.frequency,
+                                        intervalDays: r.intervalDays,
+                                        email: r.email,
+                                        lastBackupAt: prev?.lastBackupAt ?? null,
+                                      }));
+                                    } catch {}
+                                  }}
+                                  onChange={e =>
+                                    setBackupSettings(prev =>
+                                      prev ? { ...prev, intervalDays: parseInt(e.target.value) || 7 } : prev,
+                                    )
+                                  }
+                                  className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
+                                />
+                              </div>
+                            )}
+                          </div>
                           <div>
                             <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
-                              Every N days
+                              {serviceMobile ? 'Gmail (optional)' : 'Email backup to (optional)'}
                             </label>
                             <input
-                              type="number"
-                              min={1}
-                              max={365}
-                              value={backupSettings.intervalDays}
+                              type="email"
+                              value={backupSettings.email || ''}
+                              placeholder="you@gmail.com"
                               onBlur={async e => {
-                                const days = Math.max(1, parseInt(e.target.value) || 7);
                                 try {
                                   const r = await api.backup.updateSettings({
                                     enabled: true,
-                                    frequency: 'custom',
-                                    intervalDays: days,
-                                    email: backupSettings.email || undefined,
+                                    frequency: backupSettings.frequency,
+                                    intervalDays: backupSettings.intervalDays,
+                                    email: e.target.value || undefined,
                                   });
                                   setBackupSettings(prev => ({
                                     enabled: r.enabled,
@@ -2246,274 +2488,248 @@ export function SettingsView({
                                 } catch {}
                               }}
                               onChange={e =>
-                                setBackupSettings(prev =>
-                                  prev ? { ...prev, intervalDays: parseInt(e.target.value) || 7 } : prev,
+                                setBackupSettings(prev => (prev ? { ...prev, email: e.target.value } : prev))
+                              }
+                              className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
+                            />
+                            {serviceMobile && (
+                              <p className="text-[11px] text-gray-400 mt-1">
+                                Opens your mail app — we never upload data.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Payment reminders — non-service Distribution / Vendor Finance only */}
+              {isAdmin && showVendorReminders && reminderSettings && (
+                <div className={cn(settingsPanel(), !showTab('preferences') && 'hidden')}>
+                  <div className={settingsPanelHead('', true)}>
+                    <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                      <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                      Payment Reminders
+                    </h3>
+                  </div>
+                  <div className="p-4 sm:p-6 space-y-4">
+                    <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
+                      Controls WhatsApp “Remind payment” / “Remind all” on Distribution and Vendor Finance. Recommended
+                      cadence for distributors:{' '}
+                      <strong className="font-semibold text-gray-600">every 7 or 15 days</strong>. Auto-send needs a
+                      server job later — for now the app skips vendors still inside the cadence window (uses last
+                      reminded date).
+                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <span className="text-sm font-bold">Enable reminders</span>
+                        <p className="text-xs text-gray-400 mt-0.5">Master switch for reminder buttons and due list</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={reminderSettings.enabled}
+                        aria-label="Enable payment reminders"
+                        disabled={reminderSaving}
+                        onClick={() => void saveReminderSettings({ enabled: !reminderSettings.enabled })}
+                        className={cn(
+                          'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors',
+                          reminderSettings.enabled ? 'bg-brand' : 'bg-gray-300',
+                        )}
+                      >
+                        <span
+                          aria-hidden
+                          className={cn(
+                            'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                            reminderSettings.enabled ? 'translate-x-5' : 'translate-x-0',
+                          )}
+                          style={{ backgroundColor: '#FFFFFF' }}
+                        />
+                      </button>
+                    </div>
+                    {reminderSettings.enabled && (
+                      <div className="space-y-3 rounded-xl bg-gray-50 p-3 sm:p-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                              Remind only if due above (₹)
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              step={100}
+                              value={reminderSettings.minDueAmount}
+                              disabled={reminderSaving}
+                              onChange={e =>
+                                setReminderSettings(prev =>
+                                  prev ? { ...prev, minDueAmount: Math.max(0, Number(e.target.value) || 0) } : prev,
                                 )
+                              }
+                              onBlur={() => void saveReminderSettings({ minDueAmount: reminderSettings.minDueAmount })}
+                              className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                              Reminder cadence
+                            </label>
+                            <select
+                              value={reminderCadenceSelect}
+                              disabled={reminderSaving}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setReminderCadenceSelect(val);
+                                if (val !== 'custom') {
+                                  void saveReminderSettings({
+                                    cadenceDays: resolveCadenceDays(val, reminderCustomDays),
+                                  });
+                                }
+                              }}
+                              className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
+                            >
+                              <option value="7">Every 7 days (weekly)</option>
+                              <option value="15">Every 15 days</option>
+                              <option value="30">Every 30 days (monthly)</option>
+                              <option value="custom">Custom days…</option>
+                            </select>
+                          </div>
+                        </div>
+                        {reminderCadenceSelect === 'custom' && (
+                          <div className="max-w-xs">
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                              Custom interval (days)
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={365}
+                              value={reminderCustomDays}
+                              disabled={reminderSaving}
+                              onChange={e => setReminderCustomDays(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                              onBlur={() =>
+                                void saveReminderSettings({
+                                  cadenceDays: resolveCadenceDays('custom', reminderCustomDays),
+                                })
                               }
                               className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
                             />
                           </div>
                         )}
                       </div>
-                      <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
-                          {serviceMobile ? 'Gmail (optional)' : 'Email backup to (optional)'}
-                        </label>
-                        <input
-                          type="email"
-                          value={backupSettings.email || ''}
-                          placeholder="you@gmail.com"
-                          onBlur={async e => {
-                            try {
-                              const r = await api.backup.updateSettings({
-                                enabled: true,
-                                frequency: backupSettings.frequency,
-                                intervalDays: backupSettings.intervalDays,
-                                email: e.target.value || undefined,
-                              });
-                              setBackupSettings(prev => ({
-                                enabled: r.enabled,
-                                frequency: r.frequency,
-                                intervalDays: r.intervalDays,
-                                email: r.email,
-                                lastBackupAt: prev?.lastBackupAt ?? null,
-                              }));
-                            } catch {}
-                          }}
-                          onChange={e => setBackupSettings(prev => (prev ? { ...prev, email: e.target.value } : prev))}
-                          className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
-                        />
-                        {serviceMobile && (
-                          <p className="text-[11px] text-gray-400 mt-1">Opens your mail app — we never upload data.</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Payment reminders — non-service Distribution / Vendor Finance only */}
-          {isAdmin && showVendorReminders && reminderSettings && (
-            <div className={settingsPanel()}>
-              <div className={settingsPanelHead('', true)}>
-                <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
-                  <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
-                  Payment Reminders
-                </h3>
-              </div>
-              <div className="p-4 sm:p-6 space-y-4">
-                <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
-                  Controls WhatsApp “Remind payment” / “Remind all” on Distribution and Vendor Finance. Recommended
-                  cadence for distributors: <strong className="font-semibold text-gray-600">every 7 or 15 days</strong>.
-                  Auto-send needs a server job later — for now the app skips vendors still inside the cadence window
-                  (uses last reminded date).
-                </p>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <span className="text-sm font-bold">Enable reminders</span>
-                    <p className="text-xs text-gray-400 mt-0.5">Master switch for reminder buttons and due list</p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={reminderSettings.enabled}
-                    aria-label="Enable payment reminders"
-                    disabled={reminderSaving}
-                    onClick={() => void saveReminderSettings({ enabled: !reminderSettings.enabled })}
-                    className={cn(
-                      'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors',
-                      reminderSettings.enabled ? 'bg-brand' : 'bg-gray-300',
                     )}
-                  >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
-                        reminderSettings.enabled ? 'translate-x-5' : 'translate-x-0',
-                      )}
-                      style={{ backgroundColor: '#FFFFFF' }}
-                    />
-                  </button>
+                  </div>
                 </div>
-                {reminderSettings.enabled && (
-                  <div className="space-y-3 rounded-xl bg-gray-50 p-3 sm:p-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
-                          Remind only if due above (₹)
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          step={100}
-                          value={reminderSettings.minDueAmount}
-                          disabled={reminderSaving}
-                          onChange={e =>
-                            setReminderSettings(prev =>
-                              prev ? { ...prev, minDueAmount: Math.max(0, Number(e.target.value) || 0) } : prev,
-                            )
-                          }
-                          onBlur={() => void saveReminderSettings({ minDueAmount: reminderSettings.minDueAmount })}
-                          className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
-                        />
+              )}
+
+              {/* User Management - Admin only (hidden on offline mobile) */}
+              {isAdmin && !serviceMobile && (
+                <div className={cn(settingsPanel(), !showTab('users') && 'hidden')}>
+                  <div className={settingsPanelHead('flex items-center justify-between')}>
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                      <UserCog size={20} /> User Management
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setAddUserOpen(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+                    >
+                      <UserPlus size={16} /> Add User
+                    </button>
+                  </div>
+                  <div className="p-6">
+                    {usersLoading ? (
+                      <div className="py-8">
+                        <LoadingSpinner />
                       </div>
-                      <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
-                          Reminder cadence
-                        </label>
-                        <select
-                          value={reminderCadenceSelect}
-                          disabled={reminderSaving}
-                          onChange={e => {
-                            const val = e.target.value;
-                            setReminderCadenceSelect(val);
-                            if (val !== 'custom') {
-                              void saveReminderSettings({ cadenceDays: resolveCadenceDays(val, reminderCustomDays) });
-                            }
-                          }}
-                          className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
-                        >
-                          <option value="7">Every 7 days (weekly)</option>
-                          <option value="15">Every 15 days</option>
-                          <option value="30">Every 30 days (monthly)</option>
-                          <option value="custom">Custom days…</option>
-                        </select>
-                      </div>
-                    </div>
-                    {reminderCadenceSelect === 'custom' && (
-                      <div className="max-w-xs">
-                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
-                          Custom interval (days)
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={365}
-                          value={reminderCustomDays}
-                          disabled={reminderSaving}
-                          onChange={e => setReminderCustomDays(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                          onBlur={() =>
-                            void saveReminderSettings({
-                              cadenceDays: resolveCadenceDays('custom', reminderCustomDays),
-                            })
-                          }
-                          className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
-                        />
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50">
+                              <th className="px-4 py-3">Name</th>
+                              <th className="px-4 py-3">Email</th>
+                              <th className="px-4 py-3">Role</th>
+                              <th className="px-4 py-3">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {users.map(u => (
+                              <tr key={u.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 font-medium">{u.name}</td>
+                                <td className="px-4 py-3 text-sm text-gray-600">{u.email}</td>
+                                <td className="px-4 py-3">
+                                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                                    {u.role ?? 'Staff'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  {u.id === user?.id ? (
+                                    <span className="text-xs text-gray-400">You</span>
+                                  ) : (
+                                    <div className="flex items-center gap-3">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditUserTarget(u);
+                                          setEditUserForm({
+                                            role: u.role ?? 'Staff',
+                                            permissions: (u.permissions &&
+                                            typeof u.permissions === 'object' &&
+                                            !Array.isArray(u.permissions)
+                                              ? u.permissions
+                                              : ROLE_PRESETS[u.role ?? 'Staff'] || ROLE_PRESETS.Staff) as Record<
+                                              string,
+                                              string
+                                            >,
+                                            vendorId: ((u as Record<string, unknown>).vendorId as string) ?? '',
+                                          });
+                                        }}
+                                        className="text-sm font-bold text-brand hover:underline flex items-center gap-1"
+                                      >
+                                        <Shield size={14} /> Permissions
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          if (
+                                            !(await confirm({
+                                              title: 'Delete user?',
+                                              message: `${u.name} will be anonymized and cannot log in.`,
+                                              confirmLabel: 'Delete',
+                                              variant: 'danger',
+                                            }))
+                                          )
+                                            return;
+                                          try {
+                                            await api.admin.deleteUser(u.id);
+                                            setUsers(prev => prev.filter(x => x.id !== u.id));
+                                            toast('User deleted', 'success');
+                                          } catch (err) {
+                                            toast(err instanceof Error ? err.message : 'Failed', 'error');
+                                          }
+                                        }}
+                                        className="text-sm font-bold text-rose-600 hover:underline flex items-center gap-1"
+                                      >
+                                        <Trash2 size={14} /> Delete
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              )}
+            </>
           )}
-
-          {/* User Management - Admin only (hidden on offline mobile) */}
-          {isAdmin && !serviceMobile && (
-            <div className={settingsPanel()}>
-              <div className={settingsPanelHead('flex items-center justify-between')}>
-                <h3 className="font-bold text-lg flex items-center gap-2">
-                  <UserCog size={20} /> User Management
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setAddUserOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
-                >
-                  <UserPlus size={16} /> Add User
-                </button>
-              </div>
-              <div className="p-6">
-                {usersLoading ? (
-                  <div className="py-8">
-                    <LoadingSpinner />
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="text-xs font-bold text-gray-400 uppercase border-b border-gray-50">
-                          <th className="px-4 py-3">Name</th>
-                          <th className="px-4 py-3">Email</th>
-                          <th className="px-4 py-3">Role</th>
-                          <th className="px-4 py-3">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {users.map(u => (
-                          <tr key={u.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-medium">{u.name}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600">{u.email}</td>
-                            <td className="px-4 py-3">
-                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                                {u.role ?? 'Staff'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              {u.id === user?.id ? (
-                                <span className="text-xs text-gray-400">You</span>
-                              ) : (
-                                <div className="flex items-center gap-3">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditUserTarget(u);
-                                      setEditUserForm({
-                                        role: u.role ?? 'Staff',
-                                        permissions: (u.permissions &&
-                                        typeof u.permissions === 'object' &&
-                                        !Array.isArray(u.permissions)
-                                          ? u.permissions
-                                          : ROLE_PRESETS[u.role ?? 'Staff'] || ROLE_PRESETS.Staff) as Record<
-                                          string,
-                                          string
-                                        >,
-                                        vendorId: ((u as Record<string, unknown>).vendorId as string) ?? '',
-                                      });
-                                    }}
-                                    className="text-sm font-bold text-brand hover:underline flex items-center gap-1"
-                                  >
-                                    <Shield size={14} /> Permissions
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      if (
-                                        !(await confirm({
-                                          title: 'Delete user?',
-                                          message: `${u.name} will be anonymized and cannot log in.`,
-                                          confirmLabel: 'Delete',
-                                          variant: 'danger',
-                                        }))
-                                      )
-                                        return;
-                                      try {
-                                        await api.admin.deleteUser(u.id);
-                                        setUsers(prev => prev.filter(x => x.id !== u.id));
-                                        toast('User deleted', 'success');
-                                      } catch (err) {
-                                        toast(err instanceof Error ? err.message : 'Failed', 'error');
-                                      }
-                                    }}
-                                    className="text-sm font-bold text-rose-600 hover:underline flex items-center gap-1"
-                                  >
-                                    <Trash2 size={14} /> Delete
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </>
-      )}
+        </div>
+      </div>
 
       {/* Add User Modal */}
       <AnimatePresence>
@@ -2784,7 +3000,7 @@ export function SettingsView({
         )}
       </AnimatePresence>
 
-      {!user && (
+      {!user && !desktopGlass && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
           <p className="text-amber-800 font-medium">
             Sign in to view and edit your personal information, contact details and company settings.
