@@ -487,4 +487,70 @@ router.put('/api/backup/settings', requireAdmin, async (req: AuthRequest, res) =
   }
 });
 
+/** Company payment-reminder policy for Distribution / Vendor Finance (non-service).
+ * GET is readable by any authenticated tenant user (needed to filter Remind CTAs);
+ * PUT remains admin-only. */
+router.get('/api/settings/reminders', async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const row = (
+      await pool.query(
+        'SELECT reminders_enabled, reminder_cadence_days, reminder_min_due_amount, business_type FROM tenants WHERE id = $1',
+        [tenantId],
+      )
+    ).rows[0] as Record<string, unknown> | undefined;
+    if (!row) return res.status(404).json({ error: 'Tenant not found' });
+    if (row.business_type === 'service') {
+      return res.status(403).json({ error: 'Payment reminders apply to distribution businesses only' });
+    }
+    const cadenceDays = Math.max(1, parseInt(String(row.reminder_cadence_days ?? 15), 10) || 15);
+    const minDueAmount = Math.max(0, Number(row.reminder_min_due_amount) || 0);
+    res.json({
+      enabled: row.reminders_enabled !== false,
+      cadenceDays,
+      minDueAmount,
+    });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
+router.put('/api/settings/reminders', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] as string;
+    if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
+    const biz = (await pool.query('SELECT business_type FROM tenants WHERE id = $1', [tenantId])).rows[0] as
+      { business_type?: string } | undefined;
+    if (!biz) return res.status(404).json({ error: 'Tenant not found' });
+    if (biz.business_type === 'service') {
+      return res.status(403).json({ error: 'Payment reminders apply to distribution businesses only' });
+    }
+    const { enabled, cadenceDays, minDueAmount } = req.body as {
+      enabled?: boolean;
+      cadenceDays?: number;
+      minDueAmount?: number;
+    };
+    const days = Math.max(1, Math.min(365, parseInt(String(cadenceDays ?? 15), 10) || 15));
+    const minDue = Math.max(0, Number(minDueAmount) || 0);
+    if (!Number.isFinite(minDue)) return res.status(400).json({ error: 'Invalid minimum due amount' });
+    await pool.query(
+      `UPDATE tenants SET reminders_enabled = $1, reminder_cadence_days = $2, reminder_min_due_amount = $3
+       WHERE id = $4`,
+      [enabled !== false, days, minDue, tenantId],
+    );
+    await logAudit(
+      pool,
+      tenantId,
+      'Payment Reminder Settings Updated',
+      'system',
+      undefined,
+      `${enabled !== false ? 'Enabled' : 'Disabled'} — every ${days} days, min due ₹${minDue}`,
+    );
+    res.json({ ok: true, enabled: enabled !== false, cadenceDays: days, minDueAmount: minDue });
+  } catch (err) {
+    return handleApiError(req, res, err);
+  }
+});
+
 export default router;

@@ -81,6 +81,26 @@ router.get('/api/vendor-finance/reminders-due', blockVendors, async (req: AuthRe
     const tenantId = req.headers['x-tenant-id'] as string;
     if (!tenantId) return res.status(401).json({ error: 'Tenant ID required' });
 
+    const company = (
+      await pool.query(
+        `SELECT reminders_enabled, reminder_cadence_days, reminder_min_due_amount, business_type
+         FROM tenants WHERE id = $1`,
+        [tenantId],
+      )
+    ).rows[0] as
+      | {
+          reminders_enabled: boolean | null;
+          reminder_cadence_days: number | null;
+          reminder_min_due_amount: number | null;
+          business_type: string | null;
+        }
+      | undefined;
+    if (!company || company.business_type === 'service' || company.reminders_enabled === false) {
+      return res.json([]);
+    }
+    const companyCadence = Math.max(1, parseInt(String(company.reminder_cadence_days ?? 15), 10) || 15);
+    const minDue = Math.max(0, Number(company.reminder_min_due_amount) || 0);
+
     const today = new Date().toISOString().slice(0, 10);
     const rows = (
       await pool.query(
@@ -105,12 +125,14 @@ router.get('/api/vendor-finance/reminders-due', blockVendors, async (req: AuthRe
     }[];
 
     const due = rows.filter(r => {
-      const balance = r.total_value - r.total_paid;
-      if (balance <= 0) return false;
+      const balance = Number(r.total_value) - Number(r.total_paid);
+      if (balance <= 0 || balance < minDue) return false;
       if (!r.last_reminder_date) return true;
+      // Prefer company cadence; fall back to per-vendor days if company cadence missing
+      const interval = companyCadence || r.reminder_days || 7;
       const lastSent = new Date(r.last_reminder_date);
       const nextDue = new Date(lastSent);
-      nextDue.setDate(nextDue.getDate() + r.reminder_days);
+      nextDue.setDate(nextDue.getDate() + interval);
       return nextDue.toISOString().slice(0, 10) <= today;
     });
 
@@ -119,10 +141,10 @@ router.get('/api/vendor-finance/reminders-due', blockVendors, async (req: AuthRe
         vendorId: r.vendor_id,
         vendorName: r.name,
         vendorPhone: r.phone ?? '',
-        balance: r.total_value - r.total_paid,
-        totalValue: r.total_value,
-        totalPaid: r.total_paid,
-        reminderDays: r.reminder_days,
+        balance: Number(r.total_value) - Number(r.total_paid),
+        totalValue: Number(r.total_value),
+        totalPaid: Number(r.total_paid),
+        reminderDays: companyCadence || r.reminder_days,
         lastSent: r.last_reminder_date,
       })),
     );
@@ -509,11 +531,17 @@ router.post('/api/vendor-finance/:vendorId/reminder-sent', blockVendors, async (
 
     const { vendorId } = req.params;
     const today = new Date().toISOString().slice(0, 10);
+    const cadenceRow = (await pool.query('SELECT reminder_cadence_days FROM tenants WHERE id = $1', [tenantId]))
+      .rows[0] as { reminder_cadence_days?: number } | undefined;
+    const defaultDays = Math.max(1, parseInt(String(cadenceRow?.reminder_cadence_days ?? 15), 10) || 15);
+    // UPSERT so Distribution manual reminds advance cadence even without a prior settings row
     await pool.query(
-      'UPDATE vendor_reminder_settings SET last_reminder_date = $1 WHERE vendor_id = $2 AND tenant_id = $3',
-      [today, vendorId, tenantId],
+      `INSERT INTO vendor_reminder_settings (vendor_id, tenant_id, enabled, reminder_days, last_reminder_date)
+       VALUES ($1, $2, false, $3, $4)
+       ON CONFLICT (vendor_id, tenant_id) DO UPDATE SET last_reminder_date = $4`,
+      [vendorId, tenantId, defaultDays, today],
     );
-    res.json({ ok: true });
+    res.json({ ok: true, lastSent: today });
   } catch (err) {
     return handleApiError(req, res, err);
   }

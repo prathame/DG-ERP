@@ -1000,6 +1000,13 @@ export async function initSchema() {
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_interval_days INTEGER DEFAULT 7');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_last_at TIMESTAMPTZ');
     await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS backup_email TEXT');
+
+    // Company payment-reminder policy (Distribution / Vendor Finance — non-service)
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS reminders_enabled BOOLEAN DEFAULT true');
+    await client.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS reminder_cadence_days INTEGER DEFAULT 15');
+    await client.query(
+      'ALTER TABLE tenants ADD COLUMN IF NOT EXISTS reminder_min_due_amount NUMERIC(14,2) DEFAULT 1000',
+    );
     await client.query('ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_pushed_at TIMESTAMPTZ');
     await client.query('ALTER TABLE onprem_licenses ADD COLUMN IF NOT EXISTS settings_applied_at TIMESTAMPTZ');
 

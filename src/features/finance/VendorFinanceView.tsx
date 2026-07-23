@@ -27,6 +27,12 @@ import {
 import { api, fetchApi } from '../../api';
 import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from '../../components/ui';
 import { useConfirm } from '../../hooks/useConfirm';
+import {
+  DEFAULT_REMINDER_SETTINGS,
+  canSendPaymentReminder,
+  filterVendorsForReminder,
+  type CompanyReminderSettings,
+} from '../../lib/paymentReminders';
 
 function esc(t: unknown): string {
   return String(t ?? '')
@@ -116,8 +122,9 @@ export function VendorFinanceView({
     days: number;
   } | null>(null);
   const [remindersDue, setRemindersDue] = useState<
-    { vendorId: string; vendorName: string; vendorPhone: string; balance: number }[]
+    { vendorId: string; vendorName: string; vendorPhone: string; balance: number; lastSent?: string | null }[]
   >([]);
+  const [reminderSettings, setReminderSettings] = useState<CompanyReminderSettings>(DEFAULT_REMINDER_SETTINGS);
 
   const loadSummary = () => {
     setLoading(true);
@@ -160,6 +167,19 @@ export function VendorFinanceView({
   useEffect(() => {
     loadSummary();
   }, []);
+  useEffect(() => {
+    if (isVendor) return;
+    api.reminderSettings
+      .get()
+      .then(r =>
+        setReminderSettings({
+          enabled: r.enabled,
+          minDueAmount: Number(r.minDueAmount) || 0,
+          cadenceDays: Math.max(1, Number(r.cadenceDays) || 15),
+        }),
+      )
+      .catch(() => setReminderSettings(DEFAULT_REMINDER_SETTINGS));
+  }, [isVendor]);
 
   const loadDetail = (vendorId: string) => {
     if (isVendor && vendorId !== user?.vendorId) return;
@@ -266,8 +286,23 @@ export function VendorFinanceView({
       .catch(err => toast(err.message, 'error'));
   };
 
-  const handleSendReminder = (v: { vendorId: string; vendorName: string; vendorPhone: string; balance: number }) => {
-    if (!(v.balance > 0) || !v.vendorPhone) return;
+  const handleSendReminder = (v: {
+    vendorId: string;
+    vendorName: string;
+    vendorPhone: string;
+    balance: number;
+    lastSent?: string | null;
+  }) => {
+    const gate = canSendPaymentReminder({
+      settings: reminderSettings,
+      balance: v.balance,
+      phone: v.vendorPhone,
+      lastSent: v.lastSent ?? null,
+    });
+    if (!gate.ok) {
+      toast(gate.reason || 'Cannot send reminder', 'info');
+      return;
+    }
     const msg = formatVendorPaymentReminderText({
       vendorName: v.vendorName,
       balance: v.balance,
@@ -312,22 +347,41 @@ export function VendorFinanceView({
               <PaidStamp className="hidden sm:flex text-xs opacity-80" />
             )}
           </div>
-          {detail.balance > 0 && detail.vendor.phone && (
-            <button
-              type="button"
-              onClick={() =>
-                handleSendReminder({
-                  vendorId: detail.vendor.id,
-                  vendorName: detail.vendor.name,
-                  vendorPhone: detail.vendor.phone!,
-                  balance: detail.balance,
-                })
-              }
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700"
-            >
-              <MessageCircle size={16} /> Remind payment
-            </button>
-          )}
+          {reminderSettings.enabled &&
+            detail.balance > 0 &&
+            detail.vendor.phone &&
+            (() => {
+              const gate = canSendPaymentReminder({
+                settings: reminderSettings,
+                balance: detail.balance,
+                phone: detail.vendor.phone,
+                lastSent: detail.reminder?.lastSent,
+              });
+              return (
+                <button
+                  type="button"
+                  disabled={!gate.ok}
+                  title={!gate.ok ? gate.reason || 'Cannot send reminder' : 'Send WhatsApp payment reminder'}
+                  onClick={() =>
+                    handleSendReminder({
+                      vendorId: detail.vendor.id,
+                      vendorName: detail.vendor.name,
+                      vendorPhone: detail.vendor.phone!,
+                      balance: detail.balance,
+                      lastSent: detail.reminder?.lastSent,
+                    })
+                  }
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold',
+                    gate.ok
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed',
+                  )}
+                >
+                  <MessageCircle size={16} /> Remind payment
+                </button>
+              );
+            })()}
           <button
             type="button"
             onClick={() => {
@@ -702,42 +756,64 @@ export function VendorFinanceView({
               }}
             />
           </label>
-          {(() => {
-            const withOutstanding = summaryData.filter(v => v.balance > 0 && v.vendorPhone);
-            if (!withOutstanding.length) return null;
-            return (
-              <button
-                type="button"
-                onClick={async () => {
-                  if (
-                    !(await confirm({
-                      title: 'Send Bulk Reminders',
-                      message: `Send WhatsApp payment reminders to ${withOutstanding.length} vendor${withOutstanding.length > 1 ? 's' : ''} with outstanding balance?`,
-                      confirmLabel: `Send to ${withOutstanding.length}`,
-                      variant: 'info',
-                    }))
-                  )
-                    return;
-                  const companyName = sessionCompanyName();
-                  for (const v of withOutstanding) {
-                    if (!(v.balance > 0) || !v.vendorPhone) continue;
-                    const msg = formatVendorPaymentReminderText({
-                      vendorName: v.vendorName,
-                      balance: v.balance,
-                      companyName,
-                    });
-                    shareViaWhatsApp(v.vendorPhone, msg);
-                    api.vendorFinance.markReminderSent(v.vendorId).catch(() => {});
-                  }
-                  toast(`Opened WhatsApp for ${withOutstanding.length} vendors`, 'success');
-                  loadSummary();
-                }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700"
-              >
-                <MessageCircle size={18} /> Remind all ({withOutstanding.length})
-              </button>
-            );
-          })()}
+          {reminderSettings.enabled &&
+            (() => {
+              const candidates: {
+                vendorId: string;
+                vendorName: string;
+                vendorPhone: string;
+                balance: number;
+                lastSent: string | null;
+              }[] = summaryData
+                .filter(v => v.balance > 0 && v.vendorPhone)
+                .map(v => ({
+                  vendorId: v.vendorId,
+                  vendorName: v.vendorName,
+                  vendorPhone: v.vendorPhone,
+                  balance: v.balance,
+                  lastSent: v.reminder?.lastSent ?? null,
+                }));
+              const { eligible, skipped } = filterVendorsForReminder(candidates, reminderSettings);
+              if (!eligible.length) return null;
+              return (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (
+                      !(await confirm({
+                        title: 'Send Bulk Reminders',
+                        message: `Send WhatsApp payment reminders to ${eligible.length} vendor${eligible.length > 1 ? 's' : ''}?${
+                          skipped.length ? ` (${skipped.length} skipped — below min due or within cadence)` : ''
+                        }`,
+                        confirmLabel: `Send to ${eligible.length}`,
+                        variant: 'info',
+                      }))
+                    )
+                      return;
+                    const companyName = sessionCompanyName();
+                    for (const v of eligible) {
+                      const msg = formatVendorPaymentReminderText({
+                        vendorName: v.vendorName,
+                        balance: v.balance,
+                        companyName,
+                      });
+                      shareViaWhatsApp(v.vendorPhone, msg);
+                      api.vendorFinance.markReminderSent(v.vendorId).catch(() => {});
+                    }
+                    toast(
+                      skipped.length
+                        ? `Opened WhatsApp for ${eligible.length}; skipped ${skipped.length}`
+                        : `Opened WhatsApp for ${eligible.length} vendors`,
+                      'success',
+                    );
+                    loadSummary();
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700"
+                >
+                  <MessageCircle size={18} /> Remind all ({eligible.length})
+                </button>
+              );
+            })()}
         </div>
       </div>
 
@@ -934,15 +1010,38 @@ export function VendorFinanceView({
                               + Pay
                             </button>
                           )}
-                          {v.balance > 0 && v.vendorPhone && (
-                            <button
-                              type="button"
-                              onClick={() => handleSendReminder(v)}
-                              className="text-sm font-bold text-green-600 hover:underline flex items-center gap-1"
-                            >
-                              <MessageCircle size={14} /> Remind payment
-                            </button>
-                          )}
+                          {reminderSettings.enabled &&
+                            v.balance > 0 &&
+                            v.vendorPhone &&
+                            (() => {
+                              const gate = canSendPaymentReminder({
+                                settings: reminderSettings,
+                                balance: v.balance,
+                                phone: v.vendorPhone,
+                                lastSent: v.reminder?.lastSent,
+                              });
+                              return (
+                                <button
+                                  type="button"
+                                  disabled={!gate.ok}
+                                  title={
+                                    !gate.ok ? gate.reason || 'Cannot send reminder' : 'Send WhatsApp payment reminder'
+                                  }
+                                  onClick={() =>
+                                    handleSendReminder({
+                                      ...v,
+                                      lastSent: v.reminder?.lastSent,
+                                    })
+                                  }
+                                  className={cn(
+                                    'text-sm font-bold flex items-center gap-1',
+                                    gate.ok ? 'text-green-600 hover:underline' : 'text-gray-400 cursor-not-allowed',
+                                  )}
+                                >
+                                  <MessageCircle size={14} /> Remind payment
+                                </button>
+                              );
+                            })()}
                         </td>
                       </tr>
                     ))

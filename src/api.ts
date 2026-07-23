@@ -1183,6 +1183,15 @@ export const api = {
         { method: 'PUT', body: JSON.stringify(data) },
       ),
   },
+  /** Company payment-reminder policy (non-service Distribution / Vendor Finance). */
+  reminderSettings: {
+    get: () => fetchApi<{ enabled: boolean; cadenceDays: number; minDueAmount: number }>('/settings/reminders'),
+    update: (data: { enabled: boolean; cadenceDays: number; minDueAmount: number }) =>
+      fetchApi<{ ok: boolean; enabled: boolean; cadenceDays: number; minDueAmount: number }>('/settings/reminders', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+  },
   expenses: {
     list: (filters?: { category?: string; from?: string; to?: string }) => {
       const q = new URLSearchParams();

@@ -44,6 +44,13 @@ import {
   restoreProgress,
   type RestoreProgress,
 } from '../../platforms/service-mobile';
+import { getBusinessConfig } from '../../lib/businessTypeConfig';
+import {
+  DEFAULT_REMINDER_SETTINGS,
+  cadenceSelectValue,
+  resolveCadenceDays,
+  type CompanyReminderSettings,
+} from '../../lib/paymentReminders';
 
 const ADMIN_ROLES = ['Admin', 'Super Admin'];
 const serviceMobile = isServiceMobileMode();
@@ -942,12 +949,59 @@ export function SettingsView({
   const [backupBusy, setBackupBusy] = useState(false);
   const [restoreBusy, setRestoreBusy] = useState(false);
   const [restorePct, setRestorePct] = useState<RestoreProgress | null>(null);
+  const showVendorReminders = getBusinessConfig().features.vendorFinance;
+  const [reminderSettings, setReminderSettings] = useState<CompanyReminderSettings | null>(null);
+  const [reminderCadenceSelect, setReminderCadenceSelect] = useState('15');
+  const [reminderCustomDays, setReminderCustomDays] = useState(15);
+  const [reminderSaving, setReminderSaving] = useState(false);
   useEffect(() => {
     api.backup
       .settings()
       .then(setBackupSettings)
       .catch(() => {});
   }, []);
+  useEffect(() => {
+    if (!showVendorReminders) return;
+    api.reminderSettings
+      .get()
+      .then(r => {
+        const next = {
+          enabled: r.enabled,
+          minDueAmount: Number(r.minDueAmount) || 0,
+          cadenceDays: Math.max(1, Number(r.cadenceDays) || 15),
+        };
+        setReminderSettings(next);
+        setReminderCadenceSelect(cadenceSelectValue(next.cadenceDays));
+        setReminderCustomDays(next.cadenceDays);
+      })
+      .catch(() => setReminderSettings({ ...DEFAULT_REMINDER_SETTINGS }));
+  }, [showVendorReminders]);
+
+  const saveReminderSettings = async (patch: Partial<CompanyReminderSettings>) => {
+    if (!reminderSettings) return;
+    const next = { ...reminderSettings, ...patch };
+    setReminderSaving(true);
+    try {
+      const r = await api.reminderSettings.update({
+        enabled: next.enabled,
+        cadenceDays: next.cadenceDays,
+        minDueAmount: next.minDueAmount,
+      });
+      const saved = {
+        enabled: r.enabled,
+        cadenceDays: r.cadenceDays,
+        minDueAmount: r.minDueAmount,
+      };
+      setReminderSettings(saved);
+      setReminderCadenceSelect(cadenceSelectValue(saved.cadenceDays));
+      setReminderCustomDays(saved.cadenceDays);
+      toast('Payment reminder settings saved', 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setReminderSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -2202,6 +2256,121 @@ export function SettingsView({
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Payment reminders — non-service Distribution / Vendor Finance only */}
+          {isAdmin && showVendorReminders && reminderSettings && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50 border-b border-gray-100">
+                <h3 className="font-bold text-base sm:text-lg flex items-center gap-1.5">
+                  <MessageCircle size={16} className="shrink-0 text-gray-500" strokeWidth={2} />
+                  Payment Reminders
+                </h3>
+              </div>
+              <div className="p-4 sm:p-6 space-y-4">
+                <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
+                  Controls WhatsApp “Remind payment” / “Remind all” on Distribution and Vendor Finance. Recommended
+                  cadence for distributors: <strong className="font-semibold text-gray-600">every 7 or 15 days</strong>.
+                  Auto-send needs a server job later — for now the app skips vendors still inside the cadence window
+                  (uses last reminded date).
+                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="text-sm font-bold">Enable reminders</span>
+                    <p className="text-xs text-gray-400 mt-0.5">Master switch for reminder buttons and due list</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={reminderSettings.enabled}
+                    aria-label="Enable payment reminders"
+                    disabled={reminderSaving}
+                    onClick={() => void saveReminderSettings({ enabled: !reminderSettings.enabled })}
+                    className={cn(
+                      'dg-compact relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors',
+                      reminderSettings.enabled ? 'bg-brand' : 'bg-gray-300',
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'pointer-events-none block h-6 w-6 rounded-full shadow-md transition-transform',
+                        reminderSettings.enabled ? 'translate-x-5' : 'translate-x-0',
+                      )}
+                      style={{ backgroundColor: '#FFFFFF' }}
+                    />
+                  </button>
+                </div>
+                {reminderSettings.enabled && (
+                  <div className="space-y-3 rounded-xl bg-gray-50 p-3 sm:p-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                          Remind only if due above (₹)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={100}
+                          value={reminderSettings.minDueAmount}
+                          disabled={reminderSaving}
+                          onChange={e =>
+                            setReminderSettings(prev =>
+                              prev ? { ...prev, minDueAmount: Math.max(0, Number(e.target.value) || 0) } : prev,
+                            )
+                          }
+                          onBlur={() => void saveReminderSettings({ minDueAmount: reminderSettings.minDueAmount })}
+                          className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                          Reminder cadence
+                        </label>
+                        <select
+                          value={reminderCadenceSelect}
+                          disabled={reminderSaving}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setReminderCadenceSelect(val);
+                            if (val !== 'custom') {
+                              void saveReminderSettings({ cadenceDays: resolveCadenceDays(val, reminderCustomDays) });
+                            }
+                          }}
+                          className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
+                        >
+                          <option value="7">Every 7 days (weekly)</option>
+                          <option value="15">Every 15 days</option>
+                          <option value="30">Every 30 days (monthly)</option>
+                          <option value="custom">Custom days…</option>
+                        </select>
+                      </div>
+                    </div>
+                    {reminderCadenceSelect === 'custom' && (
+                      <div className="max-w-xs">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1.5">
+                          Custom interval (days)
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={reminderCustomDays}
+                          disabled={reminderSaving}
+                          onChange={e => setReminderCustomDays(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                          onBlur={() =>
+                            void saveReminderSettings({
+                              cadenceDays: resolveCadenceDays('custom', reminderCustomDays),
+                            })
+                          }
+                          className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-white"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
