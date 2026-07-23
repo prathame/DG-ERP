@@ -1047,6 +1047,26 @@ export function shareViaWhatsApp(phone: string, message: string) {
   window.open(`https://wa.me/${p}?text=${encodeURIComponent(message)}`, '_blank');
 }
 
+/** WhatsApp payment-reminder text for vendor receivables (Distribution / Vendor Finance). */
+export function formatVendorPaymentReminderText(opts: {
+  vendorName: string;
+  balance: number;
+  companyName?: string;
+}): string {
+  const companyName = opts.companyName || 'Our Company';
+  return `🔔 *Payment Reminder*\n━━━━━━━━━━━━━━━━━\nDear ${opts.vendorName},\n\nThis is a reminder that you have an outstanding balance of *₹${opts.balance.toLocaleString()}*.\n\nPlease arrange the payment at your earliest convenience.\n\nThank you,\n${companyName}`;
+}
+
+/** Company name from session for reminder / print share text. */
+export function sessionCompanyName(fallback = 'Our Company'): string {
+  try {
+    const u = session.getUser() || ({} as Record<string, unknown>);
+    return (u.companyName as string) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /** Open Gmail compose in browser (works on desktop + mobile) */
 export function shareViaEmail(email: string, subject: string, body: string) {
   const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
