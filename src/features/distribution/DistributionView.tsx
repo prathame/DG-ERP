@@ -46,6 +46,11 @@ import { session } from '../../lib/session';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateDistributionModal } from './CreateDistributionModal';
 import { DesktopDistributionPanel } from './DesktopDistributionPanel';
+import {
+  DesktopBatchDetailGlass,
+  DesktopProductBarcodeGlass,
+  DesktopVendorSummaryGlass,
+} from './DesktopDistributionDetails';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import {
   DEFAULT_REMINDER_SETTINGS,
@@ -500,6 +505,8 @@ export function DistributionView({
     notes: '',
   });
   const [batchPaymentSubmitting, setBatchPaymentSubmitting] = useState(false);
+  const [createInitialVendorId, setCreateInitialVendorId] = useState<string | undefined>();
+  const [vendorAddress, setVendorAddress] = useState<string | null>(null);
 
   useEscapeKey(() => {
     if (eWayBillModal) {
@@ -737,6 +744,26 @@ export function DistributionView({
     setLoadError(null);
     load();
   }, [vendorId]);
+
+  useEffect(() => {
+    if (!desktopGlass || !selectedVendorId || isVendorUser) {
+      setVendorAddress(null);
+      return;
+    }
+    let cancelled = false;
+    api.vendorFinance
+      .detail(selectedVendorId)
+      .then(d => {
+        if (!cancelled) setVendorAddress(d.vendor.address || null);
+      })
+      .catch(() => {
+        if (!cancelled) setVendorAddress(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [desktopGlass, selectedVendorId, isVendorUser]);
+
   useEffect(() => {
     if (isServiceBiz || isVendorUser) return;
     api.reminderSettings
@@ -935,7 +962,10 @@ export function DistributionView({
           canExport={distributions.length > 0}
           onExportCsv={exportDistributionCsv}
           canCreate={!vendorId && canEdit}
-          onCreate={() => setModalOpen(true)}
+          onCreate={() => {
+            setCreateInitialVendorId(undefined);
+            setModalOpen(true);
+          }}
           createLabel={createLabel}
           remindAllCount={remindAllCount}
           onRemindAll={remindAllCount > 0 ? () => void remindAllOutstandingVendors() : null}
@@ -1099,6 +1129,430 @@ export function DistributionView({
                 withVendor: p.units.filter(u => u.status === 'Distributed').length,
               }));
               const selectedProduct = selectedBatchProductId ? byProduct[selectedBatchProductId] : null;
+
+              // Desktop glass drill-downs (vendor tile → batch → barcodes). Cap/phone keep card layout below.
+              if (desktopGlass) {
+                const ds = ((selectedBatch as Record<string, unknown>).dispatchStatus as string) || 'pending';
+                const nos =
+                  selectedBatch.deliverySet?.gstDocNo || selectedBatch.deliverySet?.nonGstDocNo
+                    ? {
+                        gstDocNo: selectedBatch.deliverySet.gstDocNo,
+                        nonGstDocNo: selectedBatch.deliverySet.nonGstDocNo,
+                      }
+                    : deliveryDocNos(selectedBatch.batchId, batchGstUnits, batchNonGstUnits);
+                const activeDocNo = deliveryHalf === 'gst' ? nos.gstDocNo : nos.nonGstDocNo;
+                const activeDocLabel = deliveryHalf === 'gst' ? 'Tax Invoice (GST)' : 'Bill of Supply (non-GST)';
+
+                if (selectedProduct) {
+                  return (
+                    <DesktopProductBarcodeGlass
+                      productName={selectedProduct.productName}
+                      units={selectedProduct.units.map(u => ({
+                        id: u.id,
+                        barcode: u.barcode,
+                        status: u.status,
+                      }))}
+                      sold={selectedProduct.units.filter(u => u.status === 'Sold').length}
+                      withVendor={selectedProduct.units.filter(u => u.status === 'Distributed').length}
+                      replaced={selectedProduct.units.filter(u => u.status === 'Replaced').length}
+                      damaged={selectedProduct.units.filter(u => u.status === 'Damaged').length}
+                      canEdit={!isVendorUser && canEdit}
+                      onBack={() => setSelectedBatchProductId(null)}
+                      onEdit={!isVendorUser && canEdit ? () => openEdit(selectedBatch) : null}
+                    />
+                  );
+                }
+
+                const glassBtn =
+                  'flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border border-[var(--dg-card-border)] dg-ink hover:bg-[var(--dg-card-hover)] transition-colors';
+                const glassBtnPrimary =
+                  'flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg dg-bg-primary hover:opacity-90 transition-colors';
+
+                const glassMoreMenu = !isVendorUser ? (
+                  <div className="relative shrink-0">
+                    <button
+                      ref={batchActionsBtnRef}
+                      type="button"
+                      onClick={() => setBatchActionsOpen(!batchActionsOpen)}
+                      className={glassBtn}
+                      title="More actions"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {batchActionsOpen && (
+                      <>
+                        <div className="fixed inset-0 z-[50]" onClick={() => setBatchActionsOpen(false)} />
+                        {(() => {
+                          const panel = (
+                            <div
+                              className="z-[51] dg-glass-card rounded-xl shadow-lg py-1 min-w-[180px]"
+                              style={
+                                inPlaceNav
+                                  ? batchActionsPos
+                                    ? {
+                                        position: 'fixed',
+                                        top: batchActionsPos.top,
+                                        left: batchActionsPos.left,
+                                        width: 220,
+                                      }
+                                    : { position: 'fixed', visibility: 'hidden' }
+                                  : undefined
+                              }
+                            >
+                              {canPrint && useHalfTabs && (
+                                <button
+                                  type="button"
+                                  disabled={!halfHasLines}
+                                  onClick={() => {
+                                    if (!halfHasLines) return;
+                                    setBatchActionsOpen(false);
+                                    const kind = deliveryHalf === 'gst' ? 'gst' : 'bos';
+                                    api.distribution
+                                      .getBill(billParams(selectedBatch.batchId))
+                                      .then(bill => {
+                                        const avail = deliveryPrintAvailability(bill);
+                                        const paid = challanOptions(selectedVendorId!).fullyPaid;
+                                        if (kind === 'gst' && !avail.hasGst) {
+                                          toast('No Tax Invoice lines on this delivery', 'info');
+                                          return;
+                                        }
+                                        if (kind === 'bos' && !avail.hasBos) {
+                                          toast('No Bill of Supply lines on this delivery', 'info');
+                                          return;
+                                        }
+                                        return printDistributionDocs(bill, kind, paid);
+                                      })
+                                      .catch(err => toast(err.message, 'error'));
+                                  }}
+                                  className={cn(
+                                    'w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-[var(--dg-card-hover)]',
+                                    !halfHasLines && 'opacity-50 cursor-not-allowed',
+                                  )}
+                                >
+                                  <Printer size={14} />{' '}
+                                  {deliveryHalf === 'gst' ? 'Print Tax Invoice' : 'Print Bill of Supply'}
+                                </button>
+                              )}
+                              {canPrint && !useHalfTabs && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBatchActionsOpen(false);
+                                    api.distribution
+                                      .getBill(billParams(selectedBatch.batchId))
+                                      .then(async bill => {
+                                        const avail = deliveryPrintAvailability(bill);
+                                        const paid = challanOptions(selectedVendorId!).fullyPaid;
+                                        if (avail.isDual) await printDistributionDocs(bill, 'both', paid);
+                                        else if (avail.hasGst) await printDistributionDocs(bill, 'gst', paid);
+                                        else await printDistributionDocs(bill, 'bos', paid);
+                                      })
+                                      .catch(err => toast(err.message, 'error'));
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2"
+                                >
+                                  <Printer size={14} /> Print invoice(s)
+                                </button>
+                              )}
+                              {canUseSplitBill && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBatchActionsOpen(false);
+                                    api.distribution
+                                      .getBill(billParams(selectedBatch.batchId))
+                                      .then(bill => {
+                                        setSplitBillModal({ bill });
+                                        setSplitGstQty(
+                                          bill.savedGstUnits > 0
+                                            ? bill.savedGstUnits
+                                            : Math.ceil(bill.totalQuantity / 2),
+                                        );
+                                      })
+                                      .catch(err => toast(err.message, 'error'));
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2"
+                                >
+                                  <Package size={14} /> Adjust GST split
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBatchActionsOpen(false);
+                                  api.distribution
+                                    .getBill(billParams(selectedBatch.batchId))
+                                    .then(async bill => {
+                                      const avail = deliveryPrintAvailability(bill);
+                                      const kind = avail.isDual ? 'both' : avail.hasGst ? 'gst' : 'bos';
+                                      try {
+                                        toast('Preparing PDF…', 'info');
+                                        const { how, errorHint } = await shareDistributionDocsWhatsApp(bill, kind);
+                                        if (how === 'cancelled') return;
+                                        toast(
+                                          whatsAppInvoiceShareToast(how, errorHint),
+                                          how === 'pdf_fallback' ? 'info' : 'success',
+                                        );
+                                      } catch (err) {
+                                        toast((err as Error).message, 'error');
+                                      }
+                                    })
+                                    .catch(err => toast(err.message, 'error'));
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2 dg-success"
+                              >
+                                <MessageCircle size={14} /> WhatsApp Challan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBatchActionsOpen(false);
+                                  api.distribution
+                                    .getBill(billParams(selectedBatch.batchId))
+                                    .then(bill => {
+                                      const email = bill.vendor.email || '';
+                                      if (!email) {
+                                        toast('No vendor email on record — enter email manually', 'info');
+                                      }
+                                      shareViaEmail(
+                                        email,
+                                        `Distribution Challan ${bill.challanId} — ${bill.company.name}`,
+                                        formatDistributionChallanText(bill),
+                                      );
+                                    })
+                                    .catch(err => toast(err.message, 'error'));
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2"
+                              >
+                                <Mail size={14} /> Email Challan
+                              </button>
+                              {(!useHalfTabs || deliveryHalf === 'gst') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBatchActionsOpen(false);
+                                    fetch(`/api/distribution/einvoice?batchId=${selectedBatch.batchId}`, {
+                                      headers: {
+                                        Authorization: `Bearer ${session.getToken()}`,
+                                        'X-Tenant-ID': session.getTenantId() || '',
+                                      },
+                                    })
+                                      .then(r => r.json())
+                                      .then(data => {
+                                        const blob = new Blob([JSON.stringify(data, null, 2)], {
+                                          type: 'application/json',
+                                        });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `E-Invoice-${selectedBatch.batchId}.json`;
+                                        a.click();
+                                        URL.revokeObjectURL(url);
+                                        toast('E-Invoice JSON downloaded', 'success');
+                                      })
+                                      .catch(err => toast(err.message, 'error'));
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2"
+                                >
+                                  <Download size={14} /> E-Invoice JSON
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBatchActionsOpen(false);
+                                  setEWayBillModal(selectedBatch.batchId);
+                                  setEWayForm({
+                                    vehicleNo: '',
+                                    transportMode: 'Road',
+                                    distance: '',
+                                    transporterName: '',
+                                    transporterId: '',
+                                  });
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2"
+                              >
+                                <Truck size={14} /> E-Way Bill
+                              </button>
+                              {canEdit && batchCanDelete && (
+                                <>
+                                  <div className="border-t border-[var(--dg-card-border)] my-1" />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setBatchActionsOpen(false);
+                                      confirmDeleteBatch(selectedBatch.batchId);
+                                    }}
+                                    disabled={deleteSubmitting}
+                                    className="w-full px-4 py-2 text-left text-sm hover:bg-[color-mix(in_srgb,var(--dg-error)_10%,transparent)] flex items-center gap-2 dg-error"
+                                  >
+                                    <Trash2 size={14} /> Delete
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          );
+                          return inPlaceNav ? createPortal(panel, document.body) : panel;
+                        })()}
+                      </>
+                    )}
+                  </div>
+                ) : null;
+
+                const glassDispatchToolbar = (
+                  <>
+                    {canPrint && ds === 'pending' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ status: 'dispatched' }),
+                          })
+                            .then((d: Record<string, unknown>) => {
+                              if (d.ok) {
+                                toast('Marked as dispatched', 'success');
+                                load();
+                              } else toast(String(d.error), 'error');
+                            })
+                            .catch(err => toast(err.message, 'error'));
+                        }}
+                        className={glassBtnPrimary}
+                      >
+                        <Truck size={14} /> Mark Dispatched
+                      </button>
+                    )}
+                    {canPrint && ds === 'dispatched' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          fetchApi(`/distribution/batch/${selectedBatch.batchId}/dispatch`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ status: 'delivered' }),
+                          })
+                            .then((d: Record<string, unknown>) => {
+                              if (d.ok) {
+                                toast('Marked as delivered', 'success');
+                                load();
+                              } else toast(String(d.error), 'error');
+                            })
+                            .catch(err => toast(err.message, 'error'));
+                        }}
+                        className={glassBtn}
+                      >
+                        <Package size={14} /> Mark Delivered
+                      </button>
+                    )}
+                    <input
+                      type="text"
+                      placeholder="EWB Number"
+                      defaultValue={((selectedBatch as Record<string, unknown>).ewbNumber as string) || ''}
+                      onBlur={e => {
+                        const val = e.target.value.trim();
+                        fetchApi(`/distribution/batch/${selectedBatch.batchId}/ewb`, {
+                          method: 'PUT',
+                          body: JSON.stringify({ ewbNumber: val || null }),
+                        })
+                          .then(() => {
+                            if (val) toast('EWB number saved', 'success');
+                          })
+                          .catch(() => {});
+                      }}
+                      className="w-full px-2 py-1.5 text-xs border border-[var(--dg-card-border)] rounded-lg font-mono bg-[var(--dg-bg)] dg-ink focus:ring-2 focus:ring-[var(--dg-primary)]"
+                      maxLength={15}
+                    />
+                    {(!useHalfTabs || deliveryHalf === 'gst') && (
+                      <EInvoiceButtons
+                        batchId={selectedBatch.batchId}
+                        initialIrn={selectedBatch.irn}
+                        initialQr={selectedBatch.irnQr}
+                        initialEwb={selectedBatch.ewbNumber}
+                        quiet
+                      />
+                    )}
+                  </>
+                );
+
+                return (
+                  <DesktopBatchDetailGlass
+                    vendorName={selectedBatch.vendorName}
+                    dateLabel={formatDate(selectedBatch.distributionDate)}
+                    dispatchStatus={ds}
+                    docNo={useHalfTabs ? activeDocNo : nos.gstDocNo || nos.nonGstDocNo}
+                    docLabel={
+                      useHalfTabs
+                        ? halfHasLines
+                          ? activeDocLabel
+                          : null
+                        : deliveryDocLabel(deliveryDocKind(batchGstUnits, batchNonGstUnits)) || null
+                    }
+                    totalAmount={useHalfTabs && halfHasLines ? halfBillValue : selectedBatch.billValue}
+                    balanceDue={selectedBatch.balanceRemaining}
+                    amountPaid={selectedBatch.amountPaid}
+                    fullyPaid={isBillFullyPaid(selectedBatch.billValue, selectedBatch.balanceRemaining)}
+                    halfUnits={useHalfTabs ? halfItems.length : selectedBatch.total}
+                    halfSold={useHalfTabs ? halfSold : selectedBatch.sold}
+                    halfBillValue={halfBillValue}
+                    halfTotalLabel={halfTotalLabel}
+                    deliveryTotal={selectedBatch.billValue}
+                    useHalfTabs={useHalfTabs}
+                    deliveryHalf={deliveryHalf}
+                    batchGstUnits={batchGstUnits}
+                    batchNonGstUnits={batchNonGstUnits}
+                    halfHasLines={halfHasLines}
+                    products={productList}
+                    onBack={() => {
+                      setSelectedBatchId(null);
+                      setSelectedBatchProductId(null);
+                    }}
+                    onHalfChange={half => {
+                      setDeliveryHalf(half);
+                      setSelectedBatchProductId(null);
+                    }}
+                    onSelectProduct={id => setSelectedBatchProductId(id)}
+                    headerActions={
+                      <>
+                        {!isVendorUser && canEdit && selectedBatch.balanceRemaining > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBatchPaymentModal({
+                                batchId: selectedBatch.batchId,
+                                vendorId: selectedBatch.vendorId,
+                                billValue: selectedBatch.billValue,
+                                balanceRemaining: selectedBatch.balanceRemaining,
+                              });
+                              setBatchPaymentForm({
+                                amount: String(selectedBatch.balanceRemaining),
+                                paymentDate: new Date().toISOString().slice(0, 10),
+                                paymentMethod: 'Cash',
+                                referenceNumber: '',
+                                notes: '',
+                              });
+                            }}
+                            className={glassBtnPrimary}
+                            title="Record payment for this batch"
+                          >
+                            <IndianRupee size={14} /> Record Payment
+                          </button>
+                        )}
+                        {!isVendorUser && canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => openEdit(selectedBatch)}
+                            className={glassBtn}
+                            title="Edit distribution"
+                          >
+                            <Pencil size={14} /> Edit
+                          </button>
+                        )}
+                        {glassMoreMenu}
+                      </>
+                    }
+                    dispatchToolbar={glassDispatchToolbar}
+                  />
+                );
+              }
 
               return (
                 <div
@@ -1925,6 +2379,61 @@ export function DistributionView({
               vendorFinance.balance > 0 &&
               !!vendorFinance.vendorPhone;
 
+            if (desktopGlass) {
+              return (
+                <DesktopVendorSummaryGlass
+                  vendorName={vendorName}
+                  vendorPhone={vendorFinance?.vendorPhone || null}
+                  vendorAddress={vendorAddress}
+                  stats={stats ?? null}
+                  outstanding={vendorFinance?.balance ?? 0}
+                  batches={vendorBatches}
+                  canCreate={!vendorId && canEdit}
+                  onBack={() => {
+                    setSelectedVendorId(null);
+                    setSelectedBatchId(null);
+                    setSelectedBatchProductId(null);
+                  }}
+                  onSelectBatch={batchId => {
+                    const batch = vendorBatches.find(b => b.batchId === batchId);
+                    const gu =
+                      typeof batch?.gstUnits === 'number' ? batch.gstUnits : batch?.gstApplied ? batch.total : 0;
+                    setSelectedBatchId(batchId);
+                    setSelectedBatchProductId(null);
+                    setDeliveryHalf(gu > 0 ? 'gst' : 'bos');
+                  }}
+                  onCreate={
+                    !vendorId && canEdit
+                      ? () => {
+                          setCreateInitialVendorId(selectedVendorId!);
+                          setModalOpen(true);
+                        }
+                      : null
+                  }
+                  remind={
+                    showRemindButton && vendorFinance
+                      ? {
+                          show: true,
+                          disabled: !remindGate.ok,
+                          title: !remindGate.ok
+                            ? remindGate.reason || 'Cannot send reminder'
+                            : 'Send WhatsApp payment reminder',
+                          balance: vendorFinance.balance,
+                          onClick: () =>
+                            sendVendorPaymentReminder({
+                              vendorId: selectedVendorId!,
+                              vendorName: vendorFinance.vendorName || vendorName,
+                              vendorPhone: vendorFinance.vendorPhone!,
+                              balance: vendorFinance.balance,
+                              lastSent: vendorFinance.lastSent,
+                            }),
+                        }
+                      : null
+                  }
+                />
+              );
+            }
+
             return (
               <div
                 className={cn(
@@ -2268,9 +2777,14 @@ export function DistributionView({
           <CreateDistributionModal
             businessType={businessType}
             defaultGstRate={defaultGstRate}
-            onClose={() => setModalOpen(false)}
+            initialVendorId={createInitialVendorId}
+            onClose={() => {
+              setModalOpen(false);
+              setCreateInitialVendorId(undefined);
+            }}
             onCreated={() => {
               setModalOpen(false);
+              setCreateInitialVendorId(undefined);
               load();
             }}
           />
