@@ -18,6 +18,7 @@ import {
 import { cn, getTabLabel } from '../../lib/utils';
 import { useTranslation } from '../../i18n';
 import type { Tab } from '../../types';
+import type { GlobalSearchNavigate } from '../../lib/globalSearch';
 
 const fmt = (n: number) => '₹' + Math.abs(n).toLocaleString();
 
@@ -53,6 +54,8 @@ type Props = {
     bankMaster: number;
   } | null;
   setActiveTab: (tab: Tab) => void;
+  /** Masters / Inventory deep-links (same App path as ⌘K). */
+  onNavigateEntity: (nav: GlobalSearchNavigate) => void;
   revenueHighlight: number;
 };
 
@@ -93,6 +96,7 @@ export function DesktopAnalyticsDashboard({
   payroll,
   counts,
   setActiveTab,
+  onNavigateEntity,
   revenueHighlight,
 }: Props) {
   const { t } = useTranslation();
@@ -227,7 +231,7 @@ export function DesktopAnalyticsDashboard({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('masters')}
+                  onClick={() => onNavigateEntity({ tab: 'masters', master: 'staff' })}
                   className="text-xs font-bold dg-primary hover:underline"
                 >
                   {t('dashboard.manageStaff')}
@@ -354,16 +358,37 @@ export function DesktopAnalyticsDashboard({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pb-6">
           {(
             [
-              { label: t('masters.customers'), count: counts.customerMaster, icon: Users, tab: 'sales' as Tab },
-              { label: t('masters.vendors'), count: counts.vendorMaster, icon: UserRound, tab: 'finance' as Tab },
-              { label: t('dashboard.products'), count: counts.itemMaster, icon: Package, tab: 'inventory' as Tab },
-              { label: t('masters.banks'), count: counts.bankMaster, icon: Landmark, tab: 'accounts' as Tab },
+              {
+                label: t('masters.customers'),
+                count: counts.customerMaster,
+                icon: Users,
+                nav: { tab: 'masters' as Tab, master: 'customer' as const },
+              },
+              {
+                label: t('masters.vendors'),
+                count: counts.vendorMaster,
+                icon: UserRound,
+                nav: { tab: 'masters' as Tab, master: 'vendor' as const },
+              },
+              // Same destination as Masters hub Products tile → Inventory.
+              {
+                label: t('dashboard.products'),
+                count: counts.itemMaster,
+                icon: Package,
+                nav: { tab: 'inventory' as Tab },
+              },
+              {
+                label: t('masters.banks'),
+                count: counts.bankMaster,
+                icon: Landmark,
+                nav: { tab: 'masters' as Tab, master: 'bank' as const },
+              },
             ] as const
-          ).map(({ label, count, icon: Icon, tab }) => (
+          ).map(({ label, count, icon: Icon, nav }) => (
             <button
               key={label}
               type="button"
-              onClick={() => setActiveTab(tab)}
+              onClick={() => onNavigateEntity(nav)}
               className="dg-glass-card p-6 rounded-2xl flex items-center justify-between text-left group"
             >
               <div>

@@ -12,8 +12,8 @@ export type GlobalSearchResults = {
 
 export type GlobalSearchEntityKind = 'product' | 'customer' | 'vendor' | 'barcode' | 'challan' | 'staff';
 
-/** Masters hub targets reachable from global search. */
-export type GlobalSearchMaster = 'customer' | 'vendor' | 'item' | 'priceList' | 'staff';
+/** Masters hub targets reachable from global search / desktop Analytics deep-links. */
+export type GlobalSearchMaster = 'customer' | 'vendor' | 'item' | 'priceList' | 'staff' | 'bank';
 
 /** Destination when picking a global-search hit (never verify). */
 export type GlobalSearchNavigate = {

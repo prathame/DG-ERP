@@ -59,6 +59,7 @@ import { PhoneModePicker } from './platforms/PhoneModePicker';
 import { bugReportFeedbackMessage, shareBugReport } from './lib/bugReport';
 import { isMobileAppShell, offersBugReportShare } from './lib/mobileAppShell';
 import { isDesktopGlassUi } from './lib/desktopGlass';
+import { applyDesktopFontPrefs } from './lib/desktopFontPrefs';
 import { useEscapeKey } from './lib/useEscapeKey';
 import { normalizeCompanySlug, validateCompanySlug } from './lib/companySlug';
 import { reportSlugOnboardingFailure } from './lib/reportActionFailure';
@@ -431,10 +432,11 @@ function consumeImpersonationToken(): boolean {
 // Run before first React paint so session is ready for initial useState
 consumeImpersonationToken();
 
-// Apply saved theme on load
+// Apply saved theme + desktop glass typography on load (font CSS scoped to .dg-desktop-glass)
 if (typeof window !== 'undefined') {
   const savedTheme = localStorage.getItem('dhandho_theme');
   if (savedTheme === 'dark') document.documentElement.classList.add('dark');
+  applyDesktopFontPrefs();
 }
 
 export default function App() {
@@ -1648,7 +1650,9 @@ export default function App() {
                       ) : (
                         <VendorFinanceView user={user} accessLevel={getAccess('finance')} />
                       ))}
-                    {canAccess(activeTab) && activeTab === 'analytics' && <AnalyticsView setActiveTab={setActiveTab} />}
+                    {canAccess(activeTab) && activeTab === 'analytics' && (
+                      <AnalyticsView setActiveTab={setActiveTab} onNavigateEntity={navigateFromGlobalSearch} />
+                    )}
                     {canAccess(activeTab) && tv('accounts') && activeTab === 'accounts' && (
                       <AccountsView accessLevel={getAccess('accounts')} />
                     )}

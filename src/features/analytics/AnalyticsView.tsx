@@ -20,6 +20,7 @@ import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { api } from '../../api';
 import { useTranslation } from '../../i18n';
 import type { Tab } from '../../types';
+import type { GlobalSearchNavigate } from '../../lib/globalSearch';
 import {
   MobilePillTabs,
   MobileKpiCard,
@@ -52,7 +53,14 @@ function relativeTime(dateStr: string, t: (key: string) => string) {
   return formatDate(dateStr);
 }
 
-export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => void }) {
+export function AnalyticsView({
+  setActiveTab,
+  onNavigateEntity,
+}: {
+  setActiveTab: (tab: Tab) => void;
+  /** Desktop glass deep-links (Manage Staff / count tiles). Cap path unused. */
+  onNavigateEntity?: (nav: GlobalSearchNavigate) => void;
+}) {
   const { t } = useTranslation();
   const cfg = useBusinessConfig();
   /** Offline Mobile + online Cap service — same phone analytics chrome */
@@ -266,6 +274,10 @@ export function AnalyticsView({ setActiveTab }: { setActiveTab: (tab: Tab) => vo
           payroll={payroll}
           counts={counts}
           setActiveTab={setActiveTab}
+          onNavigateEntity={nav => {
+            if (onNavigateEntity) onNavigateEntity(nav);
+            else setActiveTab(nav.tab);
+          }}
           revenueHighlight={money?.collections ?? money?.revenue ?? 0}
         />
       </motion.div>
