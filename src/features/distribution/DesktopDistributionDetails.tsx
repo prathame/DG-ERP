@@ -216,7 +216,7 @@ export function DesktopVendorSummaryGlass({
           <div className="space-y-3">
             {batches.map(batch => {
               const { docNo, label } = batchDocMeta(batch);
-              const ds = ((batch as Record<string, unknown>).dispatchStatus as string) || '';
+              const ds = batch.dispatchStatus || '';
               const paid = isBillFullyPaid(batch.billValue, batch.balanceRemaining);
               return (
                 <button
@@ -526,7 +526,12 @@ export function DesktopBatchDetailGlass({
                 <span className="font-bold dg-ink">{halfTotalLabel}:</span> {fmt(halfBillValue)}
                 <br />
                 Delivery {fmt(deliveryTotal)}
-                {balanceDue > 0 && <> · {fmt(balanceDue)} due</>}
+                {balanceDue > 0 && (
+                  <>
+                    {' '}
+                    · <span className="text-[var(--dg-primary)] font-bold">{fmt(balanceDue)} due</span>
+                  </>
+                )}
               </p>
             )}
           </div>

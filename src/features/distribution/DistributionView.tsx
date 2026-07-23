@@ -482,7 +482,11 @@ export function DistributionView({
   const [reminderSettings, setReminderSettings] = useState<CompanyReminderSettings>(DEFAULT_REMINDER_SETTINGS);
   const [batchActionsOpen, setBatchActionsOpen] = useState(false);
   const batchActionsBtnRef = useRef<HTMLButtonElement>(null);
-  const [batchActionsPos, setBatchActionsPos] = useState<{ top: number; left: number } | null>(null);
+  const [batchActionsPos, setBatchActionsPos] = useState<{
+    top: number;
+    left: number;
+    maxHeight?: number;
+  } | null>(null);
   const [batchPaymentModal, setBatchPaymentModal] = useState<{
     batchId: string;
     vendorId: string;
@@ -545,7 +549,7 @@ export function DistributionView({
     return false;
   });
 
-  // Cap Online / non-service: keep batch ⋮ menu inside the viewport (absolute+right clips off-screen).
+  // Cap Online / glass: portal ⋮ menu, clamp to viewport; glass prefers above so it never covers totals.
   useEffect(() => {
     if (!batchActionsOpen || isServiceBiz) {
       setBatchActionsPos(null);
@@ -553,13 +557,30 @@ export function DistributionView({
     }
     const MENU_W = 220;
     const PAD = 8;
+    const EST_H = 300;
     const update = () => {
       const el = batchActionsBtnRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
       let left = rect.right - MENU_W;
       left = Math.max(PAD, Math.min(left, window.innerWidth - MENU_W - PAD));
-      setBatchActionsPos({ top: rect.bottom + 4, left });
+
+      const spaceBelow = window.innerHeight - rect.bottom - PAD;
+      const spaceAbove = rect.top - PAD;
+      // Glass batch header sits above the totals card — open upward when there's room.
+      const preferAbove = desktopGlass && spaceAbove >= 160;
+
+      let top: number;
+      let maxHeight: number | undefined;
+      if (preferAbove || (spaceBelow < EST_H && spaceAbove > spaceBelow)) {
+        const h = Math.min(EST_H, Math.max(160, spaceAbove - 4));
+        maxHeight = spaceAbove < EST_H ? h : undefined;
+        top = Math.max(PAD, rect.top - (maxHeight ?? EST_H) - 4);
+      } else {
+        top = rect.bottom + 4;
+        if (spaceBelow < EST_H) maxHeight = Math.max(160, spaceBelow - 4);
+      }
+      setBatchActionsPos({ top, left, maxHeight });
     };
     update();
     window.addEventListener('resize', update);
@@ -568,7 +589,7 @@ export function DistributionView({
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
-  }, [batchActionsOpen, isServiceBiz]);
+  }, [batchActionsOpen, isServiceBiz, desktopGlass]);
 
   const challanOptions = (forVendorId: string) => {
     const f = financeMap[forVendorId];
@@ -1183,20 +1204,21 @@ export function DistributionView({
                       <>
                         <div className="fixed inset-0 z-[50]" onClick={() => setBatchActionsOpen(false)} />
                         {(() => {
+                          // Portal + opaque panel: dg-glass-card tokens don't apply on document.body.
                           const panel = (
                             <div
-                              className="z-[51] dg-glass-card rounded-xl shadow-lg py-1 min-w-[180px]"
+                              className="z-[51] rounded-xl shadow-lg py-1 min-w-[180px] border border-gray-200 bg-white text-gray-900"
                               style={
-                                inPlaceNav
-                                  ? batchActionsPos
-                                    ? {
-                                        position: 'fixed',
-                                        top: batchActionsPos.top,
-                                        left: batchActionsPos.left,
-                                        width: 220,
-                                      }
-                                    : { position: 'fixed', visibility: 'hidden' }
-                                  : undefined
+                                batchActionsPos
+                                  ? {
+                                      position: 'fixed',
+                                      top: batchActionsPos.top,
+                                      left: batchActionsPos.left,
+                                      width: 220,
+                                      maxHeight: batchActionsPos.maxHeight,
+                                      overflowY: batchActionsPos.maxHeight ? 'auto' : undefined,
+                                    }
+                                  : { position: 'fixed', visibility: 'hidden' }
                               }
                             >
                               {canPrint && useHalfTabs && (
@@ -1225,7 +1247,7 @@ export function DistributionView({
                                       .catch(err => toast(err.message, 'error'));
                                   }}
                                   className={cn(
-                                    'w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-[var(--dg-card-hover)]',
+                                    'w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50',
                                     !halfHasLines && 'opacity-50 cursor-not-allowed',
                                   )}
                                 >
@@ -1249,7 +1271,7 @@ export function DistributionView({
                                       })
                                       .catch(err => toast(err.message, 'error'));
                                   }}
-                                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2"
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                                 >
                                   <Printer size={14} /> Print invoice(s)
                                 </button>
@@ -1271,7 +1293,7 @@ export function DistributionView({
                                       })
                                       .catch(err => toast(err.message, 'error'));
                                   }}
-                                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2"
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                                 >
                                   <Package size={14} /> Adjust GST split
                                 </button>
@@ -1299,7 +1321,7 @@ export function DistributionView({
                                     })
                                     .catch(err => toast(err.message, 'error'));
                                 }}
-                                className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2 dg-success"
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-emerald-600"
                               >
                                 <MessageCircle size={14} /> WhatsApp Challan
                               </button>
@@ -1322,7 +1344,7 @@ export function DistributionView({
                                     })
                                     .catch(err => toast(err.message, 'error'));
                                 }}
-                                className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2"
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                               >
                                 <Mail size={14} /> Email Challan
                               </button>
@@ -1352,7 +1374,7 @@ export function DistributionView({
                                       })
                                       .catch(err => toast(err.message, 'error'));
                                   }}
-                                  className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2"
+                                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                                 >
                                   <Download size={14} /> E-Invoice JSON
                                 </button>
@@ -1370,13 +1392,13 @@ export function DistributionView({
                                     transporterId: '',
                                   });
                                 }}
-                                className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--dg-card-hover)] flex items-center gap-2"
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                               >
                                 <Truck size={14} /> E-Way Bill
                               </button>
                               {canEdit && batchCanDelete && (
                                 <>
-                                  <div className="border-t border-[var(--dg-card-border)] my-1" />
+                                  <div className="border-t border-gray-100 my-1" />
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -1384,7 +1406,7 @@ export function DistributionView({
                                       confirmDeleteBatch(selectedBatch.batchId);
                                     }}
                                     disabled={deleteSubmitting}
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-[color-mix(in_srgb,var(--dg-error)_10%,transparent)] flex items-center gap-2 dg-error"
+                                    className="w-full px-4 py-2 text-left text-sm hover:bg-rose-50 flex items-center gap-2 text-rose-600"
                                   >
                                     <Trash2 size={14} /> Delete
                                   </button>
@@ -1392,7 +1414,7 @@ export function DistributionView({
                               )}
                             </div>
                           );
-                          return inPlaceNav ? createPortal(panel, document.body) : panel;
+                          return createPortal(panel, document.body);
                         })()}
                       </>
                     )}
@@ -1788,6 +1810,8 @@ export function DistributionView({
                                                 top: batchActionsPos.top,
                                                 left: batchActionsPos.left,
                                                 width: 220,
+                                                maxHeight: batchActionsPos.maxHeight,
+                                                overflowY: batchActionsPos.maxHeight ? 'auto' : undefined,
                                               }
                                             : { position: 'fixed', visibility: 'hidden' }
                                           : undefined
