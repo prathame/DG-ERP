@@ -615,7 +615,7 @@ html.dg-mobile-dense aside nav button {
  * Light = cool gray surface; dark = charcoal glass (mock). Cap never gets this class.
  */
 .dg-desktop-glass {
-  --dg-primary: #994700;
+  --dg-primary: #ff7a00;
   --dg-primary-bright: #ff7a00;
   --dg-success: #00c853;
   --dg-error: #d50000;
@@ -656,8 +656,10 @@ html.dg-mobile-dense aside nav button {
 }
 
 html.dark .dg-desktop-glass {
+  --dg-primary: #ff7a00;
+  --dg-primary-bright: #ff7a00;
   --dg-bg: #0f1113;
-  --dg-bg-mesh: rgba(153, 71, 0, 0.08);
+  --dg-bg-mesh: rgba(255, 122, 0, 0.08);
   --dg-card: rgba(255, 255, 255, 0.03);
   --dg-card-hover: rgba(255, 255, 255, 0.06);
   --dg-card-border: rgba(255, 255, 255, 0.08);
@@ -702,7 +704,11 @@ html.dark .dg-desktop-glass::before {
   color: #fff !important;
 }
 .dg-desktop-glass .dg-nav-active {
-  background: linear-gradient(90deg, rgba(153, 71, 0, 0.15) 0%, rgba(153, 71, 0, 0) 100%) !important;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--dg-primary) 15%, transparent) 0%,
+    transparent 100%
+  ) !important;
   border-left: 3px solid var(--dg-primary) !important;
   color: var(--dg-ink) !important;
 }

@@ -166,8 +166,8 @@ export function DesktopAnalyticsDashboard({
               <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 300">
                 <defs>
                   <linearGradient id="dgChartFill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#994700" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#994700" stopOpacity="0" />
+                    <stop offset="0%" stopColor="var(--dg-primary)" stopOpacity="0.25" />
+                    <stop offset="100%" stopColor="var(--dg-primary)" stopOpacity="0" />
                   </linearGradient>
                 </defs>
                 <line x1="0" y1="50" x2="1000" y2="50" stroke="currentColor" strokeOpacity="0.08" strokeDasharray="4" />
@@ -192,7 +192,7 @@ export function DesktopAnalyticsDashboard({
                 <path
                   d="M0,280 C100,270 200,265 300,275 C400,285 500,240 600,210 C700,180 850,120 1000,40"
                   fill="none"
-                  stroke="#994700"
+                  stroke="var(--dg-primary)"
                   strokeWidth="4"
                   strokeLinecap="round"
                 />
@@ -200,9 +200,9 @@ export function DesktopAnalyticsDashboard({
                   d="M0,280 C100,270 200,265 300,275 C400,285 500,240 600,210 C700,180 850,120 1000,40 V300 H0 Z"
                   fill="url(#dgChartFill)"
                 />
-                <circle cx="300" cy="275" r="5" fill="var(--dg-bg)" stroke="#994700" strokeWidth="2" />
-                <circle cx="600" cy="210" r="5" fill="var(--dg-bg)" stroke="#994700" strokeWidth="2" />
-                <circle cx="1000" cy="40" r="6" fill="#994700" stroke="#fff" strokeWidth="2" />
+                <circle cx="300" cy="275" r="5" fill="var(--dg-bg)" stroke="var(--dg-primary)" strokeWidth="2" />
+                <circle cx="600" cy="210" r="5" fill="var(--dg-bg)" stroke="var(--dg-primary)" strokeWidth="2" />
+                <circle cx="1000" cy="40" r="6" fill="var(--dg-primary)" stroke="#fff" strokeWidth="2" />
               </svg>
               <div className="flex justify-between mt-4 text-[10px] dg-faint font-bold uppercase tracking-widest px-1">
                 <span>Mon</span>
