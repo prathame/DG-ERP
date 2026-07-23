@@ -57,7 +57,7 @@ type PanelProps = NavProps & {
 /** Full shell: Global Settings header + left tabs + right glass sheet. */
 export function DesktopSettingsPanel({ tabs, activeTab, onTabChange, children }: PanelProps) {
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="w-full max-w-none">
       <div className="mb-8">
         <h2 className="text-3xl font-bold dg-ink tracking-tight">Global Settings</h2>
         <p className="text-sm dg-muted mt-1.5 max-w-xl leading-relaxed">

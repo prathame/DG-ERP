@@ -1262,7 +1262,7 @@ export function SettingsView({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={cn(!desktopGlass && 'space-y-8', desktopGlass && 'max-w-5xl mx-auto')}
+      className={cn(!desktopGlass && 'space-y-8', desktopGlass && 'w-full max-w-none')}
     >
       {desktopGlass ? (
         <div className="mb-8">
