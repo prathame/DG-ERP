@@ -826,11 +826,13 @@ export default function App() {
     }
     const tabHidden = activeTab !== 'settings' && !tv(activeTab);
     if (!canAccess(activeTab) || tabHidden || !companionAllows(activeTab)) {
-      const fallback =
-        (['analytics', 'distribution', 'finance', 'inventory'] as Tab[]).find(
-          t => canAccess(t) && tv(t) && companionAllows(t),
-        ) ?? 'analytics';
-      setActiveTabRaw(fallback);
+      const preferred = (['analytics', 'distribution', 'finance', 'inventory'] as Tab[]).find(
+        t => canAccess(t) && tv(t) && companionAllows(t),
+      );
+      const fromNav = visibleNavItems.find(n => canAccess(n.id) && tv(n.id) && companionAllows(n.id))?.id as
+        Tab | undefined;
+      // Never force analytics when companion pack hides it — settings is always allowed.
+      setActiveTabRaw(preferred ?? fromNav ?? 'settings');
     }
   }, [activeTab, user]);
 

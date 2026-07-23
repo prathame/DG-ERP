@@ -2,7 +2,9 @@
  * Thin gate: try Meta WhatsApp Cloud API when the tenant has Business ON and
  * this user is eligible; otherwise callers keep personal wa.me / Cap / Electron share.
  * Session exposes flags only — never tokens.
+ * Uses fetchApi so Cap Online / Electron send X-DG-Client (APP_ONLY gate).
  */
+import { fetchApi } from '../api';
 import { session } from './session';
 
 type WaUserFlags = {
@@ -29,21 +31,16 @@ export function canUseWhatsAppBusinessApi(): boolean {
 /** POST /api/whatsapp/send. Returns true only on success. */
 export async function trySendWhatsAppBusiness(phone: string, message: string): Promise<boolean> {
   if (!canUseWhatsAppBusinessApi()) return false;
-  const token = session.getToken();
-  if (!token) return false;
+  if (!session.getToken()) return false;
   const to = (phone || '').trim();
   const text = (message || '').trim();
   if (!to || !text) return false;
   try {
-    const res = await fetch('/api/whatsapp/send', {
+    await fetchApi('/whatsapp/send', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
       body: JSON.stringify({ to, message: text }),
     });
-    return res.ok;
+    return true;
   } catch {
     return false;
   }
