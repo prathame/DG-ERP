@@ -6,8 +6,12 @@
  *
  * Why separate: Cloud Electron was treated as "web" (native:false) and hung in
  * html2pdf/html2canvas with no success/fail breadcrumb after "html2pdf start".
- * Desktop uses the same light jsPDF builder as Cap for PDF bytes, then downloads
- * the file and opens wa.me (Electron setWindowOpenHandler → shell.openExternal).
+ *
+ * Desktop flow (closest Cap-like UX WhatsApp Desktop allows):
+ *   light jsPDF → IPC saves PDF to Downloads → copy file to clipboard →
+ *   reveal in Finder/Explorer → open WhatsApp Desktop / wa.me with caption.
+ * WhatsApp URL schemes cannot attach files; paste (⌘V / Ctrl+V) or drag from
+ * the revealed folder is required. Cap Share sheet remains phone-only.
  */
 
 import { api } from '../api';
@@ -28,6 +32,25 @@ import {
 
 /** Same budget as Cap light-PDF; scoped name so Electron timeout is obvious in breadcrumbs. */
 export const ELECTRON_WHATSAPP_PDF_TIMEOUT_MS = CAP_WHATSAPP_PDF_TIMEOUT_MS;
+
+type ElectronSharePdfResult = {
+  ok: boolean;
+  filePath?: string;
+  clipboardOk?: boolean;
+  revealed?: boolean;
+  whatsappOpened?: boolean;
+  error?: string;
+};
+
+type ElectronBridge = {
+  openExternal?: (u: string) => Promise<unknown> | unknown;
+  sharePdfWhatsApp?: (payload: {
+    base64: string;
+    filename: string;
+    phone?: string;
+    message?: string;
+  }) => Promise<ElectronSharePdfResult>;
+};
 
 function waLog(level: 'info' | 'warn' | 'error', message: string, ctx: Record<string, unknown>): void {
   const full = { correlationId: ensureCorrelationId(), ...ctx };
@@ -60,7 +83,18 @@ function safePdfFilename(filename: string): string {
   return base.toLowerCase().endsWith('.pdf') ? base : `${base}.pdf`;
 }
 
-/** Trigger a browser/Electron file download for a PDF blob. */
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buf = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/** Trigger a browser/Electron file download for a PDF blob (legacy fallback). */
 function downloadPdfBlob(blob: Blob, safeName: string): void {
   const doc = window.document;
   const url = URL.createObjectURL(blob);
@@ -90,8 +124,7 @@ function openWhatsAppExternal(phone: string | undefined, message: string): void 
     url = `https://wa.me/?text=${encodeURIComponent(message)}`;
   }
 
-  const ea = (window as unknown as { electronAPI?: { openExternal?: (u: string) => Promise<unknown> | unknown } })
-    .electronAPI;
+  const ea = (window as unknown as { electronAPI?: ElectronBridge }).electronAPI;
   if (typeof ea?.openExternal === 'function') {
     void Promise.resolve(ea.openExternal(url)).catch(() => {
       if (raw) shareViaWhatsApp(raw, message);
@@ -103,8 +136,58 @@ function openWhatsAppExternal(phone: string | undefined, message: string): void 
   else window.open(url, '_blank');
 }
 
+async function shareViaElectronIpc(
+  blob: Blob,
+  safeName: string,
+  phone: string | undefined,
+  message: string,
+  baseCtx: Record<string, unknown>,
+): Promise<WhatsAppInvoiceShareResult | null> {
+  const ea = (window as unknown as { electronAPI?: ElectronBridge }).electronAPI;
+  if (typeof ea?.sharePdfWhatsApp !== 'function') return null;
+
+  waLog('info', 'WhatsApp Electron IPC share start', {
+    ...baseCtx,
+    path: 'pdf',
+    filename: safeName,
+    bytes: blob.size,
+  });
+
+  const base64 = await blobToBase64(blob);
+  const result = await ea.sharePdfWhatsApp({
+    base64,
+    filename: safeName,
+    phone,
+    message,
+  });
+
+  if (!result?.ok) {
+    waLog('warn', 'WhatsApp Electron IPC share fail', {
+      ...baseCtx,
+      path: 'pdf',
+      filename: safeName,
+      errorMessage: truncateShareError(result?.error || 'IPC share failed'),
+    });
+    return null;
+  }
+
+  waLog('info', 'WhatsApp Electron share ok', {
+    ...baseCtx,
+    path: 'pdf',
+    filename: safeName,
+    clipboardOk: Boolean(result.clipboardOk),
+    revealed: Boolean(result.revealed),
+    whatsappOpened: Boolean(result.whatsappOpened),
+    shareMode: result.clipboardOk ? 'ipc+clipboard+wa' : 'ipc+downloads+wa',
+  });
+
+  // Cap returns 'shared' from Share sheet; clipboard paste is the desktop analogue.
+  if (result.clipboardOk) return { how: 'shared' };
+  return { how: 'downloaded' };
+}
+
 /**
- * Electron desktop WhatsApp invoice PDF share (jsPDF → download + wa.me).
+ * Electron desktop WhatsApp invoice PDF share (jsPDF → IPC attach helpers).
  * Returns null when not Electron so Cap/web callers never take this path.
  */
 export async function shareElectronInvoiceWhatsApp(
@@ -176,12 +259,15 @@ export async function shareElectronInvoiceWhatsApp(
       bytes: blob.size,
     });
 
+    const ipcResult = await shareViaElectronIpc(blob, safeName, inv.customerPhone, message, baseCtx);
+    if (ipcResult) return ipcResult;
+
+    // Legacy fallback when preload/IPC is older (download + wa.me).
     let downloaded = false;
     try {
       downloadPdfBlob(blob, safeName);
       downloaded = true;
     } catch (err) {
-      // Still open WhatsApp — user can attach from Downloads if download quirks.
       waLog('warn', 'WhatsApp Electron PDF download fail', {
         ...baseCtx,
         path: 'pdf',
