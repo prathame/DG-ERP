@@ -540,14 +540,18 @@ export function DistributionView({
   };
 
   const remindAllOutstandingVendors = async () => {
-    const withOutstanding = Object.entries(financeMap)
-      .filter(([, f]) => f.balance > 0 && !!f.vendorPhone)
-      .map(([id, f]) => ({
-        vendorId: id,
-        vendorName: f.vendorName || 'Vendor',
-        vendorPhone: f.vendorPhone!,
-        balance: f.balance,
-      }));
+    const withOutstanding = Object.keys(financeMap).flatMap(id => {
+      const f = financeMap[id];
+      if (!(f.balance > 0) || !f.vendorPhone) return [];
+      return [
+        {
+          vendorId: id,
+          vendorName: f.vendorName || 'Vendor',
+          vendorPhone: f.vendorPhone,
+          balance: f.balance,
+        },
+      ];
+    });
     if (!withOutstanding.length) {
       toast('No vendors with outstanding balance and phone number', 'info');
       return;
@@ -772,7 +776,10 @@ export function DistributionView({
           !isServiceBiz &&
           paymentFilter === 'unpaid' &&
           (() => {
-            const remindCount = Object.values(financeMap).filter(f => f.balance > 0 && f.vendorPhone).length;
+            const remindCount = Object.keys(financeMap).filter(id => {
+              const f = financeMap[id];
+              return f.balance > 0 && !!f.vendorPhone;
+            }).length;
             if (!remindCount) return null;
             return (
               <button
