@@ -610,3 +610,113 @@ html.dg-mobile-dense aside nav button {
     background: white !important;
   }
 }
+
+/* ── Desktop glass shell (Electron / browser desktop only) ───────────────
+ * Light = warm cream surface; dark = charcoal glass (mock). Cap never gets this class.
+ */
+.dg-desktop-glass {
+  --dg-primary: #994700;
+  --dg-primary-bright: #ff7a00;
+  --dg-success: #00c853;
+  --dg-error: #d50000;
+  --dg-warning: #ffd600;
+  --dg-bg: #fff8f5;
+  --dg-bg-mesh: rgba(153, 71, 0, 0.06);
+  --dg-card: rgba(255, 255, 255, 0.72);
+  --dg-card-hover: rgba(255, 255, 255, 0.9);
+  --dg-card-border: rgba(140, 114, 99, 0.18);
+  --dg-ink: #251912;
+  --dg-muted: rgba(37, 25, 18, 0.45);
+  --dg-faint: rgba(37, 25, 18, 0.22);
+  --dg-sidebar: rgba(255, 248, 245, 0.85);
+  --dg-header: rgba(255, 248, 245, 0.7);
+  --dg-nav-idle: rgba(37, 25, 18, 0.5);
+  --dg-nav-hover: #251912;
+  --dg-input: rgba(153, 71, 0, 0.06);
+  --dg-shadow: 0 8px 32px rgba(37, 25, 18, 0.08);
+  font-family: Geist, Inter, ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--dg-bg) !important;
+  color: var(--dg-ink) !important;
+  position: relative;
+}
+.dg-desktop-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 20%, var(--dg-bg-mesh) 0%, transparent 45%),
+    linear-gradient(125deg, var(--dg-bg) 0%, #fff8f5 50%, #ffeade 100%);
+  opacity: 0.95;
+}
+.dg-desktop-glass > * {
+  position: relative;
+  z-index: 1;
+}
+
+html.dark .dg-desktop-glass {
+  --dg-bg: #0f1113;
+  --dg-bg-mesh: rgba(153, 71, 0, 0.08);
+  --dg-card: rgba(255, 255, 255, 0.03);
+  --dg-card-hover: rgba(255, 255, 255, 0.06);
+  --dg-card-border: rgba(255, 255, 255, 0.08);
+  --dg-ink: #fdfdfd;
+  --dg-muted: rgba(255, 255, 255, 0.4);
+  --dg-faint: rgba(255, 255, 255, 0.2);
+  --dg-sidebar: rgba(15, 17, 19, 0.75);
+  --dg-header: rgba(15, 17, 19, 0.45);
+  --dg-nav-idle: rgba(255, 255, 255, 0.5);
+  --dg-nav-hover: #ffffff;
+  --dg-input: rgba(255, 255, 255, 0.05);
+  --dg-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+html.dark .dg-desktop-glass::before {
+  background:
+    radial-gradient(circle at 50% 40%, var(--dg-bg-mesh) 0%, transparent 50%),
+    linear-gradient(125deg, #0f1113 0%, #1a1c1e 50%, #251912 100%);
+}
+
+.dg-desktop-glass .dg-glass-card {
+  background: var(--dg-card) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--dg-card-border) !important;
+  box-shadow: var(--dg-shadow);
+  color: var(--dg-ink) !important;
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
+}
+.dg-desktop-glass .dg-glass-card:hover {
+  border-color: color-mix(in srgb, var(--dg-primary) 35%, var(--dg-card-border)) !important;
+  background: var(--dg-card-hover) !important;
+}
+.dg-desktop-glass .dg-ink { color: var(--dg-ink) !important; }
+.dg-desktop-glass .dg-muted { color: var(--dg-muted) !important; }
+.dg-desktop-glass .dg-faint { color: var(--dg-faint) !important; }
+.dg-desktop-glass .dg-primary { color: var(--dg-primary) !important; }
+.dg-desktop-glass .dg-success { color: var(--dg-success) !important; }
+.dg-desktop-glass .dg-error { color: var(--dg-error) !important; }
+.dg-desktop-glass .dg-warning { color: var(--dg-warning) !important; }
+.dg-desktop-glass .dg-bg-primary {
+  background: var(--dg-primary) !important;
+  color: #fff !important;
+}
+.dg-desktop-glass .dg-nav-active {
+  background: linear-gradient(90deg, rgba(153, 71, 0, 0.15) 0%, rgba(153, 71, 0, 0) 100%) !important;
+  border-left: 3px solid var(--dg-primary) !important;
+  color: var(--dg-ink) !important;
+}
+.dg-desktop-glass aside.dg-glass-sidebar {
+  background: var(--dg-sidebar) !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid var(--dg-card-border) !important;
+  box-shadow: none !important;
+}
+.dg-desktop-glass header.dg-glass-header,
+.dg-desktop-glass .dg-glass-header {
+  background: var(--dg-header) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--dg-card-border) !important;
+}

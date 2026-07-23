@@ -58,6 +58,7 @@ import {
 import { PhoneModePicker } from './platforms/PhoneModePicker';
 import { bugReportFeedbackMessage, shareBugReport } from './lib/bugReport';
 import { isMobileAppShell, offersBugReportShare } from './lib/mobileAppShell';
+import { isDesktopGlassUi } from './lib/desktopGlass';
 import { useEscapeKey } from './lib/useEscapeKey';
 import { normalizeCompanySlug, validateCompanySlug } from './lib/companySlug';
 import { reportSlugOnboardingFailure } from './lib/reportActionFailure';
@@ -1140,6 +1141,7 @@ export default function App() {
 
   /** Emergent phone IA: Offline Mobile + online Service Cloud Capacitor (not manufacturer cloud). */
   const servicePhoneUx = isServicePhoneUx(userConfig?.businessType as string | undefined);
+  const desktopGlass = isDesktopGlassUi(userConfig?.businessType as string | undefined);
   const mobileNavIds = servicePhoneUx
     ? user?.role === 'Vendor'
       ? ['analytics', 'distribution', 'finance', 'inventory']
@@ -1176,7 +1178,12 @@ export default function App() {
             <AppShutterIntro companyName={appShutter} onDone={() => setAppShutter(null)} />
           </Suspense>
         )}
-        <div className="app-shell flex h-[100dvh] max-h-[100dvh] bg-[#F8F9FA] text-[#1A1A1A] font-sans overflow-hidden">
+        <div
+          className={cn(
+            'app-shell flex h-[100dvh] max-h-[100dvh] font-sans overflow-hidden',
+            desktopGlass ? 'dg-desktop-glass' : 'bg-[#F8F9FA] text-[#1A1A1A]',
+          )}
+        >
           {/* Mobile sidebar backdrop */}
           {isSidebarOpen && (
             <div
@@ -1188,9 +1195,12 @@ export default function App() {
           {/* Sidebar — full-height drawer on phone, rail on desktop */}
           <aside
             className={cn(
-              'bg-white border-r border-gray-200 transition-transform duration-300 flex flex-col z-50 shadow-xl lg:shadow-none',
+              'transition-transform duration-300 flex flex-col z-50',
+              desktopGlass
+                ? 'dg-glass-sidebar shadow-none'
+                : 'bg-white border-r border-gray-200 shadow-xl lg:shadow-none',
               'fixed lg:relative inset-y-0 left-0 h-[100dvh] max-h-[100dvh]',
-              isSidebarOpen ? 'w-[min(70vw,15rem)] translate-x-0 lg:w-60' : 'w-16 -translate-x-full lg:translate-x-0',
+              isSidebarOpen ? 'w-[min(70vw,15rem)] translate-x-0 lg:w-64' : 'w-16 -translate-x-full lg:translate-x-0',
             )}
           >
             {/* Sticky brand / profile */}
@@ -1269,8 +1279,12 @@ export default function App() {
                             className={cn(
                               'w-full flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px] group relative',
                               activeTab === item.id
-                                ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
-                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                                ? desktopGlass
+                                  ? 'dg-nav-active font-semibold pl-[7px]'
+                                  : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
+                                : desktopGlass
+                                  ? 'dg-muted hover:opacity-100'
+                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                             )}
                           >
                             <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} className="shrink-0" />
@@ -1376,7 +1390,12 @@ export default function App() {
                 </div>
               );
             })()}
-            <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100 px-3 sm:px-8 pb-2.5 sm:pb-4 flex items-center justify-between gap-2 app-header-safe">
+            <header
+              className={cn(
+                'sticky top-0 z-30 px-3 sm:px-8 pb-2.5 sm:pb-4 flex items-center justify-between gap-2 app-header-safe',
+                desktopGlass ? 'dg-glass-header' : 'bg-white/90 backdrop-blur-md border-b border-gray-100',
+              )}
+            >
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   type="button"
@@ -1407,11 +1426,25 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setCmdOpen(true)}
-                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm text-gray-500"
+                  className={cn(
+                    'hidden sm:flex items-center gap-2 px-3 py-1.5 transition-colors text-sm',
+                    desktopGlass
+                      ? 'rounded-full border border-[var(--dg-card-border)] bg-[var(--dg-input)] dg-muted min-w-[16rem] lg:min-w-[22rem]'
+                      : 'bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500',
+                  )}
                 >
                   <Search size={15} />
-                  <span>Search...</span>
-                  <kbd className="text-[10px] font-mono bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-400">
+                  <span className={desktopGlass ? 'flex-1 text-left' : undefined}>
+                    {desktopGlass ? 'Search across business entities...' : 'Search...'}
+                  </span>
+                  <kbd
+                    className={cn(
+                      'text-[10px] font-mono px-1.5 py-0.5 rounded border',
+                      desktopGlass
+                        ? 'border-[var(--dg-card-border)] dg-faint'
+                        : 'bg-white border-gray-200 text-gray-400',
+                    )}
+                  >
                     ⌘K
                   </kbd>
                 </button>

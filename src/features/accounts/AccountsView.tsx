@@ -28,9 +28,11 @@ import {
   PRINT_POPUP_BLOCKED,
 } from '../../lib/utils';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
+import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import { useToast, LoadingSpinner, MobilePillTabs, dateControlClass } from '../../components/ui';
 import { api, fetchApi } from '../../api';
 import { esc } from '../../lib/billTemplates';
+import { DesktopAccountsPanel } from './DesktopAccountsPanel';
 
 type AccountTab =
   | 'pnl'
@@ -56,6 +58,7 @@ function fmtCurrency(n: number) {
 export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const { toast } = useToast();
   const cfg = useBusinessConfig();
+  const desktopGlass = isDesktopGlassUi(cfg.type);
   const ds = cfg.type === 'dealer' || cfg.type === 'retail' || cfg.type === 'silver_casting';
   const partySingular = cfg.labels.vendors.replace(/s$/, ''); // Vendor | Customer | Client
   const businessType = cfg.type;
@@ -206,6 +209,137 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
     setData(null);
   };
 
+  const exportRows = () => {
+    if (!data) return;
+    const rows = (data as Record<string, unknown>).entries || (data as Record<string, unknown>).rows;
+    if (Array.isArray(rows)) exportToCsv(rows as Record<string, unknown>[], tab);
+  };
+  const canExport = Boolean(
+    data &&
+    (Array.isArray((data as Record<string, unknown>).entries) || Array.isArray((data as Record<string, unknown>).rows)),
+  );
+
+  const reportBody = (
+    <>
+      {loading && (
+        <div className="py-16 sm:py-20 text-center">
+          <LoadingSpinner />
+        </div>
+      )}
+
+      {!loading && data && (
+        <div id="accounts-content">
+          {tab === 'pnl' && <ProfitLoss data={data} ds={ds} cfg={cfg} />}
+          {tab === 'balance' && <BalanceSheet data={data} partySingular={partySingular} />}
+          {tab === 'cashflow' && <CashFlow data={data} ds={ds} partySingular={partySingular} />}
+          {tab === 'ledger' && <Ledger data={data} />}
+          {tab === 'daybook' && <DayBook data={data} ds={ds} />}
+          {tab === 'notes' && <NotesView data={data} onRefresh={loadData} partySingular={partySingular} />}
+          {['sales', 'distribution', 'outstanding', 'payments', 'stock', 'gst'].includes(tab) && (
+            <ReportTable tab={tab} data={data} ds={ds} partySingular={partySingular} />
+          )}
+          {tab === 'fineledger' && <FineMetalLedger data={data} />}
+        </div>
+      )}
+
+      {tab === 'gstr2b' && <Gstr2bReconciliation />}
+      {tab === 'gstr3b' && !loading && data && <Gstr3bView data={data as Record<string, unknown>} />}
+    </>
+  );
+
+  if (desktopGlass) {
+    const complianceTabs = reportTabs.map(t => ({
+      key: t.key,
+      label: t.label,
+      shortLabel:
+        t.key === 'payments'
+          ? 'Payment Reg'
+          : t.key === 'gstr2b'
+            ? 'GSTR-2B Recon'
+            : t.key === 'gstr3b'
+              ? 'GSTR-3B Comp'
+              : t.key === 'gst'
+                ? 'GST Summary'
+                : t.label,
+      icon: t.icon,
+    }));
+
+    return (
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+        <DesktopAccountsPanel
+          title={getTabLabel('accounts', 'Accounts')}
+          subtitle="Financial statements, GST reports, and registers — generate statements for any period."
+          accountTabs={accountTabs}
+          reportTabs={complianceTabs}
+          tab={tab}
+          onSelectTab={selectTab}
+          from={from}
+          to={to}
+          onFrom={setFrom}
+          onTo={setTo}
+          showDateRange={showDateRange && tab !== 'gstr3b'}
+          ledgerFilter={ledgerFilter}
+          onLedgerFilter={setLedgerFilter}
+          gstMonth={gstMonth}
+          gstYear={gstYear}
+          onGstMonth={setGstMonth}
+          onGstYear={setGstYear}
+          loading={loading}
+          onGenerate={loadData}
+          onExport={exportRows}
+          canExport={canExport}
+          gstr1Slot={
+            tab === 'gst' ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const gstr1 = await fetchApi(`/reports/gstr1?month=${gstMonth}&year=${gstYear}`);
+                    const blob = new Blob([JSON.stringify(gstr1, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `GSTR1_${gstYear}_${String(gstMonth).padStart(2, '0')}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  } catch (e) {
+                    alert((e as Error).message);
+                  }
+                }}
+                className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg text-sm font-bold text-white bg-[var(--dg-success)] hover:opacity-90"
+              >
+                <Download size={15} /> GSTR-1 JSON
+              </button>
+            ) : null
+          }
+          showEmpty={!loading && !data && tab !== 'gstr2b'}
+        >
+          {data && (
+            <div className="flex justify-end gap-2 -mt-2">
+              {canExport && (
+                <button
+                  type="button"
+                  onClick={exportRows}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-[var(--dg-card-border)] dg-ink hover:bg-[var(--dg-input)]"
+                >
+                  <Download size={14} /> CSV
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-[var(--dg-card-border)] dg-ink hover:bg-[var(--dg-input)]"
+              >
+                <Printer size={14} /> Print
+              </button>
+            </div>
+          )}
+          {reportBody}
+        </DesktopAccountsPanel>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3 sm:space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-4">
@@ -217,13 +351,10 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
         </div>
         {data && (
           <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
-            {((data as Record<string, unknown>).entries || (data as Record<string, unknown>).rows) && (
+            {canExport && (
               <button
                 type="button"
-                onClick={() => {
-                  const rows = (data as Record<string, unknown>).entries || (data as Record<string, unknown>).rows;
-                  if (Array.isArray(rows)) exportToCsv(rows as Record<string, unknown>[], tab);
-                }}
+                onClick={exportRows}
                 className="flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 text-white rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-bold"
               >
                 <Download size={14} /> CSV
@@ -401,29 +532,7 @@ export function AccountsView({ accessLevel = 'full' }: { accessLevel?: 'hidden' 
         </div>
       </div>
 
-      {loading && (
-        <div className="py-16 sm:py-20 text-center">
-          <LoadingSpinner />
-        </div>
-      )}
-
-      {!loading && data && (
-        <div id="accounts-content">
-          {tab === 'pnl' && <ProfitLoss data={data} ds={ds} cfg={cfg} />}
-          {tab === 'balance' && <BalanceSheet data={data} partySingular={partySingular} />}
-          {tab === 'cashflow' && <CashFlow data={data} ds={ds} partySingular={partySingular} />}
-          {tab === 'ledger' && <Ledger data={data} />}
-          {tab === 'daybook' && <DayBook data={data} ds={ds} />}
-          {tab === 'notes' && <NotesView data={data} onRefresh={loadData} partySingular={partySingular} />}
-          {['sales', 'distribution', 'outstanding', 'payments', 'stock', 'gst'].includes(tab) && (
-            <ReportTable tab={tab} data={data} ds={ds} partySingular={partySingular} />
-          )}
-          {tab === 'fineledger' && <FineMetalLedger data={data} />}
-        </div>
-      )}
-
-      {tab === 'gstr2b' && <Gstr2bReconciliation />}
-      {tab === 'gstr3b' && !loading && data && <Gstr3bView data={data as Record<string, unknown>} />}
+      {reportBody}
 
       {!loading && !data && tab !== 'gstr2b' && (
         <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-8 sm:p-12 text-center text-gray-400">

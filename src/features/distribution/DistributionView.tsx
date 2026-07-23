@@ -45,6 +45,8 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateDistributionModal } from './CreateDistributionModal';
+import { DesktopDistributionPanel } from './DesktopDistributionPanel';
+import { isDesktopGlassUi } from '../../lib/desktopGlass';
 import {
   DEFAULT_REMINDER_SETTINGS,
   canSendPaymentReminder,
@@ -404,6 +406,7 @@ export function DistributionView({
   const isDirectSell = businessType === 'dealer' || businessType === 'retail' || businessType === 'silver_casting';
   /** Service keeps modal/panel UX; all other business types use in-place replace navigation. */
   const isServiceBiz = businessType === 'service';
+  const desktopGlass = isDesktopGlassUi(businessType);
   // Dual-doc / Split Bill foundation is for goods (non-service) only — service uses standalone invoices
   const canUseSplitBill = !isServiceBiz;
   const [distributions, setDistributions] = useState<DistributionRecord[]>([]);
@@ -852,138 +855,190 @@ export function DistributionView({
     }
   }, [editSomeGst, editAllGst]);
 
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h2 className="text-xl font-bold">{getTabLabel('distribution', isDirectSell ? 'Sales' : 'Distribution')}</h2>
-          <p className="text-sm text-gray-500">
-            {vendorId
-              ? 'Your distributed products'
-              : isDirectSell
-                ? 'Track your sales'
-                : 'Assign products to vendors for sale'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              distributions.length &&
-              exportToCsv(
-                distributions.map(d => ({
-                  id: d.id,
-                  barcode: d.barcode,
-                  productName: d.productName,
-                  vendorName: d.vendorName,
-                  distributionDate: d.distributionDate,
-                  status: d.status,
-                })),
-                'distribution',
-              )
-            }
-            disabled={!distributions.length}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download size={18} /> Export CSV
-          </button>
-          {!vendorId && canEdit && (
-            <button
-              type="button"
-              onClick={() => setModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
-            >
-              <Plus size={18} /> {isDirectSell ? 'Record Sale' : 'Distribute to Vendor'}
-            </button>
-          )}
-        </div>
-      </div>
+  const pageTitle = getTabLabel('distribution', isDirectSell ? 'Sales' : 'Distribution');
+  const pageSubtitle = vendorId
+    ? 'Your distributed products'
+    : isDirectSell
+      ? 'Track your sales'
+      : 'Assign products to vendors for sale';
+  const createLabel = isDirectSell ? 'Record Sale' : 'Distribute to Vendor';
+  const exportDistributionCsv = () => {
+    if (!distributions.length) return;
+    exportToCsv(
+      distributions.map(d => ({
+        id: d.id,
+        barcode: d.barcode,
+        productName: d.productName,
+        vendorName: d.vendorName,
+        distributionDate: d.distributionDate,
+        status: d.status,
+      })),
+      'distribution',
+    );
+  };
+  const resetPaymentFilter = (tab: 'unpaid' | 'paid') => {
+    setPaymentFilter(tab);
+    setSelectedVendorId(null);
+    setSelectedBatchId(null);
+  };
+  const filteredVendorStats =
+    summary?.vendorStats?.filter(v => {
+      if (v.distributed === 0) return false;
+      if (vendorId && v.vendorId !== vendorId) return false;
+      const f = financeMap[v.vendorId];
+      const isPaid = f ? f.balance <= 0 : false;
+      if (paymentFilter === 'paid' ? !isPaid : isPaid) return false;
+      if (distSearch) {
+        const q = distSearch.toLowerCase();
+        if (v.vendorName.toLowerCase().includes(q)) return true;
+        return distributions.some(d => d.vendorId === v.vendorId && (d.productName || '').toLowerCase().includes(q));
+      }
+      return true;
+    }) ?? [];
+  const remindAllCount =
+    !isVendorUser && !isServiceBiz && reminderSettings.enabled && paymentFilter === 'unpaid'
+      ? filterVendorsForReminder(
+          Object.keys(financeMap).flatMap(id => {
+            const f = financeMap[id];
+            if (!(f.balance > 0) || !f.vendorPhone) return [];
+            return [
+              {
+                vendorId: id,
+                vendorPhone: f.vendorPhone,
+                balance: f.balance,
+                lastSent: f.lastSent ?? null,
+              },
+            ];
+          }),
+          reminderSettings,
+        ).eligible.length
+      : 0;
+  /** Non-service in-place detail replaces the list; desktop glass list hides while drilling in. */
+  const inPlaceNav = !isServiceBiz;
+  const showDesktopList = desktopGlass && !(inPlaceNav && selectedVendorId);
 
-      {/* Payment filter + search */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {(['unpaid', 'paid'] as const).map(tab => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => {
-              setPaymentFilter(tab);
-              setSelectedVendorId(null);
-              setSelectedBatchId(null);
-            }}
-            className={cn(
-              'px-4 py-2 rounded-xl text-sm font-bold transition-all',
-              paymentFilter === tab
-                ? tab === 'unpaid'
-                  ? 'bg-rose-500 text-white'
-                  : 'bg-emerald-500 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-            )}
-          >
-            {tab === 'unpaid' ? 'Unpaid' : 'Paid'}
-          </button>
-        ))}
-        <div className="relative flex-1 min-w-[150px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          <input
-            type="text"
-            placeholder="Search vendor or product..."
-            value={distSearch}
-            onChange={e => setDistSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-          />
-        </div>
-        {!isVendorUser &&
-          !isServiceBiz &&
-          reminderSettings.enabled &&
-          paymentFilter === 'unpaid' &&
-          (() => {
-            const remindCount = filterVendorsForReminder(
-              Object.keys(financeMap).flatMap(id => {
-                const f = financeMap[id];
-                if (!(f.balance > 0) || !f.vendorPhone) return [];
-                return [
-                  {
-                    vendorId: id,
-                    vendorPhone: f.vendorPhone,
-                    balance: f.balance,
-                    lastSent: f.lastSent ?? null,
-                  },
-                ];
-              }),
-              reminderSettings,
-            ).eligible.length;
-            if (!remindCount) return null;
-            return (
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className={cn(desktopGlass ? 'space-y-8 max-w-[1400px] mx-auto' : 'space-y-6')}
+    >
+      {showDesktopList ? (
+        <DesktopDistributionPanel
+          title={pageTitle}
+          subtitle={pageSubtitle}
+          isDirectSell={isDirectSell}
+          paymentFilter={paymentFilter}
+          onPaymentFilter={resetPaymentFilter}
+          search={distSearch}
+          onSearch={setDistSearch}
+          canExport={distributions.length > 0}
+          onExportCsv={exportDistributionCsv}
+          canCreate={!vendorId && canEdit}
+          onCreate={() => setModalOpen(true)}
+          createLabel={createLabel}
+          remindAllCount={remindAllCount}
+          onRemindAll={remindAllCount > 0 ? () => void remindAllOutstandingVendors() : null}
+          loading={loading}
+          loadError={loadError}
+          onRetry={() => {
+            setLoading(true);
+            setLoadError(null);
+            load();
+          }}
+          vendors={filteredVendorStats.map(v => {
+            const f = financeMap[v.vendorId];
+            return {
+              vendorId: v.vendorId,
+              vendorName: v.vendorName,
+              distributed: v.distributed,
+              sold: v.sold,
+              replaced: v.replaced ?? 0,
+              damaged: v.damaged ?? 0,
+              availableWithVendor: v.availableWithVendor,
+              billAmount: f?.totalDistributedValue ?? 0,
+              paidAmount: f?.totalPaid ?? 0,
+              balance: f?.balance ?? 0,
+            };
+          })}
+          onSelectVendor={id => {
+            setSelectedVendorId(id);
+            setSelectedBatchId(null);
+            setSelectedBatchProductId(null);
+          }}
+        />
+      ) : !desktopGlass ? (
+        <>
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-xl font-bold">{pageTitle}</h2>
+              <p className="text-sm text-gray-500">{pageSubtitle}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={exportDistributionCsv}
+                disabled={!distributions.length}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download size={18} /> Export CSV
+              </button>
+              {!vendorId && canEdit && (
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold"
+                >
+                  <Plus size={18} /> {createLabel}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Payment filter + search */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {(['unpaid', 'paid'] as const).map(tab => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => resetPaymentFilter(tab)}
+                className={cn(
+                  'px-4 py-2 rounded-xl text-sm font-bold transition-all',
+                  paymentFilter === tab
+                    ? tab === 'unpaid'
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-emerald-500 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                )}
+              >
+                {tab === 'unpaid' ? 'Unpaid' : 'Paid'}
+              </button>
+            ))}
+            <div className="relative flex-1 min-w-[150px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="text"
+                placeholder="Search vendor or product..."
+                value={distSearch}
+                onChange={e => setDistSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+              />
+            </div>
+            {remindAllCount > 0 && (
               <button
                 type="button"
                 onClick={() => void remindAllOutstandingVendors()}
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700"
               >
-                <MessageCircle size={16} /> Remind all ({remindCount})
+                <MessageCircle size={16} /> Remind all ({remindAllCount})
               </button>
-            );
-          })()}
-      </div>
+            )}
+          </div>
+        </>
+      ) : null}
 
       {/* Vendor cards — service: modal overlay; non-service: replace whole view in-place */}
       {(() => {
-        const filteredVendorStats =
-          summary?.vendorStats?.filter(v => {
-            if (v.distributed === 0) return false;
-            if (vendorId && v.vendorId !== vendorId) return false;
-            const f = financeMap[v.vendorId];
-            const isPaid = f ? f.balance <= 0 : false;
-            if (paymentFilter === 'paid' ? !isPaid : isPaid) return false;
-            if (distSearch) {
-              const q = distSearch.toLowerCase();
-              return v.vendorName.toLowerCase().includes(q);
-            }
-            return true;
-          }) ?? [];
-
-        /** Non-service: quiet in-flow toolbar + full-view replace (not modal / not expand-under-tile). */
-        const inPlaceNav = !isServiceBiz;
-
         const selectedVendorContent =
           selectedVendorId &&
           (() => {
@@ -1046,8 +1101,21 @@ export function DistributionView({
               const selectedProduct = selectedBatchProductId ? byProduct[selectedBatchProductId] : null;
 
               return (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                  <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 space-y-2">
+                <div
+                  className={cn(
+                    desktopGlass
+                      ? 'dg-glass-card rounded-2xl overflow-hidden'
+                      : 'bg-white rounded-2xl border border-gray-100 shadow-sm',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'px-6 py-4 border-b space-y-2',
+                      desktopGlass
+                        ? 'bg-[var(--dg-input)] border-[var(--dg-card-border)]'
+                        : 'bg-gray-50 border-gray-100',
+                    )}
+                  >
                     <div className="flex items-center justify-between flex-wrap gap-3">
                       <div className="flex items-center gap-3 flex-wrap min-w-0">
                         <button
@@ -1056,11 +1124,14 @@ export function DistributionView({
                             if (selectedBatchProductId) setSelectedBatchProductId(null);
                             else setSelectedBatchId(null);
                           }}
-                          className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                          className={cn(
+                            'p-2 rounded-lg transition-colors',
+                            desktopGlass ? 'hover:bg-[var(--dg-card-hover)]' : 'hover:bg-gray-200',
+                          )}
                         >
-                          <ArrowLeft size={20} className="text-gray-600" />
+                          <ArrowLeft size={20} className={desktopGlass ? 'dg-muted' : 'text-gray-600'} />
                         </button>
-                        <h3 className="font-bold text-lg">
+                        <h3 className={cn('font-bold text-lg', desktopGlass && 'dg-ink')}>
                           {selectedProduct ? selectedProduct.productName : selectedBatch.vendorName}
                         </h3>
                         {!selectedBatchProductId &&
@@ -1855,8 +1926,19 @@ export function DistributionView({
               !!vendorFinance.vendorPhone;
 
             return (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between flex-wrap gap-3 px-6 py-4 bg-gray-50 border-b border-gray-100">
+              <div
+                className={cn(
+                  desktopGlass
+                    ? 'dg-glass-card rounded-2xl overflow-hidden'
+                    : 'bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden',
+                )}
+              >
+                <div
+                  className={cn(
+                    'flex items-center justify-between flex-wrap gap-3 px-6 py-4 border-b',
+                    desktopGlass ? 'bg-[var(--dg-input)] border-[var(--dg-card-border)]' : 'bg-gray-50 border-gray-100',
+                  )}
+                >
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
@@ -1865,12 +1947,15 @@ export function DistributionView({
                         setSelectedBatchId(null);
                         setSelectedBatchProductId(null);
                       }}
-                      className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                      className={cn(
+                        'p-2 rounded-lg transition-colors',
+                        desktopGlass ? 'hover:bg-[var(--dg-card-hover)]' : 'hover:bg-gray-200',
+                      )}
                       title="Back to vendors"
                     >
-                      <ArrowLeft size={20} className="text-gray-600" />
+                      <ArrowLeft size={20} className={desktopGlass ? 'dg-muted' : 'text-gray-600'} />
                     </button>
-                    <h3 className="font-bold text-lg">{vendorName}</h3>
+                    <h3 className={cn('font-bold text-lg', desktopGlass && 'dg-ink')}>{vendorName}</h3>
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
                     {stats && (
@@ -2028,6 +2113,27 @@ export function DistributionView({
         // Non-service: tile click replaces the whole list with that vendor's distributions (Back restores tiles).
         if (inPlaceNav && !loading && selectedVendorId && selectedVendorContent) {
           return selectedVendorContent;
+        }
+
+        // Desktop glass list chrome is rendered above; only service modal remains here.
+        if (desktopGlass) {
+          if (isServiceBiz && !loading && selectedVendorId && selectedVendorContent) {
+            return (
+              <div className="fixed inset-0 z-[80]">
+                <div
+                  className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                  onClick={() => {
+                    setSelectedVendorId(null);
+                    setSelectedBatchId(null);
+                  }}
+                />
+                <div className="absolute top-[max(1rem,env(safe-area-inset-top,0px))] bottom-[max(1rem,env(safe-area-inset-bottom,0px))] left-4 right-4 lg:inset-6 lg:left-[calc(16rem+1.5rem)] overflow-y-auto rounded-2xl shadow-2xl bg-[var(--dg-bg)] border border-[var(--dg-card-border)]">
+                  {selectedVendorContent}
+                </div>
+              </div>
+            );
+          }
+          return null;
         }
 
         return (
