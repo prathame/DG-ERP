@@ -61,11 +61,12 @@ router.post('/api/auth/login', async (req, res) => {
         `
       SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name,
              u.permissions, u.vendor_id, u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number,
-             u.password_hash, u.tenant_id,
+             u.password_hash, u.tenant_id, u.whatsapp_api_allowed,
              t.id as t_tenant_id, t.company_name as tenant_company_name, t.slug as tenant_slug, t.status as tenant_status,
              t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
              t.trial_ends_at, t.subscription_ends_at, t.tab_config, t.business_type,
-             t.client_access_mode, t.mobile_features, t.plan_id
+             t.client_access_mode, t.mobile_features, t.plan_id,
+             t.whatsapp_business_enabled, t.whatsapp_send_mode, t.whatsapp_display_phone
       FROM users u
       JOIN tenants t ON u.tenant_id = t.id
       WHERE LOWER(u.email) = LOWER($1) ${slugClause} LIMIT 1
@@ -208,6 +209,10 @@ router.post('/api/auth/login', async (req, res) => {
       barcodeSystemEnabled: row.barcode_system_enabled !== false,
       multiLanguageEnabled: row.multi_language_enabled !== false,
       inventoryTrackingEnabled: row.inventory_tracking_enabled !== false,
+      whatsappBusinessEnabled: !!row.whatsapp_business_enabled,
+      whatsappSendMode: (row.whatsapp_send_mode as string) || null,
+      whatsappApiAllowed: !!row.whatsapp_api_allowed,
+      whatsappDisplayPhone: (row.whatsapp_display_phone as string) || null,
       planName: await (async () => {
         const pid = row.plan_id as string | null;
         if (!pid) return row.tenant_status === 'trial' ? 'Free Trial' : 'Standard';
@@ -267,8 +272,10 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
       await pool.query(
         `SELECT u.id, u.email, u.name, u.phone, u.address, u.role, u.company_name, u.permissions, u.vendor_id,
                 u.auto_whatsapp, u.default_gst_rate, COALESCE(u.gst_number, t.gst_number) as gst_number,
+                u.whatsapp_api_allowed,
                 t.vendor_portal_enabled, t.barcode_system_enabled, t.multi_language_enabled, t.inventory_tracking_enabled,
-                t.tab_config, t.business_type, t.client_access_mode, t.mobile_features
+                t.tab_config, t.business_type, t.client_access_mode, t.mobile_features,
+                t.whatsapp_business_enabled, t.whatsapp_send_mode, t.whatsapp_display_phone
          FROM users u JOIN tenants t ON u.tenant_id = t.id
          WHERE u.id = $1 AND u.tenant_id = $2`,
         [userId, tenantId],
@@ -327,6 +334,10 @@ router.get('/api/settings/profile', authMiddleware, async (req: AuthRequest, res
       barcodeSystemEnabled: row.barcode_system_enabled !== false,
       multiLanguageEnabled: row.multi_language_enabled !== false,
       inventoryTrackingEnabled: row.inventory_tracking_enabled !== false,
+      whatsappBusinessEnabled: !!row.whatsapp_business_enabled,
+      whatsappSendMode: (row.whatsapp_send_mode as string) || null,
+      whatsappApiAllowed: !!row.whatsapp_api_allowed,
+      whatsappDisplayPhone: (row.whatsapp_display_phone as string) || null,
       tabConfig: typeof row.tab_config === 'string' ? JSON.parse(row.tab_config) : (row.tab_config ?? null),
     });
   } catch (err) {

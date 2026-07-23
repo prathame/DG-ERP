@@ -1,11 +1,11 @@
 # Cloud mobile companion (Cap Online)
 
-One Cap APK (`in.dhandho.service`). First launch: **Online** or **Offline**.
+**One Cap APK** (`in.dhandho.service`). First launch latches **Online** or **Offline** (not a second installer). Offline latch stays service-only; Online serves any cloud tenant with mobile access.
 
 | Mode | Product |
 |------|---------|
 | **Offline** | Service Mobile (`DG-SM-`) — unchanged, service-only |
-| **Online** | Cloud Cap for **any** business type via company slug |
+| **Online** | Cloud Cap for **any** business type via company slug + seats |
 
 ## Super Admin
 

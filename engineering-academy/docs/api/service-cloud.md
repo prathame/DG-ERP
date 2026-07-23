@@ -1,18 +1,19 @@
 ---
 sidebar_label: Service Cloud Seats API
 title: Service Cloud Seats API
-description: Online device slots and company-wide session lock for service cloud tenants.
+description: Online device slots for cloud Cap / Electron; company session lock for service tenants only.
 ---
 
 # Service Cloud Seats API
 
-Online-only product for `business_type=service` cloud tenants. **Not** Service Mobile (`DG-SM` / PGlite).
+Online Cap + Cloud Electron device seats for **any** cloud business type (`assertCloudTenant`). **Not** Service Mobile (`DG-SM` / PGlite). Company-wide Netflix session lock applies only when `business_type=service`; other types are multi-user (claim + access mode, no company freeze).
 
 ## Tables
 
 - `tenants.client_access_mode` — `mobile` \| `desktop` \| `both`
+- `tenants.mobile_features` — Cap Online companion pack (non-service)
 - `service_cloud_device_slots` — per user, `device_kind` + optional `machine_id`
-- `service_cloud_sessions` — **one row per tenant**; `expires_at` ≈ now + 5 minutes
+- `service_cloud_sessions` — **one row per tenant** when company lock applies; `expires_at` ≈ now + 5 minutes
 
 ## Super Admin (JWT)
 
@@ -42,11 +43,10 @@ Client kind from `X-DG-Client`: `electron-cloud` → desktop, `capacitor-cloud` 
 
 ## Lock rules
 
-- Acquire uses `INSERT … ON CONFLICT DO UPDATE … WHERE machine_id = EXCLUDED.machine_id` so concurrent claimants cannot overwrite another holder.
-- Heartbeat/release require matching `user_id` + `machine_id`.
-- No takeover in v1 — wait for release or idle expiry.
+- **Service:** Acquire uses `INSERT … ON CONFLICT DO UPDATE … WHERE machine_id = EXCLUDED.machine_id` so concurrent claimants cannot overwrite another holder. Heartbeat/release require matching `user_id` + `machine_id`. No takeover in v1 — wait for release or idle expiry.
+- **Non-service:** Acquire/heartbeat succeed after device claim with `companySessionLock: false` (no `service_cloud_sessions` row). Release is a no-op success.
 
-Client phone IA (`isServicePhoneUx` — Emergent bottom nav / Masters pills) is **frontend-only** and does not change these seat or session APIs. `ServiceCloudGate` still acquires/heartbeats/releases as above.
+Client phone IA (`isServicePhoneUx` — Emergent bottom nav / Masters pills) is **frontend-only** and does not change these seat or session APIs. `ServiceCloudGate` still claims/acquires/heartbeats for Cap Online + Cloud Electron; browser clients cannot enroll.
 
 ## Related
 

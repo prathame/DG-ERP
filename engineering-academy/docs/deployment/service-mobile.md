@@ -95,14 +95,13 @@ Permission is requested on Cap boot (`POST_NOTIFICATIONS` on Android 13+). Chann
 
 ### Evergreen builds (public URLs on `/download`)
 
-GitHub Actions (`apk-build.yml`): **2 product runs** (offline / online), each builds **Android APK + iOS .app.zip** → **4 evergreen assets**:
+GitHub Actions (`apk-build.yml`) builds **one unified phone** (Android APK + iOS .app.zip) → evergreen `dhandho-mobile` assets. Labels `mobile` / `offline` / `online` are aliases for that single product. Online vs Offline is chosen inside the app (first-launch latch), not via a second APK.
 
 | Product | Android | iOS (simulator debug) |
 |---|---|---|
-| Offline Mobile | `…/offline-mobile/offline-mobile-service-debug.apk` | `…/offline-mobile/offline-mobile-service-debug.app.zip` |
-| Service Cloud Online | `…/service-cloud/service-cloud-online-debug.apk` | `…/service-cloud/service-cloud-online-debug.app.zip` |
+| Dhandho phone (unified) | `…/dhandho-mobile/dhandho-mobile-debug.apk` | `…/dhandho-mobile/dhandho-mobile-debug.app.zip` |
 
-Labels: `offline` → Offline APK+iOS; `online` → Online APK+iOS; `mobile` → both products.
+See [Cloud mobile companion](./cloud-mobile-companion.md).
 
 GitLab still mirrors Offline debug assets under **Deploy → Package registry** (`offline-mobile/latest/…`) when a `macos` runner is available.
 

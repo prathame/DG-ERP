@@ -1149,6 +1149,18 @@ export async function initSchema() {
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_sc_sessions_expires ON service_cloud_sessions(expires_at)`);
 
+    // Optional Meta WhatsApp Cloud API (cloud tenants) — tokens encrypted at rest; never expose to client session
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS whatsapp_business_enabled BOOLEAN DEFAULT false`);
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS whatsapp_send_mode TEXT`);
+    // whatsapp_send_mode: company | company_selected | per_user
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS whatsapp_phone_number_id TEXT`);
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS whatsapp_access_token TEXT`);
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS whatsapp_waba_id TEXT`);
+    await client.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS whatsapp_display_phone TEXT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_api_allowed BOOLEAN DEFAULT false`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_phone_number_id TEXT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_access_token TEXT`);
+
     // One active login session per tenant user (desktop/mobile single-device auth)
     await client.query(`
       CREATE TABLE IF NOT EXISTS user_sessions (

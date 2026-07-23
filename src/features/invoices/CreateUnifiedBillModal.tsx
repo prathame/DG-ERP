@@ -18,13 +18,14 @@ import { SearchSelect } from '../../components/ui/SearchSelect';
 import { suggestHsnRate } from '../../lib/hsnRates';
 import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { scheduleBakeCapBillPdfCache, type CapBillPdfCacheDoc } from '../../lib/capBillPdfCache';
-import { printStandaloneInvoice } from '../../lib/printStandaloneInvoice';
+import { printStandaloneInvoice, whatsAppInvoiceShareToast } from '../../lib/printStandaloneInvoice';
 import {
   adjustUnitPriceForGstToggle,
   displayUnitPriceForGst,
   linePricesAfterDiscount,
 } from '../../lib/gstInclusivePrice';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
+import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsApp';
 import { reportActionFailed } from '../../lib/reportActionFailure';
 import { session } from '../../lib/session';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
@@ -174,6 +175,7 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     bill: DistributionBillData;
   } | null>(null);
   const [printing, setPrinting] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const resolveTokenRef = useRef<Record<number, number>>({});
   const headerGstRef = useRef<HTMLInputElement>(null);
 
@@ -551,6 +553,21 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
     }
   };
 
+  const shareSaleDoc = async (kind: 'gst' | 'bos' | 'both') => {
+    if (!createdSale) return;
+    setSharing(true);
+    try {
+      toast('Preparing PDF…', 'info');
+      const { how, errorHint } = await shareDistributionDocsWhatsApp(createdSale.bill, kind);
+      if (how === 'cancelled') return;
+      toast(whatsAppInvoiceShareToast(how, errorHint), how === 'pdf_fallback' ? 'info' : 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'WhatsApp share failed', 'error');
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const salePrintAvail = createdSale ? deliveryPrintAvailability(createdSale.bill) : null;
 
   const productOptions = (qty: number) =>
@@ -579,18 +596,49 @@ export function CreateUnifiedBillModal({ onClose, onCreated }: { onClose: () => 
           </ModalActionButton>
         )}
         {createdSale && salePrintAvail?.hasGst && (
-          <ModalActionButton variant="secondary" disabled={printing} onClick={() => void printSaleDoc('gst')}>
+          <ModalActionButton
+            variant="secondary"
+            disabled={printing || sharing}
+            onClick={() => void printSaleDoc('gst')}
+          >
             Tax Invoice
           </ModalActionButton>
         )}
         {createdSale && salePrintAvail?.hasBos && (
-          <ModalActionButton variant="secondary" disabled={printing} onClick={() => void printSaleDoc('bos')}>
+          <ModalActionButton
+            variant="secondary"
+            disabled={printing || sharing}
+            onClick={() => void printSaleDoc('bos')}
+          >
             Bill of Supply
           </ModalActionButton>
         )}
         {createdSale && salePrintAvail?.isDual && (
-          <ModalActionButton variant="primary" disabled={printing} onClick={() => void printSaleDoc('both')}>
+          <ModalActionButton variant="primary" disabled={printing || sharing} onClick={() => void printSaleDoc('both')}>
             Print Both
+          </ModalActionButton>
+        )}
+        {createdSale && salePrintAvail?.hasGst && (
+          <ModalActionButton
+            variant="secondary"
+            disabled={printing || sharing}
+            onClick={() => void shareSaleDoc('gst')}
+          >
+            {sharing ? 'Preparing…' : 'WhatsApp Tax Invoice'}
+          </ModalActionButton>
+        )}
+        {createdSale && salePrintAvail?.hasBos && (
+          <ModalActionButton
+            variant="secondary"
+            disabled={printing || sharing}
+            onClick={() => void shareSaleDoc('bos')}
+          >
+            {sharing ? 'Preparing…' : 'WhatsApp BoS'}
+          </ModalActionButton>
+        )}
+        {createdSale && salePrintAvail?.isDual && (
+          <ModalActionButton variant="primary" disabled={printing || sharing} onClick={() => void shareSaleDoc('both')}>
+            {sharing ? 'Preparing…' : 'WhatsApp Both'}
           </ModalActionButton>
         )}
       </ModalActions>

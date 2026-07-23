@@ -54,6 +54,13 @@ interface TenantDetail {
   accountsEnabled: boolean;
   purchasesEnabled: boolean;
   chatbotEnabled: boolean;
+  whatsappBusinessEnabled?: boolean;
+  whatsappSendMode?: string | null;
+  whatsappPhoneNumberId?: string;
+  whatsappAccessTokenConfigured?: boolean;
+  whatsappAccessToken?: string;
+  whatsappWabaId?: string;
+  whatsappDisplayPhone?: string;
   tabConfig: Record<string, { label: string; visible: boolean }> | null;
   businessType?: string;
   createdAt: string;
@@ -1078,6 +1085,12 @@ function TabCustomization({
   const [accountsEnabled, setAccountsEnabled] = useState(tenant.accountsEnabled !== false);
   const [purchasesEnabled, setPurchasesEnabled] = useState(tenant.purchasesEnabled !== false);
   const [chatbotEnabled, setChatbotEnabled] = useState(tenant.chatbotEnabled !== false);
+  const [whatsappBusinessEnabled, setWhatsappBusinessEnabled] = useState(!!tenant.whatsappBusinessEnabled);
+  const [whatsappSendMode, setWhatsappSendMode] = useState<string>((tenant.whatsappSendMode as string) || 'company');
+  const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState((tenant.whatsappPhoneNumberId as string) || '');
+  const [whatsappAccessToken, setWhatsappAccessToken] = useState((tenant.whatsappAccessToken as string) || '');
+  const [whatsappWabaId, setWhatsappWabaId] = useState((tenant.whatsappWabaId as string) || '');
+  const [whatsappDisplayPhone, setWhatsappDisplayPhone] = useState((tenant.whatsappDisplayPhone as string) || '');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1090,6 +1103,12 @@ function TabCustomization({
     setAccountsEnabled(tenant.accountsEnabled !== false);
     setPurchasesEnabled(tenant.purchasesEnabled !== false);
     setChatbotEnabled(tenant.chatbotEnabled !== false);
+    setWhatsappBusinessEnabled(!!tenant.whatsappBusinessEnabled);
+    setWhatsappSendMode((tenant.whatsappSendMode as string) || 'company');
+    setWhatsappPhoneNumberId((tenant.whatsappPhoneNumberId as string) || '');
+    setWhatsappAccessToken((tenant.whatsappAccessToken as string) || '');
+    setWhatsappWabaId((tenant.whatsappWabaId as string) || '');
+    setWhatsappDisplayPhone((tenant.whatsappDisplayPhone as string) || '');
   }, [
     tabConfig,
     tenant.barcodeSystemEnabled,
@@ -1100,6 +1119,12 @@ function TabCustomization({
     tenant.accountsEnabled,
     tenant.purchasesEnabled,
     tenant.chatbotEnabled,
+    tenant.whatsappBusinessEnabled,
+    tenant.whatsappSendMode,
+    tenant.whatsappPhoneNumberId,
+    tenant.whatsappAccessToken,
+    tenant.whatsappWabaId,
+    tenant.whatsappDisplayPhone,
   ]);
 
   const updateLabel = (key: string, label: string) => setConfig(prev => ({ ...prev, [key]: { ...prev[key], label } }));
@@ -1124,6 +1149,15 @@ function TabCustomization({
           accountsEnabled,
           purchasesEnabled,
           chatbotEnabled,
+          whatsappBusinessEnabled,
+          whatsappSendMode: whatsappBusinessEnabled ? whatsappSendMode : null,
+          whatsappPhoneNumberId: whatsappBusinessEnabled ? whatsappPhoneNumberId : '',
+          whatsappAccessToken:
+            whatsappBusinessEnabled && whatsappAccessToken && !/^•+$/.test(whatsappAccessToken)
+              ? whatsappAccessToken
+              : undefined,
+          whatsappWabaId: whatsappBusinessEnabled ? whatsappWabaId : '',
+          whatsappDisplayPhone: whatsappBusinessEnabled ? whatsappDisplayPhone : '',
         }),
       });
       if (!res.ok) throw new Error();
@@ -1354,6 +1388,132 @@ function TabCustomization({
             </button>
           </div>
         ))}
+
+        <div className="mt-6 pt-4 border-t border-gray-100 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-sm">WhatsApp Business API</p>
+              <p className="text-xs text-gray-500">
+                Optional Meta Cloud API for this company. OFF keeps personal WhatsApp share for everyone.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWhatsappBusinessEnabled(!whatsappBusinessEnabled)}
+              className={cn(
+                'relative inline-flex h-6 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors',
+                whatsappBusinessEnabled ? 'bg-green-500' : 'bg-gray-300',
+              )}
+            >
+              <span
+                className={cn(
+                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform',
+                  whatsappBusinessEnabled ? 'translate-x-4' : 'translate-x-0',
+                )}
+              />
+            </button>
+          </div>
+
+          {whatsappBusinessEnabled && (
+            <div className="space-y-3 pl-1">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Send mode</p>
+              {(
+                [
+                  {
+                    value: 'company',
+                    label: '1. One company number',
+                    desc: 'All users send via the company WhatsApp Business number.',
+                  },
+                  {
+                    value: 'company_selected',
+                    label: '2. Company number, selected users',
+                    desc: 'Only allowlisted users (seats panel) use the company number; others stay on personal WhatsApp.',
+                  },
+                  {
+                    value: 'per_user',
+                    label: '3. Each user their own number',
+                    desc: 'Per-user phone number ID + token in seats panel; missing creds → personal WhatsApp.',
+                  },
+                ] as const
+              ).map(m => (
+                <label key={m.value} className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="whatsappSendMode"
+                    className="mt-1"
+                    checked={whatsappSendMode === m.value}
+                    onChange={() => setWhatsappSendMode(m.value)}
+                  />
+                  <span>
+                    <span className="text-sm font-medium text-gray-800">{m.label}</span>
+                    <span className="block text-xs text-gray-500">{m.desc}</span>
+                  </span>
+                </label>
+              ))}
+
+              {(whatsappSendMode === 'company' || whatsappSendMode === 'company_selected') && (
+                <div className="grid sm:grid-cols-2 gap-3 pt-2">
+                  <label className="text-xs text-gray-500 sm:col-span-2">
+                    Phone number ID
+                    <input
+                      type="text"
+                      value={whatsappPhoneNumberId}
+                      onChange={e => setWhatsappPhoneNumberId(e.target.value)}
+                      placeholder="Meta phone_number_id"
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs text-gray-500 sm:col-span-2">
+                    Access token
+                    <input
+                      type="password"
+                      value={whatsappAccessToken}
+                      onChange={e => setWhatsappAccessToken(e.target.value)}
+                      placeholder={
+                        tenant.whatsappAccessTokenConfigured
+                          ? 'Configured — paste to replace'
+                          : 'Permanent / system user token'
+                      }
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="text-xs text-gray-500">
+                    Display phone (optional)
+                    <input
+                      type="text"
+                      value={whatsappDisplayPhone}
+                      onChange={e => setWhatsappDisplayPhone(e.target.value)}
+                      placeholder="+91…"
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs text-gray-500">
+                    WABA ID (optional)
+                    <input
+                      type="text"
+                      value={whatsappWabaId}
+                      onChange={e => setWhatsappWabaId(e.target.value)}
+                      placeholder="WhatsApp Business Account ID"
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {whatsappSendMode === 'per_user' && (
+                <p className="text-xs text-gray-500">
+                  Configure each user&apos;s phone number ID and token in the Cloud seats panel below.
+                </p>
+              )}
+              {whatsappSendMode === 'company_selected' && (
+                <p className="text-xs text-gray-500">
+                  Tick &quot;Use company WhatsApp&quot; per user in the Cloud seats panel below.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -795,11 +795,23 @@ export default function App() {
     resolveTabAccess(tabId, userConfig as { permissions?: unknown; role?: string } | null);
   const canAccess = (tabId: string) => getAccess(tabId) !== 'hidden';
 
+  const companionFeatures =
+    isServiceCloudMobile() && (userConfig?.businessType as string) !== 'service'
+      ? normalizeMobileFeatures(userConfig?.mobileFeatures, userConfig?.businessType as string | undefined)
+      : null;
+  const companionAllows = (tabId: string) =>
+    !companionFeatures || tabId === 'settings' || mobileFeatureAllowsTab(tabId, companionFeatures);
+  const visibleNavItems = navItems.filter(item => {
+    if (!canAccess(item.id)) return false;
+    if (!companionAllows(item.id)) return false;
+    return true;
+  });
+
   // Cap OS notification tap → open tab (or just bring app to foreground)
   useEffect(() => {
     const onOsNav = (e: Event) => {
       const hrefTab = (e as CustomEvent<{ hrefTab?: string }>).detail?.hrefTab;
-      if (hrefTab && canAccess(hrefTab)) setActiveTab(hrefTab as Tab);
+      if (hrefTab && canAccess(hrefTab) && companionAllows(hrefTab)) setActiveTab(hrefTab as Tab);
     };
     window.addEventListener('dg-os-notification-navigate', onOsNav);
     return () => window.removeEventListener('dg-os-notification-navigate', onOsNav);
@@ -808,27 +820,19 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     // Normalize legacy dashboard tab → analytics (primary nav id)
-    if (activeTab === 'dashboard' && canAccess('analytics')) {
+    if (activeTab === 'dashboard' && canAccess('analytics') && companionAllows('analytics')) {
       setActiveTabRaw('analytics');
       return;
     }
     const tabHidden = activeTab !== 'settings' && !tv(activeTab);
-    if (!canAccess(activeTab) || tabHidden) {
+    if (!canAccess(activeTab) || tabHidden || !companionAllows(activeTab)) {
       const fallback =
-        (['analytics', 'distribution', 'finance', 'inventory'] as Tab[]).find(t => canAccess(t) && tv(t)) ??
-        'analytics';
+        (['analytics', 'distribution', 'finance', 'inventory'] as Tab[]).find(
+          t => canAccess(t) && tv(t) && companionAllows(t),
+        ) ?? 'analytics';
       setActiveTabRaw(fallback);
     }
   }, [activeTab, user]);
-  const companionFeatures =
-    isServiceCloudMobile() && (userConfig?.businessType as string) !== 'service'
-      ? normalizeMobileFeatures(userConfig?.mobileFeatures, userConfig?.businessType as string | undefined)
-      : null;
-  const visibleNavItems = navItems.filter(item => {
-    if (!canAccess(item.id)) return false;
-    if (companionFeatures && !mobileFeatureAllowsTab(item.id, companionFeatures)) return false;
-    return true;
-  });
 
   // C9 fix: all hooks must come before any conditional return.
   // Moved slug/branding state and effects up here, before the /privacy & /terms early returns.
@@ -1160,9 +1164,9 @@ export default function App() {
     <ToastProvider>
       <ServiceCloudGate
         enabled={
-          // Service: Netflix company lock on Cap + Electron cloud
-          // Non-service Cap Online: device claim + offline freeze (no company lock)
-          ((userConfig?.businessType as string) === 'service' && isServiceCloudClient()) || isServiceCloudMobile()
+          // Cap Online + Cloud Electron for any cloud business type.
+          // Service: company-wide Netflix lock. Non-service: device claim only (no company freeze).
+          isServiceCloudClient()
         }
       >
         {appShutter && (
@@ -1222,7 +1226,8 @@ export default function App() {
             {/* Scrollable menu */}
             <nav className="flex-1 min-h-0 px-2.5 lg:px-3 py-2 lg:py-3 overflow-y-auto overscroll-contain">
               {navSections.map(section => {
-                const sectionItems = section.items.filter(i => i.show && canAccess(i.id));
+                // Cap Online companion: same mobile_features filter as bottom nav / command palette
+                const sectionItems = section.items.filter(i => i.show && canAccess(i.id) && companionAllows(i.id));
                 if (!sectionItems.length) return null;
                 const isCollapsed = section.label ? collapsedSections.has(section.label) : false;
                 const hasActiveChild = sectionItems.some(i => activeTab === i.id);

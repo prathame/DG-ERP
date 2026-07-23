@@ -30,6 +30,10 @@ interface LoginResult {
     vendorPortalEnabled?: boolean;
     businessType?: string;
     tabConfig?: Record<string, { label: string; visible: boolean }> | null;
+    whatsappBusinessEnabled?: boolean;
+    whatsappSendMode?: string | null;
+    whatsappApiAllowed?: boolean;
+    whatsappDisplayPhone?: string | null;
   };
 }
 
@@ -149,6 +153,10 @@ export function LoginScreen({ onLogin, tenant, onChangeCompany }: LoginScreenPro
               string,
               { label: string; visible: boolean }
             > | null,
+            whatsappBusinessEnabled: (r as Record<string, unknown>).whatsappBusinessEnabled as boolean | undefined,
+            whatsappSendMode: (r as Record<string, unknown>).whatsappSendMode as string | null | undefined,
+            whatsappApiAllowed: (r as Record<string, unknown>).whatsappApiAllowed as boolean | undefined,
+            whatsappDisplayPhone: (r as Record<string, unknown>).whatsappDisplayPhone as string | null | undefined,
           },
         });
       }

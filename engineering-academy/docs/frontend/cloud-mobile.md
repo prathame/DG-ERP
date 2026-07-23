@@ -95,7 +95,7 @@ isServicePhoneUx(businessType) // true for Offline Mobile OR (Capacitor cloud + 
 
 **Online Cap only:** `ServiceCloudLiveBadge` (“Live · Online”) in the sidebar — **no Sync**. Cloud Electron desktop chrome is unchanged.
 
-**`ServiceCloudGate` is unchanged** — company-wide session lock (“In use”) still wraps the tenant shell for `businessType=service` on enrolled Electron/Capacitor clients. Phone IA does not relax seats. No internet → frozen (online-only).
+**`ServiceCloudGate`** wraps Cap Online + Cloud Electron for any cloud business type (browser skipped). Service tenants get company-wide session lock (“In use”); non-service get device claim only (multi-user). Phone IA does not relax seats. No internet → frozen (online-only). Non-service Cap Online nav is filtered by SA `mobile_features`.
 
 Do **not** use `isServicePhoneUx` for PGlite, Sync, license, or demo seed — those stay Offline-only.
 

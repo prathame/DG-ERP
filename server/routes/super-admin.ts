@@ -19,6 +19,8 @@ import {
 } from '../download-defaults';
 import { getTabPreset, isBusinessTypeWithCustom, isNamedBusinessType } from '../../shared/tabPresets';
 import { defaultMobileFeatures, normalizeMobileFeatures } from '../../shared/mobileFeatures';
+import { encryptSecret } from '../utils/secret-crypto';
+import { isWhatsAppSendMode } from '../utils/whatsappBusiness';
 
 const router = Router();
 
@@ -367,6 +369,13 @@ router.get('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
         accountsEnabled: tenant.accounts_enabled !== false,
         purchasesEnabled: tenant.purchases_enabled !== false,
         chatbotEnabled: tenant.chatbot_enabled !== false,
+        whatsappBusinessEnabled: !!tenant.whatsapp_business_enabled,
+        whatsappSendMode: (tenant.whatsapp_send_mode as string) || null,
+        whatsappPhoneNumberId: (tenant.whatsapp_phone_number_id as string) || '',
+        whatsappAccessTokenConfigured: !!(tenant.whatsapp_access_token as string),
+        whatsappAccessToken: tenant.whatsapp_access_token ? '••••••••' : '',
+        whatsappWabaId: (tenant.whatsapp_waba_id as string) || '',
+        whatsappDisplayPhone: (tenant.whatsapp_display_phone as string) || '',
         trialEndsAt: tenant.trial_ends_at,
         subscriptionEndsAt: tenant.subscription_ends_at,
         createdAt: tenant.created_at,
@@ -477,6 +486,44 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
       params.push(!!requestBody.chatbotEnabled);
       idx++;
     }
+    if (requestBody.whatsappBusinessEnabled !== undefined) {
+      updates.push(`whatsapp_business_enabled = $${idx}`);
+      params.push(!!requestBody.whatsappBusinessEnabled);
+      idx++;
+    }
+    if (requestBody.whatsappSendMode !== undefined) {
+      const mode = requestBody.whatsappSendMode;
+      if (mode !== null && mode !== '' && !isWhatsAppSendMode(mode)) {
+        return res.status(400).json({ error: 'whatsappSendMode must be company, company_selected, or per_user' });
+      }
+      updates.push(`whatsapp_send_mode = $${idx}`);
+      params.push(mode || null);
+      idx++;
+    }
+    if (requestBody.whatsappPhoneNumberId !== undefined) {
+      updates.push(`whatsapp_phone_number_id = $${idx}`);
+      params.push(String(requestBody.whatsappPhoneNumberId || '').trim() || null);
+      idx++;
+    }
+    if (requestBody.whatsappAccessToken !== undefined) {
+      const tok = String(requestBody.whatsappAccessToken || '').trim();
+      // Empty / mask placeholder → keep existing secret
+      if (tok && tok !== '••••••••' && !/^•+$/.test(tok)) {
+        updates.push(`whatsapp_access_token = $${idx}`);
+        params.push(encryptSecret(tok));
+        idx++;
+      }
+    }
+    if (requestBody.whatsappWabaId !== undefined) {
+      updates.push(`whatsapp_waba_id = $${idx}`);
+      params.push(String(requestBody.whatsappWabaId || '').trim() || null);
+      idx++;
+    }
+    if (requestBody.whatsappDisplayPhone !== undefined) {
+      updates.push(`whatsapp_display_phone = $${idx}`);
+      params.push(String(requestBody.whatsappDisplayPhone || '').trim() || null);
+      idx++;
+    }
     if (requestBody.businessType !== undefined && isNamedBusinessType(requestBody.businessType)) {
       updates.push(`business_type = $${idx}`);
       params.push(requestBody.businessType);
@@ -511,6 +558,13 @@ router.put('/api/super-admin/tenants/:id', superAdminMiddleware, async (req, res
       accountsEnabled: tenant.accounts_enabled !== false,
       purchasesEnabled: tenant.purchases_enabled !== false,
       chatbotEnabled: tenant.chatbot_enabled !== false,
+      whatsappBusinessEnabled: !!tenant.whatsapp_business_enabled,
+      whatsappSendMode: (tenant.whatsapp_send_mode as string) || null,
+      whatsappPhoneNumberId: (tenant.whatsapp_phone_number_id as string) || '',
+      whatsappAccessTokenConfigured: !!(tenant.whatsapp_access_token as string),
+      whatsappAccessToken: tenant.whatsapp_access_token ? '••••••••' : '',
+      whatsappWabaId: (tenant.whatsapp_waba_id as string) || '',
+      whatsappDisplayPhone: (tenant.whatsapp_display_phone as string) || '',
       tabConfig: tenant.tab_config ?? null,
     });
   } catch (err) {

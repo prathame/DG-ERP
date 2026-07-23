@@ -1,10 +1,10 @@
 ---
 sidebar_label: Routes Catalog
-title: Routes Catalog — All 34 Routers
+title: Routes Catalog — All 35 Routers
 description: Every Express router mounted in server/app.ts, the domain it owns, permission module, and who calls it.
 ---
 
-# Routes Catalog — All 34 Routers
+# Routes Catalog — All 35 Routers
 
 :::tip Mental model
 One file ≈ one business domain. Mounted in `createApp()` after global JWT + `enforceModulePermissions`. If you add a route file, you must also update `PATH_MODULE` in `permissions.ts` or authz silently skips it.
@@ -53,6 +53,7 @@ flowchart TB
 | `gst-api.ts` | `/api/gst/*` | `accounts` | NIC IRN/EWB settings + generate |
 | `invoices.ts` | `/api/invoices` | `sales` | Standalone invoices; optional `partyType`/`partyId` on create |
 | `chatbot.ts` | `/api/chatbot` | `dashboard` | Rule-based NLQ; 30/min limiter |
+| `whatsapp.ts` | `/api/whatsapp/send` | *(auth only — unmapped)* | Optional Meta Cloud API text send; see [WhatsApp Business](/api/whatsapp-business) |
 | `bill-settings.ts` | `/api/settings/bill` | `settings` | Bill branding |
 | `reports.ts` | `/api/reports/*` | `accounts` | Registers + GSTR-1; `blockVendors` |
 | `purchases.ts` | `/api/purchases`, `/api/suppliers`, `/api/supplier-finance` | `purchases` | Stock-creating purchase batches |
@@ -61,7 +62,7 @@ flowchart TB
 | `price-lists.ts` | `/api/price-lists` | `inventory` | Slabs + `/resolve` + `/bulk` name import |
 | `accounts.ts` | `/api/accounts/*`, `/api/gstr3b`, `/api/gstr2b` | `accounts` | P&L, BS, CF, ledger; `blockVendors` |
 
-**Count:** 34 routers imported in `app.ts` (matches the table).
+**Count:** 35 routers imported in `app.ts` (matches the table).
 
 ## Public paths (bypass global JWT)
 
@@ -73,7 +74,7 @@ Defined in `PUBLIC_PATHS` inside `app.ts`:
 
 Everything else → Bearer JWT required.
 
-## How to add a 35th router (checklist)
+## How to add a 36th router (checklist)
 
 1. Create `server/routes/foo.ts` exporting `default router`  
 2. `import` + `app.use(fooRouter)` in `app.ts`  

@@ -3,6 +3,7 @@ import { twMerge } from 'tailwind-merge';
 
 import { clientLogger, ensureCorrelationId, pushClientBreadcrumb } from './logger';
 import { session } from './session';
+import { canUseWhatsAppBusinessApi, trySendWhatsAppBusiness } from './whatsappSend';
 
 /** Truncate error text for toasts / breadcrumbs (no stacks, no secrets). */
 export function truncateShareError(err: unknown, max = 80): string {
@@ -460,7 +461,11 @@ export async function shareInvoiceSummaryViaWhatsApp(opts: {
   const phone = (opts.phone || '').trim();
   // Prefer WhatsApp-targeted wa.me — Cap Share.share is a generic chooser (often surfaces Gmail).
   if (phone) {
-    shareViaWhatsApp(phone, opts.message);
+    if (canUseWhatsAppBusinessApi() && (await trySendWhatsAppBusiness(phone, opts.message))) {
+      waShareLog('info', 'WhatsApp text share via Cloud API', { ...ctx, shareMode: 'cloud-api' });
+      return 'summary';
+    }
+    openPersonalWhatsApp(phone, opts.message);
     waShareLog('info', 'WhatsApp text share via wa.me', { ...ctx, shareMode: 'wa.me' });
     return 'summary';
   }
@@ -1040,11 +1045,27 @@ export async function saveBillAsPdf(html: string, filename?: string, win?: Windo
   return true;
 }
 
-export function shareViaWhatsApp(phone: string, message: string) {
+/** Personal WhatsApp (wa.me) — no Business API. */
+export function openPersonalWhatsApp(phone: string, message: string) {
   let p = phone.replace(/[\s\-().+]/g, '');
   if (p.length === 10 && /^\d+$/.test(p)) p = '91' + p;
   if (p.startsWith('0')) p = '91' + p.slice(1);
   window.open(`https://wa.me/${p}?text=${encodeURIComponent(message)}`, '_blank');
+}
+
+/**
+ * Prefer Meta Cloud API when tenant Business is ON + user eligible; else personal wa.me.
+ * Business OFF / ineligible stays synchronous (wa.me). Business ON is async with personal fallback.
+ */
+export function shareViaWhatsApp(phone: string, message: string) {
+  if (!canUseWhatsAppBusinessApi()) {
+    openPersonalWhatsApp(phone, message);
+    return;
+  }
+  void (async () => {
+    if (await trySendWhatsAppBusiness(phone, message)) return;
+    openPersonalWhatsApp(phone, message);
+  })();
 }
 
 /** WhatsApp payment-reminder text for vendor receivables (Distribution / Vendor Finance). */

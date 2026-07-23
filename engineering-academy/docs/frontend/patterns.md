@@ -147,7 +147,7 @@ The `user` object's shape has grown organically over the product's life (see the
 | `isServicePhoneUx(businessType)` | Shared Emergent phone IA: bottom nav, Masters pill set, dense hubs, PDF download affordances, global search → Price List |
 | `isServiceMobileMode()` | Offline-only: PGlite, Sync Now, demo seed, Show Accounts, advances, license/heartbeat |
 
-Online Service Cloud Capacitor (`businessType=service`) shares the first; it must **not** get the second. Seat lock stays on `ServiceCloudGate` either way. See [Cloud Mobile UX](./cloud-mobile.md).
+Online Cap + `businessType=service` shares the first; it must **not** get the second. `ServiceCloudGate` still runs for Cap Online / Cloud Electron (service = company lock; non-service = claim only). See [Cloud Mobile UX](./cloud-mobile.md).
 
 ## Quiz
 

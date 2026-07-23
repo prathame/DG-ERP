@@ -189,7 +189,7 @@ This code **never** runs in a browser tab or a Capacitor WebView — it's Node.j
 
 ## `android/`, `ios/` — Capacitor native shells
 
-Committed Capacitor projects for **Service Mobile** (`in.dhandho.service`). Prefer `npm run cap:sync` / `ci:android` / `ci:ios` over hand-editing; `Package.swift` is Capacitor-managed. Offline Android + iOS debug CI: **GitLab** (`.gitlab-ci.yml`); Online APK + public evergreen APK URL: GitHub Actions (see [Service Mobile](/deployment/service-mobile)).
+Committed Capacitor project for the **unified Cap phone** (`in.dhandho.service` — Online/Offline latch). Prefer `npm run cap:sync` / `ci:android` / `ci:ios` over hand-editing; `Package.swift` is Capacitor-managed. Offline Android + iOS debug CI: **GitLab** (`.gitlab-ci.yml`); public evergreen APK (`dhandho-mobile`): GitHub Actions (see [Service Mobile](/deployment/service-mobile)).
 
 
 ## `public/`

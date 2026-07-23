@@ -275,11 +275,14 @@ export function InvoicesView() {
       </div>
     );
 
-  const outstanding = invoices
-    .filter(i => i.status !== 'paid' && i.status !== 'cancelled')
+  // Deleted invoices are soft-cancelled — never show them in the working list.
+  const activeInvoices = invoices.filter(i => i.status !== 'cancelled');
+  const outstanding = activeInvoices
+    .filter(i => i.status !== 'paid')
     .reduce((s, i) => s + (typeof i.outstanding === 'number' ? i.outstanding : i.grandTotal || 0), 0);
-  const paidTotal = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.grandTotal || 0), 0);
-  const filteredInvoices = statusFilter === 'all' ? invoices : invoices.filter(i => i.status === statusFilter);
+  const paidTotal = activeInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.grandTotal || 0), 0);
+  const filteredInvoices =
+    statusFilter === 'all' ? activeInvoices : activeInvoices.filter(i => i.status === statusFilter);
 
   return (
     <motion.div
@@ -293,7 +296,7 @@ export function InvoicesView() {
             <FileText size={22} className="shrink-0" /> {invoicesLabel}
           </h2>
           <p className="text-sm text-gray-500">
-            {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
+            {activeInvoices.length} invoice{activeInvoices.length !== 1 ? 's' : ''}
           </p>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
@@ -349,7 +352,7 @@ export function InvoicesView() {
       </div>
 
       {/* Invoice list */}
-      {invoices.length === 0 ? (
+      {activeInvoices.length === 0 ? (
         <>
           <div className="sm:hidden">
             <MobileEmptyState

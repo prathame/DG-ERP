@@ -1,7 +1,7 @@
 ---
 sidebar_label: Service Cloud Seats
 title: Service Cloud Seats Deployment
-description: Online Capacitor + Cloud Electron for service cloud seats.
+description: Online Capacitor + Cloud Electron seats for any cloud business type.
 ---
 
 # Service Cloud Seats Deployment
@@ -37,27 +37,25 @@ npm run build:electron:desktop:win
 npm run build:electron:desktop:mac
 # At first launch choose Online
 
-# Unified Cap phone (Online/Offline picker) — preferred
+# Unified Cap phone (Online/Offline picker) — one APK
 npm run build:service-phone          # → dist-service-phone
-# Legacy Online-only Vite mode (deprecated):
-npm run build:service-cloud          # → dist-service-cloud (relative base)
-npm run cap:sync:cloud               # sync + set applicationId in.dhandho.servicecloud
+npm run cap:sync                     # applicationId in.dhandho.service
 # Then: cd android && ./gradlew assembleDebug
-# Restore Offline android identity: npm run cap:sync
 ```
 
-Capacitor `sync` alone does **not** change `applicationId` on an existing `android/` project. `scripts/android-set-product.sh` rewrites it after sync so Online (`in.dhandho.servicecloud`) can install beside Offline (`in.dhandho.service`). Do not mix installers.
+**One phone APK** (`in.dhandho.service`). Online vs Offline is a first-launch latch, not a second installer. Legacy `cap:sync:cloud` / `in.dhandho.servicecloud` paths are deprecated — see [Cloud mobile companion](./cloud-mobile-companion.md).
 
 ## SA onboarding (user-wise)
 
-1. Create/open a **service** cloud tenant  
-2. Tenant detail → **Service cloud seats**  
-3. Set access mode (`mobile` / `desktop` / `both`)  
+1. Super Admin → **Cloud** → create/open any cloud company (service, manufacturer, silver, …)  
+2. Set **Need mobile app?** → `client_access_mode` `both` or `desktop`; for non-service companions set **mobile features**  
+3. Tenant detail → **Cloud app seats**  
 4. **Add users** — each card has name/email/password, **Mobile** + **Laptop/Desktop** slot counts  
 5. Per user: **Share reset link** (copy for WhatsApp), **Notify** (in-app, that user only), Unbind devices  
-6. Staff install ONLINE apps from `/download` → login binds the matching slot (Cap vs Electron auto-detected)
+6. Staff install the **one** phone app from `/download` → pick **Online** → company slug → login binds the Cap slot (Electron Online binds desktop)
 
-Example: 3 users × 1 mobile + 1 laptop each. Still **one live session** for the whole company.
+Example (service): 3 users × 1 mobile + 1 laptop each → **one live session** company-wide (Netflix freeze).  
+Example (manufacturer): multi-user Cap/Electron; **no** company-wide freeze — device slots + DB locks on money writes.
 
 Password reset is **online/cloud only** (shareable link per user). Tenant-wide notify on tenant detail still blasts everyone; seats **Notify** targets one `user_id`.
 
@@ -67,7 +65,7 @@ Password reset is **online/cloud only** (shareable link per user). Tenant-wide n
 - Stuck “In use” → wait for 5‑minute idle or holder release (no force-takeover in v1)  
 - Guide: Super Admin → Guide → “Onboard Service Cloud Seats”
 
-## Phone UX (service Capacitor)
+## Phone UX (Cap Online)
 
 **First open (no session):** Online Cap and Cloud Electron show **company slug entry** (current host prefix, e.g. `dhandho-2kdx.onrender.com/your-company` → Continue → branded login on the **same origin**). They do **not** show the public marketing LandingPage (that stays for browser `/` only). Last-used company is restored from `dg_last_slug`; **Change company** on login returns to slug entry. Cap and Cloud Electron keep **Share bug report** on that screen (same helper as login / Settings — Cap saves under `Dhandho/bug-reports`; Electron uses clipboard / download).
 
@@ -75,9 +73,12 @@ Password reset is **online/cloud only** (shareable link per user). Tenant-wide n
 
 **Ops note:** Cap/Electron default to `https://dhandho-2kdx.onrender.com`. Set Render `PUBLIC_APP_URL` / `ALLOWED_ORIGINS` to that URL — see [Render](./render.md).
 
-Online Capacitor + `businessType=service` uses the same Emergent phone IA as Offline Mobile via `isServicePhoneUx()` — bottom tabs Analytics · Masters · Invoice · Quotes · More; Masters shows Prices (not Products); Analytics/bill settings match Offline phone chrome. **Live · Online** badge on Cap only (desktop Electron UI untouched). **Session lock / `ServiceCloudGate` is unchanged.** Sync Now, demo seed, Show Accounts, and client advances stay Offline-only.
+- Online Cap + `businessType=service` → Emergent IA via `isServicePhoneUx()` (Analytics · Masters · Invoice · Quotes · More; Masters Prices-not-Products).
+- `ServiceCloudGate` wraps **all** cloud Cap + Cloud Electron clients (not browser). Service = company-wide Netflix session lock; non-service = device claim only (multi-user, no company freeze).
+- Non-service Cap Online uses the companion shell filtered by SA `mobile_features` (stock / sales / quotations / collections / reports / chatbot).
+- Browser is **not** enrolled in device seats.
 
-Manufacturer cloud phones keep Stock/Finance-style primaries. Browser (non-Capacitor) does not get the service phone IA from type alone.
+**Live · Online** badge on Cap only (desktop Electron UI untouched). Sync Now, demo seed, Show Accounts, and client advances stay Offline-only.
 
 See [Cloud Mobile UX](/frontend/cloud-mobile). Unit: `tests/unit/service-phone-ux.test.ts`.
 

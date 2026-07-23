@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Package,
@@ -37,6 +38,8 @@ import { useToast, LoadingSpinner, PaidBadge, PaidStamp, isBillFullyPaid } from 
 import { generateDistributionChallanHtml, buildDistributionBillSlice } from '../../lib/billTemplates';
 import { buildGstPrintOptions } from '../../lib/buildGstPrintOptions';
 import { deliveryPrintAvailability, printDistributionDocs } from '../../lib/printDistributionDocs';
+import { shareDistributionDocsWhatsApp } from '../../lib/shareDistributionWhatsApp';
+import { whatsAppInvoiceShareToast } from '../../lib/printStandaloneInvoice';
 import { deliveryDocKind, deliveryDocLabel, deliveryDocNos } from '../../lib/deliveryDocKind';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
@@ -48,6 +51,11 @@ import {
   filterVendorsForReminder,
   type CompanyReminderSettings,
 } from '../../lib/paymentReminders';
+import {
+  adjustUnitPriceForGstToggle,
+  displayUnitPriceForGst,
+  linePricesAfterDiscount,
+} from '../../lib/gstInclusivePrice';
 
 /** Non-service list/detail badge: Tax Invoice / Bill of Supply / Mixed (+ doc nos when dual). */
 function DeliveryDocBadge({
@@ -436,10 +444,14 @@ export function DistributionView({
       minQuantity: number;
       discount: number;
       withGst: boolean;
+      customPrice: string;
+      priceIncludesGst: boolean;
+      gstRate: number;
       availableStock: number;
       isNew?: boolean;
     }[]
   >([]);
+  const editHeaderGstRef = useRef<HTMLInputElement>(null);
   const [removeConfirm, setRemoveConfirm] = useState<{ idx: number; name: string; qty: number } | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
@@ -461,6 +473,8 @@ export function DistributionView({
   >({});
   const [reminderSettings, setReminderSettings] = useState<CompanyReminderSettings>(DEFAULT_REMINDER_SETTINGS);
   const [batchActionsOpen, setBatchActionsOpen] = useState(false);
+  const batchActionsBtnRef = useRef<HTMLButtonElement>(null);
+  const [batchActionsPos, setBatchActionsPos] = useState<{ top: number; left: number } | null>(null);
   const [batchPaymentModal, setBatchPaymentModal] = useState<{
     batchId: string;
     vendorId: string;
@@ -520,6 +534,31 @@ export function DistributionView({
     }
     return false;
   });
+
+  // Cap Online / non-service: keep batch ⋮ menu inside the viewport (absolute+right clips off-screen).
+  useEffect(() => {
+    if (!batchActionsOpen || isServiceBiz) {
+      setBatchActionsPos(null);
+      return;
+    }
+    const MENU_W = 220;
+    const PAD = 8;
+    const update = () => {
+      const el = batchActionsBtnRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      let left = rect.right - MENU_W;
+      left = Math.max(PAD, Math.min(left, window.innerWidth - MENU_W - PAD));
+      setBatchActionsPos({ top: rect.bottom + 4, left });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [batchActionsOpen, isServiceBiz]);
 
   const challanOptions = (forVendorId: string) => {
     const f = financeMap[forVendorId];
@@ -736,15 +775,31 @@ export function DistributionView({
         setEditBatchModal(detail);
         setEditDate(detail.distributionDate);
         setEditRows(
-          detail.items.map(i => ({
-            productId: i.productId,
-            productName: i.productName,
-            quantity: i.quantity,
-            minQuantity: i.minQuantity,
-            discount: i.discountPercent,
-            withGst: i.withGst,
-            availableStock: i.availableStock,
-          })),
+          detail.items.map(i => {
+            const p = products.find(pr => pr.id === i.productId);
+            const gstRate = i.gstRate ?? p?.gstRate ?? defaultGstRate;
+            const priceIncludesGst = i.priceIncludesGst ?? !!p?.priceIncludesGst;
+            const unit =
+              i.unitPrice != null && Number(i.unitPrice) > 0
+                ? Number(i.unitPrice)
+                : displayUnitPriceForGst(p?.price ?? 0, {
+                    withGst: i.withGst,
+                    priceIncludesGst,
+                    gstRate,
+                  });
+            return {
+              productId: i.productId,
+              productName: i.productName,
+              quantity: i.quantity,
+              minQuantity: i.minQuantity,
+              discount: i.discountPercent,
+              withGst: i.withGst,
+              customPrice: unit ? String(unit) : '',
+              priceIncludesGst,
+              gstRate,
+              availableStock: i.availableStock,
+            };
+          }),
         );
       })
       .catch(err => toast(err.message, 'error'));
@@ -753,6 +808,49 @@ export function DistributionView({
   const updateEditRow = (idx: number, field: string, value: string | number | boolean) => {
     setEditRows(rows => rows.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
   };
+
+  const editRowMoney = (row: (typeof editRows)[number]) => {
+    const p = products.find(x => x.id === row.productId);
+    const rate = row.gstRate || p?.gstRate || defaultGstRate;
+    const includes = row.priceIncludesGst || !!p?.priceIncludesGst;
+    const unit = row.customPrice
+      ? parseFloat(row.customPrice)
+      : displayUnitPriceForGst(p?.price ?? 0, {
+          withGst: row.withGst,
+          priceIncludesGst: includes,
+          gstRate: rate,
+        });
+    return linePricesAfterDiscount({
+      unitPrice: unit || 0,
+      quantity: row.quantity || 0,
+      discountPercent: row.discount || 0,
+      withGst: row.withGst,
+      priceIncludesGst: includes && row.withGst,
+      gstRate: rate,
+    });
+  };
+
+  const editTotals = editRows.reduce(
+    (acc, r) => {
+      const m = editRowMoney(r);
+      acc.gross += m.gross;
+      acc.discount += m.discount;
+      acc.net += m.net;
+      acc.gst += m.gst;
+      acc.billed += m.billed;
+      acc.items += r.quantity || 0;
+      return acc;
+    },
+    { gross: 0, discount: 0, net: 0, gst: 0, billed: 0, items: 0 },
+  );
+
+  const editAllGst = editRows.length > 0 && editRows.every(r => r.withGst);
+  const editSomeGst = editRows.some(r => r.withGst);
+  useEffect(() => {
+    if (editHeaderGstRef.current) {
+      editHeaderGstRef.current.indeterminate = editSomeGst && !editAllGst;
+    }
+  }, [editSomeGst, editAllGst]);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -1137,8 +1235,9 @@ export function DistributionView({
                           </button>
                         )}
                         {!isVendorUser && !selectedBatchProductId && (
-                          <div className="relative">
+                          <div className="relative shrink-0">
                             <button
+                              ref={batchActionsBtnRef}
                               type="button"
                               onClick={() => setBatchActionsOpen(!batchActionsOpen)}
                               className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
@@ -1149,253 +1248,285 @@ export function DistributionView({
                             {batchActionsOpen && (
                               <>
                                 <div className="fixed inset-0 z-[50]" onClick={() => setBatchActionsOpen(false)} />
-                                <div className="absolute right-0 top-full mt-1 z-[51] bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[180px]">
-                                  {canPrint && useHalfTabs && (
-                                    <button
-                                      type="button"
-                                      disabled={!halfHasLines}
-                                      onClick={() => {
-                                        if (!halfHasLines) return;
-                                        setBatchActionsOpen(false);
-                                        const kind = deliveryHalf === 'gst' ? 'gst' : 'bos';
-                                        api.distribution
-                                          .getBill(billParams(selectedBatch.batchId))
-                                          .then(bill => {
-                                            const avail = deliveryPrintAvailability(bill);
-                                            const paid = challanOptions(selectedVendorId!).fullyPaid;
-                                            if (kind === 'gst' && !avail.hasGst) {
-                                              toast('No Tax Invoice lines on this delivery', 'info');
-                                              return;
-                                            }
-                                            if (kind === 'bos' && !avail.hasBos) {
-                                              toast('No Bill of Supply lines on this delivery', 'info');
-                                              return;
-                                            }
-                                            return printDistributionDocs(bill, kind, paid);
-                                          })
-                                          .catch(err => toast(err.message, 'error'));
-                                      }}
+                                {(() => {
+                                  const panel = (
+                                    <div
                                       className={cn(
-                                        'w-full px-4 py-2 text-left text-sm flex items-center gap-2',
-                                        halfHasLines ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed',
-                                        deliveryHalf === 'gst' ? 'text-emerald-700' : 'text-amber-700',
+                                        'z-[51] bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[180px]',
+                                        !inPlaceNav && 'absolute right-0 top-full mt-1',
                                       )}
-                                      title={
-                                        halfHasLines
-                                          ? undefined
-                                          : deliveryHalf === 'gst'
-                                            ? 'No Tax Invoice lines to print'
-                                            : 'No Bill of Supply lines to print'
+                                      style={
+                                        inPlaceNav
+                                          ? batchActionsPos
+                                            ? {
+                                                position: 'fixed',
+                                                top: batchActionsPos.top,
+                                                left: batchActionsPos.left,
+                                                width: 220,
+                                              }
+                                            : { position: 'fixed', visibility: 'hidden' }
+                                          : undefined
                                       }
                                     >
-                                      <Printer size={14} />{' '}
-                                      {deliveryHalf === 'gst' ? 'Print Tax Invoice' : 'Print Bill of Supply'}
-                                      {!halfHasLines && (
-                                        <span className="ml-auto text-[10px] font-normal text-gray-400">none</span>
+                                      {canPrint && useHalfTabs && (
+                                        <button
+                                          type="button"
+                                          disabled={!halfHasLines}
+                                          onClick={() => {
+                                            if (!halfHasLines) return;
+                                            setBatchActionsOpen(false);
+                                            const kind = deliveryHalf === 'gst' ? 'gst' : 'bos';
+                                            api.distribution
+                                              .getBill(billParams(selectedBatch.batchId))
+                                              .then(bill => {
+                                                const avail = deliveryPrintAvailability(bill);
+                                                const paid = challanOptions(selectedVendorId!).fullyPaid;
+                                                if (kind === 'gst' && !avail.hasGst) {
+                                                  toast('No Tax Invoice lines on this delivery', 'info');
+                                                  return;
+                                                }
+                                                if (kind === 'bos' && !avail.hasBos) {
+                                                  toast('No Bill of Supply lines on this delivery', 'info');
+                                                  return;
+                                                }
+                                                return printDistributionDocs(bill, kind, paid);
+                                              })
+                                              .catch(err => toast(err.message, 'error'));
+                                          }}
+                                          className={cn(
+                                            'w-full px-4 py-2 text-left text-sm flex items-center gap-2',
+                                            halfHasLines ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed',
+                                            deliveryHalf === 'gst' ? 'text-emerald-700' : 'text-amber-700',
+                                          )}
+                                          title={
+                                            halfHasLines
+                                              ? undefined
+                                              : deliveryHalf === 'gst'
+                                                ? 'No Tax Invoice lines to print'
+                                                : 'No Bill of Supply lines to print'
+                                          }
+                                        >
+                                          <Printer size={14} />{' '}
+                                          {deliveryHalf === 'gst' ? 'Print Tax Invoice' : 'Print Bill of Supply'}
+                                          {!halfHasLines && (
+                                            <span className="ml-auto text-[10px] font-normal text-gray-400">none</span>
+                                          )}
+                                        </button>
                                       )}
-                                    </button>
-                                  )}
-                                  {canPrint && !useHalfTabs && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBatchActionsOpen(false);
-                                        api.distribution
-                                          .getBill(billParams(selectedBatch.batchId))
-                                          .then(async bill => {
-                                            const avail = deliveryPrintAvailability(bill);
-                                            const paid = challanOptions(selectedVendorId!).fullyPaid;
-                                            if (avail.isDual) {
-                                              await printDistributionDocs(bill, 'both', paid);
-                                            } else if (avail.hasGst) {
-                                              await printDistributionDocs(bill, 'gst', paid);
-                                            } else {
-                                              await printDistributionDocs(bill, 'bos', paid);
-                                            }
-                                          })
-                                          .catch(err => toast(err.message, 'error'));
-                                      }}
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-brand"
-                                    >
-                                      <Printer size={14} /> Print invoice(s)
-                                    </button>
-                                  )}
-                                  {canPrint && !useHalfTabs && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBatchActionsOpen(false);
-                                        api.distribution
-                                          .getBill(billParams(selectedBatch.batchId))
-                                          .then(bill => {
-                                            const avail = deliveryPrintAvailability(bill);
-                                            const paid = challanOptions(selectedVendorId!).fullyPaid;
-                                            if (!avail.hasGst) {
-                                              toast('No Tax Invoice lines on this delivery', 'info');
-                                              return;
-                                            }
-                                            return printDistributionDocs(bill, 'gst', paid);
-                                          })
-                                          .catch(err => toast(err.message, 'error'));
-                                      }}
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-emerald-700"
-                                    >
-                                      <Printer size={14} /> Print Tax Invoice
-                                    </button>
-                                  )}
-                                  {canPrint && !useHalfTabs && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBatchActionsOpen(false);
-                                        api.distribution
-                                          .getBill(billParams(selectedBatch.batchId))
-                                          .then(bill => {
-                                            const avail = deliveryPrintAvailability(bill);
-                                            const paid = challanOptions(selectedVendorId!).fullyPaid;
-                                            if (!avail.hasBos) {
-                                              toast('No Bill of Supply lines on this delivery', 'info');
-                                              return;
-                                            }
-                                            return printDistributionDocs(bill, 'bos', paid);
-                                          })
-                                          .catch(err => toast(err.message, 'error'));
-                                      }}
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-amber-700"
-                                    >
-                                      <Printer size={14} /> Print Bill of Supply
-                                    </button>
-                                  )}
-                                  {canUseSplitBill && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBatchActionsOpen(false);
-                                        api.distribution
-                                          .getBill(billParams(selectedBatch.batchId))
-                                          .then(bill => {
-                                            setSplitBillModal({ bill });
-                                            setSplitGstQty(
-                                              bill.savedGstUnits > 0
-                                                ? bill.savedGstUnits
-                                                : Math.ceil(bill.totalQuantity / 2),
-                                            );
-                                          })
-                                          .catch(err => toast(err.message, 'error'));
-                                      }}
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-purple-600"
-                                    >
-                                      <Package size={14} /> Adjust GST split
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setBatchActionsOpen(false);
-                                      api.distribution
-                                        .getBill(billParams(selectedBatch.batchId))
-                                        .then(bill => {
-                                          const phone = bill.vendor.phone;
-                                          if (!phone) {
-                                            toast('No vendor phone number on record', 'error');
-                                            return;
-                                          }
-                                          shareViaWhatsApp(phone, formatDistributionChallanText(bill));
-                                        })
-                                        .catch(err => toast(err.message, 'error'));
-                                    }}
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-green-600"
-                                  >
-                                    <MessageCircle size={14} /> WhatsApp Challan
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setBatchActionsOpen(false);
-                                      api.distribution
-                                        .getBill(billParams(selectedBatch.batchId))
-                                        .then(bill => {
-                                          const email = bill.vendor.email || '';
-                                          if (!email) {
-                                            toast('No vendor email on record — enter email manually', 'info');
-                                          }
-                                          shareViaEmail(
-                                            email,
-                                            `Distribution Challan ${bill.challanId} — ${bill.company.name}`,
-                                            formatDistributionChallanText(bill),
-                                          );
-                                        })
-                                        .catch(err => toast(err.message, 'error'));
-                                    }}
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-blue-600"
-                                  >
-                                    <Mail size={14} /> Email Challan
-                                  </button>
-                                  {(!useHalfTabs || deliveryHalf === 'gst') && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBatchActionsOpen(false);
-                                        fetch(`/api/distribution/einvoice?batchId=${selectedBatch.batchId}`, {
-                                          headers: {
-                                            Authorization: `Bearer ${session.getToken()}`,
-                                            'X-Tenant-ID': session.getTenantId() || '',
-                                          },
-                                        })
-                                          .then(r => r.json())
-                                          .then(data => {
-                                            const blob = new Blob([JSON.stringify(data, null, 2)], {
-                                              type: 'application/json',
-                                            });
-                                            const url = URL.createObjectURL(blob);
-                                            const a = document.createElement('a');
-                                            a.href = url;
-                                            a.download = `E-Invoice-${selectedBatch.batchId}.json`;
-                                            a.click();
-                                            URL.revokeObjectURL(url);
-                                            toast('E-Invoice JSON downloaded', 'success');
-                                          })
-                                          .catch(err => toast(err.message, 'error'));
-                                      }}
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-indigo-600"
-                                    >
-                                      <Download size={14} /> E-Invoice JSON
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setBatchActionsOpen(false);
-                                      setEWayBillModal(selectedBatch.batchId);
-                                      setEWayForm({
-                                        vehicleNo: '',
-                                        transportMode: 'Road',
-                                        distance: '',
-                                        transporterName: '',
-                                        transporterId: '',
-                                      });
-                                    }}
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-teal-600"
-                                  >
-                                    <Truck size={14} /> E-Way Bill
-                                  </button>
-                                  {canEdit && batchCanDelete && (
-                                    <>
-                                      <div className="border-t border-gray-100 my-1" />
+                                      {canPrint && !useHalfTabs && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setBatchActionsOpen(false);
+                                            api.distribution
+                                              .getBill(billParams(selectedBatch.batchId))
+                                              .then(async bill => {
+                                                const avail = deliveryPrintAvailability(bill);
+                                                const paid = challanOptions(selectedVendorId!).fullyPaid;
+                                                if (avail.isDual) {
+                                                  await printDistributionDocs(bill, 'both', paid);
+                                                } else if (avail.hasGst) {
+                                                  await printDistributionDocs(bill, 'gst', paid);
+                                                } else {
+                                                  await printDistributionDocs(bill, 'bos', paid);
+                                                }
+                                              })
+                                              .catch(err => toast(err.message, 'error'));
+                                          }}
+                                          className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-brand"
+                                        >
+                                          <Printer size={14} /> Print invoice(s)
+                                        </button>
+                                      )}
+                                      {canPrint && !useHalfTabs && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setBatchActionsOpen(false);
+                                            api.distribution
+                                              .getBill(billParams(selectedBatch.batchId))
+                                              .then(bill => {
+                                                const avail = deliveryPrintAvailability(bill);
+                                                const paid = challanOptions(selectedVendorId!).fullyPaid;
+                                                if (!avail.hasGst) {
+                                                  toast('No Tax Invoice lines on this delivery', 'info');
+                                                  return;
+                                                }
+                                                return printDistributionDocs(bill, 'gst', paid);
+                                              })
+                                              .catch(err => toast(err.message, 'error'));
+                                          }}
+                                          className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-emerald-700"
+                                        >
+                                          <Printer size={14} /> Print Tax Invoice
+                                        </button>
+                                      )}
+                                      {canPrint && !useHalfTabs && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setBatchActionsOpen(false);
+                                            api.distribution
+                                              .getBill(billParams(selectedBatch.batchId))
+                                              .then(bill => {
+                                                const avail = deliveryPrintAvailability(bill);
+                                                const paid = challanOptions(selectedVendorId!).fullyPaid;
+                                                if (!avail.hasBos) {
+                                                  toast('No Bill of Supply lines on this delivery', 'info');
+                                                  return;
+                                                }
+                                                return printDistributionDocs(bill, 'bos', paid);
+                                              })
+                                              .catch(err => toast(err.message, 'error'));
+                                          }}
+                                          className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-amber-700"
+                                        >
+                                          <Printer size={14} /> Print Bill of Supply
+                                        </button>
+                                      )}
+                                      {canUseSplitBill && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setBatchActionsOpen(false);
+                                            api.distribution
+                                              .getBill(billParams(selectedBatch.batchId))
+                                              .then(bill => {
+                                                setSplitBillModal({ bill });
+                                                setSplitGstQty(
+                                                  bill.savedGstUnits > 0
+                                                    ? bill.savedGstUnits
+                                                    : Math.ceil(bill.totalQuantity / 2),
+                                                );
+                                              })
+                                              .catch(err => toast(err.message, 'error'));
+                                          }}
+                                          className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-purple-600"
+                                        >
+                                          <Package size={14} /> Adjust GST split
+                                        </button>
+                                      )}
                                       <button
                                         type="button"
                                         onClick={() => {
                                           setBatchActionsOpen(false);
-                                          confirmDeleteBatch(selectedBatch.batchId);
+                                          api.distribution
+                                            .getBill(billParams(selectedBatch.batchId))
+                                            .then(async bill => {
+                                              const avail = deliveryPrintAvailability(bill);
+                                              const kind = avail.isDual ? 'both' : avail.hasGst ? 'gst' : 'bos';
+                                              try {
+                                                toast('Preparing PDF…', 'info');
+                                                const { how, errorHint } = await shareDistributionDocsWhatsApp(
+                                                  bill,
+                                                  kind,
+                                                );
+                                                if (how === 'cancelled') return;
+                                                toast(
+                                                  whatsAppInvoiceShareToast(how, errorHint),
+                                                  how === 'pdf_fallback' ? 'info' : 'success',
+                                                );
+                                              } catch (err) {
+                                                toast((err as Error).message, 'error');
+                                              }
+                                            })
+                                            .catch(err => toast(err.message, 'error'));
                                         }}
-                                        disabled={deleteSubmitting}
-                                        className="w-full px-4 py-2 text-left text-sm hover:bg-rose-50 flex items-center gap-2 text-rose-600"
+                                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-green-600"
                                       >
-                                        <Trash2 size={14} /> Delete
+                                        <MessageCircle size={14} /> WhatsApp Challan
                                       </button>
-                                    </>
-                                  )}
-                                </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setBatchActionsOpen(false);
+                                          api.distribution
+                                            .getBill(billParams(selectedBatch.batchId))
+                                            .then(bill => {
+                                              const email = bill.vendor.email || '';
+                                              if (!email) {
+                                                toast('No vendor email on record — enter email manually', 'info');
+                                              }
+                                              shareViaEmail(
+                                                email,
+                                                `Distribution Challan ${bill.challanId} — ${bill.company.name}`,
+                                                formatDistributionChallanText(bill),
+                                              );
+                                            })
+                                            .catch(err => toast(err.message, 'error'));
+                                        }}
+                                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-blue-600"
+                                      >
+                                        <Mail size={14} /> Email Challan
+                                      </button>
+                                      {(!useHalfTabs || deliveryHalf === 'gst') && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setBatchActionsOpen(false);
+                                            fetch(`/api/distribution/einvoice?batchId=${selectedBatch.batchId}`, {
+                                              headers: {
+                                                Authorization: `Bearer ${session.getToken()}`,
+                                                'X-Tenant-ID': session.getTenantId() || '',
+                                              },
+                                            })
+                                              .then(r => r.json())
+                                              .then(data => {
+                                                const blob = new Blob([JSON.stringify(data, null, 2)], {
+                                                  type: 'application/json',
+                                                });
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = `E-Invoice-${selectedBatch.batchId}.json`;
+                                                a.click();
+                                                URL.revokeObjectURL(url);
+                                                toast('E-Invoice JSON downloaded', 'success');
+                                              })
+                                              .catch(err => toast(err.message, 'error'));
+                                          }}
+                                          className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-indigo-600"
+                                        >
+                                          <Download size={14} /> E-Invoice JSON
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setBatchActionsOpen(false);
+                                          setEWayBillModal(selectedBatch.batchId);
+                                          setEWayForm({
+                                            vehicleNo: '',
+                                            transportMode: 'Road',
+                                            distance: '',
+                                            transporterName: '',
+                                            transporterId: '',
+                                          });
+                                        }}
+                                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-teal-600"
+                                      >
+                                        <Truck size={14} /> E-Way Bill
+                                      </button>
+                                      {canEdit && batchCanDelete && (
+                                        <>
+                                          <div className="border-t border-gray-100 my-1" />
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setBatchActionsOpen(false);
+                                              confirmDeleteBatch(selectedBatch.batchId);
+                                            }}
+                                            disabled={deleteSubmitting}
+                                            className="w-full px-4 py-2 text-left text-sm hover:bg-rose-50 flex items-center gap-2 text-rose-600"
+                                          >
+                                            <Trash2 size={14} /> Delete
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  );
+                                  return inPlaceNav ? createPortal(panel, document.body) : panel;
+                                })()}
                               </>
                             )}
                           </div>
@@ -2328,40 +2459,19 @@ export function DistributionView({
                     <button
                       type="button"
                       onClick={() => {
-                        const phone = bill.vendor.phone;
-                        if (!phone) {
-                          toast('No vendor phone number on record', 'error');
-                          return;
-                        }
-                        const gstHalf = makeSplitBill(
-                          gstItemsForPrint,
-                          gstItemsForPrint.reduce((s, i) => s + i.price, 0),
-                          gstDocNo,
-                          false,
-                        );
-                        const bosHalf = makeSplitBill(
-                          nonGstItemsForPrint,
-                          nonGstItemsForPrint.reduce((s, i) => s + i.price, 0),
-                          bosDocNo,
-                          true,
-                        );
-                        const text = [
-                          formatDistributionChallanText({
-                            ...gstHalf,
-                            irn: bill.irn,
-                            irnAckNo: bill.irnAckNo,
-                          }),
-                          '',
-                          '———',
-                          '',
-                          formatDistributionChallanText(bosHalf).replace(
-                            'DISTRIBUTION CHALLAN',
-                            'BILL OF SUPPLY (non-GST)',
-                          ),
-                          '',
-                          `Batch outstanding (combined): ₹${(bill.totalBilled ?? combinedBillTotal).toLocaleString()}`,
-                        ].join('\n');
-                        shareViaWhatsApp(phone, text);
+                        void (async () => {
+                          try {
+                            toast('Preparing PDF…', 'info');
+                            const { how, errorHint } = await shareDistributionDocsWhatsApp(bill, 'both');
+                            if (how === 'cancelled') return;
+                            toast(
+                              whatsAppInvoiceShareToast(how, errorHint),
+                              how === 'pdf_fallback' ? 'info' : 'success',
+                            );
+                          } catch (err) {
+                            toast((err as Error).message, 'error');
+                          }
+                        })();
                       }}
                       className="w-full py-2.5 mb-2 border border-gray-200 rounded-xl font-medium text-sm hover:bg-gray-50"
                     >
@@ -2381,7 +2491,7 @@ export function DistributionView({
           })()}
       </AnimatePresence>
 
-      {/* Edit Distribution Batch Modal */}
+      {/* Edit Distribution Batch Modal — same columns as Record Sale / create */}
       <AnimatePresence>
         {editBatchModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -2389,160 +2499,317 @@ export function DistributionView({
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
+              className="relative bg-white w-full max-w-6xl rounded-2xl shadow-xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
             >
               <h3 className="text-lg font-bold mb-1">Edit Distribution</h3>
               <p className="text-sm text-gray-500 mb-4">
-                {editBatchModal.vendorName} — {formatDate(editBatchModal.distributionDate)}
+                {editBatchModal.vendorName} — set price and GST per line. Mixed GST / non-GST keeps Tax Invoice + Bill
+                of Supply.
               </p>
-              <div className="mb-4">
-                <label className="text-xs font-bold text-gray-400 uppercase">Distribution Date</label>
-                <input
-                  type="date"
-                  value={editDate}
-                  onChange={e => setEditDate(e.target.value)}
-                  className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
-                />
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-xs font-bold text-gray-400 uppercase">Customer / Vendor</label>
+                  <input
+                    type="text"
+                    value={editBatchModal.vendorName}
+                    readOnly
+                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-700"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 uppercase">Date</label>
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={e => setEditDate(e.target.value)}
+                    className="w-full mt-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand"
+                  />
+                </div>
               </div>
               <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto mb-4">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="text-xs font-bold text-gray-400 uppercase bg-gray-50 border-b border-gray-200">
-                      <th className="px-3 py-3">Product</th>
-                      <th className="px-3 py-3 w-24">Qty</th>
-                      <th className="px-3 py-3 w-24">Disc%</th>
-                      <th className="px-3 py-3 w-14 text-center">GST</th>
-                      <th className="px-3 py-3 w-10"></th>
+                      <th className="px-2 py-3 w-8">#</th>
+                      <th className="px-2 py-3 min-w-[200px]">Product</th>
+                      <th className="px-2 py-3 w-24">Qty</th>
+                      <th className="px-2 py-3 w-32">Price (₹)</th>
+                      <th className="px-2 py-3 w-20">Disc%</th>
+                      <th className="px-2 py-3 w-16 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <span>GST</span>
+                          <input
+                            ref={editHeaderGstRef}
+                            type="checkbox"
+                            checked={editAllGst}
+                            onChange={e => {
+                              const on = e.target.checked;
+                              setEditRows(prev =>
+                                prev.map(r => {
+                                  const p = products.find(x => x.id === r.productId);
+                                  const rate = r.gstRate || p?.gstRate || defaultGstRate;
+                                  const includes = r.priceIncludesGst || !!p?.priceIncludesGst;
+                                  const current = parseFloat(String(r.customPrice)) || Number(p?.price) || 0;
+                                  const nextPrice = adjustUnitPriceForGstToggle(current, {
+                                    prevWithGst: r.withGst,
+                                    nextWithGst: on,
+                                    priceIncludesGst: includes,
+                                    gstRate: rate,
+                                  });
+                                  return {
+                                    ...r,
+                                    withGst: on,
+                                    customPrice: r.productId || r.customPrice ? String(nextPrice || '') : r.customPrice,
+                                  };
+                                }),
+                              );
+                            }}
+                            className="rounded text-brand"
+                            title={editAllGst ? 'All GST — uncheck for all non-GST' : 'Check for all GST'}
+                            aria-label="All GST / All non-GST"
+                          />
+                        </div>
+                      </th>
+                      <th className="px-2 py-3 w-36 text-right">Billed (₹)</th>
+                      <th className="px-2 py-3 w-8"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {editRows.map((row, idx) => (
-                      <tr key={row.isNew ? `new-${idx}` : row.productId}>
-                        <td className="px-3 py-2 text-sm font-medium">
-                          {row.isNew ? (
-                            <select
-                              value={row.productId}
+                    {editRows.map((row, idx) => {
+                      const p = products.find(pr => pr.id === row.productId);
+                      const m = editRowMoney(row);
+                      return (
+                        <tr key={row.isNew ? `new-${idx}` : row.productId} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
+                          <td className="px-3 py-2 text-sm font-medium">
+                            {row.isNew ? (
+                              <select
+                                value={row.productId}
+                                onChange={e => {
+                                  const sel = products.find(pr => pr.id === e.target.value);
+                                  const rate = sel?.gstRate ?? defaultGstRate;
+                                  const includes = !!sel?.priceIncludesGst;
+                                  const shown = sel
+                                    ? displayUnitPriceForGst(sel.price, {
+                                        withGst: row.withGst,
+                                        priceIncludesGst: includes,
+                                        gstRate: rate,
+                                      })
+                                    : 0;
+                                  setEditRows(
+                                    editRows.map((r, i) =>
+                                      i === idx
+                                        ? {
+                                            ...r,
+                                            productId: e.target.value,
+                                            productName: sel?.name || '',
+                                            availableStock: sel?.stock ?? 0,
+                                            priceIncludesGst: includes,
+                                            gstRate: rate,
+                                            customPrice: shown ? String(shown) : '',
+                                          }
+                                        : r,
+                                    ),
+                                  );
+                                }}
+                                className="w-full px-2 py-1.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+                              >
+                                <option value="">Select product...</option>
+                                {products
+                                  .filter(
+                                    pr =>
+                                      (pr.stock ?? 0) > 0 &&
+                                      !editRows.some((r, ri) => ri !== idx && r.productId === pr.id),
+                                  )
+                                  .map(pr => (
+                                    <option key={pr.id} value={pr.id}>
+                                      {pr.name} — ₹{pr.price.toLocaleString()} ({pr.stock} avl)
+                                    </option>
+                                  ))}
+                              </select>
+                            ) : (
+                              row.productName
+                            )}
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={row.quantity || ''}
                               onChange={e => {
-                                const p = products.find(pr => pr.id === e.target.value);
-                                setEditRows(
-                                  editRows.map((r, i) =>
-                                    i === idx
-                                      ? {
-                                          ...r,
-                                          productId: e.target.value,
-                                          productName: p?.name || '',
-                                          availableStock: p?.stock ?? 0,
-                                        }
-                                      : r,
-                                  ),
+                                const v = e.target.value.replace(/[^0-9]/g, '');
+                                updateEditRow(idx, 'quantity', v === '' ? 0 : parseInt(v, 10));
+                              }}
+                              className="w-16 min-w-[64px] px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
+                            />
+                            {!row.isNew && row.minQuantity > 0 && (
+                              <p className="text-[10px] text-gray-400 mt-0.5">min {row.minQuantity}</p>
+                            )}
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">₹</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={row.customPrice}
+                                onChange={e => {
+                                  const v = e.target.value.replace(/[^0-9.]/g, '');
+                                  updateEditRow(idx, 'customPrice', v);
+                                }}
+                                placeholder={p ? String(p.price) : '—'}
+                                className="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
+                              />
+                            </div>
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={row.discount || ''}
+                              onChange={e => {
+                                const v = e.target.value.replace(/[^0-9.]/g, '');
+                                updateEditRow(idx, 'discount', v === '' ? 0 : parseFloat(v));
+                              }}
+                              placeholder="0"
+                              className="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
+                            />
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={row.withGst}
+                              onChange={e => {
+                                const next = e.target.checked;
+                                setEditRows(prev =>
+                                  prev.map((r, i) => {
+                                    if (i !== idx) return r;
+                                    const prod = products.find(x => x.id === r.productId);
+                                    const rate = r.gstRate || prod?.gstRate || defaultGstRate;
+                                    const includes = r.priceIncludesGst || !!prod?.priceIncludesGst;
+                                    const current = parseFloat(String(r.customPrice)) || Number(prod?.price) || 0;
+                                    const nextPrice = adjustUnitPriceForGstToggle(current, {
+                                      prevWithGst: r.withGst,
+                                      nextWithGst: next,
+                                      priceIncludesGst: includes,
+                                      gstRate: rate,
+                                    });
+                                    return {
+                                      ...r,
+                                      withGst: next,
+                                      customPrice: String(nextPrice),
+                                    };
+                                  }),
                                 );
                               }}
-                              className="w-full px-2 py-1.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand"
-                            >
-                              <option value="">Select product...</option>
-                              {products
-                                .filter(
-                                  pr =>
-                                    (pr.stock ?? 0) > 0 &&
-                                    !editRows.some((r, ri) => ri !== idx && r.productId === pr.id),
-                                )
-                                .map(pr => (
-                                  <option key={pr.id} value={pr.id}>
-                                    {pr.name} ({pr.stock} avl)
-                                  </option>
-                                ))}
-                            </select>
-                          ) : (
-                            row.productName
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            value={row.quantity || ''}
-                            onChange={e => {
-                              const v = e.target.value.replace(/[^0-9]/g, '');
-                              updateEditRow(idx, 'quantity', v === '' ? 0 : parseInt(v, 10));
-                            }}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
-                          />
-                          {!row.isNew && row.minQuantity > 0 && (
-                            <p className="text-[10px] text-gray-400 mt-0.5">min {row.minQuantity}</p>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={row.discount || ''}
-                            onChange={e => {
-                              const v = e.target.value.replace(/[^0-9.]/g, '');
-                              updateEditRow(idx, 'discount', v === '' ? 0 : parseFloat(v));
-                            }}
-                            placeholder="0"
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-brand"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <input
-                            type="checkbox"
-                            checked={row.withGst}
-                            onChange={e => updateEditRow(idx, 'withGst', e.target.checked)}
-                            className="rounded text-brand"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          {row.isNew ? (
-                            <button
-                              type="button"
-                              onClick={() => setEditRows(editRows.filter((_, i) => i !== idx))}
-                              className="p-1 text-gray-400 hover:text-rose-500"
-                              title="Remove"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          ) : row.minQuantity === 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => setRemoveConfirm({ idx, name: row.productName, qty: row.quantity })}
-                              className="p-1 text-gray-400 hover:text-rose-500"
-                              title="Remove product"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          ) : null}
-                        </td>
-                      </tr>
-                    ))}
+                              className="rounded text-brand"
+                              aria-label={`GST for row ${idx + 1}`}
+                            />
+                          </td>
+                          <td className="px-2 py-2 text-right font-bold whitespace-nowrap">
+                            {m.billed > 0 ? (
+                              <span>
+                                {row.withGst && (
+                                  <span className="text-[10px] text-gray-400 block">
+                                    ₹{m.net.toLocaleString()} +GST
+                                  </span>
+                                )}
+                                {!row.withGst && row.priceIncludesGst && (
+                                  <span className="text-[10px] text-amber-600 block">excl. GST</span>
+                                )}
+                                <span className="text-base">₹{m.billed.toLocaleString()}</span>
+                              </span>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className="px-1 py-2 text-center">
+                            {row.isNew ? (
+                              <button
+                                type="button"
+                                onClick={() => setEditRows(editRows.filter((_, i) => i !== idx))}
+                                className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded"
+                                title="Remove"
+                              >
+                                ×
+                              </button>
+                            ) : row.minQuantity === 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => setRemoveConfirm({ idx, name: row.productName, qty: row.quantity })}
+                                className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded"
+                                title="Remove product"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
+                <div className="flex border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditRows([
+                        ...editRows,
+                        {
+                          productId: '',
+                          productName: '',
+                          quantity: 1,
+                          minQuantity: 0,
+                          discount: 0,
+                          withGst: true,
+                          customPrice: '',
+                          priceIncludesGst: false,
+                          gstRate: defaultGstRate,
+                          availableStock: 0,
+                          isNew: true,
+                        },
+                      ])
+                    }
+                    className="flex-1 py-2 text-sm font-medium text-brand hover:bg-orange-50 transition-colors"
+                  >
+                    + Add Product Row
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setEditRows([
-                    ...editRows,
-                    {
-                      productId: '',
-                      productName: '',
-                      quantity: 1,
-                      minQuantity: 0,
-                      discount: 0,
-                      withGst: true,
-                      availableStock: 0,
-                      isNew: true,
-                    },
-                  ])
-                }
-                className="flex items-center gap-1 text-sm font-medium text-brand hover:underline mb-3"
-              >
-                <Plus size={16} /> Add Product
-              </button>
               <p className="text-xs text-gray-500 mb-4">
                 Reduce quantity to return units to inventory. Cannot go below sold/replaced/damaged count.
               </p>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2 mb-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Total Items</span>
+                  <span className="font-bold">{editTotals.items}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Gross Value</span>
+                  <span className="font-bold">₹{editTotals.gross.toLocaleString()}</span>
+                </div>
+                {editTotals.discount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Discount</span>
+                    <span className="font-bold text-emerald-600">-₹{editTotals.discount.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Subtotal (base)</span>
+                  <span className="font-bold">₹{editTotals.net.toLocaleString()}</span>
+                </div>
+                {editTotals.gst > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">GST</span>
+                    <span className="font-bold">₹{editTotals.gst.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
+                  <span className="text-gray-700 font-medium">Total Billed Amount</span>
+                  <span className="font-bold text-lg text-brand">₹{editTotals.billed.toLocaleString()}</span>
+                </div>
+              </div>
               <div className="flex gap-2 flex-wrap">
                 {editBatchModal.canDelete && (
                   <button
@@ -2577,6 +2844,9 @@ export function DistributionView({
                             quantity: r.quantity,
                             discountPercent: r.discount,
                             withGst: r.withGst,
+                            ...(r.customPrice !== '' && r.customPrice != null
+                              ? { customPrice: parseFloat(r.customPrice) }
+                              : {}),
                           })),
                       });
                       setEditBatchModal(null);

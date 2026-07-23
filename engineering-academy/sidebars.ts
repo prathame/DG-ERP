@@ -103,6 +103,7 @@ const sidebars: SidebarsConfig = {
         'api/mobile-onprem',
         'api/service-mobile',
         'api/service-cloud',
+        'api/whatsapp-business',
         'api/conventions',
       ],
     },
