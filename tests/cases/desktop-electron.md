@@ -86,6 +86,10 @@ Cap / phone WhatsApp share is intentionally unchanged — this case is Cloud Ele
 1. Online-latched Mac (or Windows) desktop, service tenant, Admin logged in.
 2. Settings → Bill Customization Save (logo/colors optional).
 3. Invoices (or Client / Invoice Finance) → WhatsApp on an invoice with line items + customer phone.
-4. Expect toast “Preparing PDF…” then PDF download + WhatsApp/wa.me opens (system browser / WhatsApp).
-5. Bug report breadcrumbs include `WhatsApp Electron PDF build start` → `build ok` → `share ok` (not stuck after `html2pdf start`).
-6. Cap Online / Offline Mobile WhatsApp still uses Cap Share / Cap jsPDF path (no Electron breadcrumbs).
+4. Expect toast “Preparing PDF…” then:
+   - PDF written to Downloads and revealed in Finder/Explorer
+   - PDF copied to clipboard when OS allows (toast: paste into WhatsApp)
+   - WhatsApp Desktop / wa.me opens with caption (file is **not** auto-attached — WhatsApp has no URL attach API)
+5. In WhatsApp chat: paste (⌘V / Ctrl+V) or drag the PDF from the revealed Downloads folder.
+6. Bug report breadcrumbs include `WhatsApp Electron PDF build start` → `build ok` → `IPC share start` → `share ok` (not stuck after `html2pdf start`).
+7. Cap Online / Offline Mobile WhatsApp still uses Cap Share / Cap jsPDF path (no Electron breadcrumbs).

@@ -46,13 +46,16 @@ export function whatsAppInvoiceShareToast(
       return hint ? `PDF failed (${hint}) — shared text summary instead` : 'PDF failed — shared text summary instead';
     }
     case 'shared':
-      return 'PDF shared';
+      // Cap: Share sheet. Electron: PDF copied to clipboard for paste into chat.
+      return isElectronAppShell() ? 'PDF copied — paste into WhatsApp (⌘V / Ctrl+V)' : 'PDF shared';
     case 'saved':
       return 'PDF saved to Dhandho on this phone';
     case 'text':
       return 'WhatsApp opened — PDF also saved/downloaded to attach';
     case 'downloaded':
-      return 'WhatsApp opened — PDF downloaded to attach';
+      return isElectronAppShell()
+        ? 'WhatsApp opened — PDF in Downloads; drag into the chat'
+        : 'WhatsApp opened — PDF downloaded to attach';
   }
 }
 
@@ -327,7 +330,8 @@ async function shareCapInvoicePdfWithFallback(
  * Cap: prefer Save-baked PDF under Dhandho/invoices when fresh; else shared
  * `buildStandaloneInvoicePdfBlob` (billSettings template + invoice fields; no html2canvas)
  * with hard timeout → Dhandho/Cache file-only Share; on fail → text + toast.
- * Electron desktop: separate helper (jsPDF → download + wa.me) — never Cap Share / html2pdf.
+ * Electron desktop: separate helper (jsPDF → IPC Downloads/clipboard + WhatsApp) —
+ * never Cap Share / html2pdf. WhatsApp Desktop cannot receive files via URL scheme.
  * Web browser: HTML → html2pdf file share / wa.me + download.
  * Print path stays full Tax Invoice HTML + system Print.
  *
