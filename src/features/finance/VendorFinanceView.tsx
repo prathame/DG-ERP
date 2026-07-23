@@ -300,7 +300,7 @@ export function VendorFinanceView({
       lastSent: v.lastSent ?? null,
     });
     if (!gate.ok) {
-      toast(gate.reason, 'info');
+      toast(gate.reason || 'Cannot send reminder', 'info');
       return;
     }
     const msg = formatVendorPaymentReminderText({
@@ -361,7 +361,7 @@ export function VendorFinanceView({
                 <button
                   type="button"
                   disabled={!gate.ok}
-                  title={!gate.ok ? gate.reason : 'Send WhatsApp payment reminder'}
+                  title={!gate.ok ? gate.reason || 'Cannot send reminder' : 'Send WhatsApp payment reminder'}
                   onClick={() =>
                     handleSendReminder({
                       vendorId: detail.vendor.id,
@@ -758,15 +758,22 @@ export function VendorFinanceView({
           </label>
           {reminderSettings.enabled &&
             (() => {
-              const { eligible, skipped } = filterVendorsForReminder(
-                summaryData
-                  .filter(v => v.balance > 0 && v.vendorPhone)
-                  .map(v => ({
-                    ...v,
-                    lastSent: v.reminder?.lastSent ?? null,
-                  })),
-                reminderSettings,
-              );
+              const candidates: {
+                vendorId: string;
+                vendorName: string;
+                vendorPhone: string;
+                balance: number;
+                lastSent: string | null;
+              }[] = summaryData
+                .filter(v => v.balance > 0 && v.vendorPhone)
+                .map(v => ({
+                  vendorId: v.vendorId,
+                  vendorName: v.vendorName,
+                  vendorPhone: v.vendorPhone,
+                  balance: v.balance,
+                  lastSent: v.reminder?.lastSent ?? null,
+                }));
+              const { eligible, skipped } = filterVendorsForReminder(candidates, reminderSettings);
               if (!eligible.length) return null;
               return (
                 <button
@@ -1017,7 +1024,9 @@ export function VendorFinanceView({
                                 <button
                                   type="button"
                                   disabled={!gate.ok}
-                                  title={!gate.ok ? gate.reason : 'Send WhatsApp payment reminder'}
+                                  title={
+                                    !gate.ok ? gate.reason || 'Cannot send reminder' : 'Send WhatsApp payment reminder'
+                                  }
                                   onClick={() =>
                                     handleSendReminder({
                                       ...v,

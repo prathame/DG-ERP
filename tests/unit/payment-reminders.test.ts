@@ -18,7 +18,7 @@ describe('paymentReminders', () => {
       phone: '9876543210',
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toMatch(/disabled/i);
+    expect(r.reason).toMatch(/disabled/i);
   });
 
   it('blocks below min due amount', () => {
@@ -28,7 +28,7 @@ describe('paymentReminders', () => {
       phone: '9876543210',
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toMatch(/below reminder minimum/i);
+    expect(r.reason).toMatch(/below reminder minimum/i);
   });
 
   it('blocks within cadence window', () => {
@@ -42,7 +42,7 @@ describe('paymentReminders', () => {
       today,
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toMatch(/Already reminded/i);
+    expect(r.reason).toMatch(/Already reminded/i);
   });
 
   it('allows when past cadence and above threshold', () => {

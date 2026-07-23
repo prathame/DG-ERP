@@ -15,7 +15,8 @@ export const DEFAULT_REMINDER_SETTINGS: CompanyReminderSettings = {
 /** Preset cadence options (days). Custom = any other positive integer. */
 export const REMINDER_CADENCE_PRESETS = [7, 15, 30] as const;
 
-export type ReminderGateResult = { ok: true } | { ok: false; reason: string };
+/** Flat result shape — avoids discriminated-union narrowing issues without strictNullChecks. */
+export type ReminderGateResult = { ok: boolean; reason?: string };
 
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -69,15 +70,19 @@ export function canSendPaymentReminder(opts: {
   return { ok: true };
 }
 
-export function filterVendorsForReminder<
-  T extends { balance: number; vendorPhone?: string | null; lastSent?: string | null },
->(
-  vendors: T[],
+type ReminderVendorFields = {
+  balance: number;
+  vendorPhone?: string | null;
+  lastSent?: string | null;
+};
+
+export function filterVendorsForReminder<T>(
+  vendors: Array<T & ReminderVendorFields>,
   settings: CompanyReminderSettings,
   today?: Date,
-): { eligible: T[]; skipped: { vendor: T; reason: string }[] } {
-  const eligible: T[] = [];
-  const skipped: { vendor: T; reason: string }[] = [];
+): { eligible: Array<T & ReminderVendorFields>; skipped: { vendor: T & ReminderVendorFields; reason: string }[] } {
+  const eligible: Array<T & ReminderVendorFields> = [];
+  const skipped: { vendor: T & ReminderVendorFields; reason: string }[] = [];
   for (const v of vendors) {
     const gate = canSendPaymentReminder({
       settings,
@@ -87,7 +92,7 @@ export function filterVendorsForReminder<
       today,
     });
     if (gate.ok) eligible.push(v);
-    else skipped.push({ vendor: v, reason: gate.reason });
+    else skipped.push({ vendor: v, reason: gate.reason || 'Skipped' });
   }
   return { eligible, skipped };
 }

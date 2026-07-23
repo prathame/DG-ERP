@@ -543,7 +543,7 @@ export function DistributionView({
       lastSent: v.lastSent,
     });
     if (!gate.ok) {
-      toast(gate.reason, 'info');
+      toast(gate.reason || 'Cannot send reminder', 'info');
       return;
     }
     shareViaWhatsApp(
@@ -1767,7 +1767,11 @@ export function DistributionView({
                       <button
                         type="button"
                         disabled={!remindGate.ok}
-                        title={!remindGate.ok ? remindGate.reason : 'Send WhatsApp payment reminder'}
+                        title={
+                          !remindGate.ok
+                            ? remindGate.reason || 'Cannot send reminder'
+                            : 'Send WhatsApp payment reminder'
+                        }
                         onClick={() =>
                           sendVendorPaymentReminder({
                             vendorId: selectedVendorId!,
