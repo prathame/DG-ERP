@@ -612,7 +612,7 @@ html.dg-mobile-dense aside nav button {
 }
 
 /* ── Desktop glass shell (Electron / browser desktop only) ───────────────
- * Light = warm cream surface; dark = charcoal glass (mock). Cap never gets this class.
+ * Light = cool gray surface; dark = charcoal glass (mock). Cap never gets this class.
  */
 .dg-desktop-glass {
   --dg-primary: #994700;
@@ -620,20 +620,20 @@ html.dg-mobile-dense aside nav button {
   --dg-success: #00c853;
   --dg-error: #d50000;
   --dg-warning: #ffd600;
-  --dg-bg: #fff8f5;
-  --dg-bg-mesh: rgba(153, 71, 0, 0.06);
-  --dg-card: rgba(255, 255, 255, 0.72);
-  --dg-card-hover: rgba(255, 255, 255, 0.9);
-  --dg-card-border: rgba(140, 114, 99, 0.18);
-  --dg-ink: #251912;
-  --dg-muted: rgba(37, 25, 18, 0.45);
-  --dg-faint: rgba(37, 25, 18, 0.22);
-  --dg-sidebar: rgba(255, 248, 245, 0.85);
-  --dg-header: rgba(255, 248, 245, 0.7);
-  --dg-nav-idle: rgba(37, 25, 18, 0.5);
-  --dg-nav-hover: #251912;
-  --dg-input: rgba(153, 71, 0, 0.06);
-  --dg-shadow: 0 8px 32px rgba(37, 25, 18, 0.08);
+  --dg-bg: #f7f9fb;
+  --dg-bg-mesh: rgba(25, 28, 30, 0.04);
+  --dg-card: rgba(255, 255, 255, 0.9);
+  --dg-card-hover: rgba(255, 255, 255, 0.96);
+  --dg-card-border: rgba(25, 28, 30, 0.08);
+  --dg-ink: #191c1e;
+  --dg-muted: #565e74;
+  --dg-faint: rgba(25, 28, 30, 0.22);
+  --dg-sidebar: #ffffff;
+  --dg-header: rgba(247, 249, 251, 0.85);
+  --dg-nav-idle: rgba(25, 28, 30, 0.5);
+  --dg-nav-hover: #191c1e;
+  --dg-input: #eceef0;
+  --dg-shadow: 0 8px 32px rgba(25, 28, 30, 0.08);
   font-family: Geist, Inter, ui-sans-serif, system-ui, sans-serif;
   background-color: var(--dg-bg) !important;
   color: var(--dg-ink) !important;
@@ -647,7 +647,7 @@ html.dg-mobile-dense aside nav button {
   pointer-events: none;
   background:
     radial-gradient(circle at 20% 20%, var(--dg-bg-mesh) 0%, transparent 45%),
-    linear-gradient(125deg, var(--dg-bg) 0%, #fff8f5 50%, #ffeade 100%);
+    linear-gradient(125deg, var(--dg-bg) 0%, #f2f4f6 50%, #e6e8ea 100%);
   opacity: 0.95;
 }
 .dg-desktop-glass > * {
@@ -723,7 +723,7 @@ html.dark .dg-desktop-glass::before {
 
 /*
  * Desktop glass: override global dark-mode slate/blue remaps (#1F2937, #1a2332, #111827)
- * so shell chrome stays charcoal / cream via --dg-* tokens.
+ * so shell chrome stays charcoal / cool gray via --dg-* tokens.
  * Cap / service-phone never get .dg-desktop-glass.
  */
 html.dark .dg-desktop-glass .bg-white,
