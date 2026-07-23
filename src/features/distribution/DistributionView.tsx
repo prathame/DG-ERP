@@ -42,6 +42,12 @@ import { useEscapeKey } from '../../lib/useEscapeKey';
 import { session } from '../../lib/session';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CreateDistributionModal } from './CreateDistributionModal';
+import {
+  DEFAULT_REMINDER_SETTINGS,
+  canSendPaymentReminder,
+  filterVendorsForReminder,
+  type CompanyReminderSettings,
+} from '../../lib/paymentReminders';
 
 /** Non-service list/detail badge: Tax Invoice / Bill of Supply / Mixed (+ doc nos when dual). */
 function DeliveryDocBadge({
@@ -449,9 +455,11 @@ export function DistributionView({
         balance: number;
         vendorPhone?: string;
         vendorName?: string;
+        lastSent?: string | null;
       }
     >
   >({});
+  const [reminderSettings, setReminderSettings] = useState<CompanyReminderSettings>(DEFAULT_REMINDER_SETTINGS);
   const [batchActionsOpen, setBatchActionsOpen] = useState(false);
   const [batchPaymentModal, setBatchPaymentModal] = useState<{
     batchId: string;
@@ -526,8 +534,18 @@ export function DistributionView({
     vendorName: string;
     vendorPhone: string;
     balance: number;
+    lastSent?: string | null;
   }) => {
-    if (!(v.balance > 0) || !v.vendorPhone) return;
+    const gate = canSendPaymentReminder({
+      settings: reminderSettings,
+      balance: v.balance,
+      phone: v.vendorPhone,
+      lastSent: v.lastSent,
+    });
+    if (!gate.ok) {
+      toast(gate.reason, 'info');
+      return;
+    }
     shareViaWhatsApp(
       v.vendorPhone,
       formatVendorPaymentReminderText({
@@ -537,10 +555,15 @@ export function DistributionView({
       }),
     );
     api.vendorFinance.markReminderSent(v.vendorId).catch(() => {});
+    setFinanceMap(prev => {
+      const cur = prev[v.vendorId];
+      if (!cur) return prev;
+      return { ...prev, [v.vendorId]: { ...cur, lastSent: new Date().toISOString().slice(0, 10) } };
+    });
   };
 
   const remindAllOutstandingVendors = async () => {
-    const withOutstanding = Object.keys(financeMap).flatMap(id => {
+    const candidates = Object.keys(financeMap).flatMap(id => {
       const f = financeMap[id];
       if (!(f.balance > 0) || !f.vendorPhone) return [];
       return [
@@ -549,24 +572,35 @@ export function DistributionView({
           vendorName: f.vendorName || 'Vendor',
           vendorPhone: f.vendorPhone,
           balance: f.balance,
+          lastSent: f.lastSent ?? null,
         },
       ];
     });
-    if (!withOutstanding.length) {
-      toast('No vendors with outstanding balance and phone number', 'info');
+    const { eligible, skipped } = filterVendorsForReminder(candidates, reminderSettings);
+    if (!eligible.length) {
+      const why = skipped[0]?.reason || 'No vendors eligible for reminders';
+      toast(
+        skipped.length
+          ? `No reminders sent — ${skipped.length} skipped (e.g. ${why})`
+          : 'No vendors with outstanding balance and phone number',
+        'info',
+      );
       return;
     }
     if (
       !(await confirm({
         title: 'Remind all',
-        message: `Send WhatsApp payment reminders to ${withOutstanding.length} vendor${withOutstanding.length > 1 ? 's' : ''} with outstanding balance?`,
-        confirmLabel: `Remind ${withOutstanding.length}`,
+        message: `Send WhatsApp payment reminders to ${eligible.length} vendor${eligible.length > 1 ? 's' : ''}?${
+          skipped.length ? ` (${skipped.length} skipped — below min due or within cadence)` : ''
+        }`,
+        confirmLabel: `Remind ${eligible.length}`,
         variant: 'info',
       }))
     )
       return;
     const companyName = sessionCompanyName();
-    for (const v of withOutstanding) {
+    const today = new Date().toISOString().slice(0, 10);
+    for (const v of eligible) {
       shareViaWhatsApp(
         v.vendorPhone,
         formatVendorPaymentReminderText({
@@ -577,7 +611,19 @@ export function DistributionView({
       );
       api.vendorFinance.markReminderSent(v.vendorId).catch(() => {});
     }
-    toast(`Opened WhatsApp for ${withOutstanding.length} vendors`, 'success');
+    setFinanceMap(prev => {
+      const next = { ...prev };
+      for (const v of eligible) {
+        if (next[v.vendorId]) next[v.vendorId] = { ...next[v.vendorId], lastSent: today };
+      }
+      return next;
+    });
+    toast(
+      skipped.length
+        ? `Opened WhatsApp for ${eligible.length}; skipped ${skipped.length}`
+        : `Opened WhatsApp for ${eligible.length} vendors`,
+      'success',
+    );
   };
 
   const load = () => {
@@ -607,6 +653,7 @@ export function DistributionView({
                   balance: number;
                   vendorPhone?: string;
                   vendorName?: string;
+                  lastSent?: string | null;
                 }
               > = {};
               for (const f of fs)
@@ -616,6 +663,7 @@ export function DistributionView({
                   balance: f.balance,
                   vendorPhone: f.vendorPhone || undefined,
                   vendorName: f.vendorName,
+                  lastSent: f.reminder?.lastSent ?? null,
                 };
               setFinanceMap(map);
             })
@@ -631,6 +679,7 @@ export function DistributionView({
                   balance: d.balance,
                   vendorPhone: d.vendor.phone || undefined,
                   vendorName: d.vendor.name,
+                  lastSent: d.reminder?.lastSent ?? null,
                 },
               });
             })
@@ -646,6 +695,19 @@ export function DistributionView({
     setLoadError(null);
     load();
   }, [vendorId]);
+  useEffect(() => {
+    if (isServiceBiz || isVendorUser) return;
+    api.reminderSettings
+      .get()
+      .then(r =>
+        setReminderSettings({
+          enabled: r.enabled,
+          minDueAmount: Number(r.minDueAmount) || 0,
+          cadenceDays: Math.max(1, Number(r.cadenceDays) || 15),
+        }),
+      )
+      .catch(() => setReminderSettings(DEFAULT_REMINDER_SETTINGS));
+  }, [isServiceBiz, isVendorUser]);
 
   const defaultGstRate = ((user as Record<string, unknown>)?.defaultGstRate as number) ?? 18;
 
@@ -774,12 +836,24 @@ export function DistributionView({
         </div>
         {!isVendorUser &&
           !isServiceBiz &&
+          reminderSettings.enabled &&
           paymentFilter === 'unpaid' &&
           (() => {
-            const remindCount = Object.keys(financeMap).filter(id => {
-              const f = financeMap[id];
-              return f.balance > 0 && !!f.vendorPhone;
-            }).length;
+            const remindCount = filterVendorsForReminder(
+              Object.keys(financeMap).flatMap(id => {
+                const f = financeMap[id];
+                if (!(f.balance > 0) || !f.vendorPhone) return [];
+                return [
+                  {
+                    vendorId: id,
+                    vendorPhone: f.vendorPhone,
+                    balance: f.balance,
+                    lastSent: f.lastSent ?? null,
+                  },
+                ];
+              }),
+              reminderSettings,
+            ).eligible.length;
             if (!remindCount) return null;
             return (
               <button
@@ -1632,9 +1706,19 @@ export function DistributionView({
             }
 
             const vendorFinance = financeMap[selectedVendorId!];
-            const canRemindVendor =
+            const remindGate =
+              !isVendorUser && !isServiceBiz && vendorFinance
+                ? canSendPaymentReminder({
+                    settings: reminderSettings,
+                    balance: vendorFinance.balance,
+                    phone: vendorFinance.vendorPhone,
+                    lastSent: vendorFinance.lastSent,
+                  })
+                : { ok: false as const, reason: '' };
+            const showRemindButton =
               !isVendorUser &&
               !isServiceBiz &&
+              reminderSettings.enabled &&
               !!vendorFinance &&
               vendorFinance.balance > 0 &&
               !!vendorFinance.vendorPhone;
@@ -1679,18 +1763,26 @@ export function DistributionView({
                         <span className="text-blue-600 font-medium">{stats.availableWithVendor}</span> with vendor
                       </span>
                     )}
-                    {canRemindVendor && (
+                    {showRemindButton && (
                       <button
                         type="button"
+                        disabled={!remindGate.ok}
+                        title={!remindGate.ok ? remindGate.reason : 'Send WhatsApp payment reminder'}
                         onClick={() =>
                           sendVendorPaymentReminder({
                             vendorId: selectedVendorId!,
                             vendorName: vendorFinance.vendorName || vendorName,
                             vendorPhone: vendorFinance.vendorPhone!,
                             balance: vendorFinance.balance,
+                            lastSent: vendorFinance.lastSent,
                           })
                         }
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700"
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold',
+                          remindGate.ok
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            : 'bg-gray-200 text-gray-500 cursor-not-allowed',
+                        )}
                       >
                         <MessageCircle size={14} /> Remind payment
                         {vendorFinance.balance > 0 && (
