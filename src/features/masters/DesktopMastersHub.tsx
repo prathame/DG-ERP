@@ -108,7 +108,11 @@ export function DesktopMastersHub({ masters, onOpen, totalRecords }: Props) {
         <div className="ml-auto">
           <button
             type="button"
-            onClick={() => masters[0] && onOpen(masters[0].id)}
+            onClick={() => {
+              // Prefer a master that stays in Masters (item/expenses are tab shortcuts).
+              const first = masters.find(m => m.id !== 'item' && m.id !== 'expenses') ?? masters[0];
+              if (first) onOpen(first.id);
+            }}
             className="px-6 py-2.5 dg-bg-primary font-bold rounded-lg text-sm flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all"
           >
             Open Masters
