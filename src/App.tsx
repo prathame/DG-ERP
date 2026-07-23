@@ -1320,12 +1320,11 @@ export default function App() {
               {!serviceMobile &&
                 tv('chatbot') &&
                 // Cap Online companion: SA mobile_features.chatbot; desktop / service Cap use tab_config only
+                // ChatWidget portals FAB + panel to document.body (avoids sidebar stacking / empty footer gap)
                 (!companionFeatures || companionFeatures.chatbot) && (
-                  <div className="px-3 pt-2">
-                    <Suspense fallback={null}>
-                      <ChatWidget desktopGlass={desktopGlass} />
-                    </Suspense>
-                  </div>
+                  <Suspense fallback={null}>
+                    <ChatWidget desktopGlass={desktopGlass} />
+                  </Suspense>
                 )}
               {/* Sync: on-prem desktop + Offline Mobile only — never Cloud Electron chrome changes */}
               {(serviceMobile ||

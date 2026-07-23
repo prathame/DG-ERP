@@ -614,6 +614,8 @@ html.dg-mobile-dense aside nav button {
 /* ── Desktop glass shell (Electron / browser desktop only) ───────────────
  * Light = cool gray surface; dark = charcoal glass (mock). Cap never gets this class.
  */
+/* Token scope only — safe for portals (no position/z-index side effects). */
+.dg-glass-scope,
 .dg-desktop-glass {
   --dg-primary: #ff7a00;
   --dg-primary-bright: #ff7a00;
@@ -634,6 +636,12 @@ html.dg-mobile-dense aside nav button {
   --dg-nav-hover: #191c1e;
   --dg-input: #eceef0;
   --dg-shadow: 0 8px 32px rgba(25, 28, 30, 0.08);
+  /* Opaque chat surfaces (portal UI — never see-through over app content) */
+  --dg-chat-panel: #f7f9fb;
+  --dg-chat-surface: #ffffff;
+  --dg-chat-messages: #eceef0;
+}
+.dg-desktop-glass {
   font-family: Geist, Inter, ui-sans-serif, system-ui, sans-serif;
   background-color: var(--dg-bg) !important;
   color: var(--dg-ink) !important;
@@ -655,6 +663,7 @@ html.dg-mobile-dense aside nav button {
   z-index: 1;
 }
 
+html.dark .dg-glass-scope,
 html.dark .dg-desktop-glass {
   --dg-primary: #ff7a00;
   --dg-primary-bright: #ff7a00;
@@ -672,6 +681,9 @@ html.dark .dg-desktop-glass {
   --dg-nav-hover: #ffffff;
   --dg-input: rgba(255, 255, 255, 0.05);
   --dg-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --dg-chat-panel: #0f1113;
+  --dg-chat-surface: #1a1c1e;
+  --dg-chat-messages: #141618;
 }
 html.dark .dg-desktop-glass::before {
   background:
@@ -692,13 +704,20 @@ html.dark .dg-desktop-glass::before {
   border-color: color-mix(in srgb, var(--dg-primary) 35%, var(--dg-card-border)) !important;
   background: var(--dg-card-hover) !important;
 }
-.dg-desktop-glass .dg-ink { color: var(--dg-ink) !important; }
-.dg-desktop-glass .dg-muted { color: var(--dg-muted) !important; }
-.dg-desktop-glass .dg-faint { color: var(--dg-faint) !important; }
-.dg-desktop-glass .dg-primary { color: var(--dg-primary) !important; }
-.dg-desktop-glass .dg-success { color: var(--dg-success) !important; }
-.dg-desktop-glass .dg-error { color: var(--dg-error) !important; }
-.dg-desktop-glass .dg-warning { color: var(--dg-warning) !important; }
+.dg-desktop-glass .dg-ink,
+.dg-glass-scope .dg-ink { color: var(--dg-ink) !important; }
+.dg-desktop-glass .dg-muted,
+.dg-glass-scope .dg-muted { color: var(--dg-muted) !important; }
+.dg-desktop-glass .dg-faint,
+.dg-glass-scope .dg-faint { color: var(--dg-faint) !important; }
+.dg-desktop-glass .dg-primary,
+.dg-glass-scope .dg-primary { color: var(--dg-primary) !important; }
+.dg-desktop-glass .dg-success,
+.dg-glass-scope .dg-success { color: var(--dg-success) !important; }
+.dg-desktop-glass .dg-error,
+.dg-glass-scope .dg-error { color: var(--dg-error) !important; }
+.dg-desktop-glass .dg-warning,
+.dg-glass-scope .dg-warning { color: var(--dg-warning) !important; }
 .dg-desktop-glass .dg-bg-primary {
   background: var(--dg-primary) !important;
   color: #fff !important;
