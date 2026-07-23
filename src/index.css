@@ -720,3 +720,54 @@ html.dark .dg-desktop-glass::before {
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--dg-card-border) !important;
 }
+
+/*
+ * Desktop glass: override global dark-mode slate/blue remaps (#1F2937, #1a2332, #111827)
+ * so shell chrome stays charcoal / cream via --dg-* tokens.
+ * Cap / service-phone never get .dg-desktop-glass.
+ */
+html.dark .dg-desktop-glass .bg-white,
+html.dark .dg-desktop-glass [class*="bg-white"] {
+  background-color: var(--dg-card) !important;
+}
+html.dark .dg-desktop-glass .bg-white\/90,
+html.dark .dg-desktop-glass .bg-white\/80,
+html.dark .dg-desktop-glass .bg-white\/95 {
+  background-color: var(--dg-header) !important;
+}
+html.dark .dg-desktop-glass .bg-gray-50,
+html.dark .dg-desktop-glass .bg-gray-50\/50,
+html.dark .dg-desktop-glass .bg-gray-50\/40,
+html.dark .dg-desktop-glass .bg-gray-100 {
+  background-color: var(--dg-input) !important;
+}
+html.dark .dg-desktop-glass .border-gray-100,
+html.dark .dg-desktop-glass .border-gray-200,
+html.dark .dg-desktop-glass .border-gray-50,
+html.dark .dg-desktop-glass [class*="border-gray"] {
+  border-color: var(--dg-card-border) !important;
+}
+html.dark .dg-desktop-glass .border-t {
+  border-color: var(--dg-card-border) !important;
+}
+html.dark .dg-desktop-glass .hover\:bg-gray-50:hover,
+html.dark .dg-desktop-glass .hover\:bg-gray-100:hover {
+  background-color: var(--dg-card-hover) !important;
+}
+/* Sidebar footer must blend with charcoal glass, not sit on a slate panel */
+html.dark .dg-desktop-glass aside.dg-glass-sidebar .bg-white,
+html.dark .dg-desktop-glass aside.dg-glass-sidebar [class*="bg-white"] {
+  background-color: transparent !important;
+}
+html.dark .dg-desktop-glass aside.dg-glass-sidebar .bg-gray-50,
+html.dark .dg-desktop-glass aside.dg-glass-sidebar .hover\:bg-gray-50:hover,
+html.dark .dg-desktop-glass aside.dg-glass-sidebar .hover\:bg-gray-100:hover {
+  background-color: var(--dg-card-hover) !important;
+}
+html.dark .dg-desktop-glass input,
+html.dark .dg-desktop-glass select,
+html.dark .dg-desktop-glass textarea {
+  background-color: var(--dg-input) !important;
+  color: var(--dg-ink) !important;
+  border-color: var(--dg-card-border) !important;
+}

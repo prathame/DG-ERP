@@ -1204,7 +1204,12 @@ export default function App() {
             )}
           >
             {/* Sticky brand / profile */}
-            <div className="shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 border-b border-gray-100 pt-[max(0.5rem,var(--safe-top))] pb-2 lg:h-16 lg:pt-0 lg:pb-0">
+            <div
+              className={cn(
+                'shrink-0 px-3 lg:px-4 flex items-center justify-between gap-2 pt-[max(0.5rem,var(--safe-top))] pb-2 lg:h-16 lg:pt-0 lg:pb-0',
+                desktopGlass ? 'border-b border-[var(--dg-card-border)]' : 'border-b border-gray-100',
+              )}
+            >
               {isSidebarOpen && (
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="lg:hidden w-9 h-9 rounded-full bg-gradient-to-tr from-brand to-[#FFB347] flex items-center justify-center text-white text-xs font-bold shrink-0">
@@ -1304,14 +1309,21 @@ export default function App() {
             </nav>
 
             {/* Pinned footer: chatbot (cloud), settings, status */}
-            <div className="shrink-0 border-t border-gray-100 bg-white pb-[max(0.5rem,var(--safe-bottom))] lg:pb-2">
+            <div
+              className={cn(
+                'shrink-0 pb-[max(0.5rem,var(--safe-bottom))] lg:pb-2',
+                desktopGlass
+                  ? 'border-t border-[var(--dg-card-border)] bg-transparent'
+                  : 'border-t border-gray-100 bg-white',
+              )}
+            >
               {!serviceMobile &&
                 tv('chatbot') &&
                 // Cap Online companion: SA mobile_features.chatbot; desktop / service Cap use tab_config only
                 (!companionFeatures || companionFeatures.chatbot) && (
                   <div className="px-3 pt-2">
                     <Suspense fallback={null}>
-                      <ChatWidget />
+                      <ChatWidget desktopGlass={desktopGlass} />
                     </Suspense>
                   </div>
                 )}
@@ -1347,8 +1359,12 @@ export default function App() {
                     className={cn(
                       'w-full flex items-center gap-2.5 px-2.5 lg:px-3 py-2 min-h-[44px] rounded-lg transition-all text-[13px]',
                       activeTab === 'settings'
-                        ? 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                        ? desktopGlass
+                          ? 'dg-nav-active font-semibold pl-[7px]'
+                          : 'bg-brand/10 text-brand font-semibold border-l-[3px] border-l-brand pl-[7px]'
+                        : desktopGlass
+                          ? 'dg-muted hover:opacity-100'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                     )}
                   >
                     <Settings size={18} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
@@ -1358,7 +1374,9 @@ export default function App() {
               )}
               {isSidebarOpen && (
                 <div className="px-3 pt-2 pb-1 text-center">
-                  <p className="text-[10px] text-gray-400">{t('common.poweredBy')}</p>
+                  <p className={cn('text-[10px]', desktopGlass ? 'dg-faint' : 'text-gray-400')}>
+                    {t('common.poweredBy')}
+                  </p>
                 </div>
               )}
             </div>
@@ -1493,11 +1511,25 @@ export default function App() {
                       key="user-menu"
                       role="menu"
                       aria-labelledby="account-menu-button"
-                      className="dg-menu-enter absolute right-0 top-full mt-2 z-50 w-52 bg-white rounded-xl border border-gray-100 shadow-xl py-1 overflow-hidden"
+                      className={cn(
+                        'dg-menu-enter absolute right-0 top-full mt-2 z-50 w-52 rounded-xl shadow-xl py-1 overflow-hidden',
+                        desktopGlass
+                          ? 'dg-glass-card border border-[var(--dg-card-border)]'
+                          : 'bg-white border border-gray-100',
+                      )}
                     >
-                      <div className="px-4 py-3 border-b border-gray-100">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{user?.name}</p>
-                        <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                      <div
+                        className={cn(
+                          'px-4 py-3 border-b',
+                          desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
+                        )}
+                      >
+                        <p className={cn('text-sm font-semibold truncate', desktopGlass ? 'dg-ink' : 'text-gray-900')}>
+                          {user?.name}
+                        </p>
+                        <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-500')}>
+                          {user?.email}
+                        </p>
                       </div>
                       <div className="py-1">
                         {canAccess('settings') && (
@@ -1507,14 +1539,22 @@ export default function App() {
                               setActiveTab('settings');
                               setUserMenuOpen(false);
                             }}
-                            className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                            className={cn(
+                              'w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm',
+                              desktopGlass ? 'dg-ink hover:bg-[var(--dg-input)]' : 'text-gray-700 hover:bg-gray-50',
+                            )}
                           >
-                            <Settings size={15} className="text-gray-400" />
+                            <Settings size={15} className={desktopGlass ? 'dg-faint' : 'text-gray-400'} />
                             {t('nav.settings')}
                           </button>
                         )}
                       </div>
-                      <div className="border-t border-gray-100 py-1">
+                      <div
+                        className={cn(
+                          'border-t py-1',
+                          desktopGlass ? 'border-[var(--dg-card-border)]' : 'border-gray-100',
+                        )}
+                      >
                         <button
                           type="button"
                           onClick={handleLogout}

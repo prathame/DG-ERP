@@ -13,7 +13,7 @@ interface Message {
   timestamp: Date;
 }
 
-export function ChatWidget() {
+export function ChatWidget({ desktopGlass = false }: { desktopGlass?: boolean }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
@@ -192,7 +192,10 @@ export function ChatWidget() {
                 : undefined
             }
             className={cn(
-              'z-[149] bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-200 text-sm font-medium text-gray-700 whitespace-nowrap',
+              'z-[149] px-4 py-2 rounded-xl shadow-lg text-sm font-medium whitespace-nowrap',
+              desktopGlass
+                ? 'bg-[var(--dg-card)] border border-[var(--dg-card-border)] dg-ink backdrop-blur-md'
+                : 'bg-white border border-gray-200 text-gray-700',
               pos ? '' : 'mt-2',
             )}
           >
@@ -201,7 +204,7 @@ export function ChatWidget() {
         )}
       </AnimatePresence>
 
-      {/* Chat window — portal to body so it escapes sidebar */}
+      {/* Chat window — portal out of sidebar; glass shell so --dg-* tokens still apply */}
       {ReactDOM.createPortal(
         <AnimatePresence>
           {open && (
@@ -209,22 +212,46 @@ export function ChatWidget() {
               initial={{ opacity: 0, y: 20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.9 }}
-              className="fixed inset-0 lg:inset-auto lg:bottom-6 lg:right-6 z-[150] lg:w-[400px] lg:h-[450px] lg:max-h-[calc(100vh-6rem)] bg-white lg:rounded-2xl shadow-2xl lg:border lg:border-gray-200 overflow-hidden flex flex-col pt-[env(safe-area-inset-top,0px)] lg:pt-0"
+              className={cn(
+                'fixed inset-0 lg:inset-auto lg:bottom-6 lg:right-6 z-[150] lg:w-[400px] lg:h-[450px] lg:max-h-[calc(100vh-6rem)] lg:rounded-2xl shadow-2xl overflow-hidden flex flex-col pt-[env(safe-area-inset-top,0px)] lg:pt-0',
+                desktopGlass
+                  ? 'bg-[var(--dg-bg)] lg:border lg:border-[var(--dg-card-border)]'
+                  : 'bg-white lg:border lg:border-gray-200',
+              )}
             >
               {/* Header */}
-              <div className="bg-[#151619] text-white px-5 py-4 flex items-center gap-3 shrink-0">
+              <div
+                className={cn(
+                  'px-5 py-4 flex items-center gap-3 shrink-0',
+                  desktopGlass
+                    ? 'bg-[var(--dg-sidebar)] border-b border-[var(--dg-card-border)] dg-ink'
+                    : 'bg-[#151619] text-white',
+                )}
+              >
                 <div className="relative">
                   <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center text-xl">🤖</div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-[#151619]" />
+                  <span
+                    className={cn(
+                      'absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2',
+                      desktopGlass ? 'border-[var(--dg-sidebar)]' : 'border-[#151619]',
+                    )}
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="font-bold">ERP Assistant</p>
-                  <p className="text-xs text-gray-400 truncate">Online — ask anything about your business</p>
+                  <p className={cn('text-xs truncate', desktopGlass ? 'dg-muted' : 'text-gray-400')}>
+                    Online — ask anything about your business
+                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="p-2.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-xl hover:bg-white/10 text-white/80 hover:text-white shrink-0"
+                  className={cn(
+                    'p-2.5 min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-xl shrink-0',
+                    desktopGlass
+                      ? 'dg-muted hover:bg-[var(--dg-input)] hover:opacity-100'
+                      : 'hover:bg-white/10 text-white/80 hover:text-white',
+                  )}
                   aria-label="Close chat"
                 >
                   <X size={20} />
@@ -232,7 +259,12 @@ export function ChatWidget() {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+              <div
+                className={cn(
+                  'flex-1 overflow-y-auto p-4 space-y-3',
+                  desktopGlass ? 'bg-[var(--dg-input)]' : 'bg-gray-50',
+                )}
+              >
                 {messages.map(msg => (
                   <motion.div
                     key={msg.id}
@@ -246,7 +278,9 @@ export function ChatWidget() {
                         'max-w-[85%] px-4 py-2.5 rounded-2xl',
                         msg.sender === 'user'
                           ? 'bg-brand text-white rounded-br-md'
-                          : 'bg-white border border-gray-200 text-gray-700 rounded-bl-md shadow-sm',
+                          : desktopGlass
+                            ? 'bg-[var(--dg-card)] border border-[var(--dg-card-border)] dg-ink rounded-bl-md shadow-sm'
+                            : 'bg-white border border-gray-200 text-gray-700 rounded-bl-md shadow-sm',
                       )}
                     >
                       {msg.sender === 'user' ? (
@@ -262,7 +296,14 @@ export function ChatWidget() {
                 ))}
                 {loading && (
                   <div className="flex justify-start">
-                    <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
+                    <div
+                      className={cn(
+                        'rounded-2xl rounded-bl-md px-4 py-3 shadow-sm border',
+                        desktopGlass
+                          ? 'bg-[var(--dg-card)] border-[var(--dg-card-border)]'
+                          : 'bg-white border-gray-200',
+                      )}
+                    >
                       <div className="flex gap-1">
                         <div
                           className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
@@ -284,7 +325,12 @@ export function ChatWidget() {
               </div>
 
               {/* Quick actions */}
-              <div className="px-3 py-2 border-t border-gray-100 flex gap-1.5 overflow-x-auto bg-white">
+              <div
+                className={cn(
+                  'px-3 py-2 border-t flex gap-1.5 overflow-x-auto',
+                  desktopGlass ? 'border-[var(--dg-card-border)] bg-[var(--dg-card)]' : 'border-gray-100 bg-white',
+                )}
+              >
                 {quickActions.map(cmd => (
                   <button
                     key={cmd}
@@ -313,7 +359,12 @@ export function ChatWidget() {
                         setLoading(false);
                       }
                     }}
-                    className="px-3 py-1 text-xs font-medium bg-gray-100 hover:bg-gray-200 rounded-full whitespace-nowrap transition-colors"
+                    className={cn(
+                      'px-3 py-1 text-xs font-medium rounded-full whitespace-nowrap transition-colors',
+                      desktopGlass
+                        ? 'bg-[var(--dg-input)] dg-muted hover:bg-[var(--dg-card-hover)]'
+                        : 'bg-gray-100 hover:bg-gray-200',
+                    )}
                   >
                     {cmd}
                   </button>
@@ -321,7 +372,12 @@ export function ChatWidget() {
               </div>
 
               {/* Input */}
-              <div className="px-3 py-3 border-t border-gray-100 bg-white flex gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] lg:pb-3">
+              <div
+                className={cn(
+                  'px-3 py-3 border-t flex gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] lg:pb-3',
+                  desktopGlass ? 'border-[var(--dg-card-border)] bg-[var(--dg-card)]' : 'border-gray-100 bg-white',
+                )}
+              >
                 <input
                   ref={inputRef}
                   type="text"
@@ -329,7 +385,10 @@ export function ChatWidget() {
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && sendMessage()}
                   placeholder="Type a vendor name, barcode, or query..."
-                  className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand focus:outline-none"
+                  className={cn(
+                    'flex-1 min-w-0 px-4 py-2.5 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand focus:outline-none',
+                    desktopGlass ? 'bg-[var(--dg-input)] dg-ink' : 'bg-gray-100',
+                  )}
                   disabled={loading}
                 />
                 <button
@@ -344,7 +403,7 @@ export function ChatWidget() {
             </motion.div>
           )}
         </AnimatePresence>,
-        document.body,
+        (desktopGlass && document.querySelector('.dg-desktop-glass')) || document.body,
       )}
     </>
   );
