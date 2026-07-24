@@ -3,7 +3,7 @@
  * Service phone keeps InventoryView’s existing list chrome.
  */
 import React from 'react';
-import { AlertTriangle, ArrowUpDown, Barcode, Package, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, ArrowUpDown, Barcode, Package, Plus, Scale, Search, Trash2, Upload } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Product } from '../../types';
 import { LoadingSpinner } from '../../components/ui';
@@ -17,6 +17,7 @@ type Props = {
   loading: boolean;
   canEdit: boolean;
   inventoryTrackingEnabled: boolean;
+  metalMode?: boolean;
   barcodeSearch: string;
   onBarcodeSearch: (v: string) => void;
   stockFilter: StockFilter;
@@ -25,6 +26,7 @@ type Props = {
   sortOrder: 'asc' | 'desc';
   onToggleSort: (field: SortKey) => void;
   onImportCsv: () => void;
+  onMetalIntake?: () => void;
   onAddProduct: () => void;
   onBarcodeDetails: (p: Product) => void;
   onAddStock: (p: Product) => void;
@@ -66,6 +68,7 @@ export function MobileInventoryPanel({
   loading,
   canEdit,
   inventoryTrackingEnabled,
+  metalMode = false,
   barcodeSearch,
   onBarcodeSearch,
   stockFilter,
@@ -74,6 +77,7 @@ export function MobileInventoryPanel({
   sortOrder,
   onToggleSort,
   onImportCsv,
+  onMetalIntake,
   onAddProduct,
   onBarcodeDetails,
   onAddStock,
@@ -120,6 +124,16 @@ export function MobileInventoryPanel({
               aria-label="Import CSV"
             >
               <Upload size={16} />
+            </button>
+          )}
+          {canEdit && metalMode && onMetalIntake && (
+            <button
+              type="button"
+              onClick={onMetalIntake}
+              className="h-9 w-9 rounded-full border border-[color-mix(in_srgb,var(--dg-primary-bright)_40%,transparent)] bg-white/80 flex items-center justify-center dg-m-bright"
+              aria-label="Metal Intake"
+            >
+              <Scale size={16} />
             </button>
           )}
           {canEdit && (
