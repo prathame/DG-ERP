@@ -18,12 +18,7 @@ import { LoadingSpinner, useToast } from '../../components/ui';
 import { cn } from '../../lib/utils';
 import { session } from '../../lib/session';
 import { TAB_PRESETS, type NamedBusinessType } from '../../../shared/tabPresets';
-import {
-  MOBILE_FEATURE_KEYS,
-  MOBILE_FEATURE_LABELS,
-  defaultMobileFeatures,
-  type MobileFeatures,
-} from '../../../shared/mobileFeatures';
+import { defaultMobileFeatures, mobileFeatureOptions, type MobileFeatures } from '../../../shared/mobileFeatures';
 
 interface Tenant {
   id: string;
@@ -470,13 +465,7 @@ function CreateTenantModal({
     subscriptionEnd: '',
     businessType: 'manufacturer' as BusinessType,
     needMobile: false,
-    mobileFeatures: {
-      stock: true,
-      sales: true,
-      quotations: true,
-      collections: true,
-      reports: true,
-    },
+    mobileFeatures: defaultMobileFeatures('manufacturer') as MobileFeatures,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -847,16 +836,20 @@ function CreateTenantModal({
             </div>
             {form.needMobile && form.businessType !== 'service' && (
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Mobile features</label>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Cap / mobile tabs</label>
+                <p className="text-[11px] text-gray-400 mb-2">
+                  Grant or deny each tab on Cap Online. Defaults follow {form.businessType.replace('_', ' ')}. Settings
+                  stays available on device.
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {MOBILE_FEATURE_KEYS.map(key => (
+                  {mobileFeatureOptions(form.businessType).map(({ key, label }) => (
                     <label
                       key={key}
                       className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm cursor-pointer hover:border-gray-300"
                     >
                       <input
                         type="checkbox"
-                        checked={form.mobileFeatures[key]}
+                        checked={Boolean(form.mobileFeatures[key])}
                         onChange={e =>
                           setForm({
                             ...form,
@@ -865,7 +858,7 @@ function CreateTenantModal({
                         }
                         className="rounded border-gray-300 text-brand focus:ring-brand"
                       />
-                      {MOBILE_FEATURE_LABELS[key]}
+                      {label}
                     </label>
                   ))}
                 </div>
