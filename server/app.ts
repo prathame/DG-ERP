@@ -60,6 +60,7 @@ import whatsappRouter from './routes/whatsapp';
 import { logger, requestContext, type RequestLogContext } from './utils/logger';
 import { logAuthEvent } from './utils/http-error';
 import { getCachedAuth, setCachedAuth } from './utils/authCache';
+import { ACTIVE_USER_SQL } from './utils/activeUsers';
 import { SESSION_REPLACED_BODY } from './utils/userSessions';
 
 const SLOW_API_MS = Number(process.env.SLOW_API_MS || 500);
@@ -351,7 +352,7 @@ export function createApp(): express.Application {
                     s.session_id AS active_session_id
              FROM users u JOIN tenants t ON t.id = u.tenant_id
              LEFT JOIN user_sessions s ON s.user_id = u.id AND s.tenant_id = u.tenant_id
-             WHERE u.id = $1 AND u.tenant_id = $2`,
+             WHERE u.id = $1 AND u.tenant_id = $2 AND u.${ACTIVE_USER_SQL}`,
             [decoded.userId, decoded.tenantId],
           );
           row = userRow.rows[0] as typeof row;
