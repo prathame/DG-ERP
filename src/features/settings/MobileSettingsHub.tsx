@@ -110,7 +110,7 @@ export function MobileSettingsSheetChrome({ title, subtitle, onClose }: SheetChr
       className={cn(
         'fixed inset-x-0 top-0 z-[45] dg-mobile-glass border-b border-[var(--dg-card-border)]',
         'px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2',
-        'bg-[color-mix(in_srgb,var(--dg-bg)_92%,white)]',
+        'bg-[var(--dg-header)] backdrop-blur-md',
       )}
     >
       <div className="flex items-start justify-between gap-3">

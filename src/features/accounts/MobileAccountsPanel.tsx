@@ -67,7 +67,7 @@ function ChipRow({
               'shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[12px] font-bold border border-solid transition-all active:scale-95',
               selected
                 ? 'dg-m-chip-active border-transparent shadow-sm'
-                : 'bg-white/80 dg-m-muted border-[var(--dg-card-border)]',
+                : 'dg-m-surface dg-m-muted border-[var(--dg-card-border)]',
             )}
           >
             <Icon size={16} aria-hidden />
@@ -106,7 +106,7 @@ export function MobileAccountsPanel({
 }: Props) {
   const fieldLabel = 'text-[10px] font-bold dg-m-faint uppercase tracking-wider block mb-1';
   const fieldInput =
-    'w-full h-10 bg-white/80 border border-[var(--dg-card-border)] rounded-xl px-3 text-sm dg-m-ink focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]';
+    'w-full h-10 dg-m-surface border border-[var(--dg-card-border)] rounded-xl px-3 text-sm dg-m-ink focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]';
 
   return (
     <div className="dg-mobile-glass space-y-4 -mx-3 px-3 pb-2 min-h-full">
@@ -122,7 +122,7 @@ export function MobileAccountsPanel({
                 type="button"
                 onClick={onExport}
                 disabled={!canExport}
-                className="h-9 px-3 rounded-full border border-[var(--dg-card-border)] bg-white/80 text-[11px] font-bold dg-m-ink inline-flex items-center gap-1 disabled:opacity-40"
+                className="h-9 px-3 rounded-full border border-[var(--dg-card-border)] dg-m-surface text-[11px] font-bold dg-m-ink inline-flex items-center gap-1 disabled:opacity-40"
               >
                 <Download size={14} /> CSV
               </button>
@@ -131,7 +131,7 @@ export function MobileAccountsPanel({
               <button
                 type="button"
                 onClick={onPrint}
-                className="h-9 px-3 rounded-full border border-[var(--dg-card-border)] bg-white/80 text-[11px] font-bold dg-m-muted"
+                className="h-9 px-3 rounded-full border border-[var(--dg-card-border)] dg-m-surface text-[11px] font-bold dg-m-muted"
               >
                 Print
               </button>

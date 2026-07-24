@@ -62,7 +62,7 @@ export function MobileMastersHub({ masters, onOpen, subtitle }: Props) {
           value={q}
           onChange={e => setQ(e.target.value)}
           placeholder="Search modules…"
-          className="w-full h-10 pl-9 pr-3 rounded-xl bg-white/80 border border-[var(--dg-card-border)] text-sm dg-m-ink placeholder:text-[var(--dg-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]"
+          className="w-full h-10 pl-9 pr-3 rounded-xl dg-m-surface border border-[var(--dg-card-border)] text-sm dg-m-ink placeholder:text-[var(--dg-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]"
         />
       </div>
 

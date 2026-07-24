@@ -865,37 +865,124 @@ html.dark .dg-desktop-glass textarea {
   --dg-error: #d50000;
   --dg-bg: #f7f9fb;
   --dg-card: rgba(255, 255, 255, 0.82);
+  --dg-card-hover: rgba(255, 255, 255, 0.92);
   --dg-card-border: rgba(25, 28, 30, 0.08);
   --dg-ink: #191c1e;
   --dg-muted: #565e74;
   --dg-faint: rgba(25, 28, 30, 0.22);
   --dg-input: #eceef0;
+  --dg-header: rgba(247, 249, 251, 0.92);
   --dg-shadow: 0 8px 28px rgba(25, 28, 30, 0.08);
   --dg-font-family: Geist, Inter, ui-sans-serif, system-ui, sans-serif;
   font-family: var(--dg-font-family);
   color: var(--dg-ink);
   background-color: var(--dg-bg);
+  color-scheme: light;
 }
+
+/*
+ * Cap glass dark — cool charcoal (match .dg-desktop-glass), not warm brown / slate leftovers.
+ * Beats global html.dark * { color } and bg-white → #1F2937 remaps.
+ */
+html.dark .dg-mobile-glass {
+  --dg-primary: #ffb074;
+  --dg-primary-bright: #ff7a00;
+  --dg-success: #00c853;
+  --dg-error: #ff6b6b;
+  --dg-bg: #0f1113;
+  --dg-card: rgba(255, 255, 255, 0.06);
+  --dg-card-hover: rgba(255, 255, 255, 0.1);
+  --dg-card-border: rgba(255, 255, 255, 0.1);
+  --dg-ink: #fdfdfd;
+  --dg-muted: rgba(255, 255, 255, 0.55);
+  --dg-faint: rgba(255, 255, 255, 0.28);
+  --dg-input: rgba(255, 255, 255, 0.08);
+  --dg-header: rgba(15, 17, 19, 0.92);
+  --dg-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  background-color: var(--dg-bg) !important;
+  color: var(--dg-ink) !important;
+  color-scheme: dark;
+}
+
 .dg-mobile-glass .dg-m-glass-card {
-  background: var(--dg-card);
+  background: var(--dg-card) !important;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border: 1px solid var(--dg-card-border);
+  border: 1px solid var(--dg-card-border) !important;
   box-shadow: var(--dg-shadow);
-  color: var(--dg-ink);
+  color: var(--dg-ink) !important;
 }
-.dg-mobile-glass .dg-m-ink { color: var(--dg-ink); }
-.dg-mobile-glass .dg-m-muted { color: var(--dg-muted); }
-.dg-mobile-glass .dg-m-faint { color: var(--dg-faint); }
-.dg-mobile-glass .dg-m-primary { color: var(--dg-primary); }
-.dg-mobile-glass .dg-m-bright { color: var(--dg-primary-bright); }
-.dg-mobile-glass .dg-m-success { color: var(--dg-success); }
-.dg-mobile-glass .dg-m-error { color: var(--dg-error); }
+.dg-mobile-glass .dg-m-ink { color: var(--dg-ink) !important; }
+.dg-mobile-glass .dg-m-muted { color: var(--dg-muted) !important; }
+.dg-mobile-glass .dg-m-faint { color: var(--dg-faint) !important; }
+.dg-mobile-glass .dg-m-primary { color: var(--dg-primary) !important; }
+.dg-mobile-glass .dg-m-bright { color: var(--dg-primary-bright) !important; }
+.dg-mobile-glass .dg-m-success { color: var(--dg-success) !important; }
+.dg-mobile-glass .dg-m-error { color: var(--dg-error) !important; }
 .dg-mobile-glass .dg-m-bg-primary {
-  background: var(--dg-primary-bright);
-  color: #fff;
+  background: var(--dg-primary-bright) !important;
+  color: #fff !important;
 }
 .dg-mobile-glass .dg-m-chip-active {
-  background: var(--dg-primary-bright);
-  color: #fff;
+  background: var(--dg-primary-bright) !important;
+  color: #fff !important;
+}
+/* Surface for chips / icon buttons / fields (replaces hardcoded bg-white/70) */
+.dg-mobile-glass .dg-m-surface {
+  background: var(--dg-card) !important;
+  border-color: var(--dg-card-border) !important;
+  color: inherit;
+}
+.dg-mobile-glass .dg-m-surface-muted {
+  background: var(--dg-input) !important;
+  border-color: var(--dg-card-border) !important;
+}
+
+html.dark .dg-mobile-glass .bg-white,
+html.dark .dg-mobile-glass [class*="bg-white"] {
+  background-color: var(--dg-card) !important;
+}
+html.dark .dg-mobile-glass .bg-white\/90,
+html.dark .dg-mobile-glass .bg-white\/80,
+html.dark .dg-mobile-glass .bg-white\/70,
+html.dark .dg-mobile-glass .bg-white\/60,
+html.dark .dg-mobile-glass .bg-white\/95 {
+  background-color: var(--dg-card) !important;
+}
+html.dark .dg-mobile-glass .bg-gray-50,
+html.dark .dg-mobile-glass .bg-gray-50\/50,
+html.dark .dg-mobile-glass .bg-gray-100 {
+  background-color: var(--dg-input) !important;
+}
+html.dark .dg-mobile-glass .border-gray-100,
+html.dark .dg-mobile-glass .border-gray-200,
+html.dark .dg-mobile-glass .border-gray-50,
+html.dark .dg-mobile-glass [class*="border-gray"] {
+  border-color: var(--dg-card-border) !important;
+}
+html.dark .dg-mobile-glass .hover\:bg-gray-50:hover,
+html.dark .dg-mobile-glass .hover\:bg-gray-100:hover {
+  background-color: var(--dg-card-hover) !important;
+}
+html.dark .dg-mobile-glass input,
+html.dark .dg-mobile-glass select,
+html.dark .dg-mobile-glass textarea {
+  background-color: var(--dg-input) !important;
+  color: var(--dg-ink) !important;
+  border-color: var(--dg-card-border) !important;
+}
+/* Bottom nav / sticky chrome when shell is Cap glass */
+html.dark .dg-mobile-glass nav.app-bottom-nav,
+html.dark .dg-mobile-glass .app-bottom-nav {
+  background-color: var(--dg-header) !important;
+  border-color: var(--dg-card-border) !important;
+}
+html.dark .dg-mobile-glass header.app-header-safe,
+html.dark .dg-mobile-glass .app-header-safe {
+  background-color: var(--dg-header) !important;
+  border-color: var(--dg-card-border) !important;
+}
+html.dark .dg-mobile-glass aside {
+  background-color: var(--dg-bg) !important;
+  border-color: var(--dg-card-border) !important;
 }

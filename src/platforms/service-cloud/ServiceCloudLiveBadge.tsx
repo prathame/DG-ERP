@@ -103,7 +103,7 @@ export function ServiceCloudConfigRefresh({ userId, onConfigRefreshed, appearanc
         disabled={refreshing || !online}
         className={cn(
           'flex items-center justify-center w-8 h-8 rounded-lg',
-          'text-gray-500 hover:bg-gray-100 hover:text-[var(--dg-primary,#994700)]',
+          'text-[var(--dg-muted,#6b7280)] hover:bg-[var(--dg-input,#f3f4f6)] hover:text-[var(--dg-primary-bright,#ff7a00)]',
           'disabled:opacity-40 active:scale-95 transition-all',
           className,
         )}
@@ -166,7 +166,7 @@ export function ServiceCloudLiveBadge({
         className={cn(
           'flex items-center gap-1 px-2 py-0.5 rounded-full border shrink-0',
           'bg-[var(--dg-input,#f3f4f6)] border-[var(--dg-card-border,rgba(0,0,0,0.08))]',
-          online ? 'text-gray-600' : 'text-rose-700',
+          online ? 'text-[var(--dg-muted,#565e74)]' : 'text-rose-700',
         )}
         title={online ? 'Live · Online' : 'No internet'}
         aria-live="polite"

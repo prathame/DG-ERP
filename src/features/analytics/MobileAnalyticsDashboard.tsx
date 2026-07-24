@@ -124,7 +124,7 @@ export function MobileAnalyticsDashboard({
               'dg-pill-tab shrink-0 h-8 px-3 rounded-full text-[11px] font-bold border border-solid transition-colors',
               range === r.id
                 ? 'dg-m-chip-active border-transparent'
-                : 'bg-white/70 dg-m-muted border-[var(--dg-card-border)]',
+                : 'dg-m-surface dg-m-muted border-[var(--dg-card-border)]',
             )}
           >
             {r.label}

@@ -80,7 +80,7 @@ export function MobileVendorFinance({
           value={finSearch}
           onChange={e => onFinSearch(e.target.value)}
           placeholder="Search dealers…"
-          className="w-full h-10 pl-9 pr-3 rounded-xl bg-white/80 border border-[var(--dg-card-border)] text-sm dg-m-ink focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]"
+          className="w-full h-10 pl-9 pr-3 rounded-xl dg-m-surface border border-[var(--dg-card-border)] text-sm dg-m-ink focus:outline-none focus:ring-2 focus:ring-[var(--dg-primary-bright)]"
         />
       </div>
 
@@ -94,7 +94,7 @@ export function MobileVendorFinance({
               'dg-pill-tab shrink-0 h-8 px-3 rounded-full text-[11px] font-bold border border-solid',
               chip === c.id
                 ? 'dg-m-chip-active border-transparent'
-                : 'bg-white/70 dg-m-muted border-[var(--dg-card-border)]',
+                : 'dg-m-surface dg-m-muted border-[var(--dg-card-border)]',
             )}
           >
             {c.label}
@@ -190,7 +190,7 @@ export function MobileVendorFinance({
                       }
                       className={cn(
                         'h-9 w-9 rounded-full flex items-center justify-center shrink-0 border border-[var(--dg-card-border)]',
-                        gate.ok ? 'dg-m-success bg-white' : 'dg-m-faint bg-[var(--dg-input)] opacity-50',
+                        gate.ok ? 'dg-m-success dg-m-surface' : 'dg-m-faint bg-[var(--dg-input)] opacity-50',
                       )}
                     >
                       <MessageCircle size={16} />
@@ -208,7 +208,7 @@ export function MobileVendorFinance({
                   <button
                     type="button"
                     onClick={() => onDetails(v.vendorId)}
-                    className="h-9 px-3 rounded-full text-[11px] font-bold border border-[var(--dg-card-border)] dg-m-ink bg-white/70 ml-auto"
+                    className="h-9 px-3 rounded-full text-[11px] font-bold border border-[var(--dg-card-border)] dg-m-ink dg-m-surface ml-auto"
                   >
                     DETAILS
                   </button>

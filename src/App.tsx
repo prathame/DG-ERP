@@ -1196,7 +1196,7 @@ export default function App() {
         <div
           className={cn(
             'app-shell flex h-[100dvh] max-h-[100dvh] font-sans overflow-hidden',
-            desktopGlass ? 'dg-desktop-glass' : 'bg-[#F8F9FA] text-[#1A1A1A]',
+            desktopGlass ? 'dg-desktop-glass' : capGlassHeader ? 'dg-mobile-glass' : 'bg-[#F8F9FA] text-[#1A1A1A]',
           )}
         >
           {/* Mobile sidebar backdrop */}
@@ -1213,7 +1213,9 @@ export default function App() {
               'transition-transform duration-300 flex flex-col z-50',
               desktopGlass
                 ? 'dg-glass-sidebar shadow-none'
-                : 'bg-white border-r border-gray-200 shadow-xl lg:shadow-none',
+                : capGlassHeader
+                  ? 'bg-[var(--dg-header)] border-r border-[var(--dg-card-border)] shadow-xl lg:shadow-none'
+                  : 'bg-white border-r border-gray-200 shadow-xl lg:shadow-none',
               'fixed lg:relative inset-y-0 left-0 h-[100dvh] max-h-[100dvh]',
               isSidebarOpen ? 'w-[min(70vw,15rem)] translate-x-0 lg:w-64' : 'w-16 -translate-x-full lg:translate-x-0',
             )}
@@ -1435,7 +1437,7 @@ export default function App() {
                 desktopGlass
                   ? 'dg-glass-header'
                   : capGlassHeader
-                    ? 'dg-mobile-glass border-b border-[var(--dg-card-border)] bg-[color-mix(in_srgb,var(--dg-bg)_92%,white)]'
+                    ? 'border-b border-[var(--dg-card-border)] bg-[var(--dg-header)] backdrop-blur-md'
                     : 'bg-white/90 backdrop-blur-md border-b border-gray-100',
               )}
             >
@@ -1714,7 +1716,12 @@ export default function App() {
           </main>
           {/* Mobile bottom nav — primary destinations + More drawer */}
           <nav
-            className="app-bottom-nav fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 lg:hidden safe-bottom shadow-[0_-2px_16px_rgba(0,0,0,0.05)]"
+            className={cn(
+              'app-bottom-nav fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t lg:hidden safe-bottom',
+              capGlassHeader
+                ? 'bg-[var(--dg-header)] border-[var(--dg-card-border)] shadow-[0_-2px_16px_rgba(0,0,0,0.2)]'
+                : 'bg-white/95 border-gray-200 shadow-[0_-2px_16px_rgba(0,0,0,0.05)]',
+            )}
             aria-label="Primary"
           >
             <div className="flex items-stretch justify-around px-0.5 pt-0.5 pb-0">
