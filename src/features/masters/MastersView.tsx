@@ -18,12 +18,14 @@ import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { api } from '../../api';
 import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
+import { isMobileAppShell } from '../../lib/mobileAppShell';
 import { isGstBillingEnabled } from '../../lib/billSettingsFlags';
 import { useTranslation } from '../../i18n';
 import type { Tab, Vendor, Customer, Bank, Product } from '../../types';
 import { LoadingSpinner, MobilePillTabs, MobileListRow, MobileFab, MobileEmptyState } from '../../components/ui';
 import { useEscapeKey } from '../../lib/useEscapeKey';
 import { DesktopMastersHub } from './DesktopMastersHub';
+import { MobileMastersHub } from './MobileMastersHub';
 
 const CustomerMasterView = lazy(() => import('./CustomerMasterView').then(m => ({ default: m.CustomerMasterView })));
 const VendorMasterView = lazy(() => import('./VendorMasterView').then(m => ({ default: m.VendorMasterView })));
@@ -70,6 +72,8 @@ export function MastersView({
   const cfg = useBusinessConfig();
   const servicePhoneUx = isServicePhoneUx(businessType ?? cfg.type);
   const desktopGlass = isDesktopGlassUi(businessType ?? cfg.type);
+  /** Cap non-service tile hub — service keeps pill+list */
+  const capMobileHub = isMobileAppShell() && !servicePhoneUx;
   /** Short pill labels for phone hub (Emergent-style). Vendor/Client uses `m.name` from cfg.labels.vendors. */
   const pillLabel = (id: MasterType): string => {
     const map: Partial<Record<MasterType, string>> = {
@@ -454,6 +458,45 @@ export function MastersView({
     return (
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         <DesktopMastersHub masters={masters} onOpen={handleMasterClick} />
+      </motion.div>
+    );
+  }
+
+  if (capMobileHub) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+        <MobileMastersHub masters={masters} onOpen={handleMasterClick} subtitle={t('masters.catalogPartners')} />
+        {/* Tablet/desktop cards when Cap web is wide */}
+        <div className="hidden sm:grid grid-cols-1 md:grid-cols-2 gap-6">
+          {masters.map(m => {
+            const Icon = m.icon;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => handleMasterClick(m.id)}
+                className="w-full text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className={cn('p-4 rounded-2xl transition-transform group-hover:scale-110 shrink-0', m.bg)}>
+                      {Icon ? <Icon className={m.color} size={22} /> : null}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-lg truncate">{m.name}</h3>
+                      <p className="text-sm text-gray-500 truncate">
+                        {typeof m.count === 'number' ? `${m.count} records found` : 'View & manage mapping'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-brand group-hover:text-white transition-colors shrink-0">
+                    <Plus size={18} />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </motion.div>
     );
   }

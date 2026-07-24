@@ -27,8 +27,11 @@ import { useColumnPicker, ColumnPickerButton } from '../../components/ui/ColumnP
 import { useConfirm } from '../../hooks/useConfirm';
 import { useBusinessConfig } from '../../lib/businessTypeConfig';
 import { isDesktopGlassUi } from '../../lib/desktopGlass';
+import { isMobileAppShell } from '../../lib/mobileAppShell';
+import { isServicePhoneUx } from '../../platforms/service-cloud/mode';
 import { MetalIntakeModal } from './MetalIntakeModal';
 import { DesktopInventoryPanel, type StockFilter } from './DesktopInventoryPanel';
+import { MobileInventoryPanel } from './MobileInventoryPanel';
 
 export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden' | 'view' | 'print' | 'full' } = {}) {
   const canEdit = accessLevel === 'full';
@@ -37,6 +40,8 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
   const { confirm, ConfirmRenderer } = useConfirm();
   const bizCfg = useBusinessConfig();
   const desktopGlass = isDesktopGlassUi(bizCfg.type);
+  /** Cap non-service immersive inventory — leave service phone layout alone */
+  const capMobileGlass = isMobileAppShell() && !isServicePhoneUx(bizCfg.type);
   const metalMode = bizCfg.features.metalInventory;
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [metalIntakeOpen, setMetalIntakeOpen] = useState(false);
@@ -247,6 +252,35 @@ export function InventoryView({ accessLevel = 'full' }: { accessLevel?: 'hidden'
           onDeleteAll={deleteAllInventory}
           onImportCsv={() => setCsvImportOpen(true)}
           onMetalIntake={() => setMetalIntakeOpen(true)}
+          onAddProduct={() => setAddModalOpen(true)}
+          onBarcodeDetails={p =>
+            api.products
+              .barcodeDetails(p.id)
+              .then(batches => setBarcodeDetailsModal({ product: p, batches }))
+              .catch(() => setBarcodeDetailsModal({ product: p, batches: [] }))
+          }
+          onAddStock={p => {
+            setAddStockModal(p);
+            setAddStockForm({ quantity: 10, packs: 0, loosePieces: 0, barcodePerBox: true });
+          }}
+          onDelete={setProductToDelete}
+          onToggleGst={toggleGstInclusive}
+        />
+      ) : capMobileGlass ? (
+        <MobileInventoryPanel
+          title={getTabLabel('inventory', 'Inventory Management')}
+          products={sortedProducts}
+          loading={loading}
+          canEdit={canEdit}
+          inventoryTrackingEnabled={inventoryTrackingEnabled}
+          barcodeSearch={barcodeSearch}
+          onBarcodeSearch={setBarcodeSearch}
+          stockFilter={stockFilter}
+          onStockFilter={setStockFilter}
+          sortBy={sortBy === 'price' || sortBy === 'stock' ? sortBy : 'name'}
+          sortOrder={sortOrder}
+          onToggleSort={field => toggleSort(field)}
+          onImportCsv={() => setCsvImportOpen(true)}
           onAddProduct={() => setAddModalOpen(true)}
           onBarcodeDetails={p =>
             api.products
