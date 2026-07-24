@@ -401,6 +401,9 @@ router.post('/api/service-cloud/claim-device', authMiddleware, publicLimiter, as
       });
     }
 
+    const kind = client === 'desktop' ? 'desktop' : 'mobile';
+    const deviceLabel = label ? String(label).slice(0, 120) : null;
+
     // Already bound to this user?
     const existing = (
       await pool.query(
@@ -410,14 +413,58 @@ router.post('/api/service-cloud/claim-device', authMiddleware, publicLimiter, as
       )
     ).rows[0] as Record<string, unknown> | undefined;
     if (existing) {
-      if (existing.user_id !== user.userId) {
-        return res.status(403).json({ error: 'Device bound to another user' });
+      if (existing.user_id === user.userId) {
+        await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1`, [existing.id]);
+        return res.json({ ok: true, slotId: existing.id, deviceKind: existing.device_kind, alreadyBound: true });
       }
-      await pool.query(`UPDATE service_cloud_device_slots SET last_seen=NOW() WHERE id=$1`, [existing.id]);
-      return res.json({ ok: true, slotId: existing.id, deviceKind: existing.device_kind, alreadyBound: true });
+      // Same install, different user (e.g. Test then Raju on one Electron): transfer the machine
+      // binding if the new user has a free slot of this kind. Unique (tenant, machine_id) requires
+      // clearing the prior bind first.
+      const freeForTransfer = (
+        await pool.query(
+          `SELECT id FROM service_cloud_device_slots
+           WHERE tenant_id=$1 AND user_id=$2 AND device_kind=$3 AND machine_id IS NULL
+           ORDER BY created_at LIMIT 1`,
+          [user.tenantId, user.userId, kind],
+        )
+      ).rows[0] as { id: string } | undefined;
+      if (!freeForTransfer) {
+        return res.status(403).json({
+          error: `Device bound to another user and you have no free ${kind} slots. Unbind in Super Admin or free a seat.`,
+        });
+      }
+      await pool.query(
+        `UPDATE service_cloud_device_slots
+         SET machine_id=NULL, bound_at=NULL, last_seen=NULL, label=NULL
+         WHERE id=$1 AND tenant_id=$2 AND machine_id=$3`,
+        [existing.id, user.tenantId, machineId],
+      );
+      // Drop company session held on this machine (service lock) so the new user can acquire
+      await pool.query(`DELETE FROM service_cloud_sessions WHERE tenant_id=$1 AND machine_id=$2`, [
+        user.tenantId,
+        machineId,
+      ]);
+      const transferred = await pool.query(
+        `UPDATE service_cloud_device_slots
+         SET machine_id=$1, bound_at=NOW(), last_seen=NOW(), label=$2
+         WHERE id=$3 AND tenant_id=$4 AND user_id=$5 AND machine_id IS NULL
+         RETURNING id`,
+        [machineId, deviceLabel, freeForTransfer.id, user.tenantId, user.userId],
+      );
+      if (!transferred.rows[0]) {
+        return res.status(409).json({
+          error: 'Device slot was claimed by another request. Retry or free a slot.',
+        });
+      }
+      return res.json({
+        ok: true,
+        slotId: freeForTransfer.id,
+        deviceKind: kind,
+        alreadyBound: false,
+        transferred: true,
+      });
     }
 
-    const kind = client === 'desktop' ? 'desktop' : 'mobile';
     const free = (
       await pool.query(
         `SELECT id FROM service_cloud_device_slots
@@ -437,7 +484,7 @@ router.post('/api/service-cloud/claim-device', authMiddleware, publicLimiter, as
        SET machine_id=$1, bound_at=NOW(), last_seen=NOW(), label=$2
        WHERE id=$3 AND tenant_id=$4 AND user_id=$5 AND machine_id IS NULL
        RETURNING id`,
-      [machineId, label ? String(label).slice(0, 120) : null, free.id, user.tenantId, user.userId],
+      [machineId, deviceLabel, free.id, user.tenantId, user.userId],
     );
     if (!claimed.rows[0]) {
       return res.status(409).json({

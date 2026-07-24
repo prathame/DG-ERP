@@ -173,6 +173,28 @@ router.post('/api/admin/users', async (req, res) => {
       ],
     );
 
+    // Cloud Cap / Electron: Settings → Users create does not go through seats panel.
+    // Seed unbound slots from tenant access mode so new admins can claim-device on login.
+    const accessMode = (await pool.query(`SELECT client_access_mode FROM tenants WHERE id = $1`, [tenantId]))
+      .rows[0] as { client_access_mode: string | null } | undefined;
+    const mode = accessMode?.client_access_mode;
+    if (mode === 'mobile' || mode === 'both' || mode === 'desktop') {
+      if (mode === 'mobile' || mode === 'both') {
+        await pool.query(
+          `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
+           VALUES ($1,$2,$3,'mobile')`,
+          [uid('SCS'), tenantId, id],
+        );
+      }
+      if (mode === 'desktop' || mode === 'both') {
+        await pool.query(
+          `INSERT INTO service_cloud_device_slots (id, tenant_id, user_id, device_kind)
+           VALUES ($1,$2,$3,'desktop')`,
+          [uid('SCS'), tenantId, id],
+        );
+      }
+    }
+
     const row = (
       await pool.query(
         'SELECT id, email, name, phone, address, role, company_name, permissions, vendor_id FROM users WHERE id = $1 AND tenant_id = $2',
