@@ -26,4 +26,20 @@ describe('CORS for Capacitor (Offline Mobile)', () => {
     });
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
+
+  it('preflight allows Idempotency-Key for Cap payment POSTs', async () => {
+    const origin = 'https://localhost';
+    const res = await api()
+      .options('/api/vendor-finance/v1/payments')
+      .set('Origin', origin)
+      .set('Access-Control-Request-Method', 'POST')
+      .set(
+        'Access-Control-Request-Headers',
+        'content-type,authorization,x-tenant-id,x-correlation-id,x-dg-client,idempotency-key',
+      );
+    expect(res.status).toBe(200);
+    expect(res.headers['access-control-allow-origin']).toBe(origin);
+    const allow = String(res.headers['access-control-allow-headers'] || '').toLowerCase();
+    expect(allow).toContain('idempotency-key');
+  });
 });

@@ -220,10 +220,11 @@ export function createApp(): express.Application {
     }
     // Never reflect * — unlisted origins get no Allow-Origin header
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    // Cap / Electron send X-DG-Client — must be listed or WebView preflight fails with Failed to fetch
+    // Cap / Electron custom headers must be listed or WebView preflight fails with Failed to fetch
+    // (vendor/invoice recordPayment sends Idempotency-Key; body.idempotencyKey is fallback only)
     res.header(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, X-Tenant-ID, X-Correlation-ID, X-DG-Client',
+      'Content-Type, Authorization, X-Tenant-ID, X-Correlation-ID, X-DG-Client, Idempotency-Key',
     );
     res.header('Access-Control-Allow-Credentials', 'true');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
