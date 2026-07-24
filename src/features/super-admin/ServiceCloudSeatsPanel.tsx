@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Smartphone, Monitor, Plus, Unlink, RefreshCw, KeyRound, Bell, Copy, Check } from 'lucide-react';
+import { Smartphone, Monitor, Plus, Unlink, RefreshCw, KeyRound, Bell, Copy, Check, Trash2 } from 'lucide-react';
 import { session } from '../../lib/session';
 import { useToast } from '../../components/ui';
 import { cn } from '../../lib/utils';
@@ -301,6 +301,27 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
     }
   };
 
+  const deleteUser = async (u: SeatUser) => {
+    if (
+      !confirm(`Delete ${u.name}? They will be anonymized and cannot log in. Device slots for this user are removed.`)
+    )
+      return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/super-admin/tenants/${tenantId}/service-cloud/users/${u.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      toast('User deleted', 'success');
+      load();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading && !data) {
     return (
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
@@ -521,6 +542,14 @@ export function ServiceCloudSeatsPanel({ tenantId }: Props) {
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-100"
                     >
                       <Bell size={12} /> Notify
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void deleteUser(u)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-100"
+                    >
+                      <Trash2 size={12} /> Delete
                     </button>
                   </div>
                 </div>

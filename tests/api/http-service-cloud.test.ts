@@ -436,4 +436,49 @@ describe('HTTP: service-cloud seats', () => {
     const bound = alice!.devices.filter(d => !!d.machineId).length;
     expect(unbound + bound).toBe(alice!.devices.length);
   });
+
+  it('SA soft-deletes seat user and blocks deleting last admin', async () => {
+    const tid = 'T-SC-DEL';
+    const adminId = 'U-SC-DEL-A';
+    const staffId = 'U-SC-DEL-B';
+    await cleanupTestData(tid);
+    const hash = bcrypt.hashSync('password12', 4);
+    await pool.query(
+      `INSERT INTO tenants (id, company_name, slug, status, business_type, admin_email, admin_name, client_access_mode)
+       VALUES ($1, 'Del Co', 'sc-del', 'active', 'manufacturer', 'a@del.test', 'Admin', 'both')`,
+      [tid],
+    );
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password_hash, name, role)
+       VALUES ($1,$2,'a@del.test',$3,'Admin','Admin'), ($4,$2,'b@del.test',$3,'Staff','Staff')`,
+      [adminId, tid, hash, staffId],
+    );
+    await api()
+      .put(`/api/super-admin/tenants/${tid}/service-cloud/users/${staffId}`)
+      .set({ Authorization: `Bearer ${saToken()}` })
+      .send({ mobileSlots: 1, desktopSlots: 0 });
+
+    const deleted = await api()
+      .delete(`/api/super-admin/tenants/${tid}/service-cloud/users/${staffId}`)
+      .set({ Authorization: `Bearer ${saToken()}` });
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.ok).toBe(true);
+    const remaining = deleted.body.users as { id: string }[];
+    expect(remaining.find(u => u.id === staffId)).toBeUndefined();
+    expect(remaining.find(u => u.id === adminId)).toBeTruthy();
+
+    const slots = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM service_cloud_device_slots WHERE tenant_id=$1 AND user_id=$2`,
+      [tid, staffId],
+    );
+    expect(slots.rows[0].c).toBe(0);
+
+    const lastAdmin = await api()
+      .delete(`/api/super-admin/tenants/${tid}/service-cloud/users/${adminId}`)
+      .set({ Authorization: `Bearer ${saToken()}` });
+    expect(lastAdmin.status).toBe(400);
+    expect(lastAdmin.body.error).toMatch(/last admin/i);
+
+    await cleanupTestData(tid);
+  });
 });
